@@ -17,6 +17,12 @@
     <!-- Responsive datatable examples -->
     <link href="{{ asset('dastone/plugins/datatables/responsive.bootstrap4.min.css') }}" rel="stylesheet" type="text/css" />
 
+    <!-- Forms -->
+    <link href="{{ asset('dastone/plugins/select2/select2.min.css')}}" rel="stylesheet" type="text/css" />
+    {{-- <link href="{{ asset('dastone/plugins/air-datepicker/air-datepicker.min.css')}}" rel="stylesheet" type="text/css" /> --}}
+    <link href="{{ asset('dastone/plugins/flatpickr/flatpickr.min.css')}}" rel="stylesheet" type="text/css" />
+    <!--Form Wizard-->
+    <link rel="stylesheet" href="{{ asset('dastone//plugins/jquery-steps/jquery.steps.css')}}">
     <!-- App CSS -->
     <link href="{{ asset('dastone/default/assets/css/bootstrap.min.css') }}" rel="stylesheet" type="text/css" />
     <link href="{{ asset('dastone/default/assets/css/icons.min.css')}}" rel="stylesheet" type="text/css" />
@@ -24,9 +30,11 @@
     <link href="{{ asset('dastone/default/assets/css/metisMenu.min.css')}}" rel="stylesheet" type="text/css" />
     <link href="{{ asset('dastone/plugins/daterangepicker/daterangepicker.css')}}" rel="stylesheet" type="text/css" />
 
+
+
 </head>
 
-<body class="account-body accountbg">
+<body>
     @include('layouts.erm.navbar')
     <div class="page-wrapper">
         @include('layouts.erm.topbar')
@@ -45,6 +53,12 @@
     <script src="{{ asset('dastone/default/assets/js/simplebar.min.js')}}"></script>
     <script src="{{ asset('dastone/default/assets/js/moment.js')}}"></script>
     <script src="{{ asset('dastone/plugins/daterangepicker/daterangepicker.js')}}"></script>
+    <script src="{{ asset('dastone/plugins/select2/select2.min.js')}}"></script>
+    <script src="{{ asset('dastone/plugins/air-datepicker/air-datepicker.min.js')}}"></script>
+    <script src="{{ asset('dastone/plugins/flatpickr/flatpickr.min.js')}}"></script>
+    <script src="{{ asset('dastone/plugins/timepicker/bootstrap-material-datetimepicker.js')}}"></script>
+    <script src="{{ asset('dastone/plugins/jquery-steps/jquery.steps.min.js')}}"></script>
+    <script src="{{ asset('dastone/assets/pages/jquery.form-wizard.init.js')}}"></script>
 
     <!-- DataTables JS -->
     <!-- Required datatable js -->

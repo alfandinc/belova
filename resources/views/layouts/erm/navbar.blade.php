@@ -1,5 +1,5 @@
         <!-- Left Sidenav -->
-        <div class="left-sidenav">
+        <div class="left-sidenav ">
             <!-- LOGO -->
             <div class="brand">
                 <a href="/" class="logo">
@@ -15,16 +15,16 @@
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="index.html"><i class="ti-control-record"></i>Analytics</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm"><i class="ti-control-record"></i>Analytics</a></li>
                         </ul>
                     </li>
     
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Manajemen Pasien</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Pendaftaran Pasien</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/erm/pasiens"><i class="ti-control-record"></i>List Pasien</a></li>
-
                             <li class="nav-item"><a class="nav-link" href="/erm/pasiens/create"><i class="ti-control-record"></i>Add Pasien Baru</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm/visitations"><i class="ti-control-record"></i>Daftarkan Kunjungan</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm/pasiens"><i class="ti-control-record"></i>Manajemen Pasien</a></li>
 
                         </ul>
                     </li>
@@ -32,11 +32,11 @@
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Rawat Jalan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="auth-login.html"><i class="ti-control-record"></i>Daftar Rawat Jalan</a></li>
-                            <li class="nav-item"><a class="nav-link" href="auth-login.html"><i class="ti-control-record"></i>Antrian Pasien</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm/rawatjalans"><i class="ti-control-record"></i>Daftar Rawat Jalan</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm/rawatjalan/antrian"><i class="ti-control-record"></i>Antrian Pasien</a></li>
                         </ul>
                     </li> 
-                    <li>
+                    {{-- <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Rawat Inap</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="auth-login.html"><i class="ti-control-record"></i>Daftar Rawat Inap</a></li>
@@ -46,14 +46,14 @@
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Resume Medis</span></a>
                         
-                    </li> 
-                    <li>
+                    </li>  --}}
+                    {{-- <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Laboratorium</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="auth-login.html"><i class="ti-control-record"></i>Daftar Lab</a></li>
                             <li class="nav-item"><a class="nav-link" href="auth-login.html"><i class="ti-control-record"></i>Dokumen Lab</a></li>
                         </ul>
-                    </li> 
+                    </li>  --}}
     
                     <hr class="hr-dashed hr-menu">
                     <li class="menu-label my-2">Lain-Lain</li>

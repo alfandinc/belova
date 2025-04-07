@@ -1,15 +1,14 @@
 @extends('layouts.erm.app')
-@section('title', 'ERM | Tambah Pasien')
-
+@section('title', 'Asesmen Medis')
 @section('content')
 <style>
     /* Sembunyikan form wizard sebelum siap */
-    #pasien-form {
+    #asesmen-form {
         visibility: hidden;
     }
 
     /* Tampilkan setelah wizard di-init */
-    #pasien-form.wizard-initialized {
+    #asesmen-form.wizard-initialized {
         visibility: visible;
     }
 
@@ -27,8 +26,7 @@
                     <div class="col">
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
-                            <li class="breadcrumb-item active">Pasien</li>
-                            <li class="breadcrumb-item active">Tambah</li>
+                            <li class="breadcrumb-item active">Asesmen</li>
                         </ol>
                     </div><!--end col-->
                 </div><!--end row-->                                                              
@@ -37,10 +35,52 @@
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
     <div class="card">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="mb-2 row">
+                    <label class="col-sm-4 form-label text-end">No. RM</label>
+                    <div class="col-sm-8">
+                        <p class="form-control-plaintext"><strong>: {{ $visitation->pasien->id ?? '-' }}</strong></p>
+                    </div>
+                </div>
+                <div class="mb-2 row">
+                    <label class="col-sm-4 form-label text-end">Nama Pasien</label>
+                    <div class="col-sm-8">
+                        <p class="form-control-plaintext"><strong>: {{ $visitation->pasien->nama ?? '-' }}</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="mb-2 row">
+                    <label class="col-sm-4 form-label text-end">Tanggal Lahir</label>
+                    <div class="col-sm-8">
+                        <p class="form-control-plaintext">
+                            <strong>: {{ $visitation->pasien->tanggal_lahir ? \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->format('d-m-Y') : '-' }}</strong>
+                        </p>
+                    </div>
+                </div>
+                <div class="mb-2 row">
+                    <label class="col-sm-4 form-label text-end">Jenis Kelamin</label>
+                    <div class="col-sm-8">
+                        <p class="form-control-plaintext">
+                            <strong>: {{ ucfirst($visitation->pasien->gender ?? '-') }}</strong>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+                
+    <div class="card">
         <div class="card-header bg-primary">
-            <h4 class="card-title text-white">Data Pasien Baru</h4>
+            <h4 class="card-title text-white">Asesmen Medis</h4>
         </div>
         <div class="card-body">
+
             @if ($errors->any())
                 <div class="alert alert-danger">
                     <strong>Terjadi kesalahan:</strong>
@@ -51,18 +91,31 @@
                     </ul>
                 </div>
             @endif
-            <form id="pasien-form" class="form-wizard-wrapper" action="{{ route('erm.pasiens.store') }}" method="POST">
+            <form id="asesmen-form" class="form-wizard-wrapper" action="{{ route('erm.pasiens.store') }}" method="POST">
                 @csrf
                 <h3>Personal Data</h3>
                     <fieldset>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="nik">NIK</label>
-                                    <input type="text" class="form-control" id="nik" name="nik" required>
+                                    <label for="alergi">Riwayat Alergi (Nama Obat)</label>
+                                    <select class="form-control select2" id="alergi" name="alergi[]" multiple="multiple" required>
+                                        <option value="Paracetamol">Paracetamol</option>
+                                        <option value="Amoxicillin">Amoxicillin</option>
+                                        <option value="Ibuprofen">Ibuprofen</option>
+                                        <option value="Cetirizine">Cetirizine</option>
+                                        <option value="Aspirin">Aspirin</option>
+                                        <option value="Metformin">Metformin</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="nama">Nama</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
                                 <div class="form-group">
                                     <label for="nama">Nama</label>
                                     <input type="text" class="form-control" id="nama" name="nama" required>
@@ -193,104 +246,24 @@
                         </div>
                     </div>
                 </fieldset>
-
-                <h3>Address Data</h3>
-                <fieldset>
-                <div class="form-group">
-                    <label for="alamat">Address</label>
-                    <textarea required class="form-control" id="alamat" name="alamat" rows="3"></textarea>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="province">Province</label>
-                            <select class="form-control" id="province" name="province" ></select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="regency">Regency</label>
-                            <select class="form-control" id="regency" name="regency"></select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="district">District</label>
-                            <select class="form-control" id="district" name="district"></select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="village">Village</label>
-                            <select class="form-control" id="village" name="village"></select>
-                        </div>
-                    </div>
-                </div>
-                </fieldset>
-                <h3>Contact Data</h3>
-                <fieldset>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="no_hp">No Telepon 1</label>
-                            <input type="text" class="form-control" id="no_hp" name="no_hp" required>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="no_hp2">No Telepon 2</label>
-                            <input type="text" class="form-control" id="no_hp2" name="no_hp2">
-                        </div>
-                    </div>    
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="email">Email</label>
-                            <input type="email" class="form-control" id="email" name="email">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="istagram">Instagram</label>
-                            <input type="text" class="form-control" id="instagram" name="instagram">
-                        </div>
-                    </div>     
-                </div>
-
-                <div class="form-group mt-4">
-                    <div class="form-check d-flex align-items-start">
-                        <input class="form-check-input mt-1 me-2" type="checkbox" id="terms" name="terms" required>
-                        <label class="form-check-label" for="terms" style="text-align: justify;">
-                            Saya menyatakan bahwa seluruh data yang saya isi adalah benar dan dapat dipertanggungjawabkan. 
-                            Saya juga menyetujui bahwa data ini akan digunakan untuk keperluan pelayanan kesehatan 
-                            sesuai dengan kebijakan yang berlaku.
-                        </label>
-                    </div>
-                </div>
-                </fieldset>
-                    {{-- <button type="submit">Test Submit</button> --}}
+                    
             </form>
         </div>
     </div>
 </div><!-- container -->
-@endsection
 
+
+@endsection
 @section('scripts')
 <script>  
    $(document).ready(function () {
-    var wizard = $("#pasien-form").steps({
+    var wizard = $("#asesmen-form").steps({
     headerTag: "h3",
     bodyTag: "fieldset",
     transitionEffect: "slide",
     onStepChanged: function () {},
     onInit: function () {
-        $('#pasien-form').addClass('wizard-initialized');
+        $('#asesmen-form').addClass('wizard-initialized');
         },
     onStepChanging: function (event, currentIndex, newIndex) {
         var currentStep = $('.body:eq(' + currentIndex + ')');
@@ -317,7 +290,7 @@
         return isValid; // ⬅️ Hanya lanjut step jika valid
     },
     onFinished: function (event, currentIndex) {
-            $('#pasien-form').submit(); // 👈 THIS enables actual form submission
+            $('#asesmen-form').submit(); // 👈 THIS enables actual form submission
         }
     });
     

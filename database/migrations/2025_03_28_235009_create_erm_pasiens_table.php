@@ -12,18 +12,24 @@ return new class extends Migration {
             $table->string('nik')->unique();
             $table->string('nama');
             $table->date('tanggal_lahir');
-            $table->enum('gender', ['L', 'P']);
+            $table->string('gender');
+            $table->string('agama');
             $table->string('marital_status');
             $table->string('pendidikan');
-            $table->string('agama');
             $table->string('pekerjaan');
-            $table->text('alamat');
-            $table->foreignId('village_id')->constrained('area_villages');
-            $table->foreignId('kelas_pasien_id')->constrained('erm_kelas_pasiens');
-
-            $table->string('penanggung_jawab');
-            $table->string('no_hp_penanggung_jawab');
+            $table->string('gol_darah');
             $table->text('notes')->nullable();
+            $table->string('alamat');
+            $table->foreignId('village_id')->constrained('area_villages');
+            $table->string('no_hp');
+            $table->string('no_hp2');
+            $table->string('email');
+            $table->string('instagram');
+
+
+
+
+
             $table->timestamps();
         });
     }

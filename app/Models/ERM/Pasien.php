@@ -17,25 +17,22 @@ class Pasien extends Model
         'nama',
         'tanggal_lahir',
         'gender',
+        'agama',
         'marital_status',
         'pendidikan',
-        'agama',
         'pekerjaan',
+        'gol_darah',
+        'notes',
         'alamat',
         'village_id',
-        'kelas_pasien_id',
-        'penanggung_jawab',
-        'no_hp_penanggung_jawab',
-        'notes'
+        'no_hp',
+        'no_hp2',
+        'email',
+        'instagram'
     ];
 
     public function village()
     {
         return $this->belongsTo(Village::class, 'village_id');
-    }
-
-    public function kelasPasien()
-    {
-        return $this->belongsTo(KelasPasien::class, 'kelas_pasien_id');
     }
 }

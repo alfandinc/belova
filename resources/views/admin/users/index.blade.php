@@ -4,7 +4,7 @@
 <div class="container">
     <h2>User Management</h2>
     <a href="{{ route('admin.users.create') }}" class="btn btn-primary mb-3">Add New User</a>
-    
+    {{-- table user --}}
     <table class="table table-bordered" id="users-table">
         <thead>
             <tr>
