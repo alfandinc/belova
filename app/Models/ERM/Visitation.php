@@ -26,4 +26,18 @@ class Visitation extends Model
     {
         return $this->belongsTo(MetodeBayar::class, 'metode_bayar_id');
     }
+    public function asesmenPerawat()
+    {
+        return $this->hasOne(AsesmenPerawat::class);
+    }
+
+    public function penyakitDalam()
+    {
+        return $this->hasOne(PenyakitDalam::class);
+    }
+
+    public function diagnosa()
+    {
+        return $this->hasOne(Diagnosa::class);
+    }
 }

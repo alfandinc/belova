@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Pasien;
+use App\Models\ERM\Dokter;
 use App\Models\ERM\MetodeBayar;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
@@ -31,7 +32,8 @@ class VisitationController extends Controller
         }
 
         $metodeBayar = MetodeBayar::all(); // ambil semua data metode bayar
-        return view('erm.visitations.index', compact('metodeBayar'));
+        $dokters = Dokter::with('spesialisasi')->get(); // ambil semua dokter
+        return view('erm.visitations.index', compact('metodeBayar', 'dokters'));
     }
 
     public function create()

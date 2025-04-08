@@ -12,6 +12,7 @@ use App\Http\Controllers\{
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\RoleController;
 use App\Http\Controllers\ERM\PasienController;
+use App\Http\Controllers\ERM\DokterController;
 use App\Http\Controllers\ERM\VisitationController;
 use App\Http\Controllers\ERM\RawatJalanController;
 
@@ -49,19 +50,6 @@ Route::fallback(function () {
     }
 });
 
-// Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
-//     Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
-//     Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
-//     Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
-//     Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
-//     Route::put('/users/{id}', [UserController::class, 'update'])->name('admin.users.update');
-//     Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
-// });
-
-// Route::resource('erm/pasiens', PasienController::class)->names('erm.pasiens');
-// Route::post('/erm/pasiens', [PasienController::class, 'store'])->name('erm.pasiens.store');
-
-
 Route::prefix('erm')->group(function () {
     // Pasien Management
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
@@ -71,13 +59,24 @@ Route::prefix('erm')->group(function () {
     Route::put('/pasiens/{id}', [PasienController::class, 'update'])->name('erm.pasiens.update');
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
 
+
+    Route::get('/dokters', [DokterController::class, 'index'])->name('erm.dokters.index');
+    Route::get('dokters/create', [DokterController::class, 'create'])->name('erm.dokters.create');
+    Route::post('dokters', [DokterController::class, 'store'])->name('erm.dokters.store');
+    Route::get('/dokters/{id}/edit', [DokterController::class, 'edit'])->name('erm.dokters.edit');
+    Route::put('/dokters/{id}', [DokterController::class, 'update'])->name('erm.dokters.update');
+    Route::delete('/dokters/{id}', [DokterController::class, 'destroy'])->name('erm.dokters.destroy');
+
     //Visitation
     Route::get('/visitations', [VisitationController::class, 'index'])->name('erm.visitations.index');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
 
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
 
-    Route::get('/asesmen/{id}/create', [AsesmenController::class, 'create'])->name('erm.asesmen.create');
+    // Route::get('/asesmen/{id}/create', [AsesmenController::class, 'create'])->name('erm.asesmen.create');
+
+    Route::get('asesmen/{visitation}/create', [AsesmenController::class, 'create'])->name('erm.asesmen.create');
+    Route::post('asesmen/store', [AsesmenController::class, 'store'])->name('erm.asesmen.store');
 });
 
 Route::prefix('admin')->group(function () {

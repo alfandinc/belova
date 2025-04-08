@@ -56,4 +56,8 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    public function dokter()
+    {
+        return $this->hasOne(\App\Models\ERM\Dokter::class);
+    }
 }

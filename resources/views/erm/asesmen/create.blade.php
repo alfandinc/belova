@@ -93,7 +93,7 @@
             @endif
             <form id="asesmen-form" class="form-wizard-wrapper" action="{{ route('erm.pasiens.store') }}" method="POST">
                 @csrf
-                <h3>Personal Data</h3>
+                <h3>Riwayat Alergi</h3>
                     <fieldset>
                         <div class="row">
                             <div class="col-md-6">
@@ -111,141 +111,502 @@
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="nama">Nama</label>
-                                    <input type="text" class="form-control" id="nama" name="nama" required>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="nama">Nama</label>
-                                    <input type="text" class="form-control" id="nama" name="nama" required>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                <label for="tanggal_lahir">Tanggal Lahir</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" id="tanggal_lahir" name="tanggal_lahir" placeholder="Select date" required>
-                                        <div class="input-group-append">
-                                            <span class="input-group-text">
-                                                <i class="fas fa-calendar-alt"></i>
-                                            </span>
-                                        </div>
+                                    <label>Anamnesis</label><br>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" name="anamnesis[]" id="anamnesisA" value="Autoanamnesis">
+                                        <label class="form-check-label" for="anamnesisA">Autoanamnesis</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" name="anamnesis[]" id="anamnesisB" value="Alloanamnesis">
+                                        <label class="form-check-label" for="anamnesisB">Alloanamnesis</label>
                                     </div>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="gender">Gender</label>
-                                    <select class="form-control select2" id="gender" name="gender" required>
-                                        <option value="" selected disabled>Select Gender</option>
-                                        <option value="Laki-laki">Laki-laki</option>
-                                        <option value="Perempuan">Perempuan</option>
+                                    <label for="nama">Hubungan dengan Pasien</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nama">Keluhan Utama</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nama">Riwayat Penyakit Sekarang</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>    
+                        </div> 
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nama">Alloanamnesis dengan</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nama">Hasil Alloanamnesis</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>    
+                        </div>  
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nama">Riwayat Penyakit Dahulu</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nama">HObay yang Dikonsumsi</label>
+                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                </div>
+                            </div>    
+                        </div>   
+                    </fieldset>
+                <h3>Keadaan Umum</h3>
+                    <fieldset>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="gcs_e">E (Eye Opening)</label>
+                                    <select class="form-control" id="gcs_e" name="gcs_e" required>
+                                        <option value="">Pilih</option>
+                                        <option selected value="4">Spontan (4)</option>
+                                        <option value="3">Perintah Suara (3)</option>
+                                        <option value="2">Nyeri (2)</option>
+                                        <option value="1">Tidak Ada Respon (1)</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label for="agama">Agama</label>
-                                    <select class="form-control select2" id="agama" name="agama" required>>
-                                        <option value="" disabled selected>Select Agama</option>
-                                        <option value="Islam">Islam</option>
-                                        <option value="Kristen Protestan">Kristen Protestan</option>
-                                        <option value="Katolik">Katolik</option>
-                                        <option value="Hindu">Hindu</option>
-                                        <option value="Buddha">Buddha</option>
-                                        <option value="Konghucu">Konghucu</option>
-                                        <option value="Lainnya">Lainnya</option>
+                                    <label for="gcs_v">V (Verbal)</label>
+                                    <select class="form-control" id="gcs_v" name="gcs_v" required>
+                                        <option value="">Pilih</option>
+                                        <option selected value="5">Orientasi Baik (5)</option>
+                                        <option value="4">Bingung (4)</option>
+                                        <option value="3">Kata Tidak Tepat (3)</option>
+                                        <option value="2">Kata Tidak Dimengerti (2)</option>
+                                        <option value="1">Tidak Ada Suara (1)</option>
                                     </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="gcs_m">M (Motorik)</label>
+                                    <select class="form-control" id="gcs_m" name="gcs_m" required>
+                                        <option value="">Pilih</option>
+                                        <option selected value="6">Perintah Tepat (6)</option>
+                                        <option value="5">Lokal Nyeri (5)</option>
+                                        <option value="4">Menarik (4)</option>
+                                        <option value="3">Fleksi Abnormal (3)</option>
+                                        <option value="2">Ekstensi Abnormal (2)</option>
+                                        <option value="1">Tidak Ada Gerakan (1)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label for="gcs_total">Total GCS</label>
+                                    <input value="15" type="number" id="gcs_total" name="gcs_total" class="form-control" readonly>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="form-group d-flex align-items-center">
+                                    <label for="td" class="me-2 mb-0 mr-2" style="width: 40px;">TD</label>
+                                    <input type="text" class="form-control" id="td" name="td" required>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group d-flex align-items-center">
+                                    <label for="n" class="me-2 mb-0 mr-2" style="width: 40px;">N</label>
+                                    <input type="text" class="form-control" id="n" name="n" required>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group d-flex align-items-center">
+                                    <label for="s" class="me-2 mb-0 mr-2" style="width: 40px;">S</label>
+                                    <input type="text" class="form-control" id="s" name="s" required>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group d-flex align-items-center">
+                                    <label for="r" class="me-2 mb-0 mr-2" style="width: 40px;">R</label>
+                                    <input type="text" class="form-control" id="r" name="r" required>
+                                </div>
+                            </div>
+                        </div> 
+
+                    </fieldset>
+                <h3>Status General</h3>
+                    <fieldset>
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr>
+                                    <td>1.</td>
+                                    <td>Kepala</td>
+                                    <td>:</td>
+                                    <td><input type="text" class="form-control" name="kepala" value="dbn"></td>
+                                </tr>
+                                <tr>
+                                    <td>2.</td>
+                                    <td>Leher</td>
+                                    <td>:</td>
+                                    <td><input type="text" class="form-control" name="leher" value="dbn"></td>
+                                </tr>
+                                <tr>
+                                    <td>3.</td>
+                                    <td><em>Thorax</em></td>
+                                    <td>:</td>
+                                    <td><input type="text" class="form-control" name="thorax" value="dbn"></td>
+                                </tr>
+                                <tr>
+                                    <td>4.</td>
+                                    <td><em>Abdomen</em></td>
+                                    <td>:</td>
+                                    <td><input type="text" class="form-control" name="abdomen" value="dbn"></td>
+                                </tr>
+                                <tr>
+                                    <td>5.</td>
+                                    <td><em>Genitalia</em></td>
+                                    <td>:</td>
+                                    <td><input type="text" class="form-control" name="genitalia" value="dbn"></td>
+                                </tr>
+                                <tr>
+                                    <td>6.</td>
+                                    <td><em>Extremitas</em></td>
+                                    <td>:</td>
+                                    <td></td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td>- <em>Extremitas Atas</em></td>
+                                    <td>:</td>
+                                    <td><input type="text" class="form-control" name="extremitas_atas" value="dbn"></td>
+                                </tr>
+                                <tr>
+                                    <td></td>
+                                    <td>- <em>Extremitas Bawah</em></td>
+                                    <td>:</td>
+                                    <td><input type="text" class="form-control" name="extremitas_bawah" value="dbn"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </fieldset>
+                <h3>Status Lokalis</h3>
+                    <fieldset>
+                        <div class="form-group">
+                            
+                            
+                            <!-- Gambar -->
+                            <div class="mb-3">
+                                <img src="{{ asset('img/dalam-coba.png')}}" class="img-fluid rounded border" alt="Status Lokalis Image">
+                            </div>
+
+                            <!-- Tombol -->
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-secondary">Reset</button>
+                                <button type="button" class="btn btn-primary">Add</button>
+                            </div>
+
+                            <!-- Textarea -->
+                            <div class="mb-3">
+                                <textarea class="form-control" rows="5" placeholder="Tulis status lokalis di sini..."></textarea>
+                            </div>
+                        </div>
+                    </fieldset>
+                    <h3>Pemeriksaan Lab</h3>
+                    <fieldset>
+                        <div class="container">
+                            <div class="row">
+                                <!-- Kolom Kiri -->
+                                <div class="col-md-6">
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">GDP</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="gdp">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">KREATININ</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="kreatinin">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">SGOT</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="sgot">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">HB</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="hb">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">TROMBOSIT</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="trombosit">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Kolom Kanan -->
+                                <div class="col-md-6">
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">GDS</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="gds">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">LDL / TRIGLISERIDA</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="ldl_trigliserida">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">SGPT</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="sgpt">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">LEUKOSIT</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="leukosit">
+                                        </div>
+                                    </div>
+                                    <div class="form-group row mb-2">
+                                        <label class="col-sm-4 col-form-label">ASAM URAT</label>
+                                        <div class="col-sm-8">
+                                            <input type="text" class="form-control" name="asam_urat">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </fieldset>
+                    <h3>Diagnosa</h3>
+                    <fieldset>
+                        <div class="container mt-3">
+
+                            <!-- Diagnosa Kerja -->
+                            <div class="mb-3">
+                                <label class="form-label"><strong>Diagnosa Kerja</strong></label>
+                                <div class="row g-2 mb-4">
+                                    <div class="col-md-4">
+                                        <select class="form-control" name="diagnosa_kerja[]">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="K25">K25 - Gastric ulcer</option>
+                                            <option value="E11.7">E11.7 - Diabetes mellitus</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-control" name="diagnosa_kerja[]">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="I11">I11 - Hypertensive heart disease</option>
+                                            <option value="N13.0">N13.0 - Hydronephrosis</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-control" name="diagnosa_kerja[]">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="J45">J45 - Asthma</option>
+                                            <option value="A09">A09 - Gastroenteritis</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <select class="form-control" name="diagnosa_kerja[]">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="K25">K25 - Gastric ulcer</option>
+                                            <option value="E11.7">E11.7 - Diabetes mellitus</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-control" name="diagnosa_kerja[]">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="I11">I11 - Hypertensive heart disease</option>
+                                            <option value="N13.0">N13.0 - Hydronephrosis</option>
+                                        </select>
+                                    </div>
                                     
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label for="marital_status">Marital Status</label>
-                                    <select class="form-control select2" id="marital_status" name="marital_status" required>
-                                        <option value="" selected disabled>Select Marital Status</option>
-                                        <option value="Belum Menikah">Belum Menikah</option>
-                                        <option value="Menikah">Menikah</option>
-                                        <option value="Cerai Hidup">Cerai Hidup</option>
-                                        <option value="Cerai Mati">Cerai Mati</option>
-                                    </select>
+
+                            <!-- Diagnosa Banding -->
+                            <div class="mb-3">
+                                <label for="diagnosa_banding" class="form-label"><strong>Diagnosa Banding</strong></label>
+                                <input type="text" class="form-control" name="diagnosa_banding" id="diagnosa_banding">
+                            </div>
+
+                            <!-- Masalah Medis dan Keperawatan -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="masalah_medis" class="form-label"><strong>Masalah Medis</strong></label>
+                                    <textarea class="form-control" name="masalah_medis" id="masalah_medis" rows="2"></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="masalah_keperawatan" class="form-label"><strong>Masalah Keperawatan</strong></label>
+                                    <textarea class="form-control" name="masalah_keperawatan" id="masalah_keperawatan" rows="2">Gangguan Rasa Nyaman</textarea>
                                 </div>
                             </div>
-                        </div>     
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="pendidikan">Pendidikan</label>
-                                <select class="form-control select2" id="pendidikan" name="pendidikan">
-                                    <option disabled selected>Select Tingkat Pendidikan</option>
-                                    <option value="Tidak Sekolah">Tidak Sekolah</option>
-                                    <option value="Tidak Tamat SD/Sederajat">Tidak Tamat SD/Sederajat</option>
-                                    <option value="Tamat SD/Sederajat">Tamat SD/Sederajat</option>
-                                    <option value="Tamat SMP/Sederajat">Tamat SMP/Sederajat</option>
-                                    <option value="Tamat SMA/Sederajat">Tamat SMA/Sederajat</option>
-                                    <option value="Diploma I (D1)">Diploma I (D1)</option>
-                                    <option value="Diploma II (D2)">Diploma II (D2)</option>
-                                    <option value="Diploma III (D3)">Diploma III (D3)</option>
-                                    <option value="Strata I (S1) / Sarjana">Strata I (S1) / Sarjana</option>
-                                    <option value="Strata II (S2) / Magister">Strata II (S2) / Magister</option>
-                                    <option value="Strata III (S3) / Doktor">Strata III (S3) / Doktor</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="pekerjaan">Pekerjaan</label>
-                                <select class="form-control select2" id="pekerjaan" name="pekerjaan">
-                                    <option disabled selected>Select Pekerjaan</option>
-                                    <option value="Belum/Tidak Bekerja">Belum/Tidak Bekerja</option>
-                                    <option value="Pelajar/Mahasiswa">Pelajar/Mahasiswa</option>
-                                    <option value="Ibu Rumah Tangga">Ibu Rumah Tangga</option>
-                                    <option value="Pegawai Negeri Sipil (PNS)">Pegawai Negeri Sipil (PNS)</option>
-                                    <option value="Tentara Nasional Indonesia (TNI)">Tentara Nasional Indonesia (TNI)</option>
-                                    <option value="Kepolisian RI (Polri)">Kepolisian RI (Polri)</option>
-                                    <option value="Pegawai Swasta">Pegawai Swasta</option>
-                                    <option value="Wiraswasta / Pengusaha">Wiraswasta / Pengusaha</option>
-                                    <option value="Petani / Pekebun">Petani / Pekebun</option>
-                                    <option value="Nelayan / Penangkap Ikan">Nelayan / Penangkap Ikan</option>
-                                    <option value="Buruh / Karyawan Harian">Buruh / Karyawan Harian</option>
-                                    <option value="Guru / Dosen">Guru / Dosen</option>
-                                    <option value="Dokter / Tenaga Medis">Dokter / Tenaga Medis</option>
-                                    <option value="Perangkat Desa / Kelurahan">Perangkat Desa / Kelurahan</option>
-                                    <option value="Pensiunan">Pensiunan</option>
-                                    <option value="Seniman / Artis / Sejenisnya">Seniman / Artis / Sejenisnya</option>
-                                    <option value="Sopir / Ojek / Transportasi">Sopir / Ojek / Transportasi</option>
-                                    <option value="Pedagang / UMKM">Pedagang / UMKM</option>
-                                    <option value="Lainnya">Lainnya</option>
-                                </select>
 
+                            <!-- Checkbox -->
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1" id="sama_keluhan" name="sama_keluhan">
+                                <label class="form-check-label" for="sama_keluhan">
+                                    Apakah sama dengan Keluhan Utama?
+                                </label>
                             </div>
+
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="gol_darah">Golongan Darah</label>
-                                <select class="form-control select2" id="gol_darah" name="gol_darah">
-                                    <option selected disabled>Select Gol Darah</option>
-                                    <option value="O">O</option>
-                                    <option value="A">A</option>
-                                    <option value="B">B</option>
-                                    <option value="AB">AB</option>
-                                </select>
-                                
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="notes">Catatan Khusus</label>
-                                <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </fieldset>
+
+                    </fieldset>
+                    <h3>Tindak Lanjut</h3>
+                    <fieldset>
+                        <div class="container mt-3">
+
+    <!-- Sasaran -->
+    <div class="mb-3">
+        <label for="sasaran" class="form-label"><strong>Sasaran</strong></label>
+        <input type="text" class="form-control" name="sasaran" id="sasaran">
+    </div>
+
+    <!-- Rencana Asuhan / Terapi / Intruksi -->
+    <div class="mb-3">
+        <label for="rencana_asuhan" class="form-label"><strong>Rencana Asuhan / Terapi / Intruksi (Standing Order)</strong></label>
+        <textarea class="form-control" name="rencana_asuhan" id="rencana_asuhan" rows="2"></textarea>
+    </div>
+
+    <!-- Rencana Tindak Lanjut -->
+    <div class="mb-3">
+        <label class="form-label"><strong>Rencana Tindak Lanjut</strong></label><br>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="tindak_lanjut" id="rawat_jalan" value="Rawat Jalan" checked>
+            <label class="form-check-label" for="rawat_jalan">Rawat Jalan</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="tindak_lanjut" id="rawat_inap" value="Rawat Inap">
+            <label class="form-check-label" for="rawat_inap">Rawat Inap</label>
+        </div>
+    </div>
+
+    <!-- Ruang dan DPJP -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="ruang" class="form-label">Ruang</label>
+            <input type="text" class="form-control" name="ruang" id="ruang">
+        </div>
+        <div class="col-md-6">
+            <label for="dpjp_ranap" class="form-label">DPJP Ranap</label>
+            <input type="text" class="form-control" name="dpjp_ranap" id="dpjp_ranap">
+        </div>
+    </div>
+
+    <!-- Indikasi -->
+    <div class="mb-3">
+        <label for="pengantar" class="form-label">Pengantar Pasien</label>
+        <select class="form-select" name="pengantar" id="pengantar">
+            <option value="1">Ya</option>
+            <option value="0">Tidak (Rujuk ke Dinas Sosial)</option>
+        </select>
+    </div>
+
+    <!-- Rujuk Ke -->
+    <div class="mb-3">
+        <label class="form-label"><strong>Rujuk Ke</strong></label><br>
+        <div class="row g-2">
+            <div class="col-md-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="rujuk[]" value="RS" id="rujuk_rs">
+                    <label class="form-check-label" for="rujuk_rs">RS</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="rujuk[]" value="Dokter Keluarga" id="rujuk_dokter_keluarga">
+                    <label class="form-check-label" for="rujuk_dokter_keluarga">Dokter Keluarga</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="rujuk[]" value="Puskesmas" id="rujuk_puskesmas">
+                    <label class="form-check-label" for="rujuk_puskesmas">Puskesmas</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="rujuk[]" value="Dokter" id="rujuk_dokter">
+                    <label class="form-check-label" for="rujuk_dokter">Dokter</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="rujuk[]" value="Home Care" id="rujuk_homecare">
+                    <label class="form-check-label" for="rujuk_homecare">Home Care</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-2">
+            <div class="col-md-6">
+                <label for="kontrol_homecare" class="form-label">Kontrol Klinik / Homecare Di</label>
+                <input type="text" class="form-control" name="kontrol_homecare" id="kontrol_homecare">
+            </div>
+            <div class="col-md-6">
+                <label for="tanggal_kontrol" class="form-label">Tanggal</label>
+                <input type="date" class="form-control" name="tanggal_kontrol" id="tanggal_kontrol">
+            </div>
+        </div>
+    </div>
+
+</div>
+
+                    </fieldset>
+                    
+                    <h3>Edukasi</h3>
+                    <fieldset>
+                        <div>
+  <label><strong>Edukasi Pasien :</strong></label>
+  <p>Edukasi Awal, disampaikan tentang diagnosis, Rencana dan Tujuan Terapi kepada :</p>
+
+  <label>
+    <input type="checkbox" name="edukasi[]" value="pasien"> Pasien
+  </label><br>
+
+  <label>
+    <input type="checkbox" name="edukasi[]" value="keluarga"> 
+    Keluarga Pasien, nama : <input type="text" name="nama_keluarga"> , Hubungan dengan pasien : 
+    <input type="text" name="hubungan_keluarga">
+  </label><br>
+
+  <label>
+    <input type="checkbox" name="edukasi[]" value="tidak_diberikan">
+    Tidak dapat memberi edukasi kepada pasien atau keluarga, karena 
+    <input type="text" name="alasan_tidak_edukasi">
+  </label>
+</div>
+
+                    </fieldset>
+
                     
             </form>
         </div>
@@ -256,6 +617,7 @@
 @endsection
 @section('scripts')
 <script>  
+
    $(document).ready(function () {
     var wizard = $("#asesmen-form").steps({
     headerTag: "h3",
@@ -314,6 +676,5 @@
         $(this).val('');
     });
 });
-
 </script>
 @endsection

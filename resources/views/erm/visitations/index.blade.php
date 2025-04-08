@@ -25,8 +25,11 @@
                 <label for="dokter_id">Dokter</label>
                 <select class="form-control select2" id="dokter_id" name="dokter_id" required>
                     <option value="" selected disabled>Select Dokter</option>
-                    <option value="1">Dokter 1</option>
-                    <option value="2">Dokter 2</option>
+                    @foreach($dokters as $dokter)
+        <option value="{{ $dokter->id }}">
+            {{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}
+        </option>
+    @endforeach
                 </select>
             </div>
 

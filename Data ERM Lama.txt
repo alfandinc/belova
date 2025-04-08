@@ -5,3 +5,10 @@ Data Med Umum = ERM. medical_record_umum
 Data Med Penyakit Dalam = medical_record_umum
 Data CPPT Dokter = ERM. medical_record_cppt
 Data Asesmen Keperawat = ERM. medical_record_askep_dewasa_rajal
+
+Urutan Form ASESMEN :
+
+isi perawawt :
+erm_asesmen_perawats : id, visitation_id, riwayat_alergi, keluhan_utama, alasan_kunjungan, kesadaran, td, nadi, rr, suhu, riwayat_psikososial, hubungan_keluarga, tb, bb, lla, diet, porsi, imt, presentase, efek, nyeri, onset, asesmen_nyeri_dengan, skor, kategori, p, q, r ,t, hasil, kategori_risja, status_psikologis, status_fungsional, status_fungsional_keterangan, gizi_mst1, gizi_mst2, skor_mst1, skor_mst2, t_skormst
+
+
