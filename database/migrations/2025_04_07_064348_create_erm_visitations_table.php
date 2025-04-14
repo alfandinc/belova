@@ -12,18 +12,22 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('erm_visitations', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('pasien_id');
-            $table->unsignedBigInteger('dokter_id');
-            $table->unsignedBigInteger('metode_bayar_id')->nullable();
+            $table->string('id')->primary();
+            $table->string('pasien_id', 6)->nullable();
+            $table->foreignId('metode_bayar_id')->nullable()->constrained('erm_metode_bayar')->nullOnDelete();
+            $table->foreignId('dokter_id')->nullable()->constrained('erm_dokters')->nullOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->tinyInteger('progress')->default(1); // 1 = perawat, 2 = dokter, dll
             $table->enum('status', ['asesmen', 'cppt'])->default('asesmen');
             $table->date('tanggal_visitation');
+
+            $table->string('no_antrian');
+
+
             $table->timestamps();
 
-            // Foreign keys
-            $table->foreign('pasien_id')->references('id')->on('erm_pasiens')->onDelete('cascade');
-            $table->foreign('metode_bayar_id')->references('id')->on('erm_metode_bayar')->onDelete('set null');
+
+            $table->foreign('pasien_id')->references('id')->on('erm_pasiens')->onDelete('set null');
         });
     }
 

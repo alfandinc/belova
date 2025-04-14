@@ -86,7 +86,7 @@
             }
         },
         columns: [
-    { data: 'id', name: 'pasien.id' },
+    { data: 'no_rm', name: 'pasien.id' },
     { data: 'nama_pasien', name: 'pasien.nama' },
     { data: 'tanggal', name: 'tanggal_visitation' },
     { data: 'status', name: 'status' },

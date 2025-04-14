@@ -11,8 +11,13 @@ class Pasien extends Model
 {
     use HasFactory;
 
+    // Tambahkan properti berikut:
+    protected $keyType = 'string';
+    public $incrementing = false;
+
     protected $table = 'erm_pasiens';
     protected $fillable = [
+        'id',
         'nik',
         'nama',
         'tanggal_lahir',
@@ -28,7 +33,8 @@ class Pasien extends Model
         'no_hp',
         'no_hp2',
         'email',
-        'instagram'
+        'instagram',
+        'user_id', // tambahkan ini
     ];
 
     public function village()

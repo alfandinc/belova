@@ -17,7 +17,7 @@ class AsesmenController extends Controller
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
-        return view('erm.asesmen.create', compact('visitation'));
+        return view('erm.asesmendokter.create', compact('visitation'));
     }
 
     public function store(Request $request)

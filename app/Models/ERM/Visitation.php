@@ -7,8 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class Visitation extends Model
 {
     protected $table = 'erm_visitations';
+    public $incrementing = false; // non auto-increment
+    protected $keyType = 'string'; // jika ID-nya string (bukan integer)
 
     protected $fillable = [
+        'id',
         'pasien_id',
         'dokter_id',
         'metode_bayar_id',

@@ -2,8 +2,8 @@ Data Kunjungan = SIMRS. PASIEN_VISITATION
 Data Pasien = SIMRS. PASIEN
 Data Diagnosa Dokter = ERM. medical_record_diagnosa
 Data Med Umum = ERM. medical_record_umum
-Data Med Penyakit Dalam = medical_record_umum
-Data CPPT Dokter = ERM. medical_record_cppt
+Data Med Penyakit Dalam = medical_record_dalam
+Data CPPT Dokter dan Perawat = ERM. medical_record_cppt
 Data Asesmen Keperawat = ERM. medical_record_askep_dewasa_rajal
 
 Urutan Form ASESMEN :

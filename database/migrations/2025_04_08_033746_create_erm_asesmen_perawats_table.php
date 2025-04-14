@@ -13,9 +13,38 @@ return new class extends Migration
     {
         Schema::create('erm_asesmen_perawats', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('visitation_id')->constrained('erm_visitations')->onDelete('cascade');
-            $table->text('keluhan_utama')->nullable();
-            $table->text('alergi')->nullable();
+            $table->string('visitation_id')->nullable();
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('keluhan_utama')->nullable();
+            $table->string('alasan_kunjungan')->nullable();
+            $table->string('kesadaran')->nullable();
+            $table->string('td')->nullable();
+            $table->string('nadi')->nullable();
+            $table->string('rr')->nullable();
+            $table->string('suhu')->nullable();
+            $table->string('riwayat_psikososial')->nullable();
+            $table->string('tb')->nullable();
+            $table->string('bb')->nullable();
+            $table->string('lla')->nullable();
+            $table->string('diet')->nullable();
+            $table->string('porsi')->nullable();
+            $table->string('imt')->nullable();
+            $table->string('presentase')->nullable();
+            $table->string('efek')->nullable();
+            $table->string('nyeri')->nullable();
+            $table->string('p')->nullable();
+            $table->string('q')->nullable();
+            $table->string('r')->nullable();
+            $table->string('t')->nullable();
+            $table->string('onset')->nullable();
+            $table->string('skor')->nullable();
+            $table->string('kategori')->nullable();
+            $table->string('kategori_risja')->nullable();
+            $table->string('status_fungsional')->nullable();
+
+
+            $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('set null');
+
             $table->timestamps();
         });
     }

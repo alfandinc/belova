@@ -11,13 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('erm_penyakit_dalam', function (Blueprint $table) {
+        Schema::create('erm_asesmen_dalam', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('visitation_id')->constrained('erm_visitations')->onDelete('cascade');
+            $table->string('visitation_id')->nullable();
             $table->string('tekanan_darah')->nullable();
             $table->float('suhu')->nullable();
             $table->float('berat_badan')->nullable();
             $table->float('tinggi_badan')->nullable();
+
+
+            $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('set null');
             $table->timestamps();
         });
     }

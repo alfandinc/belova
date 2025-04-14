@@ -17,6 +17,77 @@
     }
 
 </style>
+{{-- Modals --}}
+<div class="modal fade" id="modalAlergi" tabindex="-1" aria-labelledby="modalAlergiLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="formAlergi">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalLabel">Riwayat Alergi Pasien</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true"><i class="la la-times"></i></span>
+          </button>
+        </div>
+        <div class="modal-body">
+
+          {{-- Radio Button --}}
+          <div class="form-group">
+            <label>Apakah Pasien memiliki riwayat alergi?</label><br>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="statusAlergi" id="alergiTidakAda" value="tidak" checked>
+              <label class="form-check-label" for="alergiTidakAda">Tidak Ada</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="statusAlergi" id="alergiAda" value="ada">
+              <label class="form-check-label" for="alergiAda">Ada</label>
+            </div>
+          </div>
+
+          {{-- Input Kata Kunci --}}
+          <div class="form-group" id="inputKataKunciWrapper" style="display: none;">
+            <label for="inputKataKunci">Kata Kunci</label>
+            <input type="text" id="inputKataKunci" class="form-control" placeholder="Masukkan kata kunci...">
+          </div>
+
+          {{-- Select2 Alergi --}}
+          <div class="form-group" id="selectAlergiWrapper" style="display: none;">
+            <label for="selectAlergi">Nama Obat</label>
+            <select class="form-control select2" id="selectAlergi" multiple="multiple" style="width: 100%;">
+              <option value="Paracetamol">Paracetamol</option>
+              <option value="Amoxicillin">Amoxicillin</option>
+              <option value="Ibuprofen">Ibuprofen</option>
+              <option value="Cetirizine">Cetirizine</option>
+              <option value="Aspirin">Aspirin</option>
+              <option value="Metformin">Metformin</option>
+            </select>
+          </div>
+
+          {{-- Select2 Kandungan Obat --}}
+          <div class="form-group" id="selectKandunganWrapper" style="display: none;">
+            <label for="selectKandungan">Kandungan Obat</label>
+            <select class="form-control select2" id="selectKandungan" multiple="multiple" style="width: 100%;">
+              <option value="Asam Mefenamat">Asam Mefenamat</option>
+              <option value="Deksametason">Deksametason</option>
+              <option value="Kloramfenikol">Kloramfenikol</option>
+              <option value="Ranitidine">Ranitidine</option>
+              <option value="Loratadine">Loratadine</option>
+            </select>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success">Simpan Alergi</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
+
+{{-- End MOdals --}}
+
 <div class="container-fluid">
     <!-- Page-Title -->
     <div class="row">
@@ -98,16 +169,14 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="alergi">Riwayat Alergi (Nama Obat)</label>
-                                    <select class="form-control select2" id="alergi" name="alergi[]" multiple="multiple" required>
-                                        <option value="Paracetamol">Paracetamol</option>
-                                        <option value="Amoxicillin">Amoxicillin</option>
-                                        <option value="Ibuprofen">Ibuprofen</option>
-                                        <option value="Cetirizine">Cetirizine</option>
-                                        <option value="Aspirin">Aspirin</option>
-                                        <option value="Metformin">Metformin</option>
-                                    </select>
-                                </div>
+                                    <label for="inputAlergiTerpilih"><strong>Riwayat Alergi</strong></label>
+                                    <div class="d-flex">
+                                        <input type="text" id="inputAlergiTerpilih" class="form-control mr-2" value="Tidak Ada" readonly>
+                                        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalAlergi">
+                                            Pilih
+                                        </button>
+                                    </div>
+                                </div>                               
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
@@ -674,6 +743,26 @@
 
     $('#tanggal_lahir').on('cancel.daterangepicker', function (ev, picker) {
         $(this).val('');
+    });
+
+    // Saat tombol modal ditekan
+    $('#btnBukaAlergi').on('click', function () {
+        $('#modalAlergi').modal('show');
+    });
+
+    // Toggle semua bagian tergantung status
+    $('input[name="statusAlergi"]').on('change', function () {
+        if ($(this).val() === 'ada') {
+            $('#inputKataKunciWrapper').show();
+            $('#selectAlergiWrapper').show();
+            $('#selectKandunganWrapper').show();
+        } else {
+            $('#inputKataKunciWrapper').hide();
+            $('#selectAlergiWrapper').hide();
+            $('#selectKandunganWrapper').hide();
+            $('#inputKataKunci').val('');
+            $('#selectAlergi, #selectKandungan').val(null).trigger('change');
+        }
     });
 });
 </script>

@@ -8,7 +8,7 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::create('erm_pasiens', function (Blueprint $table) {
-            $table->id();
+            $table->string('id', 6)->primary();
             $table->string('nik')->unique();
             $table->string('nama');
             $table->date('tanggal_lahir');
@@ -20,16 +20,13 @@ return new class extends Migration {
             $table->string('gol_darah');
             $table->text('notes')->nullable();
             $table->string('alamat');
-            $table->foreignId('village_id')->constrained('area_villages');
+            $table->foreignId('village_id')->nullable()->constrained('area_villages')->nullOnDelete();
+            $table->foreignId('alergi_id')->nullable()->constrained('erm_alergis')->nullOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('no_hp');
             $table->string('no_hp2');
             $table->string('email');
             $table->string('instagram');
-
-
-
-
-
             $table->timestamps();
         });
     }

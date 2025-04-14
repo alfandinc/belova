@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\ERM;
 
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\Pasien;
@@ -56,6 +57,15 @@ class PasienController extends Controller
             'email' => 'required|email',
             'instagram' => 'nullable',
         ]);
+
+        $lastId = DB::table('erm_pasiens')->max('id');
+
+        // Jika belum ada data, mulai dari 1
+        $newId = $lastId ? str_pad((int)$lastId + 1, 6, '0', STR_PAD_LEFT) : '000001';
+
+        // Tambahkan ID ke data
+        $validated['id'] = $newId;
+        $validated['user_id'] = auth()->id(); // tambahkan user_id dari yang login
         // dd($validated); // lihat hasil validasi, akan error kalau gagal
 
 

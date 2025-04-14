@@ -17,6 +17,7 @@ use App\Http\Controllers\ERM\VisitationController;
 use App\Http\Controllers\ERM\RawatJalanController;
 
 use App\Http\Controllers\ERM\AsesmenController;
+use App\Http\Controllers\ERM\AsesmenPerawatController;
 
 
 Route::get('/', function () {
@@ -73,10 +74,11 @@ Route::prefix('erm')->group(function () {
 
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
 
-    // Route::get('/asesmen/{id}/create', [AsesmenController::class, 'create'])->name('erm.asesmen.create');
+    Route::get('asesmendokter/{visitation}/create', [AsesmenController::class, 'create'])->name('erm.asesmendokter.create');
+    Route::post('asesmendokter/store', [AsesmenController::class, 'store'])->name('erm.asesmendokter.store');
 
-    Route::get('asesmen/{visitation}/create', [AsesmenController::class, 'create'])->name('erm.asesmen.create');
-    Route::post('asesmen/store', [AsesmenController::class, 'store'])->name('erm.asesmen.store');
+    Route::get('asesmenperawat/{visitation}/create', [AsesmenPerawatController::class, 'create'])->name('erm.asesmenperawat.create');
+    Route::post('asesmenperawat/store', [AsesmenPerawatController::class, 'store'])->name('erm.asesmenperawat.store');
 });
 
 Route::prefix('admin')->group(function () {

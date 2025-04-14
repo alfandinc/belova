@@ -13,9 +13,13 @@ return new class extends Migration
     {
         Schema::create('erm_diagnosas', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('visitation_id')->constrained('erm_visitations')->onDelete('cascade');
+            $table->string('visitation_id')->nullable();
             $table->text('diagnosa')->nullable();
             $table->text('tindakan')->nullable();
+
+
+
+            $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('set null');
             $table->timestamps();
         });
     }
