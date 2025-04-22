@@ -10,14 +10,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run()
     {
-        Role::create(['name' => 'pendaftaran']);
-        Role::create(['name' => 'dokter']);
-        Role::create(['name' => 'perawat']);
-
-        // Assign a role to an existing user (for testing)
-        $user = User::first();
-        if ($user) {
-            $user->assignRole('dokter');
-        }
+        // Panggil seeder tambahan
+        $this->call(RoleAndUserSeeder::class);
+        $this->call(SpesialisasiSeeder::class);
     }
 }

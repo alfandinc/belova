@@ -25,7 +25,7 @@ class AsesmenPerawatController extends Controller
 
         $visitation = Visitation::findOrFail($request->visitation_id); // Find the visitation by ID
         $visitation->progress = 2; // Change progress to 2
-        $visitation->status = 'Asesmen';
+        $visitation->status_dokumen = 'Asesmen';
         $visitation->save(); // Save the updated visitation
 
         AsesmenPerawat::create([

@@ -45,7 +45,7 @@ class DokterController extends Controller
 
     public function create()
     {
-        $users = User::role('dokter')->doesntHave('dokter')->get(); // hanya user yang belum punya data dokter
+        $users = User::role('dokter')->doesntHave('dokter')->get();
         $spesialisasis = Spesialisasi::all();
 
         return view('erm.dokters.create', compact('users', 'spesialisasis'));

@@ -11,15 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('erm_alergis', function (Blueprint $table) {
+        Schema::create('erm_alergi', function (Blueprint $table) {
             $table->id();
+            $table->string('pasien_id', 6)->nullable();
             $table->string('status')->nullable();
             $table->string('katakunci')->nullable();
-            $table->json('kandungan_obat')->nullable();
-            $table->json('makanan')->nullable();
-            $table->string('verifikasi')->nullable();
+            $table->foreignId('zataktif_id')->constrained('erm_zataktif')->onDelete('cascade');
+            $table->string('verifikasi_status')->nullable();
+            $table->foreignId('varifikator_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
 
+            $table->foreign('pasien_id')->references('id')->on('erm_pasiens')->onDelete('set null');
             $table->timestamps();
         });
     }
@@ -29,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('erm_alergis');
+        Schema::dropIfExists('erm_alergi');
     }
 };

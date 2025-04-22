@@ -21,7 +21,6 @@ return new class extends Migration {
             $table->text('notes')->nullable();
             $table->string('alamat');
             $table->foreignId('village_id')->nullable()->constrained('area_villages')->nullOnDelete();
-            $table->foreignId('alergi_id')->nullable()->constrained('erm_alergis')->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('no_hp');
             $table->string('no_hp2');

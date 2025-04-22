@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\AsesmenPerawat;
-use App\Models\ERM\PenyakitDalam;
+use App\Models\ERM\AsesmenDalam;
 use App\Models\ERM\Diagnosa;
 
 class AsesmenController extends Controller
@@ -29,7 +29,7 @@ class AsesmenController extends Controller
                 'alergi' => $request->alergi,
             ]);
 
-            PenyakitDalam::create([
+            AsesmenDalam::create([
                 'visitation_id' => $request->visitation_id,
                 'tekanan_darah' => $request->tekanan_darah,
                 'suhu' => $request->suhu,

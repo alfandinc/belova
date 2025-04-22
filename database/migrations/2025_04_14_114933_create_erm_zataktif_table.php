@@ -11,15 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('erm_diagnosas', function (Blueprint $table) {
+        Schema::create('erm_zataktif', function (Blueprint $table) {
             $table->id();
-            $table->string('visitation_id')->nullable();
-            $table->text('diagnosa')->nullable();
-            $table->text('tindakan')->nullable();
-
-
-
-            $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('set null');
+            $table->string('nama')->nullable();
             $table->timestamps();
         });
     }
@@ -29,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('erm_diagnosas');
+        Schema::dropIfExists('erm_zataktif');
     }
 };
