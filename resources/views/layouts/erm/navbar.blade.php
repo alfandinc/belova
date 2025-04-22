@@ -4,7 +4,7 @@
             <div class="brand">
                 <a href="/" class="logo">
                     <span>
-                        <img src="{{ asset('img/logo-premiere.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;">
+                        <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;">
                     </span>
                 </a>
             </div>
