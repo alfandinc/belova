@@ -31,7 +31,7 @@
             <div class="brand">
                 <a href="/" class="logo">
                     <span>
-                        <img src="{{ asset('img/logo-belovacorp.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;">
+                        <img src="{{ asset('img/logo-belovacorp-bw.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;">
                     </span>
                 </a>
             </div>
