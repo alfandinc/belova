@@ -1,6 +1,8 @@
 @extends('layouts.erm.app')
 @section('title', 'ERM | Tambah Pasien')
-
+@section('navbar')
+    @include('layouts.erm.navbar')
+@endsection
 @section('content')
 <style>
     /* Sembunyikan form wizard sebelum siap */

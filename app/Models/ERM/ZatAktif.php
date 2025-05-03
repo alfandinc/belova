@@ -21,4 +21,9 @@ class ZatAktif extends Model
     {
         return $this->hasMany(Alergi::class, 'zataktif_id');
     }
+
+    public function obats()
+    {
+        return $this->belongsToMany(Obat::class, 'erm_kandungan_obat');
+    }
 }

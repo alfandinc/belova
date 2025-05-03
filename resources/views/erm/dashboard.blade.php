@@ -1,5 +1,8 @@
 @extends('layouts.erm.app')
-@section('title', 'ERM Premiere Belova')          
+@section('title', 'ERM Premiere Belova')  
+@section('navbar')
+    @include('layouts.erm.navbar')
+@endsection        
 @section('content')
             <!-- Page Content-->           
                 <div class="container-fluid">

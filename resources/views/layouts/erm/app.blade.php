@@ -29,13 +29,23 @@
     <link href="{{ asset('dastone/default/assets/css/app-dark.min.css')}}" rel="stylesheet" type="text/css" />
     <link href="{{ asset('dastone/default/assets/css/metisMenu.min.css')}}" rel="stylesheet" type="text/css" />
     <link href="{{ asset('dastone/plugins/daterangepicker/daterangepicker.css')}}" rel="stylesheet" type="text/css" />
+        <!-- Sweet Alert -->
+        <link href="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.css')}}" rel="stylesheet" type="text/css">
+        <link href="{{ asset('dastone/plugins/animate/animate.css')}}" rel="stylesheet" type="text/css">
+    {{-- FullCalendar --}}
+
+    {{-- <link href="{{ asset('fullcalendar/dist/index.global.min.js')}}" />
+    <link href="{{ asset('fullcalendar/dist/index.global.js')}}" /> --}}
+ {{-- <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' /> --}}
+
+
 
 
 
 </head>
 
 <body>
-    @include('layouts.erm.navbar')
+    @yield('navbar')
     <div class="page-wrapper">
         @include('layouts.erm.topbar')
         <div class="page-content">
@@ -65,11 +75,24 @@
     <script src="{{ asset('dastone/plugins/datatables/jquery.dataTables.min.js')}}"></script>
     <script src="{{ asset('dastone/plugins/datatables/dataTables.bootstrap4.min.js')}}"></script>
 
+    <script src="{{ asset('dastone/plugins/datatables/dataTables.responsive.min.js')}}"></script>
+    <script src="{{ asset('dastone/plugins/datatables/responsive.bootstrap4.min.js')}}"></script>
+
     <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js')}}"></script>
     <script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js')}}"></script>
 
     <!-- App js -->
     <script src="{{ asset('dastone/default/assets/js/app.js')}}"></script>
+
+
+    
+        <!-- Sweet-Alert  -->
+        <script src="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.js')}}"></script>
+        <script src="{{ asset('dastone/pages/jquery.sweet-alert.init.js')}}"></script>
+    {{-- <script src="{{ asset('fullcalendar/dist/index.global.min.js')}}"></script>
+    <script src="{{ asset('fullcalendar/dist/index.global.js')}}"></script> --}}
+
+        {{-- <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script> --}}
 
     @yield('scripts')
 </body>

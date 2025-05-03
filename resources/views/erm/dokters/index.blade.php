@@ -13,9 +13,9 @@
                 <thead>
                     <tr>
                         <th>Nama Dokter</th>
-            <th>Spesialisasi</th>
-            <th>SIP</th>
-            <th>Aksi</th>
+                        <th>Spesialisasi</th>
+                        <th>SIP</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
             </table>

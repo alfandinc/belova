@@ -62,11 +62,26 @@ class VisitationController extends Controller
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
             'tanggal_visitation' => $request->tanggal_visitation,
+            'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id,
             'progress' => 1,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
         ]);
 
         return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
+    }
+
+    public function cekAntrian(Request $request)
+    {
+        $dokterId = $request->dokter_id;
+        $tanggal = $request->tanggal;
+
+        $jumlahKunjungan = Visitation::where('dokter_id', $dokterId)
+            ->whereDate('tanggal_visitation', $tanggal)
+            ->count();
+
+        return response()->json([
+            'no_antrian' => $jumlahKunjungan + 1
+        ]);
     }
 }

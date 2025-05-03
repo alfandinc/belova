@@ -29,4 +29,9 @@ class Obat extends Model
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
     }
+
+    public function zatAktifs()
+    {
+        return $this->belongsToMany(ZatAktif::class, 'erm_kandungan_obat', 'obat_id', 'zataktif_id');
+    }
 }

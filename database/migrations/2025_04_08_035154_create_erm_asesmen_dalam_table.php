@@ -37,7 +37,7 @@ return new class extends Migration
             $table->string('leher')->nullable();
             $table->string('thorax')->nullable();
             $table->string('abdomen')->nullable();
-            $table->string('qenitalia')->nullable();
+            $table->string('genitalia')->nullable();
             $table->string('ext_atas')->nullable();
             $table->string('ext_bawah')->nullable();
             $table->string('status_lokalis')->nullable();

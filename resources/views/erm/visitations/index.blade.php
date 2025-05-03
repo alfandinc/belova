@@ -1,6 +1,8 @@
 @extends('layouts.erm.app')
 @section('title', 'ERM | Daftarkan Kunjungan')
-
+@section('navbar')
+    @include('layouts.erm.navbar')
+@endsection
 @section('content')
 <!-- Modal Daftar Kunjungan -->
 <div class="modal fade" id="modalKunjungan" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
@@ -16,6 +18,7 @@
         </div>
         <div class="modal-body">
             <input type="hidden" name="pasien_id" id="modal-pasien-id">
+            
             <div class="form-group">
               <label for="nama_pasien">Nama Pasien</label>
               <input type="text" id="modal-nama-pasien" class="form-control" readonly>
@@ -26,24 +29,18 @@
                 <select class="form-control select2" id="dokter_id" name="dokter_id" required>
                     <option value="" selected disabled>Select Dokter</option>
                     @foreach($dokters as $dokter)
-        <option value="{{ $dokter->id }}">
-            {{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}
-        </option>
-    @endforeach
+                        <option value="{{ $dokter->id }}">
+                            {{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}
+                        </option>
+                    @endforeach
                 </select>
             </div>
 
             <div class="form-group">
               <label for="tanggal_visitation">Tanggal Kunjungan</label>
-                <div class="input-group">
-                    <input type="text" class="form-control" id="tanggal_visitation" name="tanggal_visitation" placeholder="Select date" required>
-                    <div class="input-group-append">
-                        <span class="input-group-text">
-                            <i class="fas fa-calendar-alt"></i>
-                        </span>
-                    </div>
-                </div>
+              <input type="date" class="form-control" id="tanggal_visitation" name="tanggal_visitation" required>
             </div>
+
             <div class="form-group">
               <label for="metode_bayar_id">Cara Bayar</label>
               <select class="form-control select2" id="metode_bayar_id" name="metode_bayar_id" required>
@@ -54,6 +51,11 @@
               </select>
             </div>
 
+            <div class="form-group">
+                <label for="no_antrian">No Antrian</label>
+                <input type="text" name="no_antrian" id="modal-no-antrian" class="form-control" readonly>
+            </div>
+
         </div>
         <div class="modal-footer">
           <button type="submit" class="btn btn-primary">Simpan</button>
@@ -62,6 +64,7 @@
     </form>
   </div>
 </div>
+
 <div class="container-fluid">
     <!-- Page-Title -->
     <div class="row">
@@ -73,15 +76,13 @@
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
                             <li class="breadcrumb-item active">Pasien</li>
                         </ol>
-                    </div><!--end col-->
-                    >  
-                </div><!--end row-->                                                              
-            </div><!--end page-title-box-->
-        </div><!--end col-->
-    </div><!--end row-->
-    <!-- end page title end breadcrumb -->
+                    </div> 
+                </div>                                                             
+            </div>
+        </div>
+    </div>
 
-    {{-- Table Pasien  --}}
+    {{-- Table Pasien --}}
     <div class="card">
         <div class="card-header bg-primary">
             <h4 class="card-title text-white">Daftarkan Kunjungan Pasien</h4>
@@ -101,52 +102,31 @@
             </table>
         </div>
     </div>
-</div><!-- container -->
+</div>
 @endsection
-
-
 
 @section('scripts')
 <script>
-$(document).ready(function() {
-    $('#pasiens-table').DataTable({
-    processing: true,
-    serverSide: true,
-    ajax: "{{ route('erm.visitations.index') }}",
-    columns: [
-        { data: 'id', name: 'id' },
-        { data: 'nama', name: 'nama' },
-        { data: 'nik', name: 'nik' },
-        { data: 'alamat', name: 'alamat' },
-        { data: 'no_hp', name: 'no_hp' },
-        { data: 'actions', name: 'actions', orderable: false, searchable: false }
-    ]
-});
-});
-   $(document).ready(function () {
+$(document).ready(function () {
+    // Inisialisasi select2
     $('.select2').select2({ width: '100%' });
 
-    $('#tanggal_visitation').daterangepicker({
-        singleDatePicker: true,
-        showDropdowns: true,
-        autoUpdateInput: false,
-        locale: {
-            format: 'YYYY-MM-DD',
-            cancelLabel: 'Clear'
-        }
+    // Inisialisasi datatable
+    $('#pasiens-table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: "{{ route('erm.visitations.index') }}",
+        columns: [
+            { data: 'id', name: 'id' },
+            { data: 'nama', name: 'nama' },
+            { data: 'nik', name: 'nik' },
+            { data: 'alamat', name: 'alamat' },
+            { data: 'no_hp', name: 'no_hp' },
+            { data: 'actions', name: 'actions', orderable: false, searchable: false }
+        ]
     });
 
-    $('#tanggal_visitation').on('apply.daterangepicker', function (ev, picker) {
-        $(this).val(picker.startDate.format('YYYY-MM-DD'));
-    });
-
-    $('#tanggal_visitation').on('cancel.daterangepicker', function (ev, picker) {
-        $(this).val('');
-    });
-});
-
-$(document).ready(function () {
-    // Handle klik tombol Daftarkan Kunjungan
+    // Tampilkan modal saat klik tombol daftar kunjungan
     $(document).on('click', '.btn-daftar-visitation', function () {
         let pasienId = $(this).data('id');
         let namaPasien = $(this).data('nama');
@@ -156,7 +136,7 @@ $(document).ready(function () {
         $('#modalKunjungan').modal('show');
     });
 
-    // Submit form via AJAX
+    // Submit form kunjungan
     $('#form-kunjungan').submit(function (e) {
         e.preventDefault();
 
@@ -176,7 +156,38 @@ $(document).ready(function () {
             }
         });
     });
+
+    // Cek No Antrian otomatis
+    function cekAntrian() {
+        let dokterId = $('#dokter_id').val();
+        let tanggal = $('#tanggal_visitation').val();
+        
+
+        if (dokterId && tanggal) {
+            console.log('dokter_id:', dokterId, 'tanggal:', tanggal);
+            $.ajax({
+                url: "{{ route('erm.visitations.cekAntrian') }}",
+                type: 'GET',
+                data: {
+                    dokter_id: dokterId,
+                    tanggal: tanggal
+                },
+                success: function(response) {
+                    console.log('Response:', response);
+                    $('#modal-no-antrian').val(response.no_antrian);
+                },
+                error: function(xhr) {
+                    console.log(xhr.responseText);
+                    $('#modal-no-antrian').val('Error');
+                }
+            });
+        }
+    }
+
+    // Jalankan cekAntrian saat dokter atau tanggal berubah
+    $('#dokter_id, #tanggal_visitation').on('change', function () {
+        cekAntrian();
+    });
 });
 </script>
 @endsection
-

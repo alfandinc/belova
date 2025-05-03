@@ -17,6 +17,7 @@ class Visitation extends Model
         'metode_bayar_id',
         'progress',
         'status',
+        'no_antrian',
         'tanggal_visitation',
     ];
 
@@ -29,18 +30,22 @@ class Visitation extends Model
     {
         return $this->belongsTo(MetodeBayar::class, 'metode_bayar_id');
     }
+    public function dokter()
+    {
+        return $this->belongsTo(Dokter::class, 'dokter_id');
+    }
     public function asesmenPerawat()
     {
         return $this->hasOne(AsesmenPerawat::class);
     }
 
-    public function penyakitDalam()
+    public function asesmenDalam()
     {
-        return $this->hasOne(PenyakitDalam::class);
+        return $this->hasOne(AsesmenDalam::class);
     }
 
-    public function diagnosa()
+    public function asesmenPenunjang()
     {
-        return $this->hasOne(Diagnosa::class);
+        return $this->hasOne(AsesmenPenunjang::class);
     }
 }

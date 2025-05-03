@@ -37,7 +37,7 @@ class AsesmenDalam extends Model
         'leher',
         'thorax',
         'abdomen',
-        'qenitalia',
+        'genitalia',
         'ext_atas',
         'ext_bawah',
         'status_lokalis',

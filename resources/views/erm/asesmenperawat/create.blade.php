@@ -1,5 +1,8 @@
 @extends('layouts.erm.app')
 @section('title', 'Asesmen Medis')
+@section('navbar')
+    @include('layouts.erm.navbardetail')
+@endsection
 @section('content')
 <style>
     /* Sembunyikan form wizard sebelum siap */
@@ -21,7 +24,9 @@
 {{-- Modals --}}
 <div class="modal fade" id="modalAlergi" tabindex="-1" aria-labelledby="modalAlergiLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <form id="formAlergi">
+    <form id="formAlergi" method="POST" action="{{ route('erm.alergi.store', $visitation->id) }}">
+
+        @csrf
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="modalLabel">Riwayat Alergi Pasien</h5>
@@ -35,11 +40,11 @@
           <div class="form-group">
             <label>Apakah Pasien memiliki riwayat alergi?</label><br>
             <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="statusAlergi" id="alergiTidakAda" value="tidak" checked>
+              <input class="form-check-input" type="radio" name="statusAlergi" id="alergiTidakAda" value="tidak" {{ $alergistatus == 'tidak' ? 'checked' : '' }}>
               <label class="form-check-label" for="alergiTidakAda">Tidak Ada</label>
             </div>
             <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="statusAlergi" id="alergiAda" value="ada">
+              <input class="form-check-input" type="radio" name="statusAlergi" id="alergiAda" value="ada" {{ $alergistatus == 'ada' ? 'checked' : '' }}>
               <label class="form-check-label" for="alergiAda">Ada</label>
             </div>
           </div>
@@ -47,31 +52,19 @@
           {{-- Input Kata Kunci --}}
           <div class="form-group" id="inputKataKunciWrapper" style="display: none;">
             <label for="inputKataKunci">Kata Kunci</label>
-            <input type="text" id="inputKataKunci" class="form-control" placeholder="Masukkan kata kunci...">
-          </div>
-
-          {{-- Select2 Alergi --}}
-          <div class="form-group" id="selectAlergiWrapper" style="display: none;">
-            <label for="selectAlergi">Nama Obat</label>
-            <select class="form-control select2" id="selectAlergi" multiple="multiple" style="width: 100%;">
-              <option value="Paracetamol">Paracetamol</option>
-              <option value="Amoxicillin">Amoxicillin</option>
-              <option value="Ibuprofen">Ibuprofen</option>
-              <option value="Cetirizine">Cetirizine</option>
-              <option value="Aspirin">Aspirin</option>
-              <option value="Metformin">Metformin</option>
-            </select>
+            <input value="{{ old('katakunci', $alergikatakunci) }}" type="text" name="katakunci" id="inputKataKunci" class="form-control" placeholder="Masukkan kata kunci...">
           </div>
 
           {{-- Select2 Kandungan Obat --}}
           <div class="form-group" id="selectKandunganWrapper" style="display: none;">
-            <label for="selectKandungan">Kandungan Obat</label>
-            <select class="form-control select2" id="selectKandungan" multiple="multiple" style="width: 100%;">
-              <option value="Asam Mefenamat">Asam Mefenamat</option>
-              <option value="Deksametason">Deksametason</option>
-              <option value="Kloramfenikol">Kloramfenikol</option>
-              <option value="Ranitidine">Ranitidine</option>
-              <option value="Loratadine">Loratadine</option>
+            <label for="zataktif_id">Pilih Zat Aktif Alergi:</label>
+            <select name="zataktif_id[]" class="form-control select2" multiple>
+                @foreach ($zatAktif as $zat)
+                    <option value="{{ $zat->id }}"
+                        @if(in_array($zat->id, $alergiIds)) selected @endif>
+                        {{ $zat->nama }}
+                    </option>
+                @endforeach
             </select>
           </div>
 
@@ -83,11 +76,7 @@
     </form>
   </div>
 </div>
-
-
-
-
-{{-- End MOdals --}}
+{{-- End Modals --}}
 <div class="container-fluid">
     <!-- Page-Title -->
     <div class="row">
@@ -105,45 +94,118 @@
         </div><!--end col-->
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
-    <div class="card">
-    <div class="card-body">
-        <div class="row">
-            <div class="col-lg-6">
-                <div class="mb-2 row">
-                    <label class="col-sm-4 form-label text-end">No. RM</label>
-                    <div class="col-sm-8">
-                        <p class="form-control-plaintext"><strong>: {{ $visitation->pasien->id ?? '-' }}</strong></p>
+     <div class="card">
+        <div class="card-body">  
+                  
+            <div class="row mt-0">
+                <!-- Kolom Nama -->
+                <div class="col-md-3 ">
+                    <div class="row mb-0 mt-0">
+                        <div class="col-12 d-flex align-items-center">
+                            
+                            <h3 style="color: white;"><strong>{{ ucfirst($visitation->pasien->nama ?? '-') }}</strong></h3>
+                             
+                        </div>     
+                    </div> 
+                    <div class="row mt-0 mb-4">
+                        <div class="col-12 d-flex align-items-center">
+                            
+                            <h5 class="mt-0 mb-0">NO. RM #{{ $visitation->pasien->id ?? '-' }}</h5>
+                              @if($visitation->pasien->gender == 'Laki-laki')
+                                <span class="d-inline-flex align-items-center justify-content-center ml-2"
+                                    style="width: 25px; height: 25px; background-color: #0d6efd; border-radius: 4px;">
+                                    <i class="fas fa-mars text-white" style="font-size: 20px;"></i>
+                                </span>
+                            @elseif($visitation->pasien->gender == 'Perempuan')
+                                <span class="d-inline-flex align-items-center justify-content-center ml-2"
+                                    style="width: 25px; height: 25px; background-color: hotpink; border-radius: 4px;">
+                                    <i class="fas fa-venus text-white" style="font-size: 20px;"></i>
+                                </span>
+                            @endif
+                        </div>
+                    </div>   
+                </div>
+                <!-- Kolom Kiri -->
+                <div class="col-md-3 mt-2">
+                    <div class="row mb-1 align-items-center">
+                        <div class="col-12 text-end">
+                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+                                style="background-color:grey; width: 25px; height: 25px;">
+                                <i class="fas fa-id-card" title="NIK"></i>
+                            </span>
+                            <strong>{{ $visitation->pasien->nik ?? '-' }}</strong>
+                        </div>
+                    </div>
+                    <div class="row mb-1 align-items-center">
+                        <div class="col-12 text-end">
+                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+                                style="background-color:grey; width: 25px; height: 25px;">
+                                <i class="fas fa-birthday-cake" title="tanggal_lahir"></i>
+                            </span>
+                            <strong>
+                                {{ $visitation->pasien->tanggal_lahir 
+                                    ? \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->translatedFormat('d F Y') 
+                                    : '-' }}     
+                            </strong>
+                            
+                        </div>
+                    </div>
+                    <div class="row mb-1 align-items-center">
+                        <div class="col-12 text-end">
+                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+                                style="background-color:grey; width: 25px; height: 25px;">
+                                <i class="fas fa-calendar-alt" title="NIK"></i>
+                            </span>
+                            <strong>{{ $usia }}</strong>
+                        </div>
                     </div>
                 </div>
-                <div class="mb-2 row">
-                    <label class="col-sm-4 form-label text-end">Nama Pasien</label>
-                    <div class="col-sm-8">
-                        <p class="form-control-plaintext"><strong>: {{ $visitation->pasien->nama ?? '-' }}</strong></p>
+                <!-- Kolom Kanan -->
+                <div class="col-md-3 mt-2">
+                    <div class="row mb-1 align-items-center">
+                        <div class="col-12 text-end">
+                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+                                style="background-color:grey; width: 25px; height: 25px;">
+                                <i class="fas fa-phone" title="no_hp"></i>
+                            </span>
+                            <strong>{{ ucfirst($visitation->pasien->no_hp ?? '-') }}</strong>
+                        </div>
                     </div>
-                </div>
-            </div>
+                    <div class="row mb-1 align-items-center">
+                        <div class="col-12 text-end">
+                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+                                style="background-color:grey; width: 25px; height: 25px;">
+                                <i class="fas fa-home" title="alamat"></i>
+                            </span>
+                            <strong>{{ ucfirst($visitation->pasien->alamat ?? '-') }}</strong>
+                        </div>
+                    </div>
+                </div> 
+                <!-- Kolom alergi -->
+                <div class="col-md-3 mt-2">
+                    <div class="text-end">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+                            style="background-color:red; width: 25px; height: 25px;">
+                            <i class="fas fa-capsules" title="no_hp"></i>
+                        </span>
+                        <strong>Riwayat Alergi :</strong>
+                    </div>
 
-            <div class="col-lg-6">
-                <div class="mb-2 row">
-                    <label class="col-sm-4 form-label text-end">Tanggal Lahir</label>
-                    <div class="col-sm-8">
-                        <p class="form-control-plaintext">
-                            <strong>: {{ $visitation->pasien->tanggal_lahir ? \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->format('d-m-Y') : '-' }}</strong>
-                        </p>
-                    </div>
-                </div>
-                <div class="mb-2 row">
-                    <label class="col-sm-4 form-label text-end">Jenis Kelamin</label>
-                    <div class="col-sm-8">
-                        <p class="form-control-plaintext">
-                            <strong>: {{ ucfirst($visitation->pasien->gender ?? '-') }}</strong>
-                        </p>
+                    <div class="text-end mt-2">
+                        @foreach($alergiNames as $alergiName)
+                            <span class="badge badge-warning d-inline-flex align-items-center justify-content-center rounded mr-1" 
+                                style="height: 25px; padding: 0 10px; color:black;">
+                                <strong>{{ $alergiName }}</strong>
+                            </span>
+                        @endforeach
+                        <button type="button" class="btn btn-sm btn-primary d-flex align-items-center mr-2 mt-2 " style="font-size: 12px;" data-toggle="modal" data-target="#modalAlergi">
+                            <i class="fas fa-edit mr-1"></i> Edit
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
                 
     <div class="card">
@@ -166,25 +228,12 @@
                 @csrf
                 <input type="text" id="visitation_id" name="visitation_id" class="form-control mr-2" value="{{ $visitation->id }}" hidden>
                 @if(session('success'))
-    <div class="alert alert-success">
-        {{ session('success') }}
-    </div>
-@endif
+                    <div class="alert alert-success">
+                        {{ session('success') }}
+                    </div>
+                @endif
                 <h3>I. Pengkajian Keperawatan</h3>
                     <fieldset>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="inputAlergiTerpilih"><strong>Riwayat Alergi</strong></label>
-                                    <div class="d-flex">
-                                        <input type="text" id="inputAlergiTerpilih" class="form-control mr-2" value="Tidak Ada" readonly>
-                                        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalAlergi">
-                                            Pilih
-                                        </button>
-                                    </div>
-                                </div>                               
-                            </div>   
-                        </div>
                         <hr>
                         <div class="col-md-12">                           
                             <label><strong>1. Keluhan Utama Pasien</strong></label>
@@ -644,12 +693,25 @@
     });
     
     $('.select2').select2({ width: '100%' });
-    // Saat tombol modal ditekan
+    // Saat tombol modal alergi ditekan
     $('#btnBukaAlergi').on('click', function () {
         $('#modalAlergi').modal('show');
     });
 
     // Toggle semua bagian tergantung status
+        var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val(); // Ambil status yang dipilih awalnya
+    
+    // Jika status alergi adalah 'ada', tampilkan semua elemen yang terkait
+    if (initialStatusAlergi === 'ada') {
+        $('#inputKataKunciWrapper').show();
+        $('#selectAlergiWrapper').show();
+        $('#selectKandunganWrapper').show();
+    } else {
+        // Jika tidak, sembunyikan elemen-elemen tersebut
+        $('#inputKataKunciWrapper').hide();
+        $('#selectAlergiWrapper').hide();
+        $('#selectKandunganWrapper').hide();
+    }
     $('input[name="statusAlergi"]').on('change', function () {
         if ($(this).val() === 'ada') {
             $('#inputKataKunciWrapper').show();

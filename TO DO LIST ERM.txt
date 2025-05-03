@@ -1,0 +1,154 @@
+Data Kunjungan = SIMRS. PASIEN_VISITATION
+Data Pasien = SIMRS. PASIEN
+Data Diagnosa Dokter = ERM. medical_record_diagnosa
+Data Med Umum = ERM. medical_record_umum
+Data Med Penyakit Dalam = medical_record_dalam
+Data CPPT Dokter dan Perawat = ERM. medical_record_cppt
+Data Asesmen Keperawat = ERM. medical_record_askep_dewasa_rajal
+Data Farmasi = SIMRS . medical_record_farmasi
+Data Obat Dokter SIMRS. medical_record_obat
+Data Inform Consent = bikin baru
+
+------------------------------------------------------------------------
+Fitur yang Dibuat :
+
+rawat jalan (done)
+rawat inap / one day care
+e farmasi (on progress)
+e logistik (on progress)
+e finance w/ pak abdi
+e lab (on progress)
+e pebdaftaran (done)
+e perawat (done)
+e ruang operasi 
+e endoskopi  (on progress)
+e hrd w/ data lengkap karwayan (on progress)
+e donita w/ SOP dan SK & upload dokumen
+e marketing w/ Target Marketing : usia, alamat, frekuensi kunjungan (on progress)
+
+------------------------------------------------------------------------
+Catatan dr Aji: 
+
+Rawat Jalan Hanya Autoanamnesis (Pasien Datang Sendiri) -done
+Penunjang Dipindah ke E-Lab semua   -done
+Rujuk, Rawat Jalan, Rawat Inap (salah satu) -done
+Resume Lab -on progress
+Kontak Parahita (Mba Maya)cara buat resume  lab dari LIS
+Struktur Data LIS ke Erm -belum dapat struktur datanya
+Sidik Jari Pasien untuk pendaftaran 
+Daftar Kunjungan Pasien Rawat Jalan (history)  -done
+Riwayat Farmasi Dokter dan Farmasi Berbeda -done
+Aturan stok obat bila obat habis -done
+Update Obat dari ACcurate Data Final (Insert and Update)
+Antrian dari Pendaftaran dan Dokter (Edit Antrian) (Batal dan Pindah Tanggal) -done
+Inform Consent -done
+
+Dahboard (Statistik Pasien Jumlah + Kategori ) / Role -menunggu semua fitur fix
+
+General Consent diawal
+Inform COnsent harus tanda tangan -analisa file
+
+Badge intuk Status Pasien (selesai) -done
+Permintaan Lab (Riwayat Lab-> E-Lab) -done
+Resume Medis sama 
+Rujukan ke Dokter Lain INternal (keterangan Karena apa) jadwal didaftakan oleh Pendaftaran 
+Pengantar Lab send via email ke lab terujuk
+Tindakan (inform consent + laporan tindakan, tarif) (dokter dan perawat)
+
+Dastone switch theme
+Pasien Selesai color text dibedakan -done
+
+
+
+
+----------------------------
+Catatan Mas Rivai :
+
+angka disamping -> obat racikan ke-x -done
+semua komponen racikan= 1 obat di billing 
+
+tombol reguler = save
+pengobatan perawat hapus -done
+farmasi id resep ambil dari dokter
+stok ditampilkan saat akan input obat -done
+stok opname ambil data terakhir-sekarang
+paket racikan (disesuaikan oleh dokter, bisa menambah paket racikan sendiri)
+
+stok update ketika payment selesai 
+tindakan dan inform consent -> isi form -> laporan list -> infrom consent
+lab, centang -> beri paket
+SOAP = SBAR -> jenis
+Total Billing ditampilkan (data final)
+Reschedule -> Batal
+
+Rujuk Dokter  INternal-> Milih DOkter->Tanggal Sama->1 Billing (Antrian Khusus)
+Add modal di tabel kunjungan
+Umur (disamping tgl lahir (tahun, bulan, hari)) -done
+Alergi pindah atas -done
+
+Harga tindakan input manual
+
+
+----------------
+aturan pakai 
+jumlah racikan dihapus -> bungkus
+menyesuaikan accurate
+
+perhitungan obat flot berdasarkan jenis obat
+harga dosis input per dosis master x jumlah bungkus
+
+riwayat dokter (semua inputan dokter termasuk yang diedit farmasi)
+riwayat farmasi (semua inputan farmasi termasuk copyan dari dokter)
+submit = data masuk ke billing baru bisa cetak nota di farmasi
+riwayat farmasi = all
+catatan farmasi = catatan dokter
+setalah disubmit semua fungsi terkunci kecuali cetak
+tambah tombol salin untuk menyalin per obat dari riwayat
+racikan->tombol add obat (store)-> update (jumlah bungkus)
+
+pilihan lanjutan dipangkas
+
+cppt -upload gam,bar dan tindak lanjut (commnet)
+cppt -> soap dan sbar jadi satu (beda tulisan) 
+
+*hasil lab ditampilkan ketika sudah bayar
+* e-radiologi sementara upload gambar
+
+tambah tombol rencana kontrol (perawat & dokter)
+Perawat (asesmen-cppt, dokumen pendukung)
+dokter (semua)
+pendaftar (add pasien, daftar kunjungan)
+farmasi (input obat)
+kasir (billing)
+
+pilihan satu = timer 
+pilihan dua = tarif per menit
+kunjungan di dokter semua tapi tanpa aksi
+riwayat
+
+verifikasi :
+jika zat aktif disii otomatif verif
+
+peringatan oilih obat alergi
+
+peringatan jika ada pasien alergi obat yang mengandung zat aktif
+
+farmasi dapat akses edit obat racikan dan dan non racikan
+
+maksimal hari surat izin ditanyakan
+
+dashboard -> bedasarkan status
+
+General Consent
+
+Tabel kunjungan role perawat ada pilihan dokter
+
+Screening awal (Perawat) ditanyakan
+
+show sosmed diidentitas
+
+pendaftaran tambah sosmeed lain
+
+sqitch theme
+
+marketing -> per bithday

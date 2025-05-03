@@ -16,11 +16,11 @@
         <link rel="shortcut icon" href="{{ asset('img/logo-favicon-belova.png')}}"> 
 
         <!-- App css -->
-        <link href="{{ asset('dastone/default/assets/css/bootstrap.min.css') }}" rel="stylesheet" type="text/css" />
+        <link href="{{ asset('dastone/default/assets/css/bootstrap-dark.min.css') }}" rel="stylesheet" type="text/css" />
         <link href="{{ asset('dastone/default/assets/css/icons.min.css')}}" rel="stylesheet" type="text/css" />
         <link href="{{ asset('dastone/default/assets/css/metisMenu.min.css')}}" rel="stylesheet" type="text/css" />
         <link href="{{ asset('dastone/plugins/daterangepicker/daterangepicker.css')}}" rel="stylesheet" type="text/css" />
-        <link href="{{ asset('dastone/default/assets/css/app.min.css')}}" rel="stylesheet" type="text/css" />
+        <link href="{{ asset('dastone/default/assets/css/app-dark.min.css')}}" rel="stylesheet" type="text/css" />
 
     </head>
 

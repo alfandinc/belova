@@ -1,6 +1,8 @@
 @extends('layouts.erm.app')
 @section('title', 'ERM | Daftar Pasien')
-
+@section('navbar')
+    @include('layouts.erm.navbar')
+@endsection
 @section('content')
 <div class="container-fluid">
                     <!-- Page-Title -->

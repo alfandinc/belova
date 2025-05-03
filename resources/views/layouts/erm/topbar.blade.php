@@ -3,23 +3,24 @@
                 <!-- Navbar -->
                 <nav class="navbar-custom">    
                     <ul class="list-unstyled topbar-nav float-right mb-0">  
-                        <li class="dropdown hide-phone">
-                            <a class="nav-link dropdown-toggle arrow-none waves-light waves-effect" data-toggle="dropdown" href="#" role="button"
+                        <li class="dropdown">
+                            <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
                                 aria-haspopup="false" aria-expanded="false">
-                                <i data-feather="search" class="topbar-icon"></i>
+                                <span class="ml-1 mr-2 nav-user-name hidden-sm">Nama User</span>
+                                <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                 
                             </a>
-                            
-                            <div class="dropdown-menu dropdown-menu-right dropdown-lg p-0">
-                                <!-- Top Search Bar -->
-                                <div class="app-search-topbar">
-                                    <form action="#" method="get">
-                                        <input type="search" name="search" class="from-control top-search mb-0" placeholder="Type text...">
-                                        <button type="submit"><i class="ti-search"></i></button>
-                                    </form>
-                                </div>
+                            <div class="dropdown-menu dropdown-menu-right">
+                                <a class="dropdown-item" href="#"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Profile</a>
+                                <a class="dropdown-item" href="#"><i data-feather="settings" class="align-self-center icon-xs icon-dual mr-1"></i> Settings</a>
+                                <div class="dropdown-divider mb-0"></div>
+                                <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+                                    @csrf
+                                </form>
+                                <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                    <i data-feather="power" class="align-self-center icon-xs icon-dual mr-1"></i> Logout
+                                </a>
                             </div>
-                        </li>                      
-
+                        </li>
                         <li class="dropdown notification-list">
                             <a class="nav-link dropdown-toggle arrow-none waves-light waves-effect" data-toggle="dropdown" href="#" role="button"
                                 aria-haspopup="false" aria-expanded="false">
@@ -101,25 +102,6 @@
                                 <!-- All-->
                                 <a href="javascript:void(0);" class="dropdown-item text-center text-primary">
                                     View all <i class="fi-arrow-right"></i>
-                                </a>
-                            </div>
-                        </li>
-
-                        <li class="dropdown">
-                            <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
-                                aria-haspopup="false" aria-expanded="false">
-                                <span class="ml-1 nav-user-name hidden-sm">Alfandi Nurcahyono</span>
-                                <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                 
-                            </a>
-                            <div class="dropdown-menu dropdown-menu-right">
-                                <a class="dropdown-item" href="#"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Profile</a>
-                                <a class="dropdown-item" href="#"><i data-feather="settings" class="align-self-center icon-xs icon-dual mr-1"></i> Settings</a>
-                                <div class="dropdown-divider mb-0"></div>
-                                <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
-                                    @csrf
-                                </form>
-                                <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                    <i data-feather="power" class="align-self-center icon-xs icon-dual mr-1"></i> Logout
                                 </a>
                             </div>
                         </li>
