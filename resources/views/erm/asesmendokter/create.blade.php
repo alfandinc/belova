@@ -10,7 +10,7 @@
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">Asesmen Dokter</h3>
-        <h3 class="mb-0" style="color: white"><strong>Penyakit Dalam</strong></h3>
+        <h3 class="mb-0"><strong>Penyakit Dalam</strong></h3>
     </div>
     <!-- Page-Title -->
     <div class="row">
@@ -59,8 +59,8 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
-                                    <label for="keluhan_utama">Keluhan Utama</label>
-                                    <input type="text" class="form-control" id="keluhan_utama" name="keluhan_utama" value="{{ old('keluhanUtama', $dataperawat->keluhan_utama ?? '') }}">
+                                    <label for="keluhan_utama">KELUHAN UTAMA</label>
+                                    <input type="text" class="form-control focus:outline-white focus:border-white" id="keluhan_utama" name="keluhan_utama" value="{{ old('keluhanUtama', $dataperawat->keluhan_utama ?? '') }}">
                                 </div>
                             </div>
                             <div class="col-md-6">

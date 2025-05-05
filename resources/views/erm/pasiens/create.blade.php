@@ -74,16 +74,17 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <div class="form-group">
-                                <label for="tanggal_lahir">Tanggal Lahir</label>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" id="tanggal_lahir" name="tanggal_lahir" placeholder="Select date" required>
-                                        <div class="input-group-append">
-                                            <span class="input-group-text">
-                                                <i class="fas fa-calendar-alt"></i>
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
+    <label for="tanggal_lahir">Tanggal Lahir</label>
+    <div class="input-group">
+        <input type="date" class="form-control" id="tanggal_lahir" name="tanggal_lahir" required>
+        {{-- <div class="input-group-append">
+            <span class="input-group-text">
+                <i class="fas fa-calendar-alt"></i>
+            </span>
+        </div> --}}
+    </div>
+</div>
+
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
@@ -325,23 +326,23 @@
     
     $('.select2').select2({ width: '100%' });
 
-    $('#tanggal_lahir').daterangepicker({
-        singleDatePicker: true,
-        showDropdowns: true,
-        autoUpdateInput: false,
-        locale: {
-            format: 'YYYY-MM-DD',
-            cancelLabel: 'Clear'
-        }
-    });
+    // $('#tanggal_lahir').daterangepicker({
+    //     singleDatePicker: true,
+    //     showDropdowns: true,
+    //     autoUpdateInput: false,
+    //     locale: {
+    //         format: 'YYYY-MM-DD',
+    //         cancelLabel: 'Clear'
+    //     }
+    // });
 
-    $('#tanggal_lahir').on('apply.daterangepicker', function (ev, picker) {
-        $(this).val(picker.startDate.format('YYYY-MM-DD'));
-    });
+    // $('#tanggal_lahir').on('apply.daterangepicker', function (ev, picker) {
+    //     $(this).val(picker.startDate.format('YYYY-MM-DD'));
+    // });
 
-    $('#tanggal_lahir').on('cancel.daterangepicker', function (ev, picker) {
-        $(this).val('');
-    });
+    // $('#tanggal_lahir').on('cancel.daterangepicker', function (ev, picker) {
+    //     $(this).val('');
+    // });
 });
 
 </script>

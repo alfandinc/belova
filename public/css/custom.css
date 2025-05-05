@@ -1,0 +1,123 @@
+/* Font Definitions */
+@font-face {
+  font-family: 'GT America';
+  src: url('/fonts/GT-America-Standard-Regular.ttf') format('truetype');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'GT America';
+  src: url('/fonts/GT-America-Standard-Bold.ttf') format('truetype');
+  font-weight: 700;
+}
+
+body {
+  font-family: 'GT America', sans-serif !important;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* Theme Variables */
+:root.theme-dark {
+  --text-color: #ffffff;
+  --bg-color: #202435;
+  --border-color: #888;
+  --label-color: #ffffff;
+  --select-bg: transparent;
+  --select-text: #ffffff;
+}
+
+:root.theme-light {
+  --text-color: #212529;
+  --bg-color: #ffffff;
+  --border-color: #ccc;
+  --label-color: #333333;
+  --select-bg: white;
+  --select-text: #212529;
+}
+
+/* Form Controls */
+.form-control {
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  background-color: transparent;
+}
+
+label {
+  font-weight: bold;
+  color: var(--label-color);
+  text-transform: uppercase;
+}
+
+/* Select2 */
+/* .select2-selection {
+  background-color: var(--select-bg) !important;
+  color: var(--select-text) !important;
+  border: 1px solid var(--border-color) !important;
+  font-family: 'GT America', sans-serif !important;
+} */
+
+/* Toggle switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  background-color: #ccc;
+  border-radius: 34px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: 0.4s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.4s;
+}
+
+input:checked + .slider {
+  background-color: navy;
+}
+
+input:checked + .slider:before {
+  transform: translateX(24px);
+}
+
+.slider.round {
+  border-radius: 34px;
+}
+
+.slider.round:before {
+  border-radius: 50%;
+}
+
+/* Logo Switching */
+.logo-dark {
+  display: none;
+}
+.theme-light .logo-dark {
+  display: inline;
+}
+.theme-light .logo-light {
+  display: none;
+}

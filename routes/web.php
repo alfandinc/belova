@@ -7,7 +7,6 @@ use App\Http\Controllers\{
     ERMDashboardController,
     HRDDashboardController,
     InventoryDashboardController,
-    ListAntrianController as ControllersListAntrianController,
     MarketingDashboardController,
 };
 use App\Http\Controllers\Admin\UserController;
@@ -122,7 +121,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 
 
-    Route::get('/calendar', [ListAntrianController::class, 'index']);
+    Route::get('/listantrian', [ListAntrianController::class, 'index']);
     Route::get('/api/patient-events', [ListAntrianController::class, 'getEvents']);
 
 

@@ -1,8 +1,18 @@
             <!-- Top Bar Start -->
-            <div class="topbar">            
+            <div class="topbar">
+                            
                 <!-- Navbar -->
                 <nav class="navbar-custom">    
                     <ul class="list-unstyled topbar-nav float-right mb-0">  
+                        <!-- Dark Mode Toggle -->
+            <li class="nav-item mt-3">
+                <div class="dark-mode-toggle">
+                    <label class="switch">
+                        <input type="checkbox" id="darkModeSwitch">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </li>
                         <li class="dropdown">
                             <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
                                 aria-haspopup="false" aria-expanded="false">
@@ -105,6 +115,8 @@
                                 </a>
                             </div>
                         </li>
+
+                        
                     </ul><!--end topbar-nav-->
         
                     <ul class="list-unstyled topbar-nav mb-0">                        
@@ -112,6 +124,7 @@
                             <button class="nav-link button-menu-mobile">
                                 <i data-feather="menu" class="align-self-center topbar-icon"></i>
                             </button>
+                        
                         </li> 
                                                  
                     </ul>

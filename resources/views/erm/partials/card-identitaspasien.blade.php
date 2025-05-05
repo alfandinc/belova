@@ -7,7 +7,7 @@
                     <div class="row mb-0 mt-0">
                         <div class="col-12 d-flex align-items-center">
                             
-                            <h3 style="color: white;"><strong>{{ ucfirst($visitation->pasien->nama ?? '-') }}</strong></h3>
+                            <h3><strong>{{ ucfirst($visitation->pasien->nama ?? '-') }}</strong></h3>
                              
                         </div>     
                     </div> 

@@ -148,7 +148,7 @@
                             <div class="page-title-box">
                                 <div class="row">
                                     <div class="col">
-                                        <h3>Selamat Datang di Sistem Informasi Belova!</h3>
+                                        <h3>Selamat Datang di SIMRS BELOVA</h3>
                                         <ol class="breadcrumb">
                                             <li class="breadcrumb-item"><a href="javascript:void(0);">Belova</a></li>
                                             <li class="breadcrumb-item active">Dashboard</li>
