@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <title>Login | HRD</title>  <!-- Dynamic title -->
+    <title>Login | Inventory</title>  <!-- Dynamic title -->
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta content="Admin & Dashboard Template" name="description" />
     <meta content="" name="author" />
@@ -38,8 +38,8 @@
                     <div class="card rounded-3" style="border-radius: 15px; overflow: hidden;">
                         <div class="card-body p-0 auth-header-box" style="background-color: #0d6efd;">
                             <div class="text-center p-3">
-                                <h1 class="mt-3 mb-1 font-weight-semibold text-white"><i class="fas fa-user-friends"></i> HRD Login</h1>
-                                <h5 class="text-white">Welcome to HRD Belova, login to continue.</h5>
+                                <h1 class="mt-3 mb-1 font-weight-semibold text-white"><i class="fas fa-box"></i> Inventory Login</h1>
+                                <h5 class="text-white">Welcome to Inventory Belova, login to continue.</h5>
                             </div>
                         </div>
                         <div class="card-body p-3">
@@ -54,7 +54,7 @@
                             @endif
                             <form method="POST" action="{{ route('login') }}">
                                 @csrf
-                                <input type="hidden" name="module" value="hrd">
+                                <input type="hidden" name="module" value="inventory">
                                 <div class="form-group mb-2">
                                     <label for="email">Email</label>
                                     <input type="email" name="email" class="form-control" id="email" placeholder="Enter Email">

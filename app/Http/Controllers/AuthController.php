@@ -44,7 +44,7 @@ class AuthController extends Controller
         $roleMapping = [
             'erm' => ['Dokter', 'Perawat', 'Pendaftaran'],
             'hrd' => ['Hrd'],
-            'inventory' => ['Inventory'],
+            'inventory' => ['Inventaris'],
             'marketing' => ['Marketing'],
         ];
 

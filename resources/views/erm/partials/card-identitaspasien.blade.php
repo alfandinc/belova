@@ -35,7 +35,7 @@
                         <div class="col-12 text-end">
                             <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                                 style="background-color:grey; width: 25px; height: 25px;">
-                                <i class="fas fa-id-card" title="NIK"></i>
+                                <i style="color:white" class="fas fa-id-card" title="NIK"></i>
                             </span>
                             <strong>{{ $visitation->pasien->nik ?? '-' }}</strong>
                         </div>
@@ -49,7 +49,7 @@
                         <div class="col-12 text-end">
                             <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                                 style="background-color:grey; width: 25px; height: 25px;">
-                                <i class="fas fa-birthday-cake" title="tanggal_lahir"></i>
+                                <i style="color:white" class="fas fa-birthday-cake" title="tanggal_lahir"></i>
                             </span>
                             <strong style="{{ $isBirthday ? 'color: red;' : '' }}">
                                 {{ $visitation->pasien->tanggal_lahir 
@@ -65,7 +65,7 @@
                         <div class="col-12 text-end">
                             <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                                 style="background-color:grey; width: 25px; height: 25px;">
-                                <i class="fas fa-calendar-alt" title="NIK"></i>
+                                <i style="color:white" class="fas fa-calendar-alt" title="NIK"></i>
                             </span>
                             <strong>{{ $usia }}</strong>
                         </div>
@@ -77,7 +77,7 @@
                         <div class="col-12 text-end">
                             <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                                 style="background-color:grey; width: 25px; height: 25px;">
-                                <i class="fas fa-phone" title="no_hp"></i>
+                                <i style="color:white" class="fas fa-phone" title="no_hp"></i>
                             </span>
                             <strong>{{ ucfirst($visitation->pasien->no_hp ?? '-') }}</strong>
                         </div>
@@ -86,7 +86,7 @@
                         <div class="col-12 text-end">
                             <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                                 style="background-color:grey; width: 25px; height: 25px;">
-                                <i class="fas fa-home" title="alamat"></i>
+                                <i style="color:white" class="fas fa-home" title="alamat"></i>
                             </span>
                             <strong>{{ ucfirst($visitation->pasien->alamat ?? '-') }}</strong>
                         </div>
@@ -95,7 +95,7 @@
                         <div class="col-12 text-end">
                             <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                                 style="background-color:grey; width: 25px; height: 25px;">
-                                <i class="fab fa-instagram" title="Instagram"></i>
+                                <i style="color:white" class="fab fa-instagram" title="Instagram"></i>
                             </span>
                             @if($visitation->pasien->instagram)
                                 <a href="https://instagram.com/{{ ltrim($visitation->pasien->instagram, '@') }}" target="_blank" class="text-decoration-none">
@@ -112,7 +112,7 @@
                     <div class="text-end">
                         <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                             style="background-color:red; width: 25px; height: 25px;">
-                            <i class="fas fa-capsules" title="no_hp"></i>
+                            <i style="color:white" class="fas fa-capsules" title="no_hp"></i>
                         </span>
                         <strong>Riwayat Alergi :</strong>
                     </div>

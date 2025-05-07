@@ -1,16 +1,16 @@
-@extends('layouts.hrd.app')
-@section('title', 'Dashboard | HRD Belova')
+@extends('layouts.inventory.app')
+@section('title', 'Dashboard | Inventory Belova')
 @section('navbar')
-    @include('layouts.hrd.navbar')
+    @include('layouts.inventory.navbar')
 @endsection  
 @section('content')
 <div class="container">
-    <h2>Welcome to HRD Dashboard</h2>
+    <h2>Welcome to Inventory Dashboard</h2>
 
     {{-- Navigation Bar --}}
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">HRD System</a>
+            <a class="navbar-brand" href="#">Inventory System</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                 aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>

@@ -27,7 +27,7 @@ use App\Http\Controllers\ERM\AsesmenPerawatController;
 use App\Http\Controllers\ERM\CPPTController;
 use App\Http\Controllers\ERM\RiwayatKunjunganController;
 use App\Http\Controllers\ERM\ListAntrianController;
-use App\Models\ERM\Visitation;
+use App\Http\Controllers\Inventory\ItemController;
 
 Route::get('/', function () {
     return view('mainmenu');
@@ -130,6 +130,19 @@ Route::prefix('erm')->group(function () {
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
 });
+
+Route::prefix('inventory')->group(
+    function () {
+
+        Route::get('/item', [ItemController::class, 'index'])->name('inventory.item.index');
+        Route::get('/item/create', [ItemController::class, 'create'])->name('inventory.item.create');
+        Route::post('/item', [ItemController::class, 'store'])->name('inventory.item.store');
+        Route::get('/item/{id}/edit', [ItemController::class, 'edit'])->name('inventory.item.edit');
+        Route::put('/item/{id}', [ItemController::class, 'update'])->name('inventory.item.update');
+
+        Route::delete('/item/{id}', [ItemController::class, 'destroy'])->name('inventory.item.destroy');
+    }
+);
 
 Route::prefix('admin')->group(function () {
 

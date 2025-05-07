@@ -5,10 +5,10 @@
                 <a href="/erm" class="logo">
                     <span>
                         <!-- Light-theme logo (for dark background) -->
-                        <img src="{{ asset('img/logo-premiere.png')}}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
+                        <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
 
                         <!-- Dark-theme logo (for light background) -->
-                        <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
+                        <img src="{{ asset('img/logo-premiere.png')}}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
                         {{-- <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;"> --}}
                     </span>
                 </a>
