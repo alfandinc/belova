@@ -72,7 +72,7 @@ class PasienController extends Controller
 
         Pasien::create($validated);
 
-        return redirect()->route('erm.pasiens.index')->with('success', 'Pasien created successfully.');
+        return redirect()->route('erm.visitations.index')->with('success', 'Pasien created successfully.');
     }
 
     public function show(Pasien $pasien)

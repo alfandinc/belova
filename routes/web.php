@@ -9,24 +9,29 @@ use App\Http\Controllers\{
     InventoryDashboardController,
     MarketingDashboardController,
 };
-use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\RoleController;
-use App\Http\Controllers\ERM\PasienController;
-use App\Http\Controllers\ERM\DokterController;
-use App\Http\Controllers\ERM\VisitationController;
-use App\Http\Controllers\ERM\RawatJalanController;
-use App\Http\Controllers\ERM\EresepController;
-use App\Http\Controllers\ERM\AlergiController;
-use App\Http\Controllers\ERM\ObatController;
-use App\Http\Controllers\ERM\EradiologiController;
-use App\Http\Controllers\ERM\ElabController;
-use App\Http\Controllers\ERM\TindakanController;
+use App\Http\Controllers\Admin\{
+    UserController,
+    RoleController
+};
 
-use App\Http\Controllers\ERM\AsesmenController;
-use App\Http\Controllers\ERM\AsesmenPerawatController;
-use App\Http\Controllers\ERM\CPPTController;
-use App\Http\Controllers\ERM\RiwayatKunjunganController;
-use App\Http\Controllers\ERM\ListAntrianController;
+use App\Http\Controllers\ERM\{
+    PasienController,
+    DokterController,
+    VisitationController,
+    RawatJalanController,
+    EresepController,
+    AlergiController,
+    ObatController,
+    EradiologiController,
+    ElabController,
+    TindakanController,
+    AsesmenController,
+    AsesmenPerawatController,
+    CPPTController,
+    RiwayatKunjunganController,
+    ListAntrianController
+};
+
 use App\Http\Controllers\Inventory\ItemController;
 
 Route::get('/', function () {
@@ -81,15 +86,11 @@ Route::prefix('erm')->group(function () {
     Route::get('/visitations', [VisitationController::class, 'index'])->name('erm.visitations.index');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
-
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
-
     Route::post('/rawatjalans/create', [RawatJalanController::class, 'store'])->name('erm.rawatjalans.store');
     Route::get('/cek-antrian', [RawatJalanController::class, 'cekAntrian'])->name('erm.rawatjalans.cekAntrian');
 
-
     //Asesmen
-
     Route::get('asesmendokter/{visitation}/create', [AsesmenController::class, 'create'])->name('erm.asesmendokter.create');
     Route::post('asesmendokter/store', [AsesmenController::class, 'store'])->name('erm.asesmendokter.store');
 
@@ -120,7 +121,7 @@ Route::prefix('erm')->group(function () {
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 
-
+    //Antrian
     Route::get('/listantrian', [ListAntrianController::class, 'index']);
     Route::get('/api/patient-events', [ListAntrianController::class, 'getEvents']);
 

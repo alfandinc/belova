@@ -5,18 +5,17 @@
 @endsection
 @section('content')
 <style>
-    /* Sembunyikan form wizard sebelum siap */
+    /* Tetap ada ini */
     #pasien-form {
         visibility: hidden;
     }
 
-    /* Tampilkan setelah wizard di-init */
     #pasien-form.wizard-initialized {
         visibility: visible;
     }
 
     .is-invalid {
-    border-color: red !important;    
+        border-color: red !important;    
     }
 
 </style>

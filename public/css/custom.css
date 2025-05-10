@@ -49,13 +49,48 @@ label {
   text-transform: uppercase;
 }
 
-/* Select2 */
-/* .select2-selection {
+/* DARK MODE Fixes */
+.theme-dark .form-control {
+  background-color: #2c2f40 !important;
+  color: #ffffff !important;
+  border: 1px solid #555 !important;
+}
+
+.theme-dark .form-control::placeholder {
+  color: #ccc !important;
+}
+
+.theme-dark label {
+  color: #eee !important;
+}
+
+.theme-dark .form-control:focus {
+  border-color: #66afe9 !important;
+  box-shadow: 0 0 4px rgba(102, 175, 233, 0.6);
+  outline: none;
+}
+
+/* LIGHT MODE Optional Improvements */
+.theme-light .form-control {
+  background-color: #ffffff !important;
+  color: #212529 !important;
+}
+
+/* Select2 - Uncomment if using Select2 */
+/*
+.select2-selection {
   background-color: var(--select-bg) !important;
   color: var(--select-text) !important;
   border: 1px solid var(--border-color) !important;
   font-family: 'GT America', sans-serif !important;
-} */
+}
+
+.theme-dark .select2-container .select2-selection--single {
+  background-color: #2c2f40 !important;
+  color: #fff !important;
+  border: 1px solid #555 !important;
+}
+*/
 
 /* Toggle switch */
 .switch {
@@ -115,9 +150,21 @@ input:checked + .slider:before {
 .logo-dark {
   display: none;
 }
+
 .theme-light .logo-dark {
   display: inline;
 }
+
 .theme-light .logo-light {
   display: none;
+}
+
+/* Form Container & jQuery Steps Background Fix */
+.form-section,
+.form-wrapper,
+.card,
+.form-box,
+.theme-dark .wizard > .content,
+.theme-light .wizard > .content {
+  background-color: var(--bg-color) !important;
 }
