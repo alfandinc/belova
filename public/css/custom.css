@@ -77,8 +77,8 @@ label {
 }
 
 /* Select2 - Uncomment if using Select2 */
-/*
-.select2-selection {
+
+/* .select2-selection {
   background-color: var(--select-bg) !important;
   color: var(--select-text) !important;
   border: 1px solid var(--border-color) !important;
@@ -89,8 +89,8 @@ label {
   background-color: #2c2f40 !important;
   color: #fff !important;
   border: 1px solid #555 !important;
-}
-*/
+} */
+
 
 /* Toggle switch */
 .switch {

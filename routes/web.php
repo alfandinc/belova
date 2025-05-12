@@ -31,7 +31,7 @@ use App\Http\Controllers\ERM\{
     RiwayatKunjunganController,
     ListAntrianController
 };
-
+use App\Http\Controllers\HRD\EmployeeController;
 use App\Http\Controllers\Inventory\ItemController;
 
 Route::get('/', function () {
@@ -105,6 +105,11 @@ Route::prefix('erm')->group(function () {
 
     // E Resep
     Route::get('eresep/{visitation_id}/create', [EresepController::class, 'create'])->name('erm.eresep.create');
+    Route::post('/resep/non-racikan', [EresepController::class, 'storeNonRacikan'])->name('resep.nonracikan.store');
+    Route::post('/resep/racikan', [EresepController::class, 'storeRacikan'])->name('resep.racikan.store');
+    Route::delete('/resep/nonracikan/{id}', [EresepController::class, 'destroyNonRacikan'])->name('resep.nonracikan.destroy');
+    Route::delete('/resep/racikan/{racikanKe}', [EresepController::class, 'destroyRacikan'])->name('resep.racikan.destroy');
+
 
     //Alergi
     Route::post('/pasiens/{visitation}/alergi', [AlergiController::class, 'store'])->name('erm.alergi.store');
@@ -142,6 +147,19 @@ Route::prefix('inventory')->group(
         Route::put('/item/{id}', [ItemController::class, 'update'])->name('inventory.item.update');
 
         Route::delete('/item/{id}', [ItemController::class, 'destroy'])->name('inventory.item.destroy');
+    }
+);
+
+Route::prefix('hrd')->group(
+    function () {
+
+        Route::get('/employee', [EmployeeController::class, 'index'])->name('hrd.employee.index');
+        Route::get('/employee/create', [EmployeeController::class, 'create'])->name('hrd.employee.create');
+        Route::post('/employee', [EmployeeController::class, 'store'])->name('hrd.employee.store');
+        Route::get('/employee/{id}/edit', [EmployeeController::class, 'edit'])->name('hrd.employee.edit');
+        Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
+
+        Route::delete('/item/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');
     }
 );
 

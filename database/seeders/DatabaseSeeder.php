@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
         // Panggil seeder tambahan
         // $this->call(RoleAndUserSeeder::class);
         // $this->call(SpesialisasiSeeder::class);
-        $this->call(VisitationSeeder::class);
+        // $this->call(VisitationSeeder::class);
+        $this->call(PositionSeeder::class);
     }
 }
