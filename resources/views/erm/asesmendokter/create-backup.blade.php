@@ -34,6 +34,9 @@
     @include('erm.partials.card-identitaspasien')
         
     <div class="card">
+        {{-- <div class="card-header bg-primary">
+            <h4 class="card-title text-white">Asesmen Medis Penyakit Dalam</h4>
+        </div> --}}
         <div class="card-body">
 
             @if ($errors->any())
@@ -57,13 +60,13 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="keluhan_utama">KELUHAN UTAMA</label>
-                                    <input type="text" class="form-control focus:outline-white focus:border-white" id="keluhan_utama" name="keluhan_utama" value="{{ old('keluhan_utama', $asesmenDalam->keluhan_utama ?? $dataperawat->keluhan_utama ?? '') }}">
+                                    <input type="text" class="form-control focus:outline-white focus:border-white" id="keluhan_utama" name="keluhan_utama" value="{{ old('keluhanUtama', $dataperawat->keluhan_utama ?? '') }}">
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="riwayat_penyakit_sekarang">Riwayat Penyakit Sekarang</label>
-                                    <input type="text" class="form-control" id="riwayat_penyakit_sekarang" name="riwayat_penyakit_sekarang" value="{{ old('riwayat_penyakit_sekarang', $asesmenDalam->riwayat_penyakit_sekarang ?? '') }}">
+                                    <input type="text" class="form-control" id="riwayat_penyakit_sekarang" name="riwayat_penyakit_sekarang">
                                 </div>
                             </div>    
                         </div> 
@@ -71,13 +74,13 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="riwayat_penyakit_dahulu">Riwayat Penyakit Dahulu</label>
-                                    <input type="text" class="form-control" id="riwayat_penyakit_dahulu" name="riwayat_penyakit_dahulu" value="{{ old('riwayat_penyakit_dahulu', $asesmenDalam->riwayat_penyakit_dahulu ?? '') }}">
+                                    <input type="text" class="form-control" id="riwayat_penyakit_dahulu" name="riwayat_penyakit_dahulu">
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="obat_dikonsumsi">Obat yang Dikonsumsi</label>
-                                    <input type="text" class="form-control" id="obat_dikonsumsi" name="obat_dikonsumsi" value="{{ old('obat_dikonsumsi', $asesmenDalam->obat_dikonsumsi ?? '') }}">
+                                    <input type="text" class="form-control" id="obat_dikonsumsi" name="obat_dikonsumsi">
                                 </div>
                             </div>    
                         </div>
@@ -85,7 +88,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="keadaan_umum">Keadaan Umum</label>
-                                    <input type="text" class="form-control" id="keadaan_umum" name="keadaan_umum" value="{{ old('keadaan_umum', $asesmenDalam->keadaan_umum ?? 'Baik') }}">
+                                    <input type="text" class="form-control" id="keadaan_umum" name="keadaan_umum">
                                 </div>
                             </div>
 
@@ -142,26 +145,25 @@
                             <div class="col-md-3">
                                 <div class="form-group d-flex align-items-center">
                                     <label for="td" class="me-2 mb-0 mr-2" style="width: 40px;">TD</label>
-                                    <input type="text" class="form-control" id="td" name="td" value="{{ old('td', $asesmenDalam->td ?? $dataperawat->td ?? '') }}">
+                                    <input type="text" class="form-control" id="td" name="td">
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group d-flex align-items-center">
                                     <label for="n" class="me-2 mb-0 mr-2" style="width: 40px;">N</label>
-                                    <input type="text" class="form-control" id="n" name="n" value="{{ old('n', $asesmenDalam->n ?? $dataperawat->nadi ?? '') }}">
+                                    <input type="text" class="form-control" id="n" name="n">
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group d-flex align-items-center">
                                     <label for="s" class="me-2 mb-0 mr-2" style="width: 40px;">S</label>
-                                    <input type="text" class="form-control" id="s" name="s" value="{{ old('s', $asesmenDalam->s ?? $dataperawat->suhu ?? '') }}">
-                                    
+                                    <input type="text" class="form-control" id="s" name="s">
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group d-flex align-items-center">
                                     <label for="r" class="me-2 mb-0 mr-2" style="width: 40px;">R</label>
-                                    <input type="text" class="form-control" id="r" name="r" value="{{ old('r', $asesmenDalam->r ?? $dataperawat->rr ?? '') }}">
+                                    <input type="text" class="form-control" id="r" name="r">
                                 </div>
                             </div>
                         </div>
@@ -171,31 +173,31 @@
                                     <td>1.</td>
                                     <td>Kepala</td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="kepala" value="{{ old('kepala', $asesmenDalam->kepala ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="kepala" value="dbn"></td>
                                 </tr>
                                 <tr>
                                     <td>2.</td>
                                     <td>Leher</td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="leher" value="{{ old('leher', $asesmenDalam->leher ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="leher" value="dbn"></td>
                                 </tr>
                                 <tr>
                                     <td>3.</td>
                                     <td><em>Thorax</em></td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="thorax" value="{{ old('leher', $asesmenDalam->leher ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="thorax" value="dbn"></td>
                                 </tr>
                                 <tr>
                                     <td>4.</td>
                                     <td><em>Abdomen</em></td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="abdomen" value="{{ old('abdomen', $asesmenDalam->abdomen ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="abdomen" value="dbn"></td>
                                 </tr>
                                 <tr>
                                     <td>5.</td>
                                     <td><em>Genitalia</em></td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="genitalia" value="{{ old('genitalia', $asesmenDalam->genitalia ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="genitalia" value="dbn"></td>
                                 </tr>
                                 <tr>
                                     <td>6.</td>
@@ -207,101 +209,98 @@
                                     <td></td>
                                     <td>- <em>Extremitas Atas</em></td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="ext_atas" value="{{ old('ext_atas', $asesmenDalam->ext_atas ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="ext_atas" value="dbn"></td>
                                 </tr>
                                 <tr>
                                     <td></td>
                                     <td>- <em>Extremitas Bawah</em></td>
                                     <td>:</td>
-                                    <td><input type="text" class="form-control" name="ext_bawah" value="{{ old('ext_bawah', $asesmenDalam->ext_bawah ?? 'dbn') }}"></td>
+                                    <td><input type="text" class="form-control" name="ext_bawah" value="dbn"></td>
                                 </tr>
                             </tbody>
                         </table>    
-                       <div class="form-group">
-                        <label class="form-label">Status Lokalis</label>
-                            <!-- Gambar (Canvas + Img) centered -->
-                            <div class="col-12 mb-2 d-flex justify-content-center">
-                                <div>
+                       <div class="form-group row">
+                            <!-- Gambar (3 bagian dari total 4) -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
                                     <canvas id="drawingCanvas" class="img-fluid rounded border"></canvas>
-                                    <img src="{{ asset('img/dalam-coba.png') }}" class="img-fluid rounded border" alt="Status Lokalis Image" id="imageElement" style="display:none;">
+                                    <img src="{{ asset('img/dalam-coba.png')}}" class="img-fluid rounded border" alt="Status Lokalis Image" id="imageElement" style="display:none;">
                                 </div>
                             </div>
 
-                            <!-- Tombol centered -->
-                            <div class="col-12 mb-3 d-flex justify-content-center">
-                                <button type="button" class="btn btn-secondary mr-2" id="resetButton">Reset</button>
-                                <button type="button" class="btn btn-primary" id="addButton">Add</button>
+                            <!-- Textarea (1 bagian dari total 4) -->
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <textarea class="form-control" rows="4" placeholder="Tulis status lokalis di sini..."></textarea>
+                                </div>
+                                <!-- Tombol -->
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-secondary" id="resetButton">Reset</button>
+                                    <button type="button" class="btn btn-primary" id="addButton">Add</button>
+                                </div>
                             </div>
-
-                            <!-- Textarea -->
-                            <div class="col-12 mb-3">
-                                <textarea class="form-control" rows="4" placeholder="Tulis status lokalis di sini..."></textarea>
-                            </div>
-
-                            <!-- Hidden field for image -->
-        <input name="lokalis_image" id="lokalisImageInput">
                         </div>
                             
                             <!-- Diagnosa Kerja -->
                             <div class="mb-3">
-                                <label class="form-label">Diagnosa Kerja</label>
-                                @php
-                                    $diagnosa_fields = [
-                                        'diagnosakerja_1',
-                                        'diagnosakerja_2',
-                                        'diagnosakerja_3',
-                                        'diagnosakerja_4',
-                                        'diagnosakerja_5'
-                                    ];
-                                @endphp
+                                <label class="form-label"><strong>Diagnosa Kerja</strong></label>
                                 <div class="row g-2 mb-4">
-                                    @foreach ($diagnosa_fields as $index => $field)
-                                        @php
-                                            $oldValue = old($field, $asesmenPenunjang->$field ?? '');
-                                        @endphp
-                                        @if ($index == 3) </div><div class="row g-2"> @endif
-                                        <div class="col-md-4">
-                                            <select class="form-control select2-icd10" name="{{ $field }}">
-                                                @if ($oldValue)
-                                                    <option value="{{ $oldValue }}" selected>{{ $oldValue }}</option>
-                                                @endif
-                                            </select>
-                                        </div>
-                                    @endforeach
+                                    <div class="col-md-4">
+                                        <select class="form-control select2" name="diagnosa_kerja_1">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="K25">K25 - Gastric ulcer</option>
+                                            <option value="E11.7">E11.7 - Diabetes mellitus</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-control select2" name="diagnosa_kerja_2">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="I11">I11 - Hypertensive heart disease</option>
+                                            <option value="N13.0">N13.0 - Hydronephrosis</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-control select2" name="diagnosa_kerja_3">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="J45">J45 - Asthma</option>
+                                            <option value="A09">A09 - Gastroenteritis</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <select class="form-control select2" name="diagnosa_kerja_4">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="K25">K25 - Gastric ulcer</option>
+                                            <option value="E11.7">E11.7 - Diabetes mellitus</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <select class="form-control select2" name="diagnosa_kerja_5">
+                                            <option selected disabled>Pilih Diagnosa</option>
+                                            <option value="I11">I11 - Hypertensive heart disease</option>
+                                            <option value="N13.0">N13.0 - Hydronephrosis</option>
+                                        </select>
+                                    </div>
+                                    
                                 </div>
                             </div>
 
                             <!-- Diagnosa Banding -->
                             <div class="mb-3">
-                                <label for="diagnosa_banding" class="form-label">Diagnosa Banding</label>
-                                <input type="text" class="form-control" name="diagnosa_banding" id="diagnosa_banding" value="{{ old('diagnosa_banding', $asesmenPenunjang->diagnosa_banding ?? '') }}">
+                                <label for="diagnosa_banding" class="form-label"><strong>Diagnosa Banding</strong></label>
+                                <input type="text" class="form-control" name="diagnosa_banding" id="diagnosa_banding">
                             </div>
 
                             <!-- Masalah Medis dan Keperawatan -->
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label for="masalah_medis" class="form-label">Masalah Medis</label>
+                                    <label for="masalah_medis" class="form-label"><strong>Masalah Medis</strong></label>
                                     <textarea class="form-control" name="masalah_medis" id="masalah_medis" rows="2" ></textarea>
                                 </div>
                                 <div class="col-md-6">
-                                    <label for="masalah_keperawatan" class="form-label">Masalah Keperawatan</label>
-                                    @php
-                                        $valueFromPenunjang = old('masalah_keperawatan', $asesmenPenunjang->masalah_keperawatan ?? null);
-                                        $valueFromPerawat = '';
-                                        if (!$valueFromPenunjang && isset($dataperawat->masalah_keperawatan)) {
-                                            if (is_array($dataperawat->masalah_keperawatan)) {
-                                                $perawatArray = $dataperawat->masalah_keperawatan;
-                                            } else {
-                                                $perawatArray = json_decode($dataperawat->masalah_keperawatan, true);
-                                            }
-                                            if (is_array($perawatArray)) {
-                                                $valueFromPerawat = implode("\n", $perawatArray);
-                                            }
-                                        }
-                                        $textareaValue = $valueFromPenunjang ?? $valueFromPerawat;
-                                    @endphp
-
-                                    <textarea class="form-control" name="masalah_keperawatan" id="masalah_keperawatan" rows="4">{{ $textareaValue }}</textarea>
+                                    <label for="masalah_keperawatan" class="form-label"><strong>Masalah Keperawatan</strong></label>
+                                    <textarea class="form-control" name="masalah_keperawatan" id="masalah_keperawatan" rows="2"></textarea>
                                 </div>
                             </div>                    
 
@@ -309,20 +308,19 @@
 
                             <!-- Sasaran -->
                             <div class="mb-3">
-                                <label for="sasaran" class="form-label">Sasaran</label>
-                                <input type="text" class="form-control" name="sasaran" id="sasaran" value="Kondisi Umum Baik dan Stabil">
+                                <label for="sasaran" class="form-label"><strong>Sasaran</strong></label>
+                                <input type="text" class="form-control" name="sasaran" id="sasaran">
                             </div>
 
                             <!-- Rencana Asuhan / Terapi / Intruksi -->
                             <div class="mb-3">
-                                <label for="standing_order" class="form-label">Rencana Asuhan / Terapi / Intruksi (Standing Order)</label>
-                                <textarea class="form-control" name="standing_order" id="standing_order" rows="5">edukasi diet dan olahraga &#10;kepatuhan konsumsi obat sesuai anjuran dokter</textarea>
+                                <label for="standing_order" class="form-label"><strong>Rencana Asuhan / Terapi / Intruksi (Standing Order)</strong></label>
+                                <textarea class="form-control" name="standing_order" id="standing_order" rows="2"></textarea>
                             </div>
-
 
                             <!-- Rencana Tindak Lanjut -->
                         <div class="mb-3">
-                            <label class="form-label">Rencana Tindak Lanjut</label><br>
+                            <label class="form-label"><strong>Rencana Tindak Lanjut</strong></label><br>
                             <div class="form-check form-check-inline">
                                 <input class="form-check-input" type="radio" name="rtl" id="rawat_jalan" value="Rawat Jalan" checked>
                                 <label class="form-check-label" for="rawat_jalan">Rawat Jalan</label>
@@ -361,7 +359,7 @@
                         <!-- Rujuk Fields -->
                         <div id="rujuk_fields" style="display: none;">
                             <div class="mb-3">
-                                <label class="form-label">Rujuk Ke</label><br>
+                                <label class="form-label"><strong>Rujuk Ke</strong></label><br>
                                 <div class="row g-2">
                                     <div class="col-md-2">
                                         <div class="form-check">
@@ -407,7 +405,7 @@
                             </div>
                         </div>                   
                         <div>
-                        <label>Edukasi Pasien :</label>
+                        <label><strong>Edukasi Pasien :</strong></label>
                         <p>Edukasi Awal, disampaikan tentang diagnosis, Rencana dan Tujuan Terapi kepada :</p>
 
                         <label>
@@ -440,30 +438,37 @@
 @endsection
 @section('scripts')
 <script>   
+// SweetAlert setelah document ready (boleh di luar juga)
+        @if(session('success'))
+            Swal.fire({
+                title: 'Berhasil!',
+                text: '{{ session('success') }}',
+                icon: 'success',
+                confirmButtonText: 'OK'
+            });
+        @endif 
+
    $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
-    $('.select2-icd10').select2({
-        placeholder: 'Search ICD-10 code...',
-        ajax: {
-            url: '{{ route("icd10.search") }}',
-            dataType: 'json',
-            delay: 250,
-            data: function (params) {
-                return {
-                    q: params.term // search term
-                };
-            },
-            processResults: function (data) {
-                return {
-                    results: data.map(item => ({
-                        id: `${item.code} - ${item.description}`,
-                        text: `${item.code} - ${item.description}`
-                    }))
-                };
-            },
-            cache: true
-        },
-        minimumInputLength: 2
+    $('#tanggal_lahir').daterangepicker({
+        singleDatePicker: true,
+        showDropdowns: true,
+        autoUpdateInput: false,
+        locale: {
+            format: 'YYYY-MM-DD',
+            cancelLabel: 'Clear'
+        }
+    });
+
+   
+    
+
+    $('#tanggal_lahir').on('apply.daterangepicker', function (ev, picker) {
+        $(this).val(picker.startDate.format('YYYY-MM-DD'));
+    });
+
+    $('#tanggal_lahir').on('cancel.daterangepicker', function (ev, picker) {
+        $(this).val('');
     });
 
     function updateGCS() {
@@ -487,13 +492,14 @@
     // Jalankan sekali saat halaman load (optional)
     updateGCS();
 
-    // Initially set masalah_medis to match keluhan_utama
-        $('#masalah_medis').val($('#keluhan_utama').val());
+    $('#keluhan_utama').on('input', function () {
+        var keluhan = $(this).val();
+        var masalahMedis = $('#masalah_medis');
 
-        // Update masalah_medis whenever keluhan_utama changes
-        $('#keluhan_utama').on('input', function () {
-            $('#masalah_medis').val($(this).val());
-        });
+        if (masalahMedis.val() === '') {
+            masalahMedis.val(keluhan);
+        }
+    });
 
     // Saat tombol modal alergi ditekan
     $('#btnBukaAlergi').on('click', function () {
@@ -530,7 +536,7 @@
 
     function toggleRencanaTindakLanjut() {
     const pilihan = $('input[name="rtl"]:checked').val();
-    // console.log('Pilihan RTL:', pilihan);  // Debug
+    console.log('Pilihan RTL:', pilihan);  // Debug
 
         if (pilihan === 'Rawat Jalan') {
             $('#ranap_fields').hide();
@@ -551,51 +557,6 @@
     $('input[name="rtl"]').on('change', function () {
         console.log('Radio RTL changed');  // Debug
         toggleRencanaTindakLanjut();
-    });
-
-    $.ajaxSetup({
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        }
-    });
-
-    $('#asesmen-form').on('submit', function (e) {
-        e.preventDefault();
-
-        let form = $(this);
-        let formData = new FormData(this);
-
-        $.ajax({
-            url: form.attr('action'),
-            type: 'POST',
-            data: formData,
-            contentType: false,
-            processData: false,
-            dataType: 'json', // ✅ ensure it's parsed
-            success: function (response) {
-                Swal.fire({
-                    title: 'Sukses!',
-                     html: response.message,
-                    icon: 'success',
-                    confirmButtonText: 'OK'
-                });
-            },
-            error: function (xhr) {
-                let errors = xhr.responseJSON?.errors;
-                let errorMsg = "Terjadi kesalahan saat mengirim data.";
-
-                if (errors) {
-                    errorMsg = Object.values(errors).map(err => `• ${err}`).join('<br>');
-                }
-
-                Swal.fire({
-                    title: 'Gagal!',
-                    html: errorMsg,
-                    icon: 'error',
-                    confirmButtonText: 'OK'
-                });
-            }
-        });
     });
 
 });
@@ -653,8 +614,8 @@
             img.onload(); // panggil langsung
         }
     };
-
-    
 </script>
+
+
 
 @endsection

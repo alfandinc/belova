@@ -38,8 +38,8 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="fa fa-file-medical-alt mr-2"></i> Riwayat Hasil Laboratorium</h5>
             <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalPermintaanLab">
-    + Tambah Permintaan Lab
-</button>
+                + Tambah Permintaan Lab
+            </button>
         </div>
         <div class="card-body">
             <!-- Riwayat Hasil Laboratorium -->

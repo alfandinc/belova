@@ -16,7 +16,22 @@
             <!--end logo-->
             <div class="menu-content h-100" data-simplebar>
                 <ul class="metismenu left-sidenav-menu">
-                    <li class="menu-label mt-0">Main</li>
+                    @php
+                        $role = Auth::user()->getRoleNames()->first();
+                        $colorClass = match($role) {
+                            'Admin' => 'bg-primary',
+                            'Dokter' => 'bg-success',
+                            'Perawat' => 'bg-info',
+                            default => 'bg-secondary',
+                        };
+                    @endphp
+                    <li class="menu-label mt-0">
+                        <span class="text-white px-2 py-1 rounded {{ $colorClass }}" style="font-size: 1.2rem;">
+                        ERM {{ $role }}
+                        </span>
+                    </li>
+
+
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -25,10 +40,10 @@
                     </li>
     
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Pendaftaran Pasien</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Pendaftaran</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/erm/pasiens/create"><i class="ti-control-record"></i>Tambah Pasien</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/erm/visitations"><i class="ti-control-record"></i>Daftarkan Kunjungan</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm/visitations"><i class="ti-control-record"></i>Daftar Pasien</a></li>
                             <li class="nav-item"><a class="nav-link" href="/erm/pasiens"><i class="ti-control-record"></i>Manajemen Pasien</a></li>
 
                         </ul>
@@ -47,6 +62,14 @@
                             <span>Resume Medis</span>
                         </a>
                     </li>  
+                    <li>
+                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <ul class="nav-second-level" aria-expanded="false">
+                            <li class="nav-item"><a class="nav-link" href="/erm/eresepfarmasi"><i class="ti-control-record"></i>E-Resep Farmasi</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm/obat"><i class="ti-control-record"></i>Stok Obat</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/erm/obat/create"><i class="ti-control-record"></i>Tambah Obat</a></li>
+                        </ul>
+                    </li> 
        
                 </ul>              
             </div>

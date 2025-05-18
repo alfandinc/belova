@@ -14,9 +14,52 @@ use Carbon\Carbon;
 use App\Models\ERM\Alergi;
 use App\Models\ERM\ResepDokter;
 use Illuminate\Support\Facades\Auth;
+use App\Models\ERM\Pasien;
+use Yajra\DataTables\Facades\DataTables;
+use App\Models\ERM\MetodeBayar;
+use App\Models\ERM\Dokter;
+
 
 class EresepController extends Controller
 {
+    public function index(Request $request)
+    {
+        if ($request->ajax()) {
+            $visitations = Visitation::with(['pasien', 'metodeBayar'])->select('erm_visitations.*');
+
+            if ($request->tanggal) {
+                $visitations->whereDate('tanggal_visitation', $request->tanggal);
+            }
+
+            $user = Auth::user();
+            if ($user->hasRole('Perawat')) {
+                $visitations->where('progress', 1);
+            } elseif ($user->hasRole('Dokter')) {
+                $visitations->whereIn('progress', [2, 3]);
+            }
+
+            return datatables()->of($visitations)
+                ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
+                ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
+                ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
+                ->addColumn('tanggal', fn($v) => $v->tanggal_visitation)
+                ->addColumn('status_dokumen', fn($v) => ucfirst($v->status_dokumen))
+                ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
+                ->addColumn('progress', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
+                ->addColumn('dokumen', function ($v) {
+                    $user = Auth::user();
+                    $asesmenUrl = $user->hasRole('Perawat') ? route('erm.eresepfarmasi.create', $v->id)
+                        : ($user->hasRole('Dokter') ? route('erm.eresepfarmasi.create', $v->id) : '#');
+                    return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
+                })
+                ->rawColumns(['dokumen'])
+                ->make(true);
+        }
+
+        $dokters = Dokter::with('user', 'spesialisasi')->get();
+        $metodeBayar = MetodeBayar::all();
+        return view('erm.eresep.index', compact('dokters', 'metodeBayar'));
+    }
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
@@ -53,6 +96,49 @@ class EresepController extends Controller
 
 
         return view('erm.eresep.create', array_merge([
+            'visitation' => $visitation,
+            'obats' => $obats,
+            'nonRacikans' => $nonRacikans,
+            'racikans' => $racikans,
+            'lastRacikanKe' => $lastRacikanKe,
+        ], $pasienData, $createKunjunganData));
+    }
+    public function farmasicreate($visitationId)
+    {
+        $visitation = Visitation::findOrFail($visitationId);
+        $pasienData = PasienHelperController::getDataPasien($visitationId);
+        $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
+
+        // Ambil pasien id
+        $pasienId = $visitation->pasien_id;
+
+        // Ambil zat aktif yang pasien alergi
+        $zatAlergi = DB::table('erm_alergi')
+            ->where('pasien_id', $pasienId)
+            ->pluck('zataktif_id')
+            ->toArray();
+
+        // Ambil obat yang tidak punya zat aktif dari alergi
+        $obats = Obat::whereDoesntHave('zatAktifs', function ($query) use ($zatAlergi) {
+            $query->whereIn('erm_zataktif.id', $zatAlergi);
+        })->get();
+
+        // $obats = Obat::all();
+
+        // Ambil semua resep berdasarkan visitation_id
+        $reseps = ResepDokter::where('visitation_id', $visitationId)->with('obat')->get();
+
+        // Kelompokkan racikan berdasarkan racikan_ke
+        $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+
+        // Ambil non-racikan
+        $nonRacikans = $reseps->whereNull('racikan_ke');
+
+        // Hitung nilai racikan_ke terakhir dari database
+        $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
+
+
+        return view('erm.eresep.farmasi.create', array_merge([
             'visitation' => $visitation,
             'obats' => $obats,
             'nonRacikans' => $nonRacikans,

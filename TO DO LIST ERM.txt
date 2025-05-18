@@ -13,7 +13,6 @@ Data Inform Consent = bikin baru
 Fitur yang Dibuat :
 
 rawat jalan (done)
-rawat inap / one day care
 e farmasi (on progress)
 e logistik (on progress)
 e finance w/ pak abdi
@@ -152,3 +151,101 @@ pendaftaran tambah sosmeed lain
 sqitch theme
 
 marketing -> per bithday
+
+
+
+
+keadaan umum -> baik
+tombol keluar disetiap sub menu
+ronsen, ultrasonografi, bmd, mammografy
+
+belova semua asesmen medis
+
+tindakan :
+
+anak :
+vaksinasi
+sonde
+fungsi LUMBAL
+
+tht :
+aff gromet
+aff tampon
+ektrasi benda asing di tht
+polipektomi
+tonsilektomi
+turbinetomi
+
+gigi :
+scaling (semua)
+perawatan saluran akar 
+ondontektomi
+ekstraksi gigi
+ginggivektomi
+
+bedah:
+amputasi
+anuskopi
+biopsi insisi eksisi
+ekstirpasi
+ektsrasi kuku neagle
+fistuletomi
+insisi drainage
+jahit luka (hecting)
+pemasangan WSD
+lebotomi
+fungsi suprapupik
+sirkum sisi 
+
+penyakit dalam:
+bone marrow punction
+kolonoskopi dan polipectomi simpel 
+egd dan biopsi
+injeksi genue
+injeksi tenderpoint
+pemeriksaan hiv 
+pungsi asites 
+pungsi pleura
+pemasangan ngt 
+pemasangan dc kateter
+
+
+sms blast pasien h-1 
+e-lab beri akses keluar
+e farmasi = pembelian obat diluar visitaion (apoteker dan AA)
+e -lab = periksa lab diluar visitation (analist dan dokter)
+
+
+e logistik -
+tempat beli, dokumen pendukung, service date, garansi sampai kapan, perbaikan date & jenis perbaikan, pengingat jadwal service, desc item,
+history biaya service -> laporan ke finance (pak abdi)
+barang per ruangan
+
+Tambah Diagnosa di E-Lab
+Range Harga
+
+DONITA : Dokumen Unite Kerja (upload pdf dokumen)
+
+Indikator Mutu -> Draft Indikator -> Dicek Verifikator -> Worksheet UNit
+
+Laporan Insiden -> K3
+
+Risk Register -> Daftar Resiko
+
+Logbook - Daftar Kegiatan Perawat
+
+Kepuasan Pelanggan -> Rating
+
+Resume Pasien- Semua Dokumen Rekam Medis Pasien (search by visit dan no rm) (REadOnly)
+
+E-LOgistik -> laporan pengeluaran & pemasukan
+
+Beli Obat dan Periksa Lab -> Create Visit
+
+E-Finance = 
+
+Whatsapp Gateway-> pak abdi
+
+KOntrak tanggal habis = tgl ttd -1
+Document kontrak upload
+Slip input HRD view HRD

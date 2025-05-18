@@ -88,6 +88,23 @@
             <h4 class="card-title text-white">Daftarkan Kunjungan Pasien</h4>
         </div>
         <div class="card-body">
+            <div class="row mb-3">
+    <div class="col-md-2">
+        <input type="text" id="filter_no_rm" class="form-control" placeholder="No RM">
+    </div>
+    <div class="col-md-2">
+        <input type="text" id="filter_nama" class="form-control" placeholder="Nama">
+    </div>
+    <div class="col-md-2">
+        <input type="text" id="filter_nik" class="form-control" placeholder="NIK">
+    </div>
+    <div class="col-md-2">
+        <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
+    </div>
+    <div class="col-md-2">
+        <button id="btn-filter" class="btn btn-primary">Cari</button>
+    </div>
+</div>
             <table class="table table-bordered" id="pasiens-table">
                 <thead>
                     <tr>
@@ -108,14 +125,22 @@
 @section('scripts')
 <script>
 $(document).ready(function () {
-    // Inisialisasi select2
     $('.select2').select2({ width: '100%' });
 
-    // Inisialisasi datatable
-    $('#pasiens-table').DataTable({
+    let table = $('#pasiens-table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('erm.visitations.index') }}",
+        searching: false,
+        deferLoading: 0, // Prevent initial load
+        ajax: {
+            url: "{{ route('erm.visitations.index') }}",
+            data: function (d) {
+                d.no_rm = $('#filter_no_rm').val();
+                d.nama = $('#filter_nama').val();
+                d.nik = $('#filter_nik').val();
+                d.alamat = $('#filter_alamat').val();
+            }
+        },
         columns: [
             { data: 'id', name: 'id' },
             { data: 'nama', name: 'nama' },
@@ -126,7 +151,10 @@ $(document).ready(function () {
         ]
     });
 
-    // Tampilkan modal saat klik tombol daftar kunjungan
+    $('#btn-filter').click(function () {
+        table.ajax.reload();
+    });
+
     $(document).on('click', '.btn-daftar-visitation', function () {
         let pasienId = $(this).data('id');
         let namaPasien = $(this).data('nama');
@@ -136,10 +164,8 @@ $(document).ready(function () {
         $('#modalKunjungan').modal('show');
     });
 
-    // Submit form kunjungan
     $('#form-kunjungan').submit(function (e) {
         e.preventDefault();
-
         let formData = $(this).serialize();
 
         $.ajax({
@@ -157,14 +183,11 @@ $(document).ready(function () {
         });
     });
 
-    // Cek No Antrian otomatis
     function cekAntrian() {
         let dokterId = $('#dokter_id').val();
         let tanggal = $('#tanggal_visitation').val();
-        
 
         if (dokterId && tanggal) {
-            console.log('dokter_id:', dokterId, 'tanggal:', tanggal);
             $.ajax({
                 url: "{{ route('erm.visitations.cekAntrian') }}",
                 type: 'GET',
@@ -173,18 +196,15 @@ $(document).ready(function () {
                     tanggal: tanggal
                 },
                 success: function(response) {
-                    console.log('Response:', response);
                     $('#modal-no-antrian').val(response.no_antrian);
                 },
                 error: function(xhr) {
-                    console.log(xhr.responseText);
                     $('#modal-no-antrian').val('Error');
                 }
             });
         }
     }
 
-    // Jalankan cekAntrian saat dokter atau tanggal berubah
     $('#dokter_id, #tanggal_visitation').on('change', function () {
         cekAntrian();
     });

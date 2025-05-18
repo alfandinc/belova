@@ -37,6 +37,12 @@ class AsesmenPerawat extends Model
         'kategori',
         'kategori_risja',
         'status_fungsional',
+        'masalah_keperawatan',
+    ];
+
+    protected $casts = [
+        // Ini yang paling penting:
+        'masalah_keperawatan' => 'array',
     ];
 
     public function visitation()

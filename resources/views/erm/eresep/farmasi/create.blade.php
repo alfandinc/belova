@@ -1,7 +1,7 @@
 @extends('layouts.erm.app')
-@section('title', 'E-Resep')
+@section('title', 'E-Resep Farmasi')
 @section('navbar')
-    @include('layouts.erm.navbardetail')
+    @include('layouts.erm.navbar')
 @endsection
 @section('content')
 
@@ -11,7 +11,7 @@
 
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
-        <h3 class="mb-0 mr-2">E-Resep Pasien</h3>
+        <h3 class="mb-0 mr-2">E-Resep Farmasi Pasien</h3>
         <input type="hidden" id="visitation_id" value="{{ $visitation->id }}">
     </div>
 
@@ -22,7 +22,7 @@
                     <div class="col">
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
-                            <li class="breadcrumb-item">Rawat Jalan</li>
+                            <li class="breadcrumb-item">Farmasi</li>
                             <li class="breadcrumb-item active">E-Resep</li>
                         </ol>
                     </div>
@@ -40,10 +40,13 @@
                     <div style="display: flex; align-items: center;">
                         <h4 style="margin: 0;">Total Harga: <strong>Rp.</strong></h4>
                         <h4 id="total-harga" style="margin: 0; color: white;"><strong>0</strong></h4>
+                        
                     </div>
                     <div class="mb-3">
+                        <button class="btn btn-primary btn-sm" >Cetak Resep</button>
                         <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalFarmasi">Riwayat Farmasi</button>
                         <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalDokter">Riwayat Dokter</button>
+                        <button id="submit-all" class="btn btn-success btn-sm">Submit Resep</button>
                     </div>
                 </div>
 
@@ -101,7 +104,8 @@
                                     <td>{{ $resep->jumlah }}</td>
                                     <td>{{ $resep->obat->stok ?? 0 }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
-                                    <td><button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button></td>
+                                    <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button> <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
+                                    
                                 </tr>
                             @empty
                                 <tr class="no-data">
@@ -458,6 +462,14 @@
         }
     });
 })
+
+$('#submit-all').on('click', function () {
+    // Disable all buttons on the page
+    $('button').prop('disabled', true);
+
+    // Optional: Tampilkan loading
+    $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
+});
         
 
         

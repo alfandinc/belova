@@ -28,11 +28,13 @@ use App\Http\Controllers\ERM\{
     AsesmenController,
     AsesmenPerawatController,
     CPPTController,
+    Icd10Controller,
     RiwayatKunjunganController,
     ListAntrianController
 };
 use App\Http\Controllers\HRD\EmployeeController;
 use App\Http\Controllers\Inventory\ItemController;
+use App\Http\Controllers\AddressController;
 
 Route::get('/', function () {
     return view('mainmenu');
@@ -94,7 +96,6 @@ Route::prefix('erm')->group(function () {
     Route::get('asesmendokter/{visitation}/create', [AsesmenController::class, 'create'])->name('erm.asesmendokter.create');
     Route::post('asesmendokter/store', [AsesmenController::class, 'store'])->name('erm.asesmendokter.store');
 
-
     //asesmen perawat
     Route::get('asesmenperawat/{visitation}/create', [AsesmenPerawatController::class, 'create'])->name('erm.asesmenperawat.create');
     Route::post('asesmenperawat/store', [AsesmenPerawatController::class, 'store'])->name('erm.asesmenperawat.store');
@@ -102,6 +103,9 @@ Route::prefix('erm')->group(function () {
     //CPPT
     Route::get('cppt/{visitation_id}/create', [CPPTController::class, 'create'])->name('erm.cppt.create');
     Route::post('cppt/store', [CPPTController::class, 'store'])->name('erm.cppt.store');
+    Route::get('/cppt/history-json/{visitation}', [CPPTController::class, 'historyJson']);
+
+
 
     // E Resep
     Route::get('eresep/{visitation_id}/create', [EresepController::class, 'create'])->name('erm.eresep.create');
@@ -110,6 +114,8 @@ Route::prefix('erm')->group(function () {
     Route::delete('/resep/nonracikan/{id}', [EresepController::class, 'destroyNonRacikan'])->name('resep.nonracikan.destroy');
     Route::delete('/resep/racikan/{racikanKe}', [EresepController::class, 'destroyRacikan'])->name('resep.racikan.destroy');
 
+    Route::get('eresepfarmasi/{visitation_id}/create', [EresepController::class, 'farmasicreate'])->name('erm.eresepfarmasi.create');
+    Route::get('/eresepfarmasi', [EresepController::class, 'index'])->name('erm.eresepfarmasi.index');
 
     //Alergi
     Route::post('/pasiens/{visitation}/alergi', [AlergiController::class, 'store'])->name('erm.alergi.store');
@@ -177,3 +183,9 @@ Route::prefix('admin')->group(function () {
     Route::get('/roles', [RoleController::class, 'index'])->name('admin.roles.index');
     Route::post('/roles', [RoleController::class, 'store'])->name('admin.roles.store');
 });
+
+Route::get('/get-regencies/{province_id}', [AddressController::class, 'getRegencies']);
+Route::get('/get-districts/{regency_id}', [AddressController::class, 'getDistricts']);
+Route::get('/get-villages/{district_id}', [AddressController::class, 'getVillages']);
+Route::get('/address-form', [AddressController::class, 'index']);
+Route::get('/icd10/search', [Icd10Controller::class, 'search'])->name('icd10.search');

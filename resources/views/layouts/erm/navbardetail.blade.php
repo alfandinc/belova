@@ -4,37 +4,61 @@
     <div class="brand mt-3 text-center">
         <a href="/erm" class="logo">
             <span>
-                        <!-- Light-theme logo (for dark background) -->
-                        <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
+                <!-- Light-theme logo (for dark background) -->
+                <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
 
-                        <!-- Dark-theme logo (for light background) -->
-                        <img src="{{ asset('img/logo-premiere.png')}}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
-                        {{-- <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;"> --}}
-                    </span>
+                <!-- Dark-theme logo (for light background) -->
+                <img src="{{ asset('img/logo-premiere.png')}}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
+                {{-- <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;"> --}}
+            </span>
         </a>
     </div>
     <!-- end logo -->
 
     <div class="menu-content h-100" data-simplebar>
         <ul class="metismenu left-sidenav-menu">
+            @php
+                        $role = Auth::user()->getRoleNames()->first();
+                        $colorClass = match($role) {
+                            'Admin' => 'bg-primary',
+                            'Dokter' => 'bg-success',
+                            'Perawat' => 'bg-info',
+                            default => 'bg-secondary',
+                        };
+                    @endphp
+                    <li class="menu-label mt-0">
+                        <span class="text-white px-2 py-1 rounded {{ $colorClass }}" style="font-size: 1.2rem;">
+                        ERM {{ $role }}
+                        </span>
+                    </li>
             <li>
                 <a href="{{ route('erm.rawatjalans.index', $visitation->id) }}" target="_blank">
                     <i data-feather="home" class="align-self-center menu-icon"></i>
                     <span>Daftar Rawat Jalan</span>
                 </a>
             </li>
-            <li>
-                <a href="{{ route('erm.asesmendokter.create', $visitation->id) }}" target="_blank">
-                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
-                    <span>Asesmen</span>
-                </a>
-            </li>
-            <li>
-                <a href="{{ route('erm.cppt.create', $visitation->id) }}" target="_blank">
-                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
-                    <span>CPPT</span>
-                </a>
-            </li>
+            @php
+    $userRole = Auth::user()->getRoleNames()->first();
+    $statusDokumen = $visitation->status_dokumen; // adjust if the status comes from somewhere else
+    // dd($userRole, $statusDokumen);
+@endphp
+            @if($userRole === 'Dokter')
+    @if($statusDokumen === 'asesmen')
+        <li>
+            <a href="{{ route('erm.asesmendokter.create', $visitation->id) }}" target="_blank">
+                <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                <span>Asesmen</span>
+            </a>
+        </li>
+    @elseif($statusDokumen === 'cppt')
+        <li>
+            <a href="{{ route('erm.cppt.create', $visitation->id) }}" target="_blank">
+                <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                <span>CPPT</span>
+            </a>
+        </li>
+    @endif
+@endif
 
             <li>
                 <a href="{{ route('erm.eresep.create', $visitation->id) }}" target="_blank">

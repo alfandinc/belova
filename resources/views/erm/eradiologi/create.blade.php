@@ -8,6 +8,7 @@
 @section('content')
 
 @include('erm.partials.modal-alergipasien')
+@include('erm.partials.modal-permintaanradiologi')
 
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
@@ -42,6 +43,9 @@
                 <button type="button" class="btn btn-primary mr-2">MRI</button>
                 <button type="button" class="btn btn-primary mr-2">CT SCAN</button>
             </div>
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalPermintaanRadiologi">
+                + Tambah Permintaan Radiologi
+            </button>
         </div>
         <div class="card-body">
             <div class="table-responsive">

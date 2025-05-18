@@ -21,36 +21,63 @@ class RawatJalanController extends Controller
             if ($request->tanggal) {
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }
+            if ($request->dokter_id) {
+                $visitations->where('dokter_id', $request->dokter_id);
+            }
 
             $user = Auth::user();
             if ($user->hasRole('Perawat')) {
                 $visitations->where('progress', 1);
             } elseif ($user->hasRole('Dokter')) {
-                $visitations->whereIn('progress', [2, 3]);
+                $dokter = \App\Models\ERM\Dokter::where('user_id', $user->id)->first();
+                if ($dokter) {
+                    $visitations->where('dokter_id', $dokter->id)
+                        ->whereIn('progress', [2, 3]);
+                } else {
+                    // Optional: return empty if no dokter found
+                    $visitations->whereRaw('1 = 0');
+                }
             }
 
             return datatables()->of($visitations)
-                ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
+                ->addColumn('antrian', function ($v) {
+                    return '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
+                })
                 ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
                 ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
                 ->addColumn('tanggal', fn($v) => $v->tanggal_visitation)
-                ->addColumn('status_dokumen', fn($v) => ucfirst($v->status_dokumen))
+                // ->addColumn('status_dokumen', fn($v) => ucfirst($v->status_dokumen))
                 ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
                 ->addColumn('progress', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
-                    $asesmenUrl = $user->hasRole('Perawat') ? route('erm.asesmenperawat.create', $v->id)
-                        : ($user->hasRole('Dokter') ? route('erm.asesmendokter.create', $v->id) : '#');
+                    $dokumenBtn = '';
+
+                    if ($user->hasRole('Perawat')) {
+                        $url = route('erm.asesmenperawat.create', $v->id);
+                        $dokumenBtn = '<a href="' . $url . '" class="btn btn-sm btn-info">Lihat</a>';
+                    } elseif ($user->hasRole('Dokter')) {
+                        if ($v->status_dokumen === 'asesmen') {
+                            $url = route('erm.asesmendokter.create', $v->id);
+                            $dokumenBtn = '<a href="' . $url . '" class="btn btn-sm btn-primary">Asesmen</a>';
+                        } elseif ($v->status_dokumen === 'cppt') {
+                            $url = route('erm.cppt.create', $v->id);
+                            $dokumenBtn = '<a href="' . $url . '" class="btn btn-sm btn-success">CPPT</a>';
+                        }
+                    }
+
                     $rescheduleBtn = '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->pasien->nama . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
-                    return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Asesmen</a> ' . $rescheduleBtn;
+
+                    return $dokumenBtn . ' ' . $rescheduleBtn;
                 })
-                ->rawColumns(['dokumen'])
+                ->rawColumns(['antrian', 'dokumen'])
                 ->make(true);
         }
 
         $dokters = Dokter::with('user', 'spesialisasi')->get();
         $metodeBayar = MetodeBayar::all();
-        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar'));
+        $role = Auth::user()->getRoleNames()->first(); // or ->pluck('name')[0]
+        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role'));
     }
 
     public function cekAntrian(Request $request)

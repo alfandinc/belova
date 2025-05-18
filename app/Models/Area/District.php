@@ -12,11 +12,6 @@ class District extends Model
     protected $table = 'area_districts';
     protected $fillable = ['name', 'regency_id'];
 
-    public function regency()
-    {
-        return $this->belongsTo(Regency::class, 'regency_id');
-    }
-
     public function villages()
     {
         return $this->hasMany(Village::class, 'district_id');

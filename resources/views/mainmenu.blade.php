@@ -48,57 +48,6 @@
                     </li>
     
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Apps</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="javascript: void(0);"><i class="ti-control-record"></i>Email <span class="menu-arrow left-has-menu"><i class="mdi mdi-chevron-right"></i></span></a>
-                                <ul class="nav-second-level" aria-expanded="false">
-                                    <li><a href="apps-email-inbox.html">Inbox</a></li>
-                                    <li><a href="apps-email-read.html">Read Email</a></li>
-                                </ul>
-                            </li>  
-                            <li class="nav-item"><a class="nav-link" href="apps-chat.html"><i class="ti-control-record"></i>Chat</a></li>
-                            <li class="nav-item"><a class="nav-link" href="apps-contact-list.html"><i class="ti-control-record"></i>Contact List</a></li>
-                            <li class="nav-item"><a class="nav-link" href="apps-calendar.html"><i class="ti-control-record"></i>Calendar</a></li>
-                            <li class="nav-item"><a class="nav-link" href="apps-files.html"><i class="ti-control-record"></i>File Manager</a></li>
-                            <li class="nav-item"><a class="nav-link" href="apps-invoice.html"><i class="ti-control-record"></i>Invoice</a></li>
-                            <li class="nav-item"><a class="nav-link" href="apps-tasks.html"><i class="ti-control-record"></i>Tasks</a></li>
-                            <li>
-                                <a href="javascript: void(0);"><i class="ti-control-record"></i>Projects <span class="menu-arrow left-has-menu"><i class="mdi mdi-chevron-right"></i></span></a>
-                                <ul class="nav-second-level" aria-expanded="false">
-                                    <li><a href="apps-project-overview.html">Overview</a></li>                                    
-                                    <li><a href="apps-project-projects.html">Projects</a></li>
-                                    <li><a href="apps-project-board.html">Board</a></li>
-                                    <li><a href="apps-project-teams.html">Teams</a></li>
-                                    <li><a href="apps-project-files.html">Files</a></li>
-                                    <li><a href="apps-new-project.html">New Project</a></li>
-                                </ul>
-                            </li>
-                            <li>
-                                <a href="javascript: void(0);"><i class="ti-control-record"></i>Ecommerce <span class="menu-arrow left-has-menu"><i class="mdi mdi-chevron-right"></i></span></a>
-                                <ul class="nav-second-level" aria-expanded="false">
-                                    <li><a href="apps-ecommerce-products.html">Products</a></li>                                    
-                                    <li><a href="apps-ecommerce-product-list.html">Product List</a></li>
-                                    <li><a href="apps-ecommerce-product-detail.html">Product Detail</a></li>
-                                    <li><a href="apps-ecommerce-cart.html">Cart</a></li>
-                                    <li><a href="apps-ecommerce-checkout.html">Checkout</a></li>                                    
-                                </ul>
-                            </li>
-                        </ul>
-                    </li>
-    
-                    <li>
-                        <a href="javascript: void(0);"><i data-feather="lock" class="align-self-center menu-icon"></i><span>Authentication</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="auth-login.html"><i class="ti-control-record"></i>Log in</a></li>
-                            <li class="nav-item"><a class="nav-link" href="auth-register.html"><i class="ti-control-record"></i>Register</a></li>
-                            <li class="nav-item"><a class="nav-link" href="auth-recover-pw.html"><i class="ti-control-record"></i>Recover Password</a></li>
-                            <li class="nav-item"><a class="nav-link" href="auth-lock-screen.html"><i class="ti-control-record"></i>Lock Screen</a></li>
-                            <li class="nav-item"><a class="nav-link" href="auth-404.html"><i class="ti-control-record"></i>Error 404</a></li>
-                            <li class="nav-item"><a class="nav-link" href="auth-500.html"><i class="ti-control-record"></i>Error 500</a></li>
-                        </ul>
-                    </li> 
-                    <li>
                         <a href="javascript: void(0);"><i data-feather="user" class="align-self-center menu-icon"></i><span>Admin Panel</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/admin/users"><i class="ti-control-record"></i>User Management</a></li>
@@ -234,6 +183,46 @@
                                                     <!-- Icon Container -->
                                                     <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
                                                         <i class="fas fa-chart-line fa-3x"></i>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div> 
+                                    </div>
+                                    </a>
+                                </div> <!--end col-->
+                                <div class="col-md-6 col-lg-3">
+                                    <a href="/erm/login" style="text-decoration: none; color: inherit;">
+                                    <div class="card report-card">
+                                        <div class="card-header bg-secondary">
+                                            <h3 class="card-title text-white"><center>Laboratorium</center></h3>
+                                        </div><!--end card-header-->
+                                        <div class="card-body">
+                                            <div class="row d-flex justify-content-center">
+                                                <div class="col-auto align-self-center">                                
+                                                    <!-- Icon Container -->
+                                                    <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
+                                                        <i class="fas fa-vial fa-3x"></i>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div> 
+                                    </div>
+                                    </a>
+                                </div> <!--end col-->
+                                <div class="col-md-6 col-lg-3">
+                                    <a href="/erm/login" style="text-decoration: none; color: inherit;">
+                                    <div class="card report-card">
+                                        <div class="card-header bg-purple">
+                                            <h3 class="card-title text-white"><center>Farmasi</center></h3>
+                                        </div><!--end card-header-->
+                                        <div class="card-body">
+                                            <div class="row d-flex justify-content-center">
+                                                <div class="col-auto align-self-center">                                
+                                                    <!-- Icon Container -->
+                                                    <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
+                                                        <i class="fas fa-pills fa-3x"></i>
                                                     </div>
 
                                                 </div>

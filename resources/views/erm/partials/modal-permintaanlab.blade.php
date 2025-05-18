@@ -183,9 +183,9 @@
       <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="HPV DNA GENOTYPING"><label class="form-check-label">HPV DNA GENOTYPING</label></div>
       <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="PCR SARS CoV-2"><label class="form-check-label">PCR SARS CoV-2</label></div>
       <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="NIPT (NON INVASIVE PRENATAL TESTING)"><label class="form-check-label">NIPT (NON INVASIVE PRENATAL TESTING)</label></div>
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="PREMIERE BELOVA SportGen"><label class="form-check-label">PREMIERE BELOVA SportGen</label></div>
+      {{-- <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="PREMIERE BELOVA SportGen"><label class="form-check-label">PREMIERE BELOVA SportGen</label></div>
       <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="PREMIERE BELOVA NutriGen"><label class="form-check-label">PREMIERE BELOVA NutriGen</label></div>
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="PREMIERE BELOVA WellnessGen"><label class="form-check-label">PREMIERE BELOVA WellnessGen</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="molekuler[]" value="PREMIERE BELOVA WellnessGen"><label class="form-check-label">PREMIERE BELOVA WellnessGen</label></div> --}}
     </div>
   </div>
 </div>
@@ -205,7 +205,7 @@
   </div>
 </div>
 <!-- PEMERIKSAAN RONTGEN -->
-<div class="card mb-3">
+{{-- <div class="card mb-3">
   <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
     <strong>PEMERIKSAAN RONTGEN</strong>
     <button class="btn btn-sm btn-primary" type="button" data-toggle="collapse" data-target="#rontgenBody" aria-expanded="false" aria-controls="rontgenBody">▼</button>
@@ -254,7 +254,7 @@
       <div class="form-check"><input class="form-check-input" type="checkbox" name="rontgen[]" value="APPENDICOGRAM"><label class="form-check-label">APPENDICOGRAM**</label></div>
     </div>
   </div>
-</div>
+</div> --}}
 
 
 
@@ -422,7 +422,7 @@
     </div>
   </div>
 </div>
-<div class="card mb-3">
+{{-- <div class="card mb-3">
   <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
     <strong>ULTRASONOGRAPHY</strong>
     <button class="btn btn-sm btn-primary" type="button" data-toggle="collapse" data-target="#usgBody" aria-expanded="false" aria-controls="usgBody">▼</button>
@@ -438,7 +438,7 @@
       </div>
     </div>
   </div>
-</div>
+</div> --}}
 
 
 
@@ -616,7 +616,7 @@
     </div>
   </div>
 </div>
-<div class="card mb-3">
+{{-- <div class="card mb-3">
   <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
     <strong>BMD*</strong>
     <button class="btn btn-sm btn-primary" type="button" data-toggle="collapse" data-target="#bmdBody" aria-expanded="false" aria-controls="bmdBody">▼</button>
@@ -630,7 +630,7 @@
       <div class="form-check"><input class="form-check-input" type="checkbox" name="bmd[]" value="WHOLE BODY"><label class="form-check-label">WHOLE BODY</label></div>
     </div>
   </div>
-</div>
+</div> --}}
               </div>
               <!-- Kolom 4 -->
               <div class="col-md-3">
@@ -767,7 +767,7 @@
     </div>
   </div>
 </div>
-<div class="card mb-3">
+{{-- <div class="card mb-3">
   <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
     <strong>MAMMOGRAPHY*</strong>
     <button class="btn btn-sm btn-primary" type="button" data-toggle="collapse" data-target="#mammographyBody" aria-expanded="false" aria-controls="mammographyBody">▼</button>
@@ -779,7 +779,7 @@
       <div class="form-check"><input class="form-check-input" type="checkbox" name="mammography[]" value="MAMMOGRAPHY SIN"><label class="form-check-label">MAMMOGRAPHY SIN</label></div>
     </div>
   </div>
-</div>
+</div> --}}
 
 
 

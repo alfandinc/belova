@@ -18,22 +18,36 @@ class VisitationController extends Controller
         if ($request->ajax()) {
             $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp');
 
+            if ($request->no_rm) {
+                $pasiens->where('id', $request->no_rm);
+            }
+            if ($request->nama) {
+                $pasiens->where('nama', 'like', '%' . $request->nama . '%');
+            }
+            if ($request->nik) {
+                $pasiens->where('nik', 'like', '%' . $request->nik . '%');
+            }
+            if ($request->alamat) {
+                $pasiens->where('alamat', 'like', '%' . $request->alamat . '%');
+            }
+
             return DataTables::of($pasiens)
                 ->addColumn('actions', function ($user) {
                     return '
-                    <a href="javascript:void(0);" 
-                       class="btn btn-sm btn-primary btn-daftar-visitation" 
-                       data-id="' . $user->id . '" 
-                       data-nama="' . e($user->nama) . '">
-                       Daftarkan Kunjungan
-                    </a>';
+                <a href="javascript:void(0);" 
+                   class="btn btn-sm btn-primary btn-daftar-visitation" 
+                   data-id="' . $user->id . '" 
+                   data-nama="' . e($user->nama) . '">
+                   Daftarkan Kunjungan
+                </a>';
                 })
                 ->rawColumns(['actions'])
                 ->make(true);
         }
 
-        $metodeBayar = MetodeBayar::all(); // ambil semua data metode bayar
-        $dokters = Dokter::with('spesialisasi')->get(); // ambil semua dokter
+        $metodeBayar = MetodeBayar::all();
+        $dokters = Dokter::with('spesialisasi')->get();
+
         return view('erm.visitations.index', compact('metodeBayar', 'dokters'));
     }
 

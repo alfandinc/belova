@@ -32,14 +32,14 @@ class ObatController extends Controller
         ]);
 
         $obat = Obat::create([
-            'id' => (string) Str::uuid(), // ini WAJIB supaya id keisi
+            'id' => (string) Str::uuid(),
             'nama' => $request->nama,
             'dosis' => $request->dosis,
             'satuan' => $request->satuan,
             'harga_umum' => $request->harga_umum,
             'harga_inhealth' => $request->harga_inhealth,
             'stok' => $request->stok,
-            'supplier' => $request->supplier,
+            // 'supplier' => $request->supplier,
 
 
         ]);

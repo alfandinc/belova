@@ -1,14 +1,10 @@
 @extends('layouts.erm.app')
-@section('title', 'ERM | Rawat Jalan')
+@section('title', 'ERM | E-Resep Farmasi')
 @section('navbar')
     @include('layouts.erm.navbar')
 @endsection  
 
 @section('content')
-
-@include('erm.partials.modal-reschedule')
-
-
 
 <div class="container-fluid">
     <!-- Page-Title -->
@@ -19,7 +15,8 @@
                     <div class="col">
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
-                            <li class="breadcrumb-item active">Rawat Jalan</li>
+                            <li class="breadcrumb-item active">Farmasi</li>
+                            <li class="breadcrumb-item">E-Resep</li>
                         </ol>
                     </div><!--end col-->
                 </div><!--end row-->                                                              
@@ -38,27 +35,17 @@
                     <label for="filter_tanggal">Filter Tanggal Kunjungan</label>
                     <input type="date" id="filter_tanggal" class="form-control">
                 </div>
-                @if ($role !== 'Dokter')
-                <div class="col-md-4">
-                    <label for="filter_dokter">Filter Dokter</label>
-                    <select id="filter_dokter" class="form-control select2">
-                        <option value="">Semua Dokter</option>
-                        @foreach($dokters as $dokter)
-                            <option value="{{ $dokter->id }}">{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                @endif
             </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>
-                        <th>Antrian</th>
+                        {{-- <th>Antrian</th> --}}
                         <th>No RM</th>
                         <th>Nama Pasien</th>
-                        <th>Tanggal Kunjungan</th>                        
+                        <th>Tanggal Kunjungan</th>
+                        {{-- <th>Status</th> --}}
                         <th>Metode Bayar</th>
-                        <th>Dokumen</th>
+                        <th>Resep</th>
                     </tr>
                 </thead>
             </table>
@@ -70,41 +57,23 @@
 @section('scripts')
 <script>
 $(document).ready(function () {
-
-    $('.select2').select2({
-        // placeholder: "Pilih Dokter",
-        // allowClear: true,
-        width: '100%' // ⬅️ Tambahan penting agar tidak aneh tampilannya
-    });
     // Set default value tanggal ke hari ini
     var today = new Date().toISOString().substr(0, 10);
     $('#filter_tanggal').val(today);
 
-    $.fn.dataTable.ext.order['antrian-number'] = function(settings, col) {
-        return this.api().column(col, {order: 'index'}).nodes().map(function(td, i) {
-            return parseInt($('span', td).data('order')) || 0;
-        });
-    };
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
         serverSide: true,
         responsive: true,
         ajax: {
-            url: '{{ route("erm.rawatjalans.index") }}',
+            url: '{{ route("erm.eresepfarmasi.index") }}',
             data: function(d) {
                 d.tanggal = $('#filter_tanggal').val();
-                d.dokter_id = $('#filter_dokter').val();
             }
         },
-        order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
+        // order: [[5, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
-              {
-        data: 'antrian',
-        name: 'no_antrian',
-        searchable: false,
-        orderable: true,
-        orderDataType: 'antrian-number' // ⬅️ Tambahkan ini agar sorting pakai data-order
-        },
+            // { data: 'antrian', name: 'no_antrian', searchable: false, orderable: true },
             { data: 'no_rm', searchable: false, orderable: false },
             { data: 'nama_pasien', searchable: false, orderable: false },
             { data: 'tanggal', name: 'tanggal_visitation' },
@@ -113,29 +82,22 @@ $(document).ready(function () {
             { data: 'dokumen', searchable: false, orderable: false },
             { data: 'progress', visible: false, searchable: false }, // 🛠️ Sembunyikan
         ],
-        columnDefs: [
-        { targets: 0, width: "5%" }, // Antrian
-        { targets: 5, width: "25%" }, // Dokumen
-        {
-            targets: 0, // Kolom Antrian
-            type: 'num' // Paksa agar dianggap angka
-        }
-        ],
+    //     columnDefs: [
+    //     { targets: 0, width: "5%" }, // Antrian
+    //     { targets: 6, width: "20%" }, // Dokumen
+    // ],
         createdRow: function(row, data, dataIndex) {
         if (data.progress == 3) {
             $(row).css('color', 'orange'); // Warna teks kuning/orange
             // Kalau mau kasih background juga bisa:
             // $(row).css('background-color', '#fff3cd');
         }
-        }
+    }
     });
 
     // Event ganti tanggal
     $('#filter_tanggal').on('change', function () {
         table.ajax.reload();
-    });
-    $('#filter_dokter').on('change', function () {
-    table.ajax.reload();
     });
 
     // ambil no antrian otomatis
