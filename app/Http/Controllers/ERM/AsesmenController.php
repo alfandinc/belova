@@ -36,6 +36,44 @@ class AsesmenController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->has('status_lokalis_image')) {
+            $base64Image = $request->status_lokalis_image;
+
+            if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+                $data = substr($base64Image, strpos($base64Image, ',') + 1);
+                $type = strtolower($type[1]);
+
+                if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
+                    throw new \Exception('Invalid image type');
+                }
+
+                $data = base64_decode($data);
+                if ($data === false) {
+                    throw new \Exception('Base64 decode failed');
+                }
+
+                // Delete old image if exists
+                $existing = AsesmenDalam::where('visitation_id', $request->visitation_id)->first();
+                if ($existing && $existing->status_lokalis && file_exists(public_path($existing->status_lokalis))) {
+                    unlink(public_path($existing->status_lokalis));
+                }
+
+                $filename = 'lokalis_' . $request->visitation_id . '.' . $type;
+                $path = public_path("img/hasilassesmen/" . $filename);
+
+                // Ensure the directory exists
+                if (!file_exists(dirname($path))) {
+                    mkdir(dirname($path), 0755, true);
+                }
+
+                file_put_contents($path, $data);
+
+                // Save relative path
+                $request->merge([
+                    'status_lokalis' => "img/hasilassesmen/{$filename}"
+                ]);
+            }
+        }
         $dalam = AsesmenDalam::updateOrCreate(
             ['visitation_id' => $request->visitation_id], // key to check
             [ // fields to insert or update
@@ -59,7 +97,7 @@ class AsesmenController extends Controller
                 'genitalia' => $request->genitalia,
                 'ext_atas' => $request->ext_atas,
                 'ext_bawah' => $request->ext_bawah,
-                'status_lokalis' => $request->status_lokalis,
+                'status_lokalis' => $request->status_lokalis, // now contains the image path
                 'ket_status_lokalis' => $request->ket_status_lokalis,
             ]
         );

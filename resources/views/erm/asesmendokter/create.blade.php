@@ -222,8 +222,19 @@
                             <!-- Gambar (Canvas + Img) centered -->
                             <div class="col-12 mb-2 d-flex justify-content-center">
                                 <div>
+                                    @php
+                                        $lokalisPath = old('status_lokalis', $asesmenDalam->status_lokalis ?? null);
+                                    @endphp
+
                                     <canvas id="drawingCanvas" class="img-fluid rounded border"></canvas>
-                                    <img src="{{ asset('img/dalam-coba.png') }}" class="img-fluid rounded border" alt="Status Lokalis Image" id="imageElement" style="display:none;">
+
+                                    {{-- <img 
+                                        src="{{ $lokalisPath ? asset($lokalisPath) : asset('img/dalam-coba.png') }}" 
+                                        class="img-fluid rounded border" 
+                                        alt="Status Lokalis Image" 
+                                        id="imageElement"> --}}
+                                    {{-- <canvas id="drawingCanvas" class="img-fluid rounded border"></canvas>
+                                    <img src="{{ asset('img/dalam-coba.png') }}" class="img-fluid rounded border" alt="Status Lokalis Image" id="imageElement" style="display:none;"> --}}
                                 </div>
                             </div>
 
@@ -239,7 +250,7 @@
                             </div>
 
                             <!-- Hidden field for image -->
-        <input name="lokalis_image" id="lokalisImageInput">
+                            <input type="hidden" name="status_lokalis_image" id="status_lokalis_image">
                         </div>
                             
                             <!-- Diagnosa Kerja -->
@@ -553,6 +564,8 @@
         toggleRencanaTindakLanjut();
     });
 
+    
+
     $.ajaxSetup({
         headers: {
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
@@ -599,62 +612,61 @@
     });
 
 });
+document.getElementById('addButton').addEventListener('click', function () {
+    let canvas = document.getElementById('drawingCanvas');
+    let base64Image = canvas.toDataURL('image/png');
+    document.getElementById('status_lokalis_image').value = base64Image;
+});
 </script>
 
 <script>
-    window.onload = function() {
-        var canvas = document.getElementById("drawingCanvas");
-        var ctx = canvas.getContext("2d");
-        var img = document.getElementById("imageElement");
+window.onload = function () {
+    const canvas = document.getElementById("drawingCanvas");
+    const ctx = canvas.getContext("2d");
+    const imagePath = "{{ asset($lokalisPath ? $lokalisPath : 'img/dalam-coba.png') }}";
+    
+    const img = new Image();
+    img.onload = function () {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
 
-        function setupCanvas() {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
+        ctx.strokeStyle = "#00FF00";
+        ctx.lineWidth = 5;
 
-            ctx.strokeStyle = "#00FF00"; // hijau
-            ctx.lineWidth = 5;
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
 
-            var isDrawing = false;
-            var lastX = 0;
-            var lastY = 0;
+        canvas.addEventListener('mousedown', function (e) {
+            isDrawing = true;
+            lastX = e.offsetX;
+            lastY = e.offsetY;
+        });
 
-            canvas.addEventListener('mousedown', function(e) {
-                isDrawing = true;
+        canvas.addEventListener('mousemove', function (e) {
+            if (isDrawing) {
+                ctx.beginPath();
+                ctx.moveTo(lastX, lastY);
+                ctx.lineTo(e.offsetX, e.offsetY);
+                ctx.stroke();
                 lastX = e.offsetX;
                 lastY = e.offsetY;
-            });
+            }
+        });
 
-            canvas.addEventListener('mousemove', function(e) {
-                if (isDrawing) {
-                    ctx.beginPath();
-                    ctx.moveTo(lastX, lastY);
-                    ctx.lineTo(e.offsetX, e.offsetY);
-                    ctx.stroke();
-                    lastX = e.offsetX;
-                    lastY = e.offsetY;
-                }
-            });
+        canvas.addEventListener('mouseup', function () {
+            isDrawing = false;
+        });
 
-            canvas.addEventListener('mouseup', function() {
-                isDrawing = false;
-            });
-
-            document.getElementById('resetButton').addEventListener('click', function() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0);  // gambar ulang
-            });
-        }
-
-        img.onload = setupCanvas;
-
-        // Cek jika gambar sudah dimuat (dari cache), panggil langsung
-        if (img.complete) {
-            img.onload(); // panggil langsung
-        }
+        document.getElementById('resetButton').addEventListener('click', function () {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);  // Reset to background image
+        });
     };
 
-    
+    img.src = imagePath;
+};
 </script>
 
 @endsection
