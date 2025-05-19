@@ -61,6 +61,9 @@ class EresepController extends Controller
         $metodeBayar = MetodeBayar::all();
         return view('erm.eresep.index', compact('dokters', 'metodeBayar'));
     }
+
+    // ERESEP DOKTER
+
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
@@ -104,51 +107,6 @@ class EresepController extends Controller
             'lastRacikanKe' => $lastRacikanKe,
         ], $pasienData, $createKunjunganData));
     }
-    public function farmasicreate($visitationId)
-    {
-        $visitation = Visitation::findOrFail($visitationId);
-        $pasienData = PasienHelperController::getDataPasien($visitationId);
-        $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
-
-        // Ambil pasien id
-        $pasienId = $visitation->pasien_id;
-
-        // Ambil zat aktif yang pasien alergi
-        $zatAlergi = DB::table('erm_alergi')
-            ->where('pasien_id', $pasienId)
-            ->pluck('zataktif_id')
-            ->toArray();
-
-        // Ambil obat yang tidak punya zat aktif dari alergi
-        $obats = Obat::whereDoesntHave('zatAktifs', function ($query) use ($zatAlergi) {
-            $query->whereIn('erm_zataktif.id', $zatAlergi);
-        })->get();
-
-        // $obats = Obat::all();
-
-        // Ambil semua resep berdasarkan visitation_id
-        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
-
-
-        // Kelompokkan racikan berdasarkan racikan_ke
-        $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
-
-        // Ambil non-racikan
-        $nonRacikans = $reseps->whereNull('racikan_ke');
-
-        // Hitung nilai racikan_ke terakhir dari database
-        $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
-
-
-        return view('erm.eresep.farmasi.create', array_merge([
-            'visitation' => $visitation,
-            'obats' => $obats,
-            'nonRacikans' => $nonRacikans,
-            'racikans' => $racikans,
-            'lastRacikanKe' => $lastRacikanKe,
-        ], $pasienData, $createKunjunganData));
-    }
-
     public function storeNonRacikan(Request $request)
     {
 
@@ -242,6 +200,52 @@ class EresepController extends Controller
         ]);
     }
 
+    // ERESEP FARMASI
+
+    public function farmasicreate($visitationId)
+    {
+        $visitation = Visitation::findOrFail($visitationId);
+        $pasienData = PasienHelperController::getDataPasien($visitationId);
+        $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
+
+        // Ambil pasien id
+        $pasienId = $visitation->pasien_id;
+
+        // Ambil zat aktif yang pasien alergi
+        $zatAlergi = DB::table('erm_alergi')
+            ->where('pasien_id', $pasienId)
+            ->pluck('zataktif_id')
+            ->toArray();
+
+        // Ambil obat yang tidak punya zat aktif dari alergi
+        $obats = Obat::whereDoesntHave('zatAktifs', function ($query) use ($zatAlergi) {
+            $query->whereIn('erm_zataktif.id', $zatAlergi);
+        })->get();
+
+        // $obats = Obat::all();
+
+        // Ambil semua resep berdasarkan visitation_id
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
+
+
+        // Kelompokkan racikan berdasarkan racikan_ke
+        $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+
+        // Ambil non-racikan
+        $nonRacikans = $reseps->whereNull('racikan_ke');
+
+        // Hitung nilai racikan_ke terakhir dari database
+        $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
+
+
+        return view('erm.eresep.farmasi.create', array_merge([
+            'visitation' => $visitation,
+            'obats' => $obats,
+            'nonRacikans' => $nonRacikans,
+            'racikans' => $racikans,
+            'lastRacikanKe' => $lastRacikanKe,
+        ], $pasienData, $createKunjunganData));
+    }
     public function copyFromDokter($visitationId)
     {
         if (ResepFarmasi::where('visitation_id', $visitationId)->exists()) {
@@ -266,7 +270,6 @@ class EresepController extends Controller
 
         return response()->json(['status' => 'success', 'message' => 'Berhasil menyalin resep ke Farmasi.']);
     }
-
     public function getFarmasiResepJson($visitationId)
     {
         $reseps = ResepFarmasi::with('obat')
@@ -279,6 +282,99 @@ class EresepController extends Controller
         return response()->json([
             'non_racikans' => $nonRacikans,
             'racikans' => $racikans,
+        ]);
+    }
+
+    public function farmasistoreNonRacikan(Request $request)
+    {
+
+        $validated = $request->validate([
+            'visitation_id' => 'required',
+            'obat_id' => 'required',
+            'jumlah' => 'required',
+            'aturan_pakai' => 'required',
+        ]);
+
+        ResepFarmasi::create([
+            'tanggal_input' => Carbon::now(),
+            'visitation_id' => $validated['visitation_id'],
+            'obat_id' => $validated['obat_id'],
+            'jumlah' => $validated['jumlah'],
+            'aturan_pakai' => $validated['aturan_pakai'],
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Obat non-racikan berhasil disimpan.']);
+    }
+
+    public function farmasistoreRacikan(Request $request)
+    {
+        $validated = $request->validate([
+            'visitation_id' => 'required',
+            'racikan_ke' => 'required|integer',
+            'wadah' => 'required|string',
+            'bungkus' => 'required|integer',
+            'aturan_pakai' => 'required|string',
+            'obats' => 'required|array|min:1',
+            'obats.*.obat_id' => 'required',
+            'obats.*.dosis' => 'required|string',
+        ]);
+
+        foreach ($validated['obats'] as $obat) {
+            ResepFarmasi::create([
+                'tanggal_input' => now(),
+                'visitation_id' => $validated['visitation_id'],
+                'obat_id' => $obat['obat_id'],
+                'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
+                'aturan_pakai' => $validated['aturan_pakai'],
+                'racikan_ke' => $validated['racikan_ke'],
+                'wadah' => $validated['wadah'],
+                'bungkus' => $validated['bungkus'],
+                'dosis' => $obat['dosis'],
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Racikan berhasil disimpan.']);
+    }
+
+    public function farmasidestroyNonRacikan($id)
+    {
+        $resep = ResepFarmasi::findOrFail($id);
+        $resep->delete();
+
+        return response()->json(['message' => 'Resep berhasil dihapus']);
+    }
+
+    public function farmasidestroyRacikan($racikanKe, Request $request)
+    {
+        $visitationId = $request->visitation_id;
+
+        // Temukan racikan berdasarkan visitation_id dan racikan_ke
+        $racikan = ResepFarmasi::where('racikan_ke', $racikanKe)
+            ->where('visitation_id', $visitationId)
+            ->first();
+
+        if ($racikan) {
+            $racikan->delete();
+            return response()->json(['message' => 'Racikan berhasil dihapus']);
+        } else {
+            return response()->json(['message' => 'Racikan tidak ditemukan'], 404);
+        }
+    }
+
+    public function farmasiupdateNonRacikan(Request $request, $id)
+    {
+        $data = $request->validate([
+            'jumlah'       => 'required|integer|min:1',
+            'aturan_pakai' => 'required|string|max:255',
+        ]);
+
+        $resep = ResepFarmasi::findOrFail($id);
+        $resep->update($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Resep berhasil diubah',
+            'data'    => $resep,
         ]);
     }
 }

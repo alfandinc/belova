@@ -75,18 +75,15 @@
                         <h4 id="total-harga" style="margin: 0; color: white;"><strong>0</strong></h4>
                         
                     </div>
-                    @if (!$nonRacikans->count() && !$racikans->count())
-    <div class="alert alert-info" id="empty-resep-message">
-        Belum ada data dari dokter. Anda bisa menambahkan resep baru atau salin dari dokter.
-    </div>
-@endif
+                   
                     <div class="mb-3">
-                        <button id="copy-from-dokter" class="btn btn-warning">Salin Resep dari Dokter</button>
+                        <button id="copy-from-dokter" class="btn btn-warning btn-sm">Salin Resep dari Dokter</button>
 
                         <button class="btn btn-primary btn-sm" >Cetak Resep</button>
                         <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalFarmasi">Riwayat Farmasi</button>
                         <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalDokter">Riwayat Dokter</button>
                         <button id="submit-all" class="btn btn-success btn-sm">Submit Resep</button>
+                        {{-- <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button> --}}
                     </div>
                 </div>
 
@@ -94,6 +91,11 @@
                     <h5>Catatan Dokter :</h5>
                     <textarea readonly class="form-control" rows="3"></textarea>
                 </div>
+                 @if (!$nonRacikans->count() && !$racikans->count())
+                    <div class="alert alert-info" id="empty-resep-message">
+                        Belum ada data dari dokter. Anda bisa menambahkan resep baru atau salin dari dokter.
+                    </div>
+                @endif
 <div id="resep-wrapper">
                 <!-- NON RACIKAN -->
                 <h5 style="color: yellow;"><strong>Resep Non Racikan</strong></h5>
@@ -242,7 +244,7 @@
 
             // Kirim data via AJAX
             $.ajax({
-                url: "{{ route('resep.nonracikan.store') }}", // disesuaikan nanti
+                url: "{{ route('resepfarmasi.nonracikan.store') }}", // disesuaikan nanti
                 method: "POST",
                 data: {
                     _token: "{{ csrf_token() }}",
@@ -277,7 +279,7 @@
             if (!confirm('Yakin ingin menghapus resep ini?')) return;
 
             $.ajax({
-                url: "{{ route('resep.nonracikan.destroy', '') }}/" + resepId,
+                url: "{{ route('resepfarmasi.nonracikan.destroy', '') }}/" + resepId,
                 method: 'DELETE',
                 data: {
                     _token: "{{ csrf_token() }}"
@@ -442,7 +444,7 @@
             }
 
             $.ajax({
-                url: "{{ route('resep.racikan.store') }}",
+                url: "{{ route('resepfarmasi.racikan.store') }}",
                 method: "POST",
                 data: {
                     _token: "{{ csrf_token() }}",
@@ -487,7 +489,7 @@
 
             // Request untuk menghapus racikan
             $.ajax({
-                url: "{{ route('resep.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
+                url: "{{ route('resepfarmasi.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
                 method: "DELETE",
                 data: {
                     _token: "{{ csrf_token() }}",
@@ -520,7 +522,7 @@
             e.preventDefault();
 
             const id = $('#edit-resep-id').val();
-            const url = "{{ route('resep.nonracikan.update', '') }}/" + id;
+            const url = "{{ route('resepfarmasi.nonracikan.update', '') }}/" + id;
             const data = {
                 _token: "{{ csrf_token() }}",
                 _method: 'PUT',
@@ -553,7 +555,7 @@
 
         $('#copy-from-dokter').on('click', function () {
             const visitationId = $('#visitation_id').val();
-            
+
             $.ajax({
                 url: `/erm/eresepfarmasi/${visitationId}/copy-from-dokter`,
                 method: 'POST',
@@ -561,10 +563,11 @@
                     _token: '{{ csrf_token() }}'
                 },
                 success: function (res) {
-                    alert(res.message);
-
                     if (res.status === 'success') {
-                        location.reload(); // or fetch data dynamically if needed
+                        alert(res.message);
+                        fetchFarmasiResep(); // load the copied data dynamically
+                    } else {
+                        alert(res.message);
                     }
                 },
                 error: function () {
@@ -577,6 +580,103 @@
         updateTotalPrice(); // <--- Tambahkan ini
     
     });
+
+    function fetchFarmasiResep() {
+    const visitationId = $('#visitation_id').val();
+
+    $.get(`/erm/eresepfarmasi/${visitationId}/json`, function (res) {
+        $('#resep-wrapper').show();
+        $('#empty-resep-message').hide();
+        $('#copy-from-dokter').hide();
+
+        // ==== NON RACIKAN ====
+        const tbody = $('#resep-table-body');
+        tbody.empty();
+
+        res.non_racikans.forEach(item => {
+            tbody.append(`
+                <tr data-id="${item.id}">
+                    <td>${item.obat?.nama ?? '-'}</td>
+                    <td>${item.obat?.harga_umum ?? 0}</td>
+                    <td>${item.jumlah}</td>
+                    <td>${item.obat?.stok ?? 0}</td>
+                    <td>${item.aturan_pakai}</td>
+                    <td>
+                        <button class="btn btn-success btn-sm edit" data-id="${item.id}">Edit</button>
+                        <button class="btn btn-danger btn-sm hapus" data-id="${item.id}">Hapus</button>
+                    </td>
+                </tr>
+            `);
+        });
+
+        // ==== RACIKAN ====
+        const racikanWrapper = $('#racikan-container');
+        racikanWrapper.empty(); // clear old data
+        let racikanCount = 0;
+
+        Object.entries(res.racikans).forEach(([ke, items]) => {
+            const wadah = items[0].wadah ?? '';
+            const bungkus = items[0].bungkus ?? '';
+            const aturan = items[0].aturan_pakai ?? '';
+
+            const rows = items.map(item => {
+                return `
+                    <tr>
+                        <td data-id="${item.id}">${item.obat?.nama ?? '-'}</td>
+                        <td>${item.dosis}</td>
+                        <td>${item.obat?.stok ?? 0}</td>
+                        <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                    </tr>`;
+            }).join('');
+
+            racikanWrapper.append(`
+                <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${ke}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 style="color: yellow;"><strong>Racikan ${ke}</strong></h5>
+                        <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                    </div>
+
+                    <table class="table table-bordered text-white">
+                        <thead>
+                            <tr>
+                                <th>Nama Obat</th>
+                                <th>Dosis</th>
+                                <th>Stok</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="resep-table-body">
+                            ${rows}
+                        </tbody>
+                    </table>
+
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label>Wadah</label>
+                            <select class="form-control wadah">
+                                ${['Kapsul', 'Ampul', 'Botol', 'Sachet'].map(opt => `
+                                    <option value="${opt}" ${opt === wadah ? 'selected' : ''}>${opt}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Bungkus</label>
+                            <input type="number" class="form-control jumlah_bungkus" value="${bungkus}">
+                        </div>
+                        <div class="col-md-6">
+                            <label>Aturan Pakai</label>
+                            <input type="text" class="form-control aturan_pakai" value="${aturan}">
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
+                </div>
+            `);
+
+            racikanCount++;
+        });
+    });
+}
 
 </script>
 @endsection
