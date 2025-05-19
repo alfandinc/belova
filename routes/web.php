@@ -30,7 +30,8 @@ use App\Http\Controllers\ERM\{
     CPPTController,
     Icd10Controller,
     RiwayatKunjunganController,
-    ListAntrianController
+    ListAntrianController,
+    SuratIstirahatController
 };
 use App\Http\Controllers\HRD\EmployeeController;
 use App\Http\Controllers\Inventory\ItemController;
@@ -153,6 +154,10 @@ Route::prefix('erm')->group(function () {
     Route::get('/obat', [ObatController::class, 'index'])->name('erm.obat.index');
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
+
+    Route::get('/surat/{pasien_id}', [SuratIstirahatController::class, 'index'])->name('erm.suratistirahat.index');
+    Route::post('/surat', [SuratIstirahatController::class, 'store'])->name('erm.suratistirahat.store');
+    Route::get('/surat/{id}/cetak', [SuratIstirahatController::class, 'cetak'])->name('erm.suratistirahat.cetak');
 });
 
 Route::prefix('inventory')->group(

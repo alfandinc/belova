@@ -41,4 +41,9 @@ class Pasien extends Model
     {
         return $this->belongsTo(Village::class, 'village_id');
     }
+
+    public function suratIstirahats()
+    {
+        return $this->hasMany(SuratIstirahat::class);
+    }
 }

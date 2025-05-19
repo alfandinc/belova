@@ -96,18 +96,18 @@
             </li>
 
             <li>
-                <a href="javascript:void(0);" data-toggle="modal" data-target="#modalIstirahat">
-                    <i data-feather="coffee" class="align-self-center menu-icon"></i>
-                    <span>Surat Istirahat</span>
+                <a href="{{ route('erm.suratistirahat.index', $visitation->pasien_id) }}" target="_blank">
+                    <i data-feather="home" class="align-self-center menu-icon"></i>
+                    <span>Surat Istirahat & Mondok</span>
                 </a>
             </li>
 
-            <li>
+            {{-- <li>
                 <a href="javascript:void(0);" data-toggle="modal" data-target="#modalMondok">
                     <i data-feather="home" class="align-self-center menu-icon"></i>
                     <span>Surat Mondok</span>
                 </a>
-            </li>
+            </li> --}}
             <li>
                 <a href="javascript:void(0);" data-toggle="modal" data-target="#modalKunjungan">
                     <i data-feather="calendar" class="align-self-center menu-icon"></i>
