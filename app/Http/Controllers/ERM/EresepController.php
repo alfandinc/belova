@@ -292,6 +292,7 @@ class EresepController extends Controller
             'visitation_id' => 'required',
             'obat_id' => 'required',
             'jumlah' => 'required',
+            'diskon' => 'required',
             'aturan_pakai' => 'required',
         ]);
 
@@ -300,6 +301,7 @@ class EresepController extends Controller
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $validated['obat_id'],
             'jumlah' => $validated['jumlah'],
+            'diskon' => $validated['diskon'],
             'aturan_pakai' => $validated['aturan_pakai'],
         ]);
 
@@ -365,6 +367,7 @@ class EresepController extends Controller
     {
         $data = $request->validate([
             'jumlah'       => 'required|integer|min:1',
+            'diskon'       => 'integer|min:1|max:100',
             'aturan_pakai' => 'required|string|max:255',
         ]);
 
@@ -376,5 +379,27 @@ class EresepController extends Controller
             'message' => 'Resep berhasil diubah',
             'data'    => $resep,
         ]);
+    }
+
+    public function getRiwayatDokter($pasienId)
+    {
+        $reseps = ResepDokter::with(['obat', 'visitation'])
+            ->whereHas('visitation', fn($q) => $q->where('pasien_id', $pasienId))
+            ->orderBy('visitation_id')
+            ->get()
+            ->groupBy('visitation_id');
+
+        return view('erm.partials.resep-riwayatdokter', compact('reseps'));
+    }
+
+    public function getRiwayatFarmasi($pasienId)
+    {
+        $reseps = ResepFarmasi::with(['obat', 'visitation'])
+            ->whereHas('visitation', fn($q) => $q->where('pasien_id', $pasienId))
+            ->orderBy('visitation_id')
+            ->get()
+            ->groupBy('visitation_id');
+
+        return view('erm.partials.resep-riwayatfarmasi', compact('reseps'));
     }
 }

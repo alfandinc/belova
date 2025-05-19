@@ -6,8 +6,7 @@
 @section('content')
 
 @include('erm.partials.modal-alergipasien')
-@include('erm.partials.modal-resepdokter')
-@include('erm.partials.modal-resepfarmasi')
+@include('erm.partials.modal-resephistory')
 
 <!-- Edit Non‑Racikan Modal -->
 <div class="modal fade" id="editResepModal" tabindex="-1" role="dialog" aria-labelledby="editResepModalLabel" aria-hidden="true">
@@ -27,6 +26,10 @@
           <div class="form-group">
             <label for="edit-jumlah">Jumlah</label>
             <input type="number" class="form-control" id="edit-jumlah" name="jumlah" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-diskon">Diskon</label>
+            <input type="number" class="form-control" id="edit-diskon" name="diskon" required>
           </div>
           <div class="form-group">
             <label for="edit-aturan">Aturan Pakai</label>
@@ -80,8 +83,13 @@
                         <button id="copy-from-dokter" class="btn btn-warning btn-sm">Salin Resep dari Dokter</button>
 
                         <button class="btn btn-primary btn-sm" >Cetak Resep</button>
-                        <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalFarmasi">Riwayat Farmasi</button>
-                        <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalDokter">Riwayat Dokter</button>
+                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}">
+                            Riwayat Dokter
+                        </button>
+
+                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}">
+                            Riwayat Farmasi
+                        </button>
                         <button id="submit-all" class="btn btn-success btn-sm">Submit Resep</button>
                         {{-- <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button> --}}
                     </div>
@@ -114,13 +122,17 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-1">
                             <label>Jumlah</label>
-                            <input type="number" id="jumlah" class="form-control">
+                            <input type="number" id="jumlah" class="form-control" placeholder="0">
                         </div>
                         <div class="col-md-4">
                             <label>Aturan Pakai</label>
-                            <input type="text" id="aturan_pakai" class="form-control">
+                            <input type="text" id="aturan_pakai" class="form-control" placeholder="Tulisakan Aturan Pakai...">
+                        </div>
+                        <div class="col-md-1">
+                            <label for="diskon">Disc (%)</label>
+                            <input type="number" class="form-control" id="diskon"  placeholder="0" min="0" max="100">
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button id="tambah-resep" class="btn btn-primary btn-block">Tambah</button>
@@ -131,8 +143,10 @@
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
-                                <th>Harga</th>
                                 <th>Jumlah</th>
+                                <th>Harga</th>
+                                <th>Disc</th>
+                                
                                 <th>Stok</th>
                                 <th>Aturan Pakai</th>
                                 <th>Aksi</th>
@@ -142,8 +156,10 @@
                             @forelse ($nonRacikans as $resep)
                                 <tr data-id="{{ $resep->id }}">
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
-                                    <td>{{ $resep->obat->harga_umum ?? 0 }}</td>
                                     <td>{{ $resep->jumlah }}</td>
+                                    <td>Rp. {{ $resep->obat->harga_umum ?? 0 }}</td>
+                                    <td>{{ $resep->diskon ?? '0'}} %</td>
+                                    
                                     <td>{{ $resep->obat->stok ?? 0 }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
                                     <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button> <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
@@ -238,6 +254,7 @@
             let harga = $('#obat_id option:selected').data('harga');
             let stok = $('#obat_id option:selected').data('stok');
             let aturanPakai = $('#aturan_pakai').val();
+            let diskon = $('#diskon').val();
             let visitationId = $('#visitation_id').val();  // Pastikan id yang digunakan sama
 
             if (!obatId || !jumlah || !aturanPakai) return alert("Semua field wajib diisi.");
@@ -251,6 +268,7 @@
                     tipe: "nonracikan",
                     obat_id: obatId,
                     jumlah: jumlah,
+                    diskon: diskon,
                     aturan_pakai: aturanPakai,
                     visitation_id: visitationId 
                 },
@@ -259,11 +277,12 @@
                     $('#resep-table-body').append(`
                         <tr>
                             <td>${obatText}</td>
-                            <td>${harga}</td>
                             <td>${jumlah}</td>
+                            <td>${harga}</td>
+                            <td>${diskon} %</td>                           
                             <td>${stok}</td>
                             <td>${aturanPakai}</td>
-                            <td><button class="btn btn-danger btn-sm hapus">Hapus</button></td>
+                            <td><button class="btn btn-success btn-sm edit">Edit</button> <button class="btn btn-danger btn-sm hapus">Hapus</button></td>
                         </tr>
                     `);
                     updateTotalPrice();
@@ -297,7 +316,7 @@
             });
         });
 
-        // UPDATE HARGA
+        // UPDATE TOTAL HARGA
         function updateTotalPrice() {
             let total = 0;
             $('#resep-table-body tr').each(function () {
@@ -504,20 +523,23 @@
                 }
             });
         })
-        // EDIT RACIKAN
+        // EDIT NON RACIKAN
         $('#resep-table-body').on('click', '.edit', function() {
             const row = $(this).closest('tr');
             const id    = row.data('id');
-            const jumlah = row.find('td').eq(2).text().trim();
-            const aturan = row.find('td').eq(4).text().trim();
+            const jumlah = row.find('td').eq(1).text().trim();
+            const rawDiskon = row.find('td').eq(3).text().trim();  // e.g. "10 %"
+            const diskonValue = rawDiskon.replace('%', '').trim(); // "10"
+            const aturan = row.find('td').eq(5).text().trim();
 
             $('#edit-resep-id').val(id);
             $('#edit-jumlah').val(jumlah);
+            $('#edit-diskon').val(diskonValue);
             $('#edit-aturan').val(aturan);
             $('#editResepModal').modal('show');
         });
 
-        // STORE EDUT RACIKAN
+        // STORE EDIT NON RACIKAN
         $('#edit-resep-form').on('submit', function(e) {
             e.preventDefault();
 
@@ -527,6 +549,7 @@
                 _token: "{{ csrf_token() }}",
                 _method: 'PUT',
                 jumlah: $('#edit-jumlah').val(),
+                diskon: $('#edit-diskon').val(),
                 aturan_pakai: $('#edit-aturan').val()
             };
 
@@ -534,8 +557,9 @@
             .done(function(res) {
                 // Update the table row
                 const row = $('#resep-table-body').find('tr[data-id="'+ id +'"]');
-                row.find('td').eq(2).text(res.data.jumlah);
-                row.find('td').eq(4).text(res.data.aturan_pakai);
+                row.find('td').eq(1).text(res.data.jumlah);
+                row.find('td').eq(3).text(res.data.diskon + ' %');
+                row.find('td').eq(5).text(res.data.aturan_pakai);
 
                 $('#editResepModal').modal('hide');
             })
@@ -553,6 +577,7 @@
             $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
         });
 
+        //COPY RESEP DOKTER
         $('#copy-from-dokter').on('click', function () {
             const visitationId = $('#visitation_id').val();
 
@@ -573,6 +598,16 @@
                 error: function () {
                     alert('Gagal menyalin resep dari dokter.');
                 }
+            });
+        });
+        // MODAL RIWAYAT
+        $(document).on('click', '.btn-riwayat', function () {
+            let url = $(this).data('url');
+            $('#riwayatModal').modal('show');
+            $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
+
+            $.get(url, function (data) {
+                $('#riwayatModalContent').html(data);
             });
         });
 
@@ -597,8 +632,9 @@
             tbody.append(`
                 <tr data-id="${item.id}">
                     <td>${item.obat?.nama ?? '-'}</td>
-                    <td>${item.obat?.harga_umum ?? 0}</td>
                     <td>${item.jumlah}</td>
+                    <td>${item.obat?.harga_umum ?? 0}</td>
+                    <td>${item.diskon ?? 0}</td>                   
                     <td>${item.obat?.stok ?? 0}</td>
                     <td>${item.aturan_pakai}</td>
                     <td>

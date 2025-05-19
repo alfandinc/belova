@@ -6,8 +6,7 @@
 @section('content')
 
 @include('erm.partials.modal-alergipasien')
-@include('erm.partials.modal-resepdokter')
-@include('erm.partials.modal-resepfarmasi')
+@include('erm.partials.modal-resephistory')
 
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
@@ -42,8 +41,16 @@
                         <h4 id="total-harga" style="margin: 0; color: white;"><strong>0</strong></h4>
                     </div>
                     <div class="mb-3">
-                        <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalFarmasi">Riwayat Farmasi</button>
-                        <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalDokter">Riwayat Dokter</button>
+                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}">
+                            Riwayat Dokter
+                        </button>
+
+                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}">
+                            Riwayat Farmasi
+                        </button>
+                        
+                         <button class="btn btn-warning btn-sm">Paket Racikan</button>
+                         <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button>
                     </div>
                 </div>
 
@@ -373,7 +380,7 @@
             `);
         });
         // STORE RACIKAN
-       $('#racikan-container').on('click', '.tambah-resepracikan', function () {
+        $('#racikan-container').on('click', '.tambah-resepracikan', function () {
             const card = $(this).closest('.racikan-card');
             const racikanKe = card.data('racikan-ke');
             const visitationId = $('#visitation_id').val();
@@ -426,39 +433,49 @@
         });
 
         $(document).on('click', '.hapus-racikan', function () {
-    const card = $(this).closest('.racikan-card');
-    const racikanKe = card.data('racikan-ke');
-    const visitationId = $('#visitation_id').val();
+            const card = $(this).closest('.racikan-card');
+            const racikanKe = card.data('racikan-ke');
+            const visitationId = $('#visitation_id').val();
 
-    // Cek apakah ada <tr> dengan class 'no data' dalam card
-    const isNoData = card.find('tr.no-data').length > 0;
+            // Cek apakah ada <tr> dengan class 'no data' dalam card
+            const isNoData = card.find('tr.no-data').length > 0;
 
-    // Jika ada <tr> dengan class 'no data', langsung dihapus
-    if (isNoData) {
-        card.remove();
-        return;
-    }
+            // Jika ada <tr> dengan class 'no data', langsung dihapus
+            if (isNoData) {
+                card.remove();
+                return;
+            }
 
-    if (!confirm('Yakin ingin menghapus resep ini?')) return;
+            if (!confirm('Yakin ingin menghapus resep ini?')) return;
 
-    // Request untuk menghapus racikan
-    $.ajax({
-        url: "{{ route('resep.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
-        method: "DELETE",
-        data: {
-            _token: "{{ csrf_token() }}",
-            visitation_id: visitationId,
-        },
-        success: function (res) {
-            alert(res.message); // Notifikasi
-            card.remove(); // Hapus card racikan dari tampilan
-        },
-        error: function (err) {
-            alert('Gagal menghapus racikan');
-        }
-    });
-})
+            // Request untuk menghapus racikan
+            $.ajax({
+                url: "{{ route('resep.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
+                method: "DELETE",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    visitation_id: visitationId,
+                },
+                success: function (res) {
+                    alert(res.message); // Notifikasi
+                    card.remove(); // Hapus card racikan dari tampilan
+                },
+                error: function (err) {
+                    alert('Gagal menghapus racikan');
+                }
+            });
+        })
         
+        // MODAL RIWAYAT
+        $(document).on('click', '.btn-riwayat', function () {
+            let url = $(this).data('url');
+            $('#riwayatModal').modal('show');
+            $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
+
+            $.get(url, function (data) {
+                $('#riwayatModalContent').html(data);
+            });
+        });
 
         
         updateTotalPrice(); // <--- Tambahkan ini
