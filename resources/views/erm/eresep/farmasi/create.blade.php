@@ -9,6 +9,39 @@
 @include('erm.partials.modal-resepdokter')
 @include('erm.partials.modal-resepfarmasi')
 
+<!-- Edit Non‑Racikan Modal -->
+<div class="modal fade" id="editResepModal" tabindex="-1" role="dialog" aria-labelledby="editResepModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <form id="edit-resep-form">
+      @csrf
+      @method('PUT')
+      <input type="hidden" name="resep_id" id="edit-resep-id">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editResepModalLabel">Edit Resep</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Batal">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="edit-jumlah">Jumlah</label>
+            <input type="number" class="form-control" id="edit-jumlah" name="jumlah" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-aturan">Aturan Pakai</label>
+            <input type="text" class="form-control" id="edit-aturan" name="aturan_pakai" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">E-Resep Farmasi Pasien</h3>
@@ -42,7 +75,14 @@
                         <h4 id="total-harga" style="margin: 0; color: white;"><strong>0</strong></h4>
                         
                     </div>
+                    @if (!$nonRacikans->count() && !$racikans->count())
+    <div class="alert alert-info" id="empty-resep-message">
+        Belum ada data dari dokter. Anda bisa menambahkan resep baru atau salin dari dokter.
+    </div>
+@endif
                     <div class="mb-3">
+                        <button id="copy-from-dokter" class="btn btn-warning">Salin Resep dari Dokter</button>
+
                         <button class="btn btn-primary btn-sm" >Cetak Resep</button>
                         <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalFarmasi">Riwayat Farmasi</button>
                         <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalDokter">Riwayat Dokter</button>
@@ -51,10 +91,10 @@
                 </div>
 
                 <div class="mb-3">
-                    <h5>Dokter Input : {{ auth()->user()->name }}</h5>
-                    <textarea class="form-control" placeholder="Tuliskan catatan disini ..." rows="3"></textarea>
+                    <h5>Catatan Dokter :</h5>
+                    <textarea readonly class="form-control" rows="3"></textarea>
                 </div>
-
+<div id="resep-wrapper">
                 <!-- NON RACIKAN -->
                 <h5 style="color: yellow;"><strong>Resep Non Racikan</strong></h5>
                 <div class="racikan-card mb-4 p-3 border rounded">
@@ -172,7 +212,7 @@
                     @endforeach
                 </div>
                 <button id="tambah-racikan" class="btn btn-primary mb-3">Tambah Racikan</button>
-                
+</div>  
 
             </div>
         </div>
@@ -377,7 +417,7 @@
             `);
         });
         // STORE RACIKAN
-       $('#racikan-container').on('click', '.tambah-resepracikan', function () {
+        $('#racikan-container').on('click', '.tambah-resepracikan', function () {
             const card = $(this).closest('.racikan-card');
             const racikanKe = card.data('racikan-ke');
             const visitationId = $('#visitation_id').val();
@@ -420,7 +460,7 @@
             });
             });
 
-
+        // DELETE OBAT DARI RACIKAN
         $('#racikan-container').on('click', '.hapus-obat', function () {
             $(this).closest('tr').remove();
             const card = $(this).closest('.racikan-card');
@@ -428,51 +468,112 @@
                 card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="4" class="text-center text-muted">Belum ada data</td></tr>`);
             }
         });
-
+        // DELETE RACIKAN
         $(document).on('click', '.hapus-racikan', function () {
-    const card = $(this).closest('.racikan-card');
-    const racikanKe = card.data('racikan-ke');
-    const visitationId = $('#visitation_id').val();
+            const card = $(this).closest('.racikan-card');
+            const racikanKe = card.data('racikan-ke');
+            const visitationId = $('#visitation_id').val();
 
-    // Cek apakah ada <tr> dengan class 'no data' dalam card
-    const isNoData = card.find('tr.no-data').length > 0;
+            // Cek apakah ada <tr> dengan class 'no data' dalam card
+            const isNoData = card.find('tr.no-data').length > 0;
 
-    // Jika ada <tr> dengan class 'no data', langsung dihapus
-    if (isNoData) {
-        card.remove();
-        return;
-    }
+            // Jika ada <tr> dengan class 'no data', langsung dihapus
+            if (isNoData) {
+                card.remove();
+                return;
+            }
 
-    if (!confirm('Yakin ingin menghapus resep ini?')) return;
+            if (!confirm('Yakin ingin menghapus resep ini?')) return;
 
-    // Request untuk menghapus racikan
-    $.ajax({
-        url: "{{ route('resep.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
-        method: "DELETE",
-        data: {
-            _token: "{{ csrf_token() }}",
-            visitation_id: visitationId,
-        },
-        success: function (res) {
-            alert(res.message); // Notifikasi
-            card.remove(); // Hapus card racikan dari tampilan
-        },
-        error: function (err) {
-            alert('Gagal menghapus racikan');
-        }
-    });
-})
+            // Request untuk menghapus racikan
+            $.ajax({
+                url: "{{ route('resep.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
+                method: "DELETE",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    visitation_id: visitationId,
+                },
+                success: function (res) {
+                    alert(res.message); // Notifikasi
+                    card.remove(); // Hapus card racikan dari tampilan
+                },
+                error: function (err) {
+                    alert('Gagal menghapus racikan');
+                }
+            });
+        })
+        // EDIT RACIKAN
+        $('#resep-table-body').on('click', '.edit', function() {
+            const row = $(this).closest('tr');
+            const id    = row.data('id');
+            const jumlah = row.find('td').eq(2).text().trim();
+            const aturan = row.find('td').eq(4).text().trim();
 
-$('#submit-all').on('click', function () {
-    // Disable all buttons on the page
-    $('button').prop('disabled', true);
+            $('#edit-resep-id').val(id);
+            $('#edit-jumlah').val(jumlah);
+            $('#edit-aturan').val(aturan);
+            $('#editResepModal').modal('show');
+        });
 
-    // Optional: Tampilkan loading
-    $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
-});
-        
+        // STORE EDUT RACIKAN
+        $('#edit-resep-form').on('submit', function(e) {
+            e.preventDefault();
 
-        
+            const id = $('#edit-resep-id').val();
+            const url = "{{ route('resep.nonracikan.update', '') }}/" + id;
+            const data = {
+                _token: "{{ csrf_token() }}",
+                _method: 'PUT',
+                jumlah: $('#edit-jumlah').val(),
+                aturan_pakai: $('#edit-aturan').val()
+            };
+
+            $.post(url, data)
+            .done(function(res) {
+                // Update the table row
+                const row = $('#resep-table-body').find('tr[data-id="'+ id +'"]');
+                row.find('td').eq(2).text(res.data.jumlah);
+                row.find('td').eq(4).text(res.data.aturan_pakai);
+
+                $('#editResepModal').modal('hide');
+            })
+            .fail(function(xhr) {
+                alert('Gagal menyimpan perubahan: ' + xhr.responseJSON.message);
+            });
+        });
+
+        // SUBMIT KE BILLING
+        $('#submit-all').on('click', function () {
+            // Disable all buttons on the page
+            $('button').prop('disabled', true);
+
+            // Optional: Tampilkan loading
+            $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
+        });
+
+        $('#copy-from-dokter').on('click', function () {
+            const visitationId = $('#visitation_id').val();
+            
+            $.ajax({
+                url: `/erm/eresepfarmasi/${visitationId}/copy-from-dokter`,
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function (res) {
+                    alert(res.message);
+
+                    if (res.status === 'success') {
+                        location.reload(); // or fetch data dynamically if needed
+                    }
+                },
+                error: function () {
+                    alert('Gagal menyalin resep dari dokter.');
+                }
+            });
+        });
+
+              
         updateTotalPrice(); // <--- Tambahkan ini
     
     });

@@ -18,6 +18,7 @@ use App\Models\ERM\Pasien;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
+use App\Models\ERM\ResepFarmasi;
 
 
 class EresepController extends Controller
@@ -126,7 +127,8 @@ class EresepController extends Controller
         // $obats = Obat::all();
 
         // Ambil semua resep berdasarkan visitation_id
-        $reseps = ResepDokter::where('visitation_id', $visitationId)->with('obat')->get();
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
+
 
         // Kelompokkan racikan berdasarkan racikan_ke
         $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
@@ -221,5 +223,62 @@ class EresepController extends Controller
         } else {
             return response()->json(['message' => 'Racikan tidak ditemukan'], 404);
         }
+    }
+
+    public function updateNonRacikan(Request $request, $id)
+    {
+        $data = $request->validate([
+            'jumlah'       => 'required|integer|min:1',
+            'aturan_pakai' => 'required|string|max:255',
+        ]);
+
+        $resep = ResepDokter::findOrFail($id);
+        $resep->update($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Resep berhasil diubah',
+            'data'    => $resep,
+        ]);
+    }
+
+    public function copyFromDokter($visitationId)
+    {
+        if (ResepFarmasi::where('visitation_id', $visitationId)->exists()) {
+            return response()->json(['status' => 'info', 'message' => 'Resep sudah pernah disalin ke Farmasi.']);
+        }
+
+        $reseps = ResepDokter::where('visitation_id', $visitationId)->get();
+
+        foreach ($reseps as $resep) {
+            ResepFarmasi::create([
+                'visitation_id' => $resep->visitation_id,
+                'obat_id'        => $resep->obat_id,
+                'jumlah'         => $resep->jumlah,
+                'aturan_pakai'   => $resep->aturan_pakai,
+                'racikan_ke'     => $resep->racikan_ke,
+                'wadah'          => $resep->wadah,
+                'bungkus'        => $resep->bungkus,
+                'dosis'          => $resep->dosis,
+                'dokter_id'      => optional($resep->visitation)->dokter_id,
+            ]);
+        }
+
+        return response()->json(['status' => 'success', 'message' => 'Berhasil menyalin resep ke Farmasi.']);
+    }
+
+    public function getFarmasiResepJson($visitationId)
+    {
+        $reseps = ResepFarmasi::with('obat')
+            ->where('visitation_id', $visitationId)
+            ->get();
+
+        $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke')->values();
+        $nonRacikans = $reseps->whereNull('racikan_ke')->values();
+
+        return response()->json([
+            'non_racikans' => $nonRacikans,
+            'racikans' => $racikans,
+        ]);
     }
 }
