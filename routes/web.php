@@ -157,7 +157,7 @@ Route::prefix('erm')->group(function () {
 
     Route::get('/surat/{pasien_id}', [SuratIstirahatController::class, 'index'])->name('erm.suratistirahat.index');
     Route::post('/surat', [SuratIstirahatController::class, 'store'])->name('erm.suratistirahat.store');
-    Route::get('/surat/{id}/cetak', [SuratIstirahatController::class, 'cetak'])->name('erm.suratistirahat.cetak');
+    Route::get('erm/surat/{id}/cetak', [SuratIstirahatController::class, 'cetak'])->name('erm.suratistirahat.cetak');
 });
 
 Route::prefix('inventory')->group(

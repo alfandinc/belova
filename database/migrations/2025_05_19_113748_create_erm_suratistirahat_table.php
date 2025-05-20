@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('erm_suratistirahat', function (Blueprint $table) {
             $table->id();
             $table->string('pasien_id', 6)->nullable();
+            $table->foreignId('dokter_id')->nullable()->constrained('erm_dokters')->nullOnDelete();
             $table->date('tanggal_mulai');
             $table->date('tanggal_selesai');
             $table->integer('jumlah_hari');

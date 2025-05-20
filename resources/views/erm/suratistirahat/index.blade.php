@@ -20,6 +20,17 @@
                 <div class="modal-body">
                     <input type="hidden" name="pasien_id" value="{{ $pasien->id }}">
                     <div class="mb-2">
+                        <label>Dokter</label>
+                        <select id="dokter_id" name="dokter_id" class="form-control select2" required>
+                            @foreach ($dokters as $dokter)
+                                <option value="{{ $dokter->id }}"
+                                    {{ $dokter->user_id == $dokterUserId ? 'selected' : '' }}>
+                                    {{ $dokter->user->name ?? 'Tanpa Nama' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="mb-2">
                         <label>Tanggal Mulai</label>
                         <input type="date" name="tanggal_mulai" class="form-control" required>
                     </div>
@@ -71,6 +82,7 @@
     <table class="table table-bordered" id="suratTable">
         <thead>
             <tr>
+                <th>Dokter</th>
                 <th>Tanggal Mulai</th>
                 <th>Tanggal Selesai</th>
                 <th>Jumlah Hari</th>
@@ -80,10 +92,16 @@
         <tbody>
             @foreach($surats ?? [] as $surat)
                 <tr>
+                    <td>{{ $surat->dokter->user->name ?? '-' }} ({{ $surat->dokter->spesialisasi->nama ?? '' }})</td>
                     <td>{{ $surat->tanggal_mulai }}</td>
                     <td>{{ $surat->tanggal_selesai }}</td>
                     <td>{{ $surat->jumlah_hari }}</td>
-                    <td><a href="{{ route('erm.surat.cetak', $surat->id) }}" class="btn btn-sm btn-secondary">Cetak</a></td>
+                    <td><a href="{{ route('erm.suratistirahat.cetak', $surat->id) }}" 
+                        class="btn btn-sm btn-secondary" 
+                        target="_blank">
+                        Cetak
+                        </a>
+                    </td>
                 </tr>
             @endforeach
         </tbody>
@@ -97,6 +115,7 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
+    $('.select2').select2({ width: '100%' });
     function countDays() {
         let mulai = $('input[name="tanggal_mulai"]').val();
         let selesai = $('input[name="tanggal_selesai"]').val();
@@ -123,7 +142,11 @@ $(document).ready(function() {
             method: 'POST',
             data: $(this).serialize(),
             success: function(data) {
+
+                    let dokterName = data.dokter?.user?.name ?? '-';
+    let spesialisasiName = data.dokter?.spesialisasi?.nama ?? '';
                 let row = `<tr>
+                    <td>${dokterName} (${spesialisasiName})</td>
                     <td>${data.tanggal_mulai}</td>
                     <td>${data.tanggal_selesai}</td>
                     <td>${data.jumlah_hari}</td>

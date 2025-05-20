@@ -11,6 +11,7 @@ class SuratIstirahat extends Model
 
     protected $fillable = [
         'pasien_id',
+        'dokter_id',
         'tanggal_mulai',
         'tanggal_selesai',
         'jumlah_hari',
@@ -19,5 +20,9 @@ class SuratIstirahat extends Model
     public function pasien()
     {
         return $this->belongsTo(Pasien::class, 'pasien_id');
+    }
+    public function dokter()
+    {
+        return $this->belongsTo(Dokter::class, 'dokter_id');
     }
 }
