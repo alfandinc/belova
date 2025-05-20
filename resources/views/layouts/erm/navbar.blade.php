@@ -32,36 +32,40 @@
                     </li>
 
 
+                    {{-- Dashboard - only for Dokter --}}
+                    @hasrole('Dokter')
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/erm"><i class="ti-control-record"></i>Analytics</a></li>
                         </ul>
                     </li>
-    
+                    @endhasrole
+
+                    {{-- Pendaftaran - for roles: pendaftaran, perawat, farmasi --}}
+                    @hasanyrole('Pendaftaran|Perawat|Farmasi')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Pendaftaran</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/erm/pasiens/create"><i class="ti-control-record"></i>Tambah Pasien</a></li>
                             <li class="nav-item"><a class="nav-link" href="/erm/visitations"><i class="ti-control-record"></i>Daftar Pasien</a></li>
-                            {{-- <li class="nav-item"><a class="nav-link" href="/erm/pasiens"><i class="ti-control-record"></i>Manajemen Pasien</a></li> --}}
-
                         </ul>
                     </li>
-    
+                    @endhasanyrole
+
+                    {{-- Rawat Jalan - for roles: dokter, perawat --}}
+                    @hasanyrole('Dokter|Perawat')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Rawat Jalan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/erm/rawatjalans"><i class="ti-control-record"></i>Kunjungan Rajal</a></li>
                             <li class="nav-item"><a class="nav-link" href="/erm/listantrian"><i class="ti-control-record"></i>Antrian Rajal</a></li>
                         </ul>
-                    </li>   
-                    <li>
-                        <a href="javascript:void(0);" data-toggle="modal" data-target="#modalResume">
-                            <i data-feather="file-text" class="align-self-center menu-icon"></i>
-                            <span>Resume Medis</span>
-                        </a>
-                    </li>  
+                    </li>
+                    @endhasanyrole
+
+                    {{-- Farmasi - only for farmasi --}}
+                    @hasrole('Farmasi')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -69,7 +73,9 @@
                             <li class="nav-item"><a class="nav-link" href="/erm/obat"><i class="ti-control-record"></i>Stok Obat</a></li>
                             <li class="nav-item"><a class="nav-link" href="/erm/obat/create"><i class="ti-control-record"></i>Tambah Obat</a></li>
                         </ul>
-                    </li> 
+                    </li>
+                    @endhasrole
+
        
                 </ul>              
             </div>
