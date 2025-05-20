@@ -11,75 +11,80 @@ use App\Models\ERM\Visitation;
 use App\Models\ERM\AsesmenPerawat;
 use App\Models\ERM\AsesmenDalam;
 use App\Models\ERM\AsesmenPenunjang;
+use App\Models\ERM\AsesmenUmum;
+use Illuminate\Support\Str;
+
 
 class AsesmenController extends Controller
 {
     public function create($visitationId)
     {
-        // $visitation = Visitation::findOrFail($visitationId);
         $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($visitationId);
         $dataperawat = AsesmenPerawat::where('visitation_id', $visitationId)->first();
-        $asesmenDalam = AsesmenDalam::where('visitation_id', $visitationId)->first();
         $asesmenPenunjang = AsesmenPenunjang::where('visitation_id', $visitationId)->first();
+
+        $spesialisasi = Str::slug($visitation->dokter->spesialisasi->nama, '_');
+
+        $asesmen = [
+            'penyakit_dalam' => AsesmenDalam::where('visitation_id', $visitationId)->first(),
+            'umum' => AsesmenUmum::where('visitation_id', $visitationId)->first(),
+        ];
+        $currentAsesmen = $asesmen[$spesialisasi] ?? null;
+
+        // Lokalis image logic
+        $lokalisDefaults = [
+            'penyakit_dalam' => 'img/asesmen/dalam.jpeg',
+        ];
+        $lokalisPath = old('status_lokalis', $currentAsesmen->status_lokalis ?? null);
+        $lokalisBackground = $lokalisPath ?: ($lokalisDefaults[$spesialisasi] ?? 'img/lokalis/default.png');
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
-
-        // dd($visitation->dokter->spesialisasi->nama);
-
         return view('erm.asesmendokter.create', array_merge([
             'visitation' => $visitation,
             'dataperawat' => $dataperawat,
-            'asesmenDalam' => $asesmenDalam,
             'asesmenPenunjang' => $asesmenPenunjang,
+            'currentAsesmen' => $currentAsesmen,
+            'spesialisasi' => $spesialisasi,
+            'lokalisPath' => $lokalisPath,
+            'lokalisBackground' => $lokalisBackground,
         ], $pasienData, $createKunjunganData));
     }
 
-
     public function store(Request $request)
     {
-        if ($request->has('status_lokalis_image')) {
-            $base64Image = $request->status_lokalis_image;
+        // Get spesialisasi from visitation (safe from manipulation)
+        $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($request->visitation_id);
+        $spesialisasi = strtolower($visitation->dokter->spesialisasi->nama);
 
-            if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
-                $data = substr($base64Image, strpos($base64Image, ',') + 1);
-                $type = strtolower($type[1]);
-
-                if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
-                    throw new \Exception('Invalid image type');
-                }
-
-                $data = base64_decode($data);
-                if ($data === false) {
-                    throw new \Exception('Base64 decode failed');
-                }
-
-                // Delete old image if exists
-                $existing = AsesmenDalam::where('visitation_id', $request->visitation_id)->first();
-                if ($existing && $existing->status_lokalis && file_exists(public_path($existing->status_lokalis))) {
-                    unlink(public_path($existing->status_lokalis));
-                }
-
-                $filename = 'lokalis_' . $request->visitation_id . '.' . $type;
-                $path = public_path("img/hasilassesmen/" . $filename);
-
-                // Ensure the directory exists
-                if (!file_exists(dirname($path))) {
-                    mkdir(dirname($path), 0755, true);
-                }
-
-                file_put_contents($path, $data);
-
-                // Save relative path
-                $request->merge([
-                    'status_lokalis' => "img/hasilassesmen/{$filename}"
-                ]);
-            }
+        // Call spesialisasi-based save function
+        if ($spesialisasi === 'penyakit dalam') {
+            $this->storeAsesmenDalam($request);
+        } elseif ($spesialisasi === 'umum') {
+            $this->storeAsesmenUmum($request);
         }
-        $dalam = AsesmenDalam::updateOrCreate(
-            ['visitation_id' => $request->visitation_id], // key to check
-            [ // fields to insert or update
+
+        // Shared Penunjang logic
+        $this->storeAsesmenPenunjang($request);
+
+        Visitation::where('id', $request->visitation_id)->update(['progress' => 3]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Asesmen Dokter berhasil disimpan.'
+        ]);
+    }
+
+    private function storeAsesmenDalam(Request $request)
+    {
+        if ($request->has('status_lokalis_image')) {
+            $this->saveLokalisImage($request);
+        }
+
+        AsesmenDalam::updateOrCreate(
+            ['visitation_id' => $request->visitation_id],
+            [
                 'keluhan_utama' => $request->keluhan_utama,
                 'riwayat_penyakit_sekarang' => $request->riwayat_penyakit_sekarang,
                 'riwayat_penyakit_dahulu' => $request->riwayat_penyakit_dahulu,
@@ -100,12 +105,48 @@ class AsesmenController extends Controller
                 'genitalia' => $request->genitalia,
                 'ext_atas' => $request->ext_atas,
                 'ext_bawah' => $request->ext_bawah,
-                'status_lokalis' => $request->status_lokalis, // now contains the image path
+                'status_lokalis' => $request->status_lokalis,
                 'ket_status_lokalis' => $request->ket_status_lokalis,
             ]
         );
+    }
 
-        $penunjang = AsesmenPenunjang::updateOrCreate(
+    private function storeAsesmenUmum(Request $request)
+    {
+        if ($request->has('status_lokalis_image')) {
+            $this->saveLokalisImage($request);
+        }
+
+        AsesmenUmum::updateOrCreate(
+            ['visitation_id' => $request->visitation_id],
+            [
+                'keluhan_utama' => $request->keluhan_utama,
+                'riwayat_penyakit_sekarang' => $request->riwayat_penyakit_sekarang,
+                'riwayat_penyakit_dahulu' => $request->riwayat_penyakit_dahulu,
+                'obat_dikonsumsi' => $request->obat_dikonsumsi,
+                'keadaan_umum' => $request->keadaan_umum,
+                'e' => $request->e,
+                'v' => $request->v,
+                'm' => $request->m,
+                'hsl' => $request->hsl,
+                'td' => $request->td,
+                'n' => $request->n,
+                's' => $request->s,
+                'r' => $request->r,
+                'kepala' => $request->kepala,
+                'leher' => $request->leher,
+                'thorax' => $request->thorax,
+                'abdomen' => $request->abdomen,
+                'genitalia' => $request->genitalia,
+                'ext_atas' => $request->ext_atas,
+                'ext_bawah' => $request->ext_bawah,
+            ]
+        );
+    }
+
+    private function storeAsesmenPenunjang(Request $request)
+    {
+        AsesmenPenunjang::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
             [
                 'diagnosakerja_1' => $request->diagnosakerja_1,
@@ -131,16 +172,37 @@ class AsesmenController extends Controller
                 'alasan_tidak_edukasi' => $request->alasan_tidak_edukasi,
             ]
         );
+    }
 
-        Visitation::where('id', $request->visitation_id)->update(['progress' => 3]);
+    private function saveLokalisImage(Request $request)
+    {
+        $base64Image = $request->status_lokalis_image;
 
-        $message = ($dalam->wasRecentlyCreated && $penunjang->wasRecentlyCreated)
-            ? 'Asesmen Dokter berhasil dibuat.'
-            : 'Asesmen Dokter berhasil diperbarui.';
+        if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+            $data = substr($base64Image, strpos($base64Image, ',') + 1);
+            $type = strtolower($type[1]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => $message
-        ]);
+            if (!in_array($type, ['jpg', 'jpeg', 'png'])) {
+                throw new \Exception('Invalid image type');
+            }
+
+            $data = base64_decode($data);
+            if ($data === false) {
+                throw new \Exception('Base64 decode failed');
+            }
+
+            $filename = 'lokalis_' . $request->visitation_id . '.' . $type;
+            $path = public_path("img/hasilasesmen/" . $filename);
+
+            if (!file_exists(dirname($path))) {
+                mkdir(dirname($path), 0755, true);
+            }
+
+            file_put_contents($path, $data);
+
+            $request->merge([
+                'status_lokalis' => "img/hasilasesmen/{$filename}"
+            ]);
+        }
     }
 }

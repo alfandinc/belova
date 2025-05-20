@@ -10,7 +10,7 @@ class AsesmenUmum extends Model
 {
     use HasFactory;
 
-    protected $table = 'erm_asesmen_dalam';
+    protected $table = 'erm_asesmen_umum';
 
     protected $fillable = [
         'visitation_id',
