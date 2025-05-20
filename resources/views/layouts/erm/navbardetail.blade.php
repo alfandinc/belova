@@ -58,7 +58,22 @@
             </a>
         </li>
     @endif
+@elseif($userRole === 'Perawat')
+    {{-- Show both buttons for perawat --}}
+    <li>
+        <a href="{{ route('erm.asesmenperawat.create', $visitation->id) }}" target="_blank">
+            <i data-feather="file-text" class="align-self-center menu-icon"></i>
+            <span>Asesmen</span>
+        </a>
+    </li>
+    <li>
+        <a href="{{ route('erm.cppt.create', $visitation->id) }}" target="_blank">
+            <i data-feather="file-text" class="align-self-center menu-icon"></i>
+            <span>CPPT</span>
+        </a>
+    </li>
 @endif
+
 
             <li>
                 <a href="{{ route('erm.eresep.create', $visitation->id) }}" target="_blank">

@@ -11,10 +11,6 @@ use App\Models\ERM\SuratIstirahat;
 use App\Models\ERM\Visitation;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\Dokter;
-use SimpleSoftwareIO\QrCode\Generator;
-use BaconQrCode\Renderer\ImageRenderer;
-use BaconQrCode\Renderer\Image\RendererStyle\RendererStyle;
-use BaconQrCode\Renderer\Image\GdImageBackEnd;
 
 class SuratIstirahatController extends Controller
 {

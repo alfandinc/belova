@@ -32,12 +32,12 @@ class EresepController extends Controller
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }
 
-            $user = Auth::user();
-            if ($user->hasRole('Perawat')) {
-                $visitations->where('progress', 1);
-            } elseif ($user->hasRole('Dokter')) {
-                $visitations->whereIn('progress', [2, 3]);
-            }
+            // $user = Auth::user();
+            // if ($user->hasRole('Perawat')) {
+            //     $visitations->where('progress', 1);
+            // } elseif ($user->hasRole('Dokter')) {
+            //     $visitations->whereIn('progress', [2, 3]);
+            // }
 
             return datatables()->of($visitations)
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
@@ -296,7 +296,7 @@ class EresepController extends Controller
             'aturan_pakai' => 'required',
         ]);
 
-        ResepFarmasi::create([
+        $resep = ResepFarmasi::create([
             'tanggal_input' => Carbon::now(),
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $validated['obat_id'],
@@ -305,7 +305,14 @@ class EresepController extends Controller
             'aturan_pakai' => $validated['aturan_pakai'],
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Obat non-racikan berhasil disimpan.']);
+        // Load relasi obat agar bisa diakses dari JS
+        $resep->load('obat');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Obat non-racikan berhasil disimpan.',
+            'data' => $resep
+        ]);
     }
 
     public function farmasistoreRacikan(Request $request)

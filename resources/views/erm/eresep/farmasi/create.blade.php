@@ -254,8 +254,9 @@
             let harga = $('#obat_id option:selected').data('harga');
             let stok = $('#obat_id option:selected').data('stok');
             let aturanPakai = $('#aturan_pakai').val();
-            let diskon = $('#diskon').val();
+            let diskon = $('#diskon').val() || 0;
             let visitationId = $('#visitation_id').val();  // Pastikan id yang digunakan sama
+            
 
             if (!obatId || !jumlah || !aturanPakai) return alert("Semua field wajib diisi.");
 
@@ -272,17 +273,21 @@
                     aturan_pakai: aturanPakai,
                     visitation_id: visitationId 
                 },
-                success: function () {
+                success: function (res) {
+                    const resep = res.data;
                     $('#resep-table-body .no-data').remove();
                     $('#resep-table-body').append(`
-                        <tr>
+                        <tr data-id="${resep.id}">
                             <td>${obatText}</td>
                             <td>${jumlah}</td>
                             <td>${harga}</td>
                             <td>${diskon} %</td>                           
                             <td>${stok}</td>
                             <td>${aturanPakai}</td>
-                            <td><button class="btn btn-success btn-sm edit">Edit</button> <button class="btn btn-danger btn-sm hapus">Hapus</button></td>
+                            <td>
+                                <button class="btn btn-success btn-sm edit" data-id="${resep.id}">Edit</button>
+                                <button class="btn btn-danger btn-sm hapus" data-id="${resep.id}">Hapus</button>
+                            </td>
                         </tr>
                     `);
                     updateTotalPrice();
@@ -569,13 +574,16 @@
         });
 
         // SUBMIT KE BILLING
-        $('#submit-all').on('click', function () {
-            // Disable all buttons on the page
-            $('button').prop('disabled', true);
+$('#submit-all').on('click', function () {
+    // Disable all buttons
+    $('button').prop('disabled', true);
 
-            // Optional: Tampilkan loading
-            $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
-        });
+    // Disable all input fields, select, and textarea
+    $('input, select, textarea').prop('disabled', true);
+
+    // Optional: ganti teks tombol dan style agar terlihat sedang menyimpan
+    $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
+});
 
         //COPY RESEP DOKTER
         $('#copy-from-dokter').on('click', function () {
