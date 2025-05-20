@@ -51,7 +51,7 @@
                     
                 <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
 
-                {{-- Asesmen Dokter --}}
+{{-- Asesmen Dokter --}}
                         
                         <div class="row">
                             <div class="col-md-6">
@@ -227,14 +227,6 @@
                                     @endphp
 
                                     <canvas id="drawingCanvas" class="img-fluid rounded border"></canvas>
-
-                                    {{-- <img 
-                                        src="{{ $lokalisPath ? asset($lokalisPath) : asset('img/dalam-coba.png') }}" 
-                                        class="img-fluid rounded border" 
-                                        alt="Status Lokalis Image" 
-                                        id="imageElement"> --}}
-                                    {{-- <canvas id="drawingCanvas" class="img-fluid rounded border"></canvas>
-                                    <img src="{{ asset('img/dalam-coba.png') }}" class="img-fluid rounded border" alt="Status Lokalis Image" id="imageElement" style="display:none;"> --}}
                                 </div>
                             </div>
 
@@ -252,6 +244,8 @@
                             <!-- Hidden field for image -->
                             <input type="hidden" name="status_lokalis_image" id="status_lokalis_image">
                         </div>
+
+{{-- Asesmen Penunjang --}}
                             
                             <!-- Diagnosa Kerja -->
                             <div class="mb-3">
@@ -316,7 +310,7 @@
                                 </div>
                             </div>                    
 
-                 {{-- Tindak Lanjut dan Edukasi --}}                       
+                    {{-- Tindak Lanjut dan Edukasi --}}                       
 
                             <!-- Sasaran -->
                             <div class="mb-3">
