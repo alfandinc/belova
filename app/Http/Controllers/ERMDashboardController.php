@@ -9,7 +9,7 @@ class ERMDashboardController extends Controller
 {
     public function index()
     {
-        if (!auth()->user()->hasAnyRole(['Dokter', 'Perawat', 'Pendaftaran'])) {
+        if (!auth()->user()->hasAnyRole(['Dokter', 'Perawat', 'Pendaftaran', 'Admin', 'Farmasi'])) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 

@@ -33,7 +33,7 @@
 
 
                     {{-- Dashboard - only for Dokter --}}
-                    @hasrole('Dokter')
+                    @hasrole('Dokter|Admin')
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -43,7 +43,7 @@
                     @endhasrole
 
                     {{-- Pendaftaran - for roles: pendaftaran, perawat, farmasi --}}
-                    @hasanyrole('Pendaftaran|Perawat|Farmasi')
+                    @hasanyrole('Pendaftaran|Perawat|Farmasi|Admin')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Pendaftaran</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -54,7 +54,7 @@
                     @endhasanyrole
 
                     {{-- Rawat Jalan - for roles: dokter, perawat --}}
-                    @hasanyrole('Dokter|Perawat')
+                    @hasanyrole('Dokter|Perawat|Admin')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Rawat Jalan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -65,7 +65,7 @@
                     @endhasanyrole
 
                     {{-- Farmasi - only for farmasi --}}
-                    @hasrole('Farmasi')
+                    @hasrole('Farmasi|Admin')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">

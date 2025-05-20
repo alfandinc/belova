@@ -16,14 +16,17 @@ class AsesmenController extends Controller
 {
     public function create($visitationId)
     {
-        $visitation = Visitation::findOrFail($visitationId);
+        // $visitation = Visitation::findOrFail($visitationId);
+        $visitation = Visitation::with('dokter.spesialisasi')->findOrFail($visitationId);
         $dataperawat = AsesmenPerawat::where('visitation_id', $visitationId)->first();
         $asesmenDalam = AsesmenDalam::where('visitation_id', $visitationId)->first();
         $asesmenPenunjang = AsesmenPenunjang::where('visitation_id', $visitationId)->first();
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
-        // dd($dataperawat->masalah_keperawatan);
+
+
+        // dd($visitation->dokter->spesialisasi->nama);
 
         return view('erm.asesmendokter.create', array_merge([
             'visitation' => $visitation,

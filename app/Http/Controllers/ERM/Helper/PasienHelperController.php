@@ -61,6 +61,7 @@ class PasienHelperController
             'zatAktif' => $zatAktif,
             'alergistatus' => $alergistatus,
             'alergikatakunci' => $alergikatakunci,
+            // 'alergiPasien' => $alergiPasien,
         ];
     }
 }

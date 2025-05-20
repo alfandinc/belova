@@ -114,7 +114,8 @@
                             style="background-color:red; width: 25px; height: 25px;">
                             <i style="color:white" class="fas fa-capsules" title="no_hp"></i>
                         </span>
-                        <strong>Riwayat Alergi :</strong>
+                        <strong>Alergi : {{ $alergikatakunci ?? '-'}}</strong>
+                        {{-- @dd($alergikatakunci); --}}
                     </div>
 
                     <div class="text-end mt-2">

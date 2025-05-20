@@ -16,7 +16,7 @@
                         <li class="dropdown">
                             <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
                                 aria-haspopup="false" aria-expanded="false">
-                                <span class="ml-1 mr-2 nav-user-name hidden-sm">{{ Auth::user()->name }}</span>
+                                <span class="ml-1 mr-2 nav-user-name hidden-sm">{{ Auth::user()->name ?? '-'}}</span>
                                 <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                 
                             </a>
                             <div class="dropdown-menu dropdown-menu-right">

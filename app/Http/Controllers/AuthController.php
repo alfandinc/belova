@@ -42,7 +42,7 @@ class AuthController extends Controller
 
         // Define valid roles for each module
         $roleMapping = [
-            'erm' => ['Dokter', 'Perawat', 'Pendaftaran'],
+            'erm' => ['Dokter', 'Perawat', 'Pendaftaran', 'Admin', 'Farmasi'],
             'hrd' => ['Hrd'],
             'inventory' => ['Inventaris'],
             'marketing' => ['Marketing'],

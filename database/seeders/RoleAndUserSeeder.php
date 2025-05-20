@@ -14,6 +14,7 @@ class RoleAndUserSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'Admin']);
         $dokter = Role::firstOrCreate(['name' => 'Dokter']);
         $perawat = Role::firstOrCreate(['name' => 'Perawat']);
+        $farmasi = Role::firstOrCreate(['name' => 'Farmasi']);
 
         // Buat user admin
         $adminUser = User::firstOrCreate(
@@ -44,5 +45,15 @@ class RoleAndUserSeeder extends Seeder
             ]
         );
         $perawatUser->assignRole($perawat);
+
+        // Buat user farmasi
+        $farmasiUser = User::firstOrCreate(
+            ['email' => 'farmasi@example.com'],
+            [
+                'name' => 'Farmasi User',
+                'password' => bcrypt('12345678'),
+            ]
+        );
+        $farmasiUser->assignRole($farmasi);
     }
 }

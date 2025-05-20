@@ -17,7 +17,7 @@ class AlergiController extends Controller
     {
         // Validation for zat aktif
         $request->validate([
-            'zataktif_id' => 'required|array',
+            'zataktif_id' => 'nullable|array',
             'zataktif_id.*' => 'exists:erm_zataktif,id',
         ]);
 
