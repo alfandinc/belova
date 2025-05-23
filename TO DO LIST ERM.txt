@@ -249,3 +249,14 @@ Whatsapp Gateway-> pak abdi
 KOntrak tanggal habis = tgl ttd -1
 Document kontrak upload
 Slip input HRD view HRD
+
+
+CATATAN FRAMASI :
+dahboard nilai obat = jumlah stok x harga satuan = jumlah semua
+
+yang perlu disiapkan :
+list obat + ICD & list zat aktif + id
+farmasi input : 
+- relasi table zat aktif
+- field obat (dosis, satuan, stok, harga satuan, status (Umum=1, InHealth=2)
+

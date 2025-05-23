@@ -17,9 +17,8 @@ return new class extends Migration
             $table->foreignId('metode_bayar_id')->nullable()->constrained('erm_metode_bayar')->nullOnDelete();
             $table->foreignId('dokter_id')->nullable()->constrained('erm_dokters')->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->tinyInteger('progress')->default(1);
+            $table->tinyInteger('status_kunjungan')->default(0);
             $table->enum('status_dokumen', ['asesmen', 'cppt'])->nullable();;
-            $table->string('status_kunjungan')->nullable();
             $table->date('tanggal_visitation')->nullable();
             $table->string('no_antrian')->nullable();
 

@@ -2,20 +2,20 @@
 
 namespace Database\Seeders;
 
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-class ZatAktifSeeder extends Seeder
+class MigrasiPasienSedeer extends Seeder
 {
     /**
      * Run the database seeds.
-     *
-     * @return void
      */
     public function run()
     {
-        $path = base_path('database/data/zataktif.csv');
+        $path = base_path('database/data/migrasipasien.csv');
 
+        // Open the file and read each line
         if (!file_exists($path) || !is_readable($path)) {
             throw new \Exception("CSV file not found or not readable at $path");
         }
@@ -28,16 +28,21 @@ class ZatAktifSeeder extends Seeder
                 $isHeader = false;
                 continue; // skip header
             }
+            $nik = $row[1] ?? null;
 
-            $nama = trim($row[0]);
-
-            // Skip if 'nama' already exists in the table
-            if (DB::table('erm_zataktif')->where('nama', $nama)->exists()) {
+            // If NIK exists and is not unique, skip this row
+            if ($nik && DB::table('erm_pasiens')->where('nik', $nik)->exists()) {
                 continue;
             }
 
-            DB::table('erm_zataktif')->insert([
-                'nama' => $nama,
+            DB::table('erm_pasiens')->insert([
+                'id' => $row[0],
+                'nik' => $row[1] ?? null,
+                'nama' => $row[2] ?? null,
+                'tanggal_lahir' => $row[3] ?? null,
+                'gender' => $row[4] ?? null,
+                'alamat' => $row[5] ?? null,
+                'no_hp' => $row[6] ?? null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

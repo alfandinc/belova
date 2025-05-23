@@ -2,20 +2,20 @@
 
 namespace Database\Seeders;
 
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-class ZatAktifSeeder extends Seeder
+class MigrasiObatSeeder extends Seeder
 {
     /**
      * Run the database seeds.
-     *
-     * @return void
      */
-    public function run()
+    public function run(): void
     {
-        $path = base_path('database/data/zataktif.csv');
+        $path = base_path('database/data/migrasipasien.csv');
 
+        // Open the file and read each line
         if (!file_exists($path) || !is_readable($path)) {
             throw new \Exception("CSV file not found or not readable at $path");
         }
@@ -29,15 +29,15 @@ class ZatAktifSeeder extends Seeder
                 continue; // skip header
             }
 
-            $nama = trim($row[0]);
+            DB::table('erm_obat')->insert([
+                'id' => $row[0],
+                'nama' => $row[2] ?? null,
+                'satuan' => $row[2] ?? null,
+                'dosis' => $row[2] ?? null,
+                'harga_fornas' => $row[2] ?? null,
+                'harga_nonfornas' => $row[2] ?? null,
+                'status_aktif' => 1,
 
-            // Skip if 'nama' already exists in the table
-            if (DB::table('erm_zataktif')->where('nama', $nama)->exists()) {
-                continue;
-            }
-
-            DB::table('erm_zataktif')->insert([
-                'nama' => $nama,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

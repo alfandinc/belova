@@ -16,15 +16,13 @@ return new class extends Migration
             $table->string('nama')->nullable();
             $table->string('satuan')->nullable();
             $table->string('dosis')->nullable();
-            $table->string('harga_umum')->nullable();
-            $table->string('harga_inhealth')->nullable();
-            $table->string('stok')->nullable();
-            $table->foreignId('supplier_id')->nullable()->constrained('erm_supplier')->nullOnDelete();
-
+            $table->decimal('harga_fornas', 15, 2)->nullable();
+            $table->decimal('harga_nonfornas', 15, 2)->nullable();
+            $table->integer('stok')->default(0);
+            $table->boolean('status_aktif')->default(1);
             $table->timestamps();
         });
     }
-
     /**
      * Reverse the migrations.
      */

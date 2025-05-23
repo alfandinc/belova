@@ -13,9 +13,11 @@ class SpesialisasiSeeder extends Seeder
     public function run()
     {
         \App\Models\ERM\Spesialisasi::insert([
-            ['nama' => 'Umum'],
-            ['nama' => 'Penyakit Dalam'],
-            ['nama' => 'Anak'],
+            ['id' => 1, 'nama' => 'Umum'],
+            ['id' => 2, 'nama' => 'Penyakit Dalam'],
+            ['id' => 3, 'nama' => 'Anak'],
+            ['id' => 4, 'nama' => 'Gigi'],
+            ['id' => 5, 'nama' => 'Saraf'],
         ]);
     }
 }

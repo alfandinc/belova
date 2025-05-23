@@ -17,10 +17,9 @@ return new class extends Migration
             $table->string('status')->nullable();
             $table->string('katakunci')->nullable();
             $table->foreignId('zataktif_id')->constrained('erm_zataktif')->onDelete('cascade');
-            $table->string('verifikasi_status')->nullable();
+            $table->boolean('verif_status')->default(0);
             $table->foreignId('varifikator_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-
             $table->foreign('pasien_id')->references('id')->on('erm_pasiens')->onDelete('set null');
             $table->timestamps();
         });

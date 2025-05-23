@@ -9,7 +9,7 @@ return new class extends Migration {
     {
         Schema::create('erm_pasiens', function (Blueprint $table) {
             $table->string('id', 6)->primary();
-            $table->string('nik')->unique();
+            $table->string('nik')->unique()->nullable();
             $table->string('nama');
             $table->date('tanggal_lahir');
             $table->string('gender');
