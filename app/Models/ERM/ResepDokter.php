@@ -33,5 +33,5 @@ class ResepDokter extends Model
         return $this->belongsTo(Visitation::class, 'visitation_id');
     }
 
-    public $timestamps = false;
+    // public $timestamps = false;
 }

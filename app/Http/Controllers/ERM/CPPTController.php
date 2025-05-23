@@ -49,10 +49,10 @@ class CPPTController extends Controller
             $user = auth()->user();
 
             if ($user->hasRole('Perawat')) {
-                $visitation->progress = 2;
+                $visitation->status_kunjungan = 1;
                 $visitation->status_dokumen = 'cppt';
             } elseif ($user->hasRole('Dokter')) {
-                $visitation->progress = 3;
+                $visitation->status_kunjungan = 2;
                 $visitation->status_dokumen = 'cppt';
             }
 

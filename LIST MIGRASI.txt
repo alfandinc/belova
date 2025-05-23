@@ -13,11 +13,13 @@ Visit - Erm lama -done
 Resep Dokter - Erm lama (Menunggu Obat)
 Resep Farmasi - ERm lama (Menunggu Obat)
 
-
-ASESMEN DALAM - ERM lama
-ASESMEN PENUNJANG - ERM lama
 ASESMEN PERAWAT - ERM lama
+ASESMEN PENUNJANG - ERM lama
+ASESMEN DALAM - ERM lama
 ASESMEN UMUM - ERM lama
+ASESMEN SARAF - ERM lama
+ASESMEN ANAK - ERM lama
+ASESMEN GIGI - EERM lama
 CPPT - erm lama
 
 Obat - Input oleh Farmasi

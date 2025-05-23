@@ -6,8 +6,9 @@ SELECT
     CASE 
         WHEN GENDER = 1 THEN 'Laki-laki'
         WHEN GENDER = 2 THEN 'Perempuan'
-        ELSE 'Tidak Diketahui'
+        ELSE NULL
     END AS GENDER,
     CONTACT_ADDRESS,
     PHONE_NUMBER
 FROM SIMRS.dbo.PASIEN;
+ORDER BY NO_REGISTRATION;

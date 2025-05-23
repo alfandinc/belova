@@ -13,8 +13,7 @@ return new class extends Migration
     {
         Schema::create('erm_kandungan_obat', function (Blueprint $table) {
             $table->id();
-            $table->string('obat_id'); // ubah jadi string
-            $table->foreign('obat_id')->references('id')->on('erm_obat')->onDelete('cascade');
+            $table->foreignId('obat_id')->constrained('erm_obat')->onDelete('cascade');
             $table->foreignId('zataktif_id')->constrained('erm_zataktif')->onDelete('cascade');
             $table->timestamps();
         });

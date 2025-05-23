@@ -14,12 +14,12 @@ class MetodeBayarSeeder extends Seeder
     public function run(): void
     {
         $mb = [
-            'Umum',
-            'InHealth',
+            ['id' => 1, 'nama' => 'Umum'],
+            ['id' => 2, 'nama' => 'InHealth'],
         ];
 
-        foreach ($mb as $mb) {
-            MetodeBayar::create(['nama' => $mb]);
+        foreach ($mb as $item) {
+            MetodeBayar::create($item);
         }
     }
 }

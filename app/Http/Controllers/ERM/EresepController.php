@@ -19,6 +19,8 @@ use Yajra\DataTables\Facades\DataTables;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\ResepFarmasi;
+use Illuminate\Support\Str;
+
 
 
 class EresepController extends Controller
@@ -116,8 +118,10 @@ class EresepController extends Controller
             'jumlah' => 'required',
             'aturan_pakai' => 'required',
         ]);
+        $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
 
         ResepDokter::create([
+            'id' => $customId,
             'tanggal_input' => Carbon::now(),
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $validated['obat_id'],
@@ -142,7 +146,12 @@ class EresepController extends Controller
         ]);
 
         foreach ($validated['obats'] as $obat) {
+            do {
+                $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+            } while (ResepDokter::where('id', $customId)->exists());
+
             ResepDokter::create([
+                'id' => $customId,
                 'tanggal_input' => now(),
                 'visitation_id' => $validated['visitation_id'],
                 'obat_id' => $obat['obat_id'],
@@ -295,8 +304,10 @@ class EresepController extends Controller
             'diskon' => 'required',
             'aturan_pakai' => 'required',
         ]);
+        $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
 
         $resep = ResepFarmasi::create([
+            'id' => $customId,
             'tanggal_input' => Carbon::now(),
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $validated['obat_id'],
@@ -329,7 +340,12 @@ class EresepController extends Controller
         ]);
 
         foreach ($validated['obats'] as $obat) {
-            ResepFarmasi::create([
+            do {
+                $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+            } while (ResepDokter::where('id', $customId)->exists());
+
+            ResepDokter::create([
+                'id' => $customId,
                 'tanggal_input' => now(),
                 'visitation_id' => $validated['visitation_id'],
                 'obat_id' => $obat['obat_id'],

@@ -258,5 +258,5 @@ yang perlu disiapkan :
 list obat + ICD & list zat aktif + id
 farmasi input : 
 - relasi table zat aktif
-- field obat (dosis, satuan, stok, harga satuan, status (Umum=1, InHealth=2)
+- field obat (dosis, satuan, stok, harga satuan, status (Umum=1, InHealth=2))
 

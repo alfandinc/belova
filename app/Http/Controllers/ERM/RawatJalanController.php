@@ -27,12 +27,12 @@ class RawatJalanController extends Controller
 
             $user = Auth::user();
             if ($user->hasRole('Perawat')) {
-                $visitations->where('progress', 1);
+                $visitations->where('status_kunjungan', 0);
             } elseif ($user->hasRole('Dokter')) {
                 $dokter = \App\Models\ERM\Dokter::where('user_id', $user->id)->first();
                 if ($dokter) {
                     $visitations->where('dokter_id', $dokter->id)
-                        ->whereIn('progress', [2, 3]);
+                        ->whereIn('status_kunjungan', [1, 2]);
                 } else {
                     // Optional: return empty if no dokter found
                     $visitations->whereRaw('1 = 0');

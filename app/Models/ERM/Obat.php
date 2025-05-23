@@ -34,4 +34,8 @@ class Obat extends Model
     {
         return $this->belongsToMany(ZatAktif::class, 'erm_kandungan_obat', 'obat_id', 'zataktif_id');
     }
+    public function metodeBayar()
+    {
+        return $this->belongsTo(MetodeBayar::class, 'metode_bayar_id');
+    }
 }

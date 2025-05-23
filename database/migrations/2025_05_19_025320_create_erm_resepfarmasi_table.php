@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('erm_resepfarmasi', function (Blueprint $table) {
-            $table->id();
+            $table->string('id')->primary();
             $table->string('visitation_id');
-            $table->string('obat_id');
+            $table->foreignId('obat_id')->constrained('erm_obat')->onDelete('cascade');
             $table->integer('jumlah')->nullable();
             $table->string('dosis')->nullable();
             $table->integer('bungkus')->nullable();
@@ -25,11 +25,11 @@ return new class extends Migration
             $table->integer('diskon')->nullable();
             $table->integer('total')->nullable();
             $table->unsignedBigInteger('dokter_id')->nullable(); // trace to source doctor
+            $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
 
 
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('cascade');
-            $table->foreign('obat_id')->references('id')->on('erm_obat')->onDelete('cascade');
         });
     }
 

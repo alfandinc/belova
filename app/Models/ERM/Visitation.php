@@ -13,12 +13,14 @@ class Visitation extends Model
     protected $fillable = [
         'id',
         'pasien_id',
-        'dokter_id',
         'metode_bayar_id',
-        'progress',
-        'status',
-        'no_antrian',
+        'dokter_id',
+        'user_id',
+        'status_kunjungan',
+        'status_dokumen',
         'tanggal_visitation',
+        'no_antrian',
+
     ];
 
     public function pasien()

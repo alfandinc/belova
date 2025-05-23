@@ -1,0 +1,68 @@
+SELECT
+    [bill_id],
+    [visit_id],
+    CASE 
+        WHEN brand_id = 'A012' THEN 2129
+        WHEN brand_id = 'A106' THEN 2130
+        WHEN brand_id = 'B102' THEN 2131
+        WHEN brand_id = 'C100' THEN 2132
+        WHEN brand_id = 'C105' THEN 2133
+        WHEN brand_id = 'C20'  THEN 2134
+        WHEN brand_id = 'D46'  THEN 2135
+        WHEN brand_id = 'E24'  THEN 2136
+        WHEN brand_id = 'E28'  THEN 2137
+        WHEN brand_id = 'F48'  THEN 2138
+        WHEN brand_id = 'F49'  THEN 2139
+        WHEN brand_id = 'I24'  THEN 2140
+        WHEN brand_id = 'K60'  THEN 2141
+        WHEN brand_id = 'L47'  THEN 2142
+        WHEN brand_id = 'L52'  THEN 2143
+        WHEN brand_id = 'M81'  THEN 2144
+        WHEN brand_id = 'N31'  THEN 2145
+        WHEN brand_id = 'N34'  THEN 2146
+        WHEN brand_id = 'Nospirinal 80 mg' THEN 2147
+        WHEN brand_id = 'O38'  THEN 2148
+        WHEN brand_id = 'o39'  THEN 2149
+        WHEN brand_id = 'P72'  THEN 2150
+        WHEN brand_id = 'P73'  THEN 2151
+        WHEN brand_id = 'R36'  THEN 2152
+        WHEN brand_id = 'r37'  THEN 2153
+        WHEN brand_id = 'R38'  THEN 2154
+        WHEN brand_id = 'S012' THEN 2155
+        WHEN brand_id = 'S100' THEN 2156
+        WHEN brand_id = 'S101' THEN 2157
+        WHEN brand_id = 'S103' THEN 2158
+        WHEN brand_id = 'S105' THEN 2159
+        WHEN brand_id = 'S106' THEN 2160
+        WHEN brand_id = 'S950' THEN 2161
+        WHEN brand_id = 'T15'  THEN 2162
+        WHEN brand_id = 'TR02' THEN 2163
+        WHEN brand_id = 'V46'  THEN 2164
+        WHEN brand_id = 'V48'  THEN 2165
+        WHEN brand_id = 'V49'  THEN 2166
+        WHEN brand_id = 'V51'  THEN 2167
+        WHEN brand_id = 'Z07'  THEN 2168
+        ELSE TRY_CAST(brand_id AS INT)
+    END AS brand_id,
+
+    [jumlah],
+    [dosis],
+    [bungkus],
+    [racikan_ke],
+    [aturan_pakai],
+    [wadah],
+    [harga],
+    [diskon],
+    CASE 
+        WHEN kode_dokter = 'w005'  THEN '16'
+        WHEN kode_dokter = 'A001'  THEN '145'
+        WHEN kode_dokter = 'DNR1'  THEN '1158'
+        WHEN kode_dokter = 'FIFI1' THEN '1171'
+        WHEN kode_dokter = 'DTA1'  THEN '1159'
+        WHEN kode_dokter = 'E013'  THEN '23'
+        WHEN kode_dokter = 'AH009' THEN '99'
+        ELSE kode_dokter
+    END AS kode_dokter,
+
+    [tgl]
+FROM [SIMRS].[dbo].[medical_record_farmasi];

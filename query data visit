@@ -3,31 +3,6 @@ SELECT
     NO_REGISTRATION,
     STATUS_PASIEN_ID,
     c.id AS dokter_id,
-    MODIFIED_BY,
-    CASE 
-        WHEN doc = 1 THEN 'asesmen'
-        WHEN doc = 2 THEN 'cppt'
-        ELSE NULL
-    END AS status_dokumen,
-    CAST(VISIT_DATE AS date) AS tgl_kunjungan,
-    TICKET_NO
-FROM SIMRS.dbo.PASIEN_VISITATION a
-LEFT JOIN ERM.dbo.medical_record_riwayat b ON a.VISIT_ID = b.visit_id
-LEFT JOIN SIMRS.dbo.medical_record_user c ON a.EMPLOYEE_ID = c.username
-WHERE ISATTENDED <> 7
-  AND c.id IS NOT NULL
-  AND c.username = 'W005'
-ORDER BY tgl_kunjungan ASC;
-
-
--- NEW
-
-SELECT  
-    a.VISIT_ID,
-    NO_REGISTRATION,
-    STATUS_PASIEN_ID,
-    c.id AS dokter_id,
-    MODIFIED_BY,
     CASE 
         WHEN doc = 1 THEN 'asesmen'
         WHEN doc = 2 THEN 'cppt'
@@ -44,5 +19,6 @@ SELECT
 FROM SIMRS.dbo.PASIEN_VISITATION a
 LEFT JOIN ERM.dbo.medical_record_riwayat b ON a.VISIT_ID = b.visit_id
 LEFT JOIN SIMRS.dbo.medical_record_user c ON a.EMPLOYEE_ID = c.username
+WHERE c.id IS NOT NULL
+  AND c.username = 'W005'
 ORDER BY tgl_kunjungan ASC;
-

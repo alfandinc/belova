@@ -14,4 +14,8 @@ class MetodeBayar extends Model
     {
         return $this->hasMany(Visitation::class, 'metode_bayar_id');
     }
+    public function obat()
+    {
+        return $this->hasMany(Obat::class, 'metode_bayar_id');
+    }
 }

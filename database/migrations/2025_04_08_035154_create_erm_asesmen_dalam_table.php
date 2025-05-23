@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('erm_asesmen_dalam', function (Blueprint $table) {
             $table->id();
             $table->string('visitation_id')->nullable();
-            $table->string('autoanamnesis')->nullable();
+            $table->string('autoanamnesis')->nullable()->default('1');;
             $table->string('alloanamnesis')->nullable();
             $table->string('anamnesis1')->nullable();
             $table->string('anamnesis2')->nullable();

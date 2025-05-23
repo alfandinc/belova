@@ -68,7 +68,7 @@ class AsesmenController extends Controller
         // Shared Penunjang logic
         $this->storeAsesmenPenunjang($request);
 
-        Visitation::where('id', $request->visitation_id)->update(['progress' => 3]);
+        Visitation::where('id', $request->visitation_id)->update(['status_kunjungan' => 2]);
 
         return response()->json([
             'status' => 'success',

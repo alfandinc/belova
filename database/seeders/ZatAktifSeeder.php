@@ -29,7 +29,7 @@ class ZatAktifSeeder extends Seeder
                 continue; // skip header
             }
 
-            $nama = trim($row[0]);
+            $nama = trim($row[1]);
 
             // Skip if 'nama' already exists in the table
             if (DB::table('erm_zataktif')->where('nama', $nama)->exists()) {
@@ -37,6 +37,7 @@ class ZatAktifSeeder extends Seeder
             }
 
             DB::table('erm_zataktif')->insert([
+                'id' => $row[0],
                 'nama' => $nama,
                 'created_at' => now(),
                 'updated_at' => now(),
