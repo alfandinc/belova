@@ -92,4 +92,26 @@ class ObatController extends Controller
             return redirect()->back()->with('error', 'Gagal menambahkan obat: ' . $e->getMessage());
         }
     }
+
+    public function search(Request $request)
+    {
+        $query = $request->get('q');
+
+        // Fetch obat data based on the search query
+        $obats = Obat::where('nama', 'LIKE', "%{$query}%")
+            ->orWhere('dosis', 'LIKE', "%{$query}%")
+            ->orWhere('satuan', 'LIKE', "%{$query}%")
+            ->get();
+
+        // Return the data as JSON
+        return response()->json($obats->map(function ($obat) {
+            return [
+                'id' => $obat->id,
+                'nama' => $obat->nama,
+                'dosis' => $obat->dosis,
+                'satuan' => $obat->satuan,
+                'stok' => $obat->stok
+            ];
+        }));
+    }
 }

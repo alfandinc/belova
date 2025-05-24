@@ -206,3 +206,4 @@ Route::get('/get-districts/{regency_id}', [AddressController::class, 'getDistric
 Route::get('/get-villages/{district_id}', [AddressController::class, 'getVillages']);
 Route::get('/address-form', [AddressController::class, 'index']);
 Route::get('/icd10/search', [Icd10Controller::class, 'search'])->name('icd10.search');
+Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');

@@ -65,15 +65,8 @@
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <label>Nama Obat</label>
-                            <select name="obat_id" id="obat_id" class="form-control select2">
-                                @foreach ($obats as $obat)
-                                    <option 
-                                        value="{{ $obat->id }}" 
-                                        data-harga="{{ $obat->harga_nonfornas }}" 
-                                        data-stok="{{ $obat->stok }}">
-                                        {{ $obat->nama }} {{ $obat->dosis }} {{ $obat->satuan }}
-                                    </option>
-                                @endforeach
+                            <select class="form-control select2-obat" name="obat_id" id="obat_id">
+                                <option value="">Search and select an obat...</option>
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -192,6 +185,29 @@
 
     $(document).ready(function () {
         $('.select2').select2({ width: '100%' });
+        $('.select2-obat').select2({
+            placeholder: 'Search obat...',
+            ajax: {
+                url: '{{ route("obat.search") }}', // Define this route in your controller
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term // Search term
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.map(item => ({
+                            id: item.id,
+                            text: `${item.nama} ${item.dosis} ${item.satuan}`
+                        }))
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 3
+        });
 
         // STORE NON RACIKAN
         $('#tambah-resep').on('click', function () {
@@ -275,7 +291,7 @@
         $('#tambah-racikan').on('click', function () {
             racikanCount++;
 
-            $('#racikan-container').append(`
+            const racikanCard = `
                 <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanCount}">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 style="color: yellow;"><strong>Racikan ${racikanCount}</strong></h5>
@@ -285,16 +301,8 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label>Nama Obat</label>
-                            <select class="form-control select2 obat_id">
-                                @foreach ($obats as $obat)
-                                    <option 
-                                        value="{{ $obat->id }}" 
-                                        data-stok="{{ $obat->stok }}"
-                                        data-dosis="{{ $obat->dosis }}"
-                                        data-satuan="{{ $obat->satuan }}">
-                                        {{ $obat->nama }} {{ $obat->dosis }} {{ $obat->satuan }}
-                                    </option>
-                                @endforeach
+                            <select class="form-control select2-obat-racikan" name="obat_id">
+                                <option value="">Search and select an obat...</option>
                             </select>
                         </div>
                         <div class="col-md-2">
@@ -351,30 +359,70 @@
 
                     <button class="btn btn-success btn-block mt-3 tambah-resepracikan">Simpan Racikan ${racikanCount}</button>
                 </div>
-            `);
+            `;
 
-            $('.select2').select2({ width: '100%' });
+            // Append the new racikan card to the container
+            $('#racikan-container').append(racikanCard);
+
+            // Reinitialize select2 for the dynamically added "Nama Obat" field
+            $('.select2-obat-racikan').last().select2({
+                placeholder: 'Search obat...',
+                ajax: {
+                    url: '{{ route("obat.search") }}', // Define this route in your controller
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term // Search term
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(item => ({
+                                id: item.id,
+                                text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                stok: item.stok, // Include stok in the data
+                            dosis: item.dosis, // Include dosis in the data
+                            satuan: item.satuan // Include satuan in the data
+                            }))
+                        };
+                    },
+                    cache: true
+                },
+                minimumInputLength: 3
+            });
         });
         // TAMBAH OBAT KE RACIKAN
         $('#racikan-container').on('click', '.tambah-obat', function () {
             const card = $(this).closest('.racikan-card');
-            const obatSelect = card.find('.obat_id');
-            const dosisInput = parseInt(card.find('.dosis_input').val());
+            const obatSelect = card.find('.select2-obat-racikan');
+            const obatId = obatSelect.val();
+            const obatText = obatSelect.find('option:selected').text();
+
+            // Retrieve custom data attributes from the selected option
+            const selectedOption = obatSelect.select2('data')[0]; // Get the selected option's data
+            const stok = selectedOption.stok || 0; // Default to 0 if undefined
+            const defaultDosis = parseFloat(selectedOption.dosis) || 0; // Ensure it's a number
+            const satuan = selectedOption.satuan || ''; // Default to empty string if undefined
+
+            const dosisInput = parseFloat(card.find('.dosis_input').val()) || 0; // Ensure it's a number
             const mode = card.find('.mode_dosis').val();
 
-            const text = obatSelect.find('option:selected').text();
-            const satuan = obatSelect.find('option:selected').data('satuan');
-            const stok = obatSelect.find('option:selected').data('stok');
-            const defaultDosis = obatSelect.find('option:selected').data('dosis');
-
+            // Calculate the final dosis
             let dosisAkhir = mode === 'tablet' ? defaultDosis * dosisInput : dosisInput;
+
+            if (!obatId || !dosisInput) {
+                alert('Nama obat dan dosis harus diisi.');
+                return;
+            }
 
             const tbody = card.find('.resep-table-body');
             tbody.find('.no-data').remove();
 
+            // Append the new row to the table
             tbody.append(`
                 <tr>
-                    <td data-id="${obatSelect.val()}">${text}</td>
+                    <td data-id="${obatId}">${obatText}</td>
                     <td>${dosisAkhir} ${satuan}</td>
                     <td>${stok}</td>
                     <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
@@ -389,6 +437,12 @@
             const wadah = card.find('.wadah').val();
             const bungkus = card.find('.bungkus').val();
             const aturanPakai = card.find('.aturan_pakai').val();
+
+                    // Validate required fields
+            if (!bungkus || !aturanPakai) {
+                alert('Field "Bungkus" dan "Aturan Pakai" wajib diisi.');
+                return;
+            }
 
             const obats = [];
             card.find('.resep-table-body tr').each(function () {
@@ -425,7 +479,7 @@
             });
             });
 
-
+        // DELETE OBAT
         $('#racikan-container').on('click', '.hapus-obat', function () {
             $(this).closest('tr').remove();
             const card = $(this).closest('.racikan-card');
@@ -433,7 +487,7 @@
                 card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="4" class="text-center text-muted">Belum ada data</td></tr>`);
             }
         });
-
+        // DELETE RACIKAN
         $(document).on('click', '.hapus-racikan', function () {
             const card = $(this).closest('.racikan-card');
             const racikanKe = card.data('racikan-ke');
@@ -466,8 +520,7 @@
                     alert('Gagal menghapus racikan');
                 }
             });
-        })
-        
+        })      
         // MODAL RIWAYAT
         $(document).on('click', '.btn-riwayat', function () {
             let url = $(this).data('url');
@@ -478,7 +531,6 @@
                 $('#riwayatModalContent').html(data);
             });
         });
-
         
         updateTotalPrice(); // <--- Tambahkan ini
     
