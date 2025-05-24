@@ -240,6 +240,7 @@
 @endsection
 
 @section('scripts')
+
 <script>
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
 
@@ -608,16 +609,18 @@ $('#submit-all').on('click', function () {
                 }
             });
         });
-        // MODAL RIWAYAT
         $(document).on('click', '.btn-riwayat', function () {
-            let url = $(this).data('url');
-            $('#riwayatModal').modal('show');
-            $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
+    console.log('Button clicked'); // Debugging
+    let url = $(this).data('url');
+    $('#riwayatModal').modal('show');
+    $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
 
-            $.get(url, function (data) {
-                $('#riwayatModalContent').html(data);
-            });
-        });
+    $.get(url, function (data) {
+        $('#riwayatModalContent').html(data);
+    }).fail(function () {
+        $('#riwayatModalContent').html('<p class="text-center text-danger">Gagal memuat data.</p>');
+    });
+});
 
               
         updateTotalPrice(); // <--- Tambahkan ini

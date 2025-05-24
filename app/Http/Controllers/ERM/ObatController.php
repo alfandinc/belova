@@ -73,8 +73,10 @@ class ObatController extends Controller
                 'nama' => $request->nama,
                 'dosis' => $request->dosis,
                 'satuan' => $request->satuan,
-                'harga_umum' => $request->harga_umum,
-                'harga_inhealth' => $request->harga_inhealth,
+                'harga_net' => $request->harga_net,
+                'harga_fornas' => $request->harga_fornas,
+                'harga_nonfornas' => $request->harga_nonfornas,
+
                 'stok' => $request->stok,
                 // tambahkan field lain jika perlu
             ]);

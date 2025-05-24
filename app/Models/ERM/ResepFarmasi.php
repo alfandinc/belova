@@ -8,8 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class ResepFarmasi extends Model
 {
     protected $table = 'erm_resepfarmasi';
+    public $incrementing = false; // non auto-increment
+    protected $keyType = 'string'; // jika ID-nya string (bukan integer)
 
     protected $fillable = [
+        'id',
         'visitation_id',
         'obat_id',
         'jumlah',

@@ -69,7 +69,7 @@
                                 @foreach ($obats as $obat)
                                     <option 
                                         value="{{ $obat->id }}" 
-                                        data-harga="{{ $obat->harga_umum }}" 
+                                        data-harga="{{ $obat->harga_nonfornas }}" 
                                         data-stok="{{ $obat->stok }}">
                                         {{ $obat->nama }} {{ $obat->dosis }} {{ $obat->satuan }}
                                     </option>
@@ -101,10 +101,11 @@
                             </tr>
                         </thead>
                         <tbody id="resep-table-body">
+                            {{-- {{ dd($nonRacikans) }} --}}
                             @forelse ($nonRacikans as $resep)
                                 <tr data-id="{{ $resep->id }}">
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
-                                    <td>{{ $resep->obat->harga_umum ?? 0 }}</td>
+                                    <td>{{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->jumlah }}</td>
                                     <td>{{ $resep->obat->stok ?? 0 }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
@@ -142,6 +143,7 @@
                             <tbody class="resep-table-body">
                                 @foreach ($items as $resep)
                                     <tr>
+                                       
                                         <td data-id="{{ $resep->id }}">{{ $resep->obat->nama ?? '-' }}</td>
                                         <td>{{ $resep->dosis }}</td>
                                         <td>{{ $resep->obat->stok ?? 0 }}</td>
@@ -218,7 +220,7 @@
                 success: function () {
                     $('#resep-table-body .no-data').remove();
                     $('#resep-table-body').append(`
-                        <tr>
+                        <tr data-id="${resep.id}">
                             <td>${obatText}</td>
                             <td>${harga}</td>
                             <td>${jumlah}</td>
@@ -262,8 +264,8 @@
         function updateTotalPrice() {
             let total = 0;
             $('#resep-table-body tr').each(function () {
-                let harga = parseFloat($(this).find('td').eq(1).text()) || 0;
-                let jumlah = parseInt($(this).find('td').eq(2).text()) || 0;
+                let harga = parseFloat($(this).find('td').eq(2).text()) || 0;
+                let jumlah = parseInt($(this).find('td').eq(1).text()) || 0;
                 total += harga * jumlah;
             });
             $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');

@@ -11,16 +11,18 @@ class Obat extends Model
     use HasFactory;
 
     protected $table = 'erm_obat';
-    public $incrementing = false; // karena kolom id bukan auto-increment
-    protected $keyType = 'string'; // karena kolom id bertipe string
+    // public $incrementing = false; // karena kolom id bukan auto-increment
+    // protected $keyType = 'string'; // karena kolom id bertipe string
 
     protected $fillable = [
         'id',
         'nama',
         'satuan',
         'dosis',
-        'harga_umum',
-        'harga_inhealth',
+        'harga_het',
+        'harga_fornas',
+        'harga_nonfornas',
+
         'stok',
         'supplier_id',
     ];

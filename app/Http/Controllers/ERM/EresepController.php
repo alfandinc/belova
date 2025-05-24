@@ -45,14 +45,14 @@ class EresepController extends Controller
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
                 ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
                 ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
-                ->addColumn('tanggal', fn($v) => $v->tanggal_visitation)
+                ->addColumn('tanggal_visitation', fn($v) => $v->tanggal_visitation)
                 ->addColumn('status_dokumen', fn($v) => ucfirst($v->status_dokumen))
                 ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
-                ->addColumn('progress', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
+                ->addColumn('status_kunjungan', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
-                    $asesmenUrl = $user->hasRole('Perawat') ? route('erm.eresepfarmasi.create', $v->id)
-                        : ($user->hasRole('Dokter') ? route('erm.eresepfarmasi.create', $v->id) : '#');
+                    $asesmenUrl = $user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id)
+                        : ($user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id) : '#');
                     return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
                 })
                 ->rawColumns(['dokumen'])
@@ -100,6 +100,8 @@ class EresepController extends Controller
         // Hitung nilai racikan_ke terakhir dari database
         $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
 
+        // dd($nonRacikans);
+
 
         return view('erm.eresep.create', array_merge([
             'visitation' => $visitation,
@@ -122,7 +124,7 @@ class EresepController extends Controller
 
         ResepDokter::create([
             'id' => $customId,
-            'tanggal_input' => Carbon::now(),
+            'created_at' => Carbon::now(),
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $validated['obat_id'],
             'jumlah' => $validated['jumlah'],
@@ -152,7 +154,7 @@ class EresepController extends Controller
 
             ResepDokter::create([
                 'id' => $customId,
-                'tanggal_input' => now(),
+                'created_at' => now(),
                 'visitation_id' => $validated['visitation_id'],
                 'obat_id' => $obat['obat_id'],
                 'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
@@ -264,8 +266,14 @@ class EresepController extends Controller
         $reseps = ResepDokter::where('visitation_id', $visitationId)->get();
 
         foreach ($reseps as $resep) {
+            // Generate a unique custom ID
+            do {
+                $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+            } while (ResepFarmasi::where('id', $customId)->exists());
+
             ResepFarmasi::create([
-                'visitation_id' => $resep->visitation_id,
+                'id'             => $customId, // Store the custom ID here
+                'visitation_id'  => $resep->visitation_id,
                 'obat_id'        => $resep->obat_id,
                 'jumlah'         => $resep->jumlah,
                 'aturan_pakai'   => $resep->aturan_pakai,
@@ -308,7 +316,7 @@ class EresepController extends Controller
 
         $resep = ResepFarmasi::create([
             'id' => $customId,
-            'tanggal_input' => Carbon::now(),
+            'created_at' => Carbon::now(),
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $validated['obat_id'],
             'jumlah' => $validated['jumlah'],

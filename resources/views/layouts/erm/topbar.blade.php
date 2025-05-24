@@ -5,19 +5,12 @@
                 <nav class="navbar-custom">    
                     <ul class="list-unstyled topbar-nav float-right mb-0">  
                         <!-- Dark Mode Toggle -->
-                        <li class="nav-item mt-3">
-                            <div class="dark-mode-toggle">
-                                <label class="switch">
-                                    <input type="checkbox" id="darkModeSwitch">
-                                    <span class="slider round"></span>
-                                </label>
-                            </div>
-                        </li>
+                        
                         <li class="dropdown">
                             <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
                                 aria-haspopup="false" aria-expanded="false">
                                 <span class="ml-1 mr-2 nav-user-name hidden-sm">{{ Auth::user()->name ?? '-'}}</span>
-                                <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                 
+                                {{-- <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                  --}}
                             </a>
                             <div class="dropdown-menu dropdown-menu-right">
                                 <a class="dropdown-item" href="#"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Profile</a>
@@ -113,6 +106,14 @@
                                 <a href="javascript:void(0);" class="dropdown-item text-center text-primary">
                                     View all <i class="fi-arrow-right"></i>
                                 </a>
+                            </div>
+                        </li>
+                        <li class="nav-item mt-3 mr-2">
+                            <div class="dark-mode-toggle">
+                                <label class="switch">
+                                    <input type="checkbox" id="darkModeSwitch">
+                                    <span class="slider round"></span>
+                                </label>
                             </div>
                         </li>
 

@@ -76,18 +76,18 @@ $(document).ready(function () {
             // { data: 'antrian', name: 'no_antrian', searchable: false, orderable: true },
             { data: 'no_rm', searchable: false, orderable: false },
             { data: 'nama_pasien', searchable: false, orderable: false },
-            { data: 'tanggal', name: 'tanggal_visitation' },
+            { data: 'tanggal_visitation', name: 'tanggal_visitation' },
             // { data: 'status_dokumen', name: 'status_dokumen' },
             { data: 'metode_bayar', searchable: false, orderable: false },
             { data: 'dokumen', searchable: false, orderable: false },
-            { data: 'progress', visible: false, searchable: false }, // 🛠️ Sembunyikan
+            { data: 'status_kunjungan', visible: false, searchable: false }, // 🛠️ Sembunyikan
         ],
     //     columnDefs: [
     //     { targets: 0, width: "5%" }, // Antrian
     //     { targets: 6, width: "20%" }, // Dokumen
     // ],
         createdRow: function(row, data, dataIndex) {
-        if (data.progress == 3) {
+        if (data.status_kunjungan == 2) {
             $(row).css('color', 'orange'); // Warna teks kuning/orange
             // Kalau mau kasih background juga bisa:
             // $(row).css('background-color', '#fff3cd');

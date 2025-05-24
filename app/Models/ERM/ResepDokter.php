@@ -8,9 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class ResepDokter extends Model
 {
     protected $table = 'erm_resepdokter';
+    public $incrementing = false; // non auto-increment
+    protected $keyType = 'string'; // jika ID-nya string (bukan integer)
 
     protected $fillable = [
-        'tanggal_input',
+        'id',
+        'created_at',
         'visitation_id',
         'obat_id',
         'jumlah',
