@@ -14,17 +14,17 @@ class DatabaseSeeder extends Seeder
 {
     public function run()
     {
-        // $this->call(Icd10Seeder::class);
-        // $this->call(AreaSeeder::class);
+        $this->call(Icd10Seeder::class);
+        $this->call(AreaSeeder::class);
         $this->call(MetodeBayarSeeder::class);
         $this->call(RoleAndUserSeeder::class);
         $this->call(SpesialisasiSeeder::class);
         $this->call(DokterSeeder::class);
-        // $this->call(ZatAktifSeeder::class);
+        $this->call(ZatAktifSeeder::class);
         $this->call(MigrasiObatSeeder::class);
-        // $this->call(MigrasiPasienSeeder::class);
-        // $this->call(MigrasiVisitSeeder::class);
-        // $this->call(MigrasiResepDokterSeeder::class);
-        // $this->call(MigrasiResepFarmasiSeeder::class);
+        $this->call(MigrasiPasienSeeder::class);
+        $this->call(MigrasiVisitSeeder::class);
+        $this->call(MigrasiResepDokterSeeder::class);
+        $this->call(MigrasiResepFarmasiSeeder::class);
     }
 }
