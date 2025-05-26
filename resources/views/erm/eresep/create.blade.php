@@ -8,6 +8,8 @@
 @include('erm.partials.modal-alergipasien')
 @include('erm.partials.modal-resephistory')
 
+@include('erm.partials.modal-editnonracikan-dokter')
+
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">E-Resep Pasien</h3>
@@ -102,7 +104,8 @@
                                     <td>{{ $resep->jumlah }}</td>
                                     <td>{{ $resep->obat->stok ?? 0 }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
-                                    <td><button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button></td>
+                                    <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button>
+                                        <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
                                 </tr>
                             @empty
                                 <tr class="no-data">
@@ -208,22 +211,22 @@
             },
             minimumInputLength: 3
         });
-
         // STORE NON RACIKAN
         $('#tambah-resep').on('click', function () {
             let obatId = $('#obat_id').val();
             let obatText = $('#obat_id option:selected').text();
             let jumlah = $('#jumlah').val();
-            let harga = $('#obat_id option:selected').data('harga');
-            let stok = $('#obat_id option:selected').data('stok');
             let aturanPakai = $('#aturan_pakai').val();
-            let visitationId = $('#visitation_id').val();  // Pastikan id yang digunakan sama
+            let visitationId = $('#visitation_id').val();
 
-            if (!obatId || !jumlah || !aturanPakai) return alert("Semua field wajib diisi.");
+            if (!obatId || !jumlah || !aturanPakai) {
+                alert("Semua field wajib diisi.");
+                return;
+            }
 
-            // Kirim data via AJAX
+            // Send data via AJAX
             $.ajax({
-                url: "{{ route('resep.nonracikan.store') }}", // disesuaikan nanti
+                url: "{{ route('resep.nonracikan.store') }}",
                 method: "POST",
                 data: {
                     _token: "{{ csrf_token() }}",
@@ -231,21 +234,37 @@
                     obat_id: obatId,
                     jumlah: jumlah,
                     aturan_pakai: aturanPakai,
-                    visitation_id: visitationId 
+                    visitation_id: visitationId
                 },
-                success: function () {
+                success: function (res) {
+                    // Remove the "no data" row if it exists
                     $('#resep-table-body .no-data').remove();
+
+                    // Append the new row to the table
                     $('#resep-table-body').append(`
-                        <tr data-id="${resep.id}">
-                            <td>${obatText}</td>
-                            <td>${harga}</td>
-                            <td>${jumlah}</td>
-                            <td>${stok}</td>
-                            <td>${aturanPakai}</td>
-                            <td><button class="btn btn-danger btn-sm hapus">Hapus</button></td>
+                        <tr data-id="${res.data.id}">
+                            <td>${res.data.obat.nama}</td>
+                            <td>${res.data.obat.harga_nonfornas || 0}</td>
+                            <td>${res.data.jumlah}</td>
+                            <td>${res.data.obat.stok || 0}</td>
+                            <td>${res.data.aturan_pakai}</td>
+                            <td>
+                                <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
+                                <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
+                            </td>
                         </tr>
                     `);
+
+                    // Update the total price
                     updateTotalPrice();
+
+                    // Clear the input fields
+                    $('#obat_id').val(null).trigger('change');
+                    $('#jumlah').val('');
+                    $('#aturan_pakai').val('');
+                },
+                error: function (xhr) {
+                    alert('Gagal menambahkan resep: ' + xhr.responseJSON.message);
                 }
             });
         });
@@ -520,7 +539,50 @@
                     alert('Gagal menghapus racikan');
                 }
             });
-        })      
+        })        
+         // EDIT NON RACIKAN
+        $('#resep-table-body').on('click', '.edit', function() {
+            const row = $(this).closest('tr');
+            const id    = row.data('id');
+            const jumlah = row.find('td').eq(2).text().trim();
+            // const rawDiskon = row.find('td').eq(3).text().trim();   
+            // const diskonValue = rawDiskon.replace('%', '').trim();
+            const aturan = row.find('td').eq(4).text().trim();
+
+            $('#edit-resep-id').val(id);
+            $('#edit-jumlah').val(jumlah);
+            // $('#edit-diskon').val(diskonValue);
+            $('#edit-aturan').val(aturan);
+            $('#editResepModal').modal('show');
+        });
+        // STORE EDIT NON RACIKAN
+        $('#edit-resep-form').on('submit', function(e) {
+            e.preventDefault();
+
+            const id = $('#edit-resep-id').val();
+            const url = "{{ route('resep.nonracikan.update', '') }}/" + id;
+            const data = {
+                _token: "{{ csrf_token() }}",
+                _method: 'PUT',
+                jumlah: $('#edit-jumlah').val(),
+                // diskon: $('#edit-diskon').val(),
+                aturan_pakai: $('#edit-aturan').val()
+            };
+
+            $.post(url, data)
+            .done(function(res) {
+                // Update the table row
+                const row = $('#resep-table-body').find('tr[data-id="'+ id +'"]');
+                row.find('td').eq(2).text(res.data.jumlah);
+                // row.find('td').eq(3).text(res.data.diskon + ' %');
+                row.find('td').eq(4).text(res.data.aturan_pakai);
+
+                $('#editResepModal').modal('hide');
+            })
+            .fail(function(xhr) {
+                alert('Gagal menyimpan perubahan: ' + xhr.responseJSON.message);
+            });
+        });
         // MODAL RIWAYAT
         $(document).on('click', '.btn-riwayat', function () {
             let url = $(this).data('url');
@@ -532,7 +594,7 @@
             });
         });
         
-        updateTotalPrice(); // <--- Tambahkan ini
+        updateTotalPrice(); // 
     
     });
 

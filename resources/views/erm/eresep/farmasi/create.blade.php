@@ -8,42 +8,7 @@
 @include('erm.partials.modal-alergipasien')
 @include('erm.partials.modal-resephistory')
 
-<!-- Edit Non‑Racikan Modal -->
-<div class="modal fade" id="editResepModal" tabindex="-1" role="dialog" aria-labelledby="editResepModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <form id="edit-resep-form">
-      @csrf
-      @method('PUT')
-      <input type="hidden" name="resep_id" id="edit-resep-id">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="editResepModalLabel">Edit Resep</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Batal">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="form-group">
-            <label for="edit-jumlah">Jumlah</label>
-            <input type="number" class="form-control" id="edit-jumlah" name="jumlah" required>
-          </div>
-          <div class="form-group">
-            <label for="edit-diskon">Diskon</label>
-            <input type="number" class="form-control" id="edit-diskon" name="diskon" required>
-          </div>
-          <div class="form-group">
-            <label for="edit-aturan">Aturan Pakai</label>
-            <input type="text" class="form-control" id="edit-aturan" name="aturan_pakai" required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
-        </div>
-      </div>
-    </form>
-  </div>
-</div>
+@include('erm.partials.modal-editnonracikan-farmasi')
 
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
@@ -162,7 +127,8 @@
                                     
                                     <td>{{ $resep->obat->stok ?? 0 }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
-                                    <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button> <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
+                                    <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button>
+                                        <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
                                     
                                 </tr>
                             @empty
@@ -575,16 +541,16 @@
         });
 
         // SUBMIT KE BILLING
-$('#submit-all').on('click', function () {
-    // Disable all buttons
-    $('button').prop('disabled', true);
+        $('#submit-all').on('click', function () {
+            // Disable all buttons
+            $('button').prop('disabled', true);
 
-    // Disable all input fields, select, and textarea
-    $('input, select, textarea').prop('disabled', true);
+            // Disable all input fields, select, and textarea
+            $('input, select, textarea').prop('disabled', true);
 
-    // Optional: ganti teks tombol dan style agar terlihat sedang menyimpan
-    $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
-});
+            // Optional: ganti teks tombol dan style agar terlihat sedang menyimpan
+            $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
+        });
 
         //COPY RESEP DOKTER
         $('#copy-from-dokter').on('click', function () {
@@ -610,17 +576,17 @@ $('#submit-all').on('click', function () {
             });
         });
         $(document).on('click', '.btn-riwayat', function () {
-    console.log('Button clicked'); // Debugging
-    let url = $(this).data('url');
-    $('#riwayatModal').modal('show');
-    $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
+            console.log('Button clicked'); // Debugging
+            let url = $(this).data('url');
+            $('#riwayatModal').modal('show');
+            $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
 
-    $.get(url, function (data) {
-        $('#riwayatModalContent').html(data);
-    }).fail(function () {
-        $('#riwayatModalContent').html('<p class="text-center text-danger">Gagal memuat data.</p>');
-    });
-});
+            $.get(url, function (data) {
+                $('#riwayatModalContent').html(data);
+            }).fail(function () {
+                $('#riwayatModalContent').html('<p class="text-center text-danger">Gagal memuat data.</p>');
+            });
+        });
 
               
         updateTotalPrice(); // <--- Tambahkan ini

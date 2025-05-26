@@ -122,7 +122,7 @@ class EresepController extends Controller
         ]);
         $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
 
-        ResepDokter::create([
+        $resep = ResepDokter::create([
             'id' => $customId,
             'created_at' => Carbon::now(),
             'visitation_id' => $validated['visitation_id'],
@@ -131,7 +131,13 @@ class EresepController extends Controller
             'aturan_pakai' => $validated['aturan_pakai'],
         ]);
 
-        return response()->json(['success' => true, 'message' => 'Obat non-racikan berhasil disimpan.']);
+        $resep->load('obat'); // ✅ load the obat relation here
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Obat non-racikan berhasil disimpan.',
+            'data' => $resep
+        ]);
     }
 
     public function storeRacikan(Request $request)
@@ -411,6 +417,8 @@ class EresepController extends Controller
             'data'    => $resep,
         ]);
     }
+
+    // RIWAYAT DOKTER & FARMASI
 
     public function getRiwayatDokter($pasienId)
     {
