@@ -33,6 +33,11 @@ class ResepFarmasi extends Model
         return $this->belongsTo(Obat::class, 'obat_id');
     }
 
+    public function wadah()
+    {
+        return $this->belongsTo(WadahObat::class, 'obat_id');
+    }
+
     // Relasi ke Visitation
     public function visitation()
     {

@@ -8,17 +8,14 @@ use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Obat;
-use App\Models\ERM\ZatAktif;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-use App\Models\ERM\Alergi;
 use App\Models\ERM\ResepDokter;
 use Illuminate\Support\Facades\Auth;
-use App\Models\ERM\Pasien;
-use Yajra\DataTables\Facades\DataTables;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\ResepFarmasi;
+use App\Models\ERM\WadahObat;
 use Illuminate\Support\Str;
 
 
@@ -89,7 +86,7 @@ class EresepController extends Controller
         // $obats = Obat::all();
 
         // Ambil semua resep berdasarkan visitation_id
-        $reseps = ResepDokter::where('visitation_id', $visitationId)->with('obat')->get();
+        $reseps = ResepDokter::where('visitation_id', $visitationId)->with('obat', 'wadah')->get();
 
         // Kelompokkan racikan berdasarkan racikan_ke
         $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
@@ -100,12 +97,15 @@ class EresepController extends Controller
         // Hitung nilai racikan_ke terakhir dari database
         $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
 
-        // dd($nonRacikans);
+        $wadah = WadahObat::all();
+
+        // dd($racikans);
 
 
         return view('erm.eresep.create', array_merge([
             'visitation' => $visitation,
             'obats' => $obats,
+            'wadah' => $wadah,
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'lastRacikanKe' => $lastRacikanKe,
@@ -145,7 +145,7 @@ class EresepController extends Controller
         $validated = $request->validate([
             'visitation_id' => 'required',
             'racikan_ke' => 'required|integer',
-            'wadah' => 'required|string',
+            'wadah' => 'required',
             'bungkus' => 'required|integer',
             'aturan_pakai' => 'required|string',
             'obats' => 'required|array|min:1',
@@ -166,7 +166,7 @@ class EresepController extends Controller
                 'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
                 'aturan_pakai' => $validated['aturan_pakai'],
                 'racikan_ke' => $validated['racikan_ke'],
-                'wadah' => $validated['wadah'],
+                'wadah_id' => $validated['wadah'],
                 'bungkus' => $validated['bungkus'],
                 'dosis' => $obat['dosis'],
             ]);
@@ -345,7 +345,7 @@ class EresepController extends Controller
         $validated = $request->validate([
             'visitation_id' => 'required',
             'racikan_ke' => 'required|integer',
-            'wadah' => 'required|string',
+            'wadah' => 'required',
             'bungkus' => 'required|integer',
             'aturan_pakai' => 'required|string',
             'obats' => 'required|array|min:1',
@@ -440,5 +440,19 @@ class EresepController extends Controller
             ->groupBy('visitation_id');
 
         return view('erm.partials.resep-riwayatfarmasi', compact('reseps'));
+    }
+
+    //Wadah Obat
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        $wadahs = WadahObat::where('nama', 'like', '%' . $query . '%')->get();
+
+        return response()->json($wadahs->map(function ($wadah) {
+            return [
+                'id' => $wadah->id,
+                'text' => $wadah->nama . ' ' . $wadah->harga,
+            ];
+        }));
     }
 }

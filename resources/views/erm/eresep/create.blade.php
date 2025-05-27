@@ -152,10 +152,10 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label>Wadah</label>
-                                <select class="form-control wadah">
-                                    @foreach (['Kapsul', 'Ampul', 'Botol', 'Sachet'] as $wadah)
-                                        <option value="{{ $wadah }}" {{ $items->first()->wadah == $wadah ? 'selected' : '' }}>{{ $wadah }}</option>
-                                    @endforeach
+                                <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
+                                <option value="{{ $items->first()?->wadah?->id ?? '' }}">
+                                    {{ $items->first()?->wadah?->nama ?? 'Pilih Wadah' }}
+                                </option>
                                 </select>
                             </div>
                             <div class="col-md-3">
@@ -210,6 +210,29 @@
                 cache: true
             },
             minimumInputLength: 3
+        });
+        $('.select2-wadah-racikan').select2({
+            placeholder: 'Search wadah...',
+            ajax: {
+                url: '{{ route("wadah.search") }}', // Use the wadah.search route
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term // Search term
+                    };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.map(item => ({
+                            id: item.id,
+                            text: item.text // Adjust based on your API response structure
+                        }))
+                    };
+                },
+                cache: true
+            },
+
         });
         // STORE NON RACIKAN
         $('#tambah-resep').on('click', function () {
@@ -359,11 +382,8 @@
                     <div class="row">
                         <div class="col-md-3">
                             <label>Wadah</label>
-                            <select class="form-control wadah">
-                                <option value="Kapsul">Kapsul</option>
-                                <option value="Ampul">Ampul</option>
-                                <option value="Botol">Botol</option>
-                                <option value="Sachet">Sachet</option>
+                            <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
+                                <option value="">Search and select wadah...</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -409,6 +429,28 @@
                     cache: true
                 },
                 minimumInputLength: 3
+            });
+            $('.select2-wadah-racikan').last().select2({
+                placeholder: 'Search wadah...',
+                ajax: {
+                    url: '{{ route("wadah.search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term // Search term
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(item => ({
+                                id: item.id,
+                                text: item.text // Use the text property directly from the server response
+                            }))
+                        };
+                    },
+                    cache: true
+                },
             });
         });
         // TAMBAH OBAT KE RACIKAN

@@ -21,13 +21,17 @@ class ResepDokter extends Model
         'bungkus',
         'racikan_ke',
         'aturan_pakai',
-        'wadah',
+        'wadah_id',
     ];
 
     // Relasi ke Obat
     public function obat()
     {
         return $this->belongsTo(Obat::class, 'obat_id');
+    }
+    public function wadah()
+    {
+        return $this->belongsTo(WadahObat::class, 'wadah_id');
     }
 
     // Relasi ke Visitation
