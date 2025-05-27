@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('alloanamnesis')->nullable();
             $table->string('anamnesis1')->nullable();
             $table->string('anamnesis2')->nullable();
-            $table->string('keluhan_utama')->nullable();
+            $table->text('keluhan_utama')->nullable();
             $table->string('riwayat_penyakit_sekarang')->nullable();
             $table->string('allo_dengan')->nullable();
             $table->string('hasil_allo')->nullable();

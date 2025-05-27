@@ -20,7 +20,7 @@ return new class extends Migration
             $table->tinyInteger('status_kunjungan')->default(0);
             $table->enum('status_dokumen', ['asesmen', 'cppt'])->nullable();;
             $table->date('tanggal_visitation')->nullable();
-            $table->string('no_antrian')->nullable();
+            $table->integer('no_antrian')->nullable();
 
             $table->timestamps();
 

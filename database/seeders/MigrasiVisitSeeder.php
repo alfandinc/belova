@@ -46,7 +46,7 @@ class MigrasiVisitSeeder extends Seeder
                 'status_kunjungan' => $row[7] ?? 0,
                 'status_dokumen' => $row[4] == 'NULL' ? null : $row[4],
                 'tanggal_visitation' => $row[5] ?? null,
-                'no_antrian' => $row[6] == 'NULL' ? 1 : $row[6],
+                'no_antrian' => $row[6] == 'NULL' ? null : $row[6],
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);

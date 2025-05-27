@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('visitation_id')->nullable();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->string('keluhan_utama')->nullable();
+            $table->text('keluhan_utama')->nullable();
             $table->string('alasan_kunjungan')->nullable();
             $table->string('kesadaran')->nullable();
             $table->string('td')->nullable();

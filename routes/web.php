@@ -54,7 +54,6 @@ Route::get('/marketing/login', [AuthController::class, 'showMarketingLoginForm']
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-
 Route::middleware(['auth'])->group(function () {
     Route::get('/erm', [ERMDashboardController::class, 'index'])->name('erm.dashboard');
     Route::get('/hrd', [HRDDashboardController::class, 'index'])->name('hrd.dashboard');
@@ -106,9 +105,7 @@ Route::prefix('erm')->group(function () {
     Route::post('cppt/store', [CPPTController::class, 'store'])->name('erm.cppt.store');
     Route::get('/cppt/history-json/{visitation}', [CPPTController::class, 'historyJson']);
 
-
-
-    // E Resep
+    // E Resep Dokter
     Route::get('eresep/{visitation_id}/create', [EresepController::class, 'create'])->name('erm.eresep.create');
     Route::post('/resep/non-racikan', [EresepController::class, 'storeNonRacikan'])->name('resep.nonracikan.store');
     Route::post('/resep/racikan', [EresepController::class, 'storeRacikan'])->name('resep.racikan.store');
@@ -116,17 +113,19 @@ Route::prefix('erm')->group(function () {
     Route::delete('/resep/racikan/{racikanKe}', [EresepController::class, 'destroyRacikan'])->name('resep.racikan.destroy');
     Route::put('resep/nonracikan/{id}', [EresepController::class, 'updateNonRacikan'])->name('resep.nonracikan.update');
 
-    Route::get('eresepfarmasi/{visitation_id}/create', [EresepController::class, 'farmasicreate'])->name('erm.eresepfarmasi.create');
+    // E Resep Farmasi
     Route::get('/eresepfarmasi', [EresepController::class, 'index'])->name('erm.eresepfarmasi.index');
-    Route::get('/eresepfarmasi/{visitation_id}/json', [EresepController::class, 'getFarmasiResepJson'])->name('erm.eresepfarmasi.json');
-    Route::post('/eresepfarmasi/{visitation_id}/copy-from-dokter', [EresepController::class, 'copyFromDokter'])->name('erm.eresepfarmasi.copyfromdokter');
-
+    Route::get('eresepfarmasi/{visitation_id}/create', [EresepController::class, 'farmasicreate'])->name('erm.eresepfarmasi.create');
     Route::post('/resepfarmasi/non-racikan', [EresepController::class, 'farmasistoreNonRacikan'])->name('resepfarmasi.nonracikan.store');
     Route::post('/resepfarmasi/racikan', [EresepController::class, 'farmasistoreRacikan'])->name('resepfarmasi.racikan.store');
     Route::delete('/resepfarmasi/nonracikan/{id}', [EresepController::class, 'farmasidestroyNonRacikan'])->name('resepfarmasi.nonracikan.destroy');
     Route::delete('/resepfarmasi/racikan/{racikanKe}', [EresepController::class, 'farmasidestroyRacikan'])->name('resepfarmasi.racikan.destroy');
     Route::put('resepfarmasi/nonracikan/{id}', [EresepController::class, 'farmasiupdateNonRacikan'])->name('resepfarmasi.nonracikan.update');
 
+    Route::get('/eresepfarmasi/{visitation_id}/json', [EresepController::class, 'getFarmasiResepJson'])->name('erm.eresepfarmasi.json');
+    Route::post('/eresepfarmasi/{visitation_id}/copy-from-dokter', [EresepController::class, 'copyFromDokter'])->name('erm.eresepfarmasi.copyfromdokter');
+
+    // Riwayat Farmasi
     Route::get('/riwayat-resep/dokter/{pasienId}', [EresepController::class, 'getRiwayatDokter'])->name('resep.historydokter');
     Route::get('/riwayat-resep/farmasi/{pasienId}', [EresepController::class, 'getRiwayatFarmasi'])->name('resep.historyfarmasi');
 
@@ -149,12 +148,10 @@ Route::prefix('erm')->group(function () {
     Route::get('/listantrian', [ListAntrianController::class, 'index']);
     Route::get('/api/patient-events', [ListAntrianController::class, 'getEvents']);
 
-
     // Obat
     Route::get('/obat', [ObatController::class, 'index'])->name('erm.obat.index');
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
-
     Route::get('/surat/{pasien_id}', [SuratIstirahatController::class, 'index'])->name('erm.suratistirahat.index');
     Route::post('/surat', [SuratIstirahatController::class, 'store'])->name('erm.suratistirahat.store');
     Route::get('erm/surat/{id}/cetak', [SuratIstirahatController::class, 'cetak'])->name('erm.suratistirahat.cetak');
@@ -168,7 +165,6 @@ Route::prefix('inventory')->group(
         Route::post('/item', [ItemController::class, 'store'])->name('inventory.item.store');
         Route::get('/item/{id}/edit', [ItemController::class, 'edit'])->name('inventory.item.edit');
         Route::put('/item/{id}', [ItemController::class, 'update'])->name('inventory.item.update');
-
         Route::delete('/item/{id}', [ItemController::class, 'destroy'])->name('inventory.item.destroy');
     }
 );
@@ -181,26 +177,27 @@ Route::prefix('hrd')->group(
         Route::post('/employee', [EmployeeController::class, 'store'])->name('hrd.employee.store');
         Route::get('/employee/{id}/edit', [EmployeeController::class, 'edit'])->name('hrd.employee.edit');
         Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
-
         Route::delete('/item/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');
     }
 );
 
-Route::prefix('admin')->group(function () {
+Route::prefix('admin')->group(
+    function () {
+        //User Management
+        Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+        Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
+        Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
+        Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
+        Route::put('/users/{id}', [UserController::class, 'update'])->name('admin.users.update');
+        Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
 
-    //User Management
-    Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
-    Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
-    Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
-    Route::get('/users/{id}/edit', [UserController::class, 'edit'])->name('admin.users.edit');
-    Route::put('/users/{id}', [UserController::class, 'update'])->name('admin.users.update');
-    Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+        //Role Management
+        Route::get('/roles', [RoleController::class, 'index'])->name('admin.roles.index');
+        Route::post('/roles', [RoleController::class, 'store'])->name('admin.roles.store');
+    }
+);
 
-    //Role Management
-    Route::get('/roles', [RoleController::class, 'index'])->name('admin.roles.index');
-    Route::post('/roles', [RoleController::class, 'store'])->name('admin.roles.store');
-});
-
+// Get Master Data
 Route::get('/get-regencies/{province_id}', [AddressController::class, 'getRegencies']);
 Route::get('/get-districts/{regency_id}', [AddressController::class, 'getDistricts']);
 Route::get('/get-villages/{district_id}', [AddressController::class, 'getVillages']);
