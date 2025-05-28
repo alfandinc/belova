@@ -5,25 +5,16 @@
                 <nav class="navbar-custom">    
                     <ul class="list-unstyled topbar-nav float-right mb-0">  
                         <!-- Dark Mode Toggle -->
-                        
-                        <li class="dropdown">
-                            <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
-                                aria-haspopup="false" aria-expanded="false">
-                                <span class="ml-1 mr-2 nav-user-name hidden-sm">{{ Auth::user()->name ?? '-'}}</span>
-                                {{-- <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                  --}}
-                            </a>
-                            <div class="dropdown-menu dropdown-menu-right">
-                                <a class="dropdown-item" href="#"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Profile</a>
-                                <a class="dropdown-item" href="#"><i data-feather="settings" class="align-self-center icon-xs icon-dual mr-1"></i> Settings</a>
-                                <div class="dropdown-divider mb-0"></div>
-                                <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
-                                    @csrf
-                                </form>
-                                <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                    <i data-feather="power" class="align-self-center icon-xs icon-dual mr-1"></i> Logout
-                                </a>
+                        <li class="nav-item mt-3 mr-2">
+                            <div class="dark-mode-toggle">
+                                <label class="switch">
+                                    <input type="checkbox" id="darkModeSwitch">
+                                    <span class="slider round"></span>
+                                </label>
                             </div>
                         </li>
+                        
+                        
                         <li class="dropdown notification-list">
                             <a class="nav-link dropdown-toggle arrow-none waves-light waves-effect" data-toggle="dropdown" href="#" role="button"
                                 aria-haspopup="false" aria-expanded="false">
@@ -108,12 +99,23 @@
                                 </a>
                             </div>
                         </li>
-                        <li class="nav-item mt-3 mr-2">
-                            <div class="dark-mode-toggle">
-                                <label class="switch">
-                                    <input type="checkbox" id="darkModeSwitch">
-                                    <span class="slider round"></span>
-                                </label>
+                        
+                        <li class="dropdown">
+                            <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
+                                aria-haspopup="false" aria-expanded="false">
+                                <span class="ml-1 mr-2 nav-user-name hidden-sm">{{ Auth::user()->name ?? '-'}}</span>
+                                <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                 
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-right">
+                                <a class="dropdown-item" href="#"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Profile</a>
+                                <a class="dropdown-item" href="#"><i data-feather="settings" class="align-self-center icon-xs icon-dual mr-1"></i> Settings</a>
+                                <div class="dropdown-divider mb-0"></div>
+                                <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
+                                    @csrf
+                                </form>
+                                <a class="dropdown-item" href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                    <i data-feather="power" class="align-self-center icon-xs icon-dual mr-1"></i> Logout
+                                </a>
                             </div>
                         </li>
 

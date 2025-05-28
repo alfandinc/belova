@@ -5,18 +5,22 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
-use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
-use Illuminate\Support\Facades\DB;
 
 class RawatJalanController extends Controller
 {
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $visitations = Visitation::with(['pasien', 'metodeBayar'])->select('erm_visitations.*');
+            $visitations = Visitation::with(['pasien', 'metodeBayar'])
+                ->select(
+                    'erm_visitations.*',
+                    'erm_pasiens.nama as nama_pasien',
+                    'erm_pasiens.id as no_rm'
+                )
+                ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id');
 
             if ($request->tanggal) {
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
@@ -25,30 +29,20 @@ class RawatJalanController extends Controller
                 $visitations->where('dokter_id', $request->dokter_id);
             }
 
-            $user = Auth::user();
-            if ($user->hasRole('Perawat')) {
-                $visitations->where('status_kunjungan', 0);
-            } elseif ($user->hasRole('Dokter')) {
-                $dokter = \App\Models\ERM\Dokter::where('user_id', $user->id)->first();
-                if ($dokter) {
-                    $visitations->where('dokter_id', $dokter->id)
-                        ->whereIn('status_kunjungan', [1, 2]);
-                } else {
-                    // Optional: return empty if no dokter found
-                    $visitations->whereRaw('1 = 0');
-                }
-            }
-
             return datatables()->of($visitations)
+                ->filterColumn('nama_pasien', function ($query, $keyword) {
+                    $query->where('erm_pasiens.nama', 'like', "%{$keyword}%");
+                })
+                ->filterColumn('no_rm', function ($query, $keyword) {
+                    $query->where('erm_pasiens.id', 'like', "%{$keyword}%");
+                })
                 ->addColumn('antrian', function ($v) {
                     return '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
                 })
-                ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
-                ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
+                ->addColumn('no_rm', fn($v) => $v->no_rm ?? '-') // Use the aliased column
+                ->addColumn('nama_pasien', fn($v) => $v->nama_pasien ?? '-') // Use the aliased column
                 ->addColumn('tanggal', fn($v) => $v->tanggal_visitation)
-                // ->addColumn('status_dokumen', fn($v) => ucfirst($v->status_dokumen))
                 ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
-                ->addColumn('progress', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
                     $dokumenBtn = '';
@@ -66,7 +60,7 @@ class RawatJalanController extends Controller
                         }
                     }
 
-                    $rescheduleBtn = '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->pasien->nama . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
+                    $rescheduleBtn = '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->nama_pasien . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
 
                     return $dokumenBtn . ' ' . $rescheduleBtn;
                 })
@@ -76,7 +70,7 @@ class RawatJalanController extends Controller
 
         $dokters = Dokter::with('user', 'spesialisasi')->get();
         $metodeBayar = MetodeBayar::all();
-        $role = Auth::user()->getRoleNames()->first(); // or ->pluck('name')[0]
+        $role = Auth::user()->getRoleNames()->first();
         return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role'));
     }
 

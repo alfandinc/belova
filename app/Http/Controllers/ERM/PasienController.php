@@ -21,21 +21,43 @@ class PasienController extends Controller
         if ($request->ajax()) {
             $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp');
 
+            if ($request->no_rm) {
+                $pasiens->where('id', $request->no_rm);
+            }
+            if ($request->nama) {
+                $pasiens->where('nama', 'like', '%' . $request->nama . '%');
+            }
+            if ($request->nik) {
+                $pasiens->where('nik', 'like', '%' . $request->nik . '%');
+            }
+            if ($request->alamat) {
+                $pasiens->where('alamat', 'like', '%' . $request->alamat . '%');
+            }
+
             return DataTables::of($pasiens)
                 ->addColumn('actions', function ($user) {
                     return '
-                    <a href="' . route('erm.pasiens.edit', $user->id) . '" class="btn btn-warning btn-sm">Edit</a>
-                    <form method="POST" action="' . route('erm.pasiens.destroy', $user->id) . '" style="display:inline;">
-                        ' . csrf_field() . '
-                        ' . method_field('DELETE') . '
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm(\'Are you sure?\')">Delete</button>
-                    </form>';
+                <a href="javascript:void(0);" 
+                   class="btn btn-sm btn-success btn-daftar-visitation" 
+                   data-id="' . $user->id . '" 
+                   data-nama="' . e($user->nama) . '">
+                   Buat Kunjungan
+                </a>
+                <a href="javascript:void(0);" 
+                    class="btn btn-sm btn-primary btn-info-pasien" 
+                    data-id="' . $user->id . '">
+                    Info
+                </a>';
                 })
                 ->rawColumns(['actions'])
                 ->make(true);
         }
 
-        return view('erm.pasiens.index');
+        $metodeBayar = MetodeBayar::all();
+        $dokters = Dokter::with('spesialisasi')->get();
+        $pasienName = '';
+
+        return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName'));
     }
 
     public function create()
@@ -124,9 +146,11 @@ class PasienController extends Controller
     }
 
 
-    public function show(Pasien $pasien)
+    public function show($id)
     {
-        return view('erm.pasiens.show', compact('pasien'));
+        $pasien = Pasien::with(['village'])->findOrFail($id);
+
+        return response()->json($pasien);
     }
 
     public function edit(Pasien $pasien)

@@ -13,48 +13,6 @@ use Illuminate\Support\Facades\Auth;
 
 class VisitationController extends Controller
 {
-    public function index(Request $request)
-    {
-        if ($request->ajax()) {
-            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp');
-
-            if ($request->no_rm) {
-                $pasiens->where('id', $request->no_rm);
-            }
-            if ($request->nama) {
-                $pasiens->where('nama', 'like', '%' . $request->nama . '%');
-            }
-            if ($request->nik) {
-                $pasiens->where('nik', 'like', '%' . $request->nik . '%');
-            }
-            if ($request->alamat) {
-                $pasiens->where('alamat', 'like', '%' . $request->alamat . '%');
-            }
-
-            return DataTables::of($pasiens)
-                ->addColumn('actions', function ($user) {
-                    return '
-                <a href="javascript:void(0);" 
-                   class="btn btn-sm btn-primary btn-daftar-visitation" 
-                   data-id="' . $user->id . '" 
-                   data-nama="' . e($user->nama) . '">
-                   Buat Kunjungan
-                </a>
-                <a href="javascript:void(0);" 
-                    class="btn btn-sm btn-info btn-info-pasien" 
-                    data-id="' . $user->id . '">
-                    Info
-                </a>';
-                })
-                ->rawColumns(['actions'])
-                ->make(true);
-        }
-
-        $metodeBayar = MetodeBayar::all();
-        $dokters = Dokter::with('spesialisasi')->get();
-
-        return view('erm.visitations.index', compact('metodeBayar', 'dokters'));
-    }
 
     public function create()
     {
@@ -102,12 +60,5 @@ class VisitationController extends Controller
         return response()->json([
             'no_antrian' => $jumlahKunjungan + 1
         ]);
-    }
-
-    public function show($id)
-    {
-        $pasien = Pasien::with(['village'])->findOrFail($id);
-
-        return response()->json($pasien);
     }
 }

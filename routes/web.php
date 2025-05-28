@@ -69,13 +69,13 @@ Route::fallback(function () {
 
 Route::prefix('erm')->group(function () {
     // Pasien Management
-    Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
+    // Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::get('/pasiens/create', [PasienController::class, 'create'])->name('erm.pasiens.create');
     Route::post('/pasiens', [PasienController::class, 'store'])->name('erm.pasiens.store');
     Route::get('/pasiens/{id}/edit', [PasienController::class, 'edit'])->name('erm.pasiens.edit');
     Route::put('/pasiens/{id}', [PasienController::class, 'update'])->name('erm.pasiens.update');
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
-    Route::get('/erm/pasien/{id}', [VisitationController::class, 'show'])->name('erm.pasien.show');
+    Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 
     // Dokter Management
     Route::get('/dokters', [DokterController::class, 'index'])->name('erm.dokters.index');
@@ -86,7 +86,7 @@ Route::prefix('erm')->group(function () {
     Route::delete('/dokters/{id}', [DokterController::class, 'destroy'])->name('erm.dokters.destroy');
 
     //Visitation
-    Route::get('/visitations', [VisitationController::class, 'index'])->name('erm.visitations.index');
+    Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');

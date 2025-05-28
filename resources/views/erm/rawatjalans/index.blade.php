@@ -72,9 +72,7 @@
 $(document).ready(function () {
 
     $('.select2').select2({
-        // placeholder: "Pilih Dokter",
-        // allowClear: true,
-        width: '100%' // ⬅️ Tambahan penting agar tidak aneh tampilannya
+        width: '100%' 
     });
     // Set default value tanggal ke hari ini
     var today = new Date().toISOString().substr(0, 10);
@@ -85,6 +83,7 @@ $(document).ready(function () {
             return parseInt($('span', td).data('order')) || 0;
         });
     };
+
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
         serverSide: true,
@@ -98,35 +97,21 @@ $(document).ready(function () {
         },
         order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
-              {
-        data: 'antrian',
-        name: 'no_antrian',
-        searchable: false,
-        orderable: true,
-        orderDataType: 'antrian-number' // ⬅️ Tambahkan ini agar sorting pakai data-order
-        },
-            { data: 'no_rm', searchable: false, orderable: false },
-            { data: 'nama_pasien', searchable: false, orderable: false },
-            { data: 'tanggal', name: 'tanggal_visitation' },
-            // { data: 'status_dokumen', name: 'status_dokumen' },
-            { data: 'metode_bayar', searchable: false, orderable: false },
-            { data: 'dokumen', searchable: false, orderable: false },
-            { data: 'progress', visible: false, searchable: false }, // 🛠️ Sembunyikan
+            { data: 'antrian', name: 'no_antrian', searchable: true, orderable: true },
+            { data: 'no_rm', name: 'no_rm', searchable: true, orderable: false }, // Match alias
+            { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false }, // Match alias
+            { data: 'tanggal', name: 'tanggal_visitation', searchable: true },
+            { data: 'metode_bayar', name: 'metode_bayar', searchable: true, orderable: false },
+            { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
-        { targets: 0, width: "5%" }, // Antrian
-        { targets: 5, width: "25%" }, // Dokumen
-        {
-            targets: 0, // Kolom Antrian
-            type: 'num' // Paksa agar dianggap angka
-        }
+            { targets: 0, width: "5%" }, // Antrian
+            { targets: 5, width: "25%" }, // Dokumen
         ],
         createdRow: function(row, data, dataIndex) {
-        if (data.progress == 3) {
-            $(row).css('color', 'orange'); // Warna teks kuning/orange
-            // Kalau mau kasih background juga bisa:
-            // $(row).css('background-color', '#fff3cd');
-        }
+            if (data.status_kunjungan == 2) {
+                $(row).css('color', 'orange'); 
+            }
         }
     });
 
