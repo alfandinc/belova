@@ -50,4 +50,17 @@ class Visitation extends Model
     {
         return $this->hasOne(AsesmenPenunjang::class);
     }
+
+    public function asesmenUmum()
+    {
+        return $this->hasOne(AsesmenUmum::class);
+    }
+    public function resepDokter()
+    {
+        return $this->hasMany(ResepDokter::class);
+    }
+    public function resepFarmasi()
+    {
+        return $this->hasMany(ResepFarmasi::class);
+    }
 }

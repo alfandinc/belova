@@ -146,6 +146,8 @@ Route::prefix('erm')->group(function () {
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 
+    Route::get('/resume-medis/{visitation}', [RiwayatKunjunganController::class, 'resumeMedis'])->name('resume.medis');
+
     //Antrian
     Route::get('/listantrian', [ListAntrianController::class, 'index']);
     Route::get('/api/patient-events', [ListAntrianController::class, 'getEvents']);

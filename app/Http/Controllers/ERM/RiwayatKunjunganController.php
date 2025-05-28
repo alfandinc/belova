@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\ERM\Visitation;
 use Illuminate\Support\Facades\Cache;
-
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class RiwayatKunjunganController extends Controller
 {
@@ -45,10 +45,11 @@ class RiwayatKunjunganController extends Controller
                 // ->editColumn('created_at', fn($row) => $row->created_at->translatedFormat('d F Y'))
                 ->addColumn('aksi', function ($row) {
                     // $resumeUrl = route('resume.show', $row->id);   // Ubah sesuai kebutuhan
+                    $resumeUrl = route('resume.medis', $row->id);
                     $dokumenUrl = route('erm.asesmendokter.create', ['visitation' => $row->id]);
 
                     return '
-                        <a href="#" class="btn btn-sm btn-primary">Resume</a>
+                        <a href="' . $resumeUrl . '" class="btn btn-sm btn-primary" target="_blank">Resume</a>
                          <a href="' . $dokumenUrl . '" class="btn btn-sm btn-secondary" target="_blank">Dokumen</a>
                     ';
                 })
@@ -62,5 +63,51 @@ class RiwayatKunjunganController extends Controller
             'visitation' => $visitation,
             'pasien' => $pasien,
         ], $pasienData, $createKunjunganData));
+    }
+
+    public function resumeMedis($visitationId)
+    {
+        $visitation = Visitation::with(['dokter.user', 'dokter.spesialisasi'])->findOrFail($visitationId);
+
+        $pasien = PasienHelperController::getDataPasien($visitationId);
+
+        // Debug the $pasien data
+        // dd($visitation);
+        $diagnosisList = array_filter([
+            $visitation->asesmenPenunjang->diagnosakerja_1 ?? '',
+            $visitation->asesmenPenunjang->diagnosakerja_2 ?? '',
+            $visitation->asesmenPenunjang->diagnosakerja_3 ?? '',
+            $visitation->asesmenPenunjang->diagnosakerja_4 ?? '',
+            $visitation->asesmenPenunjang->diagnosakerja_5 ?? '',
+        ]);
+
+        $obatNames = $visitation->resepDokter()->with('obat')->get()->map(function ($resep) {
+            return $resep->obat->nama ?? 'Unknown';
+        })->toArray();
+
+
+        $data = [
+            'visitation_id' => $visitation->id,
+            'tanggal_visit' => $visitation->tanggal_visitation,
+            'nama_dokter' => $visitation->dokter->user->name,
+            'spesialisasi' => $visitation->dokter->spesialisasi->nama ?? '-',
+            'pasien' => $pasien['pasien'],
+            'keluhan_utama' => $visitation->asesmenDalam->keluhan_utama,
+            'keadaan_umum' => $visitation->asesmenDalam->keadaan_umum,
+            'n' => $visitation->asesmenDalam->n,
+            'td' => $visitation->asesmenDalam->td,
+            'r' => $visitation->asesmenDalam->r,
+            's' => $visitation->asesmenDalam->s,
+            'nama_obat' => implode(', ', $obatNames),
+            'diagnosis' => implode(', ', $diagnosisList),
+            'tindak_lanjut' => $visitation->asesmenPenunjang->standing_order ?? '',
+
+        ];
+
+        // dd($data);
+
+        $pdf = PDF::loadView('erm.riwayatkunjungan.resume-medis', $data);
+
+        return $pdf->stream('resume-medis.pdf');
     }
 }
