@@ -65,6 +65,45 @@
   </div>
 </div>
 
+<!-- Modal Info Pasien -->
+<div class="modal fade" id="modalInfoPasien" tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="infoModalLabel">Informasi Lengkap Pasien</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true"><i class="la la-times"></i></span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-borderless">
+          <tbody>
+            <tr>
+              <th>Nama</th>
+              <td>: <span id="info-nama"></span></td>
+            </tr>
+            <tr>
+              <th>NIK</th>
+              <td>: <span id="info-nik"></span></td>
+            </tr>
+            <tr>
+              <th>Alamat</th>
+              <td>: <span id="info-alamat"></span></td>
+            </tr>
+            <tr>
+              <th>No HP</th>
+              <td>: <span id="info-no-hp"></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="container-fluid">
     <!-- Page-Title -->
     <div class="row">
@@ -85,7 +124,7 @@
     {{-- Table Pasien --}}
     <div class="card">
         <div class="card-header bg-primary">
-            <h4 class="card-title text-white">Daftarkan Kunjungan Pasien</h4>
+            <h4 class="card-title text-white">Daftar Pasien</h4>
         </div>
         <div class="card-body">
             <div class="row mb-3">
@@ -163,6 +202,7 @@ $(document).ready(function () {
         $('#modal-nama-pasien').val(namaPasien);
         $('#modalKunjungan').modal('show');
     });
+    
 
     $('#form-kunjungan').submit(function (e) {
         e.preventDefault();
@@ -208,6 +248,29 @@ $(document).ready(function () {
     $('#dokter_id, #tanggal_visitation').on('change', function () {
         cekAntrian();
     });
+
+    $(document).on('click', '.btn-info-pasien', function () {
+        let pasienId = $(this).data('id');
+
+        $.ajax({
+            url: "{{ route('erm.pasien.show', '') }}/" + pasienId, // Fetch patient info
+            type: "GET",
+            success: function (response) {
+                // Populate table cells with response data
+                $('#info-nama').text(response.nama);
+                $('#info-nik').text(response.nik);
+                $('#info-alamat').text(response.alamat);
+                $('#info-no-hp').text(response.no_hp);
+
+                // Show the modal
+                $('#modalInfoPasien').modal('show');
+            },
+            error: function () {
+                alert("Terjadi kesalahan saat mengambil data pasien.");
+            }
+        });
+    });
+
 });
 </script>
 @endsection

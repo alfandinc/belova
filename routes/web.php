@@ -75,6 +75,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/pasiens/{id}/edit', [PasienController::class, 'edit'])->name('erm.pasiens.edit');
     Route::put('/pasiens/{id}', [PasienController::class, 'update'])->name('erm.pasiens.update');
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
+    Route::get('/erm/pasien/{id}', [VisitationController::class, 'show'])->name('erm.pasien.show');
 
     // Dokter Management
     Route::get('/dokters', [DokterController::class, 'index'])->name('erm.dokters.index');
@@ -91,6 +92,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::post('/rawatjalans/create', [RawatJalanController::class, 'store'])->name('erm.rawatjalans.store');
     Route::get('/cek-antrian', [RawatJalanController::class, 'cekAntrian'])->name('erm.rawatjalans.cekAntrian');
+
 
     //Asesmen
     Route::get('asesmendokter/{visitation}/create', [AsesmenController::class, 'create'])->name('erm.asesmendokter.create');

@@ -122,9 +122,13 @@
                 <div id="racikan-container">
                     @foreach ($racikans as $ke => $items)
                     <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="{{ $ke }}">
+                        
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h5 style="color: yellow;"><strong>Racikan {{ $ke }}</strong></h5>
-                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                            <div>
+                                {{-- <button class="btn btn-info btn-sm btn-edit-racikan">Edit Racikan</button> --}}
+                                <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                            </div>
                         </div>
 
                         <table class="table table-bordered text-white">

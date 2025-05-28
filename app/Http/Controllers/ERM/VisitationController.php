@@ -38,7 +38,12 @@ class VisitationController extends Controller
                    class="btn btn-sm btn-primary btn-daftar-visitation" 
                    data-id="' . $user->id . '" 
                    data-nama="' . e($user->nama) . '">
-                   Daftarkan Kunjungan
+                   Buat Kunjungan
+                </a>
+                <a href="javascript:void(0);" 
+                    class="btn btn-sm btn-info btn-info-pasien" 
+                    data-id="' . $user->id . '">
+                    Info
                 </a>';
                 })
                 ->rawColumns(['actions'])
@@ -97,5 +102,12 @@ class VisitationController extends Controller
         return response()->json([
             'no_antrian' => $jumlahKunjungan + 1
         ]);
+    }
+
+    public function show($id)
+    {
+        $pasien = Pasien::with(['village'])->findOrFail($id);
+
+        return response()->json($pasien);
     }
 }
