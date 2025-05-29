@@ -191,7 +191,7 @@
                                     </div>
                                     </a>
                                 </div> <!--end col-->
-                                <div class="col-md-6 col-lg-3">
+                                {{-- <div class="col-md-6 col-lg-3">
                                     <a href="/erm/login" style="text-decoration: none; color: inherit;">
                                     <div class="card report-card">
                                         <div class="card-header bg-secondary">
@@ -230,7 +230,7 @@
                                         </div> 
                                     </div>
                                     </a>
-                                </div> <!--end col-->
+                                </div> <!--end col--> --}}
                                                               
                             </div><!--end row-->
 
