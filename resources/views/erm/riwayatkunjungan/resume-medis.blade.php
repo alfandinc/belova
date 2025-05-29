@@ -100,27 +100,27 @@
   <tr>
     <td>{{ $keluhan_utama }}</td>
   </tr>
-</table>
 
-<table>
+
+
   <tr>
     <td class="bold">Pemeriksaan Fisik :</td>
   </tr>
   <tr>
     <td>Keadaan Umum : {{ $keadaan_umum }}, TD : {{ $td }}mmHg, N : {{ $n }} x/Menit, S : {{ $s }}°C, R : {{ $r }} x/Menit</td>
   </tr>
-</table>
 
-<table>
+
+
   <tr>
     <td class="bold">Penunjang :</td>
   </tr>
   <tr>
     <td>-</td>
   </tr>
-</table>
 
-<table>
+
+
   <tr>
     <td class="bold">Diagnosis :</td>
   </tr>
@@ -129,9 +129,9 @@
       {{ $diagnosis }}
     </td>
   </tr>
-</table>
 
-<table>
+
+
   <tr>
     <td class="bold">Terapi :</td>
   </tr>
@@ -140,9 +140,9 @@
       {{ $nama_obat }}
     </td>
   </tr>
-</table>
 
-<table>
+
+
   <tr>
     <td class="bold">Instruksi Tindak Lanjut :</td>
   </tr>
@@ -151,5 +151,18 @@
   </tr>
 </table>
 
+<table style="width: 100%; margin-top: 20px;" class="no-border">
+  <tr>
+    <td style="width: 50%;"></td>
+    <td style="width: 50%; text-align: center;">
+      <p>Surakarta, {{ \Carbon\Carbon::parse($tanggal_visit)->translatedFormat('d F Y') }}</p>
+      <img src="{{ public_path($ttd) }}" alt="QR Code" width="100">
+      <p style="margin-top: 10px;"><strong>{{ $nama_dokter }}</strong></p>
+    </td>
+  </tr>
+</table>
+
 </body>
+
+
 </html>

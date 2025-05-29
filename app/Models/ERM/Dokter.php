@@ -8,7 +8,7 @@ class Dokter extends Model
 {
     protected $table = 'erm_dokters';
 
-    protected $fillable = ['user_id', 'spesialisasi_id', 'sip'];
+    protected $fillable = ['user_id', 'spesialisasi_id', 'sip', 'ttd'];
 
     public function user()
     {

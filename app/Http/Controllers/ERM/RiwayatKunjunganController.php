@@ -101,6 +101,7 @@ class RiwayatKunjunganController extends Controller
             'nama_obat' => implode(', ', $obatNames),
             'diagnosis' => implode(', ', $diagnosisList),
             'tindak_lanjut' => $visitation->asesmenPenunjang->standing_order ?? '',
+            'ttd' => $visitation->dokter->ttd,
 
         ];
 

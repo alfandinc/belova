@@ -74,13 +74,14 @@
     </li>
 @endif
 
-
+@if($userRole !== 'Perawat')
             <li>
                 <a href="{{ route('erm.eresep.create', $visitation->id) }}" target="_blank">
                     <i data-feather="file-text" class="align-self-center menu-icon"></i>
                     <span>E-Resep</span>
                 </a>
             </li>
+@endif
 
             <li>
                 <a href="{{ route('erm.elab.create', $visitation->id) }}" target="_blank">
