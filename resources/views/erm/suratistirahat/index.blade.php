@@ -83,6 +83,7 @@
         <thead>
             <tr>
                 <th>Dokter</th>
+                <th>Spesialisasi</th>
                 <th>Tanggal Mulai</th>
                 <th>Tanggal Selesai</th>
                 <th>Jumlah Hari</th>
@@ -90,20 +91,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($surats ?? [] as $surat)
-                <tr>
-                    <td>{{ $surat->dokter->user->name ?? '-' }} ({{ $surat->dokter->spesialisasi->nama ?? '' }})</td>
-                    <td>{{ $surat->tanggal_mulai }}</td>
-                    <td>{{ $surat->tanggal_selesai }}</td>
-                    <td>{{ $surat->jumlah_hari }}</td>
-                    <td><a href="{{ route('erm.suratistirahat.cetak', $surat->id) }}" 
-                        class="btn btn-sm btn-secondary" 
-                        target="_blank">
-                        Cetak
-                        </a>
-                    </td>
-                </tr>
-            @endforeach
+            
         </tbody>
     </table>
 </div>
@@ -115,7 +103,26 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
+        // Initialize DataTable with AJAX
+    let table = $('#suratTable').DataTable({
+        responsive: true,
+        autoWidth: false,
+        ajax: {
+            url: '{{ route("erm.suratistirahat.index", $pasien->id) }}', // Same route as index
+            type: 'GET',
+        },
+        columns: [
+            { data: 'dokter_name', name: 'dokter_name' },
+            { data: 'spesialisasi', name: 'spesialisasi' },
+            { data: 'tanggal_mulai', name: 'tanggal_mulai' },
+            { data: 'tanggal_selesai', name: 'tanggal_selesai' },
+            { data: 'jumlah_hari', name: 'jumlah_hari' },
+            { data: 'aksi', name: 'aksi', orderable: false, searchable: false },
+        ],
+    });
+
     $('.select2').select2({ width: '100%' });
+
     function countDays() {
         let mulai = $('input[name="tanggal_mulai"]').val();
         let selesai = $('input[name="tanggal_selesai"]').val();
@@ -130,10 +137,10 @@ $(document).ready(function() {
     $('input[name="tanggal_mulai"], input[name="tanggal_selesai"]').on('change', countDays);
 
     $.ajaxSetup({
-    headers: {
-        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-    }
-});
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+    });
 
     $('#formSurat').on('submit', function(e) {
         e.preventDefault();
@@ -142,17 +149,7 @@ $(document).ready(function() {
             method: 'POST',
             data: $(this).serialize(),
             success: function(data) {
-
-                    let dokterName = data.dokter?.user?.name ?? '-';
-    let spesialisasiName = data.dokter?.spesialisasi?.nama ?? '';
-                let row = `<tr>
-                    <td>${dokterName} (${spesialisasiName})</td>
-                    <td>${data.tanggal_mulai}</td>
-                    <td>${data.tanggal_selesai}</td>
-                    <td>${data.jumlah_hari}</td>
-                    <td><a href="/erm/surat/${data.id}/cetak" target="_blank" class="btn btn-sm btn-secondary">Cetak</a></td>
-                </tr>`;
-                $('#suratTable tbody').append(row);
+                table.ajax.reload(); // Reload DataTable to fetch updated data
                 $('#modalSurat').modal('hide');
                 $('#formSurat')[0].reset();
             },

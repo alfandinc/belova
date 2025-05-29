@@ -70,9 +70,6 @@ class RiwayatKunjunganController extends Controller
         $visitation = Visitation::with(['dokter.user', 'dokter.spesialisasi'])->findOrFail($visitationId);
 
         $pasien = PasienHelperController::getDataPasien($visitationId);
-
-        // Debug the $pasien data
-        // dd($visitation);
         $diagnosisList = array_filter([
             $visitation->asesmenPenunjang->diagnosakerja_1 ?? '',
             $visitation->asesmenPenunjang->diagnosakerja_2 ?? '',

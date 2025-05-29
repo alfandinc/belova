@@ -36,6 +36,7 @@ use App\Http\Controllers\ERM\{
 use App\Http\Controllers\HRD\EmployeeController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
+use App\Models\ERM\SuratIstirahat;
 
 Route::get('/', function () {
     return view('mainmenu');
@@ -156,9 +157,14 @@ Route::prefix('erm')->group(function () {
     Route::get('/obat', [ObatController::class, 'index'])->name('erm.obat.index');
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
+
+    // Surat Istirahat
+
     Route::get('/surat/{pasien_id}', [SuratIstirahatController::class, 'index'])->name('erm.suratistirahat.index');
     Route::post('/surat', [SuratIstirahatController::class, 'store'])->name('erm.suratistirahat.store');
     Route::get('erm/surat/{id}/cetak', [SuratIstirahatController::class, 'cetak'])->name('erm.suratistirahat.cetak');
+
+    Route::get('/surat-istirahat/{id}', [SuratIstirahatController::class, 'suratIstirahat'])->name('surat.istirahat');
 });
 
 Route::prefix('inventory')->group(
