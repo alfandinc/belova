@@ -12,7 +12,9 @@ use App\Models\ERM\AsesmenPerawat;
 use App\Models\ERM\AsesmenDalam;
 use App\Models\ERM\AsesmenPenunjang;
 use App\Models\ERM\AsesmenUmum;
+use App\Models\ERM\JasaMedis;
 use Illuminate\Support\Str;
+use App\Models\ERM\Transaksi;
 
 
 class AsesmenController extends Controller
@@ -41,12 +43,16 @@ class AsesmenController extends Controller
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
+        $jenisKonsultasi = JasaMedis::where('jenis', 'konsultasi')
+            ->get();
+
         return view('erm.asesmendokter.create', array_merge([
             'visitation' => $visitation,
             'dataperawat' => $dataperawat,
             'asesmenPenunjang' => $asesmenPenunjang,
             'currentAsesmen' => $currentAsesmen,
             'spesialisasi' => $spesialisasi,
+            'jenisKonsultasi' => $jenisKonsultasi,
             'lokalisPath' => $lokalisPath,
             'lokalisBackground' => $lokalisBackground,
         ], $pasienData, $createKunjunganData));
@@ -67,6 +73,8 @@ class AsesmenController extends Controller
 
         // Shared Penunjang logic
         $this->storeAsesmenPenunjang($request);
+
+        $this->storeJenisKonsultasi($request);
 
         Visitation::where('id', $request->visitation_id)->update(['status_kunjungan' => 2]);
 
@@ -202,6 +210,37 @@ class AsesmenController extends Controller
 
             $request->merge([
                 'status_lokalis' => "img/hasilasesmen/{$filename}"
+            ]);
+        }
+    }
+
+    private function storeJenisKonsultasi(Request $request)
+    {
+        // Validasi
+        $request->validate([
+            'visitation_id' => 'required',
+            'jenis_konsultasi' => 'required|exists:erm_jasamedis,id',
+        ]);
+
+        $visitationId = $request->visitation_id;
+        $jenis_konsultasi = $request->jenis_konsultasi;
+
+        // Ambil data jasa medis
+        $jasa = JasaMedis::findOrFail($jenis_konsultasi);
+
+        // Cek apakah sudah ada transaksi yang sama untuk visitation ini dan jasa tersebut
+        $existing = Transaksi::where('visitation_id', $visitationId)
+            ->where('transaksible_id', $jasa->id)
+            ->where('transaksible_type', JasaMedis::class)
+            ->first();
+
+        if (!$existing) {
+            Transaksi::create([
+                'visitation_id' => $visitationId,
+                'transaksible_id' => $jasa->id,
+                'transaksible_type' => JasaMedis::class,
+                'jumlah' => $jasa->harga,
+                'keterangan' => 'Tindakan: ' . $jasa->nama,
             ]);
         }
     }

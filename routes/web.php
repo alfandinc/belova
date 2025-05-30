@@ -165,6 +165,9 @@ Route::prefix('erm')->group(function () {
     Route::get('erm/surat/{id}/cetak', [SuratIstirahatController::class, 'cetak'])->name('erm.suratistirahat.cetak');
 
     Route::get('/surat-istirahat/{id}', [SuratIstirahatController::class, 'suratIstirahat'])->name('surat.istirahat');
+
+    //Submit Billing
+    Route::post('/resepfarmasi/submit', [EResepController::class, 'submitResep'])->name('resepfarmasi.submit');
 });
 
 Route::prefix('inventory')->group(

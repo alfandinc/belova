@@ -8,9 +8,26 @@
 @include('erm.partials.modal-alergipasien')
 
 <div class="container-fluid">
-    <div class="d-flex  align-items-center mb-0 mt-2">
-        <h3 class="mb-0 mr-2">Asesmen Dokter</h3>
-        <h3 class="mb-0"><strong>{{ $visitation->dokter->spesialisasi->nama }}</strong></h3>
+    <div class="d-flex align-items-center justify-content-between mb-0 mt-2">
+        <div>
+            <h3 class="mb-0">Asesmen Dokter<strong> {{ $visitation->dokter->spesialisasi->nama }}</h3>
+            
+        </div>
+        <div style="width: 400px;" class="d-flex align-items-center justify-content-end mt-2">
+
+            <select class="form-control select2" name="jenis_konsultasi" style="margin-right: 20px; flex-shrink: 0;">
+                <option value="" disabled>Pilih Jenis Konsultasi</option>
+                @foreach ($jenisKonsultasi as $konsultasi)
+                    <option value="{{ $konsultasi->id }}" 
+                        {{ old('jenis_konsultasi', 1) == $konsultasi->id ? 'selected' : '' }}>
+                        {{ $konsultasi->nama }} - Rp {{ $konsultasi->harga }}
+                    </option>
+                @endforeach
+            </select>
+            <span id="timer" class="ml-3" style="font-size: 14px; color: white; background-color: #007bff; padding: 5px 10px; border-radius: 5px;">
+                00:00:00
+            </span>
+        </div>
     </div>
     <!-- Page-Title -->
     <div class="row">
@@ -262,6 +279,39 @@
 @endsection
 @section('scripts')
 <script>   
+    let timerInterval;
+    let secondsElapsed = parseInt(localStorage.getItem('secondsElapsed')) || 0;
+
+    function updateTimer() {
+        const hours = String(Math.floor(secondsElapsed / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((secondsElapsed % 3600) / 60)).padStart(2, '0');
+        const seconds = String(secondsElapsed % 60).padStart(2, '0');
+        document.getElementById('timer').textContent = `${hours}:${minutes}:${seconds}`;
+        secondsElapsed++;
+        localStorage.setItem('secondsElapsed', secondsElapsed);
+
+        if (secondsElapsed === 840) {
+            const jenisKonsultasiSelect = document.querySelector('select[name="jenis_konsultasi"]');
+            jenisKonsultasiSelect.value = 2;
+            jenisKonsultasiSelect.dispatchEvent(new Event('change'));
+        }
+    }
+
+    function stopTimer() {
+        if (timerInterval) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+    }
+
+    function startTimer() {
+        stopTimer();
+        timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        startTimer();
+    });
    $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
     $('.select2-icd10').select2({
@@ -388,6 +438,8 @@
 
         let form = $(this);
         let formData = new FormData(this);
+        let jenisKonsultasi = $('select[name="jenis_konsultasi"]').val();
+            formData.append('jenis_konsultasi', jenisKonsultasi);
 
         $.ajax({
             url: form.attr('action'),
@@ -403,6 +455,13 @@
                     icon: 'success',
                     confirmButtonText: 'OK'
                 });
+
+                  // Reset timer dengan benar
+                stopTimer(); // stop interval lama
+                secondsElapsed = 0;
+                localStorage.setItem('secondsElapsed', secondsElapsed);
+                timerElement.textContent = "00:00:00";
+                startTimer(); // restart timer baru
             },
             error: function (xhr) {
                 let errors = xhr.responseJSON?.errors;

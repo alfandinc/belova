@@ -109,7 +109,7 @@
                     </div><!--end row-->
                     <!-- end page title end breadcrumb -->
                     <div class="row">
-                        <div class="col-lg-9">
+                        <div class="col-lg-12">
                             <div class="row justify-content-left">
                                 <div class="col-md-6 col-lg-3">
                                     <a href="/erm/login" style="text-decoration: none; color: inherit;">
@@ -191,6 +191,26 @@
                                     </div>
                                     </a>
                                 </div> <!--end col-->
+                                <div class="col-md-6 col-lg-3">
+                                    <a href="/finance/login" style="text-decoration: none; color: inherit;">
+                                    <div class="card report-card">
+                                        <div class="card-header bg-secondary">
+                                            <h3 class="card-title text-white"><center>Finance</center></h3>
+                                        </div><!--end card-header-->
+                                        <div class="card-body">
+                                            <div class="row d-flex justify-content-center">
+                                                <div class="col-auto align-self-center">                                
+                                                    <!-- Icon Container -->
+                                                    <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
+                                                        <i class="fas fa-coins fa-3x"></i>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div> 
+                                    </div>
+                                    </a>
+                                </div> <!--end col-->
                                 {{-- <div class="col-md-6 col-lg-3">
                                     <a href="/erm/login" style="text-decoration: none; color: inherit;">
                                     <div class="card report-card">
@@ -210,8 +230,8 @@
                                         </div> 
                                     </div>
                                     </a>
-                                </div> <!--end col-->
-                                <div class="col-md-6 col-lg-3">
+                                </div> <!--end col--> --}}
+                                {{-- <div class="col-md-6 col-lg-3">
                                     <a href="/erm/login" style="text-decoration: none; color: inherit;">
                                     <div class="card report-card">
                                         <div class="card-header bg-purple">

@@ -16,6 +16,7 @@ use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\WadahObat;
+use App\Models\ERM\Transaksi;
 use Illuminate\Support\Str;
 
 
@@ -272,6 +273,9 @@ class EresepController extends Controller
         $reseps = ResepDokter::where('visitation_id', $visitationId)->get();
 
         foreach ($reseps as $resep) {
+            // Retrieve the harga of the obat
+            $obat = Obat::find($resep->obat_id);
+            $harga = $obat ? $obat->harga_nonfornas : null;
             // Generate a unique custom ID
             do {
                 $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
@@ -284,10 +288,12 @@ class EresepController extends Controller
                 'jumlah'         => $resep->jumlah,
                 'aturan_pakai'   => $resep->aturan_pakai,
                 'racikan_ke'     => $resep->racikan_ke,
-                'wadah'          => $resep->wadah,
+                'wadah_id'       => $resep->wadah,
                 'bungkus'        => $resep->bungkus,
                 'dosis'          => $resep->dosis,
                 'dokter_id'      => optional($resep->visitation)->dokter_id,
+                'harga'          => $harga,
+                'total'          => $resep->jumlah * $harga,
             ]);
         }
 
@@ -409,12 +415,50 @@ class EresepController extends Controller
         ]);
 
         $resep = ResepFarmasi::findOrFail($id);
-        $resep->update($data);
+
+        // Retrieve the existing total value
+        $existingTotal = $resep->total;
+
+        // Calculate the new total after applying the discount
+        $diskon = $data['diskon'] ?? 0; // Default diskon to 0 if not provided
+        $newTotal = $existingTotal * (1 - $diskon / 100);
+
+        // Update the prescription with the calculated total and other fields
+        $resep->update(array_merge($data, ['total' => $newTotal]));
 
         return response()->json([
             'success' => true,
             'message' => 'Resep berhasil diubah',
             'data'    => $resep,
+        ]);
+    }
+
+    // SUBMIT RESEP
+
+    public function submitResep(Request $request)
+    {
+        $visitationId = $request->input('visitation_id');
+
+        // Ambil semua resep terkait
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->get();
+
+        foreach ($reseps as $resep) {
+            Transaksi::updateOrCreate(
+                [
+                    'transaksible_id' => $resep->id,
+                    'transaksible_type' => Resepfarmasi::class,
+                ],
+                [
+                    'visitation_id' => $resep->visitation_id,
+                    'jumlah' => $resep->total,
+                    'keterangan' => 'Obat: ' . ($resep->obat->nama ?? 'Tanpa Nama'),
+                ]
+            );
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Resep berhasil disubmit!'
         ]);
     }
 

@@ -47,7 +47,7 @@
                     <div class="mb-3">
                         <button id="copy-from-dokter" class="btn btn-warning btn-sm">Salin Resep dari Dokter</button>
 
-                        <button class="btn btn-primary btn-sm" >Cetak Resep</button>
+                        <button class="btn btn-primary btn-sm btn-cetakresep" >Cetak Resep</button>
                         <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}">
                             Riwayat Dokter
                         </button>
@@ -80,7 +80,7 @@
                                 @foreach ($obats as $obat)
                                     <option 
                                         value="{{ $obat->id }}" 
-                                        data-harga="{{ $obat->harga_umum }}" 
+                                        data-harga="{{ $obat->harga_nonfornas }}" 
                                         data-stok="{{ $obat->stok }}">
                                         {{ $obat->nama }} {{ $obat->dosis }} {{ $obat->satuan }}
                                     </option>
@@ -122,7 +122,7 @@
                                 <tr data-id="{{ $resep->id }}">
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
                                     <td>{{ $resep->jumlah }}</td>
-                                    <td>Rp. {{ $resep->obat->harga_umum ?? 0 }}</td>
+                                    <td>Rp. {{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->diskon ?? '0'}} %</td>
                                     
                                     <td>{{ $resep->obat->stok ?? 0 }}</td>
@@ -290,14 +290,22 @@
 
         // UPDATE TOTAL HARGA
         function updateTotalPrice() {
-            let total = 0;
-            $('#resep-table-body tr').each(function () {
-                let harga = parseFloat($(this).find('td').eq(1).text()) || 0;
-                let jumlah = parseInt($(this).find('td').eq(2).text()) || 0;
-                total += harga * jumlah;
-            });
-            $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
-        }
+    let total = 0;
+
+    // Iterate through each row in the table body
+    $('#resep-table-body tr').each(function () {
+        const harga = parseFloat($(this).find('td').eq(2).text().replace('Rp. ', '').replace(',', '').trim()) || 0; // Extract and parse the price
+        const jumlah = parseInt($(this).find('td').eq(1).text().trim()) || 0; // Extract and parse the quantity
+        const diskon = parseFloat($(this).find('td').eq(3).text().replace('%', '').trim()) || 0; // Extract and parse the discount
+
+        // Calculate the discounted price
+        const discountedPrice = harga * jumlah * (1 - diskon / 100);
+        total += discountedPrice;
+    });
+
+    // Update the total price display
+    $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
+}
 
         // TAMBAH RACIKAN BARU
         $('#tambah-racikan').on('click', function () {
@@ -542,15 +550,40 @@
 
         // SUBMIT KE BILLING
         $('#submit-all').on('click', function () {
-            // Disable all buttons
-            $('button').prop('disabled', true);
+        if (!confirm('Yakin ingin submit resep ini?')) return;
 
-            // Disable all input fields, select, and textarea
-            $('input, select, textarea').prop('disabled', true);
+        // Disable all buttons except specific ones
+        $('button').not('.btn-cetakresep, .btn-riwayat').prop('disabled', true);
 
-            // Optional: ganti teks tombol dan style agar terlihat sedang menyimpan
-            $(this).text('Menyimpan...').addClass('btn-secondary').removeClass('btn-success');
+        // Disable all input fields, select, and textarea
+        $('input, select, textarea').prop('disabled', true);
+
+        // Change the text and style of the submit button to indicate processing
+        $(this).text('Telah disimpan').addClass('btn-secondary').removeClass('btn-success');
+
+        const visitationId = $('#visitation_id').val();
+
+        // Send the AJAX request
+        $.ajax({
+            url: "{{ route('resepfarmasi.submit') }}", // Define this route in web.php
+            method: 'POST',
+            data: {
+                _token: "{{ csrf_token() }}",
+                visitation_id: visitationId
+            },
+            success: function (res) {
+                alert(res.message); // Notify the user
+                // window.location.reload(); // Optionally reload the page
+            },
+            error: function (err) {
+                alert('Gagal submit resep. Coba lagi.');
+                // Re-enable buttons and inputs if submission fails
+                $('button').not('.btn-primary, .btn-riwayat').prop('disabled', false);
+                $('input, select, textarea').prop('disabled', false);
+                $('#submit-all').text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
+            }
         });
+    });
 
         //COPY RESEP DOKTER
         $('#copy-from-dokter').on('click', function () {
@@ -566,6 +599,7 @@
                     if (res.status === 'success') {
                         alert(res.message);
                         fetchFarmasiResep(); // load the copied data dynamically
+                        updateTotalPrice();
                     } else {
                         alert(res.message);
                     }
@@ -610,7 +644,7 @@
                 <tr data-id="${item.id}">
                     <td>${item.obat?.nama ?? '-'}</td>
                     <td>${item.jumlah}</td>
-                    <td>${item.obat?.harga_umum ?? 0}</td>
+                    <td>${item.obat?.harga_nonfornas ?? 0}</td>
                     <td>${item.diskon ?? 0}</td>                   
                     <td>${item.obat?.stok ?? 0}</td>
                     <td>${item.aturan_pakai}</td>
