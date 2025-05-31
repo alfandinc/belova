@@ -1,5 +1,10 @@
 @extends('layouts.erm.app')
-@section('title', 'ERM Premiere Belova')  
+@section('title')
+    @php
+        $klinikId = auth()->user()->dokter->klinik_id ?? null; // Assuming 'dokter' is the relationship
+        echo $klinikId == 1 ? ' ERM Premiere Belova' : ($klinikId == 2 ? ' ERM Belova Skin' : 'ERM Belova');
+    @endphp
+@endsection 
 @section('navbar')
     @include('layouts.erm.navbar')
 @endsection        

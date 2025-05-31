@@ -8,6 +8,7 @@ use App\Http\Controllers\{
     HRDDashboardController,
     InventoryDashboardController,
     MarketingDashboardController,
+    FinanceDashboardController
 };
 use App\Http\Controllers\Admin\{
     UserController,
@@ -55,7 +56,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/erm', [ERMDashboardController::class, 'index'])->name('erm.dashboard');
-    Route::get('/finance', [ERMDashboardController::class, 'index'])->name('erm.dashboard');
+    Route::get('/finance', [FinanceDashboardController::class, 'index'])->name('finance.dashboard');
     Route::get('/hrd', [HRDDashboardController::class, 'index'])->name('hrd.dashboard');
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/marketing', [MarketingDashboardController::class, 'index'])->name('marketing.dashboard');

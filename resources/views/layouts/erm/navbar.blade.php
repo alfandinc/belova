@@ -1,15 +1,32 @@
         <!-- Left Sidenav -->
         <div class="left-sidenav ">
             <!-- LOGO -->
+            @php
+                // Fetch the klinik_id associated with the logged-in user
+                $klinikId = Auth::user()->dokter->klinik_id ?? null;
+
+                // Define logo paths based on klinik_id
+                if ($klinikId === 1) {
+                    $lightLogo = asset('img/logo-premiere-bw.png');
+                    $darkLogo = asset('img/logo-premiere.png');
+                } elseif ($klinikId === 2) {
+                    $lightLogo = asset('img/logo-belovaskin-bw.png');
+                    $darkLogo = asset('img/logo-belovaskin.png');
+                } else {
+                    // Default logos if klinik_id is not 1 or 2
+                    $lightLogo = asset('img/logo-premiere-bw.png');
+                    $darkLogo = asset('img/logo-premiere.png');
+                }
+            @endphp
+            
             <div class="brand mt-3">
                 <a href="/erm" class="logo">
                     <span>
-                        <!-- Light-theme logo (for dark background) -->
-                        <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
+                       <!-- Light-theme logo (for dark background) -->
+                <img src="{{ $lightLogo }}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
 
-                        <!-- Dark-theme logo (for light background) -->
-                        <img src="{{ asset('img/logo-premiere.png')}}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
-                        {{-- <img src="{{ asset('img/logo-premiere-bw.png')}}" alt="logo-small" class="logo-sm " style="width: auto; height: 50px;"> --}}
+                <!-- Dark-theme logo (for light background) -->
+                <img src="{{ $darkLogo }}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
                     </span>
                 </a>
             </div>

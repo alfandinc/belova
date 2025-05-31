@@ -9,7 +9,15 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
     <!-- App favicon -->
-    <link rel="shortcut icon" href="{{ asset('img/logo-favicon-belova.png') }}">
+    @php
+        $klinikId = auth()->user()->dokter->klinik_id ?? null; // Assuming 'dokter' is the relationship
+        $favicon = $klinikId == 1 
+            ? asset('img/favicon-premiere.png') 
+            : ($klinikId == 2 
+                ? asset('img/favicon-belovaskin.png') 
+                : asset('img/favicon-premiere.png'));
+    @endphp
+    <link rel="shortcut icon" href="{{ $favicon }}">
 
     <!-- ======= Early theme logic ======= -->
     <script>
