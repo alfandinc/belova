@@ -2,14 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\ERM\MetodeBayar;
-use App\Models\ERM\Pasien;
-use App\Models\ERM\ResepDokter;
-use App\Models\ERM\WadahObat;
-use App\Models\ERM\ZatAktif;
+use App\Models\ERM\Konsultasi;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
-use App\Models\User;
 
 class DatabaseSeeder extends Seeder
 {
@@ -20,11 +14,16 @@ class DatabaseSeeder extends Seeder
         // $this->call(MetodeBayarSeeder::class);
         // $this->call(RoleAndUserSeeder::class);
         // $this->call(SpesialisasiSeeder::class);
+        // $this->call(KlinikSeeder::class);
         // $this->call(DokterSeeder::class);
         // $this->call(ZatAktifSeeder::class);
-        $this->call(JasaMedisSeeder::class);
+        // $this->call(JasaMedisSeeder::class);
         // $this->call(WadahObatSeeder::class);
         // $this->call(MigrasiObatSeeder::class);
+        // $this->call(TindakanSeeder::class);
+        // $this->call(KonsultasiSeeder::class);
+        // $this->call(PaketTindakanSeeder::class);
+        $this->call(PaketTindakanDetailSeeder::class);
         // $this->call(MigrasiPasienSeeder::class);
         // $this->call(MigrasiVisitSeeder::class);
         // $this->call(MigrasiResepDokterSeeder::class);

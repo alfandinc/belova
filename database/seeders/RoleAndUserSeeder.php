@@ -16,6 +16,7 @@ class RoleAndUserSeeder extends Seeder
         $perawat = Role::firstOrCreate(['name' => 'Perawat']);
         $farmasi = Role::firstOrCreate(['name' => 'Farmasi']);
         $pendaftaran = Role::firstOrCreate(['name' => 'Pendaftaran']);
+        $kasir = Role::firstOrCreate(['name' => 'Kasir']);
 
         // Buat user admin
         $adminUser = User::firstOrCreate(
@@ -71,6 +72,18 @@ class RoleAndUserSeeder extends Seeder
             ]
         );
         $pendaftaranUser->assignRole($pendaftaran);
+
+
+        // Buat user Kasir
+        $kasirUser = User::firstOrCreate(
+            ['email' => 'kasir@belova.com'],
+            [
+                'id' => 6,
+                'name' => 'Kasir User',
+                'password' => bcrypt('12345678'),
+            ]
+        );
+        $kasirUser->assignRole($kasir);
 
         // PENYAKIT DALAM
         $dokterUser1 = User::firstOrCreate(

@@ -11,8 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('erm_klinik', function (Blueprint $table) {
+        Schema::create('erm_paket_tindakan', function (Blueprint $table) {
             $table->id();
+            $table->string('nama');
+            $table->text('deskripsi')->nullable();
+            $table->decimal('harga_paket', 15, 2);
             $table->timestamps();
         });
     }
@@ -22,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('erm_klinik');
+        Schema::dropIfExists('erm_paket_tindakan');
     }
 };

@@ -28,6 +28,10 @@ class AuthController extends Controller
     {
         return view('auth.marketing_login'); // Marketing Login Page
     }
+    public function showFinanceLoginForm()
+    {
+        return view('auth.finance_login'); // Finance Login Page
+    }
 
     // Handle login request
     public function login(Request $request)
@@ -44,6 +48,7 @@ class AuthController extends Controller
         $roleMapping = [
             'erm' => ['Dokter', 'Perawat', 'Pendaftaran', 'Admin', 'Farmasi'],
             'hrd' => ['Hrd'],
+            'finance' => ['Kasir'],
             'inventory' => ['Inventaris'],
             'marketing' => ['Marketing'],
         ];

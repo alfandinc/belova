@@ -21,9 +21,9 @@ return new class extends Migration
             $table->string('racikan_ke')->nullable();
             $table->string('aturan_pakai')->nullable();
             $table->foreignId('wadah_id')->nullable()->constrained('users')->nullOnDelete();
-            $table->integer('harga')->nullable();
+            $table->decimal('harga', 15, 2)->nullable();
             $table->integer('diskon')->nullable();
-            $table->integer('total')->nullable();
+            $table->decimal('total', 15, 2)->nullable();
             $table->unsignedBigInteger('dokter_id')->nullable(); // trace to source doctor
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();

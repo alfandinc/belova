@@ -4,10 +4,10 @@ namespace App\Models\ERM;
 
 use Illuminate\Database\Eloquent\Model;
 
-class JasaMedis extends Model
+class Konsultasi extends Model
 {
-    protected $table = 'erm_jasamedis';
-    protected $fillable = ['nama', 'harga', 'jenis'];
+    protected $table = 'erm_konsultasi';
+    protected $fillable = ['nama', 'harga'];
 
     public function transaksi()
     {

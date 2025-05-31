@@ -11,11 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('erm_jasamedis', function (Blueprint $table) {
+        Schema::create('erm_tindakan', function (Blueprint $table) {
             $table->id();
-            $table->string('nama'); // nama tindakan atau konsultasi
-            $table->integer('harga'); // tarif jasa
-            $table->string('jenis'); // tarif jasa
+            $table->string('nama');
+            $table->text('deskripsi')->nullable();
+            $table->decimal('harga', 15, 2);
+            $table->foreignId('spesialis_id')
+                ->constrained('erm_spesialisasis')
+                ->onDelete('cascade');
             $table->timestamps();
         });
     }
@@ -25,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('erm_jasamedis');
+        Schema::dropIfExists('erm_tindakan');
     }
 };

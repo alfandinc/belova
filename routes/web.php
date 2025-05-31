@@ -41,12 +41,10 @@ use App\Models\ERM\SuratIstirahat;
 Route::get('/', function () {
     return view('mainmenu');
 });
-Route::get('/erm/datapasien', function () {
-    return view('erm.datapasien');
-});
 
 // Different login pages (GET requests only)
 Route::get('/erm/login', [AuthController::class, 'showERMLoginForm'])->name('erm.login');
+Route::get('/finance/login', [AuthController::class, 'showFinanceLoginForm'])->name('finance.login');
 Route::get('/hrd/login', [AuthController::class, 'showHRDLoginForm'])->name('hrd.login');
 Route::get('/inventory/login', [AuthController::class, 'showInventoryLoginForm'])->name('inventory.login');
 Route::get('/marketing/login', [AuthController::class, 'showMarketingLoginForm'])->name('marketing.login');
@@ -57,6 +55,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 Route::middleware(['auth'])->group(function () {
     Route::get('/erm', [ERMDashboardController::class, 'index'])->name('erm.dashboard');
+    Route::get('/finance', [ERMDashboardController::class, 'index'])->name('erm.dashboard');
     Route::get('/hrd', [HRDDashboardController::class, 'index'])->name('hrd.dashboard');
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/marketing', [MarketingDashboardController::class, 'index'])->name('marketing.dashboard');

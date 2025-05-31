@@ -11,17 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('erm_transaction', function (Blueprint $table) {
+        Schema::create('erm_inform_consent', function (Blueprint $table) {
             $table->id();
             $table->string('visitation_id');
-            // Explicitly define the size of transaksible_id
-            $table->string('transaksible_id', 50); // Adjust size as needed
-            $table->string('transaksible_type'); // Default size is fine for type
-            $table->decimal('jumlah', 15, 2); // harga satuan atau total item
-            $table->text('keterangan')->nullable();
-            $table->timestamps();
-
+            $table->foreignId('tindakan_id')->constrained('erm_tindakan')->cascadeOnDelete();
+            $table->string('file_path')->nullable();
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('cascade');
+
+            $table->timestamps();
         });
     }
 
@@ -30,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('erm_transaction');
+        Schema::dropIfExists('erm_inform_consent');
     }
 };

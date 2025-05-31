@@ -18,6 +18,7 @@ class SpesialisasiSeeder extends Seeder
             ['id' => 3, 'nama' => 'Anak'],
             ['id' => 4, 'nama' => 'Gigi'],
             ['id' => 5, 'nama' => 'Saraf'],
+            ['id' => 6, 'nama' => 'Estetika'],
         ]);
     }
 }

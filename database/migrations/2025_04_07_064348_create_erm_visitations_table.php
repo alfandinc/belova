@@ -21,10 +21,8 @@ return new class extends Migration
             $table->enum('status_dokumen', ['asesmen', 'cppt'])->nullable();;
             $table->date('tanggal_visitation')->nullable();
             $table->integer('no_antrian')->nullable();
-
+            $table->foreignId('klinik_id')->nullable()->constrained('erm_klinik')->nullOnDelete();
             $table->timestamps();
-
-
             $table->foreign('pasien_id')->references('id')->on('erm_pasiens')->onDelete('set null');
         });
     }

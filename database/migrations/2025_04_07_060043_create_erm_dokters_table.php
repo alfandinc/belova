@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('spesialisasi_id');
+            $table->foreignId('klinik_id')->nullable()->constrained('erm_klinik')->nullOnDelete();
             $table->string('sip')->nullable();
             $table->string('ttd')->nullable();
             $table->timestamps();

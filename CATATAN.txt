@@ -1,0 +1,36 @@
+tanggal kunjungan >= hari ini
+form asesmen hanya angka
+penilaian imt dkk
+staus lokalis ttd pasien ic touchscreen
+
+Resume CPPT :
+Anamnesis = A Perwat
+Fisik = S Perawat
+Penunjang = Lab radiologi
+Terapi = Obat
+Diagnosis = A Dokter
+Intruksi = P Dokter
+
+
+resep 
+copy dari riwayat
+
+resep farmasi
+total harga update fater submit
+submit lock
+
+cetak resep di farmasi dari resep dokter
+obat yang disalin dokter = dimark
+
+jejak tarik data billing 
+
+kartu stok = stok diarahkan kemana
+
+ic dan laopran tindakan
+
+alamat bug
+
+satusehat batch
+
+tabel rawat jalan tidak responsive
+
