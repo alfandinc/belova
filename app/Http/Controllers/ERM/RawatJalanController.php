@@ -22,6 +22,15 @@ class RawatJalanController extends Controller
                 )
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id');
 
+            // Filter by logged-in doctor's ID if the user is a doctor
+            $user = Auth::user();
+            if ($user->hasRole('Dokter')) {
+                $dokter = Dokter::where('user_id', $user->id)->first();
+                if ($dokter) {
+                    $visitations->where('dokter_id', $dokter->id);
+                }
+            }
+
             if ($request->tanggal) {
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }

@@ -30,6 +30,7 @@ use App\Http\Controllers\ERM\{
     AsesmenPerawatController,
     CPPTController,
     Icd10Controller,
+    KeluhanUtamaController,
     RiwayatKunjunganController,
     ListAntrianController,
     SuratIstirahatController
@@ -218,3 +219,4 @@ Route::get('/address-form', [AddressController::class, 'index']);
 Route::get('/icd10/search', [Icd10Controller::class, 'search'])->name('icd10.search');
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
+Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');

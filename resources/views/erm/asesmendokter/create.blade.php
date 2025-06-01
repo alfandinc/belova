@@ -19,7 +19,7 @@
                 <option value="" disabled>Pilih Jenis Konsultasi</option>
                 @foreach ($jenisKonsultasi as $konsultasi)
                     <option value="{{ $konsultasi->id }}" 
-                        {{ old('jenis_konsultasi', 1) == $konsultasi->id ? 'selected' : '' }}>
+                        {{ old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2) == $konsultasi->id ? 'selected' : '' }}>
                         {{ $konsultasi->nama }} - Rp {{ $konsultasi->harga }}
                     </option>
                 @endforeach
@@ -352,20 +352,24 @@
     }
 
     // Pasang event listener ke semua select
+    if (document.getElementById('e') && document.getElementById('v') && document.getElementById('m')) {
     document.getElementById('e').addEventListener('change', updateGCS);
     document.getElementById('v').addEventListener('change', updateGCS);
     document.getElementById('m').addEventListener('change', updateGCS);
 
-    // Jalankan sekali saat halaman load (optional)
+    // Run updateGCS once during page load
     updateGCS();
+}
 
-    // Initially set masalah_medis to match keluhan_utama
+    if ($('#keluhan_utama').length > 0) {
+        // Initially set masalah_medis to match keluhan_utama
         $('#masalah_medis').val($('#keluhan_utama').val());
 
         // Update masalah_medis whenever keluhan_utama changes
         $('#keluhan_utama').on('input', function () {
             $('#masalah_medis').val($(this).val());
         });
+    }
 
     // Saat tombol modal alergi ditekan
     $('#btnBukaAlergi').on('click', function () {

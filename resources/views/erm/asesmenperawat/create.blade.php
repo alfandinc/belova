@@ -61,22 +61,27 @@
                             <label><strong>1. Keluhan Utama Pasien</strong></label>
                         </div>
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-12">
+                                
+                            </div>
+                            <div class="col-md-12">
                                 <div class="form-group">
+                                    <label for="keluhan_utama">Keluhan Utama</label>
                                     <div class="form-group">
-                                        <label for="keluhan_utama">Keluhan Utama</label>
-                                        <input type="text" class="form-control" id="keluhan_utama" name="keluhan_utama" value="{{ old('keluhan_utama', $dataperawat->keluhan_utama ?? '') }}" >
-                                    </div>                              
-                                </div> 
-                            </div> 
-                            <div class="col-md-6">
+                                    <select class="form-control select2" id="keluhan_utama_select" name="keluhan_utama_select">
+                                        <option value="">Pilih Keluhan Utama</option>
+                                    </select>
+                                </div>
+                                    
+                                    <textarea class="form-control" id="keluhan_utama" name="keluhan_utama" rows="3">{{ old('keluhan_utama', $dataperawat->keluhan_utama ?? 'Pasien mengeluhkan') }}</textarea>
+                                </div>
+                            </div>
+                            <div class="col-md-12">
                                 <div class="form-group">
-                                    <div class="form-group">
-                                        <label for="alasan_kunjungan">Alasan Kunjungan</label>
-                                        <input type="text" class="form-control" id="alasan_kunjungan" name="alasan_kunjungan" value="{{ old('alasan_kunjungan', $dataperawat->alasan_kunjungan ?? '') }}">
-                                    </div>                              
-                                </div> 
-                            </div>  
+                                    <label for="alasan_kunjungan">Alasan Kunjungan</label>
+                                    <input type="text" class="form-control" id="alasan_kunjungan" name="alasan_kunjungan" value="{{ old('alasan_kunjungan', $dataperawat->alasan_kunjungan ?? '') }}">
+                                </div>
+                            </div>
                         </div>
                         <hr>
                         <div class="col-md-12">
@@ -557,6 +562,51 @@
     });
     
     $('.select2').select2({ width: '100%' });
+
+
+    // Append selected value to Keluhan Utama textarea
+    $('#keluhan_utama_select').select2({
+        width: '100%',
+        ajax: {
+            url: '{{ route("keluhan-utama.search") }}',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    search: params.term,// search term
+                    visitation_id: $('#visitation_id').val()
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.map(function (item) {
+                        return { id: item.id, text: item.keluhan };
+                    })
+                };
+            },
+            cache: true
+        },
+        placeholder: 'Pilih Keluhan Utama',
+        minimumInputLength: 1
+    });
+
+    $('#keluhan_utama_select').on('select2:select', function (e) {
+        const selectedValue = e.params.data.text; // Get the selected option's text
+        const keluhanUtamaField = $('#keluhan_utama'); // Reference the textarea
+
+        
+        if (selectedValue) {
+            const currentText = keluhanUtamaField.val().trim(); // Get current textarea value and trim whitespace
+            const newText = currentText.endsWith('mengeluhkan') || currentText === '' 
+                ? `${currentText} ${selectedValue}` // Append without comma if default text is present
+                : `${currentText}, ${selectedValue}`; // Append with comma otherwise
+            keluhanUtamaField.val(newText); // Update the textarea value
+        }
+
+        // Clear the Select2 dropdown to allow selecting another option
+        $(this).val(null).trigger('change');
+        
+    });
 
     // VALIDASI INPUT
     $('#nadi').on('blur', function () {

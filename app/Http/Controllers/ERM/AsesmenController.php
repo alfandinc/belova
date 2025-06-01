@@ -12,7 +12,9 @@ use App\Models\ERM\AsesmenPerawat;
 use App\Models\ERM\AsesmenDalam;
 use App\Models\ERM\AsesmenPenunjang;
 use App\Models\ERM\AsesmenUmum;
+use App\Models\ERM\AsesmenEstetika;
 use App\Models\ERM\JasaMedis;
+use App\Models\ERM\Konsultasi;
 use Illuminate\Support\Str;
 use App\Models\ERM\Transaksi;
 
@@ -30,12 +32,14 @@ class AsesmenController extends Controller
         $asesmen = [
             'penyakit_dalam' => AsesmenDalam::where('visitation_id', $visitationId)->first(),
             'umum' => AsesmenUmum::where('visitation_id', $visitationId)->first(),
+            'estetika' => AsesmenEstetika::where('visitation_id', $visitationId)->first(),
         ];
         $currentAsesmen = $asesmen[$spesialisasi] ?? null;
 
         // Lokalis image logic
         $lokalisDefaults = [
             'penyakit_dalam' => 'img/asesmen/dalam.jpeg',
+            'estetika' => 'img/asesmen/estetika.png',
         ];
         $lokalisPath = old('status_lokalis', $currentAsesmen->status_lokalis ?? null);
         $lokalisBackground = $lokalisPath ?: ($lokalisDefaults[$spesialisasi] ?? 'img/lokalis/default.png');
@@ -43,8 +47,7 @@ class AsesmenController extends Controller
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
-        $jenisKonsultasi = JasaMedis::where('jenis', 'konsultasi')
-            ->get();
+        $jenisKonsultasi = Konsultasi::get();
 
         return view('erm.asesmendokter.create', array_merge([
             'visitation' => $visitation,
@@ -69,6 +72,8 @@ class AsesmenController extends Controller
             $this->storeAsesmenDalam($request);
         } elseif ($spesialisasi === 'umum') {
             $this->storeAsesmenUmum($request);
+        } elseif ($spesialisasi === 'estetika') {
+            $this->storeAsesmenEstetika($request);
         }
 
         // Shared Penunjang logic
@@ -152,6 +157,47 @@ class AsesmenController extends Controller
         );
     }
 
+    private function storeAsesmenEstetika(Request $request)
+    {
+        if ($request->has('status_lokalis_image')) {
+            $this->saveLokalisImage($request);
+        }
+
+        AsesmenEstetika::updateOrCreate(
+            ['visitation_id' => $request->visitation_id],
+            [
+                'autoanamnesis' => $request->autoanamnesis,
+                'alloanamnesis' => $request->alloanamnesis,
+                'anamnesis1' => $request->anamnesis1,
+                'anamnesis2' => $request->anamnesis2,
+                'keluhan_utama' => $request->keluhan_utama,
+                'riwayat_penyakit_sekarang' => $request->riwayat_penyakit_sekarang,
+                'allo_dengan' => $request->allo_dengan,
+                'hasil_allo' => $request->hasil_allo,
+                'riwayat_penyakit_dahulu' => $request->riwayat_penyakit_dahulu,
+                'obat_dikonsumsi' => $request->obat_dikonsumsi,
+                'keadaan_umum' => $request->keadaan_umum,
+                'td' => $request->td,
+                'n' => $request->n,
+                'r' => $request->r,
+                's' => $request->s,
+                'kebiasaan_makan' => $request->kebiasaan_makan,
+                'kebiasaan_minum' => $request->kebiasaan_minum,
+                'pola_tidur' => $request->pola_tidur,
+                'kontrasepsi' => $request->kontrasepsi,
+                'riwayat_perawatan' => $request->riwayat_perawatan,
+                'jenis_kulit' => $request->jenis_kulit,
+                'kelembapan' => $request->kelembapan,
+                'kekenyalan' => $request->kekenyalan,
+                'area_kerutan' => $request->area_kerutan,
+                'kelainan_kulit' => $request->kelainan_kulit,
+                'anjuran' => $request->anjuran,
+                'status_lokalis' => $request->status_lokalis,
+                'ket_status_lokalis' => $request->ket_status_lokalis,
+            ]
+        );
+    }
+
     private function storeAsesmenPenunjang(Request $request)
     {
         AsesmenPenunjang::updateOrCreate(
@@ -219,26 +265,26 @@ class AsesmenController extends Controller
         // Validasi
         $request->validate([
             'visitation_id' => 'required',
-            'jenis_konsultasi' => 'required|exists:erm_jasamedis,id',
+            'jenis_konsultasi' => 'required|exists:erm_konsultasi,id',
         ]);
 
         $visitationId = $request->visitation_id;
         $jenis_konsultasi = $request->jenis_konsultasi;
 
         // Ambil data jasa medis
-        $jasa = JasaMedis::findOrFail($jenis_konsultasi);
+        $jasa = Konsultasi::findOrFail($jenis_konsultasi);
 
         // Cek apakah sudah ada transaksi yang sama untuk visitation ini dan jasa tersebut
         $existing = Transaksi::where('visitation_id', $visitationId)
             ->where('transaksible_id', $jasa->id)
-            ->where('transaksible_type', JasaMedis::class)
+            ->where('transaksible_type', Konsultasi::class)
             ->first();
 
         if (!$existing) {
             Transaksi::create([
                 'visitation_id' => $visitationId,
                 'transaksible_id' => $jasa->id,
-                'transaksible_type' => JasaMedis::class,
+                'transaksible_type' => Konsultasi::class,
                 'jumlah' => $jasa->harga,
                 'keterangan' => 'Tindakan: ' . $jasa->nama,
             ]);

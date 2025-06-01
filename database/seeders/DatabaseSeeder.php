@@ -23,7 +23,8 @@ class DatabaseSeeder extends Seeder
         // $this->call(TindakanSeeder::class);
         // $this->call(KonsultasiSeeder::class);
         // $this->call(PaketTindakanSeeder::class);
-        $this->call(PaketTindakanDetailSeeder::class);
+        // $this->call(PaketTindakanDetailSeeder::class);
+        $this->call(KeluhanUtamaSeeder::class);
         // $this->call(MigrasiPasienSeeder::class);
         // $this->call(MigrasiVisitSeeder::class);
         // $this->call(MigrasiResepDokterSeeder::class);

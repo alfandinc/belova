@@ -15,7 +15,7 @@
             ? asset('img/favicon-premiere.png') 
             : ($klinikId == 2 
                 ? asset('img/favicon-belovaskin.png') 
-                : asset('img/favicon-premiere.png'));
+                : asset('img/favicon-belovaskin.png'));
     @endphp
     <link rel="shortcut icon" href="{{ $favicon }}">
 
