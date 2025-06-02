@@ -76,16 +76,19 @@
             <label for="kebiasaan_makan">Kebiasaan Makan</label>
             <select class="form-control select2" id="kebiasaan_makan" name="kebiasaan_makan[]" multiple>
                 
-                <option value="Berlemak">Berlemak</option>
-<option value="Tepung-tepungan">Tepung-tepungan</option>
-<option value="Sayur">Sayur</option>
-<option value="Protein seimbang">Protein seimbang</option>
-<option value="Tanpa sayur">Tanpa sayur</option>
-<option value="Tanpa daging">Tanpa daging</option>
-<option value="Makan sehat">Makan sehat</option>
-<option value="Tidak teratur">Tidak teratur</option>
-<option value="Protein">Protein</option>
-<option value="Makanan Manis">Makanan Manis</option>
+                @php
+                    $selectedKebiasaanMakan = old('kebiasaan_makan', json_decode($asesmen->kebiasaan_makan ?? '[]', true));
+                @endphp
+                <option value="Berlemak" {{ in_array('Berlemak', $selectedKebiasaanMakan) ? 'selected' : '' }}>Berlemak</option>
+                <option value="Tepung-tepungan" {{ in_array('Tepung-tepungan', $selectedKebiasaanMakan) ? 'selected' : '' }}>Tepung-tepungan</option>
+                <option value="Sayur" {{ in_array('Sayur', $selectedKebiasaanMakan) ? 'selected' : '' }}>Sayur</option>
+                <option value="Protein seimbang" {{ in_array('Protein seimbang', $selectedKebiasaanMakan) ? 'selected' : '' }}>Protein seimbang</option>
+                <option value="Tanpa sayur" {{ in_array('Tanpa sayur', $selectedKebiasaanMakan) ? 'selected' : '' }}>Tanpa sayur</option>
+                <option value="Tanpa daging" {{ in_array('Tanpa daging', $selectedKebiasaanMakan) ? 'selected' : '' }}>Tanpa daging</option>
+                <option value="Makan sehat" {{ in_array('Makan sehat', $selectedKebiasaanMakan) ? 'selected' : '' }}>Makan sehat</option>
+                <option value="Tidak teratur" {{ in_array('Tidak teratur', $selectedKebiasaanMakan) ? 'selected' : '' }}>Tidak teratur</option>
+                <option value="Protein" {{ in_array('Protein', $selectedKebiasaanMakan) ? 'selected' : '' }}>Protein</option>
+                <option value="Makanan Manis" {{ in_array('Makanan Manis', $selectedKebiasaanMakan) ? 'selected' : '' }}>Makanan Manis</option>
             </select>
         </div>
     </div>
@@ -93,9 +96,12 @@
         <div class="form-group">
             <label for="kebiasaan_minum">Kebiasaan Minum</label>
             <select class="form-control select2" id="kebiasaan_minum" name="kebiasaan_minum[]" multiple>
-                <option value="8 gelas / hari">8 gelas / hari</option>
-<option value="< 8 gelas / hari">&lt; 8 gelas / hari</option>
-<option value="Suka minum manis">Suka minum manis</option>
+                @php
+                    $selectedKebiasaanMinum = old('kebiasaan_minum', json_decode($asesmen->kebiasaan_minum ?? '[]', true));
+                @endphp
+                <option value="8 gelas / hari" {{ in_array('8 gelas / hari', $selectedKebiasaanMinum) ? 'selected' : '' }}>8 gelas / hari</option>
+                <option value="< 8 gelas / hari" {{ in_array('< 8 gelas / hari', $selectedKebiasaanMinum) ? 'selected' : '' }}>&lt; 8 gelas / hari</option>
+                <option value="Suka minum manis" {{ in_array('Suka minum manis', $selectedKebiasaanMinum) ? 'selected' : '' }}>Suka minum manis</option>
 
             </select>
         </div>
@@ -182,13 +188,16 @@
         <div class="form-group">
             <label for="area_kerutan">Area Kerutan</label>
             <select class="form-control select2" id="area_kerutan" name="area_kerutan[]" multiple>
-               <option value="Dahi">Dahi</option>
-<option value="Sudut mata">Sudut mata</option>
-<option value="Hidung">Hidung</option>
-<option value="Sudut bibir">Sudut bibir</option>
-<option value="Minimal">Minimal</option>
-<option value="Merata">Merata</option>
-<option value="Pipi">Pipi</option>
+               @php
+                    $selectedAreaKerutan = old('area_kerutan', json_decode($asesmen->area_kerutan ?? '[]', true));
+                @endphp
+                <option value="Dahi" {{ in_array('Dahi', $selectedAreaKerutan) ? 'selected' : '' }}>Dahi</option>
+                <option value="Sudut mata" {{ in_array('Sudut mata', $selectedAreaKerutan) ? 'selected' : '' }}>Sudut mata</option>
+                <option value="Hidung" {{ in_array('Hidung', $selectedAreaKerutan) ? 'selected' : '' }}>Hidung</option>
+                <option value="Sudut bibir" {{ in_array('Sudut bibir', $selectedAreaKerutan) ? 'selected' : '' }}>Sudut bibir</option>
+                <option value="Minimal" {{ in_array('Minimal', $selectedAreaKerutan) ? 'selected' : '' }}>Minimal</option>
+                <option value="Merata" {{ in_array('Merata', $selectedAreaKerutan) ? 'selected' : '' }}>Merata</option>
+                <option value="Pipi" {{ in_array('Pipi', $selectedAreaKerutan) ? 'selected' : '' }}>Pipi</option>
 
             </select>
         </div>
@@ -211,21 +220,24 @@
         <div class="form-group">
             <label for="kelainan_kulit">Kelainan Kulit</label>
             <select class="form-control select2" id="kelainan_kulit" name="kelainan_kulit[]" multiple>
-                <option value="Pori besar">Pori besar</option>
-<option value="Hiperpigmentasi">Hiperpigmentasi</option>
-<option value="Hipopigmentasi">Hipopigmentasi</option>
-<option value="Acne milia">Acne milia</option>
-<option value="Acne kistik">Acne kistik</option>
-<option value="Acne nodul">Acne nodul</option>
-<option value="Naevus pigmentosus">Naevus pigmentosus</option>
-<option value="Scar hipertrofi">Scar hipertrofi</option>
-<option value="Keloid">Keloid</option>
-<option value="Striae">Striae</option>
-<option value="Tidak ada">Tidak ada</option>
-<option value="Acne komedonal">Acne komedonal</option>
-<option value="Early Aging">Early Aging</option>
-<option value="Scar">Scar</option>
-<option value="PIE/PIH">PIE/PIH</option>
+                @php
+                    $selectedKelainanKulit = old('kelainan_kulit', json_decode($asesmen->kelainan_kulit ?? '[]', true));
+                @endphp
+                <option value="Pori besar" {{ in_array('Pori besar', $selectedKelainanKulit) ? 'selected' : '' }}>Pori besar</option>
+                <option value="Hiperpigmentasi" {{ in_array('Hiperpigmentasi', $selectedKelainanKulit) ? 'selected' : '' }}>Hiperpigmentasi</option>
+                <option value="Hipopigmentasi" {{ in_array('Hipopigmentasi', $selectedKelainanKulit) ? 'selected' : '' }}>Hipopigmentasi</option>
+                <option value="Acne milia" {{ in_array('Acne milia', $selectedKelainanKulit) ? 'selected' : '' }}>Acne milia</option>
+                <option value="Acne kistik" {{ in_array('Acne kistik', $selectedKelainanKulit) ? 'selected' : '' }}>Acne kistik</option>
+                <option value="Acne nodul" {{ in_array('Acne nodul', $selectedKelainanKulit) ? 'selected' : '' }}>Acne nodul</option>
+                <option value="Naevus pigmentosus" {{ in_array('Naevus pigmentosus', $selectedKelainanKulit) ? 'selected' : '' }}>Naevus pigmentosus</option>
+                <option value="Scar hipertrofi" {{ in_array('Scar hipertrofi', $selectedKelainanKulit) ? 'selected' : '' }}>Scar hipertrofi</option>
+                <option value="Keloid" {{ in_array('Keloid', $selectedKelainanKulit) ? 'selected' : '' }}>Keloid</option>
+                <option value="Striae" {{ in_array('Striae', $selectedKelainanKulit) ? 'selected' : '' }}>Striae</option>
+                <option value="Tidak ada" {{ in_array('Tidak ada', $selectedKelainanKulit) ? 'selected' : '' }}>Tidak ada</option>
+                <option value="Acne komedonal" {{ in_array('Acne komedonal', $selectedKelainanKulit) ? 'selected' : '' }}>Acne komedonal</option>
+                <option value="Early Aging" {{ in_array('Early Aging', $selectedKelainanKulit) ? 'selected' : '' }}>Early Aging</option>
+                <option value="Scar" {{ in_array('Scar', $selectedKelainanKulit) ? 'selected' : '' }}>Scar</option>
+                <option value="PIE/PIH" {{ in_array('PIE/PIH', $selectedKelainanKulit) ? 'selected' : '' }}>PIE/PIH</option>
 
             </select>
         </div>
@@ -254,7 +266,7 @@
 
                             <!-- Textarea -->
                             <div class="col-12 mb-3">
-                                <textarea class="form-control" rows="4" placeholder="Tuliskan deskripsi tanda..."></textarea>
+                                <textarea id="ket_status_lokalis" name="ket_status_lokalis" class="form-control" rows="4" placeholder="Tuliskan deskripsi tanda...">{{ old('ket_status_lokalis', $asesmen->ket_status_lokalis ?? '') }}</textarea>
                             </div>
 
                             <!-- Hidden field for image -->

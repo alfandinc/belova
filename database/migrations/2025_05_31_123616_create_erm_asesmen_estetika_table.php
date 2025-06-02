@@ -35,7 +35,7 @@ return new class extends Migration
             $table->string('kontrasepsi')->nullable();          // select2 (single)
             $table->string('riwayat_perawatan')->nullable();    // select2 (single)
             $table->string('jenis_kulit')->nullable();          // select2 (single)
-            $table->integer('kelembapan')->nullable();  // scale 1-3
+            $table->integer('kelembaban')->nullable();  // scale 1-3
             $table->integer('kekenyalan')->nullable();  // scale 1-3
             $table->json('area_kerutan')->nullable();           // select2 multiple
             $table->json('kelainan_kulit')->nullable();         // select2 multiple

@@ -31,7 +31,7 @@ class AsesmenEstetika extends Model
         'kontrasepsi',
         'riwayat_perawatan',
         'jenis_kulit',
-        'kelembapan',
+        'kelembaban',
         'kekenyalan',
         'area_kerutan',
         'kelainan_kulit',

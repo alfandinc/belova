@@ -159,9 +159,14 @@ class AsesmenController extends Controller
 
     private function storeAsesmenEstetika(Request $request)
     {
-        if ($request->has('status_lokalis_image')) {
+        // Check if a new image is provided
+        if ($request->has('status_lokalis_image') && !empty($request->status_lokalis_image)) {
             $this->saveLokalisImage($request);
         }
+
+        // Retain the existing image if no new image is provided
+        $existingAsesmen = AsesmenEstetika::where('visitation_id', $request->visitation_id)->first();
+        $statusLokalis = $existingAsesmen->status_lokalis ?? null;
 
         AsesmenEstetika::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
@@ -181,18 +186,18 @@ class AsesmenController extends Controller
                 'n' => $request->n,
                 'r' => $request->r,
                 's' => $request->s,
-                'kebiasaan_makan' => $request->kebiasaan_makan,
-                'kebiasaan_minum' => $request->kebiasaan_minum,
+                'kebiasaan_makan' => $request->filled('kebiasaan_makan') ? json_encode($request->kebiasaan_makan) : null, // Convert array to JSON
+                'kebiasaan_minum' => $request->filled('kebiasaan_minum') ? json_encode($request->kebiasaan_minum) : null, // Convert array to JSON
                 'pola_tidur' => $request->pola_tidur,
                 'kontrasepsi' => $request->kontrasepsi,
                 'riwayat_perawatan' => $request->riwayat_perawatan,
                 'jenis_kulit' => $request->jenis_kulit,
-                'kelembapan' => $request->kelembapan,
+                'kelembaban' => $request->kelembaban,
                 'kekenyalan' => $request->kekenyalan,
-                'area_kerutan' => $request->area_kerutan,
-                'kelainan_kulit' => $request->kelainan_kulit,
+                'area_kerutan' => $request->filled('area_kerutan') ? json_encode($request->area_kerutan) : null, // Convert array to JSON
+                'kelainan_kulit' => $request->filled('kelainan_kulit') ? json_encode($request->kelainan_kulit) : null, // Convert array to JSON
                 'anjuran' => $request->anjuran,
-                'status_lokalis' => $request->status_lokalis,
+                'status_lokalis' => $request->status_lokalis ?? $statusLokalis,
                 'ket_status_lokalis' => $request->ket_status_lokalis,
             ]
         );

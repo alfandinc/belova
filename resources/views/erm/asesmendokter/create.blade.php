@@ -498,12 +498,22 @@ window.onload = function () {
     const canvas = document.getElementById("drawingCanvas");
     const ctx = canvas.getContext("2d");
     const imagePath = "{{ asset($lokalisBackground) }}";
-    
+    const savedImagePath = "{{ asset($lokalisPath) }}"; // Load the saved image path
+
     const img = new Image();
     img.onload = function () {
         canvas.width = img.width;
         canvas.height = img.height;
         ctx.drawImage(img, 0, 0);
+
+        // Load the saved image (if it exists)
+        if (savedImagePath) {
+            const savedImg = new Image();
+            savedImg.onload = function () {
+                ctx.drawImage(savedImg, 0, 0); // Draw the saved image on top of the background
+            };
+            savedImg.src = savedImagePath;
+        }
 
         ctx.strokeStyle = "#00FF00";
         ctx.lineWidth = 5;
@@ -535,7 +545,7 @@ window.onload = function () {
 
         document.getElementById('resetButton').addEventListener('click', function () {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);  // Reset to background image
+            ctx.drawImage(img, 0, 0); // Reset to background image
         });
     };
 
