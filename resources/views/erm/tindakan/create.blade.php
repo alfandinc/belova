@@ -147,6 +147,7 @@
     });
 }
 
+let tindakanData = []; // Declare tindakanData globally
 // Call this function after the modal content is loaded
 $(document).on('shown.bs.modal', '#modalInformConsent', function () {
     initializeSignaturePads();
@@ -240,7 +241,7 @@ $(document).on('shown.bs.modal', '#modalInformConsent', function () {
 });
 
         $(document).on('click', '.buat-paket-tindakan', function () {
-    const tindakanData = JSON.parse($(this).attr('data-tindakan'));
+    tindakanData = JSON.parse($(this).attr('data-tindakan'));
     const visitationId = @json($visitation->id);
 
     let stepsHtml = '';
@@ -309,7 +310,7 @@ $(document).on('shown.bs.modal', '#modalInformConsent', function () {
     $('#modalInformConsent').modal('show');
 });
 
-        $(document).on('click', '#submitInformConsent', function () {
+        $(document).on('click', '#saveInformConsent', function () {
     const form = $('#informConsentForm');
 
     // Ensure signature pads are initialized
@@ -376,47 +377,6 @@ $(document).on('shown.bs.modal', '#modalInformConsent', function () {
     });
 });
 
-$(document).on('click', '#saveInformConsent', function () {
-    const visitationId = @json($visitation->id);
-    const paketId = $(this).data('paket-id'); // Pass paket_id from the button's data attribute
-
-    // Collect all inform consent data
-    const informConsentData = tindakanData.map((tindakan, index) => {
-        const patientSignature = window.patientSignaturePad.toDataURL();
-        const witnessSignature = window.witnessSignaturePad.toDataURL();
-
-        return {
-            tindakan_id: tindakan.id,
-            patient_signature: patientSignature,
-            witness_signature: witnessSignature,
-        };
-    });
-
-    // Send AJAX request to save the data
-    $.ajax({
-        url: '/erm/inform-consent/save',
-        method: 'POST',
-        data: {
-            visitation_id: visitationId,
-            paket_id: paketId,
-            inform_consent_data: informConsentData,
-        },
-        success: function (response) {
-            if (response.success) {
-                Swal.fire('Success', 'Inform Consent saved successfully!', 'success').then(() => {
-                    $('#modalInformConsent').modal('hide');
-                    // Optionally reload the table or update the UI
-                });
-            } else {
-                Swal.fire('Error', 'Failed to save Inform Consent. Please try again.', 'error');
-            }
-        },
-        error: function (xhr, status, error) {
-            console.error('Error:', xhr.responseJSON);
-            Swal.fire('Error', 'Validation failed. Please check your input.', 'error');
-        },
-    });
-});
     });
 </script>
 
