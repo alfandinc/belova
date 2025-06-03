@@ -6,78 +6,36 @@
 @endsection
 
 @section('content')
+<style>
+.step {
+    display: none;
+}
+.step-navigation {
+    margin-top: 20px;
+    text-align: center;
+}
+</style>
 
 @include('erm.partials.modal-alergipasien')
-<div class="modal fade" id="modalInjeksiGenue" tabindex="-1" aria-labelledby="injeksiGenueLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="injeksiGenueLabel">Inform Consent - Injeksi Genue</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Tindakan injeksi genue dilakukan untuk menangani nyeri atau peradangan pada area sendi lutut. Risiko tindakan meliputi infeksi, nyeri sementara, dan reaksi alergi terhadap obat. Dengan ini pasien menyetujui tindakan tersebut setelah diberikan penjelasan yang cukup.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="btn btn-primary">Saya Setuju</button>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="modal fade" id="modalSkleroterapi" tabindex="-1" aria-labelledby="skleroterapiLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="skleroterapiLabel">Inform Consent - Injeksi Hemoroid / Skleroterapi</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Skleroterapi hemoroid adalah tindakan penyuntikan bahan tertentu ke dalam hemoroid untuk mengecilkannya. Risiko termasuk nyeri lokal, perdarahan ringan, atau reaksi alergi. Saya menyetujui tindakan ini atas penjelasan dari dokter.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="btn btn-primary">Saya Setuju</button>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="modal fade" id="modalHistoAcril" tabindex="-1" aria-labelledby="histoAcrilLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="histoAcrilLabel">Inform Consent - Injeksi Hemoroid dengan Histo Acril</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Tindakan ini menggunakan bahan perekat (Histo Acril) untuk mengatasi hemoroid. Tindakan ini relatif aman namun dapat menimbulkan nyeri lokal, infeksi, atau reaksi lokal. Saya memahami dan menyetujui prosedur ini.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="btn btn-primary">Saya Setuju</button>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="modal fade" id="modalTenderpoint" tabindex="-1" aria-labelledby="tenderpointLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="tenderpointLabel">Inform Consent - Injeksi Tenderpoint</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <p>Injeksi tenderpoint adalah penyuntikan pada titik nyeri otot untuk mengurangi nyeri dan spasme. Risiko termasuk nyeri sementara, pendarahan lokal, atau infeksi. Pasien telah diberikan penjelasan dan menyetujui tindakan ini.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-        <button type="button" class="btn btn-primary">Saya Setuju</button>
-      </div>
-    </div>
-  </div>
-</div>
 
-
+<!-- Modal for Inform Consent -->
+<div class="modal fade" id="modalInformConsent" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-xl" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Inform Consent Tindakan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="modalInformConsentBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button id="saveInformConsent" class="btn btn-success d-none">Simpan</button> <!-- Add Simpan button -->
+      </div>
+    </div>
+  </div>
+</div>
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">Tindakan & Inform Consent</h3>
@@ -100,97 +58,366 @@
     </div><!--end row-->  
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
-        <div class="card">
-        <div class="card-body">
-            <div class="form-group">
-                <input type="text" class="form-control" placeholder="Search for names.." id="searchInformConsent">
-            </div>
-            <div class="table-responsive">
-                <table class="table table-bordered" style="color: white">
-    <thead class="thead-light text-center">
-        <tr>
-            <th>No</th>
-            <th>Nama Inform Consent</th>
-            <th>SMF</th>
-            <th>Aksi</th>
-        </tr>
-    </thead>
-    <tbody id="informConsentTable">
-        <tr>
-            <td class="text-center">1</td>
-            <td>INJEKSI GENUE</td>
-            <td>Penyakit Dalam</td>
-            <td class="text-center">
-                <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#modalInjeksiGenue">
-                    <i class="fa fa-pencil"></i> Buat
-                </button>
-            </td>
-        </tr>
-        <tr>
-            <td class="text-center">2</td>
-            <td>INJEKSI HEMOROID ATAU SKLEROTERAPI HEMOROID (STH)</td>
-            <td>Penyakit Dalam</td>
-            <td class="text-center">
-                <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#modalSkleroterapi">
-                    <i class="fa fa-pencil"></i> Buat
-                </button>
-            </td>
-        </tr>
-        <tr>
-            <td class="text-center">3</td>
-            <td>Injeksi Hemoroid dengan Histo Acril</td>
-            <td>Penyakit Dalam</td>
-            <td class="text-center">
-                <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#modalHistoAcril">
-                    <i class="fa fa-pencil"></i> Buat
-                </button>
-            </td>
-        </tr>
-        <tr>
-            <td class="text-center">4</td>
-            <td>Injeksi Tenderpoint</td>
-            <td>Penyakit Dalam</td>
-            <td class="text-center">
-                <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#modalTenderpoint">
-                    <i class="fa fa-pencil"></i> Buat
-                </button>
-            </td>
-        </tr>
-    </tbody>
-</table>
 
+    <div class="row gx-0">
+        <!-- Tindakan DataTable -->
+        <div class="col-lg-6 col-md-12 mb-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Daftar Tindakan</h5>
+                </div>
+                <div class="card-body p-2">
+                    <div class="table-responsive">
+                        <table id="tindakanTable" class="table table-bordered w-100">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama</th>
+                                    <th>Harga</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
-    </div> 
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fa fa-file-medical-alt mr-2"></i> Riwayat Tindakan & Dokumen Inform Consent</h5>
-        </div>
-        <div class="card-body">
-            <!-- Riwayat Hasil Tindakan -->
-            <div>
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead class="thead-light text-center">
-                            <tr>
-                                <th>No</th>
-                                <th>Tanggal Dibuat</th>
-                                <th>Tanggal OP</th>
-                                <th>Nama Tindakan</th>
-                                <th>Dokumen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Kosong -->
-                            <tr class="text-center">
-                                <td colspan="5">Belum ada data tindakan.</td>
-                            </tr>
-                        </tbody>
-                    </table>                  
+        <!-- Paket Tindakan DataTable -->
+        <div class="col-lg-6 col-md-12 mb-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Daftar Paket Tindakan</h5>
+                </div>
+                <div class="card-body p-2">
+                    <div class="table-responsive">
+                        <table id="paketTindakanTable" class="table table-bordered w-100">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama</th>
+                                    <th>Harga Paket</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
 </div>
+@endsection
+@section('scripts')
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+
+<script>
+  function initializeSignaturePads() {
+    const patientCanvas = document.getElementById('signatureCanvas');
+    const witnessCanvas = document.getElementById('witnessSignatureCanvas');
+
+    if (!patientCanvas || !witnessCanvas) return;
+
+    const scale = window.devicePixelRatio || 1;
+
+    function setupCanvas(canvas) {
+        const parent = canvas.parentElement;
+        const width = parent.clientWidth;
+        const height = parent.clientHeight;
+
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
+    }
+
+    setupCanvas(patientCanvas);
+    setupCanvas(witnessCanvas);
+
+    window.patientSignaturePad = new SignaturePad(patientCanvas);
+    window.witnessSignaturePad = new SignaturePad(witnessCanvas);
+
+    // Add clear buttons
+    document.getElementById('clearSignature')?.addEventListener('click', function () {
+        window.patientSignaturePad.clear();
+    });
+
+    document.getElementById('clearWitnessSignature')?.addEventListener('click', function () {
+        window.witnessSignaturePad.clear();
+    });
+}
+
+// Call this function after the modal content is loaded
+$(document).on('shown.bs.modal', '#modalInformConsent', function () {
+    initializeSignaturePads();
+});
+    $(document).ready(function () {
+
+      
+        const spesialisasiId = @json($spesialisasiId);
+
+        // Function to format numbers as Rupiah
+        function formatRupiah(value) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value);
+        }
+
+        // Initialize Tindakan DataTable
+        $('#tindakanTable').DataTable({
+            processing: true,
+            serverSide: true,
+            responsive: true, // Enable responsiveness
+            pageLength: 10, // Show 10 rows per page
+            ajax: `/erm/tindakan/data/${spesialisasiId}`,
+            columns: [
+                { data: 'id', name: 'id' },
+                { data: 'nama', name: 'nama' },
+                { 
+                    data: 'harga', 
+                    name: 'harga',
+                    render: function (data) {
+                        return formatRupiah(data); // Format harga as Rupiah
+                    }
+                },
+                { 
+                    data: 'action', 
+                    name: 'action', 
+                    orderable: false, 
+                    searchable: false,
+                },
+            ],
+        });
+
+        // Initialize Paket Tindakan DataTable
+    $('#paketTindakanTable').DataTable({
+        processing: true,
+        serverSide: true,
+        responsive: true,
+        pageLength: 10,
+        ajax: `/erm/paket-tindakan/data/${spesialisasiId}`,
+        columns: [
+            { data: 'id', name: 'id' },
+            { data: 'nama', name: 'nama' },
+            { 
+                data: 'harga_paket', 
+                name: 'harga_paket',
+                render: function (data) {
+                    return formatRupiah(data);
+                }
+            },
+            { 
+                data: 'action', 
+                name: 'action', 
+                orderable: false, 
+                searchable: false,
+            },
+        ],
+    });
+
+        $(document).on('click', '.buat-tindakan', function () {
+    const type = $(this).data('type');
+    const id = $(this).data('id');
+    const visitationId = @json($visitation->id);
+
+    if (type === 'tindakan') {
+        $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
+            .done(function (html) {
+                $('#modalInformConsentBody').html(html);
+                $('#modalInformConsentBody').append(`
+                    <div class="text-center mt-4">
+                        <button id="saveInformConsent" class="btn btn-success">Simpan</button>
+                    </div>
+                `);
+                $('#modalInformConsent').modal('show');
+
+                // Initialize signature pads after modal content is loaded
+                setTimeout(initializeSignaturePads, 300);
+            })
+            .fail(function (jqXHR, textStatus, errorThrown) {
+                console.error('AJAX Error:', textStatus, errorThrown);
+                alert('Error loading inform consent form');
+            });
+    }
+});
+
+        $(document).on('click', '.buat-paket-tindakan', function () {
+    const tindakanData = JSON.parse($(this).attr('data-tindakan'));
+    const visitationId = @json($visitation->id);
+
+    let stepsHtml = '';
+    tindakanData.forEach((tindakan, index) => {
+        stepsHtml += `<div class="step" data-step="${index + 1}">
+            <h5>Inform Consent for ${tindakan.nama}</h5>
+            <div id="informConsentStep${index + 1}"></div>
+        </div>`;
+    });
+
+    $('#modalInformConsentBody').html(`
+        <div id="stepsContainer">
+            ${stepsHtml}
+        </div>
+        <div class="step-navigation">
+            <button class="btn btn-secondary prev-step">Previous</button>
+            <button class="btn btn-primary next-step">Next</button>
+            <button id="saveInformConsent" class="btn btn-success d-none">Simpan</button>
+        </div>
+    `);
+
+    let currentStep = 1;
+
+    function showStep(step) {
+        $('.step').hide();
+        $(`.step[data-step="${step}"]`).show();
+
+        // Show "Simpan" button only on the last step
+        if (step === tindakanData.length) {
+            $('#saveInformConsent').removeClass('d-none');
+            $('.next-step').addClass('d-none');
+        } else {
+            $('#saveInformConsent').addClass('d-none');
+            $('.next-step').removeClass('d-none');
+        }
+    }
+
+    // Show the first step immediately
+    showStep(currentStep);
+
+    $('.next-step').click(function () {
+        if (currentStep < tindakanData.length) {
+            currentStep++;
+            showStep(currentStep);
+        }
+    });
+
+    $('.prev-step').click(function () {
+        if (currentStep > 1) {
+            currentStep--;
+            showStep(currentStep);
+        }
+    });
+
+    tindakanData.forEach((tindakan, index) => {
+        $.get(`/erm/tindakan/inform-consent/${tindakan.id}?visitation_id=${visitationId}`)
+            .done(function (html) {
+                $(`#informConsentStep${index + 1}`).html(html);
+                initializeSignaturePads(); // Initialize signature pads for each step
+            })
+            .fail(function () {
+                alert('Error loading inform consent form');
+            });
+    });
+
+    $('#modalInformConsent').modal('show');
+});
+
+        $(document).on('click', '#submitInformConsent', function () {
+    const form = $('#informConsentForm');
+
+    // Ensure signature pads are initialized
+    const patientSignaturePad = window.patientSignaturePad;
+    const witnessSignaturePad = window.witnessSignaturePad;
+
+    if (!patientSignaturePad || !witnessSignaturePad) {
+        Swal.fire('Error', 'Signature pads are not initialized.', 'error');
+        return;
+    }
+
+    // Validate signatures
+    if (patientSignaturePad.isEmpty()) {
+        Swal.fire('Error', 'Please provide a signature for the patient.', 'error');
+        return;
+    }
+
+    if (witnessSignaturePad.isEmpty()) {
+        Swal.fire('Error', 'Please provide a signature for the witness.', 'error');
+        return;
+    }
+
+    // Capture signature data
+    $('#signatureData').val(patientSignaturePad.toDataURL());
+    $('#witnessSignatureData').val(witnessSignaturePad.toDataURL());
+
+    // Show loading indicator
+    Swal.fire({
+        title: 'Saving...',
+        text: 'Please wait while the data is being saved.',
+        icon: 'info',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+    });
+
+    // Submit the form
+    const formData = new FormData(form[0]);
+
+    $.ajax({
+        url: form.attr('action'),
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function (response) {
+            if (response.success) {
+                Swal.fire('Success', 'Inform Consent saved successfully!', 'success').then(() => {
+                    $('#modalInformConsent').modal('hide');
+                    // Optionally reload the table or update the UI
+                });
+            } else {
+                Swal.fire('Error', 'Failed to save Inform Consent. Please try again.', 'error');
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Error:', xhr.responseJSON);
+            Swal.fire('Error', 'Validation failed. Please check your input.', 'error');
+        },
+        complete: function () {
+            // Close the loading indicator
+            Swal.close();
+        }
+    });
+});
+
+$(document).on('click', '#saveInformConsent', function () {
+    const visitationId = @json($visitation->id);
+    const paketId = $(this).data('paket-id'); // Pass paket_id from the button's data attribute
+
+    // Collect all inform consent data
+    const informConsentData = tindakanData.map((tindakan, index) => {
+        const patientSignature = window.patientSignaturePad.toDataURL();
+        const witnessSignature = window.witnessSignaturePad.toDataURL();
+
+        return {
+            tindakan_id: tindakan.id,
+            patient_signature: patientSignature,
+            witness_signature: witnessSignature,
+        };
+    });
+
+    // Send AJAX request to save the data
+    $.ajax({
+        url: '/erm/inform-consent/save',
+        method: 'POST',
+        data: {
+            visitation_id: visitationId,
+            paket_id: paketId,
+            inform_consent_data: informConsentData,
+        },
+        success: function (response) {
+            if (response.success) {
+                Swal.fire('Success', 'Inform Consent saved successfully!', 'success').then(() => {
+                    $('#modalInformConsent').modal('hide');
+                    // Optionally reload the table or update the UI
+                });
+            } else {
+                Swal.fire('Error', 'Failed to save Inform Consent. Please try again.', 'error');
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Error:', xhr.responseJSON);
+            Swal.fire('Error', 'Validation failed. Please check your input.', 'error');
+        },
+    });
+});
+    });
+</script>
+
 @endsection

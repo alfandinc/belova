@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('visitation_id');
             $table->foreignId('tindakan_id')->constrained('erm_tindakan')->cascadeOnDelete();
+            $table->foreignId('paket_id')->constrained('erm_paket_tindakan')->cascadeOnDelete();
             $table->string('file_path')->nullable();
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('cascade');
 
