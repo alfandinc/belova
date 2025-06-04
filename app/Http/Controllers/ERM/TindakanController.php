@@ -117,8 +117,6 @@ class TindakanController extends Controller
             'paket_id' => $data['paket_id'] ?? null,
             'created_at' => now(),
         ]);
-
-        \Log::info('Saving inform consent', $request->all());
         $transaction = null;
 
         if (isset($data['paket_id'])) {
@@ -144,13 +142,8 @@ class TindakanController extends Controller
                     'keterangan' => !empty($data['keterangan']) ? $data['keterangan'] : 'Paket Tindakan: ' . $paketTindakan->nama
                 ];
 
-                \Log::info('Creating new paket transaction', $transactionData);
                 $transaction = Transaksi::create($transactionData);
             } else {
-                \Log::info('Skipping transaction creation - already exists', [
-                    'transaction_id' => $existingTransaction->id,
-                    'paket_id' => $paketId
-                ]);
                 $transaction = $existingTransaction;
             }
         } else {

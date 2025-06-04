@@ -50,7 +50,7 @@
     </style>
 </head>
 <body>
-<table class="no-border">
+{{-- <table class="no-border">
   <tr>
     @if($visitation->klinik_id == 1)
       <td style="width: 30%;" class="header-logo">
@@ -76,7 +76,7 @@
   </tr>
 </table>
 
-<hr>
+<hr> --}}
 
 <table class="identity-table no-border">
   <tr>   
