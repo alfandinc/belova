@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
+use App\Models\ERM\Transaksi;
 
 class TindakanController extends Controller
 {
@@ -109,7 +110,7 @@ class TindakanController extends Controller
         $timestamp = now()->format('YmdHis');
         $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
         Storage::put('public/' . $pdfPath, $pdf->output());
-        InformConsent::create([
+        $informConsent = InformConsent::create([
             'visitation_id' => $data['visitation_id'],
             'tindakan_id' => $data['tindakan_id'],
             'file_path' => $pdfPath,
@@ -117,6 +118,68 @@ class TindakanController extends Controller
             'created_at' => now(),
         ]);
 
-        return response()->json(['success' => true]);
+        \Log::info('Saving inform consent', $request->all());
+        $transaction = null;
+
+        if (isset($data['paket_id'])) {
+            // This is a paket tindakan
+            $paketId = $data['paket_id'];
+            $visitationId = $data['visitation_id'];
+
+            // Check if transaction already exists for this visitation + paket
+            $existingTransaction = Transaksi::where('visitation_id', $visitationId)
+                ->where('transaksible_id', $paketId)
+                ->where('transaksible_type', 'App\\Models\\ERM\\PaketTindakan')
+                ->first();
+
+            if (!$existingTransaction) {
+                // No transaction exists, create one
+                $paketTindakan = PaketTindakan::find($paketId);
+
+                $transactionData = [
+                    'visitation_id' => $visitationId,
+                    'transaksible_id' => $paketId,
+                    'transaksible_type' => 'App\\Models\\ERM\\PaketTindakan',
+                    'jumlah' => !empty($data['jumlah']) ? $data['jumlah'] : $paketTindakan->harga_paket,
+                    'keterangan' => !empty($data['keterangan']) ? $data['keterangan'] : 'Paket Tindakan: ' . $paketTindakan->nama
+                ];
+
+                \Log::info('Creating new paket transaction', $transactionData);
+                $transaction = Transaksi::create($transactionData);
+            } else {
+                \Log::info('Skipping transaction creation - already exists', [
+                    'transaction_id' => $existingTransaction->id,
+                    'paket_id' => $paketId
+                ]);
+                $transaction = $existingTransaction;
+            }
+        } else {
+            // This is a regular tindakan - create transaction as before
+            $transactionData = [
+                'visitation_id' => $data['visitation_id'],
+                'transaksible_id' => $data['tindakan_id'],
+                'transaksible_type' => 'App\\Models\\ERM\\Tindakan',
+                'jumlah' => $tindakan->harga,
+                'keterangan' => 'Tindakan: ' . $tindakan->nama
+            ];
+
+            // Override with request data if provided
+            if (!empty($data['jumlah'])) {
+                $transactionData['jumlah'] = $data['jumlah'];
+            }
+
+            if (!empty($data['keterangan'])) {
+                $transactionData['keterangan'] = $data['keterangan'];
+            }
+
+            $transaction = Transaksi::create($transactionData);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Inform consent and transaction created successfully',
+            'informConsent' => $informConsent,
+            'transaction' => $transaction
+        ]);
     }
 }

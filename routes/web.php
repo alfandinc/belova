@@ -148,7 +148,8 @@ Route::prefix('erm')->group(function () {
     Route::get('/paket-tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getPaketTindakanData'])->name('erm.paket-tindakan.data');
     Route::get('/tindakan/inform-consent/{id}', [TindakanController::class, 'informConsent'])->name('erm.tindakan.inform-consent');
     Route::post('/tindakan/inform-consent/save', [TindakanController::class, 'saveInformConsent'])->name('erm.tindakan.inform-consent.save');
-
+    // Route::post('/tindakan/transaksi/create', [TindakanController::class, 'transaksiTindakan'])->name('erm.tindakan.transaksi.create');
+    Route::post('tindakan/transaksi/create', [TindakanController::class, 'transaksiTindakan'])->name('erm.tindakan.transaksi.create');
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 

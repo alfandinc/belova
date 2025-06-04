@@ -312,8 +312,27 @@
             // Fungsi buat-paket-tindakan dengan tracking status load
         $(document).on('click', '.buat-paket-tindakan', function () {
             tindakanData = JSON.parse($(this).attr('data-tindakan'));
-            const paketId = $(this).data('id'); // Capture paket_id
-            window.currentPaketId = paketId; // Store for later use
+            const paketId = $(this).data('id');
+            window.currentPaketId = paketId;
+            
+            // FIXED PRICE EXTRACTION
+            const row = $(this).closest('tr');
+            const priceText = row.find('td:eq(2)').text().trim();
+            
+            // Properly handle Indonesian currency format (Rp 750.000,00)
+            let priceDigitsOnly = priceText
+                .replace(/[^\d,\.]/g, '') // Remove everything except digits, comma and dot
+                .replace(/\./g, '')       // Remove thousand separators (dots)
+                .replace(',', '.');       // Replace decimal comma with dot
+            
+            window.paketHarga = parseFloat(priceDigitsOnly);
+            window.paketNama = row.find('td:eq(1)').text().trim();
+            
+            console.log('Extracted price text:', priceText);
+            console.log('Extracted digits:', priceDigitsOnly);
+            console.log('Paket price (parsed):', window.paketHarga);
+            console.log('Paket name:', window.paketNama);
+            
             const visitationId = @json($visitation->id);
 
             currentStep = 1;
@@ -373,6 +392,8 @@
         // Fungsi untuk menyimpan satu inform consent
         function saveSingleInformConsent() {
             const form = $('#informConsentForm');
+            const tindakanId = form.find('input[name="tindakan_id"]').val();
+            const visitationId = form.find('input[name="visitation_id"]').val();
 
             // Validasi
             if (!signaturePads[1] || !signaturePads[1].patient || !signaturePads[1].witness) {
@@ -393,6 +414,10 @@
             // Capture signature data
             $('#signatureData').val(signaturePads[1].patient.toDataURL());
             $('#witnessSignatureData').val(signaturePads[1].witness.toDataURL());
+
+            // Add transaction data to the form
+            form.append(`<input type="hidden" name="jumlah" value="${form.find('.harga-tindakan').data('harga') || 0}">`);
+            form.append(`<input type="hidden" name="keterangan" value="Tindakan: ${form.find('.nama-tindakan').text()}">`);
 
             // Show loading
             Swal.fire({
@@ -415,9 +440,10 @@
                 contentType: false,
                 success: function (response) {
                     if (response.success) {
-                        Swal.fire('Success', 'Inform Consent saved successfully!', 'success').then(() => {
-                            $('#modalInformConsent').modal('hide');
-                        });
+                        Swal.fire('Success', 'Tindakan dan transaksi berhasil disimpan!', 'success')
+                            .then(() => {
+                                $('#modalInformConsent').modal('hide');
+                            });
                     } else {
                         Swal.fire('Error', 'Failed to save Inform Consent.', 'error');
                     }
@@ -490,9 +516,13 @@
                 formData.append('witness_signature', signaturePads[step].witness.toDataURL());
                 formData.append('tindakan_id', tindakanData[step-1].id);
 
-                // Jika ada paket_id, tambahkan ke formData
+               // Add paket_id if exists
                 if (window.currentPaketId) {
                     formData.append('paket_id', window.currentPaketId);
+                    
+                    // Always include the price/name data - the server will only use it once
+                    formData.append('jumlah', window.paketHarga || 0);
+                    formData.append('keterangan', `Paket Tindakan: ${window.paketNama || 'Unknown'}`);
                 }
 
                 // Juga pastikan semua field yang dibutuhkan tersedia
@@ -535,7 +565,7 @@
             // Jalankan semua promises
             Promise.all(savePromises)
                 .then(responses => {
-                    Swal.fire('Success', 'All inform consents saved successfully!', 'success')
+                    Swal.fire('Success', 'Semua Tindakan dan transaksi berhasil disimpan!', 'success')
                         .then(() => {
                             $('#modalInformConsent').modal('hide');
                         });
@@ -545,6 +575,11 @@
                     Swal.fire('Error', 'Some inform consents could not be saved.', 'error');
                 });
         }
+
+    
+
+
+
     });
 </script>
 
