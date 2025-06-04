@@ -74,6 +74,14 @@ class TindakanController extends Controller
 
     public function saveInformConsent(Request $request)
     {
+        // Map field names from JavaScript to what controller expects
+        if ($request->has('signatureData') && !$request->has('signature')) {
+            $request->merge(['signature' => $request->signatureData]);
+        }
+
+        if ($request->has('witnessSignatureData') && !$request->has('witness_signature')) {
+            $request->merge(['witness_signature' => $request->witnessSignatureData]);
+        }
         $data = $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
             'tindakan_id' => 'required|exists:erm_tindakan,id',
@@ -83,6 +91,7 @@ class TindakanController extends Controller
             'notes' => 'nullable|string',
             'nama_pasien' => 'required|string',
             'nama_saksi' => 'required|string',
+            'paket_id' => 'nullable|exists:erm_paket_tindakan,id',
         ]);
 
         $visitation = \App\Models\ERM\Visitation::findOrFail($data['visitation_id']);
@@ -97,12 +106,14 @@ class TindakanController extends Controller
             'tindakan' => $tindakan,
         ]);
 
-        $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '.pdf';
+        $timestamp = now()->format('YmdHis');
+        $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
         Storage::put('public/' . $pdfPath, $pdf->output());
         InformConsent::create([
             'visitation_id' => $data['visitation_id'],
             'tindakan_id' => $data['tindakan_id'],
             'file_path' => $pdfPath,
+            'paket_id' => $data['paket_id'] ?? null,
             'created_at' => now(),
         ]);
 

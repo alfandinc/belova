@@ -111,52 +111,10 @@
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 
 <script>
-  function initializeSignaturePads() {
-    const patientCanvas = document.getElementById('signatureCanvas');
-    const witnessCanvas = document.getElementById('witnessSignatureCanvas');
-
-    if (!patientCanvas || !witnessCanvas) return;
-
-    const scale = window.devicePixelRatio || 1;
-
-    function setupCanvas(canvas) {
-        const parent = canvas.parentElement;
-        const width = parent.clientWidth;
-        const height = parent.clientHeight;
-
-        canvas.width = width * scale;
-        canvas.height = height * scale;
-
-        const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale);
-    }
-
-    setupCanvas(patientCanvas);
-    setupCanvas(witnessCanvas);
-
-    window.patientSignaturePad = new SignaturePad(patientCanvas);
-    window.witnessSignaturePad = new SignaturePad(witnessCanvas);
-
-    // Add clear buttons
-    document.getElementById('clearSignature')?.addEventListener('click', function () {
-        window.patientSignaturePad.clear();
-    });
-
-    document.getElementById('clearWitnessSignature')?.addEventListener('click', function () {
-        window.witnessSignaturePad.clear();
-    });
-}
-
-let tindakanData = []; // Declare tindakanData globally
-// Call this function after the modal content is loaded
-$(document).on('shown.bs.modal', '#modalInformConsent', function () {
-    initializeSignaturePads();
-});
     $(document).ready(function () {
-
-      
-        const spesialisasiId = @json($spesialisasiId);
-
+        let tindakanData = [];
+        let currentStep = 1;
+        const spesialisasiId = @json($spesialisasiId); 
         // Function to format numbers as Rupiah
         function formatRupiah(value) {
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value);
@@ -189,194 +147,404 @@ $(document).on('shown.bs.modal', '#modalInformConsent', function () {
         });
 
         // Initialize Paket Tindakan DataTable
-    $('#paketTindakanTable').DataTable({
-        processing: true,
-        serverSide: true,
-        responsive: true,
-        pageLength: 10,
-        ajax: `/erm/paket-tindakan/data/${spesialisasiId}`,
-        columns: [
-            { data: 'id', name: 'id' },
-            { data: 'nama', name: 'nama' },
-            { 
-                data: 'harga_paket', 
-                name: 'harga_paket',
-                render: function (data) {
-                    return formatRupiah(data);
-                }
-            },
-            { 
-                data: 'action', 
-                name: 'action', 
-                orderable: false, 
-                searchable: false,
-            },
-        ],
-    });
+        $('#paketTindakanTable').DataTable({
+            processing: true,
+            serverSide: true,
+            responsive: true,
+            pageLength: 10,
+            ajax: `/erm/paket-tindakan/data/${spesialisasiId}`,
+            columns: [
+                { data: 'id', name: 'id' },
+                { data: 'nama', name: 'nama' },
+                { 
+                    data: 'harga_paket', 
+                    name: 'harga_paket',
+                    render: function (data) {
+                        return formatRupiah(data);
+                    }
+                },
+                { 
+                    data: 'action', 
+                    name: 'action', 
+                    orderable: false, 
+                    searchable: false,
+                },
+            ],
+        });
+    
+       // Definisi fungsi untuk inisialisasi signature pad
+        function initializeSignaturePads(step) {
+            console.log(`Initializing signature pads for step ${step}`);
+            
+            // Selector yang lebih spesifik untuk mendapatkan canvas pada langkah yang aktif
+            const stepSelector = tindakanData.length > 0 ? `.step[data-step="${step}"] ` : "";
+            const patientCanvas = $(`${stepSelector}#signatureCanvas`).get(0);
+            const witnessCanvas = $(`${stepSelector}#witnessSignatureCanvas`).get(0);
 
-        $(document).on('click', '.buat-tindakan', function () {
-    const type = $(this).data('type');
-    const id = $(this).data('id');
-    const visitationId = @json($visitation->id);
-
-    if (type === 'tindakan') {
-        $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
-            .done(function (html) {
-                $('#modalInformConsentBody').html(html);
-                $('#modalInformConsentBody').append(`
-                    <div class="text-center mt-4">
-                        <button id="saveInformConsent" class="btn btn-success">Simpan</button>
-                    </div>
-                `);
-                $('#modalInformConsent').modal('show');
-
-                // Initialize signature pads after modal content is loaded
-                setTimeout(initializeSignaturePads, 300);
-            })
-            .fail(function (jqXHR, textStatus, errorThrown) {
-                console.error('AJAX Error:', textStatus, errorThrown);
-                alert('Error loading inform consent form');
-            });
-    }
-});
-
-        $(document).on('click', '.buat-paket-tindakan', function () {
-    tindakanData = JSON.parse($(this).attr('data-tindakan'));
-    const visitationId = @json($visitation->id);
-
-    let stepsHtml = '';
-    tindakanData.forEach((tindakan, index) => {
-        stepsHtml += `<div class="step" data-step="${index + 1}">
-            <h5>Inform Consent for ${tindakan.nama}</h5>
-            <div id="informConsentStep${index + 1}"></div>
-        </div>`;
-    });
-
-    $('#modalInformConsentBody').html(`
-        <div id="stepsContainer">
-            ${stepsHtml}
-        </div>
-        <div class="step-navigation">
-            <button class="btn btn-secondary prev-step">Previous</button>
-            <button class="btn btn-primary next-step">Next</button>
-            <button id="saveInformConsent" class="btn btn-success d-none">Simpan</button>
-        </div>
-    `);
-
-    let currentStep = 1;
-
-    function showStep(step) {
-        $('.step').hide();
-        $(`.step[data-step="${step}"]`).show();
-
-        // Show "Simpan" button only on the last step
-        if (step === tindakanData.length) {
-            $('#saveInformConsent').removeClass('d-none');
-            $('.next-step').addClass('d-none');
-        } else {
-            $('#saveInformConsent').addClass('d-none');
-            $('.next-step').removeClass('d-none');
-        }
-    }
-
-    // Show the first step immediately
-    showStep(currentStep);
-
-    $('.next-step').click(function () {
-        if (currentStep < tindakanData.length) {
-            currentStep++;
-            showStep(currentStep);
-        }
-    });
-
-    $('.prev-step').click(function () {
-        if (currentStep > 1) {
-            currentStep--;
-            showStep(currentStep);
-        }
-    });
-
-    tindakanData.forEach((tindakan, index) => {
-        $.get(`/erm/tindakan/inform-consent/${tindakan.id}?visitation_id=${visitationId}`)
-            .done(function (html) {
-                $(`#informConsentStep${index + 1}`).html(html);
-                initializeSignaturePads(); // Initialize signature pads for each step
-            })
-            .fail(function () {
-                alert('Error loading inform consent form');
-            });
-    });
-
-    $('#modalInformConsent').modal('show');
-});
-
-        $(document).on('click', '#saveInformConsent', function () {
-    const form = $('#informConsentForm');
-
-    // Ensure signature pads are initialized
-    const patientSignaturePad = window.patientSignaturePad;
-    const witnessSignaturePad = window.witnessSignaturePad;
-
-    if (!patientSignaturePad || !witnessSignaturePad) {
-        Swal.fire('Error', 'Signature pads are not initialized.', 'error');
-        return;
-    }
-
-    // Validate signatures
-    if (patientSignaturePad.isEmpty()) {
-        Swal.fire('Error', 'Please provide a signature for the patient.', 'error');
-        return;
-    }
-
-    if (witnessSignaturePad.isEmpty()) {
-        Swal.fire('Error', 'Please provide a signature for the witness.', 'error');
-        return;
-    }
-
-    // Capture signature data
-    $('#signatureData').val(patientSignaturePad.toDataURL());
-    $('#witnessSignatureData').val(witnessSignaturePad.toDataURL());
-
-    // Show loading indicator
-    Swal.fire({
-        title: 'Saving...',
-        text: 'Please wait while the data is being saved.',
-        icon: 'info',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showConfirmButton: false,
-    });
-
-    // Submit the form
-    const formData = new FormData(form[0]);
-
-    $.ajax({
-        url: form.attr('action'),
-        method: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
-        success: function (response) {
-            if (response.success) {
-                Swal.fire('Success', 'Inform Consent saved successfully!', 'success').then(() => {
-                    $('#modalInformConsent').modal('hide');
-                    // Optionally reload the table or update the UI
-                });
-            } else {
-                Swal.fire('Error', 'Failed to save Inform Consent. Please try again.', 'error');
+            if (!patientCanvas || !witnessCanvas) {
+                console.log(`Canvas elements not found for step ${step}`);
+                return false;
             }
-        },
-        error: function (xhr, status, error) {
-            console.error('Error:', xhr.responseJSON);
-            Swal.fire('Error', 'Validation failed. Please check your input.', 'error');
-        },
-        complete: function () {
-            // Close the loading indicator
-            Swal.close();
-        }
-    });
-});
 
+            const scale = window.devicePixelRatio || 1;
+
+            function setupCanvas(canvas) {
+                const parent = canvas.parentElement;
+                const width = parent.clientWidth;
+                const height = parent.clientHeight;
+
+                canvas.width = width * scale;
+                canvas.height = height * scale;
+
+                const ctx = canvas.getContext('2d');
+                ctx.scale(scale, scale);
+                return canvas;
+            }
+
+            if (!signaturePads[step]) {
+                setupCanvas(patientCanvas);
+                setupCanvas(witnessCanvas);
+
+                signaturePads[step] = {
+                    patient: new SignaturePad(patientCanvas),
+                    witness: new SignaturePad(witnessCanvas)
+                };
+
+                // Bind clear buttons untuk langkah ini
+                $(document).off('click', `${stepSelector}#clearSignature`).on('click', `${stepSelector}#clearSignature`, function() {
+                    if (signaturePads[step] && signaturePads[step].patient) {
+                        signaturePads[step].patient.clear();
+                    }
+                });
+
+                $(document).off('click', `${stepSelector}#clearWitnessSignature`).on('click', `${stepSelector}#clearWitnessSignature`, function() {
+                    if (signaturePads[step] && signaturePads[step].witness) {
+                        signaturePads[step].witness.clear();
+                    }
+                });
+            }
+            
+            return true;
+        }
+
+        // Event handler untuk modal show event
+        $(document).on('shown.bs.modal', '#modalInformConsent', function () {
+            console.log("Modal fully shown");
+            setTimeout(function() {
+                if (tindakanData.length > 0) {
+                    // Paket tindakan - tampilkan langkah pertama
+                    showStep(1);
+                } else {
+                    // Tindakan tunggal
+                    initializeSignaturePads(1);
+                }
+            }, 300); // Sedikit delay untuk memastikan DOM selesai render
+        });
+
+        // Menggunakan delegate untuk menangkap klik pada tombol next/prev
+        $(document).on('click', '.next-step', function () {
+            console.log('Next button clicked, current step:', currentStep);
+            if (currentStep < tindakanData.length) {
+                currentStep++;
+                showStep(currentStep);
+            }
+        });
+
+        $(document).on('click', '.prev-step', function () {
+            console.log('Previous button clicked, current step:', currentStep);
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        });
+
+            // Implementasi showStep yang lebih baik
+        function showStep(step) {
+            console.log(`Showing step ${step} of ${tindakanData.length}`);
+            
+            // Hide all steps and show only the current one
+            $('.step').hide();
+            $(`.step[data-step="${step}"]`).show();
+
+            // Show "Simpan" button only on the last step
+            if (step === tindakanData.length) {
+                $('#saveInformConsent').removeClass('d-none');
+                $('.next-step').addClass('d-none');
+            } else {
+                $('#saveInformConsent').addClass('d-none');
+                $('.next-step').removeClass('d-none');
+            }
+
+            // Beri waktu untuk DOM update sebelum inisialisasi signature
+            setTimeout(function() {
+                initializeSignaturePads(step);
+            }, 100);
+        };
+
+            // Fungsi buat-tindakan
+        $(document).on('click', '.buat-tindakan', function () {
+            const type = $(this).data('type');
+            const id = $(this).data('id');
+            const visitationId = @json($visitation->id);
+            
+            // Reset signature pads dan tindakan data
+            signaturePads = {};
+            tindakanData = [];
+
+            if (type === 'tindakan') {
+                $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
+                    .done(function (html) {
+                        $('#modalInformConsentBody').html(html);
+                        $('#modalInformConsentBody').append(`
+                            <div class="text-center mt-4">
+                                <button id="saveInformConsent" class="btn btn-success">Simpan</button>
+                            </div>
+                        `);
+                        $('#modalInformConsent').modal('show');
+                    })
+                    .fail(function (jqXHR, textStatus, errorThrown) {
+                        console.error('AJAX Error:', textStatus, errorThrown);
+                        alert('Error loading inform consent form');
+                    });
+            }
+        });
+
+            // Fungsi buat-paket-tindakan dengan tracking status load
+        $(document).on('click', '.buat-paket-tindakan', function () {
+            tindakanData = JSON.parse($(this).attr('data-tindakan'));
+            const paketId = $(this).data('id'); // Capture paket_id
+            window.currentPaketId = paketId; // Store for later use
+            const visitationId = @json($visitation->id);
+
+            currentStep = 1;
+            signaturePads = {}; // Reset signature pads
+            
+            console.log(`Building steps for ${tindakanData.length} tindakan`);
+
+            let stepsHtml = '';
+            tindakanData.forEach((tindakan, index) => {
+                stepsHtml += `<div class="step" data-step="${index + 1}">
+                    <h5>Inform Consent for ${tindakan.nama}</h5>
+                    <div id="informConsentStep${index + 1}"></div>
+                </div>`;
+            });
+
+            $('#modalInformConsentBody').html(`
+                <div id="stepsContainer">
+                    ${stepsHtml}
+                </div>
+                <div class="step-navigation mt-3">
+                    <button class="btn btn-secondary prev-step">Previous</button>
+                    <button class="btn btn-primary next-step">Next</button>
+                    <button id="saveInformConsent" class="btn btn-success d-none">Simpan</button>
+                </div>
+            `);
+
+            // Memuat konten untuk setiap langkah
+            let loadedSteps = 0;
+            tindakanData.forEach((tindakan, index) => {
+                $.get(`/erm/tindakan/inform-consent/${tindakan.id}?visitation_id=${visitationId}`)
+                    .done(function (html) {
+                        $(`#informConsentStep${index + 1}`).html(html);
+                        loadedSteps++;
+                        
+                        // Ketika semua langkah dimuat, tampilkan modal
+                        if (loadedSteps === tindakanData.length) {
+                            $('#modalInformConsent').modal('show');
+                        }
+                    })
+                    .fail(function () {
+                        alert('Error loading inform consent form');
+                    });
+            });
+        });
+
+        // Handler untuk menyimpan semua inform consent di paket
+        $(document).on('click', '#saveInformConsent', function () {
+            if (tindakanData.length === 0) {
+                // Tindakan tunggal - gunakan fungsi simpan yang sudah ada
+                saveSingleInformConsent();
+            } else {
+                // Paket tindakan - simpan semua tanda tangan
+                saveAllInformConsents();
+            }
+        });
+        
+        // Fungsi untuk menyimpan satu inform consent
+        function saveSingleInformConsent() {
+            const form = $('#informConsentForm');
+
+            // Validasi
+            if (!signaturePads[1] || !signaturePads[1].patient || !signaturePads[1].witness) {
+                Swal.fire('Error', 'Signature pads are not initialized.', 'error');
+                return;
+            }
+
+            if (signaturePads[1].patient.isEmpty()) {
+                Swal.fire('Error', 'Please provide a signature for the patient.', 'error');
+                return;
+            }
+
+            if (signaturePads[1].witness.isEmpty()) {
+                Swal.fire('Error', 'Please provide a signature for the witness.', 'error');
+                return;
+            }
+
+            // Capture signature data
+            $('#signatureData').val(signaturePads[1].patient.toDataURL());
+            $('#witnessSignatureData').val(signaturePads[1].witness.toDataURL());
+
+            // Show loading
+            Swal.fire({
+                title: 'Saving...',
+                text: 'Please wait while the data is being saved.',
+                icon: 'info',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+            });
+
+            // Submit the form
+            const formData = new FormData(form[0]);
+
+            $.ajax({
+                url: form.attr('action'),
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    if (response.success) {
+                        Swal.fire('Success', 'Inform Consent saved successfully!', 'success').then(() => {
+                            $('#modalInformConsent').modal('hide');
+                        });
+                    } else {
+                        Swal.fire('Error', 'Failed to save Inform Consent.', 'error');
+                    }
+                },
+                error: function (xhr) {
+                    console.error('Error:', xhr.responseJSON);
+                    Swal.fire('Error', 'Failed to save. Please try again.', 'error');
+                }
+            });
+        }
+        
+        // Fungsi untuk menyimpan semua inform consent di paket
+        function saveAllInformConsents() {
+            // Validasi semua tanda tangan
+            let valid = true;
+            let missingSignatures = [];
+            
+            for (let i = 1; i <= tindakanData.length; i++) {
+                if (!signaturePads[i] || !signaturePads[i].patient || !signaturePads[i].witness) {
+                    missingSignatures.push(`Step ${i}: Signature pads not initialized`);
+                    valid = false;
+                    continue;
+                }
+                
+                if (signaturePads[i].patient.isEmpty()) {
+                    missingSignatures.push(`Step ${i}: Patient signature missing`);
+                    valid = false;
+                }
+                
+                if (signaturePads[i].witness.isEmpty()) {
+                    missingSignatures.push(`Step ${i}: Witness signature missing`);
+                    valid = false;
+                }
+            }
+            
+            if (!valid) {
+                Swal.fire('Error', 'Please complete all signatures: ' + missingSignatures.join(', '), 'error');
+                return;
+            }
+            
+            // Show loading
+            Swal.fire({
+                title: 'Saving...',
+                text: 'Please wait while all inform consents are being saved.',
+                icon: 'info',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+            });
+            
+            // Buat array untuk menyimpan promises semua request ajax
+            const savePromises = [];
+            
+            // Loop melalui setiap tindakan dan simpan form-nya
+            for (let i = 1; i <= tindakanData.length; i++) {
+                const step = i;
+                const form = $(`.step[data-step="${step}"] #informConsentForm`);
+                
+                if (!form.length) {
+                    console.error(`Form not found for step ${step}`);
+                    continue;
+                }
+                
+                // Clone form untuk menghindari konflik
+                const clonedForm = form.clone();
+                
+                // Tambahkan data tanda tangan ke form
+                const formData = new FormData(form[0]);
+                formData.append('signature', signaturePads[step].patient.toDataURL());
+                formData.append('witness_signature', signaturePads[step].witness.toDataURL());
+                formData.append('tindakan_id', tindakanData[step-1].id);
+
+                // Jika ada paket_id, tambahkan ke formData
+                if (window.currentPaketId) {
+                    formData.append('paket_id', window.currentPaketId);
+                }
+
+                // Juga pastikan semua field yang dibutuhkan tersedia
+                if (!formData.has('tanggal')) {
+                    formData.append('tanggal', new Date().toISOString().split('T')[0]);
+                }
+
+                if (!formData.has('nama_pasien') && $('#namaPasien').length) {
+                    formData.append('nama_pasien', $('#namaPasien').text().trim());
+                }
+
+                if (!formData.has('nama_saksi') && $('#namaSaksi').length) {
+                    formData.append('nama_saksi', $('#namaSaksi').val() || 'Saksi');
+                }
+
+                if (!formData.has('notes')) {
+                    formData.append('notes', '');
+                }
+                
+                // Buat promise untuk request ajax
+                const savePromise = new Promise((resolve, reject) => {
+                    $.ajax({
+                        url: form.attr('action'),
+                        method: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            resolve(response);
+                        },
+                        error: function(xhr) {
+                            reject(xhr);
+                        }
+                    });
+                });
+                
+                savePromises.push(savePromise);
+            }
+            
+            // Jalankan semua promises
+            Promise.all(savePromises)
+                .then(responses => {
+                    Swal.fire('Success', 'All inform consents saved successfully!', 'success')
+                        .then(() => {
+                            $('#modalInformConsent').modal('hide');
+                        });
+                })
+                .catch(errors => {
+                    console.error('Errors:', errors);
+                    Swal.fire('Error', 'Some inform consents could not be saved.', 'error');
+                });
+        }
     });
 </script>
 
