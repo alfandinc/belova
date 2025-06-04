@@ -60,6 +60,30 @@
     @include('erm.partials.card-identitaspasien')
 
     <div class="row gx-0">
+        <div class="col-lg-12 col-md-12 mb-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Riwayat Tindakan Pasien</h5>
+                </div>
+                <div class="card-body p-2">
+                    <div class="table-responsive">
+                        <!-- Inside the history tindakan table -->
+                        <table id="historyTindakanTable" class="table table-bordered w-100">
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Tindakan</th>
+                                    <th>Paket Tindakan</th>
+                                    <th>Status</th>
+                                    <th>Dokumen</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Tindakan DataTable -->
         <div class="col-lg-6 col-md-12 mb-3">
             <div class="card h-100">
@@ -170,6 +194,28 @@
                     searchable: false,
                 },
             ],
+        });
+
+        // Initialize History Tindakan DataTable
+        $('#historyTindakanTable').DataTable({
+            processing: true,
+            serverSide: true,
+            responsive: true,
+            pageLength: 5,
+            ajax: `/erm/tindakan/history/${@json($visitation->id)}`,
+            columns: [
+                { data: 'tanggal', name: 'tanggal' },
+                { data: 'tindakan', name: 'tindakan' },
+                { data: 'paket', name: 'paket' },
+                { data: 'status', name: 'status' },
+                { 
+                    data: 'dokumen', 
+                    name: 'dokumen', 
+                    orderable: false, 
+                    searchable: false 
+                },
+            ],
+            order: [[0, 'desc']] // Sort by date descending
         });
     
        // Definisi fungsi untuk inisialisasi signature pad

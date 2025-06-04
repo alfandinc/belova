@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
 use App\Models\ERM\Transaksi;
+use Carbon\Carbon;
+
 
 class TindakanController extends Controller
 {
@@ -109,7 +111,8 @@ class TindakanController extends Controller
 
         $timestamp = now()->format('YmdHis');
         $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
-        Storage::put('public/' . $pdfPath, $pdf->output());
+        // Storage::put('public/' . $pdfPath, $pdf->output());
+        Storage::disk('public')->put($pdfPath, $pdf->output());
         $informConsent = InformConsent::create([
             'visitation_id' => $data['visitation_id'],
             'tindakan_id' => $data['tindakan_id'],
@@ -174,5 +177,65 @@ class TindakanController extends Controller
             'informConsent' => $informConsent,
             'transaction' => $transaction
         ]);
+    }
+
+    public function getInformConsentHistory($visitationId)
+    {
+        // First, get the patient ID from the current visitation
+        $currentVisitation = Visitation::findOrFail($visitationId);
+        $patientId = $currentVisitation->pasien_id;
+
+        // Get all visitations for this patient
+        $patientVisitations = Visitation::where('pasien_id', $patientId)
+            ->pluck('id')->toArray();
+
+        // Get all inform consents for all visitations of this patient
+        $history = InformConsent::whereIn('visitation_id', $patientVisitations)
+            ->with(['tindakan', 'visitation'])
+            ->get()
+            ->map(function ($item) use ($visitationId) {
+                $paketName = null;
+                if ($item->paket_id) {
+                    $paket = PaketTindakan::find($item->paket_id);
+                    $paketName = $paket ? $paket->nama : null;
+                }
+
+                // Format the date using Carbon
+                $tanggalFormatted = '-';
+                if (isset($item->visitation->tanggal_visitation)) {
+                    $tanggalFormatted = Carbon::parse($item->visitation->tanggal_visitation)
+                        ->locale('id') // Set locale to Indonesian
+                        ->isoFormat('D MMMM YYYY'); // Format: 4 Juni 2025
+                }
+
+                return [
+                    'tanggal' => $tanggalFormatted,
+                    'tindakan' => $item->tindakan->nama ?? '-',
+                    'paket' => $paketName ?? '-',
+                    'file_path' => $item->file_path,
+                    // Add flag to identify current visitation records
+                    'current' => ($item->visitation_id == $visitationId) ? true : false
+                ];
+            });
+
+
+        // dd($history);
+        return datatables()->of($history)
+            ->addColumn('dokumen', function ($row) {
+                if (empty($row['file_path'])) {
+                    return '<span class="text-muted">Tidak ada dokumen</span>';
+                }
+
+                $url = Storage::url($row['file_path']);
+                return '<a href="' . $url . '" target="_blank" class="btn btn-info btn-sm">Lihat</a>';
+            })
+            ->addColumn('status', function ($row) {
+                return $row['current'] ?
+                    '<span class="badge badge-success">Kunjungan Saat Ini</span>' :
+                    '<span class="badge badge-secondary">Kunjungan Sebelumnya</span>';
+            })
+
+            ->rawColumns(['dokumen', 'status'])
+            ->make(true);
     }
 }
