@@ -461,7 +461,7 @@
             $('#signatureData').val(signaturePads[1].patient.toDataURL());
             $('#witnessSignatureData').val(signaturePads[1].witness.toDataURL());
 
-            // Add transaction data to the form
+            // Add billing data to the form
             form.append(`<input type="hidden" name="jumlah" value="${form.find('.harga-tindakan').data('harga') || 0}">`);
             form.append(`<input type="hidden" name="keterangan" value="Tindakan: ${form.find('.nama-tindakan').text()}">`);
 
@@ -486,7 +486,7 @@
                 contentType: false,
                 success: function (response) {
                     if (response.success) {
-                        Swal.fire('Success', 'Tindakan dan transaksi berhasil disimpan!', 'success')
+                        Swal.fire('Success', 'Tindakan dan billing berhasil disimpan!', 'success')
                             .then(() => {
                                 $('#modalInformConsent').modal('hide');
                             });
@@ -611,7 +611,7 @@
             // Jalankan semua promises
             Promise.all(savePromises)
                 .then(responses => {
-                    Swal.fire('Success', 'Semua Tindakan dan transaksi berhasil disimpan!', 'success')
+                    Swal.fire('Success', 'Semua Tindakan dan billing berhasil disimpan!', 'success')
                         .then(() => {
                             $('#modalInformConsent').modal('hide');
                         });

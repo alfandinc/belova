@@ -148,8 +148,6 @@ Route::prefix('erm')->group(function () {
     Route::get('/paket-tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getPaketTindakanData'])->name('erm.paket-tindakan.data');
     Route::get('/tindakan/inform-consent/{id}', [TindakanController::class, 'informConsent'])->name('erm.tindakan.inform-consent');
     Route::post('/tindakan/inform-consent/save', [TindakanController::class, 'saveInformConsent'])->name('erm.tindakan.inform-consent.save');
-    // Route::post('/tindakan/transaksi/create', [TindakanController::class, 'transaksiTindakan'])->name('erm.tindakan.transaksi.create');
-    Route::post('tindakan/transaksi/create', [TindakanController::class, 'transaksiTindakan'])->name('erm.tindakan.transaksi.create');
     Route::get('/tindakan/history/{visitation}', [TindakanController::class, 'getInformConsentHistory'])->name('tindakan.history');
 
     //Riwayat Kunjungan
@@ -227,12 +225,3 @@ Route::get('/icd10/search', [Icd10Controller::class, 'search'])->name('icd10.sea
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');
-
-
-Route::get('/test-file-access', function () {
-    $path = storage_path('app/public/inform-consent/000001-202506040315195465392-1-20250604075607.pdf');
-    if (file_exists($path)) {
-        return response()->file($path);
-    }
-    return 'File not found at: ' . $path;
-});

@@ -19,8 +19,8 @@ class Tindakan extends Model
         return $this->hasMany(InformConsent::class);
     }
 
-    public function transaksi()
+    public function billing()
     {
-        return $this->morphMany(Transaksi::class, 'transaksible');
+        return $this->morphMany(Billing::class, 'billable');
     }
 }

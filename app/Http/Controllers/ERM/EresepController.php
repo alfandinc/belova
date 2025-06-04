@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
+use App\Models\ERM\Billing;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Obat;
@@ -16,7 +17,7 @@ use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\WadahObat;
-use App\Models\ERM\Transaksi;
+
 use Illuminate\Support\Str;
 
 
@@ -443,10 +444,10 @@ class EresepController extends Controller
         $reseps = ResepFarmasi::where('visitation_id', $visitationId)->get();
 
         foreach ($reseps as $resep) {
-            Transaksi::updateOrCreate(
+            Billing::updateOrCreate(
                 [
-                    'transaksible_id' => $resep->id,
-                    'transaksible_type' => Resepfarmasi::class,
+                    'billable_id' => $resep->id,
+                    'billable_type' => Resepfarmasi::class,
                 ],
                 [
                     'visitation_id' => $resep->visitation_id,

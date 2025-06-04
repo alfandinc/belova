@@ -5,14 +5,14 @@ namespace App\Models\ERM;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-class Transaksi extends Model
+class Billing extends Model
 {
     use HasFactory;
 
-    protected $table = 'erm_transaction';
-    protected $fillable = ['visitation_id', 'transaksible_id', 'transaksible_type', 'jumlah', 'keterangan'];
+    protected $table = 'erm_billing';
+    protected $fillable = ['visitation_id', 'billable_id', 'billable_type', 'jumlah', 'keterangan'];
 
-    public function transaksible()
+    public function billable()
     {
         return $this->morphTo();
     }

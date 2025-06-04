@@ -13,10 +13,11 @@ use App\Models\ERM\AsesmenDalam;
 use App\Models\ERM\AsesmenPenunjang;
 use App\Models\ERM\AsesmenUmum;
 use App\Models\ERM\AsesmenEstetika;
+use App\Models\ERM\Billing;
 use App\Models\ERM\JasaMedis;
 use App\Models\ERM\Konsultasi;
 use Illuminate\Support\Str;
-use App\Models\ERM\Transaksi;
+
 
 
 class AsesmenController extends Controller
@@ -279,17 +280,16 @@ class AsesmenController extends Controller
         // Ambil data jasa medis
         $jasa = Konsultasi::findOrFail($jenis_konsultasi);
 
-        // Cek apakah sudah ada transaksi yang sama untuk visitation ini dan jasa tersebut
-        $existing = Transaksi::where('visitation_id', $visitationId)
-            ->where('transaksible_id', $jasa->id)
-            ->where('transaksible_type', Konsultasi::class)
+        $existing = Billing::where('visitation_id', $visitationId)
+            ->where('billable_id', $jasa->id)
+            ->where('billable_type', Konsultasi::class)
             ->first();
 
         if (!$existing) {
-            Transaksi::create([
+            Billing::create([
                 'visitation_id' => $visitationId,
-                'transaksible_id' => $jasa->id,
-                'transaksible_type' => Konsultasi::class,
+                'billable_id' => $jasa->id,
+                'billable_type' => Konsultasi::class,
                 'jumlah' => $jasa->harga,
                 'keterangan' => 'Tindakan: ' . $jasa->nama,
             ]);

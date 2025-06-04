@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
+use App\Models\ERM\Billing;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Tindakan;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
-use App\Models\ERM\Transaksi;
+
 use Carbon\Carbon;
 
 
@@ -120,62 +121,62 @@ class TindakanController extends Controller
             'paket_id' => $data['paket_id'] ?? null,
             'created_at' => now(),
         ]);
-        $transaction = null;
+        $billing = null;
 
         if (isset($data['paket_id'])) {
             // This is a paket tindakan
             $paketId = $data['paket_id'];
             $visitationId = $data['visitation_id'];
 
-            // Check if transaction already exists for this visitation + paket
-            $existingTransaction = Transaksi::where('visitation_id', $visitationId)
-                ->where('transaksible_id', $paketId)
-                ->where('transaksible_type', 'App\\Models\\ERM\\PaketTindakan')
+
+            $existingBilling = Billing::where('visitation_id', $visitationId)
+                ->where('billable_id', $paketId)
+                ->where('billable_type', 'App\\Models\\ERM\\PaketTindakan')
                 ->first();
 
-            if (!$existingTransaction) {
-                // No transaction exists, create one
+            if (!$existingBilling) {
+
                 $paketTindakan = PaketTindakan::find($paketId);
 
-                $transactionData = [
+                $billingData = [
                     'visitation_id' => $visitationId,
-                    'transaksible_id' => $paketId,
-                    'transaksible_type' => 'App\\Models\\ERM\\PaketTindakan',
+                    'billable_id' => $paketId,
+                    'billable_type' => 'App\\Models\\ERM\\PaketTindakan',
                     'jumlah' => !empty($data['jumlah']) ? $data['jumlah'] : $paketTindakan->harga_paket,
                     'keterangan' => !empty($data['keterangan']) ? $data['keterangan'] : 'Paket Tindakan: ' . $paketTindakan->nama
                 ];
 
-                $transaction = Transaksi::create($transactionData);
+                $billing = Billing::create($billingData);
             } else {
-                $transaction = $existingTransaction;
+                $billing = $existingBilling;
             }
         } else {
-            // This is a regular tindakan - create transaction as before
-            $transactionData = [
+            // This is a single tindakan
+            $billingData = [
                 'visitation_id' => $data['visitation_id'],
-                'transaksible_id' => $data['tindakan_id'],
-                'transaksible_type' => 'App\\Models\\ERM\\Tindakan',
+                'billable_id' => $data['tindakan_id'],
+                'billable_type' => 'App\\Models\\ERM\\Tindakan',
                 'jumlah' => $tindakan->harga,
                 'keterangan' => 'Tindakan: ' . $tindakan->nama
             ];
 
             // Override with request data if provided
             if (!empty($data['jumlah'])) {
-                $transactionData['jumlah'] = $data['jumlah'];
+                $billingData['jumlah'] = $data['jumlah'];
             }
 
             if (!empty($data['keterangan'])) {
-                $transactionData['keterangan'] = $data['keterangan'];
+                $billingData['keterangan'] = $data['keterangan'];
             }
 
-            $transaction = Transaksi::create($transactionData);
+            $billing = Billing::create($billingData);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Inform consent and transaction created successfully',
+            'message' => 'Inform consent and billing created successfully',
             'informConsent' => $informConsent,
-            'transaction' => $transaction
+            'billing' => $billing
         ]);
     }
 

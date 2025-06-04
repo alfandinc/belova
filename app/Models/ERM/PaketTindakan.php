@@ -14,8 +14,8 @@ class PaketTindakan extends Model
         return $this->belongsToMany(Tindakan::class, 'erm_paket_tindakan_detail');
     }
 
-    public function transaksi()
+    public function billing()
     {
-        return $this->morphMany(Transaksi::class, 'transaksible');
+        return $this->morphMany(Billing::class, 'billable');
     }
 }

@@ -44,8 +44,8 @@ class ResepFarmasi extends Model
         return $this->belongsTo(Visitation::class, 'visitation_id');
     }
 
-    public function transaksi()
+    public function billing()
     {
-        return $this->morphOne(Transaksi::class, 'transaksible');
+        return $this->morphOne(Billing::class, 'billable');
     }
 }
