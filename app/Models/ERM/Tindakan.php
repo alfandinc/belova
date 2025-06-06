@@ -2,6 +2,7 @@
 
 namespace App\Models\ERM;
 
+use App\Models\Finance\Billing;
 use Illuminate\Database\Eloquent\Model;
 
 class Tindakan extends Model

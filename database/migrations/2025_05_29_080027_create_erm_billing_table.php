@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('erm_billing', function (Blueprint $table) {
+        Schema::create('finance_billing', function (Blueprint $table) {
             $table->id();
             $table->string('visitation_id');
             // Explicitly define the size of transaksible_id
@@ -30,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('erm_billing');
+        Schema::dropIfExists('finance_billing');
     }
 };

@@ -5,7 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
-use App\Models\ERM\Billing;
+use App\Models\Finance\Billing;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Obat;

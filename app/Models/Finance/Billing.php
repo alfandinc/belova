@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Models\ERM;
+namespace App\Models\Finance;
 
+use App\Models\ERM\Visitation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -9,7 +10,7 @@ class Billing extends Model
 {
     use HasFactory;
 
-    protected $table = 'erm_billing';
+    protected $table = 'finance_billing';
     protected $fillable = ['visitation_id', 'billable_id', 'billable_type', 'jumlah', 'keterangan'];
 
     public function billable()

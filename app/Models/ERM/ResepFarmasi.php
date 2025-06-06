@@ -2,7 +2,7 @@
 
 namespace App\Models\ERM;
 
-
+use App\Models\Finance\Billing;
 use Illuminate\Database\Eloquent\Model;
 
 class ResepFarmasi extends Model
