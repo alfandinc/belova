@@ -7,6 +7,9 @@ use App\Models\ERM\Visitation;
 use App\Models\Finance\Billing;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
+use App\Models\Finance\Invoice;
+use App\Models\Finance\InvoiceItem;
+use Illuminate\Support\Facades\DB;
 
 class BillingController extends Controller
 {
@@ -182,77 +185,81 @@ class BillingController extends Controller
         return view('finance.billing.create', compact('visitation'));
     }
 
-    // Add a new method to handle batch updates
-    public function saveBilling(Request $request)
+    public function createInvoice(Request $request)
     {
+
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
-            'edited_items' => 'required|array',
-            'deleted_items' => 'required|array',
+            'items' => 'required|array',
         ]);
 
-        // Process edited items
-        foreach ($request->edited_items as $item) {
-            if (isset($item['id'])) {
-                $billing = Billing::findOrFail($item['id']);
+        // Start a transaction
+        DB::beginTransaction();
 
-                // Calculate final amount
-                $jumlah = $item['jumlah_raw'];
-                if (!empty($item['diskon_raw']) && !empty($item['diskon_type'])) {
-                    if ($item['diskon_type'] === '%') {
-                        $jumlah -= ($item['diskon_raw'] / 100) * $jumlah;
-                    } else {
-                        $jumlah -= $item['diskon_raw'];
-                    }
+        try {
+            // Double-check the visitation exists
+            $visitation = Visitation::find($request->visitation_id);
+            if (!$visitation) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Visitation not found with ID: ' . $request->visitation_id
+                ], 404);
+            }
+
+            // Calculate totals
+            $subtotal = 0;
+            foreach ($request->items as $item) {
+                if (isset($item['deleted']) && $item['deleted']) {
+                    continue; // Skip deleted items
+                }
+                $subtotal += floatval($item['harga_akhir_raw'] ?? 0);
+            }
+
+            // Create the invoice
+            $invoice = Invoice::create([
+                'visitation_id' => $request->visitation_id,
+                'invoice_number' => Invoice::generateInvoiceNumber(),
+                'subtotal' => $subtotal,
+                'total_amount' => $subtotal, // For now, just use subtotal
+                'status' => 'issued',
+            ]);
+
+            // Create invoice items
+            foreach ($request->items as $item) {
+                if (isset($item['deleted']) && $item['deleted']) {
+                    continue; // Skip deleted items
                 }
 
-                $billing->update([
-                    'jumlah' => $jumlah,
-                    'diskon' => $item['diskon_raw'],
-                    'diskon_type' => $item['diskon_type'],
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'name' => $item['nama_item'] ?? 'Unknown Item',
+                    'description' => $item['deskripsi'] ?? '',
+                    'quantity' => intval($item['qty'] ?? 1),
+                    'unit_price' => floatval($item['jumlah_raw'] ?? 0),
+                    'discount' => floatval($item['diskon_raw'] ?? 0),
+                    'discount_type' => $item['diskon_type'] ?? null,
+                    'final_amount' => floatval($item['harga_akhir_raw'] ?? 0),
+                    'billable_type' => $item['billable_type'] ?? null,
+                    'billable_id' => $item['id'] ?? null,
                 ]);
             }
-        }
 
-        // Process deleted items
-        if (!empty($request->deleted_items)) {
-            Billing::whereIn('id', $request->deleted_items)->delete();
-        }
+            DB::commit();
 
-        return response()->json(['message' => 'Billing updated successfully']);
+            return response()->json([
+                'success' => true,
+                'message' => 'Invoice created successfully',
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create invoice: ' . $e->getMessage()
+            ], 500);
+        }
     }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'visitation_id' => 'required|exists:erm_visitations,id',
-            'billable_id' => 'required',
-            'billable_type' => 'required|string',
-            'jumlah' => 'required|numeric',
-            'diskon' => 'nullable',
-            'diskon_type' => 'nullable|string',
-            'keterangan' => 'nullable|string',
-        ]);
-
-        $jumlah = $request->jumlah;
-
-        if ($request->diskon_type === '%') {
-            $jumlah -= ($request->diskon / 100) * $jumlah;
-        } elseif ($request->diskon_type === 'nominal') {
-            $jumlah -= $request->diskon;
-        }
-
-        Billing::create([
-            'visitation_id' => $request->visitation_id,
-            'billable_id' => $request->billable_id,
-            'billable_type' => $request->billable_type,
-            'jumlah' => $jumlah,
-            'keterangan' => $request->keterangan,
-        ]);
-
-        return redirect()->back()->with('success', 'Item billing berhasil ditambahkan.');
-    }
-
     public function destroy($id)
     {
         $item = Billing::findOrFail($id);

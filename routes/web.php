@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\{
 };
 use App\Http\Controllers\Finance\{
     BillingController,
+    InvoiceController,
 };
 
 use App\Http\Controllers\ERM\{
@@ -191,6 +192,16 @@ Route::prefix('finance')->group(
         Route::get('/billing/{id}/edit', [BillingController::class, 'edit'])->name('finance.billing.edit');
         Route::put('/billing/{id}', [BillingController::class, 'update'])->name('finance.billing.update');
         Route::delete('/billing/{id}', [BillingController::class, 'destroy'])->name('finance.billing.destroy');
+
+        Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
+        Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
+
+        // Invoice routes
+        // Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('billing.createInvoice');
+        Route::get('/invoice', [InvoiceController::class, 'index'])->name('finance.invoice.index');
+        Route::get('/invoice/{id}', [InvoiceController::class, 'show'])->name('finance.invoice.show');
+        Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
+        Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
     }
 );
 

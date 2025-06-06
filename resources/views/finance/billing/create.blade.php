@@ -315,24 +315,37 @@
         // Create invoice button
         $('#createInvoiceBtn').on('click', function() {
             if (confirm('Buat invoice dari billing ini?')) {
-                const invoiceData = {
-                    visitation_id: {{ $visitation->id }},
-                    items: billingData.filter(item => !item.deleted)
-                };
+                const items = billingData.filter(item => !item.deleted);
+                
+                if (items.length === 0) {
+                    alert('Tidak ada item billing yang valid!');
+                    return;
+                }
+                
+                // Extract visitation_id from the first item
+                // This ensures we use the correct ID that exists in the database
+                const correctVisitationId = items[0].visitation_id;
+                console.log('Using visitation_id from items:', correctVisitationId);
                 
                 $.ajax({
                     url: "{{ route('finance.billing.createInvoice') }}",
                     type: "POST",
-                    data: invoiceData,
-                    headers: {
-                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        visitation_id: correctVisitationId,
+                        items: items
                     },
                     success: function(response) {
-                        alert('Invoice berhasil dibuat');
-                        // Redirect to invoice page or show success message
+                        alert('Invoice berhasil dibuat dengan nomor: ' + response.invoice_number);
                     },
                     error: function(xhr) {
-                        alert('Terjadi kesalahan: ' + xhr.responseText);
+                        console.log('Error response:', xhr.responseText);
+                        try {
+                            const errorObj = JSON.parse(xhr.responseText);
+                            alert('Terjadi kesalahan: ' + (errorObj.message || xhr.responseText));
+                        } catch (e) {
+                            alert('Terjadi kesalahan dalam pembuatan invoice');
+                        }
                     }
                 });
             }
