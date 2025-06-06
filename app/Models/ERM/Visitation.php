@@ -63,4 +63,9 @@ class Visitation extends Model
     {
         return $this->hasMany(ResepFarmasi::class);
     }
+
+    public function klinik()
+    {
+        return $this->belongsTo(Klinik::class, 'klinik_id');
+    }
 }

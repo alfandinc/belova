@@ -14,6 +14,9 @@ use App\Http\Controllers\Admin\{
     UserController,
     RoleController
 };
+use App\Http\Controllers\Finance\{
+    BillingController,
+};
 
 use App\Http\Controllers\ERM\{
     PasienController,
@@ -172,9 +175,24 @@ Route::prefix('erm')->group(function () {
 
     Route::get('/surat-istirahat/{id}', [SuratIstirahatController::class, 'suratIstirahat'])->name('surat.istirahat');
 
-    //Submit Billing
+    //Submit Billing Obat
     Route::post('/resepfarmasi/submit', [EResepController::class, 'submitResep'])->name('resepfarmasi.submit');
 });
+
+Route::prefix('finance')->group(
+    function () {
+        Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
+        Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
+        Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
+        Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
+
+
+        Route::post('/billing', [BillingController::class, 'store'])->name('finance.billing.store');
+        Route::get('/billing/{id}/edit', [BillingController::class, 'edit'])->name('finance.billing.edit');
+        Route::put('/billing/{id}', [BillingController::class, 'update'])->name('finance.billing.update');
+        Route::delete('/billing/{id}', [BillingController::class, 'destroy'])->name('finance.billing.destroy');
+    }
+);
 
 Route::prefix('inventory')->group(
     function () {
