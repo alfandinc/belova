@@ -1,53 +1,137 @@
-@extends('layouts.hrd.app')
-@section('title', 'Dashboard | HRD Belova')
+@extends('layouts.finance.app')
+@section('title', 'Dashboard | Finance Belova')
 @section('navbar')
-    @include('layouts.hrd.navbar')
-@endsection  
+    @include('layouts.finance.navbar')
+@endsection        
 @section('content')
-<div class="container">
-    <h2>Welcome to HRD Dashboard</h2>
-
-    {{-- Navigation Bar --}}
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">HRD System</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-
-                    {{-- If user is Dokter (can access all menus) --}}
-                    @if(auth()->user()->hasRole('dokter'))
-                        <li class="nav-item"><a class="nav-link" href="#">Patient Management</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#">Medical Records</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#">Appointments</a></li>
-
-                    {{-- If user is Perawat (can access only 2 menus) --}}
-                    @elseif(auth()->user()->hasRole('perawat'))
-                        <li class="nav-item"><a class="nav-link" href="#">Patient Management</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#">Medical Records</a></li>
-
-                    {{-- If user is Pendaftaran (can access only 1 menu) --}}
-                    @elseif(auth()->user()->hasRole('pendaftaran'))
-                        <li class="nav-item"><a class="nav-link" href="#">Appointments</a></li>
-                    @endif
-
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    {{-- Dashboard Content --}}
-    <div class="mt-4">
-        <p>Hello, {{ auth()->user()->name }}! You are logged in as <strong>{{ auth()->user()->getRoleNames()->first() }}</strong>.</p>
-    </div>
-
-    {{-- Logout Button --}}
-    <form action="{{ route('logout') }}" method="POST">
-        @csrf
-        <button type="submit" class="btn btn-danger">Logout</button>
-    </form>
-</div>
+            <!-- Page Content-->           
+                <div class="container-fluid">
+                    <!-- Page-Title -->
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <div class="page-title-box">
+                                <div class="row">
+                                    <div class="col">
+                                        {{-- <h4 class="page-title">Selamat Datang, {{ auth()->user()->name }}! You are logged in as <strong>{{ auth()->user()->getRoleNames()->first() }}</strong>.</h4> --}}
+                                        <h4>Selamat Datang di Finance <strong>{{ auth()->user()->getRoleNames()->first() }}</strong>, {{ auth()->user()->name }}!</h4>
+                                        <ol class="breadcrumb">
+                                            <li class="breadcrumb-item"><a href="javascript:void(0);">Finance</a></li>
+                                            <li class="breadcrumb-item active">Dashboard</li>
+                                        </ol>
+                                    </div><!--end col-->
+                                    <div class="col-auto align-self-center">
+                                        <a href="#" class="btn btn-sm btn-outline-primary" id="Dash_Date">
+                                            <span class="ay-name" id="Day_Name">Today:</span>&nbsp;
+                                            <span class="" id="Select_date">Jan 11</span>
+                                            <i data-feather="calendar" class="align-self-center icon-xs ml-1"></i>
+                                        </a>
+                                        <a href="#" class="btn btn-sm btn-outline-primary">
+                                            <i data-feather="download" class="align-self-center icon-xs"></i>
+                                        </a>
+                                    </div><!--end col-->  
+                                </div><!--end row-->                                                              
+                            </div><!--end page-title-box-->
+                        </div><!--end col-->
+                    </div><!--end row-->
+                    <!-- end page title end breadcrumb -->
+                    <div class="row">
+                        <div class="col-lg-9">
+                            <div class="row justify-content-center">
+                                
+                              
+                            </div><!--end row-->
+                            <div class="card">
+                                <div class="card-header">
+                                    <div class="row align-items-center">
+                                        <div class="col">                      
+                                            <h4 class="card-title">Grafik Kedatangan Pasien</h4>                      
+                                        </div><!--end col-->
+                                        <div class="col-auto"> 
+                                            <div class="dropdown">
+                                                <a href="#" class="btn btn-sm btn-outline-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                   This Year<i class="las la-angle-down ml-1"></i>
+                                                </a>
+                                                <div class="dropdown-menu dropdown-menu-right">
+                                                    <a class="dropdown-item" href="#">Today</a>
+                                                    <a class="dropdown-item" href="#">Last Week</a>
+                                                    <a class="dropdown-item" href="#">Last Month</a>
+                                                    <a class="dropdown-item" href="#">This Year</a>
+                                                </div>
+                                            </div>               
+                                        </div><!--end col-->
+                                    </div>  <!--end row-->                                  
+                                </div><!--end card-header-->
+                                <div class="card-body">
+                                    <div class="">
+                                        <div id="ana_dash_1" class="apex-charts"></div>
+                                    </div> 
+                                </div><!--end card-body--> 
+                            </div><!--end card--> 
+                        </div><!--end col-->
+                        <div class="col-lg-3">
+                            <div class="card">
+                                <div class="card-header">
+                                    <div class="row align-items-center">
+                                        <div class="col">                      
+                                            <h4 class="card-title">Mapping Pasien</h4>                      
+                                        </div><!--end col-->
+                                        <div class="col-auto"> 
+                                            <div class="dropdown">
+                                                <a href="#" class="btn btn-sm btn-outline-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                   All<i class="las la-angle-down ml-1"></i>
+                                                </a>
+                                                <div class="dropdown-menu dropdown-menu-right">
+                                                    <a class="dropdown-item" href="#">Purchases</a>
+                                                    <a class="dropdown-item" href="#">Emails</a>
+                                                </div>
+                                            </div>         
+                                        </div><!--end col-->
+                                    </div>  <!--end row-->                                  
+                                </div><!--end card-header-->
+                                <div class="card-body">
+                                    <div class="text-center">
+                                        <div id="ana_device" class="apex-charts"></div>
+                                        <h6 class="bg-light-alt py-3 px-2 mb-0">
+                                            <i data-feather="calendar" class="align-self-center icon-xs mr-1"></i>
+                                            01 January 2020 to 31 December 2020
+                                        </h6>
+                                    </div>  
+                                    <div class="table-responsive mt-2">
+                                        <table class="table border-dashed mb-0">
+                                            <thead>
+                                            <tr>
+                                                <th>Device</th>
+                                                <th class="text-right">Sassions</th>
+                                                <th class="text-right">Day</th>
+                                                <th class="text-right">Week</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                            <tr>
+                                                <td>Dasktops</td>
+                                                <td class="text-right">1843</td>
+                                                <td class="text-right">-3</td>
+                                                <td class="text-right">-12</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Tablets</td>
+                                                <td class="text-right">2543</td>
+                                                <td class="text-right">-5</td>
+                                                <td class="text-right">-2</td>                                                 
+                                            </tr>
+                                            <tr>
+                                                <td>Mobiles</td>
+                                                <td class="text-right">3654</td>
+                                                <td class="text-right">-5</td>
+                                                <td class="text-right">-6</td>
+                                            </tr>
+                                            
+                                            </tbody>
+                                        </table><!--end /table-->
+                                    </div><!--end /div-->                                 
+                                </div><!--end card-body--> 
+                            </div><!--end card--> 
+                        </div> <!--end col--> 
+                    </div><!--end row-->
+                </div><!-- container -->
 @endsection
