@@ -29,17 +29,18 @@
                             <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                         </a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/billing"><i class="ti-control-record"></i>Billing</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/finance/billing"><i class="ti-control-record"></i>Billing</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/finance/invoice"><i class="ti-control-record"></i>Invoice</a></li>
                         </ul>
                     </li>
                     <li>
                         <a href="javascript: void(0);">
                             <i class="fas fa-file-invoice-dollar align-self-center menu-icon"></i>
-                            <span>keuangan</span>
+                            <span>Keuangan</span>
                             <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                         </a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/laporankeuangan"><i class="ti-control-record"></i>Laporan Keuangan</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/finance/laporankeuangan"><i class="ti-control-record"></i>Laporan Keuangan</a></li>
                         </ul>
                     </li>
                 </ul>              

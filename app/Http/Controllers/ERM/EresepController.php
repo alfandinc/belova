@@ -294,7 +294,7 @@ class EresepController extends Controller
                 'dosis'          => $resep->dosis,
                 'dokter_id'      => optional($resep->visitation)->dokter_id,
                 'harga'          => $harga,
-                'total'          => $resep->jumlah * $harga,
+                // 'total'          => $resep->jumlah * $harga,
             ]);
         }
 
@@ -418,14 +418,14 @@ class EresepController extends Controller
         $resep = ResepFarmasi::findOrFail($id);
 
         // Retrieve the existing total value
-        $existingTotal = $resep->total;
+        $existingTotal = $resep->harga;
 
         // Calculate the new total after applying the discount
         $diskon = $data['diskon'] ?? 0; // Default diskon to 0 if not provided
         $newTotal = $existingTotal * (1 - $diskon / 100);
 
         // Update the prescription with the calculated total and other fields
-        $resep->update(array_merge($data, ['total' => $newTotal]));
+        $resep->update(array_merge($data, ['harga' => $newTotal]));
 
         return response()->json([
             'success' => true,
@@ -451,7 +451,7 @@ class EresepController extends Controller
                 ],
                 [
                     'visitation_id' => $resep->visitation_id,
-                    'jumlah' => $resep->total,
+                    'jumlah' => $resep->harga,
                     'keterangan' => 'Obat: ' . ($resep->obat->nama ?? 'Tanpa Nama'),
                 ]
             );

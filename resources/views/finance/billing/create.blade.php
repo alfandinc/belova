@@ -95,20 +95,48 @@
                 url: "{{ route('finance.billing.create', $visitation->id) }}",
                 type: "GET",
                 dataSrc: function(json) {
-                    // Calculate harga_akhir for each item initially
-                    json.data.forEach(function(item) {
-                        // Add harga_akhir initial value (same as jumlah initially)
-                        item.harga_akhir_raw = item.jumlah_raw;
-                        item.harga_akhir = item.jumlah;
-                    });
+            // Store the initial data
+            if (!billingData.length) {
+                billingData = json.data;
+            } else {
+                // Merge new data with our existing data that has deletion flags
+                json.data = json.data.map(function(item) {
+                    // Find matching item in our existing data
+                    const existingItem = billingData.find(i => i.id === item.id);
                     
-                    // Store the initial data
-                    billingData = json.data;
-                    return json.data;
-                }
+                    // If it exists and is marked as deleted, keep deleted flag
+                    if (existingItem && existingItem.deleted) {
+                        item.deleted = true;
+                    }
+                    
+                    // Preserve raw values for harga_akhir
+                    if (!item.harga_akhir_raw) {
+                        const rawValue = parseFloat(item.harga_akhir.replace(/[^\d]/g, ''));
+                        item.harga_akhir_raw = rawValue || item.jumlah_raw * (item.qty || 1);
+                    }
+                    
+                    return item;
+                });
+                
+                // Update our billingData 
+                billingData = json.data;
+            }
+            
+            // Filter out deleted items from display
+            return json.data.filter(item => !item.deleted);
+        }
             },
             columns: [
-                { data: 'DT_RowIndex', name: 'DT_RowIndex' },
+                { 
+            title: 'No', 
+            data: null, 
+            orderable: false,
+            searchable: false,
+            render: function (data, type, row, meta) {
+                // Use the row index from the current page for numbering
+                return meta.row + meta.settings._iDisplayStart + 1;
+            }
+        },
                 { data: 'nama_item', name: 'nama_item' },
                 { data: 'deskripsi', name: 'deskripsi' },
                 { data: 'jumlah', name: 'jumlah' },
@@ -168,18 +196,35 @@
                 $('#editModal').modal('show');
             });
             
-            // Delete button handler
+           // Delete button handler
             $('.delete-btn').off('click').on('click', function() {
                 const id = $(this).data('id');
                 const rowIndex = $(this).data('row-index');
                 
                 if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
-                    // Mark as deleted but keep in array
-                    billingData[rowIndex].deleted = true;
-                    deletedItems.push(id);
-                    
-                    // Remove from view
-                    table.row($(this).closest('tr')).remove().draw();
+                    try {
+                        console.log('Deleting row with index:', rowIndex, 'ID:', id);
+                        
+                        // Mark as deleted but keep in array
+                        billingData[rowIndex].deleted = true;
+                        deletedItems.push(id);
+                        
+                        // Get the row element
+                        const tr = $(this).closest('tr');
+                        
+                        // Remove and redraw
+                        table.row(tr).remove().draw(false);
+                        
+                        // Fix for handling DataTables DOM refresh if the above doesn't work
+                        if (tr.length > 0 && tr.is(':visible')) {
+                            tr.addClass('d-none');
+                        }
+                        
+                        console.log('Item deleted successfully');
+                    } catch(e) {
+                        console.error('Error deleting row:', e);
+                        alert('Terjadi kesalahan saat menghapus item: ' + e.message);
+                    }
                 }
             });
         }
@@ -225,9 +270,10 @@
                     }
                 }
                 
-                // Update harga_akhir
-                billingData[rowIndex].harga_akhir_raw = finalJumlah;
-                billingData[rowIndex].harga_akhir = 'Rp ' + numberWithCommas(finalJumlah);
+                // Update harga_akhir - multiply by quantity
+                const qty = billingData[rowIndex].qty || 1;
+                billingData[rowIndex].harga_akhir_raw = finalJumlah * qty;
+                billingData[rowIndex].harga_akhir = 'Rp ' + numberWithCommas(finalJumlah * qty);
                 
                 // Mark as edited
                 billingData[rowIndex].edited = true;

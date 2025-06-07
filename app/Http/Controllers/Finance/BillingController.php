@@ -106,9 +106,9 @@ class BillingController extends Controller
                 })
                 ->addColumn('harga_akhir', function ($row) {
                     // Initially, harga_akhir is the same as jumlah
-                    // This will be modified on the client side when discounts are applied
                     if (isset($row->is_racikan) && $row->is_racikan) {
-                        return 'Rp ' . number_format($row->racikan_total_price, 0, ',', '.');
+                        // For racikan, multiply by racikan_bungkus
+                        return 'Rp ' . number_format($row->racikan_total_price * $row->racikan_bungkus, 0, ',', '.');
                     }
 
                     // Calculate the final price after discount
@@ -121,7 +121,12 @@ class BillingController extends Controller
                         }
                     }
 
-                    return 'Rp ' . number_format($finalPrice, 0, ',', '.');
+                    // Multiply by quantity
+                    $qty = $row->billable_type == 'App\Models\ERM\ResepFarmasi'
+                        ? ($row->billable->jumlah ?? 1)
+                        : ($row->billable->qty ?? 1);
+
+                    return 'Rp ' . number_format($finalPrice * $qty, 0, ',', '.');
                 })
                 ->addColumn('qty', function ($row) {
                     if (isset($row->is_racikan) && $row->is_racikan) {
