@@ -20,6 +20,9 @@ class CreateFinanceInvoicesTable extends Migration
             $table->timestamp('payment_date')->nullable();
             $table->text('notes')->nullable();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->enum('discount_type', ['%', 'nominal'])->nullable();
+            $table->decimal('discount_value', 12, 2)->default(0);
+            $table->decimal('tax_percentage', 5, 2)->default(0);
             $table->timestamps();
 
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('cascade');

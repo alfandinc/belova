@@ -18,6 +18,9 @@ return new class extends Migration
             $table->string('billable_type'); // Default size is fine for type
             $table->decimal('jumlah', 15, 2); // harga satuan atau total item
             $table->text('keterangan')->nullable();
+            $table->decimal('diskon', 12, 2)->default(0);
+            $table->enum('diskon_type', ['%', 'nominal'])->nullable();
+            $table->integer('qty')->default(1);
             $table->timestamps();
 
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('cascade');

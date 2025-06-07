@@ -67,7 +67,7 @@
                                 <tr>
                                     <th style="width: 5%">No.</th>
                                     <th style="width: 20%">Nama Item</th>
-                                    <th style="width: 20%">Deskripsi</th>
+                                    <th style="width: 20%">Rincian Item</th>
                                     <th style="width: 10%">Harga</th>
                                     <th style="width: 5%">Qty</th>
                                     <th style="width: 10%">Diskon</th>
@@ -515,69 +515,72 @@
         });
         
         // Save all changes button
-        $('#saveAllChangesBtn').on('click', function() {
-            if (confirm('Simpan semua perubahan billing?')) {
-                const changedData = {
-                    visitation_id: {{ $visitation->id }},
-                    edited_items: billingData.filter(item => item.edited),
-                    deleted_items: deletedItems,
-                    totals: window.billingTotals
-                };
-                
-                $.ajax({
-                    url: "{{ route('finance.billing.save') }}",
-                    type: "POST",
-                    data: changedData,
-                    headers: {
-                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                    },
-                    success: function(response) {
-                        alert('Data billing berhasil disimpan');
-                    },
-                    error: function(xhr) {
-                        alert('Terjadi kesalahan: ' + xhr.responseText);
-                    }
-                });
+$('#saveAllChangesBtn').on('click', function() {
+    if (confirm('Simpan semua perubahan billing?')) {
+        // Force the visitation ID to be treated as a string
+        const correctVisitationId = "{{ $visitation->id }}";
+        
+        console.log('Visitation ID being sent:', correctVisitationId);
+        console.log('Type of visitation ID:', typeof correctVisitationId);
+        
+        $.ajax({
+            url: "{{ route('finance.billing.save') }}",
+            type: "POST",
+            data: {
+                _token: "{{ csrf_token() }}",
+                visitation_id: correctVisitationId, // This will now be sent as a string
+                edited_items: billingData.filter(item => item.edited),
+                deleted_items: deletedItems,
+                totals: window.billingTotals
+            },
+            success: function(response) {
+                alert('Data billing berhasil disimpan');
+            },
+            error: function(xhr) {
+                alert('Terjadi kesalahan: ' + xhr.responseText);
+                console.error('Error details:', xhr.responseText);
             }
         });
+    }
+});
         
         // Create invoice button
         $('#createInvoiceBtn').on('click', function() {
-            if (confirm('Buat invoice dari billing ini?')) {
-                const items = billingData.filter(item => !item.deleted);
-                
-                if (items.length === 0) {
-                    alert('Tidak ada item billing yang valid!');
-                    return;
+    if (confirm('Buat invoice dari billing ini?')) {
+        const items = billingData.filter(item => !item.deleted);
+        
+        if (items.length === 0) {
+            alert('Tidak ada item billing yang valid!');
+            return;
+        }
+        
+        // Force the visitation ID to be treated as a string, just like in saveAllChangesBtn
+        const correctVisitationId = "{{ $visitation->id }}";
+        
+        $.ajax({
+            url: "{{ route('finance.billing.createInvoice') }}",
+            type: "POST",
+            data: {
+                _token: "{{ csrf_token() }}",
+                visitation_id: correctVisitationId,
+                items: items,
+                totals: window.billingTotals
+            },
+            success: function(response) {
+                alert('Invoice berhasil dibuat dengan nomor: ' + response.invoice_number);
+            },
+            error: function(xhr) {
+                console.log('Error response:', xhr.responseText);
+                try {
+                    const errorObj = JSON.parse(xhr.responseText);
+                    alert('Terjadi kesalahan: ' + (errorObj.message || xhr.responseText));
+                } catch (e) {
+                    alert('Terjadi kesalahan dalam pembuatan invoice');
                 }
-                
-                // Extract visitation_id from the first item
-                const correctVisitationId = {{ $visitation->id }};
-                
-                $.ajax({
-                    url: "{{ route('finance.billing.createInvoice') }}",
-                    type: "POST",
-                    data: {
-                        _token: "{{ csrf_token() }}",
-                        visitation_id: correctVisitationId,
-                        items: items,
-                        totals: window.billingTotals
-                    },
-                    success: function(response) {
-                        alert('Invoice berhasil dibuat dengan nomor: ' + response.invoice_number);
-                    },
-                    error: function(xhr) {
-                        console.log('Error response:', xhr.responseText);
-                        try {
-                            const errorObj = JSON.parse(xhr.responseText);
-                            alert('Terjadi kesalahan: ' + (errorObj.message || xhr.responseText));
-                        } catch (e) {
-                            alert('Terjadi kesalahan dalam pembuatan invoice');
-                        }
-                    }
-                });
             }
         });
+    }
+});
         
         // Initial calculation of totals
         calculateTotals();

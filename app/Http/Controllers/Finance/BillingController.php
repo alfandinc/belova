@@ -172,9 +172,9 @@ class BillingController extends Controller
                         return implode("<br>", $formattedList);
                     } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
                         $deskripsi = [];
-                        if ($row->billable->aturan_pakai) {
-                            $deskripsi[] = "Aturan: " . $row->billable->aturan_pakai;
-                        }
+                        // if ($row->billable->aturan_pakai) {
+                        //     $deskripsi[] = "Aturan: " . $row->billable->aturan_pakai;
+                        // }
                         if ($row->billable->keterangan) {
                             $deskripsi[] = $row->billable->keterangan;
                         }
@@ -224,12 +224,14 @@ class BillingController extends Controller
                 'invoice_number' => Invoice::generateInvoiceNumber(),
                 'subtotal' => $subtotal,
                 'discount' => $discountAmount,
+                'tax' => $taxAmount, // Changed from tax_amount to tax to match migration
                 'discount_type' => $totals['discountType'] ?? null,
                 'discount_value' => $totals['discountValue'] ?? 0,
                 'tax_percentage' => $totals['taxPercentage'] ?? 0,
-                'tax_amount' => $taxAmount,
                 'total_amount' => $grandTotal,
                 'status' => 'issued',
+                'user_id' => auth()->id(), // Add the current authenticated user ID
+                'notes' => $request->notes ?? null, // Add notes if available
             ]);
 
             // Create invoice items
@@ -268,6 +270,50 @@ class BillingController extends Controller
             ], 500);
         }
     }
+
+    public function saveBilling(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'edited_items' => 'nullable|array',
+            'deleted_items' => 'nullable|array',
+            'totals' => 'nullable|array',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            // Process deleted items
+            if (!empty($request->deleted_items)) {
+                Billing::whereIn('id', $request->deleted_items)->delete();
+            }
+
+            // Process edited items
+            if (!empty($request->edited_items)) {
+                foreach ($request->edited_items as $item) {
+                    // Skip deleted items that may have been edited before deletion
+                    if (in_array($item['id'], $request->deleted_items ?? [])) {
+                        continue;
+                    }
+
+                    $billing = Billing::find($item['id']);
+                    if ($billing) {
+                        // Update only specific fields that can be edited
+                        $billing->jumlah = $item['jumlah_raw'] ?? $billing->jumlah;
+                        $billing->diskon = $item['diskon_raw'] ?? null;
+                        $billing->diskon_type = $item['diskon_type'] ?? null;
+                        $billing->save();
+                    }
+                }
+            }
+
+            DB::commit();
+            return response()->json(['success' => true, 'message' => 'Data billing berhasil disimpan']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function destroy($id)
     {
         $item = Billing::findOrFail($id);
