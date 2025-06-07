@@ -4,78 +4,139 @@
     @include('layouts.finance.navbar')
 @endsection
 @section('content')
-<!-- Modal for Editing -->
-<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <form id="editForm">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="editResepModalLabel">Edit Resep</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+
+@include('finance.partials.modal-billing-edititem')
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card shadow-sm mt-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-user-circle mr-2"></i>Data Pasien
+                    </h5>
                 </div>
-                <div class="modal-body">
-                    <input type="hidden" id="edit_id">
-                    <input type="hidden" id="edit_row_index">
-                    <div class="mb-3">
-                        <label for="jumlah" class="form-label">Jumlah (Harga)</label>
-                        <input type="number" class="form-control" id="jumlah" name="jumlah" required>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td width="120"><strong>Nama</strong></td>
+                                    <td>: {{ $visitation->pasien->nama }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>ID Pasien</strong></td>
+                                    <td>: {{ $visitation->pasien->id }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Alamat</strong></td>
+                                    <td>: {{ $visitation->pasien->alamat }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm table-borderless">
+                                <tr>
+                                    <td width="120"><strong>Jenis Kelamin</strong></td>
+                                    <td>: {{ $visitation->pasien->gender }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Tanggal Lahir</strong></td>
+                                    <td>: {{ $visitation->pasien->tanggal_lahir }}</td>
+                                </tr>
+                            </table>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="diskon" class="form-label">Diskon</label>
-                        <input type="number" class="form-control" id="diskon" name="diskon">
-                    </div>
-                    <div class="mb-3">
-                        <label for="diskon_type" class="form-label">Tipe Diskon</label>
-                        <select class="form-select" id="diskon_type" name="diskon_type">
-                            <option value="">Tidak Ada</option>
-                            <option value="%">Persentase (%)</option>
-                            <option value="nominal">Nominal (Rp)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="button" id="saveChangesBtn" class="btn btn-primary">Simpan Perubahan</button>
                 </div>
             </div>
-        </form>
-    </div>
-</div>
-
-<div class="container">
-    <h3>Billing Pasien</h3>
-    <div class="card mb-3">
-        <div class="card-body">
-            <strong>Nama:</strong> {{ $visitation->pasien->nama }}<br>
-            <strong>ID:</strong> {{ $visitation->pasien->id }}<br>
-            <strong>Jenis Kelamin:</strong> {{ $visitation->pasien->jenis_kelamin }}<br>
-            <strong>Tanggal Lahir:</strong> {{ $visitation->pasien->tanggal_lahir }}<br>
-            <strong>Alamat:</strong> {{ $visitation->pasien->alamat }}
         </div>
     </div>
 
-    <h4>Rincian Billing</h4>
-    <div class="table-responsive">
-        <table id="billingTable" class="table">
-            <thead>
-                <tr>
-                    <th>No.</th>
-                    <th>Nama Item</th>
-                    <th>Deskripsi</th>
-                    <th>Jumlah (Harga)</th>
-                    <th>Qty</th>
-                    <th>Diskon</th>
-                    <th>Harga Akhir</th>
-                    <th>Aksi</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
-    </div>
-    
-    <div class="mt-4">
-        <button id="saveAllChangesBtn" class="btn btn-success">Simpan Billing</button>
-        <button id="createInvoiceBtn" class="btn btn-primary">Buat Invoice</button>
+    <div class="row">
+        <div class="col-md-9">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-file-invoice-dollar mr-2"></i>Rincian Billing
+                    </h5>
+                </div>
+                <div class="card-body px-4 py-3">
+                    <div class="table-responsive">
+                        <table id="billingTable" class="table table-hover">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th style="width: 5%">No.</th>
+                                    <th style="width: 20%">Nama Item</th>
+                                    <th style="width: 20%">Deskripsi</th>
+                                    <th style="width: 10%">Harga</th>
+                                    <th style="width: 5%">Qty</th>
+                                    <th style="width: 10%">Diskon</th>
+                                    <th style="width: 10%">Total</th>
+                                    <th style="width: 10%">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-calculator mr-2"></i>Total Pembayaran
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <span>Subtotal:</span>
+                        <span id="subtotal" class="font-weight-bold">Rp 0</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="global_discount">Diskon Global</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="global_discount" min="0" value="0">
+                            <div class="input-group-append">
+                                <select class="form-control" id="global_discount_type">
+                                    <option value="%">%</option>
+                                    <option value="nominal">Rp</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="text-right mt-1">
+                            <small id="global_discount_amount" class="text-muted">- Rp 0</small>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tax_percentage">Pajak (%)</label>
+                        <input type="number" class="form-control" id="tax_percentage" min="0" value="0">
+                        <div class="text-right mt-1">
+                            <small id="tax_amount" class="text-muted">+ Rp 0</small>
+                        </div>
+                    </div>
+                    
+                    <div class="border-top pt-3 mt-3">
+                        <div class="d-flex justify-content-between">
+                            <h5>Total:</h5>
+                            <h5 id="grand_total" class="text-primary font-weight-bold">Rp 0</h5>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button id="createInvoiceBtn" class="btn btn-primary btn-block">
+                            <i class="fas fa-file-invoice mr-1"></i> Buat Invoice
+                        </button>
+                        <button id="saveAllChangesBtn" class="btn btn-outline-secondary btn-block mt-2">
+                            <i class="fas fa-save mr-1"></i> Simpan Billing
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
@@ -83,6 +144,7 @@
 @section('scripts')
 <script>
     $(document).ready(function() {
+        $('.select2').select2({ width: '100%' });
         // Store all billing data (with changes) here
         let billingData = [];
         let deletedItems = [];
@@ -91,147 +153,205 @@
         const table = $('#billingTable').DataTable({
             processing: true,
             serverSide: true,
+            responsive: false, // Turn off responsive to avoid column collapsing
+            scrollX: false,    // Disable horizontal scrolling
+            autoWidth: false,  // Don't automatically calculate column widths
+            paging: true,
+            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Semua"]],
+            stripeClasses: ['odd', 'even'], // Add zebra-striping
             ajax: {
                 url: "{{ route('finance.billing.create', $visitation->id) }}",
                 type: "GET",
                 dataSrc: function(json) {
-            // Store the initial data
-            if (!billingData.length) {
-                billingData = json.data;
-            } else {
-                // Merge new data with our existing data that has deletion flags
-                json.data = json.data.map(function(item) {
-                    // Find matching item in our existing data
-                    const existingItem = billingData.find(i => i.id === item.id);
-                    
-                    // If it exists and is marked as deleted, keep deleted flag
-                    if (existingItem && existingItem.deleted) {
-                        item.deleted = true;
+                    // Store the initial data
+                    if (!billingData.length) {
+                        // Process each item to ensure it has proper raw values
+                        json.data = json.data.map(function(item) {
+                            // Extract raw numeric values from formatted strings
+                            if (!item.harga_akhir_raw) {
+                                // Remove currency symbol and dot separators, then parse
+                                const hargaString = item.harga_akhir.replace(/Rp\s?/g, '').replace(/\./g, '');
+                                item.harga_akhir_raw = parseInt(hargaString) || 0;
+                                
+                                // Also ensure other raw values are set
+                                if (!item.jumlah_raw) {
+                                    const jumlahString = item.jumlah.replace(/Rp\s?/g, '').replace(/\./g, '');
+                                    item.jumlah_raw = parseInt(jumlahString) || 0;
+                                }
+                            }
+                            return item;
+                        });
+                        
+                        billingData = json.data;
+                    } else {
+                        // Merge new data with existing data that has deletion flags
+                        json.data = json.data.map(function(item) {
+                            // Find matching item in our existing data
+                            const existingItem = billingData.find(i => i.id === item.id);
+                            
+                            // If it exists and is marked as deleted, keep deleted flag
+                            if (existingItem && existingItem.deleted) {
+                                item.deleted = true;
+                            }
+                            
+                            // If it exists and has edited values, keep those values
+                            if (existingItem && existingItem.edited) {
+                                item.jumlah_raw = existingItem.jumlah_raw;
+                                item.diskon_raw = existingItem.diskon_raw;
+                                item.diskon_type = existingItem.diskon_type;
+                                item.harga_akhir_raw = existingItem.harga_akhir_raw;
+                                item.jumlah = existingItem.jumlah;
+                                item.diskon = existingItem.diskon;
+                                item.harga_akhir = existingItem.harga_akhir;
+                                item.edited = true;
+                            } else if (!item.harga_akhir_raw) {
+                                // Extract raw numeric values for new or unchanged items
+                                const hargaString = item.harga_akhir.replace(/Rp\s?/g, '').replace(/\./g, '');
+                                item.harga_akhir_raw = parseInt(hargaString) || 0;
+                                
+                                if (!item.jumlah_raw) {
+                                    const jumlahString = item.jumlah.replace(/Rp\s?/g, '').replace(/\./g, '');
+                                    item.jumlah_raw = parseInt(jumlahString) || 0;
+                                }
+                            }
+                            
+                            return item;
+                        });
+                        
+                        // Update our billingData 
+                        billingData = json.data;
                     }
                     
-                    // Preserve raw values for harga_akhir
-                    if (!item.harga_akhir_raw) {
-                        const rawValue = parseFloat(item.harga_akhir.replace(/[^\d]/g, ''));
-                        item.harga_akhir_raw = rawValue || item.jumlah_raw * (item.qty || 1);
-                    }
+                    // Filter out deleted items from display
+                    const visibleData = json.data.filter(item => !item.deleted);
                     
-                    return item;
-                });
-                
-                // Update our billingData 
-                billingData = json.data;
-            }
-            
-            // Filter out deleted items from display
-            return json.data.filter(item => !item.deleted);
-        }
+                    // Calculate totals after data is loaded
+                    calculateTotals();
+                    
+                    return visibleData;
+                }
             },
             columns: [
                 { 
-            title: 'No', 
-            data: null, 
-            orderable: false,
-            searchable: false,
-            render: function (data, type, row, meta) {
-                // Use the row index from the current page for numbering
-                return meta.row + meta.settings._iDisplayStart + 1;
-            }
-        },
-                { data: 'nama_item', name: 'nama_item' },
-                { data: 'deskripsi', name: 'deskripsi' },
-                { data: 'jumlah', name: 'jumlah' },
-                { data: 'qty', name: 'qty' },
-                { data: 'diskon', name: 'diskon' },
-                { data: 'harga_akhir', name: 'harga_akhir' },
-                { 
                     data: null, 
+                    orderable: false,
+                    searchable: false,
+                    width: "5%",
+                    render: function (data, type, row, meta) {
+                        return meta.row + meta.settings._iDisplayStart + 1;
+                    }
+                },
+                { data: 'nama_item', name: 'nama_item', width: "20%" },
+                { data: 'deskripsi', name: 'deskripsi', width: "20%" },
+                { data: 'jumlah', name: 'jumlah', width: "10%" },
+                { data: 'qty', name: 'qty', width: "5%" },
+                { data: 'diskon', name: 'diskon', width: "10%" },
+                { data: 'harga_akhir', name: 'harga_akhir', width: "10%" },
+                { 
+                    data: null,
+                    width: "10%",
+                    className: 'text-center',
+                    orderable: false,
+                    searchable: false,
                     render: function(data, type, row, meta) {
                         return `
-                            <button class="btn btn-sm btn-primary edit-btn me-1" 
-                                data-id="${row.id}" 
-                                data-row-index="${meta.row}"
-                                data-jumlah="${row.is_racikan ? row.racikan_total_price : row.jumlah_raw}" 
-                                data-diskon="${row.diskon_raw || ''}" 
-                                data-diskon_type="${row.diskon_type || ''}">
-                                Edit
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-btn"
-                                data-id="${row.id}"
-                                data-row-index="${meta.row}">
-                                Hapus
-                            </button>
+                            <div class="d-flex justify-content-center">
+                                <button class="btn btn-sm btn-outline-primary mr-1 edit-btn" 
+                                    data-id="${row.id}" 
+                                    data-row-index="${meta.row}"
+                                    data-jumlah="${row.is_racikan ? row.racikan_total_price : row.jumlah_raw}" 
+                                    data-diskon="${row.diskon_raw || ''}" 
+                                    data-diskon_type="${row.diskon_type || ''}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-id="${row.id}"
+                                    data-row-index="${meta.row}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
                         `;
-                    },
-                    orderable: false, 
-                    searchable: false 
+                    }
                 }
             ],
-            "language": {
-                "emptyTable": "Tidak ada data billing tersedia untuk kunjungan ini"
+            columnDefs: [
+                { width: "5%", targets: 0 },
+                { width: "20%", targets: 1 },
+                { width: "20%", targets: 2 },
+                { width: "10%", targets: 3, className: 'text-right' }, // Right-align price column
+                { width: "5%", targets: 4 },
+                { width: "10%", targets: 5, className: 'text-right' }, // Right-align discount column
+                { width: "10%", targets: 6, className: 'text-right' }, // Right-align total column
+                { width: "10%", targets: 7 }
+            ],
+            language: {
+                emptyTable: "Tidak ada item billing untuk kunjungan ini",
+                info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ item",
+                search: "Cari:",
+                paginate: {
+                    first: "Pertama",
+                    last: "Terakhir",
+                    next: "Selanjutnya",
+                    previous: "Sebelumnya"
+                },
+                lengthMenu: "Tampilkan _MENU_ item"
             },
-            "drawCallback": function() {
-                // After table is drawn, reattach event handlers
-                attachEventHandlers();
+            drawCallback: function() {
+                // Force table width to match parent container
+                $(this).css('width', '100%');
+                calculateTotals();
             }
         });
         
-        // Custom DataTable processing
-        function attachEventHandlers() {
-            // Edit button handler
-            $('.edit-btn').off('click').on('click', function() {
-                const id = $(this).data('id');
-                const rowIndex = $(this).data('row-index');
-                const jumlah = $(this).data('jumlah');
-                const diskon = $(this).data('diskon');
-                const diskon_type = $(this).data('diskon_type');
-                
-                // Fill modal form with data
-                $('#edit_id').val(id);
-                $('#edit_row_index').val(rowIndex);
-                $('#jumlah').val(jumlah);
-                $('#diskon').val(diskon);
-                $('#diskon_type').val(diskon_type);
-                
-                // Show modal
-                $('#editModal').modal('show');
-            });
+        // Fix for action column - ensure the table fits its container
+        $(window).resize(function() {
+            table.columns.adjust();
+        });
+        
+        // Fix: Directly attach event handlers using document delegation
+        $(document).on('click', '.edit-btn', function() {
+            const id = $(this).data('id');
+            const rowIndex = $(this).data('row-index');
+            const jumlah = $(this).data('jumlah');
+            const diskon = $(this).data('diskon');
+            const diskon_type = $(this).data('diskon_type');
             
-           // Delete button handler
-            $('.delete-btn').off('click').on('click', function() {
-                const id = $(this).data('id');
-                const rowIndex = $(this).data('row-index');
-                
-                if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
-                    try {
-                        console.log('Deleting row with index:', rowIndex, 'ID:', id);
-                        
-                        // Mark as deleted but keep in array
-                        billingData[rowIndex].deleted = true;
-                        deletedItems.push(id);
-                        
-                        // Get the row element
-                        const tr = $(this).closest('tr');
-                        
-                        // Remove and redraw
-                        table.row(tr).remove().draw(false);
-                        
-                        // Fix for handling DataTables DOM refresh if the above doesn't work
-                        if (tr.length > 0 && tr.is(':visible')) {
-                            tr.addClass('d-none');
-                        }
-                        
-                        console.log('Item deleted successfully');
-                    } catch(e) {
-                        console.error('Error deleting row:', e);
-                        alert('Terjadi kesalahan saat menghapus item: ' + e.message);
-                    }
+            $('#edit_id').val(id);
+            $('#edit_row_index').val(rowIndex);
+            $('#jumlah').val(jumlah);
+            $('#diskon').val(diskon);
+            $('#diskon_type').val(diskon_type);
+            
+            $('#editModal').modal('show');
+        });
+        
+        // Fix: Use document delegation for delete button
+        $(document).on('click', '.delete-btn', function() {
+            const id = $(this).data('id');
+            const rowIndex = $(this).data('row-index');
+            
+            if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
+                try {
+                    console.log('Deleting row with index:', rowIndex, 'ID:', id);
+                    
+                    billingData[rowIndex].deleted = true;
+                    deletedItems.push(id);
+                    
+                    const tr = $(this).closest('tr');
+                    table.row(tr).remove().draw(false);
+                    
+                    calculateTotals();
+                    
+                    console.log('Item deleted successfully');
+                } catch(e) {
+                    console.error('Error deleting row:', e);
+                    alert('Terjadi kesalahan saat menghapus item: ' + e.message);
                 }
-            });
-        }
+            }
+        });
         
         // Save changes button in modal
         $('#saveChangesBtn').on('click', function(e) {
-            // Prevent default form submission
             e.preventDefault();
             
             const id = $('#edit_id').val();
@@ -248,13 +368,13 @@
                 billingData[rowIndex].diskon_type = diskon_type;
                 
                 // Format for display
-                billingData[rowIndex].jumlah = 'Rp ' + numberWithCommas(jumlah);
+                billingData[rowIndex].jumlah = 'Rp ' + formatCurrency(jumlah);
                 
                 if (diskon && diskon > 0) {
                     if (diskon_type === '%') {
                         billingData[rowIndex].diskon = diskon + '%';
                     } else {
-                        billingData[rowIndex].diskon = 'Rp ' + numberWithCommas(diskon);
+                        billingData[rowIndex].diskon = 'Rp ' + formatCurrency(diskon);
                     }
                 } else {
                     billingData[rowIndex].diskon = '-';
@@ -273,17 +393,15 @@
                 // Update harga_akhir - multiply by quantity
                 const qty = billingData[rowIndex].qty || 1;
                 billingData[rowIndex].harga_akhir_raw = finalJumlah * qty;
-                billingData[rowIndex].harga_akhir = 'Rp ' + numberWithCommas(finalJumlah * qty);
+                billingData[rowIndex].harga_akhir = 'Rp ' + formatCurrency(finalJumlah * qty);
                 
                 // Mark as edited
                 billingData[rowIndex].edited = true;
             }
             
-            // Close modal
             $('#editModal').modal('hide');
-            
-            // Redraw the table
             updateTable();
+            calculateTotals();
         });
         
         // Function to update the table without a full reload
@@ -320,16 +438,81 @@
             setTimeout(function() {
                 settings.oFeatures.bServerSide = previousServerSide;
                 settings.ajax = previousAjax;
-                
-                // Reattach event handlers
-                attachEventHandlers();
+                table.columns.adjust(); // Readjust columns after update
             }, 100);
         }
         
-        // Helper function for formatting numbers
-        function numberWithCommas(x) {
-            return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        // Helper function for formatting currency (removes unnecessary 0s)
+        function formatCurrency(value) {
+            // Round to 2 decimal places
+            let rounded = Math.round(value * 100) / 100;
+            // If it's a whole number, don't show decimals
+            if (rounded === Math.floor(rounded)) {
+                return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            }
+            // Otherwise format with up to 2 decimals
+            return rounded.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         }
+        
+        // Calculate totals for the bottom section
+        function calculateTotals() {
+            let subtotal = 0;
+            
+            // Sum up all harga_akhir_raw values from non-deleted items
+            billingData.forEach(function(item) {
+                if (!item.deleted) {
+                    const value = parseFloat(item.harga_akhir_raw || 0);
+                    subtotal += value;
+                }
+            });
+            
+            // Display subtotal
+            $('#subtotal').text('Rp ' + formatCurrency(subtotal));
+            
+            // Calculate global discount
+            const globalDiscount = parseFloat($('#global_discount').val() || 0);
+            const globalDiscountType = $('#global_discount_type').val();
+            let discountAmount = 0;
+            
+            if (globalDiscount > 0) {
+                if (globalDiscountType === '%') {
+                    discountAmount = subtotal * (globalDiscount / 100);
+                } else {
+                    discountAmount = globalDiscount;
+                }
+            }
+            
+            // Display discount amount
+            $('#global_discount_amount').text('- Rp ' + formatCurrency(discountAmount));
+            
+            // Calculate tax
+            const taxPercentage = parseFloat($('#tax_percentage').val() || 0);
+            const afterDiscount = subtotal - discountAmount;
+            const taxAmount = afterDiscount * (taxPercentage / 100);
+            
+            // Display tax amount
+            $('#tax_amount').text('+ Rp ' + formatCurrency(taxAmount));
+            
+            // Calculate and display grand total
+            const grandTotal = afterDiscount + taxAmount;
+            $('#grand_total').text('Rp ' + formatCurrency(grandTotal));
+            
+            // Store these values for later use when saving/creating invoice
+            window.billingTotals = {
+                subtotal: subtotal,
+                discountAmount: discountAmount,
+                discountType: globalDiscountType,
+                discountValue: globalDiscount,
+                taxPercentage: taxPercentage,
+                taxAmount: taxAmount,
+                grandTotal: grandTotal
+            };
+        }
+        
+        // Event listeners for total calculation inputs
+        $('#global_discount, #global_discount_type, #tax_percentage').on('change input', function() {
+            calculateTotals();
+        });
         
         // Save all changes button
         $('#saveAllChangesBtn').on('click', function() {
@@ -337,7 +520,8 @@
                 const changedData = {
                     visitation_id: {{ $visitation->id }},
                     edited_items: billingData.filter(item => item.edited),
-                    deleted_items: deletedItems
+                    deleted_items: deletedItems,
+                    totals: window.billingTotals
                 };
                 
                 $.ajax({
@@ -349,7 +533,6 @@
                     },
                     success: function(response) {
                         alert('Data billing berhasil disimpan');
-                        // Refresh the page or update the table as needed
                     },
                     error: function(xhr) {
                         alert('Terjadi kesalahan: ' + xhr.responseText);
@@ -369,9 +552,7 @@
                 }
                 
                 // Extract visitation_id from the first item
-                // This ensures we use the correct ID that exists in the database
-                const correctVisitationId = items[0].visitation_id;
-                console.log('Using visitation_id from items:', correctVisitationId);
+                const correctVisitationId = {{ $visitation->id }};
                 
                 $.ajax({
                     url: "{{ route('finance.billing.createInvoice') }}",
@@ -379,7 +560,8 @@
                     data: {
                         _token: "{{ csrf_token() }}",
                         visitation_id: correctVisitationId,
-                        items: items
+                        items: items,
+                        totals: window.billingTotals
                     },
                     success: function(response) {
                         alert('Invoice berhasil dibuat dengan nomor: ' + response.invoice_number);
@@ -396,6 +578,14 @@
                 });
             }
         });
+        
+        // Initial calculation of totals
+        calculateTotals();
+        
+        // Force column widths to be applied immediately after init
+        setTimeout(function() {
+            table.columns.adjust();
+        }, 100);
     });
 </script>
 @endsection

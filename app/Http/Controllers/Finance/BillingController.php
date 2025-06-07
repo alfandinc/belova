@@ -192,10 +192,10 @@ class BillingController extends Controller
 
     public function createInvoice(Request $request)
     {
-
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
             'items' => 'required|array',
+            'totals' => 'required|array',
         ]);
 
         // Start a transaction
@@ -211,21 +211,24 @@ class BillingController extends Controller
                 ], 404);
             }
 
-            // Calculate totals
-            $subtotal = 0;
-            foreach ($request->items as $item) {
-                if (isset($item['deleted']) && $item['deleted']) {
-                    continue; // Skip deleted items
-                }
-                $subtotal += floatval($item['harga_akhir_raw'] ?? 0);
-            }
+            // Get totals from request
+            $totals = $request->totals;
+            $subtotal = $totals['subtotal'] ?? 0;
+            $discountAmount = $totals['discountAmount'] ?? 0;
+            $taxAmount = $totals['taxAmount'] ?? 0;
+            $grandTotal = $totals['grandTotal'] ?? $subtotal;
 
             // Create the invoice
             $invoice = Invoice::create([
                 'visitation_id' => $request->visitation_id,
                 'invoice_number' => Invoice::generateInvoiceNumber(),
                 'subtotal' => $subtotal,
-                'total_amount' => $subtotal, // For now, just use subtotal
+                'discount' => $discountAmount,
+                'discount_type' => $totals['discountType'] ?? null,
+                'discount_value' => $totals['discountValue'] ?? 0,
+                'tax_percentage' => $totals['taxPercentage'] ?? 0,
+                'tax_amount' => $taxAmount,
+                'total_amount' => $grandTotal,
                 'status' => 'issued',
             ]);
 
