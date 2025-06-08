@@ -99,7 +99,23 @@ class InvoiceController extends Controller
             'items'
         ])->findOrFail($id);
 
-        $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'));
+        $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'))
+            ->setPaper('a5', 'landscape')
+            ->setOptions([
+                'defaultFont' => 'helvetica',
+                'isRemoteEnabled' => true,
+                'isHtml5ParserEnabled' => true,
+                'isFontSubsettingEnabled' => true,
+                'dpi' => 150,
+                'defaultMediaType' => 'screen',
+                'enable_javascript' => true,
+                'no_background' => false,
+                'margin_top' => 2,
+                'margin_right' => 2,
+                'margin_bottom' => 2,
+                'margin_left' => 2
+            ]);
+
         return $pdf->stream('Invoice-' . $invoice->invoice_number . '.pdf');
     }
 }
