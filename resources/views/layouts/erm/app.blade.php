@@ -145,5 +145,6 @@
     </script>
 
     @yield('scripts')
+    @stack('scripts')  <!-- Add this line -->
 </body>
 </html>

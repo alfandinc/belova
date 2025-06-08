@@ -107,61 +107,6 @@ $(document).ready(function () {
         table.ajax.reload();
     });
 
-    $(document).on('click', '.btn-daftar-visitation', function () {
-        let pasienId = $(this).data('id');
-        let namaPasien = $(this).data('nama');
-
-        $('#modal-pasien-id').val(pasienId);
-        $('#modal-nama-pasien').val(namaPasien);
-        $('#modalKunjungan').modal('show');
-    });
-    
-
-    $('#form-kunjungan').submit(function (e) {
-        e.preventDefault();
-        let formData = $(this).serialize();
-
-        $.ajax({
-            url: "{{ route('erm.visitations.store') }}",
-            type: "POST",
-            data: formData,
-            success: function (res) {
-                $('#modalKunjungan').modal('hide');
-                $('#form-kunjungan')[0].reset();
-                alert(res.message);
-            },
-            error: function (xhr) {
-                alert("Terjadi kesalahan. Pastikan semua data valid.");
-            }
-        });
-    });
-
-    function cekAntrian() {
-        let dokterId = $('#dokter_id').val();
-        let tanggal = $('#tanggal_visitation').val();
-
-        if (dokterId && tanggal) {
-            $.ajax({
-                url: "{{ route('erm.visitations.cekAntrian') }}",
-                type: 'GET',
-                data: {
-                    dokter_id: dokterId,
-                    tanggal: tanggal
-                },
-                success: function(response) {
-                    $('#modal-no-antrian').val(response.no_antrian);
-                },
-                error: function(xhr) {
-                    $('#modal-no-antrian').val('Error');
-                }
-            });
-        }
-    }
-
-    $('#dokter_id, #tanggal_visitation').on('change', function () {
-        cekAntrian();
-    });
-
     $(document).on('click', '.btn-info-pasien', function () {
         let pasienId = $(this).data('id');
 
@@ -185,7 +130,6 @@ $(document).ready(function () {
                 $('#info-email').text(response.email);
                 $('#info-instagram').text(response.instagram);
                 
-
                 // Show the modal
                 $('#modalInfoPasien').modal('show');
             },
@@ -194,7 +138,6 @@ $(document).ready(function () {
             }
         });
     });
-
 });
 </script>
 @endsection

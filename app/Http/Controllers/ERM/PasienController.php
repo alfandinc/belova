@@ -60,7 +60,7 @@ class PasienController extends Controller
 
         $pasienName = '';
 
-        return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName'));
+        return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName', 'kliniks'));
     }
 
     public function create()
