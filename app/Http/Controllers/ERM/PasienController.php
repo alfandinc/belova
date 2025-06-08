@@ -13,6 +13,7 @@ use App\Models\Area\Province;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
+use App\Models\ERM\Klinik;
 
 class PasienController extends Controller
 {
@@ -55,6 +56,8 @@ class PasienController extends Controller
 
         $metodeBayar = MetodeBayar::all();
         $dokters = Dokter::with('spesialisasi')->get();
+        $kliniks = Klinik::all();
+
         $pasienName = '';
 
         return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName'));
@@ -64,8 +67,9 @@ class PasienController extends Controller
     {
         $metodeBayar = MetodeBayar::all();
         $dokters = Dokter::with('spesialisasi')->get();
+        $kliniks = Klinik::all();
         $provinces = Province::all();
-        return view('erm.pasiens.create', compact('metodeBayar', 'dokters', 'provinces'));
+        return view('erm.pasiens.create', compact('metodeBayar', 'dokters', 'provinces', 'kliniks'));
     }
 
     public function store(Request $request)

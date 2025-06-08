@@ -28,6 +28,7 @@ class VisitationController extends Controller
             'dokter_id' => 'required|string',
             'tanggal_visitation' => 'required|date',
             'metode_bayar_id' => 'required',
+            'klinik_id' => 'required', // Add validation for klinik_id
         ]);
 
         // Buat ID custom
@@ -41,6 +42,7 @@ class VisitationController extends Controller
             'tanggal_visitation' => $request->tanggal_visitation,
             'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id,
+            'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
             'progress' => 1,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
         ]);

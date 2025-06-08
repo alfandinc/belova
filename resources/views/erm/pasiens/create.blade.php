@@ -39,6 +39,16 @@
             <label>Nama Pasien</label>
             <input type="text" id="modal-nama-pasien" class="form-control" value="" readonly>
           </div>
+            <!-- Add this new form group for klinik selection -->
+            <div class="form-group">
+                <label>Klinik</label>
+                <select id="klinik_id" name="klinik_id" class="form-control select2" required>
+                <option value="" disabled selected>Pilih Klinik</option>
+                @foreach($kliniks as $klinik)
+                    <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                @endforeach
+                </select>
+            </div>
 
           <div class="form-group">
             <label>Dokter</label>

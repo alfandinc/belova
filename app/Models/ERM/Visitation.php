@@ -16,6 +16,7 @@ class Visitation extends Model
         'metode_bayar_id',
         'dokter_id',
         'user_id',
+        'klinik_id',
         'status_kunjungan',
         'status_dokumen',
         'tanggal_visitation',
