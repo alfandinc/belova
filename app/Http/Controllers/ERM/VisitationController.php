@@ -63,4 +63,20 @@ class VisitationController extends Controller
             'no_antrian' => $jumlahKunjungan + 1
         ]);
     }
+
+    public function getDoktersByKlinik($klinikId)
+    {
+        // // Add logging to see what's happening
+        // \Log::info("Finding doctors for klinik_id: " . $klinikId);
+
+        // // First check if any doctors exist with this klinik_id
+        // $count = Dokter::where('klinik_id', $klinikId)->count();
+        // \Log::info("Number of doctors found: " . $count);
+
+        $dokters = Dokter::where('klinik_id', $klinikId)
+            ->with(['spesialisasi', 'user'])
+            ->get();
+
+        return response()->json($dokters);
+    }
 }

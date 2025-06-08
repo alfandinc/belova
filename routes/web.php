@@ -43,6 +43,7 @@ use App\Http\Controllers\HRD\EmployeeController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Models\ERM\SuratIstirahat;
+use App\Models\ERM\Visitation;
 
 Route::get('/', function () {
     return view('mainmenu');
@@ -254,3 +255,4 @@ Route::get('/icd10/search', [Icd10Controller::class, 'search'])->name('icd10.sea
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');
+Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDoktersByKlinik'])->name('erm.get-dokters');

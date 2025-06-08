@@ -50,17 +50,12 @@
                 </select>
             </div>
 
-          <div class="form-group">
-            <label>Dokter</label>
-            <select id="dokter_id" name="dokter_id" class="form-control select2" required>
-              <option value="" disabled selected>Pilih Dokter</option>
-              @foreach($dokters as $dokter)
-                        <option value="{{ $dokter->id }}">
-                            {{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}
-                        </option>
-                    @endforeach
-            </select>
-          </div>
+            <div class="form-group">
+                <label>Dokter</label>
+                <select id="dokter_id" name="dokter_id" class="form-control select2" required disabled>
+                <option value="">Pilih Dokter</option>
+                </select>
+            </div>
 
           <div class="form-group">
             <label>Tanggal Kunjungan</label>
@@ -657,6 +652,79 @@
 
     // Jalankan cekAntrian saat dokter atau tanggal berubah
     $('#dokter_id, #tanggal_visitation').on('change', function () {
+        cekAntrian();
+    });
+
+    $('#klinik_id').on('change', function() {
+    let klinikId = $(this).val();
+    let dokterSelect = $('#dokter_id');
+    
+    console.log("Selected klinik_id:", klinikId);
+    
+    // Reset doctor dropdown
+    dokterSelect.empty().append('<option value="">Loading...</option>').prop('disabled', true);
+    
+    if (klinikId) {
+        // Fetch doctors for selected clinic
+        $.ajax({
+            url: `/get-dokters/${klinikId}`,
+            type: 'GET',
+            success: function(data) {
+                console.log("API response:", data);
+                dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
+                
+                // Check if we got data
+                if (data && data.length > 0) {
+                    // Add options for each doctor with error handling
+                    $.each(data, function(index, dokter) {
+                        console.log("Processing doctor:", dokter);
+                        let dokterName = 'Unknown Doctor';
+                        if (dokter.user && dokter.user.name) {
+                            dokterName = dokter.user.name;
+                        }
+                        
+                        let spesialis = '';
+                        if (dokter.spesialisasi && dokter.spesialisasi.nama) {
+                            spesialis = ` (${dokter.spesialisasi.nama})`;
+                        }
+                        
+                        dokterSelect.append(`<option value="${dokter.id}">${dokterName}${spesialis}</option>`);
+                    });
+                } else {
+                    // No doctors found for this clinic
+                    dokterSelect.append('<option value="" disabled>Tidak ada dokter di klinik ini</option>');
+                }
+                
+                // Enable the doctor select
+                dokterSelect.prop('disabled', false).trigger('change.select2');
+            },
+            error: function(xhr) {
+                console.error("Error loading doctors:", xhr.responseText);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Gagal mengambil data dokter'
+                });
+                
+                dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
+                dokterSelect.prop('disabled', true).trigger('change.select2');
+            }
+        });
+    } else {
+        // If no clinic selected, reset and disable doctor dropdown
+        dokterSelect.empty().append('<option value="">Pilih Dokter</option>');
+        dokterSelect.prop('disabled', true).trigger('change.select2');
+    }
+});
+
+    // Reset form fields when modal is closed
+    $('#modalKunjungan').on('hidden.bs.modal', function() {
+        $('#form-kunjungan')[0].reset();
+        $('#dokter_id').empty().append('<option value="">Pilih Dokter</option>').prop('disabled', true).trigger('change.select2');
+    });
+    
+    // After selecting dokter and date, check for queue number
+    $('#dokter_id, #tanggal_visitation').on('change', function() {
         cekAntrian();
     });
 

@@ -8,7 +8,7 @@ class Dokter extends Model
 {
     protected $table = 'erm_dokters';
 
-    protected $fillable = ['user_id', 'spesialisasi_id', 'sip', 'ttd'];
+    protected $fillable = ['user_id', 'spesialisasi_id', 'klinik_id', 'sip', 'ttd'];
 
     public function user()
     {
@@ -18,5 +18,9 @@ class Dokter extends Model
     public function spesialisasi()
     {
         return $this->belongsTo(Spesialisasi::class);
+    }
+    public function klinik()
+    {
+        return $this->belongsTo(Klinik::class);
     }
 }
