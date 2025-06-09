@@ -156,6 +156,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/tindakan/history/{visitation}', [TindakanController::class, 'getInformConsentHistory'])->name('tindakan.history');
     Route::get('/tindakan/sop/{id}', [App\Http\Controllers\ERM\TindakanController::class, 'generateSopPdf'])->name('erm.tindakan.sop');
 
+    Route::post('/tindakan/upload-foto/{id}', [TindakanController::class, 'uploadFoto'])->name('erm.tindakan.upload-foto');
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 

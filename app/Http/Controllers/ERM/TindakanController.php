@@ -214,17 +214,17 @@ class TindakanController extends Controller
                 }
 
                 return [
+                    'id' => $item->id, // Add this line to include the ID
                     'tanggal' => $tanggalFormatted,
                     'tindakan' => $item->tindakan->nama ?? '-',
                     'paket' => $paketName ?? '-',
                     'file_path' => $item->file_path,
-                    // Add flag to identify current visitation records
+                    'before_image_path' => $item->before_image_path,
+                    'after_image_path' => $item->after_image_path,
                     'current' => ($item->visitation_id == $visitationId) ? true : false
                 ];
             });
 
-
-        // dd($history);
         return datatables()->of($history)
             ->addColumn('dokumen', function ($row) {
                 if (empty($row['file_path'])) {
@@ -239,8 +239,14 @@ class TindakanController extends Controller
                     '<span class="badge badge-success">Kunjungan Saat Ini</span>' :
                     '<span class="badge badge-secondary">Kunjungan Sebelumnya</span>';
             })
-
-            ->rawColumns(['dokumen', 'status'])
+            ->addColumn('foto_hasil', function ($row) {
+                return '<button class="btn btn-primary btn-sm foto-hasil-btn" ' .
+                    'data-id="' . $row['id'] . '" ' .
+                    'data-before="' . ($row['before_image_path'] ?? '') . '" ' .
+                    'data-after="' . ($row['after_image_path'] ?? '') . '">' .
+                    'Foto Hasil</button>';
+            })
+            ->rawColumns(['dokumen', 'status', 'foto_hasil'])
             ->make(true);
     }
 
@@ -264,5 +270,46 @@ class TindakanController extends Controller
         $filename = 'SOP-' . str_replace(' ', '-', $tindakan->nama) . '.pdf';
 
         return $pdf->stream($filename);
+    }
+
+    public function uploadFoto(Request $request, $id)
+    {
+        $request->validate([
+            'before_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'after_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $informConsent = InformConsent::findOrFail($id);
+
+        if ($request->hasFile('before_image')) {
+            // Delete existing image if it exists
+            if ($informConsent->before_image_path && Storage::disk('public')->exists($informConsent->before_image_path)) {
+                Storage::disk('public')->delete($informConsent->before_image_path);
+            }
+
+            // Store new image
+            $beforePath = $request->file('before_image')->store('tindakan-images', 'public');
+            $informConsent->before_image_path = $beforePath;
+        }
+
+        if ($request->hasFile('after_image')) {
+            // Delete existing image if it exists
+            if ($informConsent->after_image_path && Storage::disk('public')->exists($informConsent->after_image_path)) {
+                Storage::disk('public')->delete($informConsent->after_image_path);
+            }
+
+            // Store new image
+            $afterPath = $request->file('after_image')->store('tindakan-images', 'public');
+            $informConsent->after_image_path = $afterPath;
+        }
+
+        $informConsent->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Foto hasil berhasil diupload',
+            'before_path' => $informConsent->before_image_path ? Storage::url($informConsent->before_image_path) : null,
+            'after_path' => $informConsent->after_image_path ? Storage::url($informConsent->after_image_path) : null,
+        ]);
     }
 }

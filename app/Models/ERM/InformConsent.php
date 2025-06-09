@@ -12,6 +12,8 @@ class InformConsent extends Model
         'tindakan_id',
         'paket_id',
         'file_path',
+        'before_image_path',
+        'after_image_path',
     ];
 
     public function tindakan()

@@ -36,6 +36,53 @@
     </div>
   </div>
 </div>
+
+<!-- Add this new modal after existing modals -->
+<div class="modal fade" id="modalFotoHasil" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Foto Hasil Tindakan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="fotoHasilForm" enctype="multipart/form-data">
+          @csrf
+          <input type="hidden" id="informConsentId" name="inform_consent_id">
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="beforeImage">Foto Before</label>
+                <input type="file" class="form-control" id="beforeImage" name="before_image" accept="image/*">
+                <div class="mt-2">
+                  <img id="beforePreview" style="max-width: 100%; max-height: 200px; display: none;">
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="afterImage">Foto After</label>
+                <input type="file" class="form-control" id="afterImage" name="after_image" accept="image/*">
+                <div class="mt-2">
+                  <img id="afterPreview" style="max-width: 100%; max-height: 200px; display: none;">
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary" id="saveFotoHasil">Upload</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">Tindakan & Inform Consent</h3>
@@ -76,6 +123,7 @@
                                     <th>Paket Tindakan</th>
                                     <th>Status</th>
                                     <th>Dokumen</th>
+                                    <th>Foto Hasil</th> <!-- New column -->
                                 </tr>
                             </thead>
                         </table>
@@ -136,6 +184,11 @@
 
 <script>
     $(document).ready(function () {
+        $.ajaxSetup({
+    headers: {
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    }
+});
         let tindakanData = [];
         let currentStep = 1;
         const spesialisasiId = @json($spesialisasiId); 
@@ -214,9 +267,101 @@
                     orderable: false, 
                     searchable: false 
                 },
+                { data: 'foto_hasil', name: 'foto_hasil', orderable: false, searchable: false }
             ],
             order: [[0, 'desc']] // Sort by date descending
         });
+
+        // Handle click on "Foto Hasil" button
+    $(document).on('click', '.foto-hasil-btn', function() {
+        const id = $(this).data('id');
+        const beforePath = $(this).data('before');
+        const afterPath = $(this).data('after');
+        
+        // Reset form
+        $('#informConsentId').val(id);
+        $('#beforeImage').val('');
+        $('#afterImage').val('');
+        $('#beforePreview').hide();
+        $('#afterPreview').hide();
+        
+        // Show existing images if available
+        if (beforePath) {
+            $('#beforePreview').attr('src', `/storage/${beforePath}`).show();
+        }
+        
+        if (afterPath) {
+            $('#afterPreview').attr('src', `/storage/${afterPath}`).show();
+        }
+        
+        // Show modal
+        $('#modalFotoHasil').modal('show');
+    });
+    
+    // Preview images before upload
+    $('#beforeImage').change(function() {
+        previewImage(this, '#beforePreview');
+    });
+    
+    $('#afterImage').change(function() {
+        previewImage(this, '#afterPreview');
+    });
+    
+    // Function to preview images
+    function previewImage(input, previewSelector) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                $(previewSelector).attr('src', e.target.result).show();
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+    
+    // Handle saving photos
+    $('#saveFotoHasil').click(function() {
+    const id = $('#informConsentId').val();
+    
+    // Get form data directly from the form element
+    const formData = new FormData($('#fotoHasilForm')[0]);
+    
+    // Show loading indicator
+    Swal.fire({
+        title: 'Uploading...',
+        text: 'Please wait while images are being uploaded',
+        icon: 'info',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+    });
+    
+    // Submit form via AJAX
+    $.ajax({
+        url: `/erm/tindakan/upload-foto/${id}`,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                Swal.fire('Success', 'Foto hasil berhasil diupload', 'success');
+                
+                // Close modal and refresh table
+                $('#modalFotoHasil').modal('hide');
+                $('#historyTindakanTable').DataTable().ajax.reload();
+            } else {
+                Swal.fire('Error', 'Failed to upload images', 'error');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error:', xhr);
+            Swal.fire('Error', 'Failed to upload images. Please try again.', 'error');
+        }
+    });
+});
     
        // Definisi fungsi untuk inisialisasi signature pad
         function initializeSignaturePads(step) {
