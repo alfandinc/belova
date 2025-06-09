@@ -5,7 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
-
+use App\Models\ERM\AsesmenAnak;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\AsesmenPerawat;
@@ -13,6 +13,8 @@ use App\Models\ERM\AsesmenDalam;
 use App\Models\ERM\AsesmenPenunjang;
 use App\Models\ERM\AsesmenUmum;
 use App\Models\ERM\AsesmenEstetika;
+use App\Models\ERM\AsesmenGigi;
+use App\Models\ERM\AsesmenSaraf;
 use App\Models\Finance\Billing;
 use App\Models\ERM\JasaMedis;
 use App\Models\ERM\Konsultasi;
@@ -34,6 +36,9 @@ class AsesmenController extends Controller
             'penyakit_dalam' => AsesmenDalam::where('visitation_id', $visitationId)->first(),
             'umum' => AsesmenUmum::where('visitation_id', $visitationId)->first(),
             'estetika' => AsesmenEstetika::where('visitation_id', $visitationId)->first(),
+            'anak' => AsesmenAnak::where('visitation_id', $visitationId)->first(),
+            'saraf' => AsesmenSaraf::where('visitation_id', $visitationId)->first(),
+            'gigi' => AsesmenGigi::where('visitation_id', $visitationId)->first(),
         ];
         $currentAsesmen = $asesmen[$spesialisasi] ?? null;
 
@@ -41,6 +46,7 @@ class AsesmenController extends Controller
         $lokalisDefaults = [
             'penyakit_dalam' => 'img/asesmen/dalam.jpeg',
             'estetika' => 'img/asesmen/estetika.png',
+            'estetika' => 'img/asesmen/gigi.png',
         ];
         $lokalisPath = old('status_lokalis', $currentAsesmen->status_lokalis ?? null);
         $lokalisBackground = $lokalisPath ?: ($lokalisDefaults[$spesialisasi] ?? 'img/lokalis/default.png');
@@ -75,6 +81,12 @@ class AsesmenController extends Controller
             $this->storeAsesmenUmum($request);
         } elseif ($spesialisasi === 'estetika') {
             $this->storeAsesmenEstetika($request);
+        } elseif ($spesialisasi === 'anak') {
+            $this->storeAsesmenAnak($request);
+        } elseif ($spesialisasi === 'saraf') {
+            $this->storeAsesmenSaraf($request);
+        } elseif ($spesialisasi === 'gigi') {
+            $this->storeAsesmenGigi($request);
         }
 
         // Shared Penunjang logic
@@ -203,6 +215,176 @@ class AsesmenController extends Controller
             ]
         );
     }
+
+    private function storeAsesmenAnak(Request $request)
+    {
+        // Check if a new image is provided
+        if ($request->has('status_lokalis_image') && !empty($request->status_lokalis_image)) {
+            $this->saveLokalisImage($request);
+        }
+
+        // Retain the existing image if no new image is provided
+        $existingAsesmen = AsesmenAnak::where('visitation_id', $request->visitation_id)->first();
+        $statusLokalis = $existingAsesmen->status_lokalis ?? null;
+
+        AsesmenEstetika::updateOrCreate(
+            ['visitation_id' => $request->visitation_id],
+            [
+                'autoanamnesis' => $request->autoanamnesis,
+                'alloanamnesis' => $request->alloanamnesis,
+                'anamnesis1' => $request->anamnesis1,
+                'anamnesis2' => $request->anamnesis2,
+                'keluhan_utama' => $request->keluhan_utama,
+                'riwayat_penyakit_sekarang' => $request->riwayat_penyakit_sekarang,
+                'allo_dengan' => $request->allo_dengan,
+                'hasil_allo' => $request->hasil_allo,
+                'riwayat_penyakit_dahulu' => $request->riwayat_penyakit_dahulu,
+                'obat_dikonsumsi' => $request->obat_dikonsumsi,
+                'keadaan_umum' => $request->keadaan_umum,
+                'imunisasi_dasar' => $request->imunisasi_dasar,
+                'imunisasi_dasar_ket' => $request->imunisasi_dasar_ket,
+                'imunisasi_lanjut' => $request->imunisasi_lanjut,
+                'imunisasi_lanjut_ket' => $request->imunisasi_lanjut_ket,
+                'td' => $request->td,
+                'n' => $request->n,
+                'r' => $request->r,
+                's' => $request->s,
+                'gizi' => $request->gizi,
+                'bb' => $request->bb,
+                'tb' => $request->tb,
+                'lk' => $request->lk,
+                'kepala' => $request->kepala,
+                'leher' => $request->leher,
+                'thorax' => $request->thorax,
+                'jantung' => $request->jantung,
+                'paru' => $request->paru,
+                'abdomen' => $request->abdomen,
+                'genitalia' => $request->genitalia,
+                'extremitas' => $request->extremitas,
+                'pemeriksaan_fisik_tambahan' => $request->pemeriksaan_fisik_tambahan,
+
+            ]
+        );
+    }
+
+    private function storeAsesmenSaraf(Request $request)
+    {
+        // Check if a new image is provided
+        if ($request->has('status_lokalis_image') && !empty($request->status_lokalis_image)) {
+            $this->saveLokalisImage($request);
+        }
+
+        // Retain the existing image if no new image is provided
+        $existingAsesmen = AsesmenSaraf::where('visitation_id', $request->visitation_id)->first();
+        $statusLokalis = $existingAsesmen->status_lokalis ?? null;
+
+        AsesmenEstetika::updateOrCreate(
+            ['visitation_id' => $request->visitation_id],
+            [
+                'autoanamnesis' => $request->autoanamnesis,
+                'alloanamnesis' => $request->alloanamnesis,
+                'anamnesis1' => $request->anamnesis1,
+                'anamnesis2' => $request->anamnesis2,
+                'keluhan_utama' => $request->keluhan_utama,
+                'riwayat_penyakit_sekarang' => $request->riwayat_penyakit_sekarang,
+                'allo_dengan' => $request->allo_dengan,
+                'hasil_allo' => $request->hasil_allo,
+                'riwayat_penyakit_dahulu' => $request->riwayat_penyakit_dahulu,
+                'obat_dikonsumsi' => $request->obat_dikonsumsi,
+                'keadaan_umum' => $request->keadaan_umum,
+                'td' => $request->td,
+                'n' => $request->n,
+                'r' => $request->r,
+                's' => $request->s,
+                'e' => $request->e,
+                'm' => $request->m,
+                'hsl' => $request->hsl,
+                'vas' => $request->vas,
+                'diameter_ket' => $request->diameter_ket,
+                'diameter_1' => $request->diameter_1,
+                'diameter_2' => $request->diameter_2,
+                'isokor' => $request->isokor,
+                'anisokor' => $request->anisokor,
+                'reflek_cahaya' => $request->reflek_cahaya,
+                'reflek_cahaya1' => $request->reflek_cahaya1,
+                'reflek_cahaya2' => $request->reflek_cahaya2,
+                'reflek_cornea' => $request->reflek_cornea,
+                'reflek_cornea1' => $request->reflek_cornea1,
+                'reflek_cornea2' => $request->reflek_cornea2,
+                'nervus' => $request->nervus,
+                'kaku_kuduk' => $request->kaku_kuduk,
+                'sign' => $request->sign,
+                'brudzinki' => $request->brudzinki,
+                'kernig' => $request->kernig,
+                'doll' => $request->doll,
+                'phenomena' => $request->phenomena,
+                'vertebra' => $request->vertebra,
+                'extremitas' => $request->extremitas,
+                'gerak1' => $request->gerak1,
+                'gerak2' => $request->gerak2,
+                'gerak3' => $request->gerak3,
+                'gerak4' => $request->gerak4,
+                'reflek_fisio1' => $request->reflek_fisio1,
+                'reflek_fisio2' => $request->reflek_fisio2,
+                'reflek_fisio3' => $request->reflek_fisio3,
+                'reflek_fisio4' => $request->reflek_fisio4,
+                'reflek_pato1' => $request->reflek_pato1,
+                'reflek_pato2' => $request->reflek_pato2,
+                'reflek_pato3' => $request->reflek_pato3,
+                'reflek_pato4' => $request->reflek_pato4,
+                'add_tambahan' => $request->add_tambahan,
+                'clonus' => $request->clonus,
+                'sensibilitas' => $request->sensibilitas,
+
+
+            ]
+        );
+    }
+
+    private function storeAsesmenGigi(Request $request)
+    {
+        if ($request->has('status_lokalis_image')) {
+            $this->saveLokalisImage($request);
+        }
+
+        AsesmenGigi::updateOrCreate(
+            ['visitation_id' => $request->visitation_id],
+            [
+                'keluhan_utama' => $request->keluhan_utama,
+                'autoanamnesis' => $request->autoanamnesis,
+                'alloanamnesis' => $request->alloanamnesis,
+                'anamnesis1' => $request->anamnesis1,
+                'anamnesis2' => $request->anamnesis2,
+                'keluhan_utama' => $request->keluhan_utama,
+                'riwayat_penyakit_sekarang' => $request->riwayat_penyakit_sekarang,
+                'allo_dengan' => $request->allo_dengan,
+                'hasil_allo' => $request->hasil_allo,
+                'riwayat_penyakit_dahulu' => $request->riwayat_penyakit_dahulu,
+                'obat_dikonsumsi' => $request->obat_dikonsumsi,
+                'keadaan_umum' => $request->keadaan_umum,
+                'td' => $request->td,
+                'n' => $request->n,
+                'r' => $request->r,
+                's' => $request->s,
+                'e' => $request->e,
+                'm' => $request->m,
+                'v' => $request->v,
+                'hsl' => $request->hsl,
+                'kepala' => $request->kepala,
+                'leher' => $request->leher,
+                'thorax' => $request->thorax,
+                'abdomen' => $request->abdomen,
+                'genitalia' => $request->genitalia,
+                'ext_atas' => $request->ext_atas,
+                'ext_bawah' => $request->ext_bawah,
+                'status_lokalis' => $request->status_lokalis ?? $existingAsesmen->status_lokalis ?? null,
+                'ket_status_lokalis' => $request->ket_status_lokalis,
+
+            ]
+        );
+    }
+
+
 
     private function storeAsesmenPenunjang(Request $request)
     {
