@@ -46,7 +46,7 @@ class AsesmenController extends Controller
         $lokalisDefaults = [
             'penyakit_dalam' => 'img/asesmen/dalam.jpeg',
             'estetika' => 'img/asesmen/estetika.png',
-            'estetika' => 'img/asesmen/gigi.png',
+            'gigi' => 'img/asesmen/gigi.png',
         ];
         $lokalisPath = old('status_lokalis', $currentAsesmen->status_lokalis ?? null);
         $lokalisBackground = $lokalisPath ?: ($lokalisDefaults[$spesialisasi] ?? 'img/lokalis/default.png');
@@ -227,7 +227,7 @@ class AsesmenController extends Controller
         $existingAsesmen = AsesmenAnak::where('visitation_id', $request->visitation_id)->first();
         $statusLokalis = $existingAsesmen->status_lokalis ?? null;
 
-        AsesmenEstetika::updateOrCreate(
+        AsesmenAnak::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
             [
                 'autoanamnesis' => $request->autoanamnesis,
@@ -278,7 +278,7 @@ class AsesmenController extends Controller
         $existingAsesmen = AsesmenSaraf::where('visitation_id', $request->visitation_id)->first();
         $statusLokalis = $existingAsesmen->status_lokalis ?? null;
 
-        AsesmenEstetika::updateOrCreate(
+        AsesmenSaraf::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
             [
                 'autoanamnesis' => $request->autoanamnesis,
@@ -343,9 +343,14 @@ class AsesmenController extends Controller
 
     private function storeAsesmenGigi(Request $request)
     {
-        if ($request->has('status_lokalis_image')) {
+        // Check if a new image is provided
+        if ($request->has('status_lokalis_image') && !empty($request->status_lokalis_image)) {
             $this->saveLokalisImage($request);
         }
+
+        // Retain the existing image if no new image is provided
+        $existingAsesmen = AsesmenGigi::where('visitation_id', $request->visitation_id)->first();
+        $statusLokalis = $existingAsesmen->status_lokalis ?? null;
 
         AsesmenGigi::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
