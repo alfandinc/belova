@@ -24,4 +24,8 @@ class Tindakan extends Model
     {
         return $this->morphMany(Billing::class, 'billable');
     }
+    public function sop()
+    {
+        return $this->hasMany(\App\Models\ERM\Sop::class, 'tindakan_id');
+    }
 }
