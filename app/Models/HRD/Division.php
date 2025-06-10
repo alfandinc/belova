@@ -15,14 +15,16 @@ class Division extends Model
 
     public function employees()
     {
-        return $this->hasMany(Employee::class, 'division');
+        return $this->hasMany(Employee::class, 'division_id');
     }
 
     public function manager()
     {
         return $this->employees()
             ->whereHas('user', function ($query) {
-                $query->role('manager');
+                $query->whereHas('roles', function ($q) {
+                    $q->whereIn('name', ['manager', 'Manager']);
+                });
             })
             ->first();
     }

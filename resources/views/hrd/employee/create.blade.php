@@ -101,7 +101,7 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="division">Divisi</label>
-                            <select id="division" name="division" class="form-control select2" required>
+                            <select id="division_id" name="division_id" class="form-control select2" required>
                                 <option value="">Pilih Divisi</option>
                                 @foreach ($divisions as $division)
                                     <option value="{{ $division->id }}" {{ old('division') == $division->id ? 'selected' : '' }}>{{ $division->name }}</option>

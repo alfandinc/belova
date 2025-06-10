@@ -44,6 +44,9 @@ use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\HRD\DivisionController;
 use App\Http\Controllers\HRD\EmployeeSelfServiceController;
+use App\Http\Controllers\HRD\PerformanceEvaluationController;
+use App\Http\Controllers\HRD\PerformanceQuestionController;
+use App\Http\Controllers\HRD\PerformanceScoreController;
 use App\Models\ERM\SuratIstirahat;
 use App\Models\ERM\Visitation;
 
@@ -248,6 +251,44 @@ Route::prefix('hrd')->group(
 
         Route::get('/my-division', [DivisionController::class, 'showMyDivision'])->name('hrd.division.mine');
         Route::get('/my-team', [DivisionController::class, 'showMyTeam'])->name('hrd.division.team');
+
+        // Performance Evaluation Routes
+        Route::prefix('performance')->name('hrd.performance.')->middleware(['auth'])->group(function () {
+            // Evaluation Periods
+            Route::get('/periods', [PerformanceEvaluationController::class, 'index'])->name('periods.index');
+            Route::get('/periods/create', [PerformanceEvaluationController::class, 'create'])->name('periods.create');
+            Route::post('/periods', [PerformanceEvaluationController::class, 'store'])->name('periods.store');
+            Route::get('/periods/{period}', [PerformanceEvaluationController::class, 'show'])->name('periods.show');
+            Route::get('/periods/{period}/edit', [PerformanceEvaluationController::class, 'edit'])->name('periods.edit');
+            Route::put('/periods/{period}', [PerformanceEvaluationController::class, 'update'])->name('periods.update');
+            Route::delete('/periods/{period}', [PerformanceEvaluationController::class, 'destroy'])->name('periods.destroy');
+            Route::post('/periods/{period}/initiate', [PerformanceEvaluationController::class, 'initiate'])->name('periods.initiate');
+
+            // Question Categories
+            Route::get('/questions', [PerformanceQuestionController::class, 'index'])->name('questions.index');
+            Route::get('/questions/categories/create', [PerformanceQuestionController::class, 'createCategory'])->name('categories.create');
+            Route::post('/questions/categories', [PerformanceQuestionController::class, 'storeCategory'])->name('categories.store');
+            Route::get('/questions/categories/{category}/edit', [PerformanceQuestionController::class, 'editCategory'])->name('categories.edit');
+            Route::put('/questions/categories/{category}', [PerformanceQuestionController::class, 'updateCategory'])->name('categories.update');
+            Route::delete('/questions/categories/{category}', [PerformanceQuestionController::class, 'destroyCategory'])->name('categories.destroy');
+
+            // Questions
+            Route::get('/questions/create', [PerformanceQuestionController::class, 'createQuestion'])->name('questions.create');
+            Route::post('/questions', [PerformanceQuestionController::class, 'storeQuestion'])->name('questions.store');
+            Route::get('/questions/{question}/edit', [PerformanceQuestionController::class, 'editQuestion'])->name('questions.edit');
+            Route::put('/questions/{question}', [PerformanceQuestionController::class, 'updateQuestion'])->name('questions.update');
+            Route::delete('/questions/{question}', [PerformanceQuestionController::class, 'destroyQuestion'])->name('questions.destroy');
+
+            // My Evaluations
+            Route::get('/my-evaluations', [PerformanceEvaluationController::class, 'myEvaluations'])->name('my-evaluations');
+            Route::get('/evaluations/{evaluation}/fill', [PerformanceEvaluationController::class, 'fillEvaluation'])->name('evaluations.fill');
+            Route::post('/evaluations/{evaluation}/submit', [PerformanceScoreController::class, 'submitScores'])->name('evaluations.submit');
+
+            // Results (HRD only)
+            Route::get('/results', [PerformanceEvaluationController::class, 'results'])->name('results.index');
+            Route::get('/results/periods/{period}', [PerformanceEvaluationController::class, 'periodResults'])->name('results.period');
+            Route::get('/results/periods/{period}/employees/{employee}', [PerformanceEvaluationController::class, 'employeeResults'])->name('results.employee');
+        });
     }
 );
 

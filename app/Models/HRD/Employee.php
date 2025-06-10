@@ -19,7 +19,7 @@ class Employee extends Model
         'alamat',
         'village_id',
         'position',       // Changed from 'posisi' to match migration
-        'division',       // Changed from 'divisi' to match migration
+        'division_id',       // Changed from 'divisi' to match migration
         'pendidikan',
         'no_hp',
         'tanggal_masuk',
@@ -42,12 +42,20 @@ class Employee extends Model
 
     public function position()
     {
-        return $this->belongsTo(Position::class, 'position');
+        // Make sure this points to the correct foreign key
+        return $this->belongsTo(Position::class, 'position', 'id');
     }
 
     public function division()
     {
-        return $this->belongsTo(Division::class, 'division');
+        // Make sure this points to the correct foreign key
+        return $this->belongsTo(Division::class, 'division_id');
+    }
+    public function manager()
+    {
+        return $this->belongsTo(Employee::class, 'manager_id');
+        // OR if you determine managers by a flag
+        // return $this->hasOne(Employee::class)->where('is_manager', true);
     }
 
     public function village()
@@ -62,6 +70,48 @@ class Employee extends Model
 
     public function isManager()
     {
-        return $this->user && $this->user->hasRole('manager');
+        // Make case-insensitive for safety
+        return $this->user && $this->user->hasRole(['manager', 'Manager']);
+    }
+
+    // Add these new relationships
+    public function evaluationsAsEvaluator()
+    {
+        return $this->hasMany(PerformanceEvaluation::class, 'evaluator_id');
+    }
+
+    public function evaluationsAsEvaluatee()
+    {
+        return $this->hasMany(PerformanceEvaluation::class, 'evaluatee_id');
+    }
+
+    // Get pending evaluations for this employee to complete
+    public function getPendingEvaluationsAttribute()
+    {
+        return $this->evaluationsAsEvaluator()
+            ->where('status', 'pending')
+            ->with(['evaluatee', 'period'])
+            ->get();
+    }
+
+    // Get average score for a given period
+    public function getScoreForPeriod($periodId)
+    {
+        $evaluations = $this->evaluationsAsEvaluatee()
+            ->where('period_id', $periodId)
+            ->where('status', 'completed')
+            ->with('scores')
+            ->get();
+
+        if ($evaluations->isEmpty()) {
+            return null;
+        }
+
+        $allScores = collect();
+        foreach ($evaluations as $evaluation) {
+            $allScores = $allScores->concat($evaluation->scores);
+        }
+
+        return $allScores->avg('score');
     }
 }

@@ -33,6 +33,26 @@
                 </ul>
             </li>
             
+            <!-- Performance Evaluations - Visible to all authenticated users -->
+            <li>
+                <a href="javascript: void(0);"> <i data-feather="award" class="align-self-center menu-icon"></i><span>Penilaian Kinerja</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.my-evaluations') }}"><i class="ti-control-record"></i>Evaluasi Saya</a></li>
+                    
+                    <!-- For Managers: Team Evaluations -->
+                    @if(Auth::check() && Auth::user()->hasRole('Manager'))
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.my-evaluations') }}"><i class="ti-control-record"></i>Evaluasi Tim</a></li>
+                    @endif
+                    
+                    <!-- For HRD and CEO: Full Performance Management -->
+                    @if(Auth::check() && (Auth::user()->hasRole('Hrd') || Auth::user()->hasRole('Ceo')))
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.periods.index') }}"><i class="ti-control-record"></i>Periode Penilaian</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.questions.index') }}"><i class="ti-control-record"></i>Kelola Pertanyaan</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.results.index') }}"><i class="ti-control-record"></i>Hasil Penilaian</a></li>
+                    @endif
+                </ul>
+            </li>
+            
             <!-- For Managers: Team Management -->
             @if(Auth::check() && Auth::user()->hasRole('Manager'))
             <li>
