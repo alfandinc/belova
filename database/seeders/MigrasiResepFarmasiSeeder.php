@@ -48,7 +48,7 @@ class MigrasiResepFarmasiSeeder extends Seeder
                 'bungkus'        => $nullIfStringNull($row[5]),
                 'racikan_ke'     => $nullIfStringNull($row[6]),
                 'aturan_pakai'   => $nullIfStringNull($row[7]),
-                'wadah'          => $nullIfStringNull($row[8]),
+                'wadah_id'          => 1,
 
 
                 'harga' => $nullIfStringNull($row[9]),

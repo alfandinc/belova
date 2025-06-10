@@ -20,7 +20,7 @@ return new class extends Migration
             $table->integer('bungkus')->nullable();
             $table->string('racikan_ke')->nullable();
             $table->string('aturan_pakai')->nullable();
-            $table->foreignId('wadah_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('wadah_id')->nullable()->constrained('erm_wadah_obat')->nullOnDelete();
             $table->decimal('harga', 15, 2)->nullable();
             $table->integer('diskon')->nullable();
             $table->decimal('total', 15, 2)->nullable();

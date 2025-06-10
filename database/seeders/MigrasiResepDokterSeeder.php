@@ -48,7 +48,7 @@ class MigrasiResepDokterSeeder extends Seeder
                 'bungkus'        => $nullIfStringNull($row[5]),
                 'racikan_ke'     => $nullIfStringNull($row[6]),
                 'aturan_pakai'   => $nullIfStringNull($row[7]),
-                'wadah'          => $nullIfStringNull($row[8]),
+                'wadah_id'          => 1,
                 'user_id'        => $nullIfStringNull($row[10]),
                 'created_at'     => $nullIfStringNull($row[9]) ?? now(),
                 'updated_at'     => now(),

@@ -40,7 +40,7 @@ class EmployeeSeeder extends Seeder
             'alamat' => 'Jl. Executive No.1, Jakarta',
             'village_id' => null,
             'position' => 1, // CEO position
-            'division' => 1, // Typically assigned to main division
+            'division_id' => 1, // Typically assigned to main division
             'pendidikan' => 'S3 Business Administration',
             'no_hp' => '081122334455',
             'tanggal_masuk' => '2015-01-01',
@@ -64,7 +64,7 @@ class EmployeeSeeder extends Seeder
             'alamat' => 'Jl. HR Rasuna Said No.1, Jakarta',
             'village_id' => null, // Update with actual village ID if available
             'position' => 2, // HRD Manager
-            'division' => 1, // Human Resource
+            'division_id' => 1, // Human Resource
             'pendidikan' => 'S1 Manajemen SDM',
             'no_hp' => '08123456789',
             'tanggal_masuk' => '2018-01-10',
@@ -82,7 +82,7 @@ class EmployeeSeeder extends Seeder
                 'nik' => '2345678901234567',
                 'alamat' => 'Jl. Gatot Subroto No. 10, Jakarta',
                 'position' => 3, // Manajer Keuangan
-                'division' => 2, // Finance & Accounting
+                'division_id' => 2, // Finance & Accounting
                 'pendidikan' => 'S1 Akuntansi',
             ],
             [
@@ -93,7 +93,7 @@ class EmployeeSeeder extends Seeder
                 'nik' => '3456789012345678',
                 'alamat' => 'Jl. Sudirman No. 25, Jakarta',
                 'position' => 4, // Manajer Marketing
-                'division' => 3, // Marketing
+                'division_id' => 3, // Marketing
                 'pendidikan' => 'S1 Marketing',
             ],
             [
@@ -104,7 +104,7 @@ class EmployeeSeeder extends Seeder
                 'nik' => '4567890123456789',
                 'alamat' => 'Jl. Kuningan No. 5, Jakarta',
                 'position' => 5, // Manajer IT
-                'division' => 4, // Information Technology
+                'division_id' => 4, // Information Technology
                 'pendidikan' => 'S1 Teknik Informatika',
             ],
         ];
@@ -125,7 +125,7 @@ class EmployeeSeeder extends Seeder
                 'alamat' => $manager['alamat'],
                 'village_id' => null, // Update if available
                 'position' => $manager['position'],
-                'division' => $manager['division'],
+                'division_id' => $manager['division_id'],
                 'pendidikan' => $manager['pendidikan'],
                 'no_hp' => '08' . rand(100000000, 999999999),
                 'tanggal_masuk' => '2019-' . rand(1, 12) . '-' . rand(1, 28),
@@ -169,7 +169,7 @@ class EmployeeSeeder extends Seeder
                 'alamat' => 'Jl. Karyawan No. ' . rand(1, 100) . ', Jakarta',
                 'village_id' => null, // Update if available
                 'position' => $position,
-                'division' => $division,
+                'division_id' => $division,
                 'pendidikan' => ['SMA', 'D3', 'S1', 'S2'][array_rand(['SMA', 'D3', 'S1', 'S2'])],
                 'no_hp' => '08' . rand(100000000, 999999999),
                 'tanggal_masuk' => $startDate,

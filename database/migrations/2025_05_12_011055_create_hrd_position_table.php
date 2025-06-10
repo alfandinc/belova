@@ -13,7 +13,12 @@ return new class extends Migration
     {
         Schema::create('hrd_position', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // e.g. "HR Manager", "Staff IT"
+            $table->string('name');
+            $table->string('description')->nullable();
+            // e.g. "Manager", "Staff"
+
+            $table->foreignId('division_id')->constrained('hrd_division')->onDelete('cascade');
+            // e.g. "HR Manager", "Staff IT"
             $table->timestamps();
         });
     }

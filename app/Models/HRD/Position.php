@@ -11,7 +11,7 @@ class Position extends Model
 
     protected $table = 'hrd_position';
 
-    protected $fillable = ['name', 'division_id'];
+    protected $fillable = ['name', 'description', 'division_id'];
 
     public function employees()
     {
