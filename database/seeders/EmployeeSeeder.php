@@ -17,7 +17,7 @@ class EmployeeSeeder extends Seeder
     public function run(): void
     {
         // Make sure we have required roles
-        $roles = ['ceo', 'hrd', 'manager', 'employee'];
+        $roles = ['Ceo', 'Hrd', 'Manager', 'Employee'];
         foreach ($roles as $role) {
             if (!Role::where('name', $role)->exists()) {
                 Role::create(['name' => $role]);
@@ -28,9 +28,9 @@ class EmployeeSeeder extends Seeder
         $ceoUser = User::create([
             'name' => 'CEO',
             'email' => 'ceo@example.com',
-            'password' => Hash::make('password'),
+            'password' => Hash::make('12345678'),
         ]);
-        $ceoUser->assignRole('ceo');
+        $ceoUser->assignRole('Ceo');
 
         Employee::create([
             'nama' => 'CEO',
@@ -52,9 +52,9 @@ class EmployeeSeeder extends Seeder
         $hrdUser = User::create([
             'name' => 'HRD Manager',
             'email' => 'hrd@example.com',
-            'password' => Hash::make('password'),
+            'password' => Hash::make('12345678'),
         ]);
-        $hrdUser->assignRole('hrd');
+        $hrdUser->assignRole('Hrd');
 
         Employee::create([
             'nama' => 'HRD Manager',
@@ -113,9 +113,9 @@ class EmployeeSeeder extends Seeder
             $user = User::create([
                 'name' => $manager['nama'],
                 'email' => $manager['email'],
-                'password' => Hash::make('password'),
+                'password' => Hash::make('12345678'),
             ]);
-            $user->assignRole('manager');
+            $user->assignRole('Manager');
 
             Employee::create([
                 'nama' => $manager['nama'],
@@ -153,9 +153,9 @@ class EmployeeSeeder extends Seeder
                 $user = User::create([
                     'name' => 'Employee ' . $i,
                     'email' => 'employee' . $i . '@example.com',
-                    'password' => Hash::make('password'),
+                    'password' => Hash::make('12345678'),
                 ]);
-                $user->assignRole('employee');
+                $user->assignRole('Employee');
                 $userId = $user->id;
             } else {
                 $userId = null;

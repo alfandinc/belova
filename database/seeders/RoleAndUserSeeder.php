@@ -17,6 +17,7 @@ class RoleAndUserSeeder extends Seeder
         $farmasi = Role::firstOrCreate(['name' => 'Farmasi']);
         $pendaftaran = Role::firstOrCreate(['name' => 'Pendaftaran']);
         $kasir = Role::firstOrCreate(['name' => 'Kasir']);
+        $marketing = Role::firstOrCreate(['name' => 'Marketing']);
 
         // Buat user admin
         $adminUser = User::firstOrCreate(
@@ -27,6 +28,17 @@ class RoleAndUserSeeder extends Seeder
                 'password' => bcrypt('12345678'),
             ]
         );
+
+        // Buat user marketing
+        $adminUser = User::firstOrCreate(
+            ['email' => 'marketing@belova.com'],
+            [
+                'id' => 7,
+                'name' => 'Marketin User',
+                'password' => bcrypt('12345678'),
+            ]
+        );
+        $adminUser->assignRole($admin);
         $adminUser->assignRole($admin);
 
         // Buat user dokter

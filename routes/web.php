@@ -47,6 +47,7 @@ use App\Http\Controllers\HRD\EmployeeSelfServiceController;
 use App\Http\Controllers\HRD\PerformanceEvaluationController;
 use App\Http\Controllers\HRD\PerformanceQuestionController;
 use App\Http\Controllers\HRD\PerformanceScoreController;
+use App\Http\Controllers\Marketing\MarketingController;
 use App\Models\ERM\SuratIstirahat;
 use App\Models\ERM\Visitation;
 
@@ -291,6 +292,15 @@ Route::prefix('hrd')->group(
         });
     }
 );
+
+Route::prefix('marketing')->group(function () {
+
+    Route::get('/revenue', [MarketingController::class, 'revenue'])->name('marketing.revenue');
+    Route::get('/patients', [MarketingController::class, 'patients'])->name('marketing.patients');
+    Route::get('/services', [MarketingController::class, 'services'])->name('marketing.services');
+    Route::get('/products', [MarketingController::class, 'products'])->name('marketing.products');
+    Route::get('/clinic-comparison', [MarketingController::class, 'clinicComparison'])->name('marketing.clinic-comparison');
+});
 
 Route::prefix('admin')->group(
     function () {
