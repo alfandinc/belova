@@ -2,28 +2,78 @@
 
 namespace Database\Seeders;
 
+use App\Models\HRD\Position;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use App\Models\HRD\Position;
 
 class PositionSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
-    public function run()
+    public function run(): void
     {
         $positions = [
-            'HR Manager',
-            'Finance Staff',
-            'IT Support',
-            'Nurse',
-            'Doctor',
-            'Operator',
+            [
+                'name' => 'CEO',
+                'description' => 'Chief Executive Officer',
+            ],
+            [
+                'name' => 'HRD Manager',
+                'description' => 'Manajer Sumber Daya Manusia',
+            ],
+            [
+                'name' => 'Manajer Keuangan',
+                'description' => 'Manajer Keuangan dan Akuntansi',
+            ],
+            [
+                'name' => 'Manajer Marketing',
+                'description' => 'Manajer Pemasaran',
+            ],
+            [
+                'name' => 'Manajer IT',
+                'description' => 'Manajer Teknologi Informasi',
+            ],
+            [
+                'name' => 'Staff HRD',
+                'description' => 'Staff Sumber Daya Manusia',
+            ],
+            [
+                'name' => 'Staff Keuangan',
+                'description' => 'Staff Keuangan dan Akuntansi',
+            ],
+            [
+                'name' => 'Staff Marketing',
+                'description' => 'Staff Pemasaran',
+            ],
+            [
+                'name' => 'Programmer',
+                'description' => 'Developer/Programmer',
+            ],
+            [
+                'name' => 'Network Administrator',
+                'description' => 'Admin Jaringan',
+            ],
+            [
+                'name' => 'Customer Service',
+                'description' => 'Layanan Pelanggan',
+            ],
+            [
+                'name' => 'Office Boy',
+                'description' => 'Staff Kebersihan',
+            ],
+            [
+                'name' => 'Security',
+                'description' => 'Keamanan',
+            ],
+            [
+                'name' => 'Driver',
+                'description' => 'Supir',
+            ],
         ];
 
         foreach ($positions as $position) {
-            Position::create(['name' => $position]);
+            Position::create($position);
         }
     }
 }

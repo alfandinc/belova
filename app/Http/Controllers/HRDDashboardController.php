@@ -8,7 +8,7 @@ class HRDDashboardController extends Controller
 {
     public function index()
     {
-        if (!auth()->user()->hasAnyRole('Hrd')) {
+        if (!auth()->user()->hasAnyRole('Hrd', 'Ceo', 'Manager', 'Employee')) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 

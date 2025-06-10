@@ -24,6 +24,7 @@ return new class extends Migration
 
             // Position - foreign key
             $table->foreignId('position')->constrained('hrd_position');
+            $table->foreignId('division')->constrained('hrd_division');
 
             $table->string('pendidikan');
             $table->string('no_hp');

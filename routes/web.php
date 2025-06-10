@@ -42,6 +42,8 @@ use App\Http\Controllers\ERM\{
 use App\Http\Controllers\HRD\EmployeeController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\HRD\DivisionController;
+use App\Http\Controllers\HRD\EmployeeSelfServiceController;
 use App\Models\ERM\SuratIstirahat;
 use App\Models\ERM\Visitation;
 
@@ -223,12 +225,29 @@ Route::prefix('inventory')->group(
 Route::prefix('hrd')->group(
     function () {
 
+        // Employee Management Routes
+        // Add these routes if they're missing
         Route::get('/employee', [EmployeeController::class, 'index'])->name('hrd.employee.index');
         Route::get('/employee/create', [EmployeeController::class, 'create'])->name('hrd.employee.create');
         Route::post('/employee', [EmployeeController::class, 'store'])->name('hrd.employee.store');
+        Route::get('/employee/{id}', [EmployeeController::class, 'show'])->name('hrd.employee.show');
         Route::get('/employee/{id}/edit', [EmployeeController::class, 'edit'])->name('hrd.employee.edit');
         Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
-        Route::delete('/item/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');
+        Route::delete('/employee/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');
+
+        // Employee Self Service Routes
+
+        Route::get('/profile', [EmployeeSelfServiceController::class, 'profile'])->name('hrd.employee.profile');
+        Route::get('/profile/edit', [EmployeeSelfServiceController::class, 'editProfile'])->name('hrd.employee.profile.edit');
+        Route::put('/profile', [EmployeeSelfServiceController::class, 'updateProfile'])->name('hrd.employee.profile.update');
+        Route::get('/change-password', [EmployeeSelfServiceController::class, 'changePassword'])->name('hrd.employee.password.change');
+        Route::put('/change-password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
+
+
+        // Division routes (for managers)
+
+        Route::get('/my-division', [DivisionController::class, 'showMyDivision'])->name('hrd.division.mine');
+        Route::get('/my-team', [DivisionController::class, 'showMyTeam'])->name('hrd.division.team');
     }
 );
 

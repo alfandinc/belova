@@ -57,26 +57,27 @@
     </div>
 
     <!-- Scripts -->
-    <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/metismenu.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/waves.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/feather.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/simplebar.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/moment.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/daterangepicker/daterangepicker.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/select2/select2.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/flatpickr/flatpickr.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/timepicker/bootstrap-material-datetimepicker.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/jquery-steps/jquery.steps.min.js') }}"></script>
-    <script src="{{ asset('dastone/assets/pages/jquery.form-wizard.init.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/datatables/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/datatables/dataTables.bootstrap4.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/datatables/dataTables.responsive.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/datatables/responsive.bootstrap4.min.js') }}"></script>
-    <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/js/app.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/metismenu.min.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/waves.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/feather.min.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/simplebar.min.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/moment.js') }}"></script>
+<script src="{{ asset('dastone/plugins/daterangepicker/daterangepicker.js') }}"></script>
+<script src="{{ asset('dastone/plugins/select2/select2.min.js') }}"></script>
+<script src="{{ asset('dastone/plugins/flatpickr/flatpickr.min.js') }}"></script>
+<script src="{{ asset('dastone/plugins/timepicker/bootstrap-material-datetimepicker.js') }}"></script>
+<script src="{{ asset('dastone/plugins/jquery-steps/jquery.steps.min.js') }}"></script>
+<script src="{{ asset('dastone/assets/pages/jquery.form-wizard.init.js') }}"></script>
+<script src="{{ asset('dastone/plugins/datatables/jquery.dataTables.min.js') }}"></script>
+<script src="{{ asset('dastone/plugins/datatables/dataTables.bootstrap4.min.js') }}"></script>
+<script src="{{ asset('dastone/plugins/datatables/dataTables.responsive.min.js') }}"></script>
+<script src="{{ asset('dastone/plugins/datatables/responsive.bootstrap4.min.js') }}"></script>
+<script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
+<script src="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script>
+<script src="{{ asset('dastone/default/assets/js/app.js') }}"></script>
 
     <!-- Theme Toggle Script -->
     <script>

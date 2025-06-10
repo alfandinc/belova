@@ -18,7 +18,8 @@ class Employee extends Model
         'nik',
         'alamat',
         'village_id',
-        'position',
+        'position',       // Changed from 'posisi' to match migration
+        'division',       // Changed from 'divisi' to match migration
         'pendidikan',
         'no_hp',
         'tanggal_masuk',
@@ -32,18 +33,35 @@ class Employee extends Model
         'user_id'
     ];
 
+    protected $dates = [
+        'tanggal_lahir',
+        'tanggal_masuk',
+        'kontrak_berakhir',
+        'masa_pensiun',
+    ];
+
     public function position()
     {
         return $this->belongsTo(Position::class, 'position');
     }
 
-    // public function village()
-    // {
-    //     return $this->belongsTo(AreaVillage::class, 'village_id');
-    // }
+    public function division()
+    {
+        return $this->belongsTo(Division::class, 'division');
+    }
+
+    public function village()
+    {
+        return $this->belongsTo(\App\Models\Area\Village::class, 'village_id');
+    }
 
     public function user()
     {
         return $this->belongsTo(\App\Models\User::class);
+    }
+
+    public function isManager()
+    {
+        return $this->user && $this->user->hasRole('manager');
     }
 }
