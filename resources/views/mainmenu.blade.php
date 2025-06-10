@@ -231,7 +231,7 @@
                                 <div class="col-md-6 col-lg-3">
                                     <a href="/lab/login" style="text-decoration: none; color: inherit;">
                                     <div class="card report-card">
-                                        <div class="card-header bg-info">
+                                        <div class="card-header bg-primary">
                                             <h3 class="card-title text-white"><center>Laboratorium</center></h3>
                                         </div><!--end card-header-->
                                         <div class="card-body">
@@ -240,6 +240,27 @@
                                                     <!-- Icon Container -->
                                                     <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
                                                         <i class="fas fa-vial fa-3x"></i>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div> 
+                                    </div>
+                                    </a>
+                                </div> <!--end col-->
+                                
+                                <div class="col-md-6 col-lg-3">
+                                    <a href="/akreditasi/login" style="text-decoration: none; color: inherit;">
+                                    <div class="card report-card">
+                                        <div class="card-header bg-warning">
+                                            <h3 class="card-title text-white"><center>Akreditasi</center></h3>
+                                        </div><!--end card-header-->
+                                        <div class="card-body">
+                                            <div class="row d-flex justify-content-center">
+                                                <div class="col-auto align-self-center">                                
+                                                    <!-- Icon Container -->
+                                                    <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
+                                                        <i class="fas fa-star fa-3x"></i>
                                                     </div>
 
                                                 </div>
