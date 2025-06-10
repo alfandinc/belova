@@ -20,7 +20,7 @@ return new class extends Migration
             $table->text('alamat');
 
             // Village - foreign key
-            $table->foreignId('village_id')->constrained('area_villages')->nullable();
+            $table->foreignId('village_id')->nullable()->constrained('area_villages')->nullOnDelete();
 
             // Position - foreign key
             $table->foreignId('position')->constrained('hrd_position');

@@ -208,10 +208,30 @@
                                     </div>
                                     </a>
                                 </div> <!--end col-->
-                                {{-- <div class="col-md-6 col-lg-3">
-                                    <a href="/erm/login" style="text-decoration: none; color: inherit;">
+                                <div class="col-md-6 col-lg-3">
+                                    <a href="/dokumen-kerja/login" style="text-decoration: none; color: inherit;">
                                     <div class="card report-card">
-                                        <div class="card-header bg-secondary">
+                                        <div class="card-header bg-purple">
+                                            <h3 class="card-title text-white"><center>Dokumen Kerja</center></h3>
+                                        </div><!--end card-header-->
+                                        <div class="card-body">
+                                            <div class="row d-flex justify-content-center">
+                                                <div class="col-auto align-self-center">                                
+                                                    <!-- Icon Container -->
+                                                    <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
+                                                        <i class="fas fa-folder-open fa-3x"></i>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+                                        </div> 
+                                    </div>
+                                    </a>
+                                </div> <!--end col-->
+                                <div class="col-md-6 col-lg-3">
+                                    <a href="/lab/login" style="text-decoration: none; color: inherit;">
+                                    <div class="card report-card">
+                                        <div class="card-header bg-info">
                                             <h3 class="card-title text-white"><center>Laboratorium</center></h3>
                                         </div><!--end card-header-->
                                         <div class="card-body">
@@ -227,7 +247,7 @@
                                         </div> 
                                     </div>
                                     </a>
-                                </div> <!--end col--> --}}
+                                </div> <!--end col-->
                                 {{-- <div class="col-md-6 col-lg-3">
                                     <a href="/erm/login" style="text-decoration: none; color: inherit;">
                                     <div class="card report-card">
