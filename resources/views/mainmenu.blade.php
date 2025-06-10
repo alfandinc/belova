@@ -44,13 +44,13 @@
                         
                     </li>
     
-                    <li>
+                    {{-- <li>
                         <a href="javascript: void(0);"><i data-feather="user" class="align-self-center menu-icon"></i><span>Admin Panel</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/admin/users"><i class="ti-control-record"></i>User Management</a></li>
                             <li class="nav-item"><a class="nav-link" href="/admin/roles"><i class="ti-control-record"></i>Role Management</a></li>
                         </ul>
-                    </li> 
+                    </li>  --}}
     
                     <hr class="hr-dashed hr-menu">         
                 </ul>
