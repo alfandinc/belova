@@ -31,9 +31,12 @@ class RawatJalanController extends Controller
                 }
             }
 
-            if ($request->tanggal) {
-                $visitations->whereDate('tanggal_visitation', $request->tanggal);
+            // Date range filter
+            if ($request->start_date && $request->end_date) {
+                $visitations->whereDate('tanggal_visitation', '>=', $request->start_date)
+                    ->whereDate('tanggal_visitation', '<=', $request->end_date);
             }
+
             if ($request->dokter_id) {
                 $visitations->where('dokter_id', $request->dokter_id);
             }

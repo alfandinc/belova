@@ -33,8 +33,13 @@
         <div class="card-body">
             <div class="row mb-3">
                 <div class="col-md-4">
-                    <label for="filter_tanggal">Filter Tanggal Kunjungan</label>
-                    <input type="date" id="filter_tanggal" class="form-control">
+                    <label for="filter_tanggal">Periode Tanggal Kunjungan</label>
+                    <div class="input-group">
+                        <input type="text" id="filter_tanggal" class="form-control" placeholder="Pilih Rentang Tanggal">
+                        <div class="input-group-append">
+                            <span class="input-group-text"><i class="fas fa-calendar"></i></span>
+                        </div>
+                    </div>
                 </div>
                 @if ($role !== 'Dokter')
                 <div class="col-md-4">
@@ -72,9 +77,40 @@ $(document).ready(function () {
     $('.select2').select2({
         width: '100%' 
     });
-    // Set default value tanggal ke hari ini
-    var today = new Date().toISOString().substr(0, 10);
-    $('#filter_tanggal').val(today);
+    // Initialize daterangepicker
+    $('#filter_tanggal').daterangepicker({
+        locale: {
+            format: 'DD-MM-YYYY',
+            separator: ' s/d ',
+            applyLabel: 'Pilih',
+            cancelLabel: 'Batal',
+            fromLabel: 'Dari',
+            toLabel: 'Hingga',
+            customRangeLabel: 'Kustom',
+            weekLabel: 'M',
+            daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+            monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+            firstDay: 1
+        },
+        opens: 'left',
+        autoUpdateInput: false
+    });
+    
+    // Set default value to today
+    var today = moment().format('DD-MM-YYYY');
+    $('#filter_tanggal').val(today + ' s/d ' + today);
+    
+    // Handle apply event
+    $('#filter_tanggal').on('apply.daterangepicker', function(ev, picker) {
+        $(this).val(picker.startDate.format('DD-MM-YYYY') + ' s/d ' + picker.endDate.format('DD-MM-YYYY'));
+        table.ajax.reload();
+    });
+    
+    // Handle cancel event
+    $('#filter_tanggal').on('cancel.daterangepicker', function(ev, picker) {
+        $(this).val('');
+        table.ajax.reload();
+    });
 
     $.fn.dataTable.ext.order['antrian-number'] = function(settings, col) {
         return this.api().column(col, {order: 'index'}).nodes().map(function(td, i) {
@@ -89,7 +125,9 @@ $(document).ready(function () {
         ajax: {
             url: '{{ route("erm.rawatjalans.index") }}',
             data: function(d) {
-                d.tanggal = $('#filter_tanggal').val();
+                var dateRange = $('#filter_tanggal').val().split(' s/d ');
+                d.start_date = dateRange[0] ? moment(dateRange[0], 'DD-MM-YYYY').format('YYYY-MM-DD') : '';
+                d.end_date = dateRange[1] ? moment(dateRange[1], 'DD-MM-YYYY').format('YYYY-MM-DD') : '';
                 d.dokter_id = $('#filter_dokter').val();
             }
         },
@@ -113,10 +151,6 @@ $(document).ready(function () {
         }
     });
 
-    // Event ganti tanggal
-    $('#filter_tanggal').on('change', function () {
-        table.ajax.reload();
-    });
     $('#filter_dokter').on('change', function () {
     table.ajax.reload();
     });
