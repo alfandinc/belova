@@ -500,4 +500,45 @@ class EresepController extends Controller
             ];
         }));
     }
+
+
+    public function getResepDokterByVisitation($visitationId)
+    {
+        $nonRacikans = ResepDokter::with(['obat', 'wadah'])
+            ->where('visitation_id', $visitationId)
+            ->whereNull('racikan_ke')
+            ->get();
+
+        $racikans = ResepDokter::with(['obat', 'wadah'])
+            ->where('visitation_id', $visitationId)
+            ->whereNotNull('racikan_ke')
+            ->get()
+            ->groupBy('racikan_ke');
+
+        return response()->json([
+            'success' => true,
+            'nonRacikans' => $nonRacikans,
+            'racikans' => $racikans
+        ]);
+    }
+
+    public function getResepFarmasiByVisitation($visitationId)
+    {
+        $nonRacikans = ResepFarmasi::with(['obat', 'wadah'])
+            ->where('visitation_id', $visitationId)
+            ->whereNull('racikan_ke')
+            ->get();
+
+        $racikans = ResepFarmasi::with(['obat', 'wadah'])
+            ->where('visitation_id', $visitationId)
+            ->whereNotNull('racikan_ke')
+            ->get()
+            ->groupBy('racikan_ke');
+
+        return response()->json([
+            'success' => true,
+            'nonRacikans' => $nonRacikans,
+            'racikans' => $racikans
+        ]);
+    }
 }

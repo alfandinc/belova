@@ -622,6 +622,163 @@
             });
         });
 
+
+
+                // Handle Copy Resep button click
+        $(document).on('click', '.btn-copy-resep', function() {
+            const visitationId = $(this).data('visitation-id');
+            const source = $(this).data('source');
+            const currentVisitationId = $('#visitation_id').val();
+            
+            if (!confirm(`Yakin ingin menyalin resep ini ke kunjungan saat ini?`)) return;
+            
+            // Show loading
+            $(this).html('<i class="fas fa-spinner fa-spin"></i> Menyalin...');
+            const $button = $(this);
+            
+            // Determine which endpoint to use based on source
+            const url = source === 'dokter' 
+                ? `{{ url('/resep/dokter') }}/${visitationId}/get`
+                : `{{ url('/resep/farmasi') }}/${visitationId}/get`;
+            
+            $.get(url)
+                .done(function(response) {
+                    if (response.success) {
+                        // Clear existing data
+                        $('#resep-table-body').html('');
+                        $('#racikan-container').html('');
+                        racikanCount = 0;
+                        
+                        // Process non-racikan medications
+                        if (response.nonRacikans.length > 0) {
+                            response.nonRacikans.forEach(function(resep) {
+                                $('#resep-table-body').append(`
+                                    <tr data-id="${resep.id}">
+                                        <td>${resep.obat.nama || '-'}</td>
+                                        <td>${resep.obat.harga_nonfornas || 0}</td>
+                                        <td>${resep.jumlah}</td>
+                                        <td>${resep.obat.stok || 0}</td>
+                                        <td>${resep.aturan_pakai}</td>
+                                        <td>
+                                            <button class="btn btn-success btn-sm edit" data-id="${resep.id}">Edit</button>
+                                            <button class="btn btn-danger btn-sm hapus" data-id="${resep.id}">Hapus</button>
+                                        </td>
+                                    </tr>
+                                `);
+                            });
+                        } else {
+                            $('#resep-table-body').append(`
+                                <tr class="no-data">
+                                    <td colspan="6" class="text-center text-muted">Belum ada data</td>
+                                </tr>
+                            `);
+                        }
+                        
+                        // Process racikan medications
+                        if (Object.keys(response.racikans).length > 0) {
+                            Object.entries(response.racikans).forEach(([racikanKe, items]) => {
+                                racikanCount = Math.max(racikanCount, parseInt(racikanKe));
+                                
+                                // Create racikan card
+                                const racikanCard = $(`
+                                    <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanKe}">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h5 style="color: yellow;"><strong>Racikan ${racikanKe}</strong></h5>
+                                            <div>
+                                                <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <table class="table table-bordered text-white">
+                                            <thead>
+                                                <tr>
+                                                    <th>Nama Obat</th>
+                                                    <th>Dosis</th>
+                                                    <th>Stok</th>
+                                                    <th>Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="resep-table-body"></tbody>
+                                        </table>
+                                        
+                                        <div class="row">
+                                            <div class="col-md-3">
+                                                <label>Wadah</label>
+                                                <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
+                                                    <option value="${items[0].wadah_id || ''}">${items[0].wadah?.nama || 'Pilih Wadah'}</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label>Bungkus</label>
+                                                <input type="number" class="form-control jumlah_bungkus" value="${items[0].bungkus || ''}">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label>Aturan Pakai</label>
+                                                <input type="text" class="form-control aturan_pakai" value="${items[0].aturan_pakai || ''}">
+                                            </div>
+                                        </div>
+                                        
+                                        <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
+                                    </div>
+                                `);
+                                
+                                // Add items to the racikan table
+                                const tbody = racikanCard.find('.resep-table-body');
+                                items.forEach(function(racik) {
+                                    tbody.append(`
+                                        <tr>
+                                            <td data-id="${racik.obat_id}">${racik.obat.nama || '-'}</td>
+                                            <td>${racik.dosis || '-'}</td>
+                                            <td>${racik.obat.stok || 0}</td>
+                                            <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                                        </tr>
+                                    `);
+                                });
+                                
+                                // Add the racikan card to the container
+                                $('#racikan-container').append(racikanCard);
+                                
+                                // Initialize select2 for wadah
+                                racikanCard.find('.select2-wadah-racikan').select2({
+                                    placeholder: 'Search wadah...',
+                                    ajax: {
+                                        url: '{{ route("wadah.search") }}',
+                                        dataType: 'json',
+                                        delay: 250,
+                                        data: function (params) {
+                                            return { q: params.term };
+                                        },
+                                        processResults: function (data) {
+                                            return {
+                                                results: data.map(item => ({
+                                                    id: item.id,
+                                                    text: item.text
+                                                }))
+                                            };
+                                        },
+                                        cache: true
+                                    },
+                                });
+                            });
+                        }
+                        
+                        // Close the modal
+                        $('#riwayatModal').modal('hide');
+                        
+                        // Show success message
+                        alert('Resep berhasil disalin!');
+                        updateTotalPrice();
+                    }
+                })
+                .fail(function() {
+                    alert('Gagal menyalin resep. Silakan coba lagi.');
+                })
+                .always(function() {
+                    // Reset button text
+                    $button.html('<i class="fas fa-copy"></i> Salin Resep');
+                });
+        });
+
               
         updateTotalPrice(); // <--- Tambahkan ini
     

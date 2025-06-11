@@ -6,7 +6,12 @@
     @endphp
 
     <div class="mb-4">
-        <h5 class="mb-3">🗓️ Tanggal Kunjungan: {{ $tanggal }}</h5>
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-3">🗓️ Tanggal Kunjungan: {{ $tanggal }}</h5>
+            <button class="btn btn-primary btn-sm btn-copy-resep" data-visitation-id="{{ $visitationId }}" data-source="dokter">
+                <i class="fas fa-copy"></i> Salin Resep
+            </button>
+        </div>
 
         {{-- Non-Racikan Table --}}
         @if ($nonRacikans->count())

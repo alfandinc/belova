@@ -269,26 +269,6 @@
                                     </div>
                                     </a>
                                 </div> <!--end col-->
-                                {{-- <div class="col-md-6 col-lg-3">
-                                    <a href="/erm/login" style="text-decoration: none; color: inherit;">
-                                    <div class="card report-card">
-                                        <div class="card-header bg-purple">
-                                            <h3 class="card-title text-white"><center>Farmasi</center></h3>
-                                        </div><!--end card-header-->
-                                        <div class="card-body">
-                                            <div class="row d-flex justify-content-center">
-                                                <div class="col-auto align-self-center">                                
-                                                    <!-- Icon Container -->
-                                                    <div class="report-main-icon bg-light-alt d-flex align-items-center justify-content-center p-3" style="width: 80px; height: 80px;">
-                                                        <i class="fas fa-pills fa-3x"></i>
-                                                    </div>
-
-                                                </div>
-                                            </div>
-                                        </div> 
-                                    </div>
-                                    </a>
-                                </div> <!--end col--> --}}
                                                               
                             </div><!--end row-->
 
