@@ -129,6 +129,15 @@
             animation: fadeIn 1s ease;
         }
         
+        .welcome-prefix {
+            font-weight: 400; /* Regular weight for "Welcome to" */
+        }
+        
+        .sim-name {
+            font-weight: 800; /* Bolder weight for "SIM Klinik Belova" */
+            font-size: 1.1em; /* Slightly larger */
+        }
+        
         .welcome-banner p {
             margin-bottom: 0;
             animation: fadeIn 1.2s ease;
@@ -260,7 +269,7 @@
         <!-- Main Content -->
         <div class="content-wrapper">
             <div class="welcome-banner">
-                <h2>Welcome to SIM Klinik Belova</h2>
+                <h2><span class="welcome-prefix">Welcome to</span> <span class="sim-name">SIM Klinik Belova</span></h2>
                 <p>Sistem Informasi Manajemen Terintegrasi</p>
             </div>
             
@@ -358,7 +367,7 @@
             // Theme toggle button event
             themeToggleBtn.addEventListener('click', function() {
                 const currentTheme = htmlElement.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
                 applyTheme(newTheme);
                 localStorage.setItem('belova-theme', newTheme);
             });

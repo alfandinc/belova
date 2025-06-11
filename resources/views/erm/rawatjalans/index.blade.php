@@ -8,8 +8,6 @@
 
 @include('erm.partials.modal-reschedule')
 
-
-
 <div class="container-fluid">
     <!-- Page-Title -->
     <div class="row">

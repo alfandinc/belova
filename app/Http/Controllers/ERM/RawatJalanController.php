@@ -50,7 +50,12 @@ class RawatJalanController extends Controller
                 })
                 ->addColumn('no_rm', fn($v) => $v->no_rm ?? '-') // Use the aliased column
                 ->addColumn('nama_pasien', fn($v) => $v->nama_pasien ?? '-') // Use the aliased column
-                ->addColumn('tanggal', fn($v) => $v->tanggal_visitation)
+                ->addColumn('tanggal', function ($v) {
+                    // Convert to Indonesian date format: 1 Januari 2025
+                    $date = \Carbon\Carbon::parse($v->tanggal_visitation);
+                    setlocale(LC_TIME, 'id_ID.utf8', 'id_ID', 'id');
+                    return $date->translatedFormat('j F Y');
+                })
                 ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
@@ -69,7 +74,11 @@ class RawatJalanController extends Controller
                         }
                     }
 
-                    $rescheduleBtn = '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->nama_pasien . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
+                    // Only show reschedule button for Pendaftaran or Perawat roles
+                    $rescheduleBtn = '';
+                    if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
+                        $rescheduleBtn = '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->nama_pasien . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
+                    }
 
                     return $dokumenBtn . ' ' . $rescheduleBtn;
                 })
