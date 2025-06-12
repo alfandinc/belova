@@ -19,6 +19,7 @@ use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\WadahObat;
 
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 
 
@@ -542,5 +543,37 @@ class EresepController extends Controller
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans
         ]);
+    }
+
+    public function printResep($visitationId)
+    {
+        // Get the visitation data
+        $visitation = Visitation::with(['pasien', 'dokter', 'metodeBayar'])->findOrFail($visitationId);
+
+        // Get prescription items
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)
+            ->with(['obat', 'wadah'])
+            ->get();
+
+        // Separate racikan and non-racikan
+        $nonRacikans = $reseps->whereNull('racikan_ke');
+        $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+
+        // Generate PDF view
+        $pdf = PDF::loadView('erm.eresep.farmasi.print', [
+            'visitation' => $visitation,
+            'nonRacikans' => $nonRacikans,
+            'racikans' => $racikans,
+        ]);
+
+        // Set PDF options for A4 landscape
+        $pdf->setPaper('a4', 'landscape');
+        $pdf->setOption('margin-top', 10);
+        $pdf->setOption('margin-right', 10);
+        $pdf->setOption('margin-bottom', 10);
+        $pdf->setOption('margin-left', 10);
+
+        // Return the PDF for download or inline display
+        return $pdf->stream('resep-' . $visitation->id . '.pdf');
     }
 }

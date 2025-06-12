@@ -142,7 +142,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/eresepfarmasi/{visitation_id}/json', [EresepController::class, 'getFarmasiResepJson'])->name('erm.eresepfarmasi.json');
     Route::post('/eresepfarmasi/{visitation_id}/copy-from-dokter', [EresepController::class, 'copyFromDokter'])->name('erm.eresepfarmasi.copyfromdokter');
 
-
+    Route::get('/eresepfarmasi/{visitation_id}/print', [EresepController::class, 'printResep'])->name('erm.eresepfarmasi.print');
     // Add these routes to your routes/web.php file
     Route::get('/resep/dokter/{visitationId}/get', [EresepController::class, 'getResepDokterByVisitation'])->name('resep.dokter.get');
     Route::get('/resep/farmasi/{visitationId}/get', [EresepController::class, 'getResepFarmasiByVisitation'])->name('resep.farmasi.get');

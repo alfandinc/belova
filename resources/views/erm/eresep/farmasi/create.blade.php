@@ -780,6 +780,12 @@
                 });
         });
 
+        $('.btn-cetakresep').on('click', function() {
+            const visitationId = $('#visitation_id').val();
+            // Open the print route in a new tab
+            window.open(`/erm/eresepfarmasi/${visitationId}/print`, '_blank');
+        });
+
               
         updateTotalPrice(); // <--- Tambahkan ini
     
