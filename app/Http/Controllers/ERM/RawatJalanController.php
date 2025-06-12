@@ -20,7 +20,8 @@ class RawatJalanController extends Controller
                     'erm_pasiens.nama as nama_pasien',
                     'erm_pasiens.id as no_rm'
                 )
-                ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id');
+                ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
+                ->where('jenis_kunjungan', 1);
 
             // Filter by logged-in doctor's ID if the user is a doctor
             $user = Auth::user();

@@ -33,6 +33,8 @@ class EresepController extends Controller
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }
 
+            $visitations->whereIn('jenis_kunjungan', [1, 2]);
+
             $user = Auth::user();
             if ($user->hasRole('Farmasi')) {
                 $visitations->where('status_kunjungan', 2);
