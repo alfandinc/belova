@@ -33,12 +33,10 @@ class EresepController extends Controller
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }
 
-            // $user = Auth::user();
-            // if ($user->hasRole('Perawat')) {
-            //     $visitations->where('progress', 1);
-            // } elseif ($user->hasRole('Dokter')) {
-            //     $visitations->whereIn('progress', [2, 3]);
-            // }
+            $user = Auth::user();
+            if ($user->hasRole('Farmasi')) {
+                $visitations->where('status_kunjungan', 2);
+            }
 
             return datatables()->of($visitations)
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
@@ -324,6 +322,7 @@ class EresepController extends Controller
             'jumlah' => 'required',
             'diskon' => 'required',
             'aturan_pakai' => 'required',
+            'harga' => 'required',
         ]);
         $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
 
@@ -334,6 +333,7 @@ class EresepController extends Controller
             'obat_id' => $validated['obat_id'],
             'jumlah' => $validated['jumlah'],
             'diskon' => $validated['diskon'],
+            'harga' => $validated['harga'],
             'aturan_pakai' => $validated['aturan_pakai'],
         ]);
 

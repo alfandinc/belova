@@ -121,7 +121,7 @@ class RawatJalanController extends Controller
         // update kunjungan lama jadi progress 7
         if ($request->has('visitation_id')) {
             Visitation::where('id', $request->visitation_id)->update([
-                'progress' => 7
+                'status_kunjungan' => 7
             ]);
         }
 
@@ -132,8 +132,7 @@ class RawatJalanController extends Controller
             'tanggal_visitation' => $request->tanggal_visitation,
             'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id ?? 1,
-            'progress' => 1,
-            'status_dokumen' => 'belum',
+            'status_kunjungan' => 0,
         ]);
 
         return response()->json(['message' => 'Berhasil menjadwalkan ulang pasien.']);

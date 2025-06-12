@@ -236,6 +236,7 @@
                     tipe: "nonracikan",
                     obat_id: obatId,
                     jumlah: jumlah,
+                    harga: harga,
                     diskon: diskon,
                     aturan_pakai: aturanPakai,
                     visitation_id: visitationId 

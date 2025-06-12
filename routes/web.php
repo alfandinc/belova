@@ -101,6 +101,8 @@ Route::prefix('erm')->group(function () {
     //Visitation
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
+    Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');
+    Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::post('/rawatjalans/create', [RawatJalanController::class, 'store'])->name('erm.rawatjalans.store');

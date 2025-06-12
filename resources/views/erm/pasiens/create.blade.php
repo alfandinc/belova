@@ -331,6 +331,9 @@
     $('#nama').on('input', function () {
         this.value = this.value.toUpperCase();
     });
+    $('#alamat').on('input', function () {
+        this.value = this.value.toUpperCase();
+    });
     $('#nik').on('input', function () {
     // Remove non-digits and cut off at 16 characters
     this.value = this.value.replace(/\D/g, '').slice(0, 16);

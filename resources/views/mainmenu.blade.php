@@ -322,18 +322,18 @@
                     <div class="menu-label">DOKUMEN KERJA</div>
                 </a>
                 
-                <!-- Laboratorium Tile -->
-                <a href="/lab/login" class="menu-tile tile-lab animate-item delay-7">
+                <!-- Cuatomer Tile -->
+                <a href="/customer/login" class="menu-tile tile-lab animate-item delay-7">
                     <div class="menu-icon">
-                        <i class="fas fa-vial"></i>
+                        <i class="fas fa-star-half-alt"></i>
                     </div>
-                    <div class="menu-label">LABORATORIUM</div>
+                    <div class="menu-label">PENILAIAN PELANGGAN</div>
                 </a>
                 
                 <!-- Akreditasi Tile -->
                 <a href="/akreditasi/login" class="menu-tile tile-akreditasi animate-item delay-8">
                     <div class="menu-icon">
-                        <i class="fas fa-star"></i>
+                        <i class="fas fa-medal"></i>
                     </div>
                     <div class="menu-label">AKREDITASI</div>
                 </a>

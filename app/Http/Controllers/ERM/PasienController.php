@@ -38,17 +38,37 @@ class PasienController extends Controller
             return DataTables::of($pasiens)
                 ->addColumn('actions', function ($user) {
                     return '
-                <a href="javascript:void(0);" 
-                   class="btn btn-sm btn-success btn-daftar-visitation" 
-                   data-id="' . $user->id . '" 
-                   data-nama="' . e($user->nama) . '">
-                   Buat Kunjungan
-                </a>
-                <a href="javascript:void(0);" 
-                    class="btn btn-sm btn-primary btn-info-pasien" 
-                    data-id="' . $user->id . '">
-                    Info
-                </a>';
+                <div class="btn-group-vertical w-100 mb-1">
+                    <div class="btn-group mb-1">
+                        <a href="javascript:void(0);" 
+                           class="btn btn-sm btn-success btn-daftar-visitation" 
+                           data-id="' . $user->id . '" 
+                           data-nama="' . e($user->nama) . '">
+                           <i class="fas fa-calendar-plus mr-1"></i> Buat Kunjungan
+                        </a>
+                        <a href="javascript:void(0);" 
+                            class="btn btn-sm btn-info btn-info-pasien" 
+                            data-id="' . $user->id . '">
+                            <i class="fas fa-info-circle mr-1"></i> Info Pasien
+                        </a>
+                        
+                    </div>
+                    <div class="btn-group">
+                        <a href="javascript:void(0);" 
+                           class="btn btn-sm btn-primary btn-daftar-lab" 
+                           data-id="' . $user->id . '" 
+                           data-nama="' . e($user->nama) . '">
+                           <i class="fas fa-flask mr-1"></i> Daftar Lab
+                        </a>
+                        <a href="javascript:void(0);" 
+                           class="btn btn-sm btn-warning btn-daftar-produk" 
+                           data-id="' . $user->id . '" 
+                           data-nama="' . e($user->nama) . '">
+                           <i class="fas fa-shopping-cart mr-1"></i> Beli Produk
+                        </a>
+                        
+                    </div>
+                </div>';
                 })
                 ->rawColumns(['actions'])
                 ->make(true);

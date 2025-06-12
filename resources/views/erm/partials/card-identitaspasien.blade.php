@@ -108,28 +108,29 @@
                     </div>
                 </div> 
                 <!-- Kolom alergi -->
-                <div class="col-md-3 mt-2">
-                    <div class="text-end">
-                        <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                            style="background-color:red; width: 25px; height: 25px;">
-                            <i style="color:white" class="fas fa-capsules" title="no_hp"></i>
-                        </span>
-                        <strong>Alergi : {{ $alergikatakunci ?? '-'}}</strong>
-                        {{-- @dd($alergikatakunci); --}}
-                    </div>
+                <!-- Kolom alergi -->
+<div class="col-md-3 mt-2">
+    <div class="text-end">
+        <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+            style="background-color:red; width: 25px; height: 25px;">
+            <i style="color:white" class="fas fa-capsules" title="no_hp"></i>
+        </span>
+        <strong class="alergi-label">Alergi : {{ $alergikatakunci ?? '-'}}</strong>
+    </div>
 
-                    <div class="text-end mt-2">
-                        @foreach($alergiNames as $alergiName)
-                            <span class="badge badge-warning d-inline-flex align-items-center justify-content-center rounded mr-1" 
-                                style="height: 25px; padding: 0 10px; color:black;">
-                                <strong>{{ $alergiName }}</strong>
-                            </span>
-                        @endforeach
-                        <button type="button" class="btn btn-sm btn-primary d-flex align-items-center mr-2 mt-2 " style="font-size: 12px;" data-toggle="modal" data-target="#modalAlergi">
-                            <i class="fas fa-edit mr-1"></i> Edit
-                        </button>
-                    </div>
-                </div>
+    <div class="text-end mt-2 alergi-badges">
+        @foreach($alergiNames as $alergiName)
+            <span class="badge badge-warning d-inline-flex align-items-center justify-content-center rounded mr-1" 
+                style="height: 25px; padding: 0 10px; color:black;">
+                <strong>{{ $alergiName }}</strong>
+            </span>
+        @endforeach
+        <button type="button" class="btn btn-sm btn-primary d-flex align-items-center mr-2 mt-2 " style="font-size: 12px;" data-toggle="modal" data-target="#modalAlergi">
+            <i class="fas fa-edit mr-1"></i> Edit
+        </button>
+    </div>
+</div>
             </div>
         </div>
     </div>
+    

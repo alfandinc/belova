@@ -16,6 +16,8 @@ class MetodeBayarSeeder extends Seeder
         $mb = [
             ['id' => 1, 'nama' => 'Umum'],
             ['id' => 2, 'nama' => 'InHealth'],
+            ['id' => 3, 'nama' => 'Admedika'],
+            ['id' => 4, 'nama' => 'BNI Life'],
         ];
 
         foreach ($mb as $item) {

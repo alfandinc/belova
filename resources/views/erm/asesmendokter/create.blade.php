@@ -371,38 +371,38 @@
         });
     }
 
-    // Saat tombol modal alergi ditekan
-    $('#btnBukaAlergi').on('click', function () {
-        $('#modalAlergi').modal('show');
-    });
+    // // Saat tombol modal alergi ditekan
+    // $('#btnBukaAlergi').on('click', function () {
+    //     $('#modalAlergi').modal('show');
+    // });
 
-    // Toggle semua bagian tergantung status
-        var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val(); // Ambil status yang dipilih awalnya
+    // // Toggle semua bagian tergantung status
+    //     var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val(); // Ambil status yang dipilih awalnya
     
-    // Jika status alergi adalah 'ada', tampilkan semua elemen yang terkait
-    if (initialStatusAlergi === 'ada') {
-        $('#inputKataKunciWrapper').show();
-        $('#selectAlergiWrapper').show();
-        $('#selectKandunganWrapper').show();
-    } else {
-        // Jika tidak, sembunyikan elemen-elemen tersebut
-        $('#inputKataKunciWrapper').hide();
-        $('#selectAlergiWrapper').hide();
-        $('#selectKandunganWrapper').hide();
-    }
-    $('input[name="statusAlergi"]').on('change', function () {
-        if ($(this).val() === 'ada') {
-            $('#inputKataKunciWrapper').show();
-            $('#selectAlergiWrapper').show();
-            $('#selectKandunganWrapper').show();
-        } else {
-            $('#inputKataKunciWrapper').hide();
-            $('#selectAlergiWrapper').hide();
-            $('#selectKandunganWrapper').hide();
-            $('#inputKataKunci').val('');
-            $('#selectAlergi, #selectKandungan').val(null).trigger('change');
-        }
-    });
+    // // Jika status alergi adalah 'ada', tampilkan semua elemen yang terkait
+    // if (initialStatusAlergi === 'ada') {
+    //     $('#inputKataKunciWrapper').show();
+    //     $('#selectAlergiWrapper').show();
+    //     $('#selectKandunganWrapper').show();
+    // } else {
+    //     // Jika tidak, sembunyikan elemen-elemen tersebut
+    //     $('#inputKataKunciWrapper').hide();
+    //     $('#selectAlergiWrapper').hide();
+    //     $('#selectKandunganWrapper').hide();
+    // }
+    // $('input[name="statusAlergi"]').on('change', function () {
+    //     if ($(this).val() === 'ada') {
+    //         $('#inputKataKunciWrapper').show();
+    //         $('#selectAlergiWrapper').show();
+    //         $('#selectKandunganWrapper').show();
+    //     } else {
+    //         $('#inputKataKunciWrapper').hide();
+    //         $('#selectAlergiWrapper').hide();
+    //         $('#selectKandunganWrapper').hide();
+    //         $('#inputKataKunci').val('');
+    //         $('#selectAlergi, #selectKandungan').val(null).trigger('change');
+    //     }
+    // });
 
     function toggleRencanaTindakLanjut() {
     const pilihan = $('input[name="rtl"]:checked').val();

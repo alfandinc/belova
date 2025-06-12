@@ -5,6 +5,8 @@
 @endsection
 @section('content')
 @include('erm.partials.modal-daftarkunjungan')
+@include('erm.partials.modal-daftarkunjunganproduk')
+@include('erm.partials.modal-daftarkunjunganlab')
 @include('erm.partials.modal-info-pasien')
 
 <div class="container-fluid">
@@ -53,8 +55,8 @@
         <button id="btn-filter" class="btn btn-primary"><i class="fas fa-search-plus mr-2"></i>Cari</button>
     </div>
 </div>
-            <table class="table table-bordered" id="pasiens-table">
-                <thead>
+            <table class="table table-bordered table-striped" id="pasiens-table">
+                <thead class="text-center font-weight-bold">
                     <tr>
                         <th>No RM</th>
                         <th>Name</th>
@@ -80,6 +82,8 @@ $(document).ready(function () {
         serverSide: true,
         searching: false,
         deferLoading: 0, // Prevent initial load
+        stripe: true,    // Enable row striping
+        deferLoading: 0, // Prevent initial load
         ajax: {
             url: "{{ route('erm.pasiens.index') }}",
             data: function (d) {
@@ -99,7 +103,7 @@ $(document).ready(function () {
         ],
         columnDefs: [
             { targets: 0, width: '50px' },
-            { targets: 5, width: '200px' } // Set the width of the "Action" column
+            { targets: 5, width: '250px' } // Set the width of the "Action" column
         ]
     });
 

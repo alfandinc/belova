@@ -19,6 +19,7 @@ class Visitation extends Model
         'klinik_id',
         'status_kunjungan',
         'status_dokumen',
+        'jenis_kunjungan',
         'tanggal_visitation',
         'no_antrian',
 

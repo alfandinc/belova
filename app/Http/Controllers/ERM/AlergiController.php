@@ -11,8 +11,6 @@ use Illuminate\Http\Request;
 
 class AlergiController extends Controller
 {
-
-
     public function store(Request $request, $visitation_id)
     {
         // Validation for zat aktif
@@ -29,7 +27,7 @@ class AlergiController extends Controller
         $existingAlergi = Alergi::where('pasien_id', $pasien_id)->get();
 
         // Get the new allergy IDs that were selected
-        $newAlergiIds = $request->zataktif_id;
+        $newAlergiIds = $request->zataktif_id ?? [];
 
         // 1. Remove allergies that are no longer selected
         $removedAlergi = $existingAlergi->whereNotIn('zataktif_id', $newAlergiIds);
@@ -47,13 +45,29 @@ class AlergiController extends Controller
                 [
                     'status' => $request->statusAlergi,
                     'katakunci' => $request->katakunci,
-                    'verifikasi_status' => $request->verifikasi ?? '1', // Default verification status
+                    'verif_status' => $request->verifikasi ?? '1', // Default verification status
                     'verifikator_id' => auth()->id(), // Logged-in user ID as verifier
                 ]
             );
         }
 
-        // Redirect back with a success message
-        return redirect()->back()->with('success', 'Alergi berhasil disimpan.');
+        // Get updated allergy names for the response
+        $alergiNames = [];
+        if ($request->statusAlergi === 'ada' && !empty($newAlergiIds)) {
+            $alergiNames = ZatAktif::whereIn('id', $newAlergiIds)
+                ->pluck('nama')
+                ->toArray();
+        }
+
+        // Return JSON response for Ajax
+        return response()->json([
+            'success' => true,
+            'message' => 'Alergi berhasil disimpan.',
+            'data' => [
+                'status' => $request->statusAlergi,
+                'kataKunci' => $request->katakunci ?? '-',
+                'alergiNames' => $alergiNames
+            ]
+        ]);
     }
 }

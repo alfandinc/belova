@@ -1,8 +1,8 @@
+<!-- filepath: c:\wamp64\www\belova\resources\views\erm\partials\modal-alergipasien.blade.php -->
 {{-- Modals --}}
 <div class="modal fade" id="modalAlergi" tabindex="-1" aria-labelledby="modalAlergiLabel" aria-hidden="true">
   <div class="modal-dialog">
     <form id="formAlergi" method="POST" action="{{ route('erm.alergi.store', $visitation->id) }}">
-
         @csrf
       <div class="modal-content">
         <div class="modal-header">
@@ -12,6 +12,7 @@
           </button>
         </div>
         <div class="modal-body">
+          <div id="alergiAlertContainer"></div>
 
           {{-- Radio Button --}}
           <div class="form-group">
@@ -54,3 +55,130 @@
   </div>
 </div>
 {{-- End Modals --}}
+@push('scripts')
+<script>
+// Modal alergi functionality
+$(document).ready(function() {
+    // Saat tombol modal alergi ditekan
+    $('#btnBukaAlergi').on('click', function () {
+        $('#modalAlergi').modal('show');
+    });
+
+    // Toggle semua bagian tergantung status
+    var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val(); // Ambil status yang dipilih awalnya
+    
+    // Jika status alergi adalah 'ada', tampilkan semua elemen yang terkait
+    if (initialStatusAlergi === 'ada') {
+        $('#inputKataKunciWrapper').show();
+        $('#selectAlergiWrapper').show();
+        $('#selectKandunganWrapper').show();
+    } else {
+        // Jika tidak, sembunyikan elemen-elemen tersebut
+        $('#inputKataKunciWrapper').hide();
+        $('#selectAlergiWrapper').hide();
+        $('#selectKandunganWrapper').hide();
+    }
+    
+    $('input[name="statusAlergi"]').on('change', function () {
+        if ($(this).val() === 'ada') {
+            $('#inputKataKunciWrapper').show();
+            $('#selectAlergiWrapper').show();
+            $('#selectKandunganWrapper').show();
+        } else {
+            $('#inputKataKunciWrapper').hide();
+            $('#selectAlergiWrapper').hide();
+            $('#selectKandunganWrapper').hide();
+            $('#inputKataKunci').val('');
+            $('#selectAlergi, #selectKandungan').val(null).trigger('change');
+        }
+    });
+
+    // Ajax form submission
+    $('#formAlergi').on('submit', function(e) {
+        e.preventDefault();
+        
+        var formData = $(this).serialize();
+        var submitBtn = $(this).find('button[type="submit"]');
+        var originalBtnText = submitBtn.html();
+        
+        // Change button to loading state
+        submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
+        submitBtn.prop('disabled', true);
+        
+        $.ajax({
+            url: $(this).attr('action'),
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            success: function(response) {
+                // Show success message
+                $('#alergiAlertContainer').html(
+                    '<div class="alert alert-success alert-dismissible fade show" role="alert">' +
+                    '<strong>Sukses!</strong> ' + response.message +
+                    '<button type="button" class="close" data-dismiss="alert" aria-label="Close">' +
+                    '<span aria-hidden="true">&times;</span></button></div>'
+                );
+                
+                // Update the allergy display in the card-identitaspasien
+                updateAlergiDisplay(response.data);
+                
+                // Reset button state
+                submitBtn.html(originalBtnText);
+                submitBtn.prop('disabled', false);
+                
+                // Auto-close modal after 2 seconds
+                setTimeout(function() {
+                    $('#modalAlergi').modal('hide');
+                }, 2000);
+            },
+            error: function(xhr) {
+                // Show error message
+                var errorMsg = 'Terjadi kesalahan saat menyimpan data.';
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    errorMsg = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMsg = xhr.responseJSON.message;
+                }
+                
+                $('#alergiAlertContainer').html(
+                    '<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
+                    '<strong>Error!</strong> ' + errorMsg +
+                    '<button type="button" class="close" data-dismiss="alert" aria-label="Close">' +
+                    '<span aria-hidden="true">&times;</span></button></div>'
+                );
+                
+                // Reset button state
+                submitBtn.html(originalBtnText);
+                submitBtn.prop('disabled', false);
+            }
+        });
+    });
+    
+    // Function to update the allergy display in the patient card
+    function updateAlergiDisplay(data) {
+    // Update kata kunci text
+    $('.alergi-label').text('Alergi : ' + (data.kataKunci || '-'));
+    
+    // Update allergy badges
+    var badgesHtml = '';
+    if (data.alergiNames && data.alergiNames.length > 0) {
+        data.alergiNames.forEach(function(name) {
+            badgesHtml += '<span class="badge badge-warning d-inline-flex align-items-center justify-content-center rounded mr-1" ' +
+                          'style="height: 25px; padding: 0 10px; color:black;">' +
+                          '<strong>' + name + '</strong></span>';
+        });
+    }
+    
+    // Add the Edit button to the badges HTML
+    badgesHtml += '<button type="button" class="btn btn-sm btn-primary d-flex align-items-center mr-2 mt-2 " ' + 
+                  'style="font-size: 12px;" data-toggle="modal" data-target="#modalAlergi">' +
+                  '<i class="fas fa-edit mr-1"></i> Edit</button>';
+    
+    // Update the badges container
+    $('.alergi-badges').html(badgesHtml);
+}
+
+    
+});
+</script>
+@endpush

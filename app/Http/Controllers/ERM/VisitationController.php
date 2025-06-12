@@ -43,7 +43,67 @@ class VisitationController extends Controller
             'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id,
             'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
-            'progress' => 1,
+            'status_kunjungan' => 0,
+            'user_id' => Auth::id(), // Menyimpan ID user yang login
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
+    }
+    public function storeProduk(Request $request)
+    {
+        // \Log::info($request->all()); // Tambahkan log ini untuk cek data terkirim
+        $request->validate([
+            'pasien_id' => 'required|exists:erm_pasiens,id',
+            'dokter_id' => 'required|string',
+            'tanggal_visitation' => 'required|date',
+            'metode_bayar_id' => 'required',
+            'klinik_id' => 'required', // Add validation for klinik_id
+        ]);
+
+        // Buat ID custom
+        $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+
+
+        Visitation::create([
+            'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
+            'pasien_id' => $request->pasien_id,
+            'dokter_id' => $request->dokter_id,
+            'tanggal_visitation' => $request->tanggal_visitation,
+            // 'no_antrian' => $request->no_antrian,
+            'metode_bayar_id' => $request->metode_bayar_id,
+            'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
+            'status_kunjungan' => 2,
+            'jenis_kunjungan' => 2,
+            'user_id' => Auth::id(), // Menyimpan ID user yang login
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
+    }
+    public function storeLab(Request $request)
+    {
+        // \Log::info($request->all()); // Tambahkan log ini untuk cek data terkirim
+        $request->validate([
+            'pasien_id' => 'required|exists:erm_pasiens,id',
+            'dokter_id' => 'required|string',
+            'tanggal_visitation' => 'required|date',
+            'metode_bayar_id' => 'required',
+            'klinik_id' => 'required', // Add validation for klinik_id
+        ]);
+
+        // Buat ID custom
+        $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+
+
+        Visitation::create([
+            'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
+            'pasien_id' => $request->pasien_id,
+            'dokter_id' => $request->dokter_id,
+            'tanggal_visitation' => $request->tanggal_visitation,
+            // 'no_antrian' => $request->no_antrian,
+            'metode_bayar_id' => $request->metode_bayar_id,
+            'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
+            'status_kunjungan' => 2,
+            'jenis_kunjungan' => 3,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
         ]);
 
