@@ -333,7 +333,7 @@
                         <th style="text-align:left; font-weight:bold; background-color:#f0f0f0; padding:1px 2px;">DIAGNOSA</th>
                     </tr>
                     <tr>
-                        <td style="padding:1px 2px;">
+                        <td style="padding:3px 3px;">
                             @if(isset($asesmenPenunjang))
                                 {{ $asesmenPenunjang->diagnosakerja_1 ?? '' }}
                                 {{ !empty($asesmenPenunjang->diagnosakerja_2) ? ', '.$asesmenPenunjang->diagnosakerja_2 : '' }}
@@ -353,7 +353,7 @@
                         <th style="text-align:left; font-weight:bold; background-color:#f0f0f0; padding:1px 2px;">MASALAH & TINDAK LANJUT</th>
                     </tr>
                     <tr>
-                        <td style="height:15px; padding:1px 2px;">
+                        <td style="height:15px; padding:3px 3px;">
                             @if(isset($asesmenPenunjang))
                                 @if(!empty($asesmenPenunjang->masalah_medis))
                                     <strong>Masalah Medis:</strong> {{ $asesmenPenunjang->masalah_medis }}<br>

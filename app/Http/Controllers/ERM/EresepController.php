@@ -15,9 +15,10 @@ use App\Models\ERM\ResepDokter;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
+use App\Models\ERM\EdukasiObat;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\WadahObat;
-
+use App\Models\User;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -589,5 +590,85 @@ class EresepController extends Controller
 
         // Return the PDF for download or inline display
         return $pdf->stream('resep-' . $visitation->id . '.pdf');
+    }
+
+    public function getApotekers()
+    {
+        $apotekers = User::role('Farmasi')->get(['id', 'name']);
+        return response()->json($apotekers);
+    }
+
+    public function storeEdukasiObat(Request $request)
+    {
+        $validated = $request->validate([
+            'visitation_id' => 'required',
+            'simpan_etiket_label' => 'boolean',
+            'simpan_suhu_kulkas' => 'boolean',
+            'simpan_tempat_kering' => 'boolean',
+            'hindarkan_jangkauan_anak' => 'boolean',
+            'insulin_brosur' => 'nullable|string',
+            'inhalasi_brosur' => 'nullable|string',
+            'apoteker_id' => 'required',
+            // 'total_pembayaran' => 'nullable|numeric',
+        ]);
+
+        // Create or update edukasi
+        $edukasi = EdukasiObat::updateOrCreate(
+            ['visitation_id' => $validated['visitation_id']],
+            $validated
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Edukasi obat berhasil disimpan',
+            'data' => $edukasi
+        ]);
+    }
+
+    public function printEdukasiObat($visitationId)
+    {
+        // Get the visitation data with all necessary relations
+        $visitation = Visitation::with(['pasien', 'dokter.user', 'metodeBayar', 'klinik'])
+            ->findOrFail($visitationId);
+
+        // Get edukasi data
+        $edukasi = EdukasiObat::with('apoteker')
+            ->where('visitation_id', $visitationId)
+            ->first();
+
+        if (!$edukasi) {
+            return redirect()->back()->with('error', 'Data edukasi obat tidak ditemukan');
+        }
+
+        // Get prescription items
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)
+            ->with(['obat'])
+            ->get();
+
+        // Separate racikan and non-racikan
+        $nonRacikans = $reseps->whereNull('racikan_ke');
+        $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+
+        // Get patient allergies
+        $alergis = DB::table('erm_alergi')
+            ->join('erm_zataktif', 'erm_alergi.zataktif_id', '=', 'erm_zataktif.id')
+            ->where('erm_alergi.pasien_id', $visitation->pasien_id)
+            ->select('erm_zataktif.nama as zataktif_nama')
+            ->get();
+
+        // Generate PDF view
+        $pdf = PDF::loadView('erm.eresep.farmasi.edukasi-print', [
+            'visitation' => $visitation,
+            'edukasi' => $edukasi,
+            'nonRacikans' => $nonRacikans,
+            'racikans' => $racikans,
+            'alergis' => $alergis,
+        ]);
+
+        // Set PDF options
+        $pdf->setPaper('a4', 'portrait');
+
+        // Return the PDF for download or inline display
+        return $pdf->stream('edukasi-obat-' . $visitationId . '.pdf');
     }
 }

@@ -86,15 +86,6 @@
                         <div class="col-12 text-end">
                             <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
                                 style="background-color:grey; width: 25px; height: 25px;">
-                                <i style="color:white" class="fas fa-home" title="alamat"></i>
-                            </span>
-                            <strong>{{ ucfirst($visitation->pasien->alamat ?? '-') }}</strong>
-                        </div>
-                    </div>
-                    <div class="row mb-1 align-items-center">
-                        <div class="col-12 text-end">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                                style="background-color:grey; width: 25px; height: 25px;">
                                 <i style="color:white" class="fab fa-instagram" title="Instagram"></i>
                             </span>
                             @if($visitation->pasien->instagram)
@@ -106,6 +97,16 @@
                             @endif
                         </div>
                     </div>
+                    <div class="row mb-1 align-items-center">
+                        <div class="col-12 text-end">
+                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
+                                style="background-color:grey; width: 25px; height: 25px;">
+                                <i style="color:white" class="fas fa-home" title="alamat"></i>
+                            </span>
+                            <strong>{{ ucfirst($visitation->pasien->alamat ?? '-') }}</strong>
+                        </div>
+                    </div>
+                    
                 </div> 
                 <!-- Kolom alergi -->
                 <!-- Kolom alergi -->

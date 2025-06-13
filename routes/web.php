@@ -143,6 +143,9 @@ Route::prefix('erm')->group(function () {
     Route::post('/eresepfarmasi/{visitation_id}/copy-from-dokter', [EresepController::class, 'copyFromDokter'])->name('erm.eresepfarmasi.copyfromdokter');
 
     Route::get('/eresepfarmasi/{visitation_id}/print', [EresepController::class, 'printResep'])->name('erm.eresepfarmasi.print');
+
+    Route::post('/edukasi-obat/store', [EresepController::class, 'storeEdukasiObat'])->name('edukasi.obat.store');
+    Route::get('/edukasi-obat/{visitationId}/print', [EresepController::class, 'printEdukasiObat'])->name('edukasi.obat.print');
     // Add these routes to your routes/web.php file
     Route::get('/resep/dokter/{visitationId}/get', [EresepController::class, 'getResepDokterByVisitation'])->name('resep.dokter.get');
     Route::get('/resep/farmasi/{visitationId}/get', [EresepController::class, 'getResepFarmasiByVisitation'])->name('resep.farmasi.get');
@@ -334,3 +337,4 @@ Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');
 Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDoktersByKlinik'])->name('erm.get-dokters');
+Route::get('/get-apotekers', [EresepController::class, 'getApotekers'])->name('erm.get-apotekers');
