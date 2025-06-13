@@ -1,3 +1,4 @@
+<!-- filepath: c:\wamp64\www\belova\resources\views\erm\obat\index.blade.php -->
 @extends('layouts.erm.app')
 @section('title', 'ERM | Daftar Obat')
 @section('navbar')
@@ -5,13 +6,11 @@
 @endsection  
 
 @section('content')
-
-
 <div class="container-fluid">
-    <div class="d-flex  align-items-center mb-0 mt-2">
+    <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">Daftar Obat Farmasi</h3>
     </div>
-    <!-- Page-Title -->
+    
     <div class="row">
         <div class="col-sm-12">
             <div class="page-title-box">
@@ -27,40 +26,138 @@
             </div><!--end page-title-box-->
         </div><!--end col-->
     </div><!--end row-->  
-    <!-- end page title end breadcrumb -->
-     <a href="{{ route('erm.obat.create') }}" class="btn btn-primary mb-3">+ Tambah Obat</a>
+    <a href="{{ route('erm.obat.create') }}" class="btn btn-primary mb-3">+ Tambah Obat</a>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Filter</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="filter_kategori">Kategori</label>
+                                <select id="filter_kategori" class="form-control select2">
+                                    <option value="">Semua Kategori</option>
+                                    @foreach($kategoris as $kategori)
+                                        <option value="{{ $kategori }}">{{ $kategori }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="filter_metode_bayar">Metode Bayar</label>
+                                <select id="filter_metode_bayar" class="form-control select2">
+                                    <option value="">Semua Metode Bayar</option>
+                                    @foreach($metodeBayars as $metodeBayar)
+                                        <option value="{{ $metodeBayar->id }}">{{ $metodeBayar->nama }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+     
+    
 
     <div class="card">
         <div class="card-body">
-            <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>Nama Obat</th>
-                <th>Stok</th>
-                <th>Harga Umum</th>
-                <th>Harga Inhealth</th>
-                <th>Zat Aktif</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach ($obats as $obat)
-                <tr>
-                    <td>{{ $obat->nama }} {{ $obat->dosis }} {{ $obat->satuan }}</td>
-                    <td>{{ $obat->stok }}</td>
-                    <td>{{ $obat->harga_umum }}</td>
-                    <td>{{ $obat->harga_inhealth }}</td>
-                    <td>
-                        @foreach ($obat->zatAktifs as $zat)
-                            <span class="badge bg-secondary">{{ $zat->nama }}</span>
-                        @endforeach
-                    </td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
-
-
+            <table id="obat-table" class="table table-bordered table-hover">
+                <thead>
+                    <tr>
+                        <th>Nama Obat</th>
+                        <th class="text-right">Harga Non-Fornas</th>
+                        <th>Kategori</th>
+                        <th>Zat Aktif</th>
+                        <th class="text-right">Stok</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
         </div>
     </div>
 </div>
+@endsection
+
+@section('scripts')
+<style>
+    /* Right align for price and stock columns */
+    #obat-table td:nth-child(2), 
+    #obat-table td:nth-child(5) {
+        text-align: right;
+    }
+</style>
+<script>
+    $(document).ready(function () {
+        // Initialize select2
+        $('.select2').select2({
+            width: '100%'
+        });
+
+        // Initialize DataTable
+        let table = $('#obat-table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: "{{ route('erm.obat.index') }}",
+                data: function(d) {
+                    d.kategori = $('#filter_kategori').val();
+                    d.metode_bayar_id = $('#filter_metode_bayar').val();
+                }
+            },
+            columns: [
+                { data: 'nama', name: 'nama' },
+                { 
+                    data: 'harga_nonfornas', 
+                    name: 'harga_nonfornas',
+                    className: 'text-right',
+                    render: function(data) {
+                        return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
+                    }
+                },
+                { data: 'kategori', name: 'kategori' },
+                { data: 'zat_aktif', name: 'zat_aktif' },
+                { 
+                    data: 'stok', 
+                    name: 'stok',
+                    className: 'text-right'
+                },
+                { data: 'action', name: 'action', orderable: false, searchable: false }
+            ],
+            order: [[ 4, 'asc' ]] // Default ordering by stok ascending
+        });
+
+        // Apply filter when select changes (no button needed)
+        $('#filter_kategori, #filter_metode_bayar').on('change', function() {
+            table.ajax.reload();
+        });
+
+        // Handle delete button clicks
+        $(document).on('click', '.delete-btn', function() {
+            if (confirm('Apakah Anda yakin ingin menghapus obat ini?')) {
+                let id = $(this).data('id');
+                
+                $.ajax({
+                    url: '/erm/obat/' + id,
+                    type: 'DELETE',
+                    data: {
+                        '_token': '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        alert('Obat berhasil dihapus');
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        alert('Terjadi kesalahan: ' + xhr.responseText);
+                    }
+                });
+            }
+        });
+    });
+</script>
 @endsection

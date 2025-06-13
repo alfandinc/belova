@@ -11,20 +11,18 @@ class Obat extends Model
     use HasFactory;
 
     protected $table = 'erm_obat';
-    // public $incrementing = false; // karena kolom id bukan auto-increment
-    // protected $keyType = 'string'; // karena kolom id bertipe string
 
     protected $fillable = [
-        'id',
         'nama',
         'satuan',
         'dosis',
-        'harga_het',
+        'harga_net',
         'harga_fornas',
         'harga_nonfornas',
-
         'stok',
-        'supplier_id',
+        'kategori',
+        'metode_bayar_id',
+        'status_aktif'
     ];
 
     public function supplier()
@@ -36,6 +34,7 @@ class Obat extends Model
     {
         return $this->belongsToMany(ZatAktif::class, 'erm_kandungan_obat', 'obat_id', 'zataktif_id');
     }
+
     public function metodeBayar()
     {
         return $this->belongsTo(MetodeBayar::class, 'metode_bayar_id');

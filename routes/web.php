@@ -185,6 +185,8 @@ Route::prefix('erm')->group(function () {
     Route::get('/obat', [ObatController::class, 'index'])->name('erm.obat.index');
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
+    Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
+    Route::delete('/obat/{id}', [ObatController::class, 'destroy'])->name('erm.obat.destroy');
 
     // Surat Istirahat
 
