@@ -42,6 +42,7 @@ class VisitationController extends Controller
             'tanggal_visitation' => $request->tanggal_visitation,
             'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id,
+            'jenis_kunjungan' => 1,
             'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
             'status_kunjungan' => 0,
             'user_id' => Auth::id(), // Menyimpan ID user yang login

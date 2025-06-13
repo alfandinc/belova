@@ -366,9 +366,9 @@ class EresepController extends Controller
         foreach ($validated['obats'] as $obat) {
             do {
                 $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
-            } while (ResepDokter::where('id', $customId)->exists());
+            } while (ResepFarmasi::where('id', $customId)->exists());
 
-            ResepDokter::create([
+            ResepFarmasi::create([
                 'id' => $customId,
                 'tanggal_input' => now(),
                 'visitation_id' => $validated['visitation_id'],
@@ -376,7 +376,7 @@ class EresepController extends Controller
                 'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
                 'aturan_pakai' => $validated['aturan_pakai'],
                 'racikan_ke' => $validated['racikan_ke'],
-                'wadah' => $validated['wadah'],
+                'wadah_id' => $validated['wadah'],
                 'bungkus' => $validated['bungkus'],
                 'dosis' => $obat['dosis'],
             ]);
@@ -547,8 +547,8 @@ class EresepController extends Controller
 
     public function printResep($visitationId)
     {
-        // Get the visitation data
-        $visitation = Visitation::with(['pasien', 'dokter', 'metodeBayar'])->findOrFail($visitationId);
+        // Get the visitation data with all necessary relations
+        $visitation = Visitation::with(['pasien', 'dokter.user', 'metodeBayar', 'klinik'])->findOrFail($visitationId);
 
         // Get prescription items
         $reseps = ResepFarmasi::where('visitation_id', $visitationId)
@@ -559,11 +559,25 @@ class EresepController extends Controller
         $nonRacikans = $reseps->whereNull('racikan_ke');
         $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
 
+        // Get patient allergies
+        $alergis = DB::table('erm_alergi')
+            ->join('erm_zataktif', 'erm_alergi.zataktif_id', '=', 'erm_zataktif.id')
+            ->where('erm_alergi.pasien_id', $visitation->pasien_id)
+            ->select('erm_zataktif.nama as zataktif_nama', 'erm_alergi.katakunci')
+            ->get();
+
+        // Get asesmen penunjang data for diagnoses and follow-up
+        $asesmenPenunjang = DB::table('erm_asesmen_penunjang')
+            ->where('visitation_id', $visitationId)
+            ->first();
+
         // Generate PDF view
         $pdf = PDF::loadView('erm.eresep.farmasi.print', [
             'visitation' => $visitation,
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
+            'alergis' => $alergis,
+            'asesmenPenunjang' => $asesmenPenunjang,
         ]);
 
         // Set PDF options for A4 landscape

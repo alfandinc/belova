@@ -44,7 +44,7 @@ class AsesmenController extends Controller
 
         // Lokalis image logic
         $lokalisDefaults = [
-            'penyakit_dalam' => 'img/asesmen/dalam.jpeg',
+            'penyakit_dalam' => 'img/asesmen/dalam.png',
             'estetika' => 'img/asesmen/estetika.png',
             'gigi' => 'img/asesmen/gigi.png',
         ];

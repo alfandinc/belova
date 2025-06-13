@@ -27,13 +27,13 @@
         }
         .header-left p {
             margin: 1px 0; /* Reduced margin */
-            font-size: 9px; /* Smaller text */
+            font-size: 12px; /* Smaller text */
         }
         .resep-header {
             text-align: center;
             font-weight: bold;
             margin: 3px 0; /* Reduced margin */
-            font-size: 12px;
+            font-size: 14px;
         }
 
         table.info-table {
@@ -42,18 +42,19 @@
             border-spacing: 0;
         }
         table.info-table td {
-            padding: 0; /* Removed padding */
-            font-size: 10px; /* Smaller text */
+            padding: 1px; /* Removed padding */
+            font-size: 12px; /* Smaller text */
             vertical-align: top;
         }
         .med-list {
             width: 100%;
             border-collapse: collapse;
+            font-size: 12px; /* Smaller text */
         }
         .med-list td {
             vertical-align: top;
-            padding: 0; /* Removed padding */
-            line-height: 1.1;
+            padding: 2px; /* Removed padding */
+            line-height: 1.5;
         }
         .checklist {
             width: 100%;
@@ -112,11 +113,11 @@
             border: 1px solid black;
             text-align: center;
             padding: 2px; /* Reduced padding */
-            font-size: 9px; /* Smaller text */
+            font-size: 12px; /* Smaller text */
         }
         .date-print {
             text-align: right;
-            font-size: 10px; /* Smaller text */
+            font-size: 12px; /* Smaller text */
             margin-top: 2px; /* Reduced margin */
         }
         .main-table {
@@ -140,7 +141,7 @@
             <td style="width: 50%; vertical-align: top; padding-right: 5px;">
                 <!-- Left Header -->
                 <div class="header-left">
-                    <h2>KLINIK UTAMA PREMIERE BELOVA</h2>
+                    <h2>{{ strtoupper($visitation->klinik->nama ?? 'KLINIK UTAMA PREMIERE BELOVA') }}</h2>
                     
                     <p>Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
                         Telp. 0821-1600-0093 <br>
@@ -150,51 +151,71 @@
                 
                 <div class="resep-header">RESEP DOKTER</div>
                 
-                <div style="text-align: right; margin-top: -15px; font-size: 10px;">Tanggal Resep : 12 / 06 / 2025 10:05</div>
-                
+                <div style="text-align: right; margin-top: -15px; font-size: 12px;">
+                    Tanggal Resep : {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->format('d F Y') }}
+                </div>
                 <!-- Patient Information -->
                 <table class="info-table">
                     <tr>
                         <td width="20%">No. RM</td>
                         <td width="2%">:</td>
-                        <td width="78%">48392</td>
+                        <td width="78%">{{ $visitation->pasien->id ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td>Nama Pasien</td>
                         <td>:</td>
-                        <td>MRS FATHLA ANANI</td>
+                        <td>{{ $visitation->pasien->nama ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td>Tgl Lahir / Usia</td>
                         <td>:</td>
-                        <td>17 December 1982 / 42 th 5 bl 26 hr</td>
+                        <td>
+                            @if(isset($visitation->pasien->tanggal_lahir))
+                                {{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->format('d F Y') }} / 
+                                {{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->age }} th
+                            @else
+                                -
+                            @endif
+                        </td>
                     </tr>
                     <tr>
                         <td>Alamat</td>
                         <td>:</td>
-                        <td>JL MM NO 8 RT 01 RW 04 JAKARTA SELATAN</td>
+                        <td>{{ $visitation->pasien->alamat ?? '-' }}</td>
                     </tr>
                     <tr>
                         <td>Nama Dokter</td>
                         <td>:</td>
-                        <td>dr. Ahmad Akbar Sp. PD.</td>
+                        <td>{{ $visitation->dokter->user->name ?? $visitation->dokter->nama ?? '-' }}</td>
                     </tr>
                 </table>
 
                 <!-- Medications List -->
                 <table class="med-list">
+                    @php $i = 1; @endphp
+                    
+                    @foreach($nonRacikans as $resep)
                     <tr>
-                        <td width="5%">1</td>
-                        <td width="45%">VELTHROM 10MG TABLET</td>
-                        <td width="20%">30 TAB</td>
-                        <td width="30%">1x1</td>
+                        <td width="5%">{{ $i++ }}</td>
+                        <td width="45%">{{ $resep->obat->nama ?? 'UNKNOWN' }}</td>
+                        <td width="20%">{{ $resep->jumlah }} {{ $resep->obat->satuan ?? 'UNIT' }}</td>
+                        <td width="30%">{{ $resep->aturan_pakai }}</td>
                     </tr>
+                    @endforeach
+                    
+                    @foreach($racikans as $racikanKe => $items)
                     <tr>
-                        <td>2</td>
-                        <td>PROPRANOLOL HCL 10 MG TAB*</td>
-                        <td>60 TAB</td>
-                        <td>2x1</td>
+                        <td width="5%">{{ $i++ }}</td>
+                        <td width="45%">
+                            <strong>RACIKAN {{ $racikanKe }}</strong><br>
+                            @foreach($items as $item)
+                                - {{ $item->obat->nama ?? 'UNKNOWN' }}<br>
+                            @endforeach
+                        </td>
+                        <td width="20%">{{ $items->first()->bungkus ?? 0 }} {{ $items->first()->wadah->nama ?? 'BUNGKUS' }}</td>
+                        <td width="30%">{{ $items->first()->aturan_pakai }}</td>
                     </tr>
+                    @endforeach
                 </table>
 
                 <!-- Action Buttons -->
@@ -211,7 +232,7 @@
                     </tr>
                 </table>
                 
-                <div class="date-print">Tanggal Cetak : 12 / 06 / 2025 15:28</div>
+                <div class="date-print">Tanggal Cetak : {{ \Carbon\Carbon::now()->format('d / m / Y H:i') }}</div>
             </td>
             
             <!-- Right side - Checklist forms -->
@@ -241,7 +262,7 @@
                         <td>Berat badan pasien</td>
                         <td></td>
                         <td></td>
-                        <td>60</td>
+                        <td></td>
                     </tr>
                     <tr>
                         <td>Nama dokter</td>
@@ -312,7 +333,17 @@
                         <th style="text-align:left; font-weight:bold; background-color:#f0f0f0; padding:1px 2px;">DIAGNOSA</th>
                     </tr>
                     <tr>
-                        <td style="padding:1px 2px;">Hipertrofd primer ec grave disease, dyspepsia</td>
+                        <td style="padding:1px 2px;">
+                            @if(isset($asesmenPenunjang))
+                                {{ $asesmenPenunjang->diagnosakerja_1 ?? '' }}
+                                {{ !empty($asesmenPenunjang->diagnosakerja_2) ? ', '.$asesmenPenunjang->diagnosakerja_2 : '' }}
+                                {{ !empty($asesmenPenunjang->diagnosakerja_3) ? ', '.$asesmenPenunjang->diagnosakerja_3 : '' }}
+                                {{ !empty($asesmenPenunjang->diagnosakerja_4) ? ', '.$asesmenPenunjang->diagnosakerja_4 : '' }}
+                                {{ !empty($asesmenPenunjang->diagnosakerja_5) ? ', '.$asesmenPenunjang->diagnosakerja_5 : '' }}
+                            @else
+                                -
+                            @endif
+                        </td>
                     </tr>
                 </table>
 
@@ -322,7 +353,18 @@
                         <th style="text-align:left; font-weight:bold; background-color:#f0f0f0; padding:1px 2px;">MASALAH & TINDAK LANJUT</th>
                     </tr>
                     <tr>
-                        <td style="height:15px; padding:1px 2px;"></td> <!-- Reduced height -->
+                        <td style="height:15px; padding:1px 2px;">
+                            @if(isset($asesmenPenunjang))
+                                @if(!empty($asesmenPenunjang->masalah_medis))
+                                    <strong>Masalah Medis:</strong> {{ $asesmenPenunjang->masalah_medis }}<br>
+                                @endif
+                                @if(!empty($asesmenPenunjang->rtl))
+                                    <strong>Rencana Tindak Lanjut:</strong> {{ $asesmenPenunjang->rtl }}
+                                @endif
+                            @else
+                                -
+                            @endif
+                        </td> <!-- Reduced height -->
                     </tr>
                 </table>
                 
@@ -330,7 +372,14 @@
                 <table class="checklist" style="margin-bottom:2px;">
                     <tr>
                         <td style="width:50%; vertical-align:top; border-right:1px solid black; padding:1px 2px;">
-                            <strong>ALERGI : </strong>debu
+                            <strong>ALERGI : </strong>
+                            @if(count($alergis ?? []) > 0)
+                                @foreach($alergis as $alergi)
+                                    {{ $alergi->zataktif_nama ?? $alergi->katakunci }}{{ !$loop->last ? ', ' : '' }}
+                                @endforeach
+                            @else
+                                Tidak ada
+                            @endif
                         </td>
                         <td style="width:50%; vertical-align:top; padding:1px 2px;">
                             <strong>APOTEKER PENGKAJI : </strong>
