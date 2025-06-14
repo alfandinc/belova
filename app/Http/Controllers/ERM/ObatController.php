@@ -155,7 +155,8 @@ class ObatController extends Controller
                 'nama' => $obat->nama,
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
-                'stok' => $obat->stok
+                'stok' => $obat->stok,
+                'harga_nonfornas' => $obat->harga_nonfornas,
             ];
         }));
     }

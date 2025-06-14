@@ -209,19 +209,21 @@
         $('.select2-obat').select2({
             placeholder: 'Search obat...',
             ajax: {
-                url: '{{ route("obat.search") }}', // Define this route in your controller
+                url: '{{ route("obat.search") }}',
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
                     return {
-                        q: params.term // Search term
+                        q: params.term
                     };
                 },
                 processResults: function (data) {
                     return {
                         results: data.map(item => ({
                             id: item.id,
-                            text: `${item.nama} ${item.dosis} ${item.satuan}`
+                            text: item.nama + ' - ' + item.harga_nonfornas,
+                            harga: item.harga_nonfornas, // Make sure this property exists
+                            stok: item.stok
                         }))
                     };
                 },
@@ -258,7 +260,14 @@
             let obatId = $('#obat_id').val();
             let obatText = $('#obat_id option:selected').text();
             let jumlah = $('#jumlah').val();
-            let harga = $('#obat_id option:selected').data('harga');
+            // let harga = $('#obat_id option:selected').data('harga');
+            // Debug the selected data
+    let selectedData = $('#obat_id').select2('data')[0];
+    console.log("Selected data:", selectedData);
+    
+    // Make sure harga is properly formatted as a number
+    let harga = selectedData && selectedData.harga ? parseFloat(selectedData.harga) : null;
+    console.log("Harga value:", harga);
 
             let stok = $('#obat_id option:selected').data('stok');
             let aturanPakai = $('#aturan_pakai').val();
@@ -447,7 +456,7 @@
                         return {
                             results: data.map(item => ({
                                 id: item.id,
-                                text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                text: item.nama + ' - ' + item.harga_nonfornas,
                                 stok: item.stok, // Include stok in the data
                             dosis: item.dosis, // Include dosis in the data
                             satuan: item.satuan // Include satuan in the data

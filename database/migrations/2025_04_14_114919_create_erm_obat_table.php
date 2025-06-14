@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('erm_obat', function (Blueprint $table) {
             $table->id();
             $table->string('nama')->nullable();
+            $table->string('kode_obat')->nullable();
             $table->string('satuan')->nullable();
             $table->string('dosis')->nullable();
             $table->decimal('harga_net', 15, 2)->nullable();
