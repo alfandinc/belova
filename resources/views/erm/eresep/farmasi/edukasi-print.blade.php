@@ -278,12 +278,38 @@
                 <td>
                     <div class="section-title">PENYIMPANAN OBAT</div>
                     <div class="section">
-                        <ul class="numbered-list">
-                            <li class="{{ $edukasi->simpan_etiket_label ? 'storage-active' : 'storage-item' }}">Simpan obat dalam Etiket Label</li>
-                            <li class="{{ $edukasi->simpan_suhu_kulkas ? 'storage-active' : 'storage-item' }}">Simpan di suhu kulkas</li>
-                            <li class="{{ $edukasi->simpan_tempat_kering ? 'storage-active' : 'storage-item' }}">Simpan di tempat kering, suhu kamar</li>
-                        </ul>
-                    </div>
+        @php
+            $hasStorage = false;
+            $storageItems = [];
+            
+            if($edukasi->simpan_etiket_label) {
+                $storageItems[] = 'Simpan obat dalam Etiket Label';
+                $hasStorage = true;
+            }
+            if($edukasi->simpan_suhu_kulkas) {
+                $storageItems[] = 'Simpan di suhu kulkas';
+                $hasStorage = true;
+            }
+            if($edukasi->simpan_tempat_kering) {
+                $storageItems[] = 'Simpan di tempat kering, suhu kamar';
+                $hasStorage = true;
+            }
+            if($edukasi->hindarkan_jangkauan_anak) {
+                $storageItems[] = 'Hindarkan dari jangkauan anak';
+                $hasStorage = true;
+            }
+        @endphp
+        
+        @if($hasStorage)
+            <ul class="numbered-list">
+                @foreach($storageItems as $item)
+                    <li>{{ $item }}</li>
+                @endforeach
+            </ul>
+        @else
+            <p>-</p>
+        @endif
+    </div>
                 </td>
             </tr>
         </table>
