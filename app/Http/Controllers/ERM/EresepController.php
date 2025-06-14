@@ -192,13 +192,12 @@ class EresepController extends Controller
     {
         $visitationId = $request->visitation_id;
 
-        // Temukan racikan berdasarkan visitation_id dan racikan_ke
-        $racikan = ResepDokter::where('racikan_ke', $racikanKe)
+        // Delete ALL records with matching racikan_ke and visitation_id
+        $deleted = ResepDokter::where('racikan_ke', $racikanKe)
             ->where('visitation_id', $visitationId)
-            ->first();
+            ->delete();
 
-        if ($racikan) {
-            $racikan->delete();
+        if ($deleted) {
             return response()->json(['message' => 'Racikan berhasil dihapus']);
         } else {
             return response()->json(['message' => 'Racikan tidak ditemukan'], 404);
@@ -412,13 +411,12 @@ class EresepController extends Controller
     {
         $visitationId = $request->visitation_id;
 
-        // Temukan racikan berdasarkan visitation_id dan racikan_ke
-        $racikan = ResepFarmasi::where('racikan_ke', $racikanKe)
+        // Delete ALL records with matching racikan_ke and visitation_id
+        $deleted = ResepFarmasi::where('racikan_ke', $racikanKe)
             ->where('visitation_id', $visitationId)
-            ->first();
+            ->delete();
 
-        if ($racikan) {
-            $racikan->delete();
+        if ($deleted) {
             return response()->json(['message' => 'Racikan berhasil dihapus']);
         } else {
             return response()->json(['message' => 'Racikan tidak ditemukan'], 404);
