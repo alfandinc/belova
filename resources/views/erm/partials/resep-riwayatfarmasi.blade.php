@@ -39,7 +39,7 @@
         {{-- Racikan Table --}}
         @foreach ($racikans as $ke => $items)
             <h6 class="mt-4">Obat Racikan #{{ $ke }}</h6>
-            <p><strong>Wadah:</strong> {{ $items->first()->wadah ?? '-' }} | <strong>Bungkus:</strong> {{ $items->first()->bungkus ?? '-' }}</p>
+            <p><strong>Wadah:</strong> {{ $items->first()->wadah->nama ?? '-' }} | <strong>Jumlah Bungkus:</strong> {{ $items->first()->bungkus ?? '-' }}</p>
             <p><strong>Aturan Pakai:</strong> {{ $items->first()->aturan_pakai ?? '-' }}</p>
 
             <table class="table table-sm table-bordered">
