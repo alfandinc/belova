@@ -16,15 +16,18 @@ class ResepFarmasi extends Model
         'visitation_id',
         'obat_id',
         'jumlah',
+        'dosis',
+        'bungkus',
+        'racikan_ke',
         'aturan_pakai',
+        'wadah_id',
+
         'harga',
         'diskon',
         'total',
-        'racikan_ke',
-        'wadah',
-        'bungkus',
-        'dosis',
-        'dokter_id'
+
+        'dokter_id',
+        'created_at',
     ];
 
     // Relasi ke Obat
@@ -35,7 +38,7 @@ class ResepFarmasi extends Model
 
     public function wadah()
     {
-        return $this->belongsTo(WadahObat::class, 'obat_id');
+        return $this->belongsTo(WadahObat::class, 'wadah_id');
     }
 
     // Relasi ke Visitation

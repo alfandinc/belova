@@ -13,7 +13,6 @@ class ResepDokter extends Model
 
     protected $fillable = [
         'id',
-        'created_at',
         'visitation_id',
         'obat_id',
         'jumlah',
@@ -22,6 +21,8 @@ class ResepDokter extends Model
         'racikan_ke',
         'aturan_pakai',
         'wadah_id',
+
+        'created_at',
     ];
 
     // Relasi ke Obat
@@ -39,6 +40,4 @@ class ResepDokter extends Model
     {
         return $this->belongsTo(Visitation::class, 'visitation_id');
     }
-
-    // public $timestamps = false;
 }
