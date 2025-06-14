@@ -164,15 +164,16 @@ class EresepController extends Controller
 
             ResepDokter::create([
                 'id' => $customId,
-                'created_at' => now(),
                 'visitation_id' => $validated['visitation_id'],
                 'obat_id' => $obat['obat_id'],
-                'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
+                // 'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
                 'aturan_pakai' => $validated['aturan_pakai'],
                 'racikan_ke' => $validated['racikan_ke'],
                 'wadah_id' => $validated['wadah'],
                 'bungkus' => $validated['bungkus'],
                 'dosis' => $obat['dosis'],
+
+                'created_at' => now(),
             ]);
         }
 
@@ -258,10 +259,13 @@ class EresepController extends Controller
         // Hitung nilai racikan_ke terakhir dari database
         $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
 
+        $wadah = WadahObat::all();
+
 
         return view('erm.eresep.farmasi.create', array_merge([
             'visitation' => $visitation,
             'obats' => $obats,
+            'wadah' => $wadah,
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'lastRacikanKe' => $lastRacikanKe,
@@ -324,8 +328,9 @@ class EresepController extends Controller
             'visitation_id' => 'required',
             'obat_id' => 'required',
             'jumlah' => 'required',
-            'diskon' => 'required',
             'aturan_pakai' => 'required',
+
+            'diskon' => 'required',
             'harga' => 'required',
         ]);
         $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
@@ -336,9 +341,11 @@ class EresepController extends Controller
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $validated['obat_id'],
             'jumlah' => $validated['jumlah'],
+            'aturan_pakai' => $validated['aturan_pakai'],
+
             'diskon' => $validated['diskon'],
             'harga' => $validated['harga'],
-            'aturan_pakai' => $validated['aturan_pakai'],
+
         ]);
 
         // Load relasi obat agar bisa diakses dari JS
@@ -362,6 +369,9 @@ class EresepController extends Controller
             'obats' => 'required|array|min:1',
             'obats.*.obat_id' => 'required',
             'obats.*.dosis' => 'required|string',
+
+            // 'diskon' => 'required',
+            // 'harga' => 'required',
         ]);
 
         foreach ($validated['obats'] as $obat) {
@@ -371,15 +381,19 @@ class EresepController extends Controller
 
             ResepFarmasi::create([
                 'id' => $customId,
-                'tanggal_input' => now(),
                 'visitation_id' => $validated['visitation_id'],
                 'obat_id' => $obat['obat_id'],
-                'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
+                // 'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
                 'aturan_pakai' => $validated['aturan_pakai'],
                 'racikan_ke' => $validated['racikan_ke'],
                 'wadah_id' => $validated['wadah'],
                 'bungkus' => $validated['bungkus'],
                 'dosis' => $obat['dosis'],
+
+                // 'diskon' => $validated['diskon'],
+                // 'harga' => $validated['harga'],
+
+                'created_at' => now(),
             ]);
         }
 
