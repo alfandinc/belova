@@ -12,7 +12,7 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="simpan_etiket_label" checked>
+                            <input class="form-check-input" type="checkbox" id="simpan_etiket_label">
                             <label class="form-check-label" for="simpan_etiket_label">
                                 Simpan obat dalam Etiket Label
                             </label>
@@ -20,7 +20,7 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="simpan_suhu_kulkas" checked>
+                            <input class="form-check-input" type="checkbox" id="simpan_suhu_kulkas">
                             <label class="form-check-label" for="simpan_suhu_kulkas">
                                 Simpan di suhu kulkas
                             </label>
@@ -31,7 +31,7 @@
                 <div class="row mt-3">
                     <div class="col-md-6">
                         <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="simpan_tempat_kering" checked>
+                            <input class="form-check-input" type="checkbox" id="simpan_tempat_kering">
                             <label class="form-check-label" for="simpan_tempat_kering">
                                 Simpan di tempat kering, suhu kamar
                             </label>
@@ -70,12 +70,6 @@
                                 <!-- Will be populated via AJAX -->
                             </select>
                         </div>
-                    </div>
-                </div>
-
-                <div class="row mt-3">
-                    <div class="col-md-12 text-right">
-                        <p>Total Pembayaran Obat : <span id="modal_total_pembayaran">Rp 142.170,00</span></p>
                     </div>
                 </div>
             </div>
