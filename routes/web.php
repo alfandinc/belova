@@ -144,6 +144,9 @@ Route::prefix('erm')->group(function () {
 
     Route::get('/eresepfarmasi/{visitation_id}/print', [EresepController::class, 'printResep'])->name('erm.eresepfarmasi.print');
 
+    Route::post('/eresepfarmasi/copy-from-history', [EresepController::class, 'copyFromHistory'])->name('erm.eresepfarmasi.copyfromhistory');
+
+
     Route::post('/edukasi-obat/store', [EresepController::class, 'storeEdukasiObat'])->name('edukasi.obat.store');
     Route::get('/edukasi-obat/{visitationId}/print', [EresepController::class, 'printEdukasiObat'])->name('edukasi.obat.print');
     // Add these routes to your routes/web.php file

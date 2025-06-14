@@ -685,4 +685,70 @@ class EresepController extends Controller
         // Return the PDF for download or inline display
         return $pdf->stream('edukasi-obat-' . $visitationId . '.pdf');
     }
+
+    public function copyFromHistory(Request $request)
+    {
+        $validated = $request->validate([
+            'source_visitation_id' => 'required',
+            'target_visitation_id' => 'required',
+            'source_type' => 'required|in:dokter,farmasi',
+        ]);
+
+        $targetVisitationId = $validated['target_visitation_id'];
+        $sourceVisitationId = $validated['source_visitation_id'];
+        $sourceType = $validated['source_type'];
+
+        // Check if prescription already exists for target visitation
+        if (ResepFarmasi::where('visitation_id', $targetVisitationId)->exists()) {
+            return response()->json([
+                'status' => 'info',
+                'message' => 'Resep sudah ada untuk kunjungan ini. Harap hapus resep yang ada sebelum menyalin yang baru.'
+            ]);
+        }
+
+        // Fetch source prescriptions based on source type
+        $sourceReseps = $sourceType === 'dokter'
+            ? ResepDokter::where('visitation_id', $sourceVisitationId)->get()
+            : ResepFarmasi::where('visitation_id', $sourceVisitationId)->get();
+
+        if ($sourceReseps->isEmpty()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Tidak ada resep yang ditemukan untuk disalin.'
+            ]);
+        }
+
+        // Copy each prescription item
+        foreach ($sourceReseps as $resep) {
+            // Generate unique ID
+            $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+
+            // Get obat information if needed
+            $obat = Obat::find($resep->obat_id);
+            $harga = $obat ? $obat->harga_nonfornas : 0;
+
+            // Create new ResepFarmasi record
+            ResepFarmasi::create([
+                'id' => $customId,
+                'visitation_id' => $targetVisitationId,
+                'obat_id' => $resep->obat_id,
+                'jumlah' => $resep->jumlah,
+                'dosis' => $resep->dosis,
+                'bungkus' => $resep->bungkus,
+                'racikan_ke' => $resep->racikan_ke,
+                'aturan_pakai' => $resep->aturan_pakai,
+                'wadah_id' => $resep->wadah_id,
+                'harga' => $harga,
+                'diskon' => 0, // Default value
+                'total' => $harga * ($resep->jumlah ?? 1),
+                'created_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Resep berhasil disalin ke farmasi.',
+            'redirect' => route('erm.eresepfarmasi.create', ['visitation_id' => $targetVisitationId])
+        ]);
+    }
 }
