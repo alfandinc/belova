@@ -1,4 +1,3 @@
-<!-- filepath: c:\wamp64\www\belova\resources\views\erm\obat\create.blade.php -->
 @extends('layouts.erm.app')
 @section('title', isset($obat->id) ? 'ERM | Edit Obat' : 'ERM | Tambah Obat')
 
@@ -41,6 +40,11 @@
                     <div class="form-group col-md-6">
                         <label for="nama">Nama Obat</label>
                         <input type="text" name="nama" id="nama" class="form-control" value="{{ $obat->nama ?? old('nama') }}" required>
+                    </div>
+                    
+                    <div class="form-group col-md-6">
+                        <label for="kode_obat">Kode Obat</label>
+                        <input type="text" name="kode_obat" id="kode_obat" class="form-control" value="{{ $obat->kode_obat ?? old('kode_obat') }}" required>
                     </div>
 
                     <div class="form-group col-md-3">

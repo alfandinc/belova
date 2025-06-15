@@ -1,4 +1,3 @@
-<!-- filepath: c:\wamp64\www\belova\resources\views\erm\obat\index.blade.php -->
 @extends('layouts.erm.app')
 @section('title', 'ERM | Daftar Obat')
 @section('navbar')
@@ -62,13 +61,12 @@
         </div>
     </div>
      
-    
-
     <div class="card">
         <div class="card-body">
             <table id="obat-table" class="table table-bordered table-hover">
                 <thead>
                     <tr>
+                        <th>Kode Obat</th>
                         <th>Nama Obat</th>
                         <th class="text-right">Harga Non-Fornas</th>
                         <th>Kategori</th>
@@ -87,8 +85,8 @@
 @section('scripts')
 <style>
     /* Right align for price and stock columns */
-    #obat-table td:nth-child(2), 
-    #obat-table td:nth-child(5) {
+    #obat-table td:nth-child(3), 
+    #obat-table td:nth-child(6) {
         text-align: right;
     }
 </style>
@@ -111,6 +109,7 @@
                 }
             },
             columns: [
+                { data: 'kode_obat', name: 'kode_obat' },
                 { data: 'nama', name: 'nama' },
                 { 
                     data: 'harga_nonfornas', 
@@ -129,7 +128,7 @@
                 },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
             ],
-            order: [[ 4, 'asc' ]] // Default ordering by stok ascending
+            order: [[ 5, 'asc' ]] // Default ordering by stok ascending (now at column 5)
         });
 
         // Apply filter when select changes (no button needed)
