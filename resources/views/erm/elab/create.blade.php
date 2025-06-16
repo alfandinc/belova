@@ -78,6 +78,9 @@
                     
                     <!-- Total Estimated Price -->
                     <div class="text-right">
+                        <a href="{{ route('erm.elab.print', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary mr-2">
+                            <i class="fas fa-print"></i> Print Permintaan
+                        </a>
                         <div class="h5">Estimasi Total: <span id="totalEstimasi">Rp {{ number_format($totalHarga, 0, ',', '.') }}</span></div>
                     </div>
                 </div>

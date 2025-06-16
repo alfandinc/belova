@@ -10,6 +10,7 @@ use App\Models\ERM\LabPermintaan;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\LabTest;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Yajra\DataTables\Facades\DataTables;
 
@@ -282,5 +283,38 @@ class ElabController extends Controller
                 'message' => 'Gagal mengupdate status permintaan lab: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    
+    public function printPermintaan($visitationId)
+    {
+        $visitation = Visitation::with(['pasien', 'dokter'])->findOrFail($visitationId);
+        
+        // Get all lab categories with their tests
+        $labCategories = LabKategori::with(['labTests' => function($query) {
+            $query->orderBy('nama');
+        }])->orderBy('nama')->get();
+        
+        // Get the lab requests for this visitation
+        $labRequests = LabPermintaan::where('visitation_id', $visitationId)
+                        ->with('labTest')
+                        ->get()
+                        ->pluck('lab_test_id')
+                        ->toArray();
+        
+        // Get patient data
+        $pasienData = PasienHelperController::getDataPasien($visitationId);
+        
+        $pdf = Pdf::loadView('erm.elab.print', [
+            'visitation' => $visitation,
+            'labCategories' => $labCategories,
+            'labRequests' => $labRequests,
+            'pasienData' => $pasienData
+        ]);
+        
+        // Set paper size to match the form in the image
+        $pdf->setPaper('a4');
+        
+        return $pdf->stream('Permintaan_Lab_' . $visitation->pasien->no_rm . '.pdf');
     }
 }

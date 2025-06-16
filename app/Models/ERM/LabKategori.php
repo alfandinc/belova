@@ -11,6 +11,6 @@ class LabKategori extends Model
 
     public function labTests()
     {
-        return $this->hasMany(LabTest::class, 'lab_category_id');
+        return $this->hasMany(LabTest::class, 'lab_kategori_id');
     }
 }

@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 class LabTest extends Model
 {
     protected $table = 'erm_lab_test';
-    protected $fillable = ['nama', 'lab_category_id', 'harga', 'deskripsi'];
+    protected $fillable = ['nama', 'lab_kategori_id', 'harga', 'deskripsi'];
 
     public function labKategori()
     {
-        return $this->belongsTo(LabKategori::class);
+        return $this->belongsTo(LabKategori::class, 'lab_kategori_id');
     }
     
     public function labPermintaan()
