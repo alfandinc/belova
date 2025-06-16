@@ -118,6 +118,7 @@ class ElabController extends Controller
             'lab_test_id' => 'required|exists:erm_lab_test,id'
         ]);
 
+        // Create lab request
         $labRequest = LabPermintaan::create([
             'visitation_id' => $request->visitation_id,
             'lab_test_id' => $request->lab_test_id,
@@ -126,6 +127,16 @@ class ElabController extends Controller
         ]);
 
         $labRequest->load(['labTest.labKategori', 'dokter']);
+        
+        // Create billing entry
+        $labTest = LabTest::find($request->lab_test_id);
+        $billing = new \App\Models\Finance\Billing([
+            'visitation_id' => $request->visitation_id,
+            'jumlah' => $labTest->harga,
+            'keterangan' => 'Lab: ' . $labTest->nama
+        ]);
+        
+        $labRequest->billings()->save($billing);
 
         // Get updated total price
         $totalHarga = LabPermintaan::where('visitation_id', $request->visitation_id)
@@ -149,6 +160,11 @@ class ElabController extends Controller
         try {
             $permintaan = LabPermintaan::findOrFail($id);
             $visitation_id = $permintaan->visitation_id;
+            
+            // Delete related billing entries
+            $permintaan->billings()->delete();
+            
+            // Delete the lab request
             $permintaan->delete();
             
             // Get updated total price
@@ -211,7 +227,15 @@ class ElabController extends Controller
         
         try {
             $visitation_id = LabPermintaan::whereIn('id', $request->ids)->first()->visitation_id;
-            LabPermintaan::whereIn('id', $request->ids)->delete();
+            
+            // Get all lab permintaan records
+            $permintaans = LabPermintaan::whereIn('id', $request->ids)->get();
+            
+            // Delete related billing entries and lab permintaan
+            foreach ($permintaans as $permintaan) {
+                $permintaan->billings()->delete();
+                $permintaan->delete();
+            }
             
             // Get updated total price
             $totalHarga = LabPermintaan::where('visitation_id', $visitation_id)

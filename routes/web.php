@@ -178,7 +178,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/tindakan/inform-consent/{id}', [TindakanController::class, 'informConsent'])->name('erm.tindakan.inform-consent');
     Route::post('/tindakan/inform-consent/save', [TindakanController::class, 'saveInformConsent'])->name('erm.tindakan.inform-consent.save');
     Route::get('/tindakan/history/{visitation}', [TindakanController::class, 'getInformConsentHistory'])->name('tindakan.history');
-    Route::get('/tindakan/sop/{id}', [App\Http\Controllers\ERM\TindakanController::class, 'generateSopPdf'])->name('erm.tindakan.sop');
+    Route::get('/tindakan/sop/{id}', [TindakanController::class, 'generateSopPdf'])->name('erm.tindakan.sop');
 
     Route::post('/tindakan/upload-foto/{id}', [TindakanController::class, 'uploadFoto'])->name('erm.tindakan.upload-foto');
     //Riwayat Kunjungan

@@ -2,6 +2,7 @@
 
 namespace App\Models\ERM;
 
+use App\Models\Finance\Billing;
 use Illuminate\Database\Eloquent\Model;
 
 class LabPermintaan extends Model
@@ -23,4 +24,10 @@ class LabPermintaan extends Model
     {
         return $this->belongsTo(Dokter::class);
     }
+
+    public function billings()
+    {
+        return $this->morphMany(Billing::class, 'billable');
+    }
+    
 }

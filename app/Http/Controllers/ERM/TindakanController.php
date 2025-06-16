@@ -70,7 +70,7 @@ class TindakanController extends Controller
     {
         $tindakan = Tindakan::findOrFail($id);
         $visitation = request()->query('visitation_id');
-        $visitation = \App\Models\ERM\Visitation::findOrFail($visitation);
+        $visitation = Visitation::findOrFail($visitation);
         $pasien = $visitation->pasien;
 
         $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
@@ -102,7 +102,7 @@ class TindakanController extends Controller
             'paket_id' => 'nullable|exists:erm_paket_tindakan,id',
         ]);
 
-        $visitation = \App\Models\ERM\Visitation::findOrFail($data['visitation_id']);
+        $visitation = Visitation::findOrFail($data['visitation_id']);
         $pasien = $visitation->pasien;
         $tindakan = Tindakan::findOrFail($data['tindakan_id']);
 
