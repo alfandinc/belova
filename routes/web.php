@@ -164,7 +164,10 @@ Route::prefix('erm')->group(function () {
 
     //Lab
     Route::get('/elab/{visitation_id}/create', [ElabController::class, 'create'])->name('erm.elab.create');
-
+    Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');
+    Route::get('/elab/tests/data', [ElabController::class, 'getLabTestData'])->name('erm.elab.tests.data');
+    Route::get('/elab/{visitation_id}/requests/data', [ElabController::class, 'getLabPermintaanData'])->name('erm.elab.requests.data');
+    
     //Tindakan & Inform Consent
     Route::get('/tindakan/{visitation_id}/create', [TindakanController::class, 'create'])->name('erm.tindakan.create');
     Route::get('/tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getTindakanData'])->name('erm.tindakan.data');
