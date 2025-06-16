@@ -167,7 +167,10 @@ Route::prefix('erm')->group(function () {
     Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');
     Route::get('/elab/tests/data', [ElabController::class, 'getLabTestData'])->name('erm.elab.tests.data');
     Route::get('/elab/{visitation_id}/requests/data', [ElabController::class, 'getLabPermintaanData'])->name('erm.elab.requests.data');
-    
+    Route::delete('/elab/permintaan/{id}', [ElabController::class, 'destroy'])->name('erm.elab.destroy');
+    Route::put('/elab/permintaan/{id}/status', [ElabController::class, 'updateStatus'])->name('erm.elab.update-status');
+    Route::post('/elab/permintaan/bulk-delete', [ElabController::class, 'bulkDelete'])->name('erm.elab.bulk-delete');
+    Route::post('/elab/permintaan/bulk-update', [ElabController::class, 'bulkUpdateStatus'])->name('erm.elab.bulk-update');
     //Tindakan & Inform Consent
     Route::get('/tindakan/{visitation_id}/create', [TindakanController::class, 'create'])->name('erm.tindakan.create');
     Route::get('/tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getTindakanData'])->name('erm.tindakan.data');

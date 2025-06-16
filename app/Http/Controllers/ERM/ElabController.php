@@ -19,13 +19,22 @@ class ElabController extends Controller
     {
         $visitation = Visitation::findOrFail($visitationId);
         $labCategories = LabKategori::orderBy('nama')->get();
+        
+        // Get total estimated price
+        $totalHarga = LabPermintaan::where('visitation_id', $visitationId)
+                        ->with('labTest')
+                        ->get()
+                        ->sum(function($item) {
+                            return $item->labTest->harga;
+                        });
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
         return view('erm.elab.create', array_merge([
             'visitation' => $visitation,
-            'labCategories' => $labCategories
+            'labCategories' => $labCategories,
+            'totalHarga' => $totalHarga
         ], $pasienData, $createKunjunganData));
     }
 
@@ -49,7 +58,8 @@ class ElabController extends Controller
                 return '<button class="btn btn-sm btn-primary btn-permintaan-lab" 
                             data-id="'.$row->id.'" 
                             data-nama="'.$row->nama.'"
-                            data-kategori="'.$row->labKategori->nama.'">
+                            data-kategori="'.$row->labKategori->nama.'"
+                            data-harga="'.$row->harga.'">
                             Buat
                         </button>';
             })
@@ -64,6 +74,9 @@ class ElabController extends Controller
                     ->orderBy('created_at', 'desc');
         
         return DataTables::of($query)
+            ->addColumn('checkbox', function($row){
+                return '<input type="checkbox" class="permintaan-checkbox" value="'.$row->id.'">';
+            })
             ->addColumn('tanggal', function($row) {
                 return $row->created_at->format('d-m-Y H:i');
             })
@@ -85,14 +98,16 @@ class ElabController extends Controller
                     return '<span class="badge badge-success">Selesai</span>';
                 }
             })
-            ->addColumn('hasil_text', function($row) {
-                if ($row->status == 'completed') {
-                    return $row->hasil;
-                } else {
-                    return '<span class="text-muted">Menunggu hasil</span>';
-                }
+            ->addColumn('action', function($row) {
+                $editBtn = '<button class="btn btn-sm btn-info btn-edit-status mr-1" data-id="'.$row->id.'">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>';
+                $deleteBtn = '<button class="btn btn-sm btn-danger btn-delete-permintaan" data-id="'.$row->id.'">
+                                <i class="fas fa-trash"></i> Batal
+                            </button>';
+                return $editBtn . $deleteBtn;
             })
-            ->rawColumns(['status_label', 'hasil_text'])
+            ->rawColumns(['checkbox', 'status_label', 'action'])
             ->make(true);
     }
 
@@ -112,10 +127,136 @@ class ElabController extends Controller
 
         $labRequest->load(['labTest.labKategori', 'dokter']);
 
+        // Get updated total price
+        $totalHarga = LabPermintaan::where('visitation_id', $request->visitation_id)
+                        ->with('labTest')
+                        ->get()
+                        ->sum(function($item) {
+                            return $item->labTest->harga;
+                        });
+
         return response()->json([
             'success' => true,
             'message' => 'Permintaan lab berhasil dibuat',
-            'data' => $labRequest
+            'data' => $labRequest,
+            'totalHarga' => $totalHarga,
+            'totalHargaFormatted' => 'Rp ' . number_format($totalHarga, 0, ',', '.')
         ]);
+    }
+    
+    public function destroy($id)
+    {
+        try {
+            $permintaan = LabPermintaan::findOrFail($id);
+            $visitation_id = $permintaan->visitation_id;
+            $permintaan->delete();
+            
+            // Get updated total price
+            $totalHarga = LabPermintaan::where('visitation_id', $visitation_id)
+                            ->with('labTest')
+                            ->get()
+                            ->sum(function($item) {
+                                return $item->labTest->harga;
+                            });
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Permintaan lab berhasil dibatalkan',
+                'totalHarga' => $totalHarga,
+                'totalHargaFormatted' => 'Rp ' . number_format($totalHarga, 0, ',', '.')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membatalkan permintaan lab: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:requested,processing,completed',
+            'hasil' => 'nullable|string'
+        ]);
+        
+        try {
+            $permintaan = LabPermintaan::findOrFail($id);
+            $permintaan->status = $request->status;
+            
+            if ($request->has('hasil')) {
+                $permintaan->hasil = $request->hasil;
+            }
+            
+            $permintaan->save();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Status permintaan lab berhasil diupdate'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengupdate status permintaan lab: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:erm_lab_permintaan,id'
+        ]);
+        
+        try {
+            $visitation_id = LabPermintaan::whereIn('id', $request->ids)->first()->visitation_id;
+            LabPermintaan::whereIn('id', $request->ids)->delete();
+            
+            // Get updated total price
+            $totalHarga = LabPermintaan::where('visitation_id', $visitation_id)
+                            ->with('labTest')
+                            ->get()
+                            ->sum(function($item) {
+                                return $item->labTest->harga;
+                            });
+            
+            return response()->json([
+                'success' => true,
+                'message' => count($request->ids) . ' permintaan lab berhasil dibatalkan',
+                'totalHarga' => $totalHarga,
+                'totalHargaFormatted' => 'Rp ' . number_format($totalHarga, 0, ',', '.')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membatalkan permintaan lab: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    public function bulkUpdateStatus(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:erm_lab_permintaan,id',
+            'status' => 'required|in:requested,processing,completed'
+        ]);
+        
+        try {
+            LabPermintaan::whereIn('id', $request->ids)->update([
+                'status' => $request->status
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => count($request->ids) . ' permintaan lab berhasil diupdate'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengupdate status permintaan lab: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
