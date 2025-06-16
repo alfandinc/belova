@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\ERM\Konsultasi;
+use App\Models\ERM\RadiologiKategori;
 use App\Models\ERM\Tindakan;
 use App\Models\HRD\PerformanceQuestion;
 use App\Models\HRD\PerformanceQuestionCategory;
@@ -43,7 +44,9 @@ class DatabaseSeeder extends Seeder
         // $this->call(EmployeeSeeder::class);
         // $this->call(KandunganObatSeeder::class);
         // $this->call(LabKategoriSeeder::class);
-        $this->call(LabTestSeeder::class);
-    
+        // $this->call(LabTestSeeder::class);
+        $this->call(RadiologiKategoriSeeder::class);
+        $this->call(RadiologiTestSeeder::class);
+
     }
 }
