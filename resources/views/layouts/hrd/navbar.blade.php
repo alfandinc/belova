@@ -22,14 +22,25 @@
                     <li class="nav-item"><a class="nav-link" href="/hrd"><i class="ti-control-record"></i>Analytics</a></li>
                 </ul>
             </li>
+    
             
-            <!-- Self Service - Visible to all authenticated users -->
-            {{-- <li>
-                <a href="javascript: void(0);"> <i data-feather="user" class="align-self-center menu-icon"></i><span>Profil Saya</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+            <!-- Pengajuan Cuti - Visible to all authenticated users -->
+            <li>
+                <a href="javascript: void(0);"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Pengajuan Cuti/Libur</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.profile') }}"><i class="ti-control-record"></i>Lihat Profil</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Pengajuan Saya</a></li>
+                    
+                    <!-- For Managers: Approval cuti team -->
+                    @if(Auth::check() && Auth::user()->hasRole('Manager'))
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Persetujuan Tim</a></li>
+                    @endif
+                    
+                    <!-- For HRD: Full leave management -->
+                    @if(Auth::check() && Auth::user()->hasRole('Hrd'))
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Persetujuan HRD</a></li>
+                    @endif
                 </ul>
-            </li> --}}
+            </li>
             
             <!-- Performance Evaluations - Visible to all authenticated users -->
             <li>
@@ -78,6 +89,7 @@
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Divisi</a></li>
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Posisi/Jabatan</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Saldo Cuti</a></li>
                 </ul>
             </li>
             
@@ -87,6 +99,7 @@
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Statistik Pegawai</a></li>
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Kontrak Berakhir</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Laporan Cuti</a></li>
                 </ul>
             </li>
             @endif

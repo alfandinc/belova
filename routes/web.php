@@ -44,6 +44,7 @@ use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\HRD\DivisionController;
 use App\Http\Controllers\HRD\EmployeeSelfServiceController;
+use App\Http\Controllers\HRD\PengajuanLiburController;
 use App\Http\Controllers\HRD\PerformanceEvaluationController;
 use App\Http\Controllers\HRD\PerformanceQuestionController;
 use App\Http\Controllers\HRD\PerformanceScoreController;
@@ -287,6 +288,15 @@ Route::prefix('hrd')->group(
 
         Route::get('/my-division', [DivisionController::class, 'showMyDivision'])->name('hrd.division.mine');
         Route::get('/my-team', [DivisionController::class, 'showMyTeam'])->name('hrd.division.team');
+
+        Route::prefix('libur')->name('hrd.libur.')->middleware(['auth'])->group(function () {
+                Route::get('/', [PengajuanLiburController::class, 'index'])->name('index');
+                Route::get('/buat', [PengajuanLiburController::class, 'create'])->name('create');
+                Route::post('/', [PengajuanLiburController::class, 'store'])->name('store');
+                Route::get('/{id}', [PengajuanLiburController::class, 'show'])->name('show');
+                Route::put('/{id}/manager', [PengajuanLiburController::class, 'persetujuanManager'])->name('manager.approve');
+                Route::put('/{id}/hrd', [PengajuanLiburController::class, 'persetujuanHRD'])->name('hrd.approve');
+            });
 
         // Performance Evaluation Routes
         Route::prefix('performance')->name('hrd.performance.')->middleware(['auth'])->group(function () {

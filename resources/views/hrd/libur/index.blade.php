@@ -1,0 +1,470 @@
+@extends('layouts.hrd.app')
+@section('title', 'HRD | Pengajuan Cuti/Libur')
+@section('navbar')
+    @include('layouts.hrd.navbar')
+@endsection
+
+@section('content')
+<div class="page-wrapper">
+    <div class="page-content">
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="page-title-box">
+                        <div class="row">
+                            <div class="col">
+                                <h4 class="page-title">Pengajuan Cuti/Libur</h4>
+                            </div>
+                            <div class="col-auto align-self-center">
+                                <a href="#" class="btn btn-sm btn-primary" id="btnCreateLibur">
+                                    <i class="fas fa-plus-circle mr-2"></i>Buat Pengajuan Baru
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            @if(auth()->user()->hasRole('Employee'))
+                @include('hrd.libur.karyawan-index')
+            @elseif(auth()->user()->hasRole('Manager'))
+                @include('hrd.libur.manager-index')
+            @elseif(auth()->user()->hasRole('Hrd'))
+                @include('hrd.libur.hrd-index')
+            @endif
+
+        </div>
+    </div>
+</div>
+
+<!-- Modal Create Pengajuan -->
+<div class="modal fade" id="modalCreateLibur" tabindex="-1" role="dialog" aria-labelledby="modalCreateLiburLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalCreateLiburLabel">Form Pengajuan Cuti/Libur</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="formCreateLibur">
+                @csrf
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Jenis Cuti/Libur <span class="text-danger">*</span></label>
+                        <select class="form-control" name="jenis_libur" id="jenis_libur" required>
+                            <option value="">Pilih Jenis</option>
+                            <option value="cuti_tahunan">Cuti Tahunan</option>
+                            <option value="ganti_libur">Ganti Libur</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Tanggal Mulai <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="tanggal_mulai" id="tanggal_mulai" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Tanggal Selesai <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" name="tanggal_selesai" id="tanggal_selesai" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Alasan <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="alasan" id="alasan" rows="3" required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="alert alert-info">
+                                <p class="mb-0"><strong>Jatah Cuti Tahunan:</strong> <span id="jatahCutiTahunan">{{ auth()->user()->employee->jatahLibur->jatah_cuti_tahunan ?? 0 }} hari</span></p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="alert alert-info">
+                                <p class="mb-0"><strong>Saldo Ganti Libur:</strong> <span id="jatahGantiLibur">{{ auth()->user()->employee->jatahLibur->jatah_ganti_libur ?? 0 }} hari</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitLibur">Ajukan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Detail Pengajuan -->
+<div class="modal fade" id="modalDetailLibur" tabindex="-1" role="dialog" aria-labelledby="modalDetailLiburLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDetailLiburLabel">Detail Pengajuan Cuti/Libur</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="modalDetailLiburBody">
+                <!-- Content will be loaded via AJAX -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Approval Manager -->
+<div class="modal fade" id="modalApprovalManager" tabindex="-1" role="dialog" aria-labelledby="modalApprovalManagerLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalApprovalManagerLabel">Persetujuan Manager</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="formApprovalManager">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="pengajuan_id" id="manager_pengajuan_id">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Status <span class="text-danger">*</span></label>
+                        <select class="form-control" name="status" id="status_manager" required>
+                            <option value="">Pilih Status</option>
+                            <option value="disetujui">Disetujui</option>
+                            <option value="ditolak">Ditolak</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Catatan</label>
+                        <textarea class="form-control" name="komentar_manager" id="komentar_manager" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitApprovalManager">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Approval HRD -->
+<div class="modal fade" id="modalApprovalHRD" tabindex="-1" role="dialog" aria-labelledby="modalApprovalHRDLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalApprovalHRDLabel">Persetujuan HRD</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="formApprovalHRD">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="pengajuan_id" id="hrd_pengajuan_id">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Status <span class="text-danger">*</span></label>
+                        <select class="form-control" name="status" id="status_hrd" required>
+                            <option value="">Pilih Status</option>
+                            <option value="disetujui">Disetujui</option>
+                            <option value="ditolak">Ditolak</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Catatan</label>
+                        <textarea class="form-control" name="komentar_hrd" id="komentar_hrd" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-primary" id="btnSubmitApprovalHRD">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@endsection
+
+@section('scripts')
+<script>
+$(document).ready(function() {
+    // Initialize DataTable for Employee
+    var tableKaryawan = $('#tableLiburKaryawan').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: "{{ route('hrd.libur.index') }}",
+        columns: [
+            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
+            {data: 'jenis_libur', name: 'jenis_libur'},
+            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
+            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'total_hari', name: 'total_hari'},
+            {data: 'status_manager', name: 'status_manager'},
+            {data: 'status_hrd', name: 'status_hrd'},
+            {data: 'action', name: 'action', orderable: false, searchable: false},
+        ]
+    });
+    
+    // Initialize DataTable for Manager
+    var tableManager = $('#tableLiburManager').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: "{{ route('hrd.libur.index') }}",
+        columns: [
+            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
+            {data: 'employee.nama', name: 'employee.nama'},
+            {data: 'jenis_libur', name: 'jenis_libur'},
+            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
+            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'total_hari', name: 'total_hari'},
+            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
+            {data: 'action', name: 'action', orderable: false, searchable: false},
+        ]
+    });
+    
+    // Initialize DataTable for HRD
+    var tableHRD = $('#tableLiburHRD').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: "{{ route('hrd.libur.index') }}",
+        columns: [
+            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
+            {data: 'employee.nama', name: 'employee.nama'},
+            {data: 'jenis_libur', name: 'jenis_libur'},
+            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
+            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'total_hari', name: 'total_hari'},
+            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
+            {data: 'action', name: 'action', orderable: false, searchable: false},
+        ]
+    });
+    
+    // Create modal
+    $('#btnCreateLibur').click(function() {
+        $('#formCreateLibur')[0].reset();
+        $('#modalCreateLibur').modal('show');
+    });
+    
+    // Submit create form
+    $('#formCreateLibur').submit(function(e) {
+        e.preventDefault();
+        
+        var formData = $(this).serialize();
+        
+        $.ajax({
+            url: "{{ route('hrd.libur.store') }}",
+            type: "POST",
+            data: formData,
+            beforeSend: function() {
+                $('#btnSubmitLibur').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
+            },
+            success: function(response) {
+                $('#modalCreateLibur').modal('hide');
+                $('#formCreateLibur')[0].reset();
+
+                Swal.fire({
+                    title: 'Berhasil!',
+                    text: 'Pengajuan libur berhasil diajukan',
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+                
+                if(typeof tableKaryawan !== 'undefined') {
+                    tableKaryawan.ajax.reload();
+                }
+            },
+            error: function(xhr) {
+                var errors = xhr.responseJSON.errors;
+                var errorMessage = '';
+                
+                $.each(errors, function(key, value) {
+                    errorMessage += value[0] + '<br>';
+                });
+                
+                Swal.fire({
+                    title: 'Gagal!',
+                    html: errorMessage,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            },
+            complete: function() {
+                $('#btnSubmitLibur').attr('disabled', false).html('Ajukan');
+            }
+        });
+    });
+    
+    // Show detail modal
+    $(document).on('click', '.btn-detail', function() {
+        var id = $(this).data('id');
+        
+        $.ajax({
+            url: "{{ url('hrd/libur') }}/" + id,
+            type: "GET",
+            success: function(response) {
+                $('#modalDetailLiburBody').html(response);
+                $('#modalDetailLibur').modal('show');
+            }
+        });
+    });
+    
+    // Show manager approval modal
+    $(document).on('click', '.btn-approve-manager', function() {
+        var id = $(this).data('id');
+        $('#manager_pengajuan_id').val(id);
+        $('#formApprovalManager')[0].reset();
+        $('#modalApprovalManager').modal('show');
+    });
+    
+    // Submit manager approval
+    $('#formApprovalManager').submit(function(e) {
+        e.preventDefault();
+        
+        var id = $('#manager_pengajuan_id').val();
+        var formData = $(this).serialize();
+        
+        $.ajax({
+            url: "{{ url('hrd/libur') }}/" + id + "/manager",
+            type: "POST",
+            data: formData,
+            beforeSend: function() {
+                $('#btnSubmitApprovalManager').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
+            },
+            success: function(response) {
+                $('#modalApprovalManager').modal('hide');
+                
+                Swal.fire({
+                    title: 'Berhasil!',
+                    text: 'Status pengajuan berhasil diperbarui',
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+                
+                if(typeof tableManager !== 'undefined') {
+                    tableManager.ajax.reload();
+                }
+            },
+            error: function(xhr) {
+                var errors = xhr.responseJSON.errors;
+                var errorMessage = '';
+                
+                $.each(errors, function(key, value) {
+                    errorMessage += value[0] + '<br>';
+                });
+                
+                Swal.fire({
+                    title: 'Gagal!',
+                    html: errorMessage,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            },
+            complete: function() {
+                $('#btnSubmitApprovalManager').attr('disabled', false).html('Simpan');
+            }
+        });
+    });
+    
+    // Show HRD approval modal
+    $(document).on('click', '.btn-approve-hrd', function() {
+        var id = $(this).data('id');
+        $('#hrd_pengajuan_id').val(id);
+        $('#formApprovalHRD')[0].reset();
+        $('#modalApprovalHRD').modal('show');
+    });
+    
+    // Submit HRD approval
+    $('#formApprovalHRD').submit(function(e) {
+        e.preventDefault();
+        
+        var id = $('#hrd_pengajuan_id').val();
+        var formData = $(this).serialize();
+        
+        $.ajax({
+            url: "{{ url('hrd/libur') }}/" + id + "/hrd",
+            type: "POST",
+            data: formData,
+            beforeSend: function() {
+                $('#btnSubmitApprovalHRD').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
+            },
+            success: function(response) {
+                $('#modalApprovalHRD').modal('hide');
+                
+                Swal.fire({
+                    title: 'Berhasil!',
+                    text: 'Status pengajuan berhasil diperbarui',
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+                
+                if(typeof tableHRD !== 'undefined') {
+                    tableHRD.ajax.reload();
+                }
+            },
+            error: function(xhr) {
+                var errors = xhr.responseJSON.errors;
+                var errorMessage = '';
+                
+                $.each(errors, function(key, value) {
+                    errorMessage += value[0] + '<br>';
+                });
+                
+                Swal.fire({
+                    title: 'Gagal!',
+                    html: errorMessage,
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            },
+            complete: function() {
+                $('#btnSubmitApprovalHRD').attr('disabled', false).html('Simpan');
+            }
+        });
+    });
+    
+    // Date validation
+    $('#tanggal_selesai').change(function() {
+        var startDate = new Date($('#tanggal_mulai').val());
+        var endDate = new Date($(this).val());
+        
+        if (endDate < startDate) {
+            Swal.fire({
+                title: 'Peringatan!',
+                text: 'Tanggal selesai tidak boleh sebelum tanggal mulai',
+                icon: 'warning',
+                confirmButtonText: 'OK'
+            });
+            $(this).val('');
+        }
+    });
+    
+    $('#tanggal_mulai').change(function() {
+        var startDate = new Date($(this).val());
+        var endDateInput = $('#tanggal_selesai');
+        var endDate = new Date(endDateInput.val());
+        
+        if (endDateInput.val() && endDate < startDate) {
+            Swal.fire({
+                title: 'Peringatan!',
+                text: 'Tanggal mulai tidak boleh setelah tanggal selesai',
+                icon: 'warning',
+                confirmButtonText: 'OK'
+            });
+            $(this).val('');
+        }
+    });
+});
+</script>
+@endsection

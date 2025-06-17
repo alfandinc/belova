@@ -115,4 +115,14 @@ class Employee extends Model
 
         return $allScores->avg('score');
     }
+
+    public function jatahLibur()
+    {
+        return $this->hasOne(JatahLibur::class, 'employee_id');
+    }
+
+    public function pengajuanLibur()
+    {
+        return $this->hasMany(PengajuanLibur::class, 'employee_id');
+    }
 }
