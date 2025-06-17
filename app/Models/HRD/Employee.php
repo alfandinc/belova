@@ -30,15 +30,16 @@ class Employee extends Model
         'doc_ktp',
         'doc_kontrak',
         'doc_pendukung',
-        'user_id'
+        'user_id',
+        'photo' 
     ];
 
-    protected $dates = [
-        'tanggal_lahir',
-        'tanggal_masuk',
-        'kontrak_berakhir',
-        'masa_pensiun',
-    ];
+    protected $casts = [
+    'tanggal_lahir' => 'date',
+    'tanggal_masuk' => 'date',
+    'kontrak_berakhir' => 'date',
+    'masa_pensiun' => 'date',
+];
 
     public function position()
     {

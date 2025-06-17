@@ -278,10 +278,9 @@ Route::prefix('hrd')->group(
         // Employee Self Service Routes
 
         Route::get('/profile', [EmployeeSelfServiceController::class, 'profile'])->name('hrd.employee.profile');
-        Route::get('/profile/edit', [EmployeeSelfServiceController::class, 'editProfile'])->name('hrd.employee.profile.edit');
+        Route::get('/profile/edit-modal', [EmployeeSelfServiceController::class, 'getEditProfileModal'])->name('hrd.employee.profile.modal');
         Route::put('/profile', [EmployeeSelfServiceController::class, 'updateProfile'])->name('hrd.employee.profile.update');
-        Route::get('/change-password', [EmployeeSelfServiceController::class, 'changePassword'])->name('hrd.employee.password.change');
-        Route::put('/change-password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
+
 
 
         // Division routes (for managers)

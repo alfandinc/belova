@@ -60,4 +60,8 @@ class User extends Authenticatable
     {
         return $this->hasOne(\App\Models\ERM\Dokter::class);
     }
+    public function employee()
+    {
+        return $this->hasOne(\App\Models\HRD\Employee::class, 'user_id');
+    }
 }

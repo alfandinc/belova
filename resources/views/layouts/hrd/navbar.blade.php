@@ -24,14 +24,12 @@
             </li>
             
             <!-- Self Service - Visible to all authenticated users -->
-            <li>
+            {{-- <li>
                 <a href="javascript: void(0);"> <i data-feather="user" class="align-self-center menu-icon"></i><span>Profil Saya</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.profile') }}"><i class="ti-control-record"></i>Lihat Profil</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.profile.edit') }}"><i class="ti-control-record"></i>Edit Profil</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.password.change') }}"><i class="ti-control-record"></i>Ubah Password</a></li>
                 </ul>
-            </li>
+            </li> --}}
             
             <!-- Performance Evaluations - Visible to all authenticated users -->
             <li>

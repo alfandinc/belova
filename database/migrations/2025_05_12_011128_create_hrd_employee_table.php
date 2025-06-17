@@ -41,6 +41,7 @@ return new class extends Migration
 
             // User (link to login)
             $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('cascade');
+            $table->string('photo')->nullable()->after('user_id');
 
             $table->timestamps();
         });
