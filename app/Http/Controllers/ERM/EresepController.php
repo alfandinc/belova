@@ -684,6 +684,42 @@ class EresepController extends Controller
         return $pdf->stream('edukasi-obat-' . $visitationId . '.pdf');
     }
 
+    public function printEtiket($visitationId)
+    {
+        // Get the visitation data with all necessary relations
+        $visitation = Visitation::with(['pasien', 'dokter.user', 'metodeBayar', 'klinik'])->findOrFail($visitationId);
+
+        // Get prescription items
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)
+            ->with(['obat', 'wadah'])
+            ->whereNull('racikan_ke')  // Only non-racikan items for etiket
+            ->get();
+
+        if ($reseps->isEmpty()) {
+            return back()->with('error', 'Tidak ada obat non-racikan untuk dicetak etiket.');
+        }
+
+        // Generate PDF view
+        $pdf = PDF::loadView('erm.eresep.farmasi.etiket-print', [
+            'visitation' => $visitation,
+            'reseps' => $reseps,
+        ]);
+
+        // Set PDF options for 78x60mm (7.8cm x 6cm) landscape format
+        // Convert to points: 1cm = 28.35 points
+        $height = 78 * 2.835; // 221.13 points
+        $width= 60 * 2.835; // 170.1 points
+        
+        $pdf->setPaper([0, 0, $width, $height], 'landscape');
+        $pdf->setOption('margin-top', 5);
+        $pdf->setOption('margin-right', 5);
+        $pdf->setOption('margin-bottom', 5);
+        $pdf->setOption('margin-left', 5);
+
+        // Return the PDF for download or inline display
+        return $pdf->stream('etiket-' . $visitation->id . '.pdf');
+    }
+
     public function copyFromHistory(Request $request)
     {
         $validated = $request->validate([

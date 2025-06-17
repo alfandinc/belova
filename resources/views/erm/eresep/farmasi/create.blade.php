@@ -49,6 +49,7 @@
 
                         <button class="btn btn-primary btn-sm btn-cetakresep" >Cetak Resep</button>
                         <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
+                        <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
                         <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}">
                             Riwayat Dokter
                         </button>
@@ -788,6 +789,12 @@
             // Open the print route in a new tab
             window.open(`/erm/eresepfarmasi/${visitationId}/print`, '_blank');
         });
+
+        $('.btn-cetaketiket').on('click', function() {
+    const visitationId = $('#visitation_id').val();
+    // Open the etiket print route in a new tab
+    window.open(`/erm/eresepfarmasi/${visitationId}/print-etiket`, '_blank');
+});
            
         updateTotalPrice(); // <--- Tambahkan ini
     
