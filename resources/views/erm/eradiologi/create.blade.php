@@ -31,6 +31,36 @@
     </div><!--end row-->  
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
+        <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center ">
+                    <h5 class="mb-0"><i class="fa fa-history mr-2"></i> Dokumen Radiologi</h5>
+                </div>
+                <div class="card-body">
+
+                    <div class="table-responsive mt-3">
+                        <table id="dokumenRadiologiTable" class="table table-bordered table-hover w-100">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>No</th>
+                                    <th>Tanggal</th>
+                                    <th>Dokter Pengirim</th> 
+                                    <th>Pemeriksaan</th>    
+                                    <th>Hasil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Data will be loaded via DataTables -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+
+    </div>
 
     <!-- Two column layout for Radiologi Management -->
     <div class="row">
@@ -78,9 +108,7 @@
 
                     <!-- Total Estimated Price -->
                     <div class="text-right">
-                        <a href="{{ route('erm.eradiologi.print', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary mr-2">
-                            <i class="fas fa-print"></i> Print Permintaan
-                        </a>
+                        
                         <div class="h5">Estimasi Total: <span id="totalEstimasi">Rp {{ number_format($totalHarga, 0, ',', '.') }}</span></div>
                     </div>
                 </div>
@@ -88,12 +116,15 @@
                     <!-- Bulk action buttons -->
                     <div class="mb-3">
                         <div class="btn-group">
-                            <button type="button" class="btn btn-danger btn-bulk-delete" disabled>
+                            <button type="button" class="btn btn-sm btn-danger btn-bulk-delete mr-2" disabled>
                                 <i class="fas fa-trash"></i> Hapus Terpilih
                             </button>
-                            <button type="button" class="btn btn-info btn-bulk-edit ml-2" disabled data-toggle="dropdown">
+                            <button type="button" class="btn btn-sm btn-info btn-bulk-edit mr-2" disabled data-toggle="dropdown">
                                 <i class="fas fa-edit"></i> Edit Status Terpilih
                             </button>
+                            <a href="{{ route('erm.eradiologi.print', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary mr-2">
+                            <i class="fas fa-print"></i> Print Permintaan
+                        </a>
                             <div class="dropdown-menu">
                                 <a class="dropdown-item bulk-status-option" href="#" data-status="requested">Diminta</a>
                                 <a class="dropdown-item bulk-status-option" href="#" data-status="processing">Diproses</a>
