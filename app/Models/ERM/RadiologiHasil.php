@@ -4,30 +4,28 @@ namespace App\Models\ERM;
 
 use Illuminate\Database\Eloquent\Model;
 
-class LabHasil extends Model
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+class RadiologiHasil extends Model
 {
-    protected $table = 'erm_lab_hasil';
+    use HasFactory;
+
+    protected $table = 'erm_radiologi_hasil';
     
     protected $fillable = [
         'visitation_id',
-        'asal_lab',
+        'dokter_pengirim',
         'nama_pemeriksaan',
         'tanggal_pemeriksaan',
-        'dokter',
-        'catatan',
         'file_path',
-        'hasil_detail',
-
-        
+        'deskripsi',
     ];
     
     protected $casts = [
         'tanggal_pemeriksaan' => 'date',
-        'hasil_detail' => 'array',
     ];
     
     public function visitation()
     {
-        return $this->belongsTo(Visitation::class, 'visitation_id');
+        return $this->belongsTo(Visitation::class);
     }
 }

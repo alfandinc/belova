@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
+use App\Models\ERM\RadiologiHasil;
 use App\Models\ERM\RadiologiKategori;
 use App\Models\ERM\RadiologiPermintaan;
 use Illuminate\Http\Request;
@@ -317,4 +318,78 @@ class EradiologiController extends Controller
 
         return $pdf->stream('Permintaan_Radiologi_' . $visitation->pasien->no_rm . '.pdf');
     }
+
+    public function getRadiologiDokumenData($visitationId)
+{
+    // Get patient ID from visitation
+    $visitation = Visitation::findOrFail($visitationId);
+    $pasienId = $visitation->pasien_id;
+    
+    // Get all visitations for this patient to show all radiologi results
+    $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id')->toArray();
+    
+    $query = RadiologiHasil::whereIn('visitation_id', $visitationIds)
+                ->orderBy('created_at', 'desc');
+    
+    return DataTables::of($query)
+        ->addIndexColumn() // Adds row numbers
+        ->addColumn('tanggal', function($row) {
+            return $row->tanggal_pemeriksaan->format('d-m-Y');
+        })
+        ->addColumn('action', function($row) {
+            $viewBtn = '<button class="btn btn-sm btn-info btn-view-radiologi" data-id="'.$row->id.'">
+                            <i class="fas fa-eye"></i> Lihat
+                        </button>';
+            return $viewBtn;
+        })
+        ->rawColumns(['action'])
+        ->make(true);
+}
+
+public function uploadRadiologiHasil(Request $request)
+{
+    $request->validate([
+        'visitation_id' => 'required|exists:erm_visitations,id',
+        'dokter_pengirim' => 'required|string|max:255',
+        'nama_pemeriksaan' => 'required|string|max:255',
+        'tanggal_pemeriksaan' => 'required|date',
+        'deskripsi' => 'nullable|string',
+        'hasil_file' => 'required|file|mimes:pdf,jpg,jpeg,png|max:20480', // 20MB max
+    ]);
+
+    // Handle file upload
+    $filePath = null;
+    if ($request->hasFile('hasil_file')) {
+        $file = $request->file('hasil_file');
+        $fileName = time() . '_' . $file->getClientOriginalName();
+        // Store in public disk
+        $filePath = $file->storeAs('radiologi_hasil', $fileName, 'public');
+    }
+
+    // Create radiologi hasil record
+    $radiologiHasil = RadiologiHasil::create([
+        'visitation_id' => $request->visitation_id,
+        'dokter_pengirim' => $request->dokter_pengirim,
+        'nama_pemeriksaan' => $request->nama_pemeriksaan,
+        'tanggal_pemeriksaan' => $request->tanggal_pemeriksaan,
+        'deskripsi' => $request->deskripsi,
+        'file_path' => $filePath,
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Hasil radiologi berhasil diupload',
+        'data' => $radiologiHasil
+    ]);
+}
+
+public function getRadiologiHasilDetails($id)
+{
+    $radiologiHasil = RadiologiHasil::findOrFail($id);
+    
+    return response()->json([
+        'success' => true,
+        'data' => $radiologiHasil
+    ]);
+}
 }

@@ -169,7 +169,10 @@ Route::prefix('erm')->group(function () {
     Route::post('/eradiologi/permintaan/bulk-delete', [EradiologiController::class, 'bulkDelete'])->name('erm.eradiologi.bulk-delete');
     Route::post('/eradiologi/permintaan/bulk-update', [EradiologiController::class, 'bulkUpdateStatus'])->name('erm.eradiologi.bulk-update');
     Route::get('/eradiologi/{visitation_id}/print', [EradiologiController::class, 'printPermintaan'])->name('erm.eradiologi.print');
-
+    Route::get('/eradiologi/{visitation_id}/dokumen/data', [EradiologiController::class, 'getRadiologiDokumenData'])->name('erm.eradiologi.dokumen.data');
+    Route::post('/eradiologi/hasil/upload', [EradiologiController::class, 'uploadRadiologiHasil'])->name('erm.eradiologi.hasil.upload');
+    Route::get('/eradiologi/hasil/{id}', [EradiologiController::class, 'getRadiologiHasilDetails'])->name('erm.eradiologi.hasil.detail');
+    
     //Lab
     Route::get('/elab/{visitation_id}/create', [ElabController::class, 'create'])->name('erm.elab.create');
     Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');

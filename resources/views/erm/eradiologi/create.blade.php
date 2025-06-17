@@ -6,6 +6,118 @@
 @endsection
 
 @section('content')
+<!-- Upload Radiologi Modal -->
+<div class="modal fade" id="uploadRadiologiModal" tabindex="-1" role="dialog" aria-labelledby="uploadRadiologiModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadRadiologiModalLabel">Upload Hasil Radiologi</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadRadiologiForm" enctype="multipart/form-data">
+                    @csrf
+                    <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="uploadRadiologiNamaPemeriksaan">Nama Pemeriksaan <span class="text-danger">*</span></label>
+                                <select class="form-control" id="uploadRadiologiNamaPemeriksaan" name="nama_pemeriksaan" required>
+                                    <option value="">-- Pilih Pemeriksaan --</option>
+                                    <option value="USG">USG</option>
+                                    <option value="Rontgen">Rontgen</option>
+                                    <option value="MRI">MRI</option>
+                                    <option value="CT Scan">CT Scan</option>
+                                    <option value="Mammografi">Mammografi</option>
+                                    <option value="Fluoroskopi">Fluoroskopi</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="uploadRadiologiDokter">Dokter Pengirim <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="uploadRadiologiDokter" name="dokter_pengirim" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="uploadRadiologiTanggal">Tanggal Pemeriksaan <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="uploadRadiologiTanggal" name="tanggal_pemeriksaan" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="uploadRadiologiFile">File Hasil <span class="text-danger">*</span></label>
+                                <input type="file" class="form-control-file" id="uploadRadiologiFile" name="hasil_file" accept=".pdf,.jpg,.jpeg,.png" required>
+                                <small class="form-text text-muted">Format: PDF, JPG, JPEG, PNG (Max: 20MB)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="uploadRadiologiDeskripsi">Deskripsi</label>
+                        <textarea class="form-control" id="uploadRadiologiDeskripsi" name="deskripsi" rows="3"></textarea>
+                    </div>
+                    <div class="text-right">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Radiologi Modal -->
+<div class="modal fade" id="viewRadiologiModal" tabindex="-1" role="dialog" aria-labelledby="viewRadiologiModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewRadiologiModalLabel">Detail Hasil Radiologi</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Pemeriksaan:</strong> <span id="viewRadiologiNamaPemeriksaan"></span></p>
+                            <p><strong>Dokter Pengirim:</strong> <span id="viewRadiologiDokter"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Tanggal:</strong> <span id="viewRadiologiTanggal"></span></p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <p><strong>Deskripsi:</strong></p>
+                            <div class="card">
+                                <div class="card-body" id="viewRadiologiDeskripsi">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <p><strong>File:</strong></p>
+                            <div id="viewRadiologiFilePreview" class="text-center p-3 border">
+                                <!-- File preview will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @include('erm.partials.modal-alergipasien')
 
@@ -562,6 +674,137 @@ $(document).ready(function () {
         }
     });
 });
+
+let dokumenTable = $('#dokumenRadiologiTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: '{{ route("erm.eradiologi.dokumen.data", $visitation->id) }}',
+        columns: [
+            { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false },
+            { data: 'tanggal', name: 'tanggal_pemeriksaan' },
+            { data: 'dokter_pengirim', name: 'dokter_pengirim' },
+            { data: 'nama_pemeriksaan', name: 'nama_pemeriksaan' },
+            { data: 'action', name: 'action', orderable: false, searchable: false }
+        ],
+        order: [[1, 'desc']],
+        language: {
+            search: "Cari:",
+            lengthMenu: "Tampilkan _MENU_ data per halaman",
+            zeroRecords: "Tidak ada data yang ditemukan",
+            info: "Menampilkan halaman _PAGE_ dari _PAGES_",
+            infoEmpty: "Tidak ada data tersedia",
+            infoFiltered: "(difilter dari _MAX_ total data)"
+        }
+    });
+
+    // Add button to add new document
+    $('.card-header:first').append(
+        '<button class="btn btn-sm btn-success ml-2" id="btn-add-radiologi-dokumen">' +
+        '<i class="fas fa-plus"></i> Upload Hasil Radiologi</button>'
+    );
+
+    // Handle add radiologi dokumen button click
+    $('#btn-add-radiologi-dokumen').click(function() {
+        $('#uploadRadiologiModal').modal('show');
+    });
+
+    // Handle view radiologi button click
+    $('#dokumenRadiologiTable').on('click', '.btn-view-radiologi', function() {
+        let hasilId = $(this).data('id');
+        
+        // Get hasil details
+        $.ajax({
+            url: '/erm/eradiologi/hasil/' + hasilId,
+            type: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    let hasil = response.data;
+                    
+                    // Set modal content
+                    $('#viewRadiologiNamaPemeriksaan').text(hasil.nama_pemeriksaan);
+                    $('#viewRadiologiDokter').text(hasil.dokter_pengirim);
+                    $('#viewRadiologiTanggal').text(new Date(hasil.tanggal_pemeriksaan).toLocaleDateString('id-ID'));
+                    $('#viewRadiologiDeskripsi').text(hasil.deskripsi || '-');
+                    
+                    // Set file preview
+                    let fileExt = hasil.file_path.split('.').pop().toLowerCase();
+                    let filePreview = $('#viewRadiologiFilePreview');
+                    filePreview.empty();
+                    
+                    if (['jpg', 'jpeg', 'png'].includes(fileExt)) {
+                        filePreview.html(`<img src="/storage/${hasil.file_path}" class="img-fluid" alt="Radiologi Image">`);
+                    } else if (fileExt === 'pdf') {
+                        filePreview.html(`
+                            <div class="embed-responsive embed-responsive-16by9">
+                                <iframe class="embed-responsive-item" src="/storage/${hasil.file_path}" allowfullscreen></iframe>
+                            </div>
+                        `);
+                    } else {
+                        filePreview.html(`<p>File tidak dapat ditampilkan. <a href="/storage/${hasil.file_path}" target="_blank">Download</a></p>`);
+                    }
+                    
+                    // Show modal
+                    $('#viewRadiologiModal').modal('show');
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Terjadi kesalahan! Silakan coba lagi.'
+                });
+                console.error(xhr.responseText);
+            }
+        });
+    });
+
+    // Handle upload form submission
+    $('#uploadRadiologiForm').submit(function(e) {
+        e.preventDefault();
+        
+        let formData = new FormData(this);
+        
+        $.ajax({
+            url: '{{ route("erm.eradiologi.hasil.upload") }}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    $('#uploadRadiologiModal').modal('hide');
+                    $('#uploadRadiologiForm')[0].reset();
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    
+                    // Reload dokumen table
+                    dokumenTable.ajax.reload();
+                }
+            },
+            error: function(xhr) {
+                let errors = xhr.responseJSON.errors;
+                let errorMessage = '';
+                
+                for (let key in errors) {
+                    errorMessage += errors[key][0] + '<br>';
+                }
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validasi Error',
+                    html: errorMessage
+                });
+                
+                console.error(xhr.responseText);
+            }
+        });
+    });
 
 
 });
