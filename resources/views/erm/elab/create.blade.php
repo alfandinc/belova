@@ -6,6 +6,158 @@
 @endsection
 
 @section('content')
+<!-- Upload Lab Hasil Modal -->
+<div class="modal fade" id="uploadLabHasilModal" tabindex="-1" role="dialog" aria-labelledby="uploadLabHasilModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadLabHasilModalLabel">Upload Hasil Laboratorium</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadLabHasilForm">
+                    <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                    
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="namaPemeriksaan">Nama Pemeriksaan</label>
+                            <input type="text" class="form-control" id="namaPemeriksaan" name="nama_pemeriksaan" required>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="tanggalPemeriksaan">Tanggal Pemeriksaan</label>
+                            <input type="date" class="form-control" id="tanggalPemeriksaan" name="tanggal_pemeriksaan" required value="{{ date('Y-m-d') }}">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="asalLab">Asal Laboratorium</label>
+                            <select class="form-control" id="asalLab" name="asal_lab" required>
+                                <option value="internal">Lab Internal</option>
+                                <option value="eksternal">Lab Eksternal</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="dokterPemeriksa">Dokter Pemeriksa</label>
+                            <input type="text" class="form-control" id="dokterPemeriksa" name="dokter" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="catatan">Catatan</label>
+                        <textarea class="form-control" id="catatan" name="catatan" rows="2"></textarea>
+                    </div>
+                    
+                    <!-- File upload for external lab -->
+                    <div class="form-group" id="hasilFileGroup" style="display: none;">
+                        <label for="hasilFile">File Hasil Lab (PDF)</label>
+                        <input type="file" class="form-control-file" id="hasilFile" name="hasil_file" accept="application/pdf">
+                        <small class="form-text text-muted">Upload file PDF hasil laboratorium (max: 10MB)</small>
+                    </div>
+                    
+                    <!-- Detailed result input for internal lab -->
+                    <div id="hasilDetailGroup">
+                        <h5>Detail Hasil Lab</h5>
+                        <button type="button" class="btn btn-sm btn-primary mb-3" id="addHasilDetail">
+                            <i class="fas fa-plus"></i> Tambah Hasil
+                        </button>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="hasilDetailTable">
+                                <thead>
+                                    <tr>
+                                        <th>Nama Test</th>
+                                        <th>Flag</th>
+                                        <th>Hasil</th>
+                                        <th>Satuan</th>
+                                        <th>Nilai Rujukan</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Detail rows will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="submit" form="uploadLabHasilForm" class="btn btn-primary">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Lab Hasil Modal -->
+<div class="modal fade" id="viewLabHasilModal" tabindex="-1" role="dialog" aria-labelledby="viewLabHasilModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewLabHasilModalLabel">Detail Hasil Laboratorium</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Nama Pemeriksaan:</strong> <span id="viewNamaPemeriksaan"></span></p>
+                        <p><strong>Tanggal Pemeriksaan:</strong> <span id="viewTanggalPemeriksaan"></span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Asal Lab:</strong> <span id="viewAsalLab"></span></p>
+                        <p><strong>Dokter Pemeriksa:</strong> <span id="viewDokter"></span></p>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-12">
+                        <p><strong>Catatan:</strong> <span id="viewCatatan"></span></p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <!-- Result table for internal lab results -->
+                <div id="resultTableContainer">
+                    <h5>Hasil Pemeriksaan</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="resultTable">
+                            <thead>
+                                <tr>
+                                    <th>Nama Test</th>
+                                    <th>Flag</th>
+                                    <th>Hasil</th>
+                                    <th>Satuan</th>
+                                    <th>Nilai Rujukan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Result rows will be populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- PDF viewer for external lab results -->
+                <div id="pdfViewerContainer" style="display: none;">
+                    <h5>Hasil Pemeriksaan</h5>
+                    <div class="embed-responsive embed-responsive-16by9">
+                        <iframe id="pdfViewer" class="embed-responsive-item" src="" allowfullscreen></iframe>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @include('erm.partials.modal-alergipasien')
 
@@ -31,6 +183,37 @@
     </div><!--end row-->  
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center ">
+                    <h5 class="mb-0"><i class="fa fa-history mr-2"></i> Riwayat Hasil Lab</h5>
+                </div>
+                <div class="card-body">
+
+                    <div class="table-responsive mt-3">
+                        <table id="hasilLabTable" class="table table-bordered table-hover w-100">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>No</th>
+                                    <th>Tanggal Pemeriksaan</th>
+                                    <th>Asal Lab</th>  
+                                    <th>Pemeriksaan</th>    
+                                    <th>Dokter</th> 
+                                    <th>Hasil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Data will be loaded via DataTables -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+
+    </div>
 
     <!-- Two column layout for Lab Management -->
     <div class="row">
@@ -78,9 +261,7 @@
                     
                     <!-- Total Estimated Price -->
                     <div class="text-right">
-                        <a href="{{ route('erm.elab.print', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary mr-2">
-                            <i class="fas fa-print"></i> Print Permintaan
-                        </a>
+                        
                         <div class="h5">Estimasi Total: <span id="totalEstimasi">Rp {{ number_format($totalHarga, 0, ',', '.') }}</span></div>
                     </div>
                 </div>
@@ -88,12 +269,15 @@
                     <!-- Bulk action buttons -->
                     <div class="mb-3">
                         <div class="btn-group">
-                            <button type="button" class="btn btn-danger btn-bulk-delete" disabled>
+                            <button type="button" class="btn btn-sm btn-danger btn-bulk-delete mr-2" disabled>
                                 <i class="fas fa-trash"></i> Hapus Terpilih
                             </button>
-                            <button type="button" class="btn btn-info btn-bulk-edit ml-2" disabled data-toggle="dropdown">
+                            <button type="button" class="btn btn-sm btn-info btn-bulk-edit mr-2" disabled data-toggle="dropdown">
                                 <i class="fas fa-edit"></i> Edit Status Terpilih
                             </button>
+                            <a href="{{ route('erm.elab.print', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary mr-2">
+                                <i class="fas fa-print"></i> Print Permintaan
+                            </a>
                             <div class="dropdown-menu">
                                 <a class="dropdown-item bulk-status-option" href="#" data-status="requested">Diminta</a>
                                 <a class="dropdown-item bulk-status-option" href="#" data-status="processing">Diproses</a>
@@ -530,6 +714,227 @@ $(document).ready(function () {
             });
         }
     });
+});
+
+// Initialize DataTable for hasilLabTable
+let hasilLabTable = $('#hasilLabTable').DataTable({
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: '/erm/elab/{{ $visitation->id }}/hasil/data',
+    },
+    columns: [
+        { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
+        { data: 'tanggal', name: 'tanggal_pemeriksaan' },
+        { data: 'asal_lab', name: 'asal_lab' },
+        { data: 'nama_pemeriksaan', name: 'nama_pemeriksaan' },
+        { data: 'dokter', name: 'dokter' },
+        { data: 'action', name: 'action', orderable: false, searchable: false }
+    ],
+    order: [[1, 'desc']],
+    language: {
+        search: "Cari:",
+        lengthMenu: "Tampilkan _MENU_ data per halaman",
+        zeroRecords: "Tidak ada data yang ditemukan",
+        info: "Menampilkan halaman _PAGE_ dari _PAGES_",
+        infoEmpty: "Tidak ada data tersedia",
+        infoFiltered: "(difilter dari _MAX_ total data)"
+    }
+});
+
+// Add button to upload new lab result
+$('.card-header').first().append(
+    '<button id="addLabHasil" class="btn btn-sm btn-primary ml-2">' +
+    '<i class="fas fa-plus"></i> Upload Hasil Lab</button>'
+);
+
+// Show upload modal when button is clicked
+$('#addLabHasil').on('click', function() {
+    $('#uploadLabHasilModal').modal('show');
+});
+
+// View lab result details
+$('#hasilLabTable').on('click', '.btn-view-hasil', function() {
+    let hasilId = $(this).data('id');
+    
+    // Get lab result details
+    $.ajax({
+        url: '/erm/elab/hasil/' + hasilId,
+        type: 'GET',
+        success: function(response) {
+            if (response.success) {
+                let hasil = response.data;
+                
+                // Populate modal with data
+                $('#viewLabHasilModal #viewNamaPemeriksaan').text(hasil.nama_pemeriksaan);
+                $('#viewLabHasilModal #viewTanggalPemeriksaan').text(moment(hasil.tanggal_pemeriksaan).format('DD-MM-YYYY'));
+                $('#viewLabHasilModal #viewAsalLab').text(hasil.asal_lab === 'internal' ? 'Lab Internal' : 'Lab Eksternal');
+                $('#viewLabHasilModal #viewDokter').text(hasil.dokter);
+                $('#viewLabHasilModal #viewCatatan').text(hasil.catatan || '-');
+                
+                // Clear the result table first
+                $('#viewLabHasilModal #resultTable tbody').empty();
+                
+                if (hasil.asal_lab === 'internal' && hasil.hasil_detail) {
+                    // Populate table with result details
+                    $('#viewLabHasilModal #resultTableContainer').show();
+                    $('#viewLabHasilModal #pdfViewerContainer').hide();
+                    
+                    // Add rows to the table
+                    $.each(hasil.hasil_detail, function(i, item) {
+                        let row = $('<tr>');
+                        row.append($('<td>').text(item.nama_test || ''));
+                        row.append($('<td>').text(item.flag || ''));
+                        row.append($('<td>').text(item.hasil || ''));
+                        row.append($('<td>').text(item.satuan || ''));
+                        row.append($('<td>').text(item.nilai_rujukan || ''));
+                        $('#viewLabHasilModal #resultTable tbody').append(row);
+                    });
+                } else if (hasil.asal_lab === 'eksternal' && hasil.file_path) {
+                    // Show PDF viewer for external lab results
+                    $('#viewLabHasilModal #resultTableContainer').hide();
+                    $('#viewLabHasilModal #pdfViewerContainer').show();
+                    
+                    // Use the correct URL for accessing storage files
+                    let pdfUrl = '/storage/' + hasil.file_path;
+                    $('#viewLabHasilModal #pdfViewer').attr('src', pdfUrl);
+                }
+                
+                // Show the modal
+                $('#viewLabHasilModal').modal('show');
+            }
+        },
+        error: function(xhr) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: 'Terjadi kesalahan! Silakan coba lagi.'
+            });
+            console.error(xhr.responseText);
+        }
+    });
+});
+// Handle upload form submission
+$('#uploadLabHasilForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    // Additional validation for internal lab
+    if ($('#asalLab').val() === 'internal') {
+        // Check if at least one row exists
+        if ($('#hasilDetailTable tbody tr').length === 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Mohon tambahkan setidaknya satu hasil lab untuk Lab Internal'
+            });
+            return false;
+        }
+    }
+    
+    // Continue with form submission
+    let formData = new FormData(this);
+    
+    $.ajax({
+        url: '/erm/elab/hasil/upload',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.success) {
+                $('#uploadLabHasilModal').modal('hide');
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: response.message,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                
+                // Reset form and reload table
+                $('#uploadLabHasilForm')[0].reset();
+                hasilLabTable.ajax.reload();
+            }
+        },
+        error: function(xhr) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: 'Terjadi kesalahan! Silakan coba lagi.'
+            });
+            console.error(xhr.responseText);
+        }
+    });
+});
+
+// Toggle hasil detail form based on asal lab selection
+$('#asalLab').on('change', function() {
+    if ($(this).val() === 'internal') {
+        // Show internal fields, hide external
+        $('#hasilFileGroup').hide();
+        $('#hasilDetailGroup').show();
+        
+        // Make file upload not required
+        $('#hasilFile').prop('required', false);
+        
+        // Make the first row fields required if they exist
+        if ($('#hasilDetailTable tbody tr').length > 0) {
+            $('#hasilDetailTable tbody tr:first-child input[name$="[nama_test]"]').prop('required', true);
+            $('#hasilDetailTable tbody tr:first-child input[name$="[hasil]"]').prop('required', true);
+        }
+    } else {
+        // Show external fields, hide internal
+        $('#hasilFileGroup').show();
+        $('#hasilDetailGroup').hide();
+        
+        // Make file upload required
+        $('#hasilFile').prop('required', true);
+        
+        // Remove required from all internal lab fields
+        $('#hasilDetailTable tbody input[required]').prop('required', false);
+    }
+});
+
+$('#asalLab').trigger('change');
+
+// Add a new row to hasil detail table
+$('#addHasilDetail').on('click', function() {
+        let rowCount = $('#hasilDetailTable tbody tr').length;
+        let newRow = `
+            <tr>
+                <td>
+                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][nama_test]" 
+                        ${$('#asalLab').val() === 'internal' ? 'required' : ''}>
+                </td>
+                <td>
+                    <select class="form-control" name="hasil_detail[${rowCount}][flag]">
+                        <option value="">-</option>
+                        <option value="H">H</option>
+                        <option value="L">L</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][hasil]" 
+                        ${$('#asalLab').val() === 'internal' ? 'required' : ''}>
+                </td>
+                <td>
+                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][satuan]">
+                </td>
+                <td>
+                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][nilai_rujukan]">
+                </td>
+                <td>
+                    <button type="button" class="btn btn-danger btn-sm remove-detail"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `;
+        $('#hasilDetailTable tbody').append(newRow);
+    });
+
+// Remove a row from hasil detail table
+$('#hasilDetailTable').on('click', '.remove-detail', function() {
+    $(this).closest('tr').remove();
 });
 
 

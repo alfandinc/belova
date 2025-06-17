@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
+use App\Models\ERM\LabHasil;
 use App\Models\ERM\LabKategori;
 use App\Models\ERM\LabPermintaan;
 use Illuminate\Http\Request;
@@ -316,5 +317,85 @@ class ElabController extends Controller
         $pdf->setPaper('a4');
         
         return $pdf->stream('Permintaan_Lab_' . $visitation->pasien->no_rm . '.pdf');
+    }
+
+    public function getLabHasilData($visitationId)
+    {
+        // Get patient ID from visitation
+        $visitation = Visitation::findOrFail($visitationId);
+        $pasienId = $visitation->pasien_id;
+        
+        // Get all visitations for this patient to show all lab results
+        $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id')->toArray();
+        
+        $query = LabHasil::whereIn('visitation_id', $visitationIds)
+                    ->orderBy('created_at', 'desc');
+        
+        return DataTables::of($query)
+            ->addIndexColumn() // Adds row numbers
+            ->addColumn('tanggal', function($row) {
+                return $row->tanggal_pemeriksaan->format('d-m-Y');
+            })
+            ->addColumn('asal_lab', function($row) {
+                return $row->asal_lab === 'internal' ? 'Lab Internal' : 'Lab Eksternal';
+            })
+            ->addColumn('action', function($row) {
+                $viewBtn = '<button class="btn btn-sm btn-info btn-view-hasil" data-id="'.$row->id.'">
+                                <i class="fas fa-eye"></i> Lihat
+                            </button>';
+                return $viewBtn;
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+    public function uploadLabHasil(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'asal_lab' => 'required|in:internal,eksternal',
+            'nama_pemeriksaan' => 'required|string|max:255',
+            'tanggal_pemeriksaan' => 'required|date',
+            'dokter' => 'required|string|max:255',
+            'catatan' => 'nullable|string',
+            'hasil_file' => 'required_if:asal_lab,eksternal|file|mimes:pdf|max:10240', // 10MB max
+            'hasil_detail' => 'nullable|array'
+        ]);
+
+        // Handle file upload if present
+        $filePath = null;
+        if ($request->hasFile('hasil_file')) {
+            $file = $request->file('hasil_file');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            // Store in public disk instead of 'public' path
+            $filePath = $file->storeAs('lab_hasil', $fileName, 'public');
+        }
+
+        // Create lab hasil record
+        $labHasil = LabHasil::create([
+            'visitation_id' => $request->visitation_id,
+            'asal_lab' => $request->asal_lab,
+            'nama_pemeriksaan' => $request->nama_pemeriksaan,
+            'tanggal_pemeriksaan' => $request->tanggal_pemeriksaan,
+            'dokter' => $request->dokter,
+            'catatan' => $request->catatan,
+            'file_path' => $filePath,
+            'hasil_detail' => $request->hasil_detail,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Hasil lab berhasil diupload',
+            'data' => $labHasil
+        ]);
+    }
+
+    public function getLabHasilDetails($id)
+    {
+        $labHasil = LabHasil::findOrFail($id);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $labHasil
+        ]);
     }
 }
