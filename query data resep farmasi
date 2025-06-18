@@ -50,7 +50,6 @@ SELECT
     [bungkus],
     [racikan_ke],
     [aturan_pakai],
-    [wadah],
     [harga],
     [diskon],
     CASE 
@@ -65,4 +64,5 @@ SELECT
     END AS kode_dokter,
 
     [tgl]
-FROM [SIMRS].[dbo].[medical_record_farmasi];
+FROM [SIMRS].[dbo].[medical_record_farmasi]
+WHERE kode_dokter IN ('W005', 'E013','AH009','A001','DNR1','DNR1','FIFI1','DTA1')

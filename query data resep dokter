@@ -49,7 +49,6 @@ SELECT
     [bungkus],
     [racikan_ke],
     [aturan_pakai],
-    [wadah],
     [tgl],
     CASE 
         WHEN kode_dokter = 'w005' THEN '16'
@@ -62,4 +61,4 @@ SELECT
         ELSE '16'
     END AS kode_dokter
 FROM [SIMRS].[dbo].[medical_record_obat]
-where kode_dokter = 'W005'
+WHERE kode_dokter IN ('W005', 'E013','AH009','A001','DNR1','DNR1','FIFI1','DTA1')

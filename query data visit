@@ -11,14 +11,17 @@ SELECT
     CAST(VISIT_DATE AS date) AS tgl_kunjungan,
     TICKET_NO,
     CASE 
-        WHEN a.ISATTENDED = 0 THEN 2
-        WHEN a.ISATTENDED = 9 THEN 2
-        WHEN a.ISATTENDED = 7 THEN 7
-        ELSE 7
-    END AS ISATTENDED_MAPPED
+        WHEN c.username IN ('W005', 'E013','AH009') THEN 1
+        WHEN c.username IN ('A001', 'DNR1','FIFI1','DTA1') THEN 2
+        ELSE NULL
+    END AS klinik_id,
+    CASE 
+        WHEN CAST(VISIT_DATE AS DATE) < CAST(GETDATE() AS DATE) THEN 2
+        ELSE 0
+    END AS status_kunjungan
 FROM SIMRS.dbo.PASIEN_VISITATION a
 LEFT JOIN ERM.dbo.medical_record_riwayat b ON a.VISIT_ID = b.visit_id
 LEFT JOIN SIMRS.dbo.medical_record_user c ON a.EMPLOYEE_ID = c.username
 WHERE c.id IS NOT NULL
-  AND c.username = 'W005'
+  AND c.username IN ('W005', 'A001','DNR1','FIFI1','DTA1','E013','AH009')
 ORDER BY tgl_kunjungan ASC;

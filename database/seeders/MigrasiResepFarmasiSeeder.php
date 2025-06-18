@@ -13,7 +13,7 @@ class MigrasiResepFarmasiSeeder extends Seeder
      */
     public function run()
     {
-        $path = base_path('database/data/migrasiresepfarmasi.csv');
+        $path = base_path('database/data/resepfarmasi18juni.csv');
 
         if (!file_exists($path) || !is_readable($path)) {
             throw new \Exception("CSV file not found or not readable at $path");
@@ -51,11 +51,11 @@ class MigrasiResepFarmasiSeeder extends Seeder
                 'wadah_id'          => 1,
 
 
-                'harga' => $nullIfStringNull($row[9]),
-                'diskon' => $nullIfStringNull($row[10]),
+                'harga' => $nullIfStringNull($row[8]),
+                'diskon' => $nullIfStringNull($row[9]),
 
-                'user_id'        => $nullIfStringNull($row[11]),
-                'created_at'     => $nullIfStringNull($row[12]) ?? now(),
+                'user_id'        => $nullIfStringNull($row[10]),
+                'created_at'     => $nullIfStringNull($row[11]) ?? now(),
                 'updated_at' => now(),
             ]);
         }
