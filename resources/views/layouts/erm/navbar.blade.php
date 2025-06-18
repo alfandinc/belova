@@ -1,4 +1,4 @@
-        <!-- Left Sidenav -->
+<!-- Left Sidenav -->
         <div class="left-sidenav ">
             <!-- LOGO -->
             @php
@@ -36,6 +36,7 @@
             <!--end logo-->
             <div class="menu-content h-100" data-simplebar>
                 <ul class="metismenu left-sidenav-menu">
+                    
                     @php
                         $role = Auth::user()->getRoleNames()->first();
                         $colorClass = match($role) {
@@ -51,54 +52,75 @@
                         </span>
                     </li>
 
-
-                    {{-- Dashboard - only for Dokter --}}
+                    <!-- Dashboard Section -->
                     @hasrole('Dokter|Admin')
                     <li>
-                        <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/erm"><i class="ti-control-record"></i>Analytics</a></li>
+                            <li>
+                                <a href="/erm"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Analytics</span></a>
+                            </li>
                         </ul>
                     </li>
                     @endhasrole
 
-                    {{-- Pendaftaran - for roles: pendaftaran, perawat, farmasi --}}
+                    <!-- Pendaftaran Section -->
                     @hasanyrole('Pendaftaran|Perawat|Farmasi|Admin')
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Pendaftaran</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="user" class="align-self-center menu-icon"></i><span>Pendaftaran</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/erm/pasiens/create"><i class="ti-control-record"></i>Pasien Baru</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/erm/pasiens"><i class="ti-control-record"></i>Data Pasien</a></li>
+                            <li>
+                                <a href="/erm/pasiens/create"><i data-feather="user-plus" class="align-self-center menu-icon"></i><span>Pasien Baru</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/pasiens"><i data-feather="users" class="align-self-center menu-icon"></i><span>Data Pasien</span></a>
+                            </li>
                         </ul>
                     </li>
                     @endhasanyrole
 
-                    {{-- Rawat Jalan - for roles: dokter, perawat --}}
+                    <!-- Rawat Jalan Section -->
                     @hasanyrole('Dokter|Perawat|Admin')
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Rawat Jalan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Rawat Jalan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/erm/rawatjalans"><i class="ti-control-record"></i>Kunjungan Rajal</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/erm/listantrian"><i class="ti-control-record"></i>Antrian Rajal</a></li>
+                            <li>
+                                <a href="/erm/rawatjalans"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Kunjungan Rawat Jalan</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/listantrian"><i data-feather="list" class="align-self-center menu-icon"></i><span>Antrian Rawat Jalan</span></a>
+                            </li>
                         </ul>
                     </li>
                     @endhasanyrole
 
-                    {{-- Farmasi - only for farmasi --}}
+                    <!-- Farmasi Section -->
                     @hasrole('Farmasi|Admin')
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="shopping-bag" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="/erm/eresepfarmasi"><i class="ti-control-record"></i>E-Resep Farmasi</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/erm/obat"><i class="ti-control-record"></i>Stok Obat</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/erm/obat/create"><i class="ti-control-record"></i>Tambah Obat</a></li>
+                            <li>
+                                <a href="/erm/eresepfarmasi"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep Farmasi</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Stok Obat</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Tambah Obat</span></a>
+                            </li>
                         </ul>
                     </li>
                     @endhasrole
-                    <li>
-                        <a href="/erm/birthday"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Ulang Tahun Pasien</span></a>
-                    </li>
 
+                    <!-- Other Section -->
+                    <li>
+                        <a href="javascript: void(0);"><i data-feather="more-horizontal" class="align-self-center menu-icon"></i><span>Lainnya</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <ul class="nav-second-level" aria-expanded="false">
+                            <li>
+                                <a href="/erm/birthday"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Ulang Tahun Pasien</span></a>
+                            </li>
+                        </ul>
+                    </li>
                 </ul>
             </div>
         </div>
