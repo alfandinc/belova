@@ -246,7 +246,7 @@ Route::prefix('finance')->group(
         Route::get('/billing/{id}/edit', [BillingController::class, 'edit'])->name('finance.billing.edit');
         Route::put('/billing/{id}', [BillingController::class, 'update'])->name('finance.billing.update');
         Route::delete('/billing/{id}', [BillingController::class, 'destroy'])->name('finance.billing.destroy');
-
+        Route::get('/billing/data', [BillingController::class, 'getVisitationsData'])->name('finance.billing.data');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
 

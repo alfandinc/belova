@@ -8,7 +8,8 @@
 @section('content')
 
 
-
+@include('erm.partials.modal-radiologi-create')
+@include('erm.partials.modal-radiologi-hasil')
 
 @include('erm.partials.modal-alergipasien')
 

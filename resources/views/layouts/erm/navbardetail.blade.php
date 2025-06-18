@@ -33,7 +33,7 @@
                     </li>
             <li>
                 <a href="{{ route('erm.rawatjalans.index', $visitation->id) }}" target="_blank">
-                    <i data-feather="home" class="align-self-center menu-icon"></i>
+                    <i data-feather="clipboard" class="align-self-center menu-icon"></i>
                     <span>Daftar Rawat Jalan</span>
                 </a>
             </li>
@@ -46,14 +46,14 @@
     @if($statusDokumen === 'asesmen')
         <li>
             <a href="{{ route('erm.asesmendokter.create', $visitation->id) }}" target="_blank">
-                <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                <i data-feather="clipboard" class="align-self-center menu-icon"></i>
                 <span>Asesmen</span>
             </a>
         </li>
     @elseif($statusDokumen === 'cppt')
         <li>
             <a href="{{ route('erm.cppt.create', $visitation->id) }}" target="_blank">
-                <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                <i data-feather="edit-3" class="align-self-center menu-icon"></i>
                 <span>CPPT</span>
             </a>
         </li>
@@ -62,13 +62,13 @@
     {{-- Show both buttons for perawat --}}
     <li>
         <a href="{{ route('erm.asesmenperawat.create', $visitation->id) }}" target="_blank">
-            <i data-feather="file-text" class="align-self-center menu-icon"></i>
+            <i data-feather="clipboard" class="align-self-center menu-icon"></i>
             <span>Asesmen</span>
         </a>
     </li>
     <li>
         <a href="{{ route('erm.cppt.create', $visitation->id) }}" target="_blank">
-            <i data-feather="file-text" class="align-self-center menu-icon"></i>
+            <i data-feather="edit-3" class="align-self-center menu-icon"></i>
             <span>CPPT</span>
         </a>
     </li>
@@ -77,7 +77,7 @@
 @if($userRole !== 'Perawat')
             <li>
                 <a href="{{ route('erm.eresep.create', $visitation->id) }}" target="_blank">
-                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                    <i data-feather="package" class="align-self-center menu-icon"></i>
                     <span>E-Resep</span>
                 </a>
             </li>
@@ -85,21 +85,21 @@
 
             <li>
                 <a href="{{ route('erm.elab.create', $visitation->id) }}" target="_blank">
-                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                    <i data-feather="activity" class="align-self-center menu-icon"></i>
                     <span>E-Lab</span>
                 </a>
             </li>
 
             <li>
                 <a href="{{ route('erm.eradiologi.create', $visitation->id) }}" target="_blank">
-                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                    <i data-feather="image" class="align-self-center menu-icon"></i>
                     <span>E-Radiologi</span>
                 </a>
             </li>
 
             <li>
                 <a href="{{ route('erm.tindakan.create', $visitation->id) }}" target="_blank">
-                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                    <i data-feather="check-square" class="align-self-center menu-icon"></i>
                     <span>Tindakan & Inform Consent</span>
                 </a>
             </li>
@@ -113,7 +113,7 @@
 
             <li>
                 <a href="{{ route('erm.suratistirahat.index', $visitation->pasien_id) }}" target="_blank">
-                    <i data-feather="home" class="align-self-center menu-icon"></i>
+                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
                     <span>Surat Istirahat & Mondok</span>
                 </a>
             </li>

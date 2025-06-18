@@ -15,7 +15,7 @@ class BillingController extends Controller
 {
     public function index()
     {
-        $visitations = Visitation::with('pasien')->get();
+        $visitations = Visitation::with(['pasien','klinik'])->get();
 
         // dd($visitations);
         return view('finance.billing.index', compact('visitations'));
@@ -321,4 +321,32 @@ class BillingController extends Controller
 
         return response()->json(['message' => 'Item billing dihapus']);
     }
+
+    public function getVisitationsData(Request $request)
+{
+    $startDate = $request->input('start_date', now()->format('Y-m-d'));
+    $endDate = $request->input('end_date', now()->format('Y-m-d'));
+    
+    $visitations = Visitation::with(['pasien', 'klinik'])
+        ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59']);
+    
+    return DataTables::of($visitations)
+        ->addColumn('no_rm', function ($visitation) {
+            return $visitation->pasien ? $visitation->pasien->id : '-';
+        })
+        ->addColumn('nama_pasien', function ($visitation) {
+            return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
+        })
+        ->addColumn('tanggal_visit', function ($visitation) {
+            return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y');
+        })
+        ->addColumn('nama_klinik', function ($visitation) {
+            return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
+        })
+        ->addColumn('action', function ($visitation) {
+            return '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
+        })
+        ->rawColumns(['action'])
+        ->make(true);
+}
 }
