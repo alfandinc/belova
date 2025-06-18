@@ -40,18 +40,20 @@ use App\Http\Controllers\ERM\{
     ListAntrianController,
     SuratIstirahatController
 };
-use App\Http\Controllers\HRD\EmployeeController;
+
+use App\Http\Controllers\HRD\{
+    EmployeeController,
+    DivisionController,
+    EmployeeSelfServiceController,
+    PengajuanLiburController,
+    PerformanceEvaluationController,
+    PerformanceQuestionController,
+    PerformanceScoreController
+};
+
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
-use App\Http\Controllers\HRD\DivisionController;
-use App\Http\Controllers\HRD\EmployeeSelfServiceController;
-use App\Http\Controllers\HRD\PengajuanLiburController;
-use App\Http\Controllers\HRD\PerformanceEvaluationController;
-use App\Http\Controllers\HRD\PerformanceQuestionController;
-use App\Http\Controllers\HRD\PerformanceScoreController;
 use App\Http\Controllers\Marketing\MarketingController;
-use App\Models\ERM\SuratIstirahat;
-use App\Models\ERM\Visitation;
 
 Route::get('/', function () {
     return view('mainmenu');
