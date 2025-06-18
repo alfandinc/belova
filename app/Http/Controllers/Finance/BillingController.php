@@ -85,8 +85,12 @@ class BillingController extends Controller
                         return 'Obat Racikan';
                     } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
                         return $row->billable->obat->nama ?? 'N/A';
+                    } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
+                        return 'Lab: ' . ($row->billable->labTest->nama ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
+                    } else if ($row->billable_type == 'App\Models\ERM\RadiologiPermintaan') {
+                        return 'Radiologi: ' . ($row->billable->radiologiTest->nama ?? preg_replace('/^Radiologi: /', '', $row->keterangan ?? 'Test'));
                     } else {
-                        return $row->billable->nama ?? '-';
+                        return $row->billable->nama ?? $row->keterangan ?? '-';
                     }
                 })
                 ->addColumn('jumlah_raw', function ($row) {

@@ -85,10 +85,10 @@
                         <a href="javascript: void(0);"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Rawat Jalan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li>
-                                <a href="/erm/rawatjalans"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Kunjungan Rawat Jalan</span></a>
+                                <a href="/erm/rawatjalans"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Kunjungan Rajal</span></a>
                             </li>
                             <li>
-                                <a href="/erm/listantrian"><i data-feather="list" class="align-self-center menu-icon"></i><span>Antrian Rawat Jalan</span></a>
+                                <a href="/erm/listantrian"><i data-feather="list" class="align-self-center menu-icon"></i><span>Antrian Rajal</span></a>
                             </li>
                         </ul>
                     </li>
