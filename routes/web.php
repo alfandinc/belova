@@ -32,6 +32,7 @@ use App\Http\Controllers\ERM\{
     TindakanController,
     AsesmenController,
     AsesmenPerawatController,
+    BirthdayController,
     CPPTController,
     Icd10Controller,
     KeluhanUtamaController,
@@ -224,7 +225,12 @@ Route::prefix('erm')->group(function () {
 
     //Submit Billing Obat
     Route::post('/resepfarmasi/submit', [EResepController::class, 'submitResep'])->name('resepfarmasi.submit');
+
+    Route::get('/birthday', [BirthdayController::class, 'index'])->name('erm.birthday.index');
+    Route::get('/birthday/data', [BirthdayController::class, 'getData'])->name('erm.birthday.data');
+    Route::post('/birthday/mark-sent', [BirthdayController::class, 'markAsSent'])->name('erm.birthday.mark-sent');
 });
+
 
 Route::prefix('finance')->group(
     function () {
@@ -248,6 +254,8 @@ Route::prefix('finance')->group(
         Route::get('/invoice/{id}', [InvoiceController::class, 'show'])->name('finance.invoice.show');
         Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
         Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
+
+        
     }
 );
 

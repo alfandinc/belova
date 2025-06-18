@@ -95,9 +95,11 @@
                         </ul>
                     </li>
                     @endhasrole
+                    <li>
+                        <a href="/erm/birthday"><i data-feather="gift" class="align-self-center menu-icon"></i><span>Ulang Tahun Pasien</span></a>
+                    </li>
 
-       
-                </ul>              
+                </ul>
             </div>
         </div>
         <!-- end left-sidenav-->
