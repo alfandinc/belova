@@ -7,6 +7,45 @@
 @section('content')
 
 @include('erm.partials.modal-reschedule')
+<div class="modal fade" id="modalKonfirmasi" tabindex="-1" role="dialog" aria-labelledby="modalKonfirmasiTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalKonfirmasiTitle">Konfirmasi Kunjungan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="konfirmasi-nama-pasien">Nama Pasien</label>
+                    <input type="text" class="form-control" id="konfirmasi-nama-pasien" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="konfirmasi-no-telepon">Nomor Telepon</label>
+                    <input type="text" class="form-control" id="konfirmasi-no-telepon">
+                </div>
+                <div class="form-group">
+                    <label for="konfirmasi-pesan">Template Pesan</label>
+                    <textarea class="form-control" id="konfirmasi-pesan" rows="5">Halo %PANGGILAN% %NAMA_PASIEN%, 
+
+Kami ingin mengingatkan jadwal kunjungan Anda di Klinik Belova:
+Tanggal: %TANGGAL_KUNJUNGAN%
+Dokter: %DOKTER%
+Nomor Antrian: %NO_ANTRIAN%
+
+Mohon konfirmasi kehadiran Anda. 
+Terima kasih.
+</textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary" id="btn-kirim-wa">Kirim WhatsApp</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="container-fluid">
     <!-- Page-Title -->
@@ -185,6 +224,30 @@ $(document).ready(function () {
             }
         });
     });
+    $('#btn-kirim-wa').click(function() {
+    let phoneNumber = $('#konfirmasi-no-telepon').val().replace(/\D/g, '');
+    
+    // Convert phone number format if needed (0 → 62)
+    if (phoneNumber.startsWith('0')) {
+        phoneNumber = '62' + phoneNumber.substring(1);
+    }
+    // Make sure it starts with 62 if not already
+    else if (!phoneNumber.startsWith('62')) {
+        phoneNumber = '62' + phoneNumber;
+    }
+    
+    const message = encodeURIComponent($('#konfirmasi-pesan').val());
+    
+    if (phoneNumber) {
+        // Open WhatsApp with the message in a new tab
+        window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+        $('#modalKonfirmasi').modal('hide');
+    } else {
+        alert('Nomor telepon tidak valid');
+    }
+});
+
+
 });
 
 // 🛠️ Fungsi openRescheduleModal dibuat di luar $(document).ready supaya global
@@ -193,6 +256,48 @@ function openRescheduleModal(visitationId, namaPasien, pasienId) {
     $('#reschedule-visitation-id').val(visitationId);
     $('#reschedule-pasien-id').val(pasienId);
     $('#reschedule-nama-pasien').val(namaPasien);
+}
+
+function openKonfirmasiModal(namaPasien, telepon, dokterNama, tanggalKunjungan, noAntrian, gender, tanggalLahir) {
+    $('#konfirmasi-nama-pasien').val(namaPasien);
+    $('#konfirmasi-no-telepon').val(telepon);
+    
+    // Calculate age based on tanggal_lahir
+    let age = 0;
+    if (tanggalLahir) {
+        const birthDate = new Date(tanggalLahir);
+        const today = new Date();
+        age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+    }
+    
+    // Determine the appropriate honorific based on gender and age
+    let honorific = '';
+    if (age < 17) {
+        honorific = 'Adik';
+    } else if (age < 30) {
+        honorific = 'Kakak';
+    } else if (gender === 'Laki-laki' || gender === 'L' || gender === 'M') {
+        honorific = 'Bapak';
+    } else if (gender === 'Perempuan' || gender === 'P' || gender === 'F') {
+        honorific = 'Ibu';
+    } else {
+        honorific = 'Bapak/Ibu'; // Default if gender is unknown
+    }
+    
+    // Format template message with patient data
+    const templateMessage = $('#konfirmasi-pesan').val()
+        .replace('%NAMA_PASIEN%', namaPasien)
+        .replace('%PANGGILAN%', honorific)
+        .replace('%TANGGAL_KUNJUNGAN%', tanggalKunjungan)
+        .replace('%DOKTER%', dokterNama)
+        .replace('%NO_ANTRIAN%', noAntrian);
+    
+    $('#konfirmasi-pesan').val(templateMessage);
+    $('#modalKonfirmasi').modal('show');
 }
 </script>
 

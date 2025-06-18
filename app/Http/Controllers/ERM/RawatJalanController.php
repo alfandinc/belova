@@ -18,7 +18,10 @@ class RawatJalanController extends Controller
                 ->select(
                     'erm_visitations.*',
                     'erm_pasiens.nama as nama_pasien',
-                    'erm_pasiens.id as no_rm'
+                    'erm_pasiens.id as no_rm',
+                    'erm_pasiens.no_hp as telepon_pasien',
+                    'erm_pasiens.gender as gender',
+                'erm_pasiens.tanggal_lahir as tanggal_lahir'
                 )
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
                 ->where('jenis_kunjungan', 1);
@@ -79,13 +82,27 @@ class RawatJalanController extends Controller
                     }
 
                     // Only show reschedule button for Pendaftaran or Perawat roles
-                    $rescheduleBtn = '';
-                    if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
-                        $rescheduleBtn = '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->nama_pasien . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
-                    }
+                    $additionalBtns = '';
+                if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
+                    $additionalBtns .= '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->nama_pasien . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
+                    
+                    // Add the konfirmasi kunjungan button with gender and birth date
+                    $dokterNama = $v->dokter->user->name ?? 'Dokter';
+                    $tanggalKunjungan = \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
+                    
+                    // Include gender and tanggal_lahir in the function call
+                    $additionalBtns .= '<button class="btn btn-sm btn-success ml-1" onclick="openKonfirmasiModal(`' . 
+                        $v->nama_pasien . '`, `' . 
+                        $v->telepon_pasien . '`, `' . 
+                        $dokterNama . '`, `' . 
+                        $tanggalKunjungan . '`, `' .
+                        $v->no_antrian . '`, `' .
+                        $v->gender . '`, `' .
+                        $v->tanggal_lahir . '`)">Konfirmasi Kunjungan</button>';
+                }
 
-                    return $dokumenBtn . ' ' . $rescheduleBtn;
-                })
+                return $dokumenBtn . ' ' . $additionalBtns;
+            })
                 ->rawColumns(['antrian', 'dokumen'])
                 ->make(true);
         }
