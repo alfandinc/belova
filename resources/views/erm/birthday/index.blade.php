@@ -88,8 +88,9 @@
 </div>
 
 <!-- Birthday Greeting Modal -->
+<!-- Birthday Greeting Modal -->
 <div class="modal fade" id="greetingModal" tabindex="-1" role="dialog" aria-labelledby="greetingModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="greetingModalLabel">Ucapkan Selamat Ulang Tahun</h5>
@@ -98,36 +99,64 @@
                 </button>
             </div>
             <div class="modal-body">
-                <form id="greetingForm">
-                    <input type="hidden" id="pasien-id">
-                    <div class="form-group">
-                        <label for="patient-name">Nama Pasien</label>
-                        <input type="text" class="form-control" id="patient-name" readonly>
+                <div class="row">
+                    <div class="col-md-6">
+                        <form id="greetingForm">
+                            <input type="hidden" id="pasien-id">
+                            <input type="hidden" id="pasien-age">
+                            <input type="hidden" id="klinik-id">
+                            <div class="form-group">
+                                <label for="patient-name">Nama Pasien</label>
+                                <input type="text" class="form-control" id="patient-name" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="greeting-prefix">Sapaan</label>
+                                <select class="form-control" id="greeting-prefix">
+                                    <option value="Bapak">Bapak</option>
+                                    <option value="Ibu">Ibu</option>
+                                    <option value="Kakak">Kakak</option>
+                                    <option value="Adik">Adik</option>
+                                    <option value="">Tanpa Sapaan</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="phone-number">Nomor WhatsApp</label>
+                                <input type="text" class="form-control" id="phone-number" placeholder="Contoh: 08123456789">
+                                <small class="text-muted">Nomor akan diformat otomatis untuk WhatsApp</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="greeting-message">Pesan Ucapan</label>
+                                <textarea class="form-control" id="greeting-message" rows="4"></textarea>
+                            </div>
+                            <button type="button" class="btn btn-info btn-block" id="generate-image">
+                                <i class="mdi mdi-image"></i> Generate Kartu Ucapan
+                            </button>
+                        </form>
                     </div>
-                    <div class="form-group">
-                        <label for="greeting-prefix">Sapaan</label>
-                        <select class="form-control" id="greeting-prefix">
-                            <option value="Bapak">Bapak</option>
-                            <option value="Ibu">Ibu</option>
-                            <option value="Kakak">Kakak</option>
-                            <option value="Adik">Adik</option>
-                            <option value="">Tanpa Sapaan</option>
-                        </select>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Preview Kartu Ucapan</h5>
+                            </div>
+                            <div class="card-body text-center">
+                                <div id="image-preview" class="mb-3">
+                                    <p class="text-muted">Klik "Generate Kartu Ucapan" untuk membuat gambar</p>
+                                </div>
+                                <div id="image-actions" style="display: none;">
+                                    <a href="#" class="btn btn-success" id="download-image" target="_blank">
+                                        <i class="mdi mdi-download"></i> Download Gambar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="phone-number">Nomor WhatsApp</label>
-                        <input type="text" class="form-control" id="phone-number" placeholder="Contoh: 08123456789">
-                        <small class="text-muted">Nomor akan diformat otomatis untuk WhatsApp</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="greeting-message">Pesan Ucapan</label>
-                        <textarea class="form-control" id="greeting-message" rows="4"></textarea>
-                    </div>
-                </form>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-success" id="send-whatsapp">Kirim via WhatsApp</button>
+                <button type="button" class="btn btn-success" id="send-whatsapp">
+                    <i class="mdi mdi-whatsapp"></i> Kirim via WhatsApp
+                </button>
             </div>
         </div>
     </div>
@@ -257,40 +286,117 @@
 
         // Handle send via WhatsApp button
         $('#send-whatsapp').click(function() {
-            let pasienId = $('#pasien-id').val();
-            let phoneNumber = formatPhoneNumber($('#phone-number').val());
-            let message = $('#greeting-message').val();
-            
-            if (!phoneNumber) {
-                alert('Mohon masukkan nomor WhatsApp yang valid');
-                return;
+    let pasienId = $('#pasien-id').val();
+    let phoneNumber = formatPhoneNumber($('#phone-number').val());
+    let message = $('#greeting-message').val();
+    
+    if (!phoneNumber) {
+        alert('Mohon masukkan nomor WhatsApp yang valid');
+        return;
+    }
+    
+    // Mark as sent in database
+    $.ajax({
+        url: "{{ route('erm.birthday.mark-sent') }}",
+        type: 'POST',
+        data: {
+            _token: "{{ csrf_token() }}",
+            pasien_id: pasienId,
+            message: message
+        },
+        success: function(response) {
+            if (response.success) {
+                // Create WhatsApp URL and open in new tab
+                let whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+                window.open(whatsappUrl, '_blank');
+                
+                // Close modal and refresh table
+                $('#greetingModal').modal('hide');
+                birthdayTable.ajax.reload();
             }
-            
-            // Mark as sent in database
-            $.ajax({
-                url: "{{ route('erm.birthday.mark-sent') }}",
-                type: 'POST',
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    pasien_id: pasienId,
-                    message: message
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Create WhatsApp URL and open in new tab
-                        let whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-                        window.open(whatsappUrl, '_blank');
-                        
-                        // Close modal and refresh table
-                        $('#greetingModal').modal('hide');
-                        birthdayTable.ajax.reload();
-                    }
-                },
-                error: function(xhr) {
-                    alert('Terjadi kesalahan saat mencatat ucapan ulang tahun');
-                }
-            });
-        });
+        },
+        error: function(xhr) {
+            alert('Terjadi kesalahan saat mencatat ucapan ulang tahun');
+        }
+    });
+});
+
+$(document).on('click', '.send-greeting', function() {
+    let patientId = $(this).data('id');
+    let patientName = $(this).data('name');
+    let phoneNumber = $(this).data('phone') || '';
+    let prefix = $(this).data('prefix');
+    let klinikId = $(this).data('klinik') || '';
+    let age = $(this).data('age');
+    
+    // Reset image preview
+    $('#image-preview').html('<p class="text-muted">Klik "Generate Kartu Ucapan" untuk membuat gambar</p>');
+    $('#image-actions').hide();
+    
+    // Set hidden inputs
+    $('#pasien-id').val(patientId);
+    $('#pasien-age').val(age);
+    $('#klinik-id').val(klinikId);
+    
+    // Set prefix in dropdown
+    $('#greeting-prefix').val(prefix);
+    
+    // Set patient name
+    $('#patient-name').val(patientName);
+    
+    // Set phone number
+    $('#phone-number').val(phoneNumber);
+    
+    // Update greeting message based on prefix and name
+    updateGreetingMessage(prefix, patientName);
+    
+    // Show modal
+    $('#greetingModal').modal('show');
+});
+
+// Generate birthday greeting image
+$('#generate-image').click(function() {
+    let name = $('#patient-name').val();
+    let prefix = $('#greeting-prefix').val();
+    let age = $('#pasien-age').val();
+    let klinikId = $('#klinik-id').val();
+    
+    if (!name) {
+        alert('Nama pasien tidak boleh kosong');
+        return;
+    }
+    
+    // Show loading indicator
+    $('#image-preview').html('<div class="text-center"><i class="mdi mdi-spin mdi-loading" style="font-size: 2rem;"></i><p>Generating image...</p></div>');
+    
+    // Generate image via AJAX
+    $.ajax({
+        url: "{{ route('erm.birthday.generate-image') }}",
+        type: 'POST',
+        data: {
+            _token: "{{ csrf_token() }}",
+            name: name,
+            prefix: prefix,
+            age: age,
+            klinik_id: klinikId
+        },
+        success: function(response) {
+            if (response.success) {
+                // Show image preview
+                $('#image-preview').html('<img src="' + response.image_url + '" class="img-fluid rounded" alt="Birthday Card">');
+                $('#image-actions').show();
+                
+                // Update download link
+                $('#download-image').attr('href', response.image_url);
+                $('#download-image').attr('download', 'birthday_' + name.replace(' ', '_') + '.jpg');
+            }
+        },
+        error: function(xhr) {
+            $('#image-preview').html('<p class="text-danger">Gagal membuat gambar. Silakan coba lagi.</p>');
+        }
+    });
+});
+
     });
 </script>
 @endsection

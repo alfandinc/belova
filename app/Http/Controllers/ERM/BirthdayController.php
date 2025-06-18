@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Yajra\DataTables\Facades\DataTables;
 
+use App\Services\BirthdayImageService;
+use Illuminate\Support\Facades\Storage;
+
 class BirthdayController extends Controller
 {
     public function index()
@@ -92,31 +95,43 @@ class BirthdayController extends Controller
                 }
             })
             ->addColumn('action', function($pasien) {
-                $age = Carbon::parse($pasien->tanggal_lahir)->age;
-                $gender = strtolower($pasien->gender);
-                $currentYear = Carbon::now()->year;
-                
-                // Determine prefix based on age and gender
-                $prefix = $this->getGreetingPrefix($age, $gender);
-                
-                // Check if greeting has been sent this year
-                $greeting = BirthdayGreeting::where('pasien_id', $pasien->id)
-                    ->where('greeting_year', $currentYear)
-                    ->first();
-                
-                if ($greeting) {
-                    // If already greeted, show a disabled button or a different action
-                    return '<button type="button" class="btn btn-sm btn-secondary" disabled>Sudah Diucapkan</button>';
-                } else {
-                    return '<button type="button" class="btn btn-sm btn-success send-greeting" 
-                        data-id="'.$pasien->id.'" 
-                        data-name="'.$pasien->nama.'" 
-                        data-phone="'.$pasien->no_hp.'"
-                        data-prefix="'.$prefix.'">
-                        Ucapkan
-                    </button>';
-                }
-            })
+    $age = Carbon::parse($pasien->tanggal_lahir)->age;
+    $gender = strtolower($pasien->gender);
+    $currentYear = Carbon::now()->year;
+    $klinikId = null;
+    
+    // Get klinik_id from latest visitation
+    $latestVisitation = Visitation::where('pasien_id', $pasien->id)
+        ->orderBy('tanggal_visitation', 'desc')
+        ->first();
+    
+    if ($latestVisitation && $latestVisitation->klinik) {
+        $klinikId = $latestVisitation->klinik->id;
+    }
+    
+    // Determine prefix based on age and gender
+    $prefix = $this->getGreetingPrefix($age, $gender);
+    
+    // Check if greeting has been sent this year
+    $greeting = BirthdayGreeting::where('pasien_id', $pasien->id)
+        ->where('greeting_year', $currentYear)
+        ->first();
+    
+    if ($greeting) {
+        // If already greeted, show a disabled button or a different action
+        return '<button type="button" class="btn btn-sm btn-secondary" disabled>Sudah Diucapkan</button>';
+    } else {
+        return '<button type="button" class="btn btn-sm btn-success send-greeting" 
+            data-id="'.$pasien->id.'" 
+            data-name="'.$pasien->nama.'" 
+            data-phone="'.$pasien->no_hp.'"
+            data-prefix="'.$prefix.'"
+            data-age="'.$age.'"
+            data-klinik="'.$klinikId.'">
+            Ucapkan
+        </button>';
+    }
+})
             ->rawColumns(['status', 'action'])
             ->make(true);
     }
@@ -165,4 +180,55 @@ class BirthdayController extends Controller
             'message' => 'Greeting marked as sent'
         ]);
     }
+
+    protected $birthdayImageService;
+
+// Add this to your constructor or create one if it doesn't exist
+public function __construct(BirthdayImageService $birthdayImageService)
+{
+    $this->birthdayImageService = $birthdayImageService;
+}
+
+/**
+ * Generate birthday greeting image
+ */
+public function generateImage(Request $request)
+{
+    $request->validate([
+        'name' => 'required',
+        'age' => 'required|numeric',
+        'prefix' => 'nullable|string',
+        'klinik_id' => 'nullable|numeric',
+    ]);
+    
+    $name = $request->name;
+    $age = $request->age;
+    $prefix = $request->prefix;
+    $klinikId = $request->klinik_id;
+    
+    $imagePath = $this->birthdayImageService->generateBirthdayImage($name, $age, $prefix, $klinikId);
+    
+    return response()->json([
+        'success' => true,
+        'image_url' => Storage::url($imagePath),
+        'image_path' => $imagePath
+    ]);
+}
+
+/**
+ * Display birthday greeting image
+ */
+public function showImage($filename)
+{
+    $path = 'birthday_cards/' . $filename;
+    
+    if (!Storage::disk('public')->exists($path)) {
+        abort(404);
+    }
+    
+    $file = Storage::disk('public')->get($path);
+    $type = Storage::disk('public')->mimeType($path);
+
+    return response($file, 200)->header('Content-Type', $type);
+}
 }

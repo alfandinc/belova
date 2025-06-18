@@ -9,6 +9,7 @@
         "php": "^8.2",
         "bacon/bacon-qr-code": "2.0.8",
         "barryvdh/laravel-dompdf": "^3.1",
+        "intervention/image-laravel": "^1.5",
         "laravel/framework": "^11.31",
         "laravel/tinker": "^2.9",
         "simplesoftwareio/simple-qrcode": "^4.2",
