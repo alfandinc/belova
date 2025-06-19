@@ -15,9 +15,6 @@ class DatabaseSeeder extends Seeder
         $this->call(SpesialisasiSeeder::class);
         $this->call(KlinikSeeder::class);
         $this->call(KeluhanUtamaSeeder::class);
-        $this->call(TindakanSeeder::class);
-        $this->call(PaketTindakanSeeder::class);
-        $this->call(PaketTindakanDetailSeeder::class);
         $this->call(PerformanceQuestionCategorySeeder::class);
         $this->call(PerformanceQuestionSeeder::class);
         $this->call(PerformanceEvaluationPeriodSeeder::class);
