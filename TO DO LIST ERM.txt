@@ -8,6 +8,10 @@ Data Asesmen Keperawat = ERM. medical_record_askep_dewasa_rajal
 Data Farmasi = SIMRS . medical_record_farmasi
 Data Obat Dokter SIMRS. medical_record_obat
 Data Inform Consent = bikin baru
+Data Asesmen Anak
+Data Asemen SARAF
+Data Asesmen gigi
+
 
 ------------------------------------------------------------------------
 Fitur yang Dibuat :

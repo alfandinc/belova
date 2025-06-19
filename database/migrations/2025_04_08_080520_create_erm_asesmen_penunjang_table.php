@@ -31,7 +31,7 @@ return new class extends Migration
             $table->string('masalah_medis')->nullable();
             $table->string('masalah_keperawatan')->nullable();
             $table->string('sasaran')->nullable();
-            $table->string('standing_order')->nullable();
+            $table->longText('standing_order')->nullable();
             $table->string('rtl')->nullable();
             $table->string('ruang')->nullable();
             $table->string('dpip')->nullable();
@@ -39,9 +39,8 @@ return new class extends Migration
             $table->string('pengantar')->nullable();
             $table->string('rujuk_ke')->nullable();
             $table->string('rujuk_rs')->nullable();
-            $table->string('tujuk_dokter')->nullable();
-            $table->string('rujuk_puskesmas')->nullable();
             $table->string('rujuk_dokter')->nullable();
+            $table->string('rujuk_puskesmas')->nullable();
             $table->string('homecare')->nullable();
             $table->string('tanggal_homecare')->nullable();
             $table->string('edukasi_1')->nullable();

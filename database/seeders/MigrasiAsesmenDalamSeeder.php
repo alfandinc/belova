@@ -13,7 +13,7 @@ class MigrasiAsesmenDalamSeeder extends Seeder
      */
     public function run()
     {
-        $path = base_path('database/data/migrasiasesmendalam.csv');
+        $path = base_path('database/data/asesdalam20juni.csv');
 
         if (!file_exists($path) || !is_readable($path)) {
             throw new \Exception("CSV file not found or not readable at $path");

@@ -24,6 +24,13 @@ return new class extends Migration
             $table->string('hasil_allo')->nullable();
             $table->string('riwayat_penyakit_dahulu')->nullable();
             $table->string('obat_dikonsumsi')->nullable();
+            $table->string('kepala')->nullable();
+            $table->string('leher')->nullable();
+            $table->string('thorax')->nullable();
+            $table->string('abdomen')->nullable();
+            $table->string('genitalia')->nullable();
+            $table->string('ext_atas')->nullable();
+            $table->string('ext_bawah')->nullable();
             $table->string('keadaan_umum')->nullable();
             $table->string('td')->nullable();
             $table->string('n')->nullable();
@@ -66,7 +73,7 @@ return new class extends Migration
             $table->string('reflek_pato2')->nullable();
             $table->string('reflek_pato3')->nullable();
             $table->string('reflek_pato4')->nullable();
-            $table->string('add_tambahan')->nullable();
+            $table->longText('add_tambahan')->nullable();
             $table->string('clonus')->nullable();
             $table->string('sensibilitas')->nullable();
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('set null');

@@ -23,6 +23,15 @@ return new class extends Migration
             $table->string('allo_dengan')->nullable();
             $table->string('hasil_allo')->nullable();
             $table->string('riwayat_penyakit_dahulu')->nullable();
+            $table->string('riwayat_penyakit_keluarga')->nullable();
+            $table->string('riwayat_makanan')->nullable();
+            $table->string('riwayat_tumbang')->nullable();
+            $table->string('riwayat_kehamilan')->nullable();
+            $table->string('riwayat_persalinan')->nullable();
+            $table->string('e')->nullable();
+            $table->string('v')->nullable();
+            $table->string('m')->nullable();
+            $table->string('hsl')->nullable();
             $table->string('keadaan_umum')->nullable();
             $table->string('imunisasi_dasar')->nullable();
             $table->string('imunisasi_dasar_ket')->nullable();

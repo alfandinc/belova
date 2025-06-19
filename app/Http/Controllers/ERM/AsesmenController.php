@@ -21,7 +21,6 @@ use App\Models\ERM\Konsultasi;
 use Illuminate\Support\Str;
 
 
-
 class AsesmenController extends Controller
 {
     public function create($visitationId)
@@ -240,6 +239,15 @@ class AsesmenController extends Controller
                 'hasil_allo' => $request->hasil_allo,
                 'riwayat_penyakit_dahulu' => $request->riwayat_penyakit_dahulu,
                 'obat_dikonsumsi' => $request->obat_dikonsumsi,
+                'riwayat_penyakit_keluarga' => $request->riwayat_penyakit_keluarga,
+            'riwayat_makanan' => $request->riwayat_makanan,
+            'riwayat_tumbang' => $request->riwayat_tumbang,
+            'riwayat_kehamilan' => $request->riwayat_kehamilan,
+            'riwayat_persalinan' => $request->riwayat_persalinan,
+            'e' => $request->e,
+            'v' => $request->v,
+            'm' => $request->m,
+            'hsl' => $request->hsl,
                 'keadaan_umum' => $request->keadaan_umum,
                 'imunisasi_dasar' => $request->imunisasi_dasar,
                 'imunisasi_dasar_ket' => $request->imunisasi_dasar_ket,

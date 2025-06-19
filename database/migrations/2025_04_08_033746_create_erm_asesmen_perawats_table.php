@@ -41,8 +41,8 @@ return new class extends Migration
             $table->string('kategori')->nullable();
             $table->string('kategori_risja')->nullable();
             $table->string('status_fungsional')->nullable();
+            $table->string('status_fungsional_keterangan')->nullable();
             $table->json('masalah_keperawatan')->nullable();
-
 
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('set null');
 

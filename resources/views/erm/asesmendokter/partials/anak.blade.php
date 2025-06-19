@@ -85,19 +85,11 @@
 </div>
 
 <div class="row">
+    
     <div class="col-md-6">
         <div class="form-group">
-            <label>Riwayat Kehamilan dan Persalinan</label>
-            <div class="d-flex align-items-center">
-                <div class="form-check mr-3">
-                    <input class="form-check-input" type="checkbox" id="persalinan_spontan" name="persalinan_spontan" value="1" {{ old('persalinan_spontan', $asesmen->persalinan_spontan ?? '') ? 'checked' : '' }}>
-                    <label class="form-check-label" for="persalinan_spontan">Spontan</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="persalinan_sc" name="persalinan_sc" value="1" {{ old('persalinan_sc', $asesmen->persalinan_sc ?? '') ? 'checked' : '' }}>
-                    <label class="form-check-label" for="persalinan_sc">SC</label>
-                </div>
-            </div>
+            <label for="riwayat_kehamilan">Riwayat Kehamilan</label>
+            <input type="text" class="form-control" id="riwayat_kehamilan" name="riwayat_kehamilan" value="{{ old('riwayat_kehamilan', $asesmen->riwayat_kehamilan ?? '') }}">
         </div>
     </div>
     <div class="col-md-6">
@@ -105,7 +97,8 @@
             <label for="riwayat_persalinan">Riwayat Persalinan</label>
             <input type="text" class="form-control" id="riwayat_persalinan" name="riwayat_persalinan" value="{{ old('riwayat_persalinan', $asesmen->riwayat_persalinan ?? '') }}">
         </div>
-    </div>
+    
+</div>
 </div>
 <hr>
 

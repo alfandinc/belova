@@ -17,10 +17,10 @@ return new class extends Migration
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('jenis_dokumen')->nullable();
             $table->string('jenis_kunjungan')->nullable();
-            $table->string('s')->nullable();
-            $table->string('o')->nullable();
-            $table->string('a')->nullable();
-            $table->string('p')->nullable();
+            $table->longText('s')->nullable();
+            $table->longText('o')->nullable();
+            $table->longText('a')->nullable();
+            $table->longText('p')->nullable();
             $table->string('instruksi')->nullable();
             $table->string('icd_10')->nullable();
             $table->string('dibaca')->nullable();

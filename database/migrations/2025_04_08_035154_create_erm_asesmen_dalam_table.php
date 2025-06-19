@@ -41,7 +41,7 @@ return new class extends Migration
             $table->string('ext_atas')->nullable();
             $table->string('ext_bawah')->nullable();
             $table->string('status_lokalis')->nullable();
-            $table->string('ket_status_lokalis')->nullable();
+            $table->longText('ket_status_lokalis')->nullable();
 
             $table->foreign('visitation_id')->references('id')->on('erm_visitations')->onDelete('set null');
             $table->timestamps();
