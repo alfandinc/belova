@@ -186,6 +186,8 @@ $(document).ready(function () {
         createdRow: function(row, data, dataIndex) {
             if (data.status_kunjungan == 2) {
                 $(row).css('color', 'orange'); 
+            }else if (data.status_kunjungan == 1) {
+                $(row).css('color', 'yellow');
             }
         }
     });
