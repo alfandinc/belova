@@ -33,8 +33,8 @@ class DatabaseSeeder extends Seeder
         // $this->call(MigrasiObatSeeder::class);
         // $this->call(KonsultasiSeeder::class);
         // $this->call(MigrasiPasienSeeder::class);
-        // $this->call(MigrasiVisitSeeder::class);
-        // $this->call(MigrasiResepDokterSeeder::class);
+        $this->call(MigrasiVisitSeeder::class);
+        $this->call(MigrasiResepDokterSeeder::class);
         $this->call(MigrasiResepFarmasiSeeder::class);
         // $this->call(MigrasiAsesmenDalamSeeder::class);
         // $this->call(MigrasiAsesmenUmumSeeder::class);

@@ -4,8 +4,12 @@ SELECT
     STATUS_PASIEN_ID,
     c.id AS dokter_id,
     CASE 
-        WHEN doc = 1 THEN 'asesmen'
-        WHEN doc = 2 THEN 'cppt'
+        WHEN CAST(VISIT_DATE AS DATE) < CAST(GETDATE() AS DATE) THEN 
+            CASE 
+                WHEN doc = 1 THEN 'asesmen'
+                WHEN doc = 2 THEN 'cppt'
+                ELSE 'asesmen'
+            END
         ELSE NULL
     END AS status_dokumen,
     CAST(VISIT_DATE AS date) AS tgl_kunjungan,
