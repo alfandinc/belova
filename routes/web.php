@@ -178,6 +178,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/eradiologi/hasil/{id}', [EradiologiController::class, 'getRadiologiHasilDetails'])->name('erm.eradiologi.hasil.detail');
     
     //Lab
+    Route::get('/elab', [ElabController::class, 'index'])->name('erm.elab.index');
     Route::get('/elab/{visitation_id}/create', [ElabController::class, 'create'])->name('erm.elab.create');
     Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');
     Route::get('/elab/tests/data', [ElabController::class, 'getLabTestData'])->name('erm.elab.tests.data');

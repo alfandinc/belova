@@ -96,7 +96,7 @@
                         text: res.message,
                         confirmButtonText: 'OK'
                     }).then(() => {
-                        location.reload();
+                        window.location.href = "{{ route('erm.elab.index') }}";
                     });
                 },
                 error: function(xhr) {

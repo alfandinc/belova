@@ -5,18 +5,58 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
+use App\Models\ERM\Dokter;
 use App\Models\ERM\LabHasil;
 use App\Models\ERM\LabKategori;
 use App\Models\ERM\LabPermintaan;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\LabTest;
+use App\Models\ERM\MetodeBayar;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Yajra\DataTables\Facades\DataTables;
 
 class ElabController extends Controller
 {
+    public function index(Request $request)
+    {
+        if ($request->ajax()) {
+            $visitations = Visitation::with(['pasien', 'metodeBayar'])->select('erm_visitations.*');
+
+            if ($request->tanggal) {
+                $visitations->whereDate('tanggal_visitation', $request->tanggal);
+            }
+
+            $visitations->whereIn('jenis_kunjungan', [3]);
+
+            $user = Auth::user();
+            if ($user->hasRole('Perawat')) {
+                $visitations->where('status_kunjungan', 2);
+            }
+
+            return datatables()->of($visitations)
+                ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
+                ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
+                ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
+                ->addColumn('tanggal_visitation', fn($v) => $v->tanggal_visitation)
+                ->addColumn('status_dokumen', fn($v) => ucfirst($v->status_dokumen))
+                ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
+                ->addColumn('status_kunjungan', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
+                ->addColumn('dokumen', function ($v) {
+                    $user = Auth::user();
+                    $asesmenUrl = $user->hasRole('Perawat') ? route('erm.elab.create', $v->id)
+                        : ($user->hasRole('Perawat') ? route('erm.elab.create', $v->id) : '#');
+                    return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
+                })
+                ->rawColumns(['dokumen'])
+                ->make(true);
+        }
+
+        $dokters = Dokter::with('user', 'spesialisasi')->get();
+        $metodeBayar = MetodeBayar::all();
+        return view('erm.elab.index', compact('dokters', 'metodeBayar'));
+    }
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
