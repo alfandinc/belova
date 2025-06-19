@@ -110,9 +110,10 @@ $(document).ready(function () {
     $('#btn-filter').click(function () {
         table.ajax.reload();
     });
-
+let currentPasienId;
     $(document).on('click', '.btn-info-pasien', function () {
         let pasienId = $(this).data('id');
+        currentPasienId = pasienId;
 
         $.ajax({
             url: "{{ route('erm.pasien.show', '') }}/" + pasienId, // Fetch patient info
@@ -142,6 +143,12 @@ $(document).ready(function () {
             }
         });
     });
+ $(document).on('click', '#btn-edit-pasien', function() {
+        if (currentPasienId) {
+            window.location.href = "{{ route('erm.pasiens.create') }}?edit_id=" + currentPasienId;
+        }
+    });
+
 });
 </script>
 @endsection

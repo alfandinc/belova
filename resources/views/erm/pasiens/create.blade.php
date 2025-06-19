@@ -1,5 +1,5 @@
 @extends('layouts.erm.app')
-@section('title', 'ERM | Tambah Pasien')
+@section('title', 'ERM | ' . ($isEditing ? 'Edit' : 'Tambah') . ' Pasien')
 @section('navbar')
     @include('layouts.erm.navbar')
 @endsection
@@ -32,7 +32,7 @@
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
                             <li class="breadcrumb-item active">Pasien</li>
-                            <li class="breadcrumb-item active">Tambah</li>
+                            <li class="breadcrumb-item active">{{ $isEditing ? 'Edit' : 'Tambah' }}</li>
                         </ol>
                     </div><!--end col-->
                 </div><!--end row-->                                                              
@@ -42,24 +42,27 @@
     <!-- end page title end breadcrumb -->
     <div class="card">
         <div class="card-header bg-primary">
-            <h4 class="card-title text-white">Data Pasien Baru</h4>
+            <h4 class="card-title text-white">{{ $isEditing ? 'Edit Data Pasien' : 'Data Pasien Baru' }}</h4>
         </div>
         <div class="card-body">
             <form id="pasien-form" class="form-wizard-wrapper" action="{{ route('erm.pasiens.store') }}" method="POST">
                 @csrf
+                @if($isEditing && $pasien)
+                    <input type="hidden" name="pasien_id" value="{{ $pasien->id }}">
+                @endif
                 <h3>Personal Data</h3>
                     <fieldset>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="nik">NIK</label>
-                                    <input type="text" class="form-control" id="nik" name="nik" maxlength="16" required>
+                                    <input type="text" class="form-control" id="nik" name="nik" maxlength="16" required value="{{ $pasien->nik ?? '' }}">
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="nama">Nama</label>
-                                    <input type="text" class="form-control" id="nama" name="nama" required>
+                                    <input type="text" class="form-control" id="nama" name="nama" required value="{{ $pasien->nama ?? '' }}">
                                 </div>
                             </div>
                         </div>
@@ -68,7 +71,7 @@
                                 <div class="form-group">
                                     <label for="tanggal_lahir">Tanggal Lahir</label>
                                     <div class="input-group">
-                                        <input type="date" class="form-control" id="tanggal_lahir" name="tanggal_lahir" required>
+                                        <input type="date" class="form-control" id="tanggal_lahir" name="tanggal_lahir" required value="{{ $pasien->tanggal_lahir ?? '' }}">
                                     </div>
                                 </div>
 
@@ -178,7 +181,7 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="notes">Catatan Khusus</label>
-                                <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                                <textarea class="form-control" id="notes" name="notes" rows="3">{{ $pasien->notes ?? '' }}</textarea>
                             </div>
                         </div>
                     </div>
@@ -188,7 +191,7 @@
                 <fieldset>
                 <div class="form-group">
                     <label for="alamat">ALAMAT</label>
-                    <textarea  class="form-control" id="alamat" name="alamat" rows="3" required></textarea>
+                    <textarea class="form-control" id="alamat" name="alamat" rows="3" required>{{ $pasien->alamat ?? '' }}</textarea>
                 </div>
 
                 <div class="row">
@@ -241,13 +244,13 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="no_hp">No Telepon 1</label>
-                            <input type="number" class="form-control" id="no_hp" name="no_hp" required >
+                            <input type="number" class="form-control" id="no_hp" name="no_hp" required value="{{ $pasien->no_hp ?? '' }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="no_hp2">No Telepon 2</label>
-                            <input type="number" class="form-control" id="no_hp2" name="no_hp2">
+                            <input type="number" class="form-control" id="no_hp2" name="no_hp2" value="{{ $pasien->no_hp2 ?? '' }}">
                         </div>
                     </div>    
                 </div>
@@ -255,13 +258,13 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="email">Email</label>
-                            <input type="email" class="form-control" id="email" name="email">
+                            <input type="email" class="form-control" id="email" name="email" value="{{ $pasien->email ?? '' }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="istagram">Instagram</label>
-                            <input type="text" class="form-control" id="instagram" name="instagram">
+                            <input type="text" class="form-control" id="instagram" name="instagram" value="{{ $pasien->instagram ?? '' }}">
                         </div>
                     </div>     
                 </div>
@@ -528,6 +531,41 @@
             }
         });
     });
+@if($isEditing)
+        $('#gender').val('{{ $pasien->gender }}').trigger('change');
+        $('#agama').val('{{ $pasien->agama }}').trigger('change');
+        $('#marital_status').val('{{ $pasien->marital_status }}').trigger('change');
+        $('#pendidikan').val('{{ $pasien->pendidikan }}').trigger('change');
+        $('#pekerjaan').val('{{ $pasien->pekerjaan }}').trigger('change');
+        $('#gol_darah').val('{{ $pasien->gol_darah }}').trigger('change');
+        
+        // Handle address selection
+        @if($pasien->village && $pasien->village->district && $pasien->village->district->regency && $pasien->village->district->regency->province)
+            // Set province and trigger loading of regencies
+            $('#province').val('{{ $pasien->village->district->regency->province->id }}').trigger('change');
+            
+            // We need timeouts to ensure each cascading dropdown has loaded
+            setTimeout(function() {
+                $('#regency').val('{{ $pasien->village->district->regency->id }}').trigger('change');
+                
+                setTimeout(function() {
+                    $('#district').val('{{ $pasien->village->district->id }}').trigger('change');
+                    
+                    setTimeout(function() {
+                        $('#village').val('{{ $pasien->village_id }}').trigger('change');
+                    }, 500);
+                }, 500);
+            }, 500);
+        @endif
+    @endif
+
+    // ...existing code...
+
+    // Update page title and form button text
+    @if($isEditing)
+        $('#pasien-form').find('.actions ul li').last().find('a').text('Update');
+    @endif
+
 
 
 

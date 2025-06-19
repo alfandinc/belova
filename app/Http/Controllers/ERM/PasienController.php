@@ -83,45 +83,88 @@ class PasienController extends Controller
         return view('erm.pasiens.index', compact('metodeBayar', 'dokters', 'pasienName', 'kliniks'));
     }
 
-    public function create()
-    {
-        $metodeBayar = MetodeBayar::all();
-        $dokters = Dokter::with('spesialisasi')->get();
-        $kliniks = Klinik::all();
-        $provinces = Province::all();
-        return view('erm.pasiens.create', compact('metodeBayar', 'dokters', 'provinces', 'kliniks'));
+    public function create(Request $request)
+{
+    $metodeBayar = MetodeBayar::all();
+    $dokters = Dokter::with('spesialisasi')->get();
+    $kliniks = Klinik::all();
+    $provinces = Province::all();
+    
+    // Check if we're editing an existing patient
+    $pasien = null;
+    $isEditing = false;
+    
+    if ($request->has('edit_id')) {
+        $pasien = Pasien::with('village')->find($request->edit_id);
+        $isEditing = true;
     }
+    
+    return view('erm.pasiens.create', compact(
+        'metodeBayar', 
+        'dokters', 
+        'provinces', 
+        'kliniks', 
+        'pasien', 
+        'isEditing'
+    ));
+}
 
     public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'nik' => 'required|string|max:16|unique:erm_pasiens,nik',
-            'nama' => 'required|string|max:255',
-            'tanggal_lahir' => 'required|date',
-            'gender' => 'required|in:Laki-laki,Perempuan',
-            'agama' => 'nullable',
-            'marital_status' => 'nullable',
-            'pendidikan' => 'nullable',
-            'pekerjaan' => 'nullable',
-            'gol_darah' => 'nullable',
-            'alamat' => 'required',
-            'no_hp' => 'required|string|max:15',
-            'email' => 'nullable|email',
-            'instagram' => 'nullable|string|max:255',
-        ]);
+{
+    $validator = Validator::make($request->all(), [
+        'nik' => 'required|string|max:16|unique:erm_pasiens,nik,' . $request->pasien_id . ',id',
+        'nama' => 'required|string|max:255',
+        'tanggal_lahir' => 'required|date',
+        'gender' => 'required|in:Laki-laki,Perempuan',
+        'agama' => 'nullable',
+        'marital_status' => 'nullable',
+        'pendidikan' => 'nullable',
+        'pekerjaan' => 'nullable',
+        'gol_darah' => 'nullable',
+        'alamat' => 'required',
+        'no_hp' => 'required|string|max:15',
+        'email' => 'nullable|email',
+        'instagram' => 'nullable|string|max:255',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 'error',
+            'errors' => $validator->errors(),
+        ], 422);
+    }
 
-        $userId = auth()->id();
+    $userId = auth()->id();
 
-        DB::beginTransaction();
+    DB::beginTransaction();
 
-        try {
+    try {
+        $pasienId = $request->pasien_id;
+        
+        // Check if we're updating or creating
+        if (!empty($pasienId)) {
+            // Update existing patient
+            $pasien = Pasien::findOrFail($pasienId);
+            $pasien->update([
+                'nik' => $request->nik,
+                'nama' => $request->nama,
+                'tanggal_lahir' => $request->tanggal_lahir,
+                'gender' => $request->gender,
+                'agama' => $request->agama,
+                'marital_status' => $request->marital_status,
+                'pendidikan' => $request->pendidikan,
+                'pekerjaan' => $request->pekerjaan,
+                'gol_darah' => $request->gol_darah,
+                'notes' => $request->notes,
+                'alamat' => $request->alamat,
+                'no_hp' => $request->no_hp,
+                'no_hp2' => $request->no_hp2,
+                'email' => $request->email,
+                'instagram' => $request->instagram,
+                'user_id' => $userId,
+            ]);
+        } else {
+            // Create new patient
             // lock table dulu
             $lastId = DB::table('erm_pasiens')
                 ->select(DB::raw('MAX(CAST(id AS UNSIGNED)) as max_id'))
@@ -150,24 +193,25 @@ class PasienController extends Controller
                 'instagram' => $request->instagram,
                 'user_id' => $userId,
             ]);
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Pasien berhasil ditambahkan.',
-                'pasien' => [
-                    'id' => $pasien->id,
-                    'nama' => $pasien->nama,
-                ]
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Gagal menambahkan pasien',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        DB::commit();
+
+        return response()->json([
+            'message' => !empty($pasienId) ? 'Data pasien berhasil diperbarui.' : 'Pasien berhasil ditambahkan.',
+            'pasien' => [
+                'id' => $pasien->id,
+                'nama' => $pasien->nama,
+            ]
+        ]);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return response()->json([
+            'message' => !empty($pasienId) ? 'Gagal memperbarui data pasien' : 'Gagal menambahkan pasien',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
 
     public function show($id)

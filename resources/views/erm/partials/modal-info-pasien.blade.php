@@ -70,8 +70,9 @@
         </table>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-      </div>
+  <button type="button" id="btn-edit-pasien" class="btn btn-primary">Edit Data</button>
+  <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+</div>
     </div>
   </div>
 </div>
