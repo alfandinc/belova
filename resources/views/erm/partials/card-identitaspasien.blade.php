@@ -1,3 +1,4 @@
+
 <div class="card">
         <div class="card-body">  
                   
@@ -8,14 +9,7 @@
                         <div class="col-12 d-flex align-items-center">
                             
                             <h3><strong>{{ ucfirst($visitation->pasien->nama ?? '-') }}</strong></h3>
-                             
-                        </div>     
-                    </div> 
-                    <div class="row mt-0 mb-4">
-                        <div class="col-12 d-flex align-items-center">
-                            
-                            <h5 class="mt-0 mb-0">NO. RM #{{ $visitation->pasien->id ?? '-' }}</h5>
-                              @if($visitation->pasien->gender == 'Laki-laki')
+                            @if($visitation->pasien->gender == 'Laki-laki')
                                 <span class="d-inline-flex align-items-center justify-content-center ml-2"
                                     style="width: 25px; height: 25px; background-color: #0d6efd; border-radius: 4px;">
                                     <i class="fas fa-mars text-white" style="font-size: 20px;"></i>
@@ -26,8 +20,22 @@
                                     <i class="fas fa-venus text-white" style="font-size: 20px;"></i>
                                 </span>
                             @endif
+                             
+                        </div>     
+                    </div> 
+                    <div class="row mt-0 mb-2">
+                        <div class="col-12 d-flex align-items-center">
+                            
+                            <h5 class="mt-0 mb-0">NO. RM #{{ $visitation->pasien->id ?? '-' }}</h5>
+                              
                         </div>
-                    </div>   
+                    </div>
+                    <div class="row mb-1 align-items-center">
+    <div class="col-12 text-end">
+        
+        Kunjungan Terakhir: {{ $lastVisitDate }}
+    </div>
+</div>
                 </div>
                 <!-- Kolom Kiri -->
                 <div class="col-md-3 mt-2">

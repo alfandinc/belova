@@ -15,8 +15,9 @@ class PasienHelperController
     public static function getDataPasien($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
+        $pasien = $visitation->pasien;
 
-        $tanggal_lahir = $visitation->pasien->tanggal_lahir;
+        $tanggal_lahir = $pasien->tanggal_lahir;
         $usia = '-';
 
         if ($tanggal_lahir) {
@@ -38,7 +39,13 @@ class PasienHelperController
             $usia = "$years tahun $months bulan $days hari";
         }
 
-        $pasien = $visitation->pasien;
+        // Find last visit date (excluding current visit)
+        $lastVisit = Visitation::where('pasien_id', $pasien->id)
+            ->where('id', '!=', $visitationId)
+            ->latest('tanggal_visitation')
+            ->first();
+        
+        $lastVisitDate = $lastVisit ? Carbon::parse($lastVisit->tanggal_visitation)->translatedFormat('d F Y') : '-';
 
         $zatAktif = ZatAktif::all();
         $alergiPasien = Alergi::where('pasien_id', $pasien->id)
@@ -61,6 +68,7 @@ class PasienHelperController
             'zatAktif' => $zatAktif,
             'alergistatus' => $alergistatus,
             'alergikatakunci' => $alergikatakunci,
+            'lastVisitDate' => $lastVisitDate,
             // 'alergiPasien' => $alergiPasien,
         ];
     }
