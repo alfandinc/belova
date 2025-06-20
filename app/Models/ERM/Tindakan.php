@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Tindakan extends Model
 {
     protected $table = 'erm_tindakan';
-    protected $fillable = ['nama', 'deskripsi', 'harga'];
+    protected $fillable = ['nama', 'deskripsi', 'harga', 'spesialis_id'];
 
     public function paketTindakan()
     {
@@ -24,6 +24,12 @@ class Tindakan extends Model
     {
         return $this->morphMany(Billing::class, 'billable');
     }
+    
+    public function spesialis()
+    {
+        return $this->belongsTo(\App\Models\ERM\Spesialisasi::class, 'spesialis_id');
+    }
+    
     public function sop()
     {
         return $this->hasMany(\App\Models\ERM\Sop::class, 'tindakan_id');
