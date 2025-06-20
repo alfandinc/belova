@@ -21,7 +21,7 @@ class RoleAndUserSeeder extends Seeder
 
         // Buat user admin
         $adminUser = User::firstOrCreate(
-            ['email' => 'admin@belova.com'],
+            ['email' => 'admin@belova.id'],
             [
                 'id' => 1,
                 'name' => 'Admin User',
@@ -33,7 +33,7 @@ class RoleAndUserSeeder extends Seeder
 
         // Buat user marketing
         $marketingUser = User::firstOrCreate(
-            ['email' => 'marketing@belova.com'],
+            ['email' => 'marketing@belova.id'],
             [
                 'id' => 7,
                 'name' => 'Marketin User',
@@ -45,7 +45,7 @@ class RoleAndUserSeeder extends Seeder
 
         // Buat user dokter
         $dokterUser = User::firstOrCreate(
-            ['email' => 'dokter@belova.com'],
+            ['email' => 'dokter@belova.id'],
             [
                 'id' => 2,
                 'name' => 'Dokter User',
@@ -56,7 +56,7 @@ class RoleAndUserSeeder extends Seeder
 
         // Buat user perawat
         $perawatUser = User::firstOrCreate(
-            ['email' => 'perawat@belova.com'],
+            ['email' => 'perawat@belova.id'],
             [
                 'id' => 3,
                 'name' => 'Perawat User',
@@ -67,7 +67,7 @@ class RoleAndUserSeeder extends Seeder
 
         // Buat user farmasi
         $farmasiUser = User::firstOrCreate(
-            ['email' => 'farmasi@belova.com'],
+            ['email' => 'farmasi@belova.id'],
             [
                 'id' => 4,
                 'name' => 'Farmasi User',
@@ -78,7 +78,7 @@ class RoleAndUserSeeder extends Seeder
 
         // Buat user pendaftaran
         $pendaftaranUser = User::firstOrCreate(
-            ['email' => 'pendaftaran@belova.com'],
+            ['email' => 'pendaftaran@belova.id'],
             [
                 'id' => 5,
                 'name' => 'Pendaftaran User',
@@ -90,7 +90,7 @@ class RoleAndUserSeeder extends Seeder
 
         // Buat user Kasir
         $kasirUser = User::firstOrCreate(
-            ['email' => 'kasir@belova.com'],
+            ['email' => 'kasir@belova.id'],
             [
                 'id' => 6,
                 'name' => 'Kasir User',
@@ -101,7 +101,7 @@ class RoleAndUserSeeder extends Seeder
 
         // PENYAKIT DALAM
         $dokterUser1 = User::firstOrCreate(
-            ['email' => 'wahyuaji@belova.com'],
+            ['email' => 'wahyuaji@belova.id'],
             [
                 'id' => 16,
                 'name' => 'dr. Wahyu Aji Wibowo, Dr. MSc., Sp.PD, FINASIM.',
@@ -112,7 +112,7 @@ class RoleAndUserSeeder extends Seeder
 
         // UMUM
         $dokterUser2 = User::firstOrCreate(
-            ['email' => 'andhikaputri@belova.com'],
+            ['email' => 'andhikaputri@belova.id'],
             [
                 'id' => 145,
                 'name' => 'dr. Andhika Putri Perdana, M. Biomed (AAM)',
@@ -122,7 +122,7 @@ class RoleAndUserSeeder extends Seeder
         $dokterUser2->assignRole($dokter);
 
         $dokterUser3 = User::firstOrCreate(
-            ['email' => 'dynar@belova.com'],
+            ['email' => 'dynar@belova.id'],
             [
                 'id' => 1158,
                 'name' => 'dr. Dynar Amelya Fanthony',
@@ -132,7 +132,7 @@ class RoleAndUserSeeder extends Seeder
         $dokterUser3->assignRole($dokter);
 
         $dokterUser4 = User::firstOrCreate(
-            ['email' => 'qholfi@belova.com'],
+            ['email' => 'qholfi@belova.id'],
             [
                 'id' => 1171,
                 'name' => 'dr. Qholfi Anggi Uraini Sahid',
@@ -143,7 +143,7 @@ class RoleAndUserSeeder extends Seeder
 
         // GIGI
         $dokterUser5 = User::firstOrCreate(
-            ['email' => 'andhita@belova.com'],
+            ['email' => 'andhita@belova.id'],
             [
                 'id' => 1159,
                 'name' => 'drg. Andhita Permatasari',
@@ -154,7 +154,7 @@ class RoleAndUserSeeder extends Seeder
 
         // SARAF
         $dokterUser6 = User::firstOrCreate(
-            ['email' => 'erupsiana@belova.com'],
+            ['email' => 'erupsiana@belova.id'],
             [
                 'id' => 23,
                 'name' => 'dr. Erupsiana Fitri Indrihapsari,dr Sp.N',
@@ -165,7 +165,7 @@ class RoleAndUserSeeder extends Seeder
 
         // ANAK
         $dokterUser7 = User::firstOrCreate(
-            ['email' => 'ariehapsari@belova.com'],
+            ['email' => 'ariehapsari@belova.id'],
             [
                 'id' => 99,
                 'name' => 'dr. Arie Hapsari I.K., Sp.A',

@@ -14,10 +14,10 @@ return new class extends Migration
         Schema::create('hrd_employee', function (Blueprint $table) {
             $table->id();
             $table->string('nama');
-            $table->string('tempat_lahir');
-            $table->date('tanggal_lahir');
-            $table->string('nik')->unique();
-            $table->text('alamat');
+            $table->string('tempat_lahir')->nullable();
+            $table->date('tanggal_lahir')->nullable();
+            $table->string('nik')->unique()->nullable();
+            $table->text('alamat')->nullable();
 
             // Village - foreign key
             $table->foreignId('village_id')->nullable()->constrained('area_villages')->nullOnDelete();
@@ -26,10 +26,10 @@ return new class extends Migration
             $table->foreignId('position')->constrained('hrd_position');
             $table->foreignId('division_id')->constrained('hrd_division');
 
-            $table->string('pendidikan');
-            $table->string('no_hp');
-            $table->date('tanggal_masuk');
-            $table->enum('status', ['tetap', 'kontrak', 'tidak aktif']);
+            $table->string('pendidikan')->nullable();
+            $table->string('no_hp')->nullable();
+            $table->date('tanggal_masuk')->nullable();
+            $table->enum('status', ['tetap', 'kontrak', 'tidak aktif'])->nullable();
             $table->date('kontrak_berakhir')->nullable();
             $table->date('masa_pensiun')->nullable();
 

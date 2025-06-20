@@ -15,28 +15,29 @@ class DivisionSeeder extends Seeder
     {
         $divisions = [
             [
+                'id' => 1,
                 'name' => 'Human Resource',
                 'description' => 'Divisi Sumber Daya Manusia',
             ],
             [
-                'name' => 'Finance & Accounting',
-                'description' => 'Divisi Keuangan dan Akuntansi',
+                'id' => 2,
+                'name' => 'Administrasi dan Urusan Bisnis',
+                'description' => 'Divisi Administrasi dan Urusan Bisnis',
             ],
             [
-                'name' => 'Marketing',
-                'description' => 'Divisi Pemasaran',
+                'id' => 3,
+                'name' => 'Pemasaran dan Hubungan Digital',
+                'description' => 'Divisi Pemasaran dan Hubungan Digital',
             ],
             [
-                'name' => 'Information Technology',
-                'description' => 'Divisi Teknologi Informasi',
+                'id' => 4,
+                'name' => 'Operasianal dan Pengelolaan Fasilitas',
+                'description' => 'Divisi Operasianal dan Pengelolaan Fasilitas',
             ],
             [
-                'name' => 'General Affairs',
-                'description' => 'Divisi Umum',
-            ],
-            [
-                'name' => 'Customer Service',
-                'description' => 'Divisi Layanan Pelanggan',
+                'id' => 5,
+                'name' => 'Kefarmasian dan Asuransi',
+                'description' => 'Divisi Kefarmasian dan Asuransi',
             ],
         ];
 

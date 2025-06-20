@@ -19,32 +19,34 @@ use Spatie\Permission\Models\Role;
 class EmployeeController extends Controller
 {
     public function index(Request $request)
-    {
-        if ($request->ajax()) {
-            $employees = Employee::with(['position', 'division', 'user']);
+{
+    if ($request->ajax()) {
+        $employees = Employee::with(['position', 'division', 'user'])
+            ->select('hrd_employee.*'); // Explicitly select all employee columns
 
-            return DataTables::of($employees)
-                ->addColumn('status_label', function ($employee) {
-                    $statusColors = [
-                        'tetap' => 'success',
-                        'kontrak' => 'warning',
-                        'tidak aktif' => 'danger'
-                    ];
-                    return '<span class="badge badge-' . $statusColors[$employee->status] . '">' . ucfirst($employee->status) . '</span>';
-                })
-                ->addColumn('action', function ($employee) {
-                    $viewBtn = '<a href="' . route('hrd.employee.show', $employee->id) . '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>';
-                    $editBtn = '<a href="' . route('hrd.employee.edit', $employee->id) . '" class="btn btn-sm btn-primary ml-1"><i class="fas fa-edit"></i></a>';
-                    $deleteBtn = '<button class="btn btn-sm btn-danger ml-1 delete-employee" data-id="' . $employee->id . '"><i class="fas fa-trash"></i></button>';
+        return DataTables::of($employees)
+            ->addColumn('status_label', function ($employee) {
+                $statusColors = [
+                    'tetap' => 'success',
+                    'kontrak' => 'warning',
+                    'tidak aktif' => 'danger'
+                ];
+                $status = $employee->status ?? 'tidak aktif';
+                return '<span class="badge badge-' . ($statusColors[$status] ?? 'secondary') . '">' . ucfirst($status) . '</span>';
+            })
+            ->addColumn('action', function ($employee) {
+                $viewBtn = '<a href="' . route('hrd.employee.show', $employee->id) . '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>';
+                $editBtn = '<a href="' . route('hrd.employee.edit', $employee->id) . '" class="btn btn-sm btn-primary ml-1"><i class="fas fa-edit"></i></a>';
+                $deleteBtn = '<button class="btn btn-sm btn-danger ml-1 delete-employee" data-id="' . $employee->id . '"><i class="fas fa-trash"></i></button>';
 
-                    return $viewBtn . $editBtn . $deleteBtn;
-                })
-                ->rawColumns(['status_label', 'action'])
-                ->make(true);
-        }
-
-        return view('hrd.employee.index');
+                return $viewBtn . $editBtn . $deleteBtn;
+            })
+            ->rawColumns(['status_label', 'action'])
+            ->make(true);
     }
+
+    return view('hrd.employee.index');
+}
 
     public function create()
     {
