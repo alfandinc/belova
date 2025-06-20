@@ -44,6 +44,7 @@ class DatabaseSeeder extends Seeder
         $this->call(LabTestSeeder::class);
         $this->call(RadiologiKategoriSeeder::class);
         $this->call(RadiologiTestSeeder::class);
+        $this->call(TindakanEstetikaSeeder::class);
 
     }
 }
