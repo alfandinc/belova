@@ -62,9 +62,12 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         // Check if user exists and has the correct role
-        if (!$user || !in_array($user->getRoleNames()->first(), $roleMapping[$module])) {
-            return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();
-        }
+        if (
+    !$user ||
+    !$user->hasAnyRole($roleMapping[$module])
+) {
+    return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();
+}
 
         // Attempt to login
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
