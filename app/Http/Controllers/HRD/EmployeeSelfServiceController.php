@@ -31,11 +31,10 @@ class EmployeeSelfServiceController extends Controller
 }
 
     // Add this new method
-public function getEditProfileModal()
+public function getEditProfileModal(Request $request)
 {
     $employee = Auth::user()->employee;
-    // $villages = \App\Models\Area\Village::all();
-
+    
     if (!$employee) {
         return response()->json([
             'success' => false,
@@ -43,6 +42,12 @@ public function getEditProfileModal()
         ], 404);
     }
 
+    // Check if we're showing the password change modal
+    if ($request->query('mode') === 'password') {
+        return view('hrd.partials.modal-change-password');
+    }
+
+    // Default to profile edit modal
     return view('hrd.partials.modal-edit-profile', compact('employee'));
 }
 

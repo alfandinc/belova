@@ -7,6 +7,9 @@
 
 @section('content')
 {{-- @include('hrd.partials.modal-edit-profile') --}}
+
+
+
 <div class="container py-4">
     <div class="row">
         <!-- Profile Card -->
@@ -29,6 +32,9 @@
                     <div class="mt-4">
                         <button type="button" class="btn btn-primary btn-block mb-2" id="btnEditProfile">
                             <i class="fas fa-user-edit"></i> Edit Profil
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-block mb-2" id="btnChangePassword">
+                            <i class="fas fa-user-edit"></i> Ganti Password
                         </button>
                         
                     </div>
@@ -147,6 +153,24 @@ $(function() {
         });
     });
     
+    // Handle Change Password button click
+    $('#btnChangePassword').on('click', function() {
+        $('#modalContent').html('<div class="text-center p-5"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>');
+        $('#editProfileModal').modal('show');
+        
+        $.ajax({
+            url: '{{ route("hrd.employee.profile.modal") }}?mode=password',
+            type: 'GET',
+            success: function(response) {
+                $('#modalContent').html(response);
+                initPasswordFormSubmission();
+            },
+            error: function() {
+                $('#modalContent').html('<div class="p-4 text-center text-danger">Error loading form. Please try again.</div>');
+            }
+        });
+    });
+    
     // Form submission via AJAX
     function initFormSubmission() {
         $('#profileUpdateForm').on('submit', function(e) {
@@ -206,6 +230,60 @@ $(function() {
                 complete: function() {
                     $('#profileUpdateForm button[type="submit"]').html('Simpan Perubahan');
                     $('#profileUpdateForm button[type="submit"]').attr('disabled', false);
+                }
+            });
+        });
+    }
+    
+    // Password form submission
+    function initPasswordFormSubmission() {
+        $('#passwordChangeForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            $.ajax({
+                url: $(this).attr('action'),
+                type: 'POST',
+                data: $(this).serialize(),
+                beforeSend: function() {
+                    $('#passwordChangeForm button[type="submit"]').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...');
+                    $('#passwordChangeForm button[type="submit"]').attr('disabled', true);
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#editProfileModal').modal('hide');
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil!',
+                            text: response.message,
+                            timer: 2000,
+                            timerProgressBar: true
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: response.message
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    var errors = xhr.responseJSON.errors;
+                    var errorMessage = '';
+                    
+                    $.each(errors, function(key, value) {
+                        errorMessage += value[0] + '<br>';
+                    });
+                    
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Validation Error',
+                        html: errorMessage
+                    });
+                },
+                complete: function() {
+                    $('#passwordChangeForm button[type="submit"]').html('Simpan Perubahan');
+                    $('#passwordChangeForm button[type="submit"]').attr('disabled', false);
                 }
             });
         });
