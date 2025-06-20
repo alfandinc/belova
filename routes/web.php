@@ -405,3 +405,4 @@ Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.se
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');
 Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDoktersByKlinik'])->name('erm.get-dokters');
 Route::get('/get-apotekers', [EresepController::class, 'getApotekers'])->name('erm.get-apotekers');
+Route::get('/tindakan/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchTindakan'])->name('marketing.tindakan.search');

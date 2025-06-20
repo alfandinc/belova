@@ -14,8 +14,6 @@ class TindakanController extends Controller
 {
     /**
      * Display a listing of tindakan.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function index()
     {
@@ -24,10 +22,8 @@ class TindakanController extends Controller
 
     /**
      * Get tindakan data for DataTables.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */    public function getTindakanData(Request $request)
+     */
+    public function getTindakanData(Request $request)
     {
         $tindakan = Tindakan::with('spesialis')->get();
 
@@ -51,8 +47,6 @@ class TindakanController extends Controller
 
     /**
      * Show the form for creating a new tindakan.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function create()
     {
@@ -61,9 +55,6 @@ class TindakanController extends Controller
 
     /**
      * Store a newly created tindakan or update an existing one.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function store(Request $request)
     {
@@ -107,10 +98,8 @@ class TindakanController extends Controller
 
     /**
      * Get tindakan data by ID.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
-     */    public function getTindakan($id)
+     */
+    public function getTindakan($id)
     {
         $tindakan = Tindakan::with('spesialis')->findOrFail($id);
         return response()->json($tindakan);
@@ -118,9 +107,6 @@ class TindakanController extends Controller
 
     /**
      * Delete a tindakan.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
      */
     public function destroy($id)
     {
@@ -160,8 +146,6 @@ class TindakanController extends Controller
 
     /**
      * Display a listing of paket tindakan.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function indexPaket()
     {
@@ -170,9 +154,6 @@ class TindakanController extends Controller
 
     /**
      * Get paket tindakan data for DataTables.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function getPaketData(Request $request)
     {
@@ -199,8 +180,6 @@ class TindakanController extends Controller
 
     /**
      * Show the form for creating a new paket tindakan.
-     *
-     * @return \Illuminate\Http\Response
      */
     public function createPaket()
     {
@@ -210,9 +189,6 @@ class TindakanController extends Controller
 
     /**
      * Store a newly created paket tindakan or update an existing one.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
      */
     public function storePaket(Request $request)
     {
@@ -259,9 +235,6 @@ class TindakanController extends Controller
 
     /**
      * Get paket tindakan data by ID.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
      */
     public function getPaket($id)
     {
@@ -278,9 +251,6 @@ class TindakanController extends Controller
 
     /**
      * Delete a paket tindakan.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\JsonResponse
      */
     public function destroyPaket($id)
     {
@@ -315,21 +285,45 @@ class TindakanController extends Controller
 
     /**
      * Get list of specialists for dropdown.
-     *
-     * @return \Illuminate\Http\JsonResponse
      */
     public function getSpesialisasiList()
     {
         $spesialisasi = \App\Models\ERM\Spesialisasi::select('id', 'nama')->get();
         return response()->json($spesialisasi);
-    }    /**
+    }
+
+    /**
      * Get list of tindakan for dropdown.
-     *
-     * @return \Illuminate\Http\JsonResponse
      */
     public function getTindakanList()
     {
         $tindakan = Tindakan::with('spesialis')->orderBy('nama')->get();
         return response()->json($tindakan);
     }
+
+    public function searchTindakan(Request $request)
+{
+    $search = $request->input('q');
+    $spesialisasiId = $request->input('spesialisasi_id');
+    
+    $query = \App\Models\ERM\Tindakan::with('spesialis')
+        ->when($spesialisasiId, function($q) use ($spesialisasiId) {
+            $q->where('spesialis_id', $spesialisasiId);
+        })
+        ->when($search, function ($q) use ($search) {
+            $q->where('nama', 'like', "%{$search}%");
+        })
+        ->orderBy('nama')
+        ->limit(20)
+        ->get();
+
+    $results = [];
+    foreach ($query as $tindakan) {
+        $results[] = [
+            'id' => $tindakan->id,
+            'text' => $tindakan->nama, // Only display the tindakan name
+        ];
+    }
+    return response()->json(['results' => $results]);
+}
 }
