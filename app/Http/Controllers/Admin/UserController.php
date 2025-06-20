@@ -47,7 +47,8 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
-            'role' => 'required'
+            'roles' => 'required|array',
+            'roles.*' => 'exists:roles,name'
         ]);
 
         $user = User::create([
@@ -56,7 +57,7 @@ class UserController extends Controller
             'password' => Hash::make($request->password)
         ]);
 
-        $user->assignRole($request->role);
+        $user->assignRole($request->roles);
 
         return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
     }
@@ -75,16 +76,24 @@ class UserController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $id,
-            'role' => 'required'
+            'roles' => 'required|array',
+            'roles.*' => 'exists:roles,name'
         ]);
 
-        $user->update([
+        $userData = [
             'name' => $request->name,
             'email' => $request->email,
-        ]);
+        ];
+        
+        // Update password if provided
+        if ($request->filled('password')) {
+            $userData['password'] = Hash::make($request->password);
+        }
 
-        $user->roles()->detach();
-        $user->assignRole($request->role);
+        $user->update($userData);
+
+        // Sync roles
+        $user->syncRoles($request->roles);
 
         return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
     }

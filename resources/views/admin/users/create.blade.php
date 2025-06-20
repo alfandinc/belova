@@ -16,14 +16,21 @@
         <div class="mb-3">
             <label>Password</label>
             <input type="password" class="form-control" name="password" required>
-        </div>
-        <div class="mb-3">
-            <label>Role</label>
-            <select class="form-control" name="role" required>
+        </div>        <div class="mb-3">
+            <label>Roles</label>
+            <div class="row">
                 @foreach($roles as $role)
-                    <option value="{{ $role->name }}">{{ $role->name }}</option>
+                <div class="col-md-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="roles[]" value="{{ $role->name }}" 
+                            id="role_{{ $role->id }}">
+                        <label class="form-check-label" for="role_{{ $role->id }}">
+                            {{ $role->name }}
+                        </label>
+                    </div>
+                </div>
                 @endforeach
-            </select>
+            </div>
         </div>
         <button type="submit" class="btn btn-success">Create</button>
     </form>
