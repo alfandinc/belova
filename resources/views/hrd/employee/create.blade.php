@@ -125,11 +125,11 @@
                             <label for="tanggal_masuk">Tanggal Masuk</label>
                             <input type="date" id="tanggal_masuk" name="tanggal_masuk" class="form-control" value="{{ old('tanggal_masuk') }}" required>
                         </div>
-                    </div>
-                    <div class="col-md-6">
+                    </div>                    <div class="col-md-6">
                         <div class="form-group">
-                            <label for="kontrak_berakhir">Kontrak Berakhir</label>
-                            <input type="date" id="kontrak_berakhir" name="kontrak_berakhir" class="form-control" value="{{ old('kontrak_berakhir') }}">
+                            <label for="durasi_kontrak">Durasi Kontrak (bulan)</label>
+                            <input type="number" id="durasi_kontrak" name="durasi_kontrak" class="form-control" min="1" max="60" value="{{ old('durasi_kontrak') }}">
+                            <input type="hidden" id="kontrak_berakhir" name="kontrak_berakhir" value="{{ old('kontrak_berakhir') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -210,11 +210,35 @@ $(function() {
         width: '100%',
     });
     
-    
-   // Custom file input handling
+      // Custom file input handling
     $('.custom-file-input').on('change', function() {
         var fileName = $(this).val().split('\\').pop();
         $(this).siblings('.custom-file-label').addClass('selected').html(fileName);
+    });
+    
+    // Calculate contract end date based on duration
+    function calculateEndDate() {
+        var startDate = $('#tanggal_masuk').val();
+        var duration = $('#durasi_kontrak').val();
+        
+        if (startDate && duration) {
+            var start = new Date(startDate);
+            // Add months to the start date
+            var end = new Date(start);
+            end.setMonth(end.getMonth() + parseInt(duration));
+            
+            // Format date to YYYY-MM-DD for the hidden input
+            var year = end.getFullYear();
+            var month = String(end.getMonth() + 1).padStart(2, '0');
+            var day = String(end.getDate()).padStart(2, '0');
+            
+            $('#kontrak_berakhir').val(`${year}-${month}-${day}`);
+        }
+    }
+    
+    // Calculate end date when duration or start date changes
+    $('#durasi_kontrak, #tanggal_masuk').on('change', function() {
+        calculateEndDate();
     });
     
     // Toggle account details visibility

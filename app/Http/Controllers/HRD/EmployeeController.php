@@ -78,6 +78,7 @@ class EmployeeController extends Controller
             'status' => 'required|in:tetap,kontrak,tidak aktif',
             'kontrak_berakhir' => 'nullable|date',
             'masa_pensiun' => 'nullable|date',
+            'durasi_kontrak' => 'nullable|integer|min:1',
             'doc_cv' => 'nullable|file|max:2048',
             'doc_ktp' => 'nullable|file|max:2048',
             'doc_kontrak' => 'nullable|file|max:2048',
@@ -137,15 +138,11 @@ class EmployeeController extends Controller
         $employee = Employee::findOrFail($id);
         $positions = Position::all();
         $divisions = Division::all();
-        $villages = Village::all();
-        $roles = Role::whereIn('name', ['employee', 'manager'])->get();
 
         return view('hrd.employee.edit', compact(
             'employee',
             'positions',
-            'divisions',
-            'villages',
-            'roles'
+            'divisions'
         ));
     }
 
@@ -159,7 +156,6 @@ class EmployeeController extends Controller
             'tanggal_lahir' => 'required|date',
             'nik' => 'required|string|unique:hrd_employee,nik,' . $employee->id,
             'alamat' => 'required|string',
-            'village_id' => 'nullable|exists:area_villages,id',
             'position' => 'required|exists:hrd_position,id',
             'division_id' => 'required|exists:hrd_division,id',
             'pendidikan' => 'required|string',
@@ -172,6 +168,7 @@ class EmployeeController extends Controller
             'doc_ktp' => 'nullable|file|max:2048',
             'doc_kontrak' => 'nullable|file|max:2048',
             'doc_pendukung' => 'nullable|file|max:2048',
+            'durasi_kontrak' => 'nullable|integer|min:1',
         ]);
 
         // Handle file uploads
@@ -183,29 +180,6 @@ class EmployeeController extends Controller
                 }
                 $data[$doc] = $request->file($doc)->store('documents/employees');
             }
-        }
-
-        // Handle user account
-        if ($request->has('create_account') && !$employee->user_id) {
-            $request->validate([
-                'email' => 'required|email|unique:users,email',
-                'role' => 'required|in:employee,manager',
-            ]);
-
-            $password = Str::random(8);
-            $user = User::create([
-                'name' => $data['nama'],
-                'email' => $request->email,
-                'password' => Hash::make($password),
-            ]);
-
-            $user->assignRole($request->role);
-            $data['user_id'] = $user->id;
-
-            session()->flash('generated_password', $password);
-        } elseif ($employee->user_id && $request->has('role')) {
-            $user = $employee->user;
-            $user->syncRoles([$request->role]);
         }
 
         $employee->update($data);

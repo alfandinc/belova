@@ -174,8 +174,7 @@ $(function() {
                 searchable: false,
                 render: function(data, type, row) {
                     return `
-                        <div class="btn-group">
-                            <a href="/hrd/employee/${row.id}/view" class="btn btn-sm btn-info table-action-btn" title="View">
+                        <div class="btn-group">                            <a href="/hrd/employee/${row.id}" class="btn btn-sm btn-info table-action-btn" title="View">
                                 <i class="fas fa-eye"></i>
                             </a>
                             <a href="/hrd/employee/${row.id}/edit" class="btn btn-sm btn-primary table-action-btn" title="Edit">

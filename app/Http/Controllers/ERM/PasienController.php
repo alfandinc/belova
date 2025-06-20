@@ -112,7 +112,7 @@ class PasienController extends Controller
     public function store(Request $request)
 {
     $validator = Validator::make($request->all(), [
-        'nik' => 'required|string|max:16|unique:erm_pasiens,nik,' . $request->pasien_id . ',id',
+        'nik' => 'string|max:16|unique:erm_pasiens,nik,' . $request->pasien_id . ',id',
         'nama' => 'required|string|max:255',
         'tanggal_lahir' => 'required|date',
         'gender' => 'required|in:Laki-laki,Perempuan',
