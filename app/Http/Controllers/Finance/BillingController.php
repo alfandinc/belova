@@ -22,177 +22,246 @@ class BillingController extends Controller
     }
 
     public function create(Request $request, $visitation_id)
-    {
-        if ($request->ajax()) {
-            $billings = Billing::where('visitation_id', $visitation_id)->get();
+{
+    if ($request->ajax()) {
+        $billings = Billing::where('visitation_id', $visitation_id)->get();
 
-            // First, extract racikan items to process them separately
-            $racikanGroups = [];
-            $regularBillings = [];
+        // Extract racikan items, pharmacy fees, and regular items
+        $racikanGroups = [];
+        $pharmacyFeeItems = []; 
+        $regularBillings = [];
 
-            foreach ($billings as $billing) {
-                if (
-                    $billing->billable_type == 'App\Models\ERM\ResepFarmasi' &&
-                    $billing->billable->racikan_ke != null &&
-                    $billing->billable->racikan_ke > 0
-                ) {
-                    $racikanKey = $billing->billable->racikan_ke;
-                    if (!isset($racikanGroups[$racikanKey])) {
-                        $racikanGroups[$racikanKey] = [];
-                    }
-                    $racikanGroups[$racikanKey][] = $billing;
+        foreach ($billings as $billing) {
+            // Case 1: Pharmacy fee items (tuslah & embalase)
+            if (
+    $billing->billable_type == 'App\Models\ERM\JasaFarmasi' || 
+    (isset($billing->keterangan) && preg_match('/(tuslah|embalase)/i', $billing->keterangan)) ||
+    (isset($billing->nama_item) && preg_match('/(tuslah|embalase)/i', $billing->nama_item))
+) {
+    $pharmacyFeeItems[] = $billing;
+}
+            // Case 2: Racikan medication items
+            else if (
+                $billing->billable_type == 'App\Models\ERM\ResepFarmasi' &&
+                $billing->billable->racikan_ke != null &&
+                $billing->billable->racikan_ke > 0
+            ) {
+                $racikanKey = $billing->billable->racikan_ke;
+                if (!isset($racikanGroups[$racikanKey])) {
+                    $racikanGroups[$racikanKey] = [];
+                }
+                $racikanGroups[$racikanKey][] = $billing;
+            }
+            // Case 3: Regular billing items
+            else {
+                $regularBillings[] = $billing;
+            }
+        }
+
+        // Create processed billing items (start with regular items)
+        $processedBillings = $regularBillings;
+
+        // Process each racikan group
+        foreach ($racikanGroups as $racikanKey => $racikanItems) {
+            // Use the first item as base
+            $firstItem = $racikanItems[0];
+
+            // Calculate total price for the racikan
+            $totalPrice = 0;
+            $obatList = [];
+            $bungkus = 0;
+
+            foreach ($racikanItems as $item) {
+                $totalPrice += $item->jumlah;
+                $obatList[] = $item->billable->obat->nama ?? 'Obat Tidak Diketahui';
+                // Get bungkus from the first item only (should be same for all items in racikan)
+                if ($bungkus == 0) {
+                    $bungkus = $item->billable->bungkus ?? 0;
+                }
+            }
+
+            // Clone the first item and modify its properties for display
+            $racikanItem = clone $firstItem;
+            $racikanItem->is_racikan = true;
+            $racikanItem->racikan_obat_list = $obatList;
+            $racikanItem->racikan_total_price = $totalPrice;
+            $racikanItem->racikan_bungkus = $bungkus;
+
+            $processedBillings[] = $racikanItem;
+        }
+
+        // Process pharmacy fee items if any
+        if (!empty($pharmacyFeeItems)) {
+            // Use the first item as base
+            $firstPharmacyFee = $pharmacyFeeItems[0];
+            
+            // Calculate total pharmacy fees
+            $totalFees = 0;
+            $feeDescriptions = [];
+            
+            foreach ($pharmacyFeeItems as $item) {
+                $totalFees += $item->jumlah;
+                
+                // Extract description based on available data
+                $desc = '';
+if (isset($item->keterangan)) {
+    // Simply use the keterangan field directly now that it's simplified
+    $desc = $item->keterangan;
+} else if (isset($item->nama_item)) {
+    $desc = $item->nama_item;
+}
+
+if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
+    $feeDescriptions[] = $desc;
+}
+            }
+            
+            // Create a grouped pharmacy service item
+            $pharmacyServiceItem = clone $firstPharmacyFee;
+            $pharmacyServiceItem->is_pharmacy_fee = true;
+            $pharmacyServiceItem->fee_descriptions = $feeDescriptions;
+            $pharmacyServiceItem->fee_total_price = $totalFees;
+            $pharmacyServiceItem->fee_items_count = count($pharmacyFeeItems);
+            
+            $processedBillings[] = $pharmacyServiceItem;
+        }
+
+        return DataTables::of($processedBillings)
+            ->addIndexColumn()
+            ->addColumn('nama_item', function ($row) {
+                if (isset($row->is_racikan) && $row->is_racikan) {
+                    return 'Obat Racikan';
+                } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                    return 'Jasa Farmasi';
+                } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
+                    return $row->billable->obat->nama ?? 'N/A';
+                } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
+                    return 'Lab: ' . ($row->billable->labTest->nama ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
+                } else if ($row->billable_type == 'App\Models\ERM\RadiologiPermintaan') {
+                    return 'Radiologi: ' . ($row->billable->radiologiTest->nama ?? preg_replace('/^Radiologi: /', '', $row->keterangan ?? 'Test'));
                 } else {
-                    $regularBillings[] = $billing;
+                    return $row->nama_item ?? $row->billable->nama ?? $row->keterangan ?? '-';
                 }
-            }
-
-            // Create processed billing items (regular + consolidated racikan)
-            $processedBillings = $regularBillings;
-
-            // Process each racikan group
-            foreach ($racikanGroups as $racikanKey => $racikanItems) {
-                // Use the first item as base
-                $firstItem = $racikanItems[0];
-
-                // Calculate total price for the racikan
-                $totalPrice = 0;
-                $obatList = [];
-                $bungkus = 0;
-
-                foreach ($racikanItems as $item) {
-                    $totalPrice += $item->jumlah;
-                    $obatList[] = $item->billable->obat->nama ?? 'Obat Tidak Diketahui';
-                    // Get bungkus from the first item only (should be same for all items in racikan)
-                    if ($bungkus == 0) {
-                        $bungkus = $item->billable->bungkus ?? 0;
-                    }
+            })
+            ->addColumn('jumlah_raw', function ($row) {
+                if (isset($row->is_racikan) && $row->is_racikan) {
+                    return $row->racikan_total_price;
+                } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                    return $row->fee_total_price;
+                }
+                return $row->jumlah;
+            })
+            ->addColumn('diskon_raw', function ($row) {
+                return $row->diskon ?? '';
+            })
+            ->addColumn('jumlah', function ($row) {
+                if (isset($row->is_racikan) && $row->is_racikan) {
+                    return 'Rp ' . number_format($row->racikan_total_price, 0, ',', '.');
+                } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                    return 'Rp ' . number_format($row->fee_total_price, 0, ',', '.');
+                }
+                return 'Rp ' . number_format($row->jumlah, 0, ',', '.');
+            })
+            ->addColumn('harga_akhir', function ($row) {
+                // For pharmacy fees
+                if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                    return 'Rp ' . number_format($row->fee_total_price, 0, ',', '.');
+                }
+                
+                // For racikan items
+                if (isset($row->is_racikan) && $row->is_racikan) {
+                    return 'Rp ' . number_format($row->racikan_total_price * $row->racikan_bungkus, 0, ',', '.');
                 }
 
-                // Clone the first item and modify its properties for display
-                $racikanItem = clone $firstItem;
-                $racikanItem->is_racikan = true;
-                $racikanItem->racikan_obat_list = $obatList;
-                $racikanItem->racikan_total_price = $totalPrice;
-                $racikanItem->racikan_bungkus = $bungkus;
-
-                $processedBillings[] = $racikanItem;
-            }
-
-            return DataTables::of($processedBillings)
-                ->addIndexColumn()
-                ->addColumn('nama_item', function ($row) {
-                    if (isset($row->is_racikan) && $row->is_racikan) {
-                        return 'Obat Racikan';
-                    } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
-                        return $row->billable->obat->nama ?? 'N/A';
-                    } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
-                        return 'Lab: ' . ($row->billable->labTest->nama ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
-                    } else if ($row->billable_type == 'App\Models\ERM\RadiologiPermintaan') {
-                        return 'Radiologi: ' . ($row->billable->radiologiTest->nama ?? preg_replace('/^Radiologi: /', '', $row->keterangan ?? 'Test'));
+                // Calculate the final price after discount
+                $finalPrice = $row->jumlah;
+                if ($row->diskon && $row->diskon > 0) {
+                    if ($row->diskon_type == '%') {
+                        $finalPrice = $finalPrice - ($finalPrice * ($row->diskon / 100));
                     } else {
-                        return $row->billable->nama ?? $row->keterangan ?? '-';
+                        $finalPrice = $finalPrice - $row->diskon;
                     }
-                })
-                ->addColumn('jumlah_raw', function ($row) {
-                    if (isset($row->is_racikan) && $row->is_racikan) {
-                        return $row->racikan_total_price;
-                    }
-                    return $row->jumlah;
-                })
-                ->addColumn('diskon_raw', function ($row) {
-                    return $row->diskon ?? '';
-                })
-                ->addColumn('jumlah', function ($row) {
-                    if (isset($row->is_racikan) && $row->is_racikan) {
-                        return 'Rp ' . number_format($row->racikan_total_price, 0, ',', '.');
-                    }
-                    return 'Rp ' . number_format($row->jumlah, 0, ',', '.');
-                })
-                ->addColumn('harga_akhir', function ($row) {
-                    // Initially, harga_akhir is the same as jumlah
-                    if (isset($row->is_racikan) && $row->is_racikan) {
-                        // For racikan, multiply by racikan_bungkus
-                        return 'Rp ' . number_format($row->racikan_total_price * $row->racikan_bungkus, 0, ',', '.');
-                    }
+                }
 
-                    // Calculate the final price after discount
-                    $finalPrice = $row->jumlah;
-                    if ($row->diskon && $row->diskon > 0) {
-                        if ($row->diskon_type == '%') {
-                            $finalPrice = $finalPrice - ($finalPrice * ($row->diskon / 100));
-                        } else {
-                            $finalPrice = $finalPrice - $row->diskon;
-                        }
-                    }
+                // Multiply by quantity
+                $qty = $row->billable_type == 'App\Models\ERM\ResepFarmasi'
+                    ? ($row->billable->jumlah ?? 1)
+                    : ($row->billable->qty ?? 1);
 
-                    // Multiply by quantity
-                    $qty = $row->billable_type == 'App\Models\ERM\ResepFarmasi'
-                        ? ($row->billable->jumlah ?? 1)
-                        : ($row->billable->qty ?? 1);
+                return 'Rp ' . number_format($finalPrice * $qty, 0, ',', '.');
+            })
+            ->addColumn('qty', function ($row) {
+                if (isset($row->is_racikan) && $row->is_racikan) {
+                    return $row->racikan_bungkus;
+                } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                    return 1; // Pharmacy fees are counted as single group
+                } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
+                    return $row->billable->jumlah ?? 1;
+                }
+                return $row->billable->qty ?? 1;
+            })
+            ->addColumn('diskon', function ($row) {
+                if (!$row->diskon || $row->diskon == 0) {
+                    return '-';
+                }
 
-                    return 'Rp ' . number_format($finalPrice * $qty, 0, ',', '.');
-                })
-                ->addColumn('qty', function ($row) {
-                    if (isset($row->is_racikan) && $row->is_racikan) {
-                        return $row->racikan_bungkus;
-                    } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
-                        return $row->billable->jumlah ?? 1;
+                if ($row->diskon_type == '%') {
+                    return $row->diskon . '%';
+                } else {
+                    return 'Rp ' . number_format($row->diskon, 0, ',', '.');
+                }
+            })
+            ->addColumn('deskripsi', function ($row) {
+                if (isset($row->is_racikan) && $row->is_racikan) {
+                    // Format as a list with each item prefixed by a dash
+                    $obatList = array_map(function ($item) {
+                        return "- " . $item;
+                    }, $row->racikan_obat_list);
+
+                    // Join with <br> for a line break between each item
+                    return implode("<br>", $obatList);
+                } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                    // Display the list of fee items
+                    if (empty($row->fee_descriptions)) {
+                        return 'Biaya jasa farmasi (' . $row->fee_items_count . ' item)';
                     }
-                    return $row->billable->qty ?? 1;
-                })
-                ->addColumn('diskon', function ($row) {
-                    if (!$row->diskon || $row->diskon == 0) {
+                    
+                    // Format fee descriptions with dash prefixes and line breaks
+                    $formattedFees = array_map(function ($item) {
+                        return "- " . $item;
+                    }, $row->fee_descriptions);
+                    
+                    return implode("<br>", $formattedFees);
+                } else if ($row->billable_type == 'App\Models\ERM\PaketTindakan') {
+                    // For PaketTindakan, show a list of contained tindakan
+                    $tindakanList = $row->billable->tindakan()->pluck('nama')->toArray();
+
+                    if (empty($tindakanList)) {
                         return '-';
                     }
 
-                    if ($row->diskon_type == '%') {
-                        return $row->diskon . '%';
-                    } else {
-                        return 'Rp ' . number_format($row->diskon, 0, ',', '.');
+                    // Format tindakan list with dash prefixes and line breaks
+                    $formattedList = array_map(function ($item) {
+                        return "- " . $item;
+                    }, $tindakanList);
+
+                    return implode("<br>", $formattedList);
+                } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
+                    $deskripsi = [];
+                    if ($row->billable->keterangan) {
+                        $deskripsi[] = $row->billable->keterangan;
                     }
-                })
-                ->addColumn('deskripsi', function ($row) {
-                    if (isset($row->is_racikan) && $row->is_racikan) {
-                        // Format as a list with each item prefixed by a dash
-                        $obatList = array_map(function ($item) {
-                            return "- " . $item;
-                        }, $row->racikan_obat_list);
-
-                        // Join with <br> for a line break between each item
-                        return implode("<br>", $obatList);
-                    } else if ($row->billable_type == 'App\Models\ERM\PaketTindakan') {
-                        // For PaketTindakan, show a list of contained tindakan
-                        $tindakanList = $row->billable->tindakan()->pluck('nama')->toArray();
-
-                        if (empty($tindakanList)) {
-                            return '-';
-                        }
-
-                        // Format tindakan list with dash prefixes and line breaks
-                        $formattedList = array_map(function ($item) {
-                            return "- " . $item;
-                        }, $tindakanList);
-
-                        return implode("<br>", $formattedList);
-                    } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
-                        $deskripsi = [];
-                        // if ($row->billable->aturan_pakai) {
-                        //     $deskripsi[] = "Aturan: " . $row->billable->aturan_pakai;
-                        // }
-                        if ($row->billable->keterangan) {
-                            $deskripsi[] = $row->billable->keterangan;
-                        }
-                        return !empty($deskripsi) ? implode(", ", $deskripsi) : '-';
-                    }
-                    return '-';
-                })
-                ->rawColumns(['aksi', 'deskripsi'])
-                ->make(true);
-        }
-
-        $visitation = Visitation::with('pasien')->findOrFail($visitation_id);
-        return view('finance.billing.create', compact('visitation'));
+                    return !empty($deskripsi) ? implode(", ", $deskripsi) : '-';
+                }
+                return '-';
+            })
+            ->rawColumns(['aksi', 'deskripsi'])
+            ->make(true);
     }
+
+    $visitation = Visitation::with('pasien')->findOrFail($visitation_id);
+    return view('finance.billing.create', compact('visitation'));
+}
 
     public function createInvoice(Request $request)
     {

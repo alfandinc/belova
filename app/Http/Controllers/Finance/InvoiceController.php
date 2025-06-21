@@ -43,8 +43,9 @@ class InvoiceController extends Controller
                 })
                 ->addColumn('action', function ($invoice) {
                     $viewBtn = '<a href="' . route('finance.invoice.show', $invoice->id) . '" class="btn btn-sm btn-info mr-1">Lihat Detail</a>';
-                    $printBtn = '<a href="' . route('finance.invoice.print', $invoice->id) . '" class="btn btn-sm btn-secondary" target="_blank">Cetak Invoice</a>';
-                    return $viewBtn . $printBtn;
+                    $printBtn = '<a href="' . route('finance.invoice.print', $invoice->id) . '" class="btn btn-sm btn-secondary mr-1" target="_blank">Cetak Invoice</a>';
+                    $notaBtn = '<a href="' . route('finance.invoice.print-nota', $invoice->id) . '" class="btn btn-sm btn-primary" target="_blank">Cetak Nota</a>';
+                    return $viewBtn . $printBtn . $notaBtn;
                 })
                 ->rawColumns(['status_badge', 'action'])
                 ->make(true);
@@ -118,4 +119,33 @@ class InvoiceController extends Controller
 
         return $pdf->stream('Invoice-' . $invoice->invoice_number . '.pdf');
     }
+
+    public function printNota($id)
+{
+    $invoice = Invoice::with([
+        'visitation.pasien',
+        'visitation.klinik',
+        'items'
+    ])->findOrFail($id);
+
+    $pdf = PDF::loadView('finance.invoice.nota', compact('invoice'))
+        ->setPaper([0, 0, 170.08, 1000]) // 4.5cm width (170.08 px) with dynamic height
+        ->setOptions([
+            'defaultFont' => 'helvetica',
+            'fontHeightRatio' => 0.9,
+            'isRemoteEnabled' => true,
+            'isHtml5ParserEnabled' => true,
+            'isFontSubsettingEnabled' => true,
+            'dpi' => 150,
+            'defaultMediaType' => 'print',
+            'enable_javascript' => true,
+            'no_background' => false,
+            'margin_top' => 5,
+            'margin_right' => 5,
+            'margin_bottom' => 5,
+            'margin_left' => 5
+        ]);
+
+    return $pdf->stream('Nota-' . $invoice->invoice_number . '.pdf');
+}
 }

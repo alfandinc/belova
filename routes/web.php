@@ -259,7 +259,7 @@ Route::prefix('finance')->group(
         Route::get('/invoice/{id}', [InvoiceController::class, 'show'])->name('finance.invoice.show');
         Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
         Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
-
+Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
         
     }
 );

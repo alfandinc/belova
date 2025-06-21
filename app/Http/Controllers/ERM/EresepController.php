@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\EdukasiObat;
+use App\Models\ERM\JasaFarmasi;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\WadahObat;
 use App\Models\User;
@@ -357,47 +358,72 @@ class EresepController extends Controller
         ]);
     }
 
-    public function farmasistoreRacikan(Request $request)
-    {
-        $validated = $request->validate([
-            'visitation_id' => 'required',
-            'racikan_ke' => 'required|integer',
-            'wadah' => 'required',
-            'bungkus' => 'required|integer',
-            'aturan_pakai' => 'required|string',
-            'obats' => 'required|array|min:1',
-            'obats.*.obat_id' => 'required',
-            'obats.*.dosis' => 'required|string',
+   public function farmasistoreRacikan(Request $request)
+{
+    $validated = $request->validate([
+        'visitation_id' => 'required',
+        'racikan_ke' => 'required|integer',
+        'wadah' => 'required',
+        'bungkus' => 'required|integer',
+        'aturan_pakai' => 'required|string',
+        'obats' => 'required|array|min:1',
+        'obats.*.obat_id' => 'required',
+        'obats.*.dosis' => 'required|string',
+    ]);
 
-            // 'diskon' => 'required',
-            // 'harga' => 'required',
-        ]);
+    foreach ($validated['obats'] as $obat) {
+        do {
+            $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+        } while (ResepFarmasi::where('id', $customId)->exists());
 
-        foreach ($validated['obats'] as $obat) {
-            do {
-                $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
-            } while (ResepFarmasi::where('id', $customId)->exists());
-
-            ResepFarmasi::create([
-                'id' => $customId,
-                'visitation_id' => $validated['visitation_id'],
+        // Get the obat details to calculate proportional price
+        $obatModel = Obat::findOrFail($obat['obat_id']);
+        $basePrice = $obatModel->harga_nonfornas ?? 0;
+        
+        // Extract numeric values from dosis strings
+        $prescribedDosisStr = $obat['dosis'];
+        $baseDosisStr = $obatModel->dosis ?? '';
+        
+        // Extract numeric part using regex
+        preg_match('/(\d+(\.\d+)?)/', $prescribedDosisStr, $prescribedMatches);
+        preg_match('/(\d+(\.\d+)?)/', $baseDosisStr, $baseMatches);
+        
+        $prescribedDosis = !empty($prescribedMatches[1]) ? (float)$prescribedMatches[1] : 0;
+        $baseDosis = !empty($baseMatches[1]) ? (float)$baseMatches[1] : 0;
+        
+        // Calculate proportional price
+        $harga = $basePrice;
+        if ($baseDosis > 0 && $prescribedDosis > 0) {
+            $dosisRatio = $prescribedDosis / $baseDosis;
+            $harga = $basePrice * $dosisRatio;
+            
+            // Debug line - remove in production
+            \Log::info("Proportional price calculation", [
                 'obat_id' => $obat['obat_id'],
-                // 'jumlah' => 1, // atau sesuai jumlah per item racikan jika berbeda
-                'aturan_pakai' => $validated['aturan_pakai'],
-                'racikan_ke' => $validated['racikan_ke'],
-                'wadah_id' => $validated['wadah'],
-                'bungkus' => $validated['bungkus'],
-                'dosis' => $obat['dosis'],
-
-                // 'diskon' => $validated['diskon'],
-                // 'harga' => $validated['harga'],
-
-                'created_at' => now(),
+                'basePrice' => $basePrice,
+                'prescribedDosis' => $prescribedDosis,
+                'baseDosis' => $baseDosis,
+                'dosisRatio' => $dosisRatio,
+                'calculatedPrice' => $harga
             ]);
         }
 
-        return response()->json(['success' => true, 'message' => 'Racikan berhasil disimpan.']);
+        ResepFarmasi::create([
+            'id' => $customId,
+            'visitation_id' => $validated['visitation_id'],
+            'obat_id' => $obat['obat_id'],
+            'aturan_pakai' => $validated['aturan_pakai'],
+            'racikan_ke' => $validated['racikan_ke'],
+            'wadah_id' => $validated['wadah'],
+            'bungkus' => $validated['bungkus'],
+            'dosis' => $obat['dosis'],
+            'harga' => $harga, // Store the calculated proportional price
+            'created_at' => now(),
+        ]);
     }
+
+    return response()->json(['success' => true, 'message' => 'Racikan berhasil disimpan.']);
+}
 
     public function farmasidestroyNonRacikan($id)
     {
@@ -457,16 +483,10 @@ class EresepController extends Controller
     $visitationId = $request->input('visitation_id');
 
     // Fetch all related prescriptions
-    $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat', 'wadah')->get();
+    $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
     
-    // Track wadah that have been billed per racikan group
-    $billedWadah = [];
-
+    // Bill for each medication
     foreach ($reseps as $resep) {
-        // Debug line to check the actual values
-        // \Log::info("Processing resep: ", ['id' => $resep->id, 'harga' => $resep->harga, 'racikan_ke' => $resep->racikan_ke]);
-        
-        // For billing the medication - always create a billing record for each medication
         Billing::updateOrCreate(
             [
                 'billable_id' => $resep->id,
@@ -479,29 +499,54 @@ class EresepController extends Controller
                                 ($resep->racikan_ke ? ' (Racikan #' . $resep->racikan_ke . ')' : ''),
             ]
         );
-
-        // For racikan prescriptions, add the wadah price if not already billed for this racikan group
-        if ($resep->racikan_ke && $resep->wadah_id && !isset($billedWadah[$resep->racikan_ke])) {
-            // Ensure the wadah relationship is loaded
-            if (!$resep->relationLoaded('wadah')) {
-                $resep->load('wadah');
-            }
-            
-            // Make sure we have a valid wadah object with a price before billing
-            if ($resep->wadah && isset($resep->wadah->harga)) {
-                Billing::create([
-                    'visitation_id' => $resep->visitation_id,
-                    'billable_id' => $resep->wadah_id,
-                    'billable_type' => WadahObat::class,
-                    'jumlah' => $resep->wadah->harga ?? 0,
-                    'keterangan' => 'Wadah: ' . ($resep->wadah->nama ?? 'Wadah Racikan') . 
-                                    ' (Racikan #' . $resep->racikan_ke . ')',
-                ]);
-                
-                // Mark this wadah as billed for this racikan group
-                $billedWadah[$resep->racikan_ke] = true;
-            }
-        }
+    }
+    
+    // Calculate service fees
+    $nonRacikanItems = $reseps->whereNull('racikan_ke')->count();
+    $racikanGroups = $reseps->whereNotNull('racikan_ke')->pluck('racikan_ke')->unique()->count();
+    
+    // Get the jasa farmasi prices
+    $jasaNonRacikan = JasaFarmasi::where('nama', 'Tuslah Non Racikan')->first();
+    $jasaRacikan = JasaFarmasi::where('nama', 'Tuslah Racikan')->first();
+    $jasaEmbalase = JasaFarmasi::where('nama', 'Embalase')->first();
+    
+    // 1. Tuslah Non Racikan
+    if ($nonRacikanItems > 0 && $jasaNonRacikan) {
+        $tuslahNonRacikanPrice = $jasaNonRacikan->harga * $nonRacikanItems;
+        Billing::create([
+            'visitation_id' => $visitationId,
+            'billable_id' => $jasaNonRacikan->id,
+            'billable_type' => JasaFarmasi::class,
+            'jumlah' => $tuslahNonRacikanPrice,
+            'keterangan' => "Tuslah Non Racikan: {$nonRacikanItems} item × " . 
+                             number_format($jasaNonRacikan->harga, 0, ',', '.'),
+        ]);
+    }
+    
+    // 2. Tuslah Racikan
+    if ($racikanGroups > 0 && $jasaRacikan) {
+        $tuslahRacikanPrice = $jasaRacikan->harga * $racikanGroups;
+        Billing::create([
+            'visitation_id' => $visitationId,
+            'billable_id' => $jasaRacikan->id,
+            'billable_type' => JasaFarmasi::class,
+            'jumlah' => $tuslahRacikanPrice,
+            'keterangan' => "Tuslah Racikan: {$racikanGroups} racikan × " . 
+                             number_format($jasaRacikan->harga, 0, ',', '.'),
+        ]);
+    }
+    
+    // 3. Embalase
+    if (($nonRacikanItems + $racikanGroups) > 0 && $jasaEmbalase) {
+        $embalasePrice = $jasaEmbalase->harga * ($nonRacikanItems + $racikanGroups);
+        Billing::create([
+            'visitation_id' => $visitationId,
+            'billable_id' => $jasaEmbalase->id,
+            'billable_type' => JasaFarmasi::class,
+            'jumlah' => $embalasePrice,
+            'keterangan' => "Embalase: " . ($nonRacikanItems + $racikanGroups) . 
+                             " item × " . number_format($jasaEmbalase->harga, 0, ',', '.'),
+        ]);
     }
 
     return response()->json([
