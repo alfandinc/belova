@@ -156,7 +156,7 @@ $(document).ready(function () {
             return parseInt($('span', td).data('order')) || 0;
         });
     };
-
+var userRole = "{{ $role }}";
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
         serverSide: true,
@@ -184,12 +184,13 @@ $(document).ready(function () {
             { targets: 5, width: "25%" }, // Dokumen
         ],
         createdRow: function(row, data, dataIndex) {
-            if (data.status_kunjungan == 2) {
-                $(row).css('color', 'orange'); 
-            }else if (data.status_kunjungan == 1) {
-                $(row).css('color', 'yellow');
-            }
-        }
+    if (data.status_kunjungan == 2) {
+        $(row).css('color', 'orange'); 
+    } else if (data.status_kunjungan == 1 && userRole === 'Perawat') {
+        $(row).css('color', 'yellow');
+    }
+    // No color change for status_kunjungan == 1 and userRole === 'Dokter'
+}
     });
 
     $('#filter_dokter').on('change', function () {
