@@ -27,7 +27,7 @@
 
     <div class="card">
         <div class="card-header bg-primary">
-            <h4 class="card-title text-white">Daftar Kunjungan Rawat Jalan</h4>
+            <h4 class="card-title text-white">Daftar Resep Kunjungan Rawat Jalan</h4>
         </div>
         <div class="card-body">
             <div class="row mb-3">

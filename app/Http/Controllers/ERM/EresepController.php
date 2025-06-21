@@ -453,31 +453,62 @@ class EresepController extends Controller
     // SUBMIT RESEP
 
     public function submitResep(Request $request)
-    {
-        $visitationId = $request->input('visitation_id');
+{
+    $visitationId = $request->input('visitation_id');
 
-        // Ambil semua resep terkait
-        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->get();
+    // Fetch all related prescriptions
+    $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat', 'wadah')->get();
+    
+    // Track wadah that have been billed per racikan group
+    $billedWadah = [];
 
-        foreach ($reseps as $resep) {
-            Billing::updateOrCreate(
-                [
-                    'billable_id' => $resep->id,
-                    'billable_type' => Resepfarmasi::class,
-                ],
-                [
+    foreach ($reseps as $resep) {
+        // Debug line to check the actual values
+        // \Log::info("Processing resep: ", ['id' => $resep->id, 'harga' => $resep->harga, 'racikan_ke' => $resep->racikan_ke]);
+        
+        // For billing the medication - always create a billing record for each medication
+        Billing::updateOrCreate(
+            [
+                'billable_id' => $resep->id,
+                'billable_type' => ResepFarmasi::class,
+            ],
+            [
+                'visitation_id' => $resep->visitation_id,
+                'jumlah' => $resep->harga ?? 0,
+                'keterangan' => 'Obat: ' . ($resep->obat->nama ?? 'Tanpa Nama') . 
+                                ($resep->racikan_ke ? ' (Racikan #' . $resep->racikan_ke . ')' : ''),
+            ]
+        );
+
+        // For racikan prescriptions, add the wadah price if not already billed for this racikan group
+        if ($resep->racikan_ke && $resep->wadah_id && !isset($billedWadah[$resep->racikan_ke])) {
+            // Ensure the wadah relationship is loaded
+            if (!$resep->relationLoaded('wadah')) {
+                $resep->load('wadah');
+            }
+            
+            // Make sure we have a valid wadah object with a price before billing
+            if ($resep->wadah && isset($resep->wadah->harga)) {
+                Billing::create([
                     'visitation_id' => $resep->visitation_id,
-                    'jumlah' => $resep->harga,
-                    'keterangan' => 'Obat: ' . ($resep->obat->nama ?? 'Tanpa Nama'),
-                ]
-            );
+                    'billable_id' => $resep->wadah_id,
+                    'billable_type' => WadahObat::class,
+                    'jumlah' => $resep->wadah->harga ?? 0,
+                    'keterangan' => 'Wadah: ' . ($resep->wadah->nama ?? 'Wadah Racikan') . 
+                                    ' (Racikan #' . $resep->racikan_ke . ')',
+                ]);
+                
+                // Mark this wadah as billed for this racikan group
+                $billedWadah[$resep->racikan_ke] = true;
+            }
         }
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Resep berhasil disubmit!'
-        ]);
     }
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Resep berhasil disubmit!'
+    ]);
+}
 
     // RIWAYAT DOKTER & FARMASI
 
