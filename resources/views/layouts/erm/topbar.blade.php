@@ -10,7 +10,7 @@
                         </li>
                     </ul>
                     <!-- Center: Date Time -->
-                    <div class="date-time-display mx-auto" id="erm-date-time-display" style="color:#fff; font-size:15px; min-width:260px; text-align:center; font-weight:600;"></div>
+                    <div class="date-time-display mx-auto" id="erm-date-time-display" style="font-size:15px; min-width:260px; text-align:center; font-weight:600;"></div>
                     <!-- Right: dark mode, notifications, user -->
                     <ul class="list-unstyled topbar-nav float-right mb-0 d-flex align-items-center" style="margin-left:auto;">
                         <!-- Dark Mode Toggle -->
