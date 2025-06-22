@@ -39,9 +39,10 @@ class PasienHelperController
             $usia = "$years tahun $months bulan $days hari";
         }
 
-        // Find last visit date (excluding current visit)
+        // Find last visit date (excluding current visit) with status_kunjungan = 2
         $lastVisit = Visitation::where('pasien_id', $pasien->id)
             ->where('id', '!=', $visitationId)
+            ->where('status_kunjungan', 2)
             ->latest('tanggal_visitation')
             ->first();
         
