@@ -128,7 +128,21 @@
                     <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="{{ $ke }}">
                         
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 style="color: yellow;"><strong>Racikan {{ $ke }}</strong></h5>
+                            <h5 style=""><strong>Racikan {{ $ke }}
+                                <span style="color: #00ff99; font-size: 1rem; font-weight: normal;">
+                                    @php
+                                        $bungkus = (float)($items->first()->bungkus ?? 1);
+                                        $totalHargaAkhir = $items->sum(function($resep) {
+                                            $dosisObat = (float)($resep->obat->dosis ?? 0);
+                                            $dosisRacik = (float)($resep->dosis ?? 0);
+                                            $hargaSatuan = (float)($resep->obat->harga_nonfornas ?? 0);
+                                            return ($dosisObat > 0) ? ($dosisRacik / $dosisObat) * $hargaSatuan : 0;
+                                        });
+                                        $hargaRacikan = $totalHargaAkhir * $bungkus;
+                                    @endphp
+                                    (Rp. {{ number_format($hargaRacikan, 0, ',', '.') }})
+                                </span>
+                            </strong></h5>
                             <div>
                                 {{-- <button class="btn btn-info btn-sm btn-edit-racikan">Edit Racikan</button> --}}
                                 <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
@@ -139,8 +153,11 @@
                             <thead>
                                 <tr>
                                     <th>Nama Obat</th>
-                                    <th>Dosis</th>
-                                    <th>Stok</th>
+                                    <th>Dosis Obat</th>
+                                    <th>Dosis Racik</th>
+                                    <th>Harga Satuan</th>
+                                    <th>Harga Akhir</th>
+                                    <th>Sisa Stok</th>
                                     <th>Aksi</th>
                                 </tr>
                             </thead>
@@ -149,8 +166,21 @@
                                     <tr>
                                        
                                         <td data-id="{{ $resep->id }}">{{ $resep->obat->nama ?? '-' }}</td>
+                                        <td>{{ $resep->obat->dosis ?? '-' }}</td>
                                         <td>{{ $resep->dosis }}</td>
-                                        <td>{{ $resep->obat->stok ?? 0 }}</td>
+                                        <td>{{ $resep->obat->harga_nonfornas ?? 0 }}</td>
+                                        <td>
+                                            @php
+                                                $dosisObat = (float)($resep->obat->dosis ?? 0);
+                                                $dosisRacik = (float)($resep->dosis ?? 0);
+                                                $hargaSatuan = (float)($resep->obat->harga_nonfornas ?? 0);
+                                                $hargaAkhir = ($dosisObat > 0) ? ($dosisRacik / $dosisObat) * $hargaSatuan : 0;
+                                            @endphp
+                                            {{ $hargaAkhir }}
+                                        </td>
+                                        <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 50 ? 'yellow' : 'white') }};">
+                                            {{ $resep->obat->stok ?? 0 }}
+                                        </td>
                                         <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
                                     </tr>
                                 @endforeach
@@ -159,7 +189,7 @@
 
                         <div class="row">
                             <div class="col-md-3">
-                                <label>Wadah</label>
+                                <label>RACIKAN</label>
                                 <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
                                 <option value="{{ $items->first()?->wadah?->id ?? '' }}">
                                     {{ $items->first()?->wadah?->nama ?? 'Pilih Wadah' }}
@@ -329,11 +359,29 @@
         // UPDATE HARGA
         function updateTotalPrice() {
             let total = 0;
+            // Non Racikan
             $('#resep-table-body tr').each(function () {
-                // Get harga satuan and jumlah from the correct columns
                 let harga = parseFloat($(this).find('td').eq(1).text().replace(/[^\d.]/g, '')) || 0;
-                let jumlah = parseInt($(this).find('td').eq(2).text().replace(/[^\d]/g, '')) || 0;
+                let jumlah = parseFloat($(this).find('td').eq(2).text().replace(/[^\d.]/g, '')) || 0;
                 total += harga * jumlah;
+            });
+            // Racikan
+            $('#racikan-container .racikan-card').each(function () {
+                let racikanTotal = 0;
+                let bungkus = parseFloat($(this).find('.jumlah_bungkus, .bungkus').val()) || 1;
+                $(this).find('.resep-table-body tr').each(function () {
+                    // skip no-data rows
+                    if ($(this).hasClass('no-data')) return;
+                    let dosisObat = parseFloat($(this).find('td').eq(1).text()) || 0;
+                    let dosisRacik = parseFloat($(this).find('td').eq(2).text()) || 0;
+                    let hargaSatuan = parseFloat($(this).find('td').eq(3).text()) || 0;
+                    let hargaAkhir = 0;
+                    if (dosisObat > 0) {
+                        hargaAkhir = (dosisRacik / dosisObat) * hargaSatuan;
+                    }
+                    racikanTotal += hargaAkhir;
+                });
+                total += racikanTotal * bungkus;
             });
             $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
         }
@@ -376,8 +424,11 @@
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
-                                <th>Dosis</th>
-                                <th>Stok</th>
+                                <th>Dosis Obat</th>
+                                <th>Dosis Racik</th>
+                                <th>Harga Satuan</th>
+                                <th>Harga Akhir</th>
+                                <th>Sisa Stok</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
@@ -390,7 +441,7 @@
 
                     <div class="row">
                         <div class="col-md-3">
-                            <label>Wadah</label>
+                            <label>RACIKAN</label>
                             <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
                                 <option value="">Search and select wadah...</option>
                             </select>
@@ -430,8 +481,9 @@
                                 id: item.id,
                                 text: `${item.nama} ${item.dosis} ${item.satuan}`,
                                 stok: item.stok, // Include stok in the data
-                            dosis: item.dosis, // Include dosis in the data
-                            satuan: item.satuan // Include satuan in the data
+                                dosis: item.dosis, // Include dosis in the data
+                                satuan: item.satuan, // Include satuan in the data
+                                harga_nonfornas: item.harga_nonfornas // Ensure harga_nonfornas is included!
                             }))
                         };
                     },
@@ -474,6 +526,7 @@
             const stok = selectedOption.stok || 0; // Default to 0 if undefined
             const defaultDosis = parseFloat(selectedOption.dosis) || 0; // Ensure it's a number
             const satuan = selectedOption.satuan || ''; // Default to empty string if undefined
+            const hargaNonfornas = selectedOption.harga_nonfornas || 0; // Get harga satuan
 
             const dosisInput = parseFloat(card.find('.dosis_input').val()) || 0; // Ensure it's a number
             const mode = card.find('.mode_dosis').val();
@@ -489,12 +542,18 @@
             const tbody = card.find('.resep-table-body');
             tbody.find('.no-data').remove();
 
+            // Calculate harga akhir
+            let hargaAkhir = (defaultDosis > 0) ? (dosisAkhir / defaultDosis) * hargaNonfornas : 0;
+
             // Append the new row to the table
             tbody.append(`
                 <tr>
                     <td data-id="${obatId}">${obatText}</td>
+                    <td>${selectedOption.dosis || '-'}</td>
                     <td>${dosisAkhir} ${satuan}</td>
-                    <td>${stok}</td>
+                    <td>${hargaNonfornas}</td>
+                    <td>${hargaAkhir}</td>
+                    <td style="color: ${(stok < 10) ? 'red' : (stok < 50 ? 'yellow' : 'white')}">${stok}</td>
                     <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
                 </tr>
             `);
