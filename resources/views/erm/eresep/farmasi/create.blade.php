@@ -64,7 +64,7 @@
 
                 <div class="mb-3">
                     <h5>Catatan Dokter :</h5>
-                    <textarea readonly class="form-control" rows="3"></textarea>
+                    <textarea readonly class="form-control" rows="3">{{ $catatan_resep ?? '' }}</textarea>
                 </div>
                  @if (!$nonRacikans->count() && !$racikans->count())
                     <div class="alert alert-info" id="empty-resep-message">

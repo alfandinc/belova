@@ -22,6 +22,7 @@ use App\Models\ERM\WadahObat;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\ERM\ResepDetail;
 
 
 
@@ -105,7 +106,7 @@ class EresepController extends Controller
         $wadah = WadahObat::all();
 
         // dd($racikans);
-
+ $catatan_resep = ResepDetail::where('visitation_id', $visitationId)->value('catatan_dokter');
 
         return view('erm.eresep.create', array_merge([
             'visitation' => $visitation,
@@ -114,6 +115,7 @@ class EresepController extends Controller
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'lastRacikanKe' => $lastRacikanKe,
+            'catatan_resep' => $catatan_resep,
         ], $pasienData, $createKunjunganData));
     }
     public function storeNonRacikan(Request $request)
@@ -261,6 +263,8 @@ class EresepController extends Controller
 
         $wadah = WadahObat::all();
 
+        // Ambil catatan resep dari erm_resepdetail
+        $catatan_resep = ResepDetail::where('visitation_id', $visitationId)->value('catatan_dokter');
 
         return view('erm.eresep.farmasi.create', array_merge([
             'visitation' => $visitation,
@@ -269,6 +273,7 @@ class EresepController extends Controller
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'lastRacikanKe' => $lastRacikanKe,
+            'catatan_resep' => $catatan_resep,
         ], $pasienData, $createKunjunganData));
     }
     public function copyFromDokter($visitationId)

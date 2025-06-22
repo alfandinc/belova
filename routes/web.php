@@ -38,7 +38,8 @@ use App\Http\Controllers\ERM\{
     KeluhanUtamaController,
     RiwayatKunjunganController,
     ListAntrianController,
-    SuratIstirahatController
+    SuratIstirahatController,
+    ResepCatatanController
 };
 
 use App\Http\Controllers\HRD\{
@@ -156,11 +157,11 @@ Route::prefix('erm')->group(function () {
     Route::get('/edukasi-obat/{visitationId}/print', [EresepController::class, 'printEdukasiObat'])->name('edukasi.obat.print');
     // Add these routes to your routes/web.php file
     Route::get('/resep/dokter/{visitationId}/get', [EresepController::class, 'getResepDokterByVisitation'])->name('resep.dokter.get');
-    Route::get('/resep/farmasi/{visitationId}/get', [EresepController::class, 'getResepFarmasiByVisitation'])->name('resep.farmasi.get');
+    Route::get('/resep/farmasi/{pasienId}', [EresepController::class, 'getRiwayatFarmasi'])->name('resep.farmasi.get');
     // Riwayat Farmasi
     Route::get('/riwayat-resep/dokter/{pasienId}', [EresepController::class, 'getRiwayatDokter'])->name('resep.historydokter');
     Route::get('/riwayat-resep/farmasi/{pasienId}', [EresepController::class, 'getRiwayatFarmasi'])->name('resep.historyfarmasi');
-
+Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->name('resep.catatan.store');
     //Alergi
     Route::post('/pasiens/{visitation}/alergi', [AlergiController::class, 'store'])->name('erm.alergi.store');
 

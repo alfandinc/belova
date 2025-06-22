@@ -58,7 +58,10 @@
 
                 <div class="mb-3">
                     <h5>Dokter Input : {{ auth()->user()->name }}</h5>
-                    <textarea class="form-control" placeholder="Tuliskan catatan disini ..." rows="3"></textarea>
+                    <textarea class="form-control" id="catatan_dokter" placeholder="Tuliskan catatan disini ..." rows="3">{{ $catatan_dokter ?? ($catatan_resep ?? '') }}</textarea>
+                    <div class="mt-2">
+                        <button class="btn btn-success btn-sm" id="simpan-catatan">Simpan Catatan</button>
+                    </div>
                 </div>
 
                 <!-- NON RACIKAN -->
@@ -103,7 +106,7 @@
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
                                     <td>{{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->jumlah }}</td>
-                                    <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 50 ? 'yellow' : 'white') }};">
+                                    <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 100 ? 'yellow' : 'green') }};">
                                         {{ $resep->obat->stok ?? 0 }}
                                     </td>
                                     <td>{{ ($resep->jumlah ?? 0) * ($resep->obat->harga_nonfornas ?? 0) }}</td>
@@ -178,7 +181,7 @@
                                             @endphp
                                             {{ $hargaAkhir }}
                                         </td>
-                                        <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 50 ? 'yellow' : 'white') }};">
+                                        <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 100 ? 'yellow' : 'green') }};">
                                             {{ $resep->obat->stok ?? 0 }}
                                         </td>
                                         <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
@@ -352,6 +355,31 @@
                 },
                 error: function () {
                     alert('Gagal menghapus resep. Coba lagi.');
+                }
+            });
+        });
+
+        // SIMPAN CATATAN DOKTER INPUT
+        $('#simpan-catatan').on('click', function() {
+            let catatan = $('#catatan_dokter').val();
+            let visitationId = $('#visitation_id').val();
+            if (!catatan) {
+                alert('Catatan tidak boleh kosong.');
+                return;
+            }
+            $.ajax({
+                url: "{{ route('resep.catatan.store') }}",
+                method: "POST",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    visitation_id: visitationId,
+                    catatan_dokter: catatan
+                },
+                success: function(res) {
+                    alert(res.message || 'Catatan berhasil disimpan.');
+                },
+                error: function(xhr) {
+                    alert('Gagal menyimpan catatan: ' + (xhr.responseJSON?.message || 'Error'));
                 }
             });
         });
@@ -553,7 +581,7 @@
                     <td>${dosisAkhir} ${satuan}</td>
                     <td>${hargaNonfornas}</td>
                     <td>${hargaAkhir}</td>
-                    <td style="color: ${(stok < 10) ? 'red' : (stok < 50 ? 'yellow' : 'white')}">${stok}</td>
+                    <td style="color: ${(stok < 10) ? 'red' : (stok < 100 ? 'yellow' : 'green')}">${stok}</td>
                     <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
                 </tr>
             `);
