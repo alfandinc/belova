@@ -671,11 +671,11 @@
         $('#submit-all').on('click', function () {
             if (!confirm('Yakin ingin submit resep ini?')) return;
 
-            // Disable all buttons except specific ones
-            $('button').not('.btn-cetakresep, .btn-riwayat').prop('disabled', true);
+            // // Disable all buttons except specific ones
+            // $('button').not('.btn-cetakresep, .btn-riwayat').prop('disabled', true);
 
-            // Disable all input fields, select, and textarea
-            $('input, select, textarea').prop('disabled', true);
+            // // Disable all input fields, select, and textarea
+            // $('input, select, textarea').prop('disabled', true);
 
             // Change the text and style of the submit button to indicate processing
             $(this).text('Telah disimpan').addClass('btn-secondary').removeClass('btn-success');
@@ -747,42 +747,42 @@
 
                 // Handle Copy Resep button click
         $(document).on('click', '.btn-copy-resep', function() {
-    const sourceVisitationId = $(this).data('visitation-id');
-    const sourceType = $(this).data('source');
-    const targetVisitationId = $('#visitation_id').val();
-    
-    if (!confirm(`Yakin ingin menyalin resep ini ke kunjungan saat ini?`)) return;
-    
-    // Show loading state
-    $(this).html('<i class="fas fa-spinner fa-spin"></i> Menyalin...');
-    const $button = $(this);
-    
-    // Send AJAX request to copy prescriptions
-    $.ajax({
-        url: "{{ route('erm.eresepfarmasi.copyfromhistory') }}",
-        method: "POST",
-        data: {
-            _token: "{{ csrf_token() }}",
-            source_visitation_id: sourceVisitationId,
-            target_visitation_id: targetVisitationId,
-            source_type: sourceType
-        },
-        success: function(response) {
-            if (response.status === 'success') {
-                alert(response.message);
-                location.reload(); // Reload to show the copied prescriptions
-            } else {
-                alert(response.message);
-            }
-        },
-        error: function() {
-            alert('Gagal menyalin resep. Silakan coba lagi.');
-        },
-        complete: function() {
-            $button.html('<i class="fas fa-copy"></i> Salin Resep');
-        }
-    });
-});
+            const sourceVisitationId = $(this).data('visitation-id');
+            const sourceType = $(this).data('source');
+            const targetVisitationId = $('#visitation_id').val();
+            
+            if (!confirm(`Yakin ingin menyalin resep ini ke kunjungan saat ini?`)) return;
+            
+            // Show loading state
+            $(this).html('<i class="fas fa-spinner fa-spin"></i> Menyalin...');
+            const $button = $(this);
+            
+            // Send AJAX request to copy prescriptions
+            $.ajax({
+                url: "{{ route('erm.eresepfarmasi.copyfromhistory') }}",
+                method: "POST",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    source_visitation_id: sourceVisitationId,
+                    target_visitation_id: targetVisitationId,
+                    source_type: sourceType
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        alert(response.message);
+                        location.reload(); // Reload to show the copied prescriptions
+                    } else {
+                        alert(response.message);
+                    }
+                },
+                error: function() {
+                    alert('Gagal menyalin resep. Silakan coba lagi.');
+                },
+                complete: function() {
+                    $button.html('<i class="fas fa-copy"></i> Salin Resep');
+                }
+            });
+        });
 
         $('.btn-cetakresep').on('click', function() {
             const visitationId = $('#visitation_id').val();
@@ -791,10 +791,10 @@
         });
 
         $('.btn-cetaketiket').on('click', function() {
-    const visitationId = $('#visitation_id').val();
-    // Open the etiket print route in a new tab
-    window.open(`/erm/eresepfarmasi/${visitationId}/print-etiket`, '_blank');
-});
+            const visitationId = $('#visitation_id').val();
+            // Open the etiket print route in a new tab
+            window.open(`/erm/eresepfarmasi/${visitationId}/print-etiket`, '_blank');
+        });
            
         updateTotalPrice(); // <--- Tambahkan ini
     
