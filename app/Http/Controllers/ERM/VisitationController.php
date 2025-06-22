@@ -50,6 +50,14 @@ class VisitationController extends Controller
             'user_id' => Auth::id(), // Menyimpan ID user yang login
         ]);
 
+        // Generate no_resep and create resep detail
+        $noResep = 'RSP-' . now()->format('YmdHis') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        \App\Models\ERM\ResepDetail::create([
+            'visitation_id' => $customId,
+            'no_resep' => $noResep,
+            'catatan_dokter' => null,
+        ]);
+
         return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
     }
     public function storeProduk(Request $request)
@@ -80,6 +88,14 @@ class VisitationController extends Controller
             'user_id' => Auth::id(), // Menyimpan ID user yang login
         ]);
 
+        // Generate no_resep and create resep detail
+        $noResep = 'RSP-' . now()->format('YmdHis') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        \App\Models\ERM\ResepDetail::create([
+            'visitation_id' => $customId,
+            'no_resep' => $noResep,
+            'catatan_dokter' => null,
+        ]);
+
         return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
     }
     public function storeLab(Request $request)
@@ -108,6 +124,14 @@ class VisitationController extends Controller
             'status_kunjungan' => 2,
             'jenis_kunjungan' => 3,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
+        ]);
+
+        // Generate no_resep and create resep detail
+        $noResep = 'RSP-' . now()->format('YmdHis') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        \App\Models\ERM\ResepDetail::create([
+            'visitation_id' => $customId,
+            'no_resep' => $noResep,
+            'catatan_dokter' => null,
         ]);
 
         return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
