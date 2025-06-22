@@ -90,6 +90,15 @@ Terima kasih.
                         @endforeach
                     </select>
                 </div>
+                <div class="col-md-4">
+                    <label for="filter_klinik">Filter Klinik</label>
+                    <select id="filter_klinik" class="form-control select2">
+                        <option value="">Semua Klinik</option>
+                        @foreach($kliniks as $klinik)
+                            <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 @endif
             </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
@@ -172,6 +181,7 @@ var userRole = "{{ $role }}";
                 d.start_date = dateRange[0] ? moment(dateRange[0], 'DD-MM-YYYY').format('YYYY-MM-DD') : '';
                 d.end_date = dateRange[1] ? moment(dateRange[1], 'DD-MM-YYYY').format('YYYY-MM-DD') : '';
                 d.dokter_id = $('#filter_dokter').val();
+                d.klinik_id = $('#filter_klinik').val();
             }
         },
         order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
@@ -202,8 +212,8 @@ var userRole = "{{ $role }}";
 }
     });
 
-    $('#filter_dokter').on('change', function () {
-    table.ajax.reload();
+    $('#filter_dokter, #filter_klinik').on('change', function () {
+        table.ajax.reload();
     });
 
     // ambil no antrian otomatis

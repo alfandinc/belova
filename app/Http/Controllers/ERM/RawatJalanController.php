@@ -8,6 +8,7 @@ use App\Models\ERM\Visitation;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
+use App\Models\ERM\Klinik;
 
 class RawatJalanController extends Controller
 {
@@ -26,6 +27,11 @@ class RawatJalanController extends Controller
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
                 ->where('jenis_kunjungan', 1)
                 ->where('status_kunjungan', '!=', 7); // Exclude cancelled visits
+
+            // Filter by klinik_id if provided
+            if ($request->klinik_id) {
+                $visitations->where('klinik_id', $request->klinik_id);
+            }
 
             // Filter by logged-in doctor's ID if the user is a doctor
             $user = Auth::user();
@@ -145,8 +151,9 @@ class RawatJalanController extends Controller
 
         $dokters = Dokter::with('user', 'spesialisasi')->get();
         $metodeBayar = MetodeBayar::all();
+        $kliniks = Klinik::all();
         $role = Auth::user()->getRoleNames()->first();
-        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role'));
+        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks'));
     }
 
     public function cekAntrian(Request $request)
