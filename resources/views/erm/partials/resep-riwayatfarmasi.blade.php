@@ -1,6 +1,7 @@
 @foreach ($reseps as $visitationId => $group)
     @php
-        $tanggal = $group->first()->visitation->tanggal_visitation ?? '-';
+        $tanggalRaw = $group->first()->visitation->tanggal_visitation ?? null;
+        $tanggal = $tanggalRaw ? \Carbon\Carbon::parse($tanggalRaw)->translatedFormat('d F Y') : '-';
         $nonRacikans = $group->whereNull('racikan_ke');
         $racikans = $group->whereNotNull('racikan_ke')->groupBy('racikan_ke');
     @endphp

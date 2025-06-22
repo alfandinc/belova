@@ -561,7 +561,11 @@ class EresepController extends Controller
     {
         $reseps = ResepDokter::with(['obat', 'visitation'])
             ->whereHas('visitation', fn($q) => $q->where('pasien_id', $pasienId))
-            ->orderBy('visitation_id')
+            ->orderByDesc(
+                \App\Models\ERM\Visitation::select('tanggal_visitation')
+                    ->whereColumn('erm_visitations.id', 'erm_resepdokter.visitation_id')
+                    ->limit(1)
+            )
             ->get()
             ->groupBy('visitation_id');
 
@@ -572,7 +576,11 @@ class EresepController extends Controller
     {
         $reseps = ResepFarmasi::with(['obat', 'visitation'])
             ->whereHas('visitation', fn($q) => $q->where('pasien_id', $pasienId))
-            ->orderBy('visitation_id')
+            ->orderByDesc(
+                \App\Models\ERM\Visitation::select('tanggal_visitation')
+                    ->whereColumn('erm_visitations.id', 'erm_resepfarmasi.visitation_id')
+                    ->limit(1)
+            )
             ->get()
             ->groupBy('visitation_id');
 
