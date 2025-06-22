@@ -39,6 +39,10 @@
             <label>Tanggal Kunjungan</label>
             <input type="date" class="form-control" id="tanggal_visitation" name="tanggal_visitation" required>
           </div>
+          <div class="form-group">
+            <label>Waktu Kunjungan (Opsional)</label>
+            <input type="time" class="form-control" id="waktu_kunjungan" name="waktu_kunjungan">
+          </div>
 
           <div class="form-group">
               <label for="metode_bayar_id">Cara Bayar</label>

@@ -21,6 +21,7 @@ class Visitation extends Model
         'status_dokumen',
         'jenis_kunjungan',
         'tanggal_visitation',
+        'waktu_kunjungan', // add this line
         'no_antrian',
 
     ];

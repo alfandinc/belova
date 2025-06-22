@@ -99,6 +99,7 @@ Terima kasih.
                         <th>No RM</th>
                         <th>Nama Pasien</th>
                         <th>Tanggal Kunjungan</th>
+                        <th>Waktu Kunjungan</th> <!-- Add header for waktu_kunjungan -->
                         <th>Spesialisasi</th>
                         <th>Dokter</th>
                         <th>Selesai Asesmen</th>
@@ -179,6 +180,7 @@ var userRole = "{{ $role }}";
             { data: 'no_rm', name: 'no_rm', searchable: true, orderable: false },
             { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false },
             { data: 'tanggal', name: 'tanggal_visitation', searchable: true },
+            { data: 'waktu_kunjungan', name: 'waktu_kunjungan', searchable: false, orderable: false }, // Add waktu_kunjungan column
             { data: 'spesialisasi', name: 'spesialisasi', searchable: false, orderable: false },
             { data: 'dokter_nama', name: 'dokter_nama', searchable: false, orderable: false },
             { data: 'selesai_asesmen', name: 'selesai_asesmen', searchable: false, orderable: false },
@@ -187,8 +189,8 @@ var userRole = "{{ $role }}";
         ],
         columnDefs: [
             { targets: 0, width: "5%" }, // Antrian
-            { targets: 5, width: "15%" }, // Dokumen
-            { targets: 8, width: "15%" }, // Dokumen
+            { targets: 6, width: "15%" }, // Dokumen
+            { targets: 9, width: "15%" }, // Dokumen
         ],
         createdRow: function(row, data, dataIndex) {
     if (data.status_kunjungan == 2) {
@@ -292,22 +294,23 @@ function batalkanKunjungan(visitationId, btn) {
 }
 
 // Edit Antrian
-function editAntrian(visitationId, currentAntrian) {
+function editAntrian(visitationId, currentAntrian, currentWaktuKunjungan = null) {
     Swal.fire({
-        title: 'Edit Nomor Antrian',
-        input: 'number',
-        inputValue: currentAntrian,
-        inputAttributes: {
-            min: 1
-        },
+        title: 'Edit Nomor Antrian & Waktu Kunjungan',
+        html: `<input id="swal-input1" class="swal2-input" type="number" min="1" value="${currentAntrian}" placeholder="Nomor Antrian">
+               <input id="swal-input2" class="swal2-input" type="time" value="${currentWaktuKunjungan ? currentWaktuKunjungan : ''}" placeholder="Waktu Kunjungan (opsional)">`,
+        focusConfirm: false,
         showCancelButton: true,
         confirmButtonText: 'Simpan',
         cancelButtonText: 'Batal',
-        preConfirm: (newAntrian) => {
-            if (!newAntrian || newAntrian < 1) {
+        preConfirm: () => {
+            const noAntrian = document.getElementById('swal-input1').value;
+            const waktuKunjungan = document.getElementById('swal-input2').value;
+            if (!noAntrian || noAntrian < 1) {
                 Swal.showValidationMessage('Nomor antrian tidak valid');
+                return false;
             }
-            return newAntrian;
+            return { noAntrian, waktuKunjungan };
         }
     }).then((result) => {
         if (result.value) {
@@ -317,14 +320,15 @@ function editAntrian(visitationId, currentAntrian) {
                 data: {
                     _token: '{{ csrf_token() }}',
                     visitation_id: visitationId,
-                    no_antrian: result.value
+                    no_antrian: result.value.noAntrian,
+                    waktu_kunjungan: result.value.waktuKunjungan
                 },
                 success: function(res) {
                     $('#rawatjalan-table').DataTable().ajax.reload();
-                    Swal.fire('Berhasil', 'Nomor antrian berhasil diubah.', 'success');
+                    Swal.fire('Berhasil', 'Nomor antrian & waktu kunjungan berhasil diubah.', 'success');
                 },
-                error: function(xhr) {
-                    Swal.fire('Gagal', xhr.responseJSON?.message || 'Terjadi kesalahan.', 'error');
+                error: function() {
+                    Swal.fire('Gagal', 'Terjadi kesalahan.', 'error');
                 }
             });
         }

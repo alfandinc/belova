@@ -118,7 +118,7 @@ class RawatJalanController extends Controller
                             $v->gender . '`, `' .
                             $v->tanggal_lahir . '` )" title="WA Pasien"><i class=\'fab fa-whatsapp\'></i></button>';
                         // Edit Antrian button (icon only)
-                        $additionalBtns .= '<button class="btn btn-sm btn-info ml-1" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $v->no_antrian . ')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
+                        $additionalBtns .= '<button class="btn btn-sm btn-info ml-1" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $v->no_antrian . ', \'' . $v->waktu_kunjungan . '\')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
                         // Batalkan button (icon only)
                         $additionalBtns .= '<button class="btn btn-sm btn-danger ml-1" style="font-weight:bold;" onclick="batalkanKunjungan(\'' . $v->id . '\', this)" title="Batalkan"><i class=\'fas fa-times\'></i></button>';
                     }
@@ -135,6 +135,9 @@ class RawatJalanController extends Controller
                     } else {
                         return '-';
                     }
+                })
+                ->addColumn('waktu_kunjungan', function ($v) {
+                    return $v->waktu_kunjungan ? substr($v->waktu_kunjungan, 0, 5) : '-';
                 })
                 ->rawColumns(['antrian', 'dokumen'])
                 ->make(true);
@@ -175,6 +178,7 @@ class RawatJalanController extends Controller
             'dokter_id' => 'required',
             'tanggal_visitation' => 'required|date',
             'no_antrian' => 'required|integer',
+            'waktu_kunjungan' => 'nullable|date_format:H:i', // validate waktu_kunjungan
         ]);
 
         // update kunjungan lama jadi progress 7
@@ -189,6 +193,7 @@ class RawatJalanController extends Controller
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
             'tanggal_visitation' => $request->tanggal_visitation,
+            'waktu_kunjungan' => $request->waktu_kunjungan, // save waktu_kunjungan
             'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id ?? 1,
             'status_kunjungan' => 0,
@@ -205,6 +210,7 @@ class RawatJalanController extends Controller
         ]);
         $visitation = Visitation::findOrFail($request->visitation_id);
         $visitation->status_kunjungan = 7;
+        $visitation->no_antrian = null;
         $visitation->save();
         return response()->json(['success' => true]);
     }
@@ -215,9 +221,13 @@ class RawatJalanController extends Controller
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
             'no_antrian' => 'required|integer|min:1',
+            'waktu_kunjungan' => 'nullable|date_format:H:i', // allow editing waktu_kunjungan
         ]);
         $visitation = Visitation::findOrFail($request->visitation_id);
         $visitation->no_antrian = $request->no_antrian;
+        if ($request->has('waktu_kunjungan')) {
+            $visitation->waktu_kunjungan = $request->waktu_kunjungan;
+        }
         $visitation->save();
         return response()->json(['success' => true]);
     }

@@ -21,6 +21,7 @@ return new class extends Migration
             $table->enum('status_dokumen', ['asesmen', 'cppt'])->nullable();
             $table->tinyInteger('jenis_kunjungan')->default(1);
             $table->date('tanggal_visitation')->nullable();
+            $table->time('waktu_kunjungan')->nullable(); // Add this line for optional visit time
             $table->integer('no_antrian')->nullable();
             $table->foreignId('klinik_id')->nullable()->constrained('erm_klinik')->nullOnDelete();
             $table->timestamps();
