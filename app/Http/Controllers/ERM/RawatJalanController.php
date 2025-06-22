@@ -68,6 +68,9 @@ class RawatJalanController extends Controller
                 ->addColumn('spesialisasi', function ($v) {
                     return $v->dokter && $v->dokter->spesialisasi ? $v->dokter->spesialisasi->nama : '-';
                 })
+                ->addColumn('dokter_nama', function ($v) {
+                    return $v->dokter && $v->dokter->user ? $v->dokter->user->name : '-';
+                })
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
                     $dokumenBtn = '';

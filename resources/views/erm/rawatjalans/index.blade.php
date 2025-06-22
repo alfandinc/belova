@@ -100,6 +100,7 @@ Terima kasih.
                         <th>Nama Pasien</th>
                         <th>Tanggal Kunjungan</th>
                         <th>Spesialisasi</th>
+                        <th>Dokter</th>
                         <th>Selesai Asesmen</th>
                         <th>Metode Bayar</th>
                         <th>Dokumen</th>
@@ -179,13 +180,15 @@ var userRole = "{{ $role }}";
             { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false },
             { data: 'tanggal', name: 'tanggal_visitation', searchable: true },
             { data: 'spesialisasi', name: 'spesialisasi', searchable: false, orderable: false },
+            { data: 'dokter_nama', name: 'dokter_nama', searchable: false, orderable: false },
             { data: 'selesai_asesmen', name: 'selesai_asesmen', searchable: false, orderable: false },
             { data: 'metode_bayar', name: 'metode_bayar', searchable: true, orderable: false },
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
             { targets: 0, width: "5%" }, // Antrian
-            { targets: 7, width: "25%" }, // Dokumen
+            { targets: 5, width: "15%" }, // Dokumen
+            { targets: 8, width: "15%" }, // Dokumen
         ],
         createdRow: function(row, data, dataIndex) {
     if (data.status_kunjungan == 2) {
