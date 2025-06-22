@@ -91,6 +91,7 @@
                                 <th>Harga Satuan</th>
                                 <th>Jumlah</th>
                                 <th>Sisa Stok</th>
+                                <th>Harga Akhir</th>
                                 <th>Aturan Pakai</th>
                                 <th>Aksi</th>
                             </tr>
@@ -102,7 +103,10 @@
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
                                     <td>{{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->jumlah }}</td>
-                                    <td>{{ $resep->obat->stok ?? 0 }}</td>
+                                    <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 50 ? 'yellow' : 'white') }};">
+                                        {{ $resep->obat->stok ?? 0 }}
+                                    </td>
+                                    <td>{{ ($resep->jumlah ?? 0) * ($resep->obat->harga_nonfornas ?? 0) }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
                                     <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button>
                                         <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
@@ -326,8 +330,9 @@
         function updateTotalPrice() {
             let total = 0;
             $('#resep-table-body tr').each(function () {
-                let harga = parseFloat($(this).find('td').eq(2).text()) || 0;
-                let jumlah = parseInt($(this).find('td').eq(1).text()) || 0;
+                // Get harga satuan and jumlah from the correct columns
+                let harga = parseFloat($(this).find('td').eq(1).text().replace(/[^\d.]/g, '')) || 0;
+                let jumlah = parseInt($(this).find('td').eq(2).text().replace(/[^\d]/g, '')) || 0;
                 total += harga * jumlah;
             });
             $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
@@ -593,7 +598,7 @@
             const jumlah = row.find('td').eq(2).text().trim();
             // const rawDiskon = row.find('td').eq(3).text().trim();   
             // const diskonValue = rawDiskon.replace('%', '').trim();
-            const aturan = row.find('td').eq(4).text().trim();
+            const aturan = row.find('td').eq(5).text().trim();
 
             $('#edit-resep-id').val(id);
             $('#edit-jumlah').val(jumlah);
@@ -621,9 +626,12 @@
                 const row = $('#resep-table-body').find('tr[data-id="'+ id +'"]');
                 row.find('td').eq(2).text(res.data.jumlah);
                 // row.find('td').eq(3).text(res.data.diskon + ' %');
-                row.find('td').eq(4).text(res.data.aturan_pakai);
-
+                row.find('td').eq(5).text(res.data.aturan_pakai);
+                // Update Harga Akhir column
+                 const hargaSatuan = parseFloat(row.find('td').eq(1).text().replace(/[^\d.]/g, '')) || 0;
+                row.find('td').eq(4).text((res.data.jumlah * hargaSatuan).toLocaleString('id-ID'));
                 $('#editResepModal').modal('hide');
+                updateTotalPrice(); // Update total after edit
             })
             .fail(function(xhr) {
                 alert('Gagal menyimpan perubahan: ' + xhr.responseJSON.message);
