@@ -88,7 +88,7 @@
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
-                                <th>Harga</th>
+                                <th>Harga Satuan</th>
                                 <th>Jumlah</th>
                                 <th>Stok</th>
                                 <th>Aturan Pakai</th>
