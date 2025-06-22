@@ -257,8 +257,8 @@
                 <img src="{{ asset('img/logo-belovacorp-bw.png')}}" alt="Belova Logo" id="logo-image">
             </div>
             <div class="topbar-right">
-                <div class="date-display">
-                    {{ \Carbon\Carbon::now()->translatedFormat('l, d F Y') }}
+                <div class="date-display" id="date-time-display">
+                    {{ \Carbon\Carbon::now()->translatedFormat('l, d F Y H:i:s') }}
                 </div>
                 <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
                     <i class="fas fa-sun"></i>
@@ -349,7 +349,6 @@
     <!-- jQuery and core JS -->
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js')}}"></script>
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js')}}"></script>
-    
     <!-- Theme Toggle Script -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -389,6 +388,24 @@
                     logoImage.src = "{{ asset('img/logo-belovacorp-bw.png') }}";
                 }
             }
+            
+            // Live date-time update
+            function updateDateTime() {
+                const now = new Date();
+                const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                const dayName = days[now.getDay()];
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = months[now.getMonth()];
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                const formatted = `${dayName}, ${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+                document.getElementById('date-time-display').textContent = formatted;
+            }
+            setInterval(updateDateTime, 1000);
+            updateDateTime();
         });
     </script>
 </body>

@@ -22,7 +22,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         //
-        Schema::defaultStringLength(191);
-        Carbon::setLocale('id');
+        Carbon::setLocale(config('app.locale')); // otomatis 'id' dari .env
+        setlocale(LC_TIME, 'id_ID.utf8'); // agar format tanggal ikut bahasa
+        Schema::defaultStringLength(191); // untuk menghindari error pada MySQL 5.7 ke bawah
     }
 }
