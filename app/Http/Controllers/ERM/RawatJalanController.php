@@ -118,12 +118,13 @@ class RawatJalanController extends Controller
         $tanggal = $request->tanggal;
         $dokter_id = $request->dokter_id;
 
-        $count = Visitation::whereDate('tanggal_visitation', $tanggal)
+        // Use max no_antrian instead of count to avoid duplicate numbers
+        $max = Visitation::whereDate('tanggal_visitation', $tanggal)
             ->where('dokter_id', $dokter_id)
-            ->count();
+            ->max('no_antrian');
 
         return response()->json([
-            'no_antrian' => $count + 1
+            'no_antrian' => ($max ?? 0) + 1
         ]);
     }
 

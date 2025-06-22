@@ -113,15 +113,16 @@ class VisitationController extends Controller
 
     public function cekAntrian(Request $request)
     {
-        $dokterId = $request->dokter_id;
         $tanggal = $request->tanggal;
+        $dokter_id = $request->dokter_id;
 
-        $jumlahKunjungan = Visitation::where('dokter_id', $dokterId)
-            ->whereDate('tanggal_visitation', $tanggal)
-            ->count();
+        // Use max no_antrian instead of count to avoid duplicate numbers
+        $max = Visitation::whereDate('tanggal_visitation', $tanggal)
+            ->where('dokter_id', $dokter_id)
+            ->max('no_antrian');
 
         return response()->json([
-            'no_antrian' => $jumlahKunjungan + 1
+            'no_antrian' => ($max ?? 0) + 1
         ]);
     }
 
