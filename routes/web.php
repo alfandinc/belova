@@ -234,6 +234,9 @@ Route::prefix('erm')->group(function () {
     Route::post('/birthday/mark-sent', [BirthdayController::class, 'markAsSent'])->name('erm.birthday.mark-sent');
     Route::post('/birthday/generate-image', [BirthdayController::class, 'generateImage'])->name('erm.birthday.generate-image');
 Route::get('/birthday/image/{filename}', [BirthdayController::class, 'showImage'])->name('erm.birthday.show-image');
+
+    Route::post('/rawatjalans/batalkan', [RawatJalanController::class, 'batalkan']);
+    Route::post('/rawatjalans/edit-antrian', [RawatJalanController::class, 'editAntrian']);
 });
 
 

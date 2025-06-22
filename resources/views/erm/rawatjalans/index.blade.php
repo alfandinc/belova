@@ -253,7 +253,77 @@ var userRole = "{{ $role }}";
 
 });
 
-// 🛠️ Fungsi openRescheduleModal dibuat di luar $(document).ready supaya global
+// Batalkan Kunjungan
+function batalkanKunjungan(visitationId, btn) {
+    Swal.fire({
+        title: 'Batalkan Kunjungan?',
+        text: 'Status kunjungan akan diubah menjadi dibatalkan.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Batalkan',
+        cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.value) {
+            $.ajax({
+                url: '/erm/rawatjalans/batalkan',
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    visitation_id: visitationId
+                },
+                success: function(res) {
+                    // Remove row from datatable
+                    $('#rawatjalan-table').DataTable().ajax.reload();
+                    Swal.fire('Dibatalkan!', 'Kunjungan berhasil dibatalkan.', 'success');
+                },
+                error: function() {
+                    Swal.fire('Gagal', 'Terjadi kesalahan.', 'error');
+                }
+            });
+        }
+    });
+}
+
+// Edit Antrian
+function editAntrian(visitationId, currentAntrian) {
+    Swal.fire({
+        title: 'Edit Nomor Antrian',
+        input: 'number',
+        inputValue: currentAntrian,
+        inputAttributes: {
+            min: 1
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Simpan',
+        cancelButtonText: 'Batal',
+        preConfirm: (newAntrian) => {
+            if (!newAntrian || newAntrian < 1) {
+                Swal.showValidationMessage('Nomor antrian tidak valid');
+            }
+            return newAntrian;
+        }
+    }).then((result) => {
+        if (result.value) {
+            $.ajax({
+                url: '/erm/rawatjalans/edit-antrian',
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    visitation_id: visitationId,
+                    no_antrian: result.value
+                },
+                success: function(res) {
+                    $('#rawatjalan-table').DataTable().ajax.reload();
+                    Swal.fire('Berhasil', 'Nomor antrian berhasil diubah.', 'success');
+                },
+                error: function(xhr) {
+                    Swal.fire('Gagal', xhr.responseJSON?.message || 'Terjadi kesalahan.', 'error');
+                }
+            });
+        }
+    });
+}
+
 function openRescheduleModal(visitationId, namaPasien, pasienId) {
     $('#modalReschedule').modal('show');
     $('#reschedule-visitation-id').val(visitationId);
