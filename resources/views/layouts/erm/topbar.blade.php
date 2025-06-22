@@ -1,9 +1,18 @@
-            <!-- Top Bar Start -->
+<!-- Top Bar Start -->
             <div class="topbar">
-                            
-                <!-- Navbar -->
-                <nav class="navbar-custom">    
-                    <ul class="list-unstyled topbar-nav float-right mb-0">  
+                <nav class="navbar-custom d-flex align-items-center" style="width:100%;">
+                    <!-- Left: menu button -->
+                    <ul class="list-unstyled topbar-nav mb-0 d-flex align-items-center" style="margin-right:auto;">
+                        <li>
+                            <button class="nav-link button-menu-mobile">
+                                <i data-feather="menu" class="align-self-center topbar-icon"></i>
+                            </button>
+                        </li>
+                    </ul>
+                    <!-- Center: Date Time -->
+                    <div class="date-time-display mx-auto" id="erm-date-time-display" style="color:#fff; font-size:15px; min-width:260px; text-align:center; font-weight:600;"></div>
+                    <!-- Right: dark mode, notifications, user -->
+                    <ul class="list-unstyled topbar-nav float-right mb-0 d-flex align-items-center" style="margin-left:auto;">
                         <!-- Dark Mode Toggle -->
                         <li class="nav-item mt-3 mr-2">
                             <div class="dark-mode-toggle">
@@ -122,16 +131,29 @@
                         
                     </ul><!--end topbar-nav-->
         
-                    <ul class="list-unstyled topbar-nav mb-0">                        
-                        <li>
-                            <button class="nav-link button-menu-mobile">
-                                <i data-feather="menu" class="align-self-center topbar-icon"></i>
-                            </button>
-                        
-                        </li> 
-                                                 
-                    </ul>
                 </nav>
                 <!-- end navbar-->
             </div>
             <!-- Top Bar End -->
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            function updateERMDateTime() {
+                const now = new Date();
+                const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                const dayName = days[now.getDay()];
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = months[now.getMonth()];
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                const formatted = `${dayName}, ${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+                const el = document.getElementById('erm-date-time-display');
+                if (el) el.textContent = formatted;
+            }
+            setInterval(updateERMDateTime, 1000);
+            updateERMDateTime();
+        });
+    </script>
