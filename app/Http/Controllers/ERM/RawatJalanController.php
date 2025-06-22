@@ -65,6 +65,9 @@ class RawatJalanController extends Controller
                     return $date->translatedFormat('j F Y');
                 })
                 ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
+                ->addColumn('spesialisasi', function ($v) {
+                    return $v->dokter && $v->dokter->spesialisasi ? $v->dokter->spesialisasi->nama : '-';
+                })
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
                     $dokumenBtn = '';

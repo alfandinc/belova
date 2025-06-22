@@ -98,7 +98,8 @@ Terima kasih.
                         <th>Antrian</th>
                         <th>No RM</th>
                         <th>Nama Pasien</th>
-                        <th>Tanggal Kunjungan</th>                        
+                        <th>Tanggal Kunjungan</th>
+                        <th>Spesialisasi</th>
                         <th>Metode Bayar</th>
                         <th>Dokumen</th>
                     </tr>
@@ -173,15 +174,16 @@ var userRole = "{{ $role }}";
         order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
             { data: 'antrian', name: 'no_antrian', searchable: true, orderable: true },
-            { data: 'no_rm', name: 'no_rm', searchable: true, orderable: false }, // Match alias
-            { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false }, // Match alias
+            { data: 'no_rm', name: 'no_rm', searchable: true, orderable: false },
+            { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false },
             { data: 'tanggal', name: 'tanggal_visitation', searchable: true },
+            { data: 'spesialisasi', name: 'spesialisasi', searchable: false, orderable: false },
             { data: 'metode_bayar', name: 'metode_bayar', searchable: true, orderable: false },
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
             { targets: 0, width: "5%" }, // Antrian
-            { targets: 5, width: "25%" }, // Dokumen
+            { targets: 6, width: "25%" }, // Dokumen
         ],
         createdRow: function(row, data, dataIndex) {
     if (data.status_kunjungan == 2) {
