@@ -90,7 +90,7 @@
                                 <th>Nama Obat</th>
                                 <th>Harga Satuan</th>
                                 <th>Jumlah</th>
-                                <th>Stok</th>
+                                <th>Sisa Stok</th>
                                 <th>Aturan Pakai</th>
                                 <th>Aksi</th>
                             </tr>
