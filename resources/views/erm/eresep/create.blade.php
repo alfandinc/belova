@@ -683,7 +683,23 @@
         });
         
         updateTotalPrice(); // 
-    
+
+        // AUTO-FILL ATURAN PAKAI ON TAB (NON RACIKAN)
+        $('#aturan_pakai').on('keydown', function(e) {
+            if (e.key === 'Tab' && !$(this).val()) {
+                e.preventDefault();
+                $(this).val('1 X Sehari 1');
+                this.select();
+            }
+        });
+        // AUTO-FILL ATURAN PAKAI ON TAB (RACIKAN, DYNAMIC)
+        $(document).on('keydown', '.aturan_pakai', function(e) {
+            if (e.key === 'Tab' && !$(this).val()) {
+                e.preventDefault();
+                $(this).val('1 X Sehari 1');
+                this.select();
+            }
+        });
     });
 
 
