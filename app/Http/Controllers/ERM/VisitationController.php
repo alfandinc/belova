@@ -116,13 +116,20 @@ class VisitationController extends Controller
         $tanggal = $request->tanggal;
         $dokter_id = $request->dokter_id;
 
-        // Use max no_antrian instead of count to avoid duplicate numbers
+        // Get the current max antrian number for the date and doctor
         $max = Visitation::whereDate('tanggal_visitation', $tanggal)
             ->where('dokter_id', $dokter_id)
             ->max('no_antrian');
 
+        // Numbers to skip
+        $skip = [3, 5];
+        $next = ($max ?? 0) + 1;
+        while (in_array($next, $skip)) {
+            $next++;
+        }
+
         return response()->json([
-            'no_antrian' => ($max ?? 0) + 1
+            'no_antrian' => $next
         ]);
     }
 
