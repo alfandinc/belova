@@ -122,6 +122,17 @@ class RawatJalanController extends Controller
 
                     return $dokumenBtn . ' ' . $additionalBtns;
                 })
+                ->addColumn('selesai_asesmen', function ($v) {
+                    $asesmenPenunjang = $v->asesmenPenunjang;
+                    $cppt = $v->cppt;
+                    if ($asesmenPenunjang && $asesmenPenunjang->created_at) {
+                        return $asesmenPenunjang->created_at->format('H:i');
+                    } elseif ($cppt && $cppt->created_at) {
+                        return $cppt->created_at->format('H:i');
+                    } else {
+                        return '-';
+                    }
+                })
                 ->rawColumns(['antrian', 'dokumen'])
                 ->make(true);
         }

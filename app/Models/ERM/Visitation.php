@@ -70,4 +70,8 @@ class Visitation extends Model
     {
         return $this->belongsTo(Klinik::class, 'klinik_id');
     }
+    public function cppt()
+    {
+        return $this->hasOne(Cppt::class, 'visitation_id');
+    }
 }
