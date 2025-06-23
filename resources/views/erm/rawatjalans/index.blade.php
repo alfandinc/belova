@@ -104,7 +104,13 @@ Terima kasih.
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>
-                        <th>Antrian</th>
+                        <th>
+                            @if ($role === 'Dokter')
+                                No
+                            @else
+                                Antrian
+                            @endif
+                        </th>
                         <th>No RM</th>
                         <th>Nama Pasien</th>
                         <th>Tanggal Kunjungan</th>
@@ -187,7 +193,19 @@ var userRole = "{{ $role }}";
         },
         order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
-            { data: 'antrian', name: 'no_antrian', searchable: true, orderable: true },
+            { 
+                data: 'antrian', 
+                name: 'no_antrian', 
+                searchable: true, 
+                orderable: true,
+                render: function(data, type, row, meta) {
+                    if (userRole === 'Dokter') {
+                        return meta.row + 1;
+                    } else {
+                        return data;
+                    }
+                }
+            },
             { data: 'no_rm', name: 'no_rm', searchable: true, orderable: false },
             { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false },
             { data: 'tanggal', name: 'tanggal_visitation', searchable: true },
