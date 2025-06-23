@@ -4,28 +4,35 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <title>Nota {{ $invoice->invoice_number }}</title>
     <style>
+        html, body {
+            width: 100%;
+            margin: 20px;
+            padding: 0;
+        }
         body {
             font-family: Arial, sans-serif;
-            font-size: 8pt;
-            margin: 0;
+            font-size: 10pt;
+            margin: 0 14px; /* Increased left and right margin */
             padding: 0;
-            width: 100%;
+            width: auto;
+            line-height: 1.7;
         }
         .header {
             text-align: center;
-            margin-bottom: 8px;
+            margin-bottom: 2px;
         }
         .header h3 {
             margin: 0;
-            font-size: 10pt;
+            font-size: 12pt;
         }
         .header p {
             margin: 0;
-            font-size: 7pt;
+            font-size: 9pt;
         }
         .info {
-            margin-bottom: 8px;
-            font-size: 7pt;
+            margin-bottom: 2px;
+            font-size: 9pt;
+            padding: 0;
         }
         .info-row {
             margin: 2px 0;
@@ -33,33 +40,36 @@
         table.items {
             width: 100%;
             border-collapse: collapse;
-            font-size: 7pt;
+            font-size: 9pt;
+            margin: 0;
+            padding: 0;
         }
         table.items th, table.items td {
             text-align: left;
-            padding: 1px 2px;
+            padding: 0;
         }
         .item-row td {
             border-top: 1px dotted #ccc;
             border-bottom: 1px dotted #ccc;
         }
         .total-section {
-            margin-top: 5px;
+            margin-top: 1px;
             text-align: right;
+            padding: 0;
         }
         .total-row {
-            font-size: 7pt;
-            margin: 2px 0;
+            font-size: 9pt;
+            margin: 0;
         }
         .grand-total {
             font-weight: bold;
-            font-size: 8pt;
-            margin-top: 3px;
+            font-size: 10pt;
+            margin-top: 0;
         }
         .footer {
-            margin-top: 10px;
+            margin-top: 2px;
             text-align: center;
-            font-size: 7pt;
+            font-size: 9pt;
         }
         .text-right {
             text-align: right;
@@ -78,9 +88,20 @@
             <strong>No:</strong> {{ $invoice->invoice_number }}
         </div>
         <div class="info-row">
+            <strong>ID Pasien:</strong> {{ $invoice->visitation->pasien->id ?? '-' }}
+        </div>
+        <div class="info-row">
             <strong>Pasien:</strong> {{ $invoice->visitation->pasien->nama ?? '-' }}
         </div>
+        <div class="info-row">
+            <strong>Dokter:</strong> {{ $invoice->visitation->dokter->user->name ?? '-' }}
+        </div>
+        <div class="info-row">
+            <strong>Kasir:</strong> {{ auth()->user()->name ?? '-' }}
+        </div>
     </div>
+
+    <hr style="border: 0; border-top: 1px solid #000; margin: 6px 0;">
 
     <table class="items">
         <tr>
@@ -118,8 +139,7 @@
     </div>
 
     <div class="footer">
-        <p>Terima kasih atas kunjungan Anda</p>
-        <p>{{ date('d/m/Y H:i:s') }}</p>
+        <p>Barang yang sudah dibeli tidak dapat dikembalikan</p>
     </div>
 </body>
 </html>

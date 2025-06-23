@@ -404,14 +404,14 @@
                 <td>
                     <div><strong>APOTEKER PEMBERI EDUKASI</strong></div>
                     <div class="barcode">
-                        {{-- <img src="data:image/png;base64,{{ DNS2D::getBarcodePNG('Apoteker: '.$edukasi->apoteker->name, 'QRCODE', 2, 2) }}" alt="QR Code"> --}}
+                        {!! QrCode::size(80)->generate($edukasi->apoteker->name) !!}
                     </div>
                     <div>{{ $edukasi->apoteker->name }}</div>
                 </td>
                 <td>
                     <div><strong>PASIEN/KELUARGA PASIEN PENERIMA EDUKASI OBAT</strong></div>
                     <div class="barcode">
-                        {{-- <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($visitation->pasien->id, 'C128', 1.2, 40) }}" alt="Barcode"> --}}
+                        {!! QrCode::size(80)->generate($visitation->pasien->nama) !!}
                     </div>
                     <div>{{ $visitation->pasien->nama }}</div>
                 </td>

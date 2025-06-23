@@ -120,32 +120,35 @@ class InvoiceController extends Controller
         return $pdf->stream('Invoice-' . $invoice->invoice_number . '.pdf');
     }
 
+    /**
+     * Generate PDF nota
+     */
     public function printNota($id)
-{
-    $invoice = Invoice::with([
-        'visitation.pasien',
-        'visitation.klinik',
-        'items'
-    ])->findOrFail($id);
+    {
+        $invoice = Invoice::with([
+            'visitation.pasien',
+            'visitation.klinik',
+            'items'
+        ])->findOrFail($id);
 
-    $pdf = PDF::loadView('finance.invoice.nota', compact('invoice'))
-        ->setPaper([0, 0, 170.08, 1000]) // 4.5cm width (170.08 px) with dynamic height
-        ->setOptions([
-            'defaultFont' => 'helvetica',
-            'fontHeightRatio' => 0.9,
-            'isRemoteEnabled' => true,
-            'isHtml5ParserEnabled' => true,
-            'isFontSubsettingEnabled' => true,
-            'dpi' => 150,
-            'defaultMediaType' => 'print',
-            'enable_javascript' => true,
-            'no_background' => false,
-            'margin_top' => 5,
-            'margin_right' => 5,
-            'margin_bottom' => 5,
-            'margin_left' => 5
-        ]);
+        $pdf = PDF::loadView('finance.invoice.nota', compact('invoice'))
+            ->setPaper([0, 0, 226.77, 1000]) // 6 cm width (226.77 px) with dynamic height
+            ->setOptions([
+                'defaultFont' => 'helvetica',
+                'fontHeightRatio' => 0.9,
+                'isRemoteEnabled' => true,
+                'isHtml5ParserEnabled' => true,
+                'isFontSubsettingEnabled' => true,
+                'dpi' => 150,
+                'defaultMediaType' => 'print',
+                'enable_javascript' => true,
+                'no_background' => false,
+                'margin_top' => 2,
+                'margin_right' => 30,
+                'margin_bottom' => 2,
+                'margin_left' => 30
+            ]);
 
-    return $pdf->stream('Nota-' . $invoice->invoice_number . '.pdf');
-}
+        return $pdf->stream('Nota-' . $invoice->invoice_number . '.pdf');
+    }
 }
