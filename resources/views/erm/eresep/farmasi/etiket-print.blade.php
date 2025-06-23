@@ -40,12 +40,13 @@
         .info-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 6pt;
+            font-size: 8.5pt; /* Increased from 7pt */
         }
         .info-table td {
             padding: 2px;
             vertical-align: top;
             text-align: left; /* Ensure all text is left-aligned */
+            font-size: 9pt; /* Increased from 7.5pt */
         }
         .info-left {
             width: 50%;
@@ -67,7 +68,7 @@
             margin: 8px 5px;
             text-align: center;
             font-weight: bold;
-            font-size: 12pt; /* Reduced from 16pt */
+            font-size: 10pt; /* Reduced from 12pt */
             border: 1px solid #000;
             padding: 6px 3px;
         }
@@ -101,12 +102,12 @@
                         <span class="label">Tgl Lahir: </span>{{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->isoFormat('D MMMM Y') ?? '-' }}
                     </td>
                     <td class="info-right">
-                        <span class="label">Dokter: </span>{{ $visitation->dokter->user->name ?? '-' }}
+                        <span class="label">Tgl Visit: </span>{{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->isoFormat('D MMMM Y') ?? date('d F Y') }}
                     </td>
                 </tr>
                 <tr>
                     <td class="info-left" colspan="2">
-                        <span class="label">Tanggal Kunjungan: </span>{{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->isoFormat('D MMMM Y') ?? date('d F Y') }}
+                        <span class="label">Dokter: </span>{{ $visitation->dokter->user->name ?? '-' }}
                     </td>
                 </tr>
             </table>
