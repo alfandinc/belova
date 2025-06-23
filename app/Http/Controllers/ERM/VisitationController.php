@@ -27,7 +27,7 @@ class VisitationController extends Controller
             'pasien_id' => 'required|exists:erm_pasiens,id',
             'dokter_id' => 'required|string',
             'tanggal_visitation' => 'required|date',
-            'waktu_kunjungan' => 'date_format:H:i', // Validasi waktu kunjungan
+            // 'waktu_kunjungan' => 'date_format:H:i', // Validasi waktu kunjungan
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
         ]);
