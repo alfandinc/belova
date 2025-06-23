@@ -310,7 +310,9 @@
                             <td>${res.data.obat.nama}</td>
                             <td>${res.data.obat.harga_nonfornas || 0}</td>
                             <td>${res.data.jumlah}</td>
+                            
                             <td>${res.data.obat.stok || 0}</td>
+                            <td>${(res.data.obat.harga_nonfornas || 0) * (res.data.jumlah || 0)}</td>
                             <td>${res.data.aturan_pakai}</td>
                             <td>
                                 <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>

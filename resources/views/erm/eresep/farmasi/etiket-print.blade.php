@@ -154,11 +154,11 @@
         </div>
         <div class="obat-detail">
             <span style="font-size: 9pt; font-weight: bold;">Obat Racikan</span><br>
-            <span style="font-size: 7pt; font-weight: normal;">
+            {{-- <span style="font-size: 7pt; font-weight: normal;">
             @foreach($items as $item)
                 {{ $item->obat->nama ?? '-' }} ({{ $item->dosis ?? '-' }})<br>
             @endforeach
-            </span>
+            </span> --}}
         </div>
         <div class="aturan-pakai">
             {{ $items->first()->aturan_pakai ?? 'Sesuai petunjuk dokter' }}
