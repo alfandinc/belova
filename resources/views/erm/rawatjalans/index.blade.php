@@ -174,6 +174,7 @@ var userRole = "{{ $role }}";
         processing: true,
         serverSide: true,
         responsive: true,
+        pageLength: 50, // Set default rows per page to 50
         ajax: {
             url: '{{ route("erm.rawatjalans.index") }}',
             data: function(d) {

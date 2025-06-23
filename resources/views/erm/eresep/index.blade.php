@@ -31,11 +31,11 @@
         </div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="filter_tanggal">Filter Tanggal Kunjungan</label>
                     <input type="date" id="filter_tanggal" class="form-control">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="filter_dokter">Filter Dokter</label>
                     <select id="filter_dokter" class="form-control select2">
                         <option value="">Semua Dokter</option>
@@ -44,13 +44,20 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="filter_klinik">Filter Klinik</label>
                     <select id="filter_klinik" class="form-control select2">
                         <option value="">Semua Klinik</option>
                         @foreach($kliniks as $klinik)
                             <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
                         @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_status_resep">Status Resep</label>
+                    <select id="filter_status_resep" class="form-control select2">
+                        <option value="0" selected>Belum Dilayani</option>
+                        <option value="1">Sudah Dilayani</option>
                     </select>
                 </div>
             </div>
@@ -81,6 +88,7 @@ $(document).ready(function () {
     var today = new Date().toISOString().substr(0, 10);
     $('#filter_tanggal').val(today);
     $('.select2').select2({ width: '100%' });
+    $('#filter_status_resep').val('0').trigger('change'); // set default to 0
 
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
@@ -92,6 +100,7 @@ $(document).ready(function () {
                 d.tanggal = $('#filter_tanggal').val();
                 d.dokter_id = $('#filter_dokter').val();
                 d.klinik_id = $('#filter_klinik').val();
+                d.status_resep = $('#filter_status_resep').val(); // add status_resep
             }
         },
         // order: [[5, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
@@ -117,7 +126,7 @@ $(document).ready(function () {
     });
 
     // Event ganti filter
-    $('#filter_tanggal, #filter_dokter, #filter_klinik').on('change', function () {
+    $('#filter_tanggal, #filter_dokter, #filter_klinik, #filter_status_resep').on('change', function () {
         table.ajax.reload();
     });
 

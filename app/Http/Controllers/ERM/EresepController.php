@@ -50,6 +50,16 @@ class EresepController extends Controller
                 $visitations->where('status_kunjungan', 2);
             }
 
+            if ($request->status_resep !== null && $request->status_resep !== '') {
+                // Filter visitations that have a resepdetail with the selected status
+                $visitations->whereExists(function($query) use ($request) {
+                    $query->select(DB::raw(1))
+                        ->from('erm_resepdetail')
+                        ->whereColumn('erm_resepdetail.visitation_id', 'erm_visitations.id')
+                        ->where('erm_resepdetail.status', $request->status_resep);
+                });
+            }
+
             return datatables()->of($visitations)
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
                 ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
