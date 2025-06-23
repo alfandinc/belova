@@ -31,7 +31,7 @@ class EresepController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $visitations = Visitation::with(['pasien', 'metodeBayar'])->select('erm_visitations.*');
+            $visitations = Visitation::with(['pasien', 'metodeBayar', 'dokter.user', 'dokter.spesialisasi'])->select('erm_visitations.*');
 
             if ($request->tanggal) {
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
@@ -48,7 +48,11 @@ class EresepController extends Controller
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
                 ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
                 ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
-                ->addColumn('tanggal_visitation', fn($v) => $v->tanggal_visitation)
+                ->addColumn('tanggal_visitation', function($v) {
+                    if (!$v->tanggal_visitation) return '-';
+                    \Carbon\Carbon::setLocale('id');
+                    return \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
+                })
                 ->addColumn('status_dokumen', fn($v) => ucfirst($v->status_dokumen))
                 ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
                 ->addColumn('status_kunjungan', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
@@ -57,6 +61,49 @@ class EresepController extends Controller
                     $asesmenUrl = $user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id)
                         : ($user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id) : '#');
                     return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
+                })
+                ->addColumn('nama_dokter', function($v) {
+                    return $v->dokter && $v->dokter->user ? $v->dokter->user->name : '-';
+                })
+                ->addColumn('spesialisasi', function($v) {
+                    return $v->dokter && $v->dokter->spesialisasi ? $v->dokter->spesialisasi->nama : '-';
+                })
+                ->addColumn('no_resep', function($v) {
+                    // Ambil no_resep dari erm_resepdetail berdasarkan visitation_id
+                    return \App\Models\ERM\ResepDetail::where('visitation_id', $v->id)->value('no_resep') ?? '-';
+                })
+                ->addColumn('asesmen_selesai', function($v) {
+                    // Cari asesmen penunjang
+                    $asesmenPenunjang = \DB::table('erm_asesmen_penunjang')
+                        ->where('visitation_id', $v->id)
+                        ->first();
+                    if ($asesmenPenunjang && $asesmenPenunjang->created_at) {
+                        \Carbon\Carbon::setLocale('id');
+                        return \Carbon\Carbon::parse($asesmenPenunjang->created_at)->translatedFormat('H:i');
+                    }
+                    // Jika tidak ada, cari dari cppt
+                    $cppt = \DB::table('erm_cppt')
+                        ->where('visitation_id', $v->id)
+                        ->orderBy('created_at', 'asc')
+                        ->first();
+                    if ($cppt && $cppt->created_at) {
+                        \Carbon\Carbon::setLocale('id');
+                        return \Carbon\Carbon::parse($cppt->created_at)->translatedFormat('H:i');
+                    }
+                    return '-';
+                })
+                ->filterColumn('nama_pasien', function($query, $keyword) {
+                    $query->whereHas('pasien', function($q) use ($keyword) {
+                        $q->where('nama', 'like', "%$keyword%");
+                    });
+                })
+                ->filterColumn('no_resep', function($query, $keyword) {
+                    $query->whereExists(function($q) use ($keyword) {
+                        $q->select(DB::raw(1))
+                          ->from('erm_resepdetail')
+                          ->whereColumn('erm_resepdetail.visitation_id', 'erm_visitations.id')
+                          ->where('erm_resepdetail.no_resep', 'like', "%$keyword%");
+                    });
                 })
                 ->rawColumns(['dokumen'])
                 ->make(true);

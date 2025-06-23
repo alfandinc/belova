@@ -39,12 +39,14 @@
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>
-                        {{-- <th>Antrian</th> --}}
+                        <th>No Resep</th> <!-- New column -->
+                        <th>Tanggal Kunjungan</th>
                         <th>No RM</th>
                         <th>Nama Pasien</th>
-                        <th>Tanggal Kunjungan</th>
-                        {{-- <th>Status</th> --}}
+                        <th>Nama Dokter</th> <!-- New -->
+                        <th>Spesialisasi</th> <!-- New -->
                         <th>Metode Bayar</th>
+                        <th>Asesmen Selesai</th> <!-- New column -->
                         <th>Resep</th>
                     </tr>
                 </thead>
@@ -73,14 +75,16 @@ $(document).ready(function () {
         },
         // order: [[5, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
-            // { data: 'antrian', name: 'no_antrian', searchable: false, orderable: true },
-            { data: 'no_rm', searchable: false, orderable: false },
-            { data: 'nama_pasien', searchable: false, orderable: false },
+            { data: 'no_resep', name: 'no_resep', searchable: true, orderable: false }, // Now searchable
             { data: 'tanggal_visitation', name: 'tanggal_visitation' },
-            // { data: 'status_dokumen', name: 'status_dokumen' },
+            { data: 'no_rm', searchable: false, orderable: false },
+            { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false }, // Now searchable
+            { data: 'nama_dokter', searchable: false, orderable: false }, // New
+            { data: 'spesialisasi', searchable: false, orderable: false }, // New
             { data: 'metode_bayar', searchable: false, orderable: false },
+            { data: 'asesmen_selesai', name: 'asesmen_selesai', searchable: false, orderable: false }, // New column
             { data: 'dokumen', searchable: false, orderable: false },
-            { data: 'status_kunjungan', visible: false, searchable: false }, // 🛠️ Sembunyikan
+            { data: 'status_kunjungan', visible: false, searchable: false } // 🛠️ Sembunyikan
         ],
     //     columnDefs: [
     //     { targets: 0, width: "5%" }, // Antrian
