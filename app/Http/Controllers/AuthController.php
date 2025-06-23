@@ -73,7 +73,16 @@ class AuthController extends Controller
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
             // Redirect to the correct dashboard or kunjungan rajal page for ERM
             if ($module === 'erm') {
-                return redirect()->route('erm.rawatjalans.index');
+                // Check for Farmasi role
+                if ($user->hasRole('Farmasi')) {
+                    return redirect()->route('erm.eresepfarmasi.index'); // E-Resep Farmasi menu route
+                }
+                // For Dokter, Pendaftaran, Perawat
+                if ($user->hasAnyRole(['Dokter', 'Pendaftaran', 'Perawat'])) {
+                    return redirect()->route('erm.rawatjalans.index');
+                }
+                // Default fallback for ERM
+                return redirect()->route('erm.dashboard');
             }
             return redirect()->route("$module.dashboard");
         }
