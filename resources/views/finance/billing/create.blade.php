@@ -119,6 +119,20 @@
                         </div>
                     </div>
                     
+                    <div class="form-group">
+                        <label for="admin_fee">Biaya Administrasi</label>
+                        <select class="form-control" id="admin_fee">
+                            <option value="10000">Rp 10.000</option>
+                            <option value="15000">Rp 15.000</option>
+                            <option value="20000">Rp 20.000</option>
+                            <option value="25000">Rp 25.000</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="shipping_fee">Biaya Ongkir</label>
+                        <input type="number" class="form-control" id="shipping_fee" min="0" value="0">
+                    </div>
+                    
                     <div class="border-top pt-3 mt-3">
                         <div class="d-flex justify-content-between">
                             <h5>Total:</h5>
@@ -457,7 +471,6 @@
         // Calculate totals for the bottom section
         function calculateTotals() {
             let subtotal = 0;
-            
             // Sum up all harga_akhir_raw values from non-deleted items
             billingData.forEach(function(item) {
                 if (!item.deleted) {
@@ -465,15 +478,12 @@
                     subtotal += value;
                 }
             });
-            
             // Display subtotal
             $('#subtotal').text('Rp ' + formatCurrency(subtotal));
-            
             // Calculate global discount
             const globalDiscount = parseFloat($('#global_discount').val() || 0);
             const globalDiscountType = $('#global_discount_type').val();
             let discountAmount = 0;
-            
             if (globalDiscount > 0) {
                 if (globalDiscountType === '%') {
                     discountAmount = subtotal * (globalDiscount / 100);
@@ -481,22 +491,20 @@
                     discountAmount = globalDiscount;
                 }
             }
-            
             // Display discount amount
             $('#global_discount_amount').text('- Rp ' + formatCurrency(discountAmount));
-            
             // Calculate tax
             const taxPercentage = parseFloat($('#tax_percentage').val() || 0);
             const afterDiscount = subtotal - discountAmount;
             const taxAmount = afterDiscount * (taxPercentage / 100);
-            
             // Display tax amount
             $('#tax_amount').text('+ Rp ' + formatCurrency(taxAmount));
-            
+            // Get admin fee and shipping fee
+            const adminFee = parseFloat($('#admin_fee').val() || 0);
+            const shippingFee = parseFloat($('#shipping_fee').val() || 0);
             // Calculate and display grand total
-            const grandTotal = afterDiscount + taxAmount;
+            const grandTotal = afterDiscount + taxAmount + adminFee + shippingFee;
             $('#grand_total').text('Rp ' + formatCurrency(grandTotal));
-            
             // Store these values for later use when saving/creating invoice
             window.billingTotals = {
                 subtotal: subtotal,
@@ -505,12 +513,14 @@
                 discountValue: globalDiscount,
                 taxPercentage: taxPercentage,
                 taxAmount: taxAmount,
+                adminFee: adminFee,
+                shippingFee: shippingFee,
                 grandTotal: grandTotal
             };
         }
         
         // Event listeners for total calculation inputs
-        $('#global_discount, #global_discount_type, #tax_percentage').on('change input', function() {
+        $('#global_discount, #global_discount_type, #tax_percentage, #admin_fee, #shipping_fee').on('change input', function() {
             calculateTotals();
         });
         

@@ -312,7 +312,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 if (isset($item['deleted']) && $item['deleted']) {
                     continue; // Skip deleted items
                 }
-
+                // Skip Jasa Farmasi from invoice/nota
+                if (
+                    (isset($item['nama_item']) && strtolower($item['nama_item']) === 'jasa farmasi') ||
+                    (isset($item['is_pharmacy_fee']) && $item['is_pharmacy_fee'])
+                ) {
+                    continue;
+                }
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => $item['nama_item'] ?? 'Unknown Item',
@@ -324,6 +330,36 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'final_amount' => floatval($item['harga_akhir_raw'] ?? 0),
                     'billable_type' => $item['billable_type'] ?? null,
                     'billable_id' => $item['id'] ?? null,
+                ]);
+            }
+
+            // Add biaya administrasi and biaya ongkir as invoice items if present
+            if (!empty($totals['adminFee']) && $totals['adminFee'] > 0) {
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'name' => 'Biaya Administrasi',
+                    'description' => 'Biaya administrasi layanan',
+                    'quantity' => 1,
+                    'unit_price' => floatval($totals['adminFee']),
+                    'discount' => 0,
+                    'discount_type' => null,
+                    'final_amount' => floatval($totals['adminFee']),
+                    'billable_type' => null,
+                    'billable_id' => null,
+                ]);
+            }
+            if (!empty($totals['shippingFee']) && $totals['shippingFee'] > 0) {
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'name' => 'Biaya Ongkir',
+                    'description' => 'Biaya pengiriman',
+                    'quantity' => 1,
+                    'unit_price' => floatval($totals['shippingFee']),
+                    'discount' => 0,
+                    'discount_type' => null,
+                    'final_amount' => floatval($totals['shippingFee']),
+                    'billable_type' => null,
+                    'billable_id' => null,
                 ]);
             }
 
@@ -396,30 +432,85 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     }
 
     public function getVisitationsData(Request $request)
-{
-    $startDate = $request->input('start_date', now()->format('Y-m-d'));
-    $endDate = $request->input('end_date', now()->format('Y-m-d'));
-    
-    $visitations = Visitation::with(['pasien', 'klinik'])
-        ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59']);
-    
-    return DataTables::of($visitations)
-        ->addColumn('no_rm', function ($visitation) {
-            return $visitation->pasien ? $visitation->pasien->id : '-';
-        })
-        ->addColumn('nama_pasien', function ($visitation) {
-            return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
-        })
-        ->addColumn('tanggal_visit', function ($visitation) {
-            return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y');
-        })
-        ->addColumn('nama_klinik', function ($visitation) {
-            return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
-        })
-        ->addColumn('action', function ($visitation) {
-            return '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
-        })
-        ->rawColumns(['action'])
-        ->make(true);
-}
+    {
+        $startDate = $request->input('start_date', now()->format('Y-m-d'));
+        $endDate = $request->input('end_date', now()->format('Y-m-d'));
+        $dokterId = $request->input('dokter_id');
+        $klinikId = $request->input('klinik_id');
+        
+        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi'])
+            ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59']);
+        
+        if ($dokterId) {
+            $visitations->where('dokter_id', $dokterId);
+        }
+        if ($klinikId) {
+            $visitations->where('klinik_id', $klinikId);
+        }
+        
+        return DataTables::of($visitations)
+            ->filter(function ($query) use ($request) {
+                if ($search = $request->get('search')['value']) {
+                    $query->whereHas('pasien', function($q) use ($search) {
+                        $q->where('nama', 'like', "%$search%")
+                          ->orWhere('id', 'like', "%$search%") ;
+                    })
+                    ->orWhereHas('dokter.user', function($q) use ($search) {
+                        $q->where('name', 'like', "%$search%") ;
+                    })
+                    ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
+                        $q->where('nama', 'like', "%$search%") ;
+                    })
+                    ->orWhereHas('klinik', function($q) use ($search) {
+                        $q->where('nama', 'like', "%$search%") ;
+                    })
+                    ->orWhere('tanggal_visitation', 'like', "%$search%") ;
+                }
+            })
+            ->addColumn('no_rm', function ($visitation) {
+                return $visitation->pasien ? $visitation->pasien->id : '-';
+            })
+            ->addColumn('nama_pasien', function ($visitation) {
+                return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
+            })
+            ->addColumn('dokter', function ($visitation) {
+                // Show dokter name from related user
+                if ($visitation->dokter && $visitation->dokter->user) {
+                    return $visitation->dokter->user->name;
+                }
+                return '-';
+            })
+            ->addColumn('spesialisasi', function ($visitation) {
+                return $visitation->dokter && $visitation->dokter->spesialisasi ? $visitation->dokter->spesialisasi->nama : '-';
+            })
+            ->addColumn('tanggal_visit', function ($visitation) {
+                return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y');
+            })
+            ->addColumn('nama_klinik', function ($visitation) {
+                return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
+            })
+            ->addColumn('action', function ($visitation) {
+                return '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    /**
+     * Return dokter and klinik lists for filter dropdowns
+     */
+    public function filters() {
+        // Get all dokters with their user relation
+        $dokters = \App\Models\ERM\Dokter::with('user')->get()->map(function($dokter) {
+            return [
+                'id' => $dokter->id,
+                'name' => $dokter->user ? $dokter->user->name : 'Tanpa Nama',
+            ];
+        });
+        $kliniks = \App\Models\ERM\Klinik::select('id', 'nama')->orderBy('nama')->get();
+        return response()->json([
+            'dokters' => $dokters,
+            'kliniks' => $kliniks,
+        ]);
+    }
 }

@@ -257,6 +257,7 @@ Route::prefix('finance')->group(
         Route::get('/billing/data', [BillingController::class, 'getVisitationsData'])->name('finance.billing.data');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
+        Route::get('/billing/filters', [BillingController::class, 'filters'])->name('finance.billing.filters');
 
         // Invoice routes
         // Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('billing.createInvoice');

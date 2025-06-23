@@ -10,11 +10,25 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="card-title mb-0">Daftar Billing</h4>
-                    <div class="date-filter">
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="daterange" placeholder="Pilih Rentang Tanggal" readonly>
-                            <div class="input-group-append">
-                                <span class="input-group-text"><i class="ti-calendar"></i></span>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="mr-2">
+                            <select id="filter-dokter" class="form-control">
+                                <option value="">Semua Dokter</option>
+                                {{-- Options will be loaded via AJAX or server-side rendering --}}
+                            </select>
+                        </div>
+                        <div class="mr-2">
+                            <select id="filter-klinik" class="form-control">
+                                <option value="">Semua Klinik</option>
+                                {{-- Options will be loaded via AJAX or server-side rendering --}}
+                            </select>
+                        </div>
+                        <div class="date-filter">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="daterange" placeholder="Pilih Rentang Tanggal" readonly>
+                                <div class="input-group-append">
+                                    <span class="input-group-text"><i class="ti-calendar"></i></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -25,6 +39,8 @@
                             <tr>
                                 <th>No. RM</th>
                                 <th>Nama Pasien</th>
+                                <th>Dokter</th>
+                                <th>Spesialisasi</th>
                                 <th>Tanggal Visit</th>
                                 <th>Klinik</th>
                                 <th>Aksi</th>
@@ -45,6 +61,8 @@
         var today = moment().format('YYYY-MM-DD');
         var startDate = today;
         var endDate = today;
+        var dokterId = '';
+        var klinikId = '';
         
         // Initialize date range picker
         $('#daterange').daterangepicker({
@@ -74,8 +92,33 @@
             endDate = end.format('YYYY-MM-DD');
             billingTable.ajax.reload();
         });
+
+        // Load dokter and klinik options (AJAX or server-side rendering)
+        function loadFilters() {
+            $.getJSON("{{ route('finance.billing.filters') }}", function(data) {
+                // Dokter
+                var dokterSelect = $('#filter-dokter');
+                dokterSelect.empty().append('<option value="">Semua Dokter</option>');
+                $.each(data.dokters, function(i, dokter) {
+                    dokterSelect.append('<option value="'+dokter.id+'">'+dokter.name+'</option>');
+                });
+                // Klinik
+                var klinikSelect = $('#filter-klinik');
+                klinikSelect.empty().append('<option value="">Semua Klinik</option>');
+                $.each(data.kliniks, function(i, klinik) {
+                    klinikSelect.append('<option value="'+klinik.id+'">'+klinik.nama+'</option>');
+                });
+            });
+        }
+        loadFilters();
+
+        $('#filter-dokter, #filter-klinik').on('change', function() {
+            dokterId = $('#filter-dokter').val();
+            klinikId = $('#filter-klinik').val();
+            billingTable.ajax.reload();
+        });
         
-        // Initialize DataTable with date filter
+        // Initialize DataTable with date and filter
         var billingTable = $('#datatable-billing').DataTable({
             processing: true,
             serverSide: true,
@@ -84,11 +127,15 @@
                 data: function(d) {
                     d.start_date = startDate;
                     d.end_date = endDate;
+                    d.dokter_id = dokterId;
+                    d.klinik_id = klinikId;
                 }
             },
             columns: [
                 { data: 'no_rm', name: 'no_rm' },
-                { data: 'nama_pasien', name: 'nama_pasien' },   
+                { data: 'nama_pasien', name: 'nama_pasien' },
+                { data: 'dokter', name: 'dokter' },
+                { data: 'spesialisasi', name: 'spesialisasi' },
                 { data: 'tanggal_visit', name: 'tanggal_visit' },
                 { data: 'nama_klinik', name: 'nama_klinik' },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
@@ -108,7 +155,7 @@
                 },
                 processing: "Memproses..."
             },
-            order: [[2, 'desc']] // Sort by visit date in descending order
+            order: [[4, 'desc']]
         });
     });
 </script>
