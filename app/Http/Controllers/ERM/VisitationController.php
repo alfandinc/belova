@@ -51,7 +51,7 @@ class VisitationController extends Controller
         ]);
 
         // Generate no_resep and create resep detail
-        $noResep = 'RSP-' . now()->format('YmdHis') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        $noResep = 'RSP' . $customId;
         \App\Models\ERM\ResepDetail::create([
             'visitation_id' => $customId,
             'no_resep' => $noResep,
@@ -89,7 +89,7 @@ class VisitationController extends Controller
         ]);
 
         // Generate no_resep and create resep detail
-        $noResep = 'RSP-' . now()->format('YmdHis') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        $noResep = 'RSP' . $customId;
         \App\Models\ERM\ResepDetail::create([
             'visitation_id' => $customId,
             'no_resep' => $noResep,
@@ -127,7 +127,7 @@ class VisitationController extends Controller
         ]);
 
         // Generate no_resep and create resep detail
-        $noResep = 'RSP-' . now()->format('YmdHis') . str_pad(mt_rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        $noResep = 'RSP' . $customId;
         \App\Models\ERM\ResepDetail::create([
             'visitation_id' => $customId,
             'no_resep' => $noResep,
@@ -173,5 +173,30 @@ class VisitationController extends Controller
             ->get();
 
         return response()->json($dokters);
+    }
+
+    /**
+     * Temporary method to generate missing resep detail for existing visitations.
+     * Remove after running once.
+     */
+    public function generateMissingResepDetails()
+    {
+        $visitations = \App\Models\ERM\Visitation::all();
+        $created = 0;
+        foreach ($visitations as $visitation) {
+            $exists = \App\Models\ERM\ResepDetail::where('visitation_id', $visitation->id)->exists();
+            if (!$exists) {
+                $noResep = 'RSP' . $visitation->id;
+                \App\Models\ERM\ResepDetail::create([
+                    'visitation_id' => $visitation->id,
+                    'no_resep' => $noResep,
+                    'catatan_dokter' => null,
+                ]);
+                $created++;
+            }
+        }
+        return response()->json([
+            'message' => "Created $created missing resep detail records."
+        ]);
     }
 }

@@ -411,3 +411,4 @@ Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->
 Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDoktersByKlinik'])->name('erm.get-dokters');
 Route::get('/get-apotekers', [EresepController::class, 'getApotekers'])->name('erm.get-apotekers');
 Route::get('/tindakan/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchTindakan'])->name('marketing.tindakan.search');
+Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\VisitationController::class, 'generateMissingResepDetails']);
