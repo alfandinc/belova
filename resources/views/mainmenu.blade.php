@@ -263,6 +263,9 @@
                 <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
                     <i class="fas fa-sun"></i>
                 </button>
+                <button class="theme-toggle" id="info-update-btn" title="Informasi Update">
+                    <i class="fas fa-info-circle"></i>
+                </button>
             </div>
         </div>
 
@@ -346,6 +349,8 @@
         </footer>
     </div>
 
+    @include('partials.system_update_modal')
+
     <!-- jQuery and core JS -->
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js')}}"></script>
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js')}}"></script>
@@ -407,6 +412,17 @@
             setInterval(updateDateTime, 1000);
             updateDateTime();
         });
+    </script>
+    <script>
+    $(document).ready(function() {
+        if (!localStorage.getItem('systemUpdateModalShown')) {
+            $('#systemUpdateModal').modal('show');
+            localStorage.setItem('systemUpdateModalShown', '1');
+        }
+        $('#info-update-btn').on('click', function() {
+            $('#systemUpdateModal').modal('show');
+        });
+    });
     </script>
 </body>
 </html>
