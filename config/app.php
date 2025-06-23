@@ -65,7 +65,8 @@ return [
     |
     */
 
-    'timezone' => env('APP_TIMEZONE', 'Asia/Jakarta'),
+    'timezone' => 'Asia/Jakarta',
+
 
     /*
     |--------------------------------------------------------------------------
@@ -78,9 +79,9 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'id'),
+    'locale' => 'id',
 
-    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'faker_locale' => 'id_ID',
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
