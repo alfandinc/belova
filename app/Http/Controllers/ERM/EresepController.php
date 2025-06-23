@@ -864,20 +864,23 @@ class EresepController extends Controller
         // Get the visitation data with all necessary relations
         $visitation = Visitation::with(['pasien', 'dokter.user', 'metodeBayar', 'klinik'])->findOrFail($visitationId);
 
-        // Get prescription items
+        // Get all prescription items
         $reseps = ResepFarmasi::where('visitation_id', $visitationId)
             ->with(['obat', 'wadah'])
-            ->whereNull('racikan_ke')  // Only non-racikan items for etiket
             ->get();
 
+        $nonRacikans = $reseps->whereNull('racikan_ke');
+        $racikans = $reseps->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+
         if ($reseps->isEmpty()) {
-            return back()->with('error', 'Tidak ada obat non-racikan untuk dicetak etiket.');
+            return back()->with('error', 'Tidak ada obat untuk dicetak etiket.');
         }
 
         // Generate PDF view
         $pdf = PDF::loadView('erm.eresep.farmasi.etiket-print', [
             'visitation' => $visitation,
-            'reseps' => $reseps,
+            'nonRacikans' => $nonRacikans,
+            'racikans' => $racikans,
         ]);
 
         // Set PDF options for 78x60mm (7.8cm x 6cm) landscape format
