@@ -20,6 +20,9 @@
         .header {
             text-align: center;
             margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .header h3 {
             margin: 0;
@@ -46,11 +49,14 @@
         }
         table.items th, table.items td {
             text-align: left;
-            padding: 0;
+            padding: 6px 0; /* Increased vertical padding for more space between items */
         }
         .item-row td {
             border-top: 1px dotted #ccc;
             border-bottom: 1px dotted #ccc;
+        }
+        .items td.text-right, .items th.text-right {
+            text-align: right;
         }
         .total-section {
             margin-top: 1px;
@@ -78,9 +84,12 @@
 </head>
 <body>
     <div class="header">
-        <h3>KLINIK BELOVA</h3>
-        <p>{{ $invoice->visitation->klinik->nama ?? 'KLINIK' }}</p>
-        <p>{{ Carbon\Carbon::parse($invoice->created_at)->format('d/m/Y H:i') }}</p>
+        <img src="{{ public_path('img/favicon-premiere.png') }}" alt="Logo" style="width:55px; height:auto;">
+        <div style="text-align: left;">
+            <h3>KLINIK BELOVA</h3>
+            <p>{{ $invoice->visitation->klinik->nama ?? 'KLINIK' }}</p>
+            <p>{{ Carbon\Carbon::parse($invoice->created_at)->format('d/m/Y H:i') }}</p>
+        </div>
     </div>
 
     <div class="info">
