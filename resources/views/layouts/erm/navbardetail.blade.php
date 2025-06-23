@@ -125,11 +125,23 @@
                 </a>
             </li> --}}
             <li>
+                <a href="javascript:void(0);"
+                   class="btn-daftar-visitation"
+                   data-id="{{ $visitation->pasien_id }}"
+                   data-nama="{{ $visitation->pasien->nama }}"
+                   data-klinik="{{ $visitation->klinik_id ?? '' }}"
+                   data-dokter="{{ $visitation->dokter_id ?? '' }}"
+                   data-metodebayar="{{ $visitation->metode_bayar_id ?? '' }}">
+                    <i data-feather="calendar" class="align-self-center menu-icon"></i>
+                    <span>Daftar Kunjungan</span>
+                </a>
+            </li>
+            {{-- <li>
                 <a href="javascript:void(0);" data-toggle="modal" data-target="#modalKunjungan">
                     <i data-feather="calendar" class="align-self-center menu-icon"></i>
                     <span>Jadwalkan Kunjungan</span>
                 </a>
-            </li>
+            </li> --}}
 
         </ul>
     </div>

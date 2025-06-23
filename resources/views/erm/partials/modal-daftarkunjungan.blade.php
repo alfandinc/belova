@@ -78,9 +78,28 @@ $(document).ready(function () {
     $(document).on('click', '.btn-daftar-visitation', function () {
         let pasienId = $(this).data('id');
         let namaPasien = $(this).data('nama');
+        let klinikId = $(this).data('klinik');
+        let dokterId = $(this).data('dokter');
+        let metodeBayarId = $(this).data('metodebayar');
 
         $('#modal-pasien-id').val(pasienId);
         $('#modal-nama-pasien').val(namaPasien);
+        
+        // Auto-select Klinik if provided
+        if (klinikId) {
+            $('#klinik_id').val(klinikId).trigger('change');
+            // Wait for dokter select to be populated via AJAX
+            setTimeout(function() {
+                if (dokterId) {
+                    $('#dokter_id').val(dokterId).trigger('change');
+                }
+            }, 600); // adjust delay if needed
+        }
+        // Auto-select Cara Bayar if provided
+        if (metodeBayarId) {
+            $('#metode_bayar_id').val(metodeBayarId).trigger('change');
+        }
+
         $('#modalKunjungan').modal('show');
     });
 
