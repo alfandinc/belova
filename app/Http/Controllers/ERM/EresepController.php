@@ -544,6 +544,9 @@ class EresepController extends Controller
     // Fetch all related prescriptions
     $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
     
+    // Update resepdetail status to 1
+    \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->update(['status' => 1]);
+    
     // Bill for each medication
     foreach ($reseps as $resep) {
         Billing::updateOrCreate(
