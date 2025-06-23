@@ -223,15 +223,24 @@
 <body>
     <div class="content-wrapper">
         <!-- Restructured header with left-aligned info and centered title -->
-        <div class="header-container">
-            <div class="header-left">
-                <h2>{{ strtoupper($visitation->klinik->nama ?? 'KLINIK UTAMA PREMIERE BELOVA') }}</h2>
-                <p>
-                    Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
-                    Telp. 0821-1600-0093<br>
-                    www.premierebelova.id
-                </p>
-            </div>
+        <div class="header-container" style="border-bottom: 1px solid #ddd; margin-bottom: 8px; padding-bottom: 4px; position: relative;">
+            <table style="width:100%; border:none; margin-bottom:0;">
+                <tr>
+                    <td style="width:60px; vertical-align:top; padding-right:0px;">
+                        <img src="{{ public_path('img/favicon-premiere.png') }}" alt="Logo" style="width:55px; height:auto;">
+                    </td>
+                    <td style="vertical-align:top;">
+                        <div class="header-left">
+                            <h2 style="margin: 0; font-size: 14px; font-weight: bold;">{{ strtoupper($visitation->klinik->nama ?? 'KLINIK UTAMA PREMIERE BELOVA') }}</h2>
+                            <p style="margin: 1px 0; font-size: 12px;">
+                                Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
+                                Telp. 0821-1600-0093 <br>
+                                www.premierebelova.id <br>
+                            </p>
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </div>
         
         <div class="header-title">

@@ -755,6 +755,9 @@ class EresepController extends Controller
             ->where('visitation_id', $visitationId)
             ->first();
 
+        // Get no_resep from ResepDetail
+        $noResep = \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->value('no_resep');
+
         // Generate PDF view
         $pdf = PDF::loadView('erm.eresep.farmasi.print', [
             'visitation' => $visitation,
@@ -762,6 +765,7 @@ class EresepController extends Controller
             'racikans' => $racikans,
             'alergis' => $alergis,
             'asesmenPenunjang' => $asesmenPenunjang,
+            'noResep' => $noResep,
         ]);
 
         // Set PDF options for A4 landscape

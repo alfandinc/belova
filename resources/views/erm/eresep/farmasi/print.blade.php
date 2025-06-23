@@ -34,6 +34,7 @@
             font-weight: bold;
             margin: 3px 0; /* Reduced margin */
             font-size: 14px;
+            margin-bottom: 20px; /* Reduced margin */
         }
 
         table.info-table {
@@ -139,16 +140,23 @@
         <tr>
             <!-- Left side - Header and Prescription information -->
             <td style="width: 50%; vertical-align: top; padding-right: 5px;">
-                <!-- Left Header -->
-                <div class="header-left">
-                    <h2>{{ strtoupper($visitation->klinik->nama ?? 'KLINIK UTAMA PREMIERE BELOVA') }}</h2>
-                    
-                    <p>Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
-                        Telp. 0821-1600-0093 <br>
-                        www.premierebelova.id <br>
-                    </p>
-                </div>
-                
+                <!-- Header with Logo and Clinic Info -->
+                <table style="width:100%; border:none; margin-bottom:0;">
+                    <tr>
+                        <td style="width:60px; vertical-align:top; padding-right:0px;">
+                            <img src="{{ public_path('img/favicon-premiere.png') }}" alt="Logo" style="width:55px; height:auto;">
+                        </td>
+                        <td style="vertical-align:top;">
+                            <div class="header-left">
+                                <h2>{{ strtoupper($visitation->klinik->nama ?? 'KLINIK UTAMA PREMIERE BELOVA') }}</h2>
+                                <p>Jl. Melon Raya No.27, Karangasem, Laweyan, Surakarta<br>
+                                    Telp. 0821-1600-0093 <br>
+                                    www.premierebelova.id <br>
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
                 <div class="resep-header">RESEP DOKTER</div>
                 
                 <div style="text-align: right; margin-top: -15px; font-size: 12px;">
@@ -156,6 +164,13 @@
                 </div>
                 <!-- Patient Information -->
                 <table class="info-table">
+                    @if(!empty($noResep))
+                    <tr>
+                        <td width="20%"><strong>No. Resep</strong></td>
+                        <td width="2%">:</td>
+                        <td width="78%">{{ $noResep }}</td>
+                    </tr>
+                    @endif
                     <tr>
                         <td width="20%">No. RM</td>
                         <td width="2%">:</td>
@@ -190,15 +205,24 @@
                     </tr>
                 </table>
 
+                <!-- Split line between identity and item list -->
+                <hr style="border: 1px solid #000; margin: 6px 0;">
+
                 <!-- Medications List -->
                 <table class="med-list">
+                    <tr>
+                        <th style="width:5%; text-align:left; border-bottom:1px solid #000;">No</th>
+                        <th style="width:45%; text-align:left; border-bottom:1px solid #000;">Nama Obat</th>
+                        <th style="width:20%; text-align:left; border-bottom:1px solid #000;">Jumlah</th>
+                        <th style="width:30%; text-align:left; border-bottom:1px solid #000;">Aturan Pakai</th>
+                    </tr>
                     @php $i = 1; @endphp
                     
                     @foreach($nonRacikans as $resep)
                     <tr>
                         <td width="5%">{{ $i++ }}</td>
                         <td width="45%">{{ $resep->obat->nama ?? 'UNKNOWN' }}</td>
-                        <td width="20%">{{ $resep->jumlah }} {{ $resep->obat->satuan ?? 'UNIT' }}</td>
+                        <td width="20%">{{ $resep->jumlah }}</td>
                         <td width="30%">{{ $resep->aturan_pakai }}</td>
                     </tr>
                     @endforeach
