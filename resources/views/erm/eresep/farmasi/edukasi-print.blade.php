@@ -254,6 +254,12 @@
         <!-- Patient Information -->
         <table class="info-table">
             <tr>
+                <th width="20%">Nomor Resep</th>
+                <td width="30%">{{ $noResep ?? '-' }}</td>
+                <th width="20%">&nbsp;</th>
+                <td width="30%"></td>
+            </tr>
+            <tr>
                 <th width="20%">No Rekam Medis</th>
                 <td width="30%">{{ $visitation->pasien->id }}</td>
                 <th width="20%">Nama Pasien</th>
@@ -413,14 +419,15 @@
                 <td>
                     <div><strong>APOTEKER PEMBERI EDUKASI</strong></div>
                     <div class="barcode">
-                        {!! QrCode::size(80)->generate($edukasi->apoteker->name) !!}
+                        {{-- Barcode instead of QR --}}
+                        <img src="data:image/png;base64,{{ \App\Helpers\BarcodeHelper::generateBarcodeBase64($apotekerQr, 'C128', 2, 80) }}" alt="Barcode Apoteker" style="width:180px; height:80px;">
                     </div>
                     <div>{{ $edukasi->apoteker->name }}</div>
                 </td>
                 <td>
                     <div><strong>PASIEN/KELUARGA PASIEN PENERIMA EDUKASI OBAT</strong></div>
                     <div class="barcode">
-                        {!! QrCode::size(80)->generate($visitation->pasien->nama) !!}
+                        <img src="data:image/png;base64,{{ \App\Helpers\BarcodeHelper::generateBarcodeBase64($pasienQr ?? $visitation->pasien->id, 'C128', 2, 80) }}" alt="Barcode Pasien" style="width:180px; height:80px;">
                     </div>
                     <div>{{ $visitation->pasien->nama }}</div>
                 </td>

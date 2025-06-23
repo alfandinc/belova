@@ -843,6 +843,20 @@ class EresepController extends Controller
             ->select('erm_zataktif.nama as zataktif_nama')
             ->get();
 
+        // Get no_resep from ResepDetail
+        $noResep = \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->value('no_resep');
+
+        // Generate QR code data for apoteker and pasien
+        $apotekerQr = 'APOTEKER|' .
+            ($edukasi->apoteker->id ?? '-') . '|' .
+            ($edukasi->apoteker->name ?? '-') . '|' .
+            now()->format('Y-m-d H:i:s');
+
+        $pasienQr = 'PASIEN|' .
+            ($visitation->pasien->id ?? '-') . '|' .
+            ($visitation->pasien->nama ?? '-') . '|' .
+            now()->format('Y-m-d H:i:s');
+
         // Generate PDF view
         $pdf = PDF::loadView('erm.eresep.farmasi.edukasi-print', [
             'visitation' => $visitation,
@@ -850,6 +864,9 @@ class EresepController extends Controller
             'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
             'alergis' => $alergis,
+            'noResep' => $noResep,
+            'apotekerQr' => $apotekerQr,
+            'pasienQr' => $pasienQr,
         ]);
 
         // Set PDF options
