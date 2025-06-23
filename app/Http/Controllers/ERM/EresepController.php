@@ -522,7 +522,7 @@ class EresepController extends Controller
     {
         $data = $request->validate([
             'jumlah'       => 'required|integer|min:1',
-            'diskon'       => 'integer|min:1|max:100',
+            'diskon'       => 'integer|max:100',
             'aturan_pakai' => 'required|string|max:255',
         ]);
 
