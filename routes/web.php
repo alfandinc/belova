@@ -412,3 +412,6 @@ Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDokters
 Route::get('/get-apotekers', [EresepController::class, 'getApotekers'])->name('erm.get-apotekers');
 Route::get('/tindakan/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchTindakan'])->name('marketing.tindakan.search');
 Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\VisitationController::class, 'generateMissingResepDetails']);
+
+// AJAX route for most frequent patient
+Route::get('/erm/dashboard/most-frequent-patient', [\App\Http\Controllers\ERMDashboardAjaxController::class, 'mostFrequentPatient'])->name('erm.dashboard.most-frequent-patient');

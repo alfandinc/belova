@@ -40,7 +40,7 @@
                     </div><!--end row-->
                     <!-- end page title end breadcrumb -->
                     <div class="row">
-                        <div class="col-lg-9">
+                        <div class="col-lg-12">
                             <div class="row justify-content-center">
                                 
                               
@@ -73,7 +73,8 @@
                                 </div><!--end card-body--> 
                             </div><!--end card--> 
                         </div><!--end col-->
-                        <div class="col-lg-3">
+                        
+                        {{-- <div class="col-lg-3">
                             <div class="card">
                                 <div class="card-header">
                                     <div class="row align-items-center">
@@ -136,7 +137,37 @@
                                     </div><!--end /div-->                                 
                                 </div><!--end card-body--> 
                             </div><!--end card--> 
-                        </div> <!--end col--> 
+                        </div> <!--end col-->  --}}
                     </div><!--end row-->
                 </div><!-- container -->
+                @include('erm.dashboard_stats')
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var options = {
+        chart: { height: 320, type: 'area', stacked: true, toolbar: { show: false, autoSelected: 'zoom' } },
+        colors: ['#2a77f4'],
+        dataLabels: { enabled: false },
+        stroke: { curve: 'smooth', width: [1.5], lineCap: 'round' },
+        grid: { padding: { left: 0, right: 0 }, strokeDashArray: 3 },
+        markers: { size: 0, hover: { size: 0 } },
+        series: [
+            { name: 'Visits', data: @json($monthlyVisits) }
+        ],
+        xaxis: {
+            type: 'month',
+            categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            axisBorder: { show: true },
+            axisTicks: { show: true }
+        },
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.3, stops: [0, 90, 100] } },
+        tooltip: { x: { format: 'dd/MM/yy HH:mm' } },
+        legend: { position: 'top', horizontalAlign: 'right' }
+    };
+    var chart = new ApexCharts(document.querySelector('#ana_dash_1'), options);
+    chart.render();
+});
+</script>
+@endpush

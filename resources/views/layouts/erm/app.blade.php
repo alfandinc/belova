@@ -90,7 +90,7 @@
     <script src="{{ asset('dastone/plugins/datatables/dataTables.responsive.min.js') }}"></script>
     <script src="{{ asset('dastone/plugins/datatables/responsive.bootstrap4.min.js') }}"></script>
     <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
-    <script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script>
+    {{-- <script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script> --}}
     <script src="{{ asset('dastone/default/assets/js/app.js') }}"></script>
 
     <!-- Sweet-Alert  -->

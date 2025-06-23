@@ -71,7 +71,10 @@ class AuthController extends Controller
 
         // Attempt to login
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
-            // Redirect to the correct dashboard
+            // Redirect to the correct dashboard or kunjungan rajal page for ERM
+            if ($module === 'erm') {
+                return redirect()->route('erm.rawatjalans.index');
+            }
             return redirect()->route("$module.dashboard");
         }
 
