@@ -36,6 +36,12 @@ class EresepController extends Controller
             if ($request->tanggal) {
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }
+            if ($request->dokter_id) {
+                $visitations->where('dokter_id', $request->dokter_id);
+            }
+            if ($request->klinik_id) {
+                $visitations->where('klinik_id', $request->klinik_id);
+            }
 
             $visitations->whereIn('jenis_kunjungan', [1, 2]);
 
@@ -109,9 +115,10 @@ class EresepController extends Controller
                 ->make(true);
         }
 
+        $kliniks = \App\Models\ERM\Klinik::all();
         $dokters = Dokter::with('user', 'spesialisasi')->get();
         $metodeBayar = MetodeBayar::all();
-        return view('erm.eresep.index', compact('dokters', 'metodeBayar'));
+        return view('erm.eresep.index', compact('dokters', 'metodeBayar', 'kliniks'));
     }
 
     // ERESEP DOKTER

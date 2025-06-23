@@ -35,6 +35,24 @@
                     <label for="filter_tanggal">Filter Tanggal Kunjungan</label>
                     <input type="date" id="filter_tanggal" class="form-control">
                 </div>
+                <div class="col-md-4">
+                    <label for="filter_dokter">Filter Dokter</label>
+                    <select id="filter_dokter" class="form-control select2">
+                        <option value="">Semua Dokter</option>
+                        @foreach($dokters as $dokter)
+                            <option value="{{ $dokter->id }}">{{ $dokter->user->name ?? '-' }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="filter_klinik">Filter Klinik</label>
+                    <select id="filter_klinik" class="form-control select2">
+                        <option value="">Semua Klinik</option>
+                        @foreach($kliniks as $klinik)
+                            <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
@@ -62,6 +80,7 @@ $(document).ready(function () {
     // Set default value tanggal ke hari ini
     var today = new Date().toISOString().substr(0, 10);
     $('#filter_tanggal').val(today);
+    $('.select2').select2({ width: '100%' });
 
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
@@ -71,6 +90,8 @@ $(document).ready(function () {
             url: '{{ route("erm.eresepfarmasi.index") }}',
             data: function(d) {
                 d.tanggal = $('#filter_tanggal').val();
+                d.dokter_id = $('#filter_dokter').val();
+                d.klinik_id = $('#filter_klinik').val();
             }
         },
         // order: [[5, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
@@ -86,17 +107,18 @@ $(document).ready(function () {
             { data: 'dokumen', searchable: false, orderable: false },
             { data: 'status_kunjungan', visible: false, searchable: false } // 🛠️ Sembunyikan
         ],
-    //     columnDefs: [
-    //     { targets: 0, width: "5%" }, // Antrian
-    //     { targets: 6, width: "20%" }, // Dokumen
-    // ],
-        createdRow: function(row, data, dataIndex) {
-        if (data.status_kunjungan == 2) {
-            $(row).css('color', 'orange'); // Warna teks kuning/orange
-            // Kalau mau kasih background juga bisa:
-            // $(row).css('background-color', '#fff3cd');
-        }
-    }
+        columnDefs: [
+        { targets: 0, width: "15%" },
+        { targets: 1, width: "10%" },
+        { targets: 3, width: "20%" },
+        { targets: 4, width: "20%" },
+        { targets: 7, width: "10%" },
+    ],
+    });
+
+    // Event ganti filter
+    $('#filter_tanggal, #filter_dokter, #filter_klinik').on('change', function () {
+        table.ajax.reload();
     });
 
     // Event ganti tanggal
