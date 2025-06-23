@@ -588,6 +588,7 @@ class EresepController extends Controller
         );
     }
     
+    /*
     // Calculate service fees
     $nonRacikanItems = $reseps->whereNull('racikan_ke')->count();
     $racikanGroups = $reseps->whereNotNull('racikan_ke')->pluck('racikan_ke')->unique()->count();
@@ -635,6 +636,7 @@ class EresepController extends Controller
                              " item × " . number_format($jasaEmbalase->harga, 0, ',', '.'),
         ]);
     }
+    */
 
     return response()->json([
         'status' => 'success',
