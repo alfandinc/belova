@@ -671,37 +671,41 @@
         $('#submit-all').on('click', function () {
             if (!confirm('Yakin ingin submit resep ini?')) return;
 
-            // // Disable all buttons except specific ones
-            // $('button').not('.btn-cetakresep, .btn-riwayat').prop('disabled', true);
-
-            // // Disable all input fields, select, and textarea
-            // $('input, select, textarea').prop('disabled', true);
-
-            // Change the text and style of the submit button to indicate processing
-            $(this).text('Telah disimpan').addClass('btn-secondary').removeClass('btn-success');
-
+            const $btn = $(this);
             const visitationId = $('#visitation_id').val();
 
-            // Send the AJAX request
-            $.ajax({
-                url: "{{ route('resepfarmasi.submit') }}", // Define this route in web.php
-                method: 'POST',
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    visitation_id: visitationId
-                },
-                success: function (res) {
-                    alert(res.message); // Notify the user
-                    // window.location.reload(); // Optionally reload the page
-                },
-                error: function (err) {
-                    alert('Gagal submit resep. Coba lagi.');
-                    // Re-enable buttons and inputs if submission fails
-                    $('button').not('.btn-primary, .btn-riwayat').prop('disabled', false);
-                    $('input, select, textarea').prop('disabled', false);
-                    $('#submit-all').text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
-                }
-            });
+            function doSubmit(force = false) {
+                $btn.text('Telah disimpan').addClass('btn-secondary').removeClass('btn-success');
+                $.ajax({
+                    url: "{{ route('resepfarmasi.submit') }}",
+                    method: 'POST',
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        visitation_id: visitationId,
+                        force: force ? 1 : 0
+                    },
+                    success: function (res) {
+                        if (res.status === 'warning' && res.need_confirm) {
+                            if (confirm(res.message)) {
+                                doSubmit(true); // Resubmit with force
+                            } else {
+                                $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
+                            }
+                        } else {
+                            alert(res.message);
+                            // window.location.reload(); // Optionally reload the page
+                        }
+                    },
+                    error: function () {
+                        alert('Gagal submit resep. Coba lagi.');
+                        $('button').not('.btn-primary, .btn-riwayat').prop('disabled', false);
+                        $('input, select, textarea').prop('disabled', false);
+                        $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
+                    }
+                });
+            }
+
+            doSubmit(false);
         });
 
         //COPY RESEP DOKTER

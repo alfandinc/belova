@@ -550,13 +550,28 @@ class EresepController extends Controller
     public function submitResep(Request $request)
 {
     $visitationId = $request->input('visitation_id');
+    $force = $request->input('force', false);
+
+    // Check if resep already submitted
+    $resepDetail = \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->first();
+    if ($resepDetail && $resepDetail->status == 1 && !$force) {
+        return response()->json([
+            'status' => 'warning',
+            'message' => 'Resep sudah pernah disubmit. Lanjutkan dan timpa billing lama?',
+            'need_confirm' => true
+        ], 200);
+    }
+
+    // If force, delete all billing for this visitation
+    if ($force) {
+        Billing::where('visitation_id', $visitationId)->delete();
+    }
 
     // Fetch all related prescriptions
     $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
-    
     // Update resepdetail status to 1
     \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->update(['status' => 1]);
-    
+
     // Bill for each medication
     foreach ($reseps as $resep) {
         Billing::updateOrCreate(
