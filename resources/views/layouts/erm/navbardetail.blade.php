@@ -29,10 +29,9 @@
                     <li class="menu-label mt-0">
                         <span class="text-white px-2 py-1 rounded {{ $colorClass }}" style="font-size: 1.2rem;">
                         ERM {{ $role }}
-                        </span>
-                    </li>
+                        </span>                    </li>
             <li>
-                <a href="{{ route('erm.rawatjalans.index', $visitation->id) }}" target="_blank">
+                <a href="{{ route('erm.rawatjalans.index', $visitation->id) }}">
                     <i data-feather="clipboard" class="align-self-center menu-icon"></i>
                     <span>Daftar Rawat Jalan</span>
                 </a>
