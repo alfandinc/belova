@@ -5,6 +5,24 @@
 @endsection
 @section('content')
 
+<style>
+    /* Custom styling for medications that exist in both doctor and pharmacy prescriptions */
+    .text-success {
+        color: #28a745 !important;
+        font-weight: bold;
+    }
+    
+    /* Optional: Add background color for better visibility */
+    .row-in-farmasi {
+        background-color: rgba(40, 167, 69, 0.1) !important;
+    }
+    
+    /* Enhance the existing success color */
+    tr.text-success td {
+        color: #28a745 !important;
+    }
+</style>
+
 @include('erm.partials.modal-alergipasien')
 @include('erm.partials.modal-resephistory')
 
@@ -87,6 +105,14 @@
                         </div>
                     </div>
 
+                    <!-- Legend for color coding -->
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i> Keterangan: 
+                            <span class="text-success font-weight-bold">Hijau</span> = Obat sudah ada di resep farmasi
+                        </small>
+                    </div>
+
                     <table class="table table-bordered" style="color: white;">
                         <thead>
                             <tr>
@@ -102,7 +128,7 @@
                         <tbody id="resep-table-body">
                             {{-- {{ dd($nonRacikans) }} --}}
                             @forelse ($nonRacikans as $resep)
-                                <tr data-id="{{ $resep->id }}">
+                                <tr data-id="{{ $resep->id }}" data-obat-id="{{ $resep->obat_id }}" class="{{ in_array($resep->obat_id, $farmasiObatIds) ? 'text-success row-in-farmasi' : '' }}">
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
                                     <td>{{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->jumlah }}</td>
@@ -227,6 +253,23 @@
 @section('scripts')
 <script>
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
+    let farmasiObatIds = @json($farmasiObatIds ?? []);
+
+    // Function to check if obat exists in farmasi prescriptions
+    function checkIfObatInFarmasi(obatId, callback) {
+        $.ajax({
+            url: "{{ route('erm.eresepfarmasi.json', $visitation->id) }}",
+            method: 'GET',
+            success: function(response) {
+                const exists = response.nonRacikans && response.nonRacikans.some(item => item.obat_id == obatId);
+                callback(exists);
+            },
+            error: function(xhr, status, error) {
+                console.log('Error checking farmasi prescriptions:', error);
+                callback(false);
+            }
+        });
+    }
 
     $(document).ready(function () {
         $('.select2').select2({ width: '100%' });
@@ -276,6 +319,31 @@
             },
 
         });
+
+        // Function to refresh row colors based on farmasi prescriptions
+        function refreshRowColors() {
+            $('#resep-table-body tr[data-id]').each(function() {
+                const row = $(this);
+                const obatId = row.data('obat-id');
+                
+                if (obatId) {
+                    checkIfObatInFarmasi(obatId, function(existsInFarmasi) {
+                        if (existsInFarmasi) {
+                            row.addClass('text-success row-in-farmasi');
+                        } else {
+                            row.removeClass('text-success row-in-farmasi');
+                        }
+                    });
+                }
+            });
+        }
+
+        // Call refresh function on page load with a delay
+        setTimeout(refreshRowColors, 1000);
+        
+        // Optional: Periodically refresh colors every 30 seconds
+        setInterval(refreshRowColors, 30000);
+
         // STORE NON RACIKAN
         $('#tambah-resep').on('click', function () {
             let obatId = $('#obat_id').val();
@@ -305,25 +373,33 @@
                     // Remove the "no data" row if it exists
                     $('#resep-table-body .no-data').remove();
 
-                    // Append the new row to the table
-                    $('#resep-table-body').append(`
-                        <tr data-id="${res.data.id}">
-                            <td>${res.data.obat.nama}</td>
-                            <td>${res.data.obat.harga_nonfornas || 0}</td>
-                            <td>${res.data.jumlah}</td>
-                            
-                            <td>${res.data.obat.stok || 0}</td>
-                            <td>${(res.data.obat.harga_nonfornas || 0) * (res.data.jumlah || 0)}</td>
-                            <td>${res.data.aturan_pakai}</td>
-                            <td>
-                                <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
-                                <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
-                            </td>
-                        </tr>
-                    `);
+                    // Check if this medication exists in farmasi prescriptions
+                    checkIfObatInFarmasi(res.data.obat_id, function(existsInFarmasi) {
+                        const rowClass = existsInFarmasi ? 'text-success row-in-farmasi' : '';
+                        
+                        // Append the new row to the table
+                        $('#resep-table-body').append(`
+                            <tr data-id="${res.data.id}" data-obat-id="${res.data.obat_id}" class="${rowClass}">
+                                <td>${res.data.obat.nama}</td>
+                                <td>${res.data.obat.harga_nonfornas || 0}</td>
+                                <td>${res.data.jumlah}</td>
+                                
+                                <td>${res.data.obat.stok || 0}</td>
+                                <td>${(res.data.obat.harga_nonfornas || 0) * (res.data.jumlah || 0)}</td>
+                                <td>${res.data.aturan_pakai}</td>
+                                <td>
+                                    <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
+                                    <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
+                                </td>
+                            </tr>
+                        `);
 
-                    // Update the total price
-                    updateTotalPrice();
+                        // Update the total price
+                        updateTotalPrice();
+                        
+                        // Refresh row colors after adding new prescription
+                        setTimeout(refreshRowColors, 500);
+                    });
 
                     // Clear the input fields
                     $('#obat_id').val(null).trigger('change');

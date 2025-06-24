@@ -164,6 +164,12 @@ class EresepController extends Controller
         // Ambil non-racikan
         $nonRacikans = $reseps->whereNull('racikan_ke');
 
+        // Get medications that exist in both doctor and pharmacy prescriptions
+        $farmasiObatIds = ResepFarmasi::where('visitation_id', $visitationId)
+            ->whereNull('racikan_ke')
+            ->pluck('obat_id')
+            ->toArray();
+
         // Hitung nilai racikan_ke terakhir dari database
         $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
 
@@ -180,6 +186,7 @@ class EresepController extends Controller
             'racikans' => $racikans,
             'lastRacikanKe' => $lastRacikanKe,
             'catatan_resep' => $catatan_resep,
+            'farmasiObatIds' => $farmasiObatIds,
         ], $pasienData, $createKunjunganData));
     }
     public function storeNonRacikan(Request $request)
@@ -423,7 +430,7 @@ class EresepController extends Controller
         $nonRacikans = $reseps->whereNull('racikan_ke')->values();
 
         return response()->json([
-            'non_racikans' => $nonRacikans,
+            'nonRacikans' => $nonRacikans,
             'racikans' => $racikans,
         ]);
     }
