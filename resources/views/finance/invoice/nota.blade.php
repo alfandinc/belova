@@ -16,13 +16,24 @@
             padding: 0;
             width: auto;
             line-height: 1.7;
+        }        .header {
+            width: 100%;
+            margin-bottom: 10px;
         }
-        .header {
-            text-align: center;
-            margin-bottom: 2px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .header-table td {
+            vertical-align: top;
+            padding: 0;
+        }
+        .logo-cell {
+            width: 65px;
+            padding-right: 10px;
+        }
+        .info-cell {
+            width: auto;
         }
         .header h3 {
             margin: 0;
@@ -82,15 +93,22 @@
         }
     </style>
 </head>
-<body>
-    <div class="header">
-        <img src="{{ public_path('img/favicon-premiere.png') }}" alt="Logo" style="width:55px; height:auto;">
-        <div style="text-align: left;">
-            <h3>KLINIK BELOVA</h3>
-            <p>{{ $invoice->visitation->klinik->nama ?? 'KLINIK' }}</p>
-            <p>{{ Carbon\Carbon::parse($invoice->created_at)->format('d/m/Y H:i') }}</p>
-        </div>
+<body>    <div class="header">
+        <table class="header-table">
+            <tr>
+                <td class="logo-cell">
+                    @if(!empty($logoBase64))
+                        <img src="{{ $logoBase64 }}" alt="Logo" style="width:55px; height:auto;">
+                    @endif
+                </td>
+                <td class="info-cell">
+                    <p style="font-weight: bold; font-size: 11pt; margin: 0; line-height: 1.2;">KLINIK PRATAMA BELOVA SKIN & BEAUTY CENTER</p>
+                    <p style="font-size: 9pt; margin-top: 5px;">{{ Carbon\Carbon::parse($invoice->created_at)->format('d/m/Y H:i') }}</p>
+                </td>
+            </tr>        </table>
     </div>
+
+    <hr style="border: 0; border-top: 1px solid #000; margin: 6px 0;">
 
     <div class="info">
         <div class="info-row">

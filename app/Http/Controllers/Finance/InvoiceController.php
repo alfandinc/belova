@@ -131,7 +131,15 @@ class InvoiceController extends Controller
             'items'
         ])->findOrFail($id);
 
-        $pdf = PDF::loadView('finance.invoice.nota', compact('invoice'))
+        // Convert logo to base64 for reliable PDF rendering
+        $logoPath = public_path('img/favicon-premiere.png');
+        $logoBase64 = '';
+        if (file_exists($logoPath)) {
+            $logoData = file_get_contents($logoPath);
+            $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
+        }
+
+        $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64'))
             ->setPaper([0, 0, 226.77, 1000]) // 6 cm width (226.77 px) with dynamic height
             ->setOptions([
                 'defaultFont' => 'helvetica',
