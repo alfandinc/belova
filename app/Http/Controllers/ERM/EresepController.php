@@ -288,6 +288,44 @@ class EresepController extends Controller
         ]);
     }
 
+    public function updateRacikan(Request $request, $racikanKe)
+    {
+        try {
+            $validated = $request->validate([
+                'visitation_id' => 'required',
+                'wadah' => 'required',
+                'bungkus' => 'required|integer|min:1',
+                'aturan_pakai' => 'required|string',
+            ]);
+
+            // Update all records with matching racikan_ke and visitation_id
+            $updated = ResepDokter::where('racikan_ke', $racikanKe)
+                ->where('visitation_id', $validated['visitation_id'])
+                ->update([
+                    'wadah_id' => $validated['wadah'],
+                    'bungkus' => $validated['bungkus'],
+                    'aturan_pakai' => $validated['aturan_pakai'],
+                ]);
+
+            if ($updated) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Racikan berhasil diupdate'
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Racikan tidak ditemukan'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengupdate racikan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     // ERESEP FARMASI
 
     public function farmasicreate($visitationId)

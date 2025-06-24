@@ -147,7 +147,7 @@
                                 </span>
                             </strong></h5>
                             <div>
-                                {{-- <button class="btn btn-info btn-sm btn-edit-racikan">Edit Racikan</button> --}}
+                                <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
                                 <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
                             </div>
                         </div>
@@ -193,7 +193,7 @@
                         <div class="row">
                             <div class="col-md-3">
                                 <label>RACIKAN</label>
-                                <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
+                                <select class="form-control select2-wadah-racikan wadah" name="wadah_id" disabled>
                                 <option value="{{ $items->first()?->wadah?->id ?? '' }}">
                                     {{ $items->first()?->wadah?->nama ?? 'Pilih Wadah' }}
                                 </option>
@@ -201,15 +201,16 @@
                             </div>
                             <div class="col-md-3">
                                 <label>Bungkus</label>
-                                <input type="number" class="form-control jumlah_bungkus" value="{{ $items->first()->bungkus }}">
+                                <input type="number" class="form-control jumlah_bungkus bungkus" value="{{ $items->first()->bungkus }}" disabled>
                             </div>
                             <div class="col-md-6">
                                 <label>Aturan Pakai</label>
-                                <input type="text" class="form-control aturan_pakai" value="{{ $items->first()->aturan_pakai }}">
+                                <input type="text" class="form-control aturan_pakai" value="{{ $items->first()->aturan_pakai }}" disabled>
                             </div>
                         </div>
 
                         <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
+                        <button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update Racikan</button>
                     </div>
                     @endforeach
                 </div>
@@ -424,7 +425,10 @@
                 <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanCount}">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 style="color: yellow;"><strong>Racikan ${racikanCount}</strong></h5>
-                        <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        <div>
+                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
+                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        </div>
                     </div>
 
                     <div class="row mb-3">
@@ -487,6 +491,7 @@
                     </div>
 
                     <button class="btn btn-success btn-block mt-3 tambah-resepracikan">Simpan Racikan ${racikanCount}</button>
+                    <button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update Racikan</button>
                 </div>
             `;
 
@@ -594,7 +599,7 @@
             const racikanKe = card.data('racikan-ke');
             const visitationId = $('#visitation_id').val();
             const wadah = card.find('.wadah').val();
-            const bungkus = card.find('.bungkus').val();
+            const bungkus = card.find('.bungkus').val() || card.find('.jumlah_bungkus').val();
             const aturanPakai = card.find('.aturan_pakai').val();
 
                     // Validate required fields
@@ -633,7 +638,10 @@
                 },
                 success: function (res) {
                     alert(res.message);
-                    card.find('.tambah-resepracikan').prop('disabled', true).text('Disimpan');
+                    card.find('.tambah-resepracikan').prop('disabled', true).text('Sudah Disimpan');
+                    // Disable fields after successful save
+                    card.find('.wadah, .bungkus, .aturan_pakai').prop('disabled', true);
+                    updateTotalPrice();
                 }
             });
             });
@@ -726,6 +734,63 @@
                 alert('Gagal menyimpan perubahan: ' + xhr.responseJSON.message);
             });
         });
+        // EDIT RACIKAN
+        $('#racikan-container').on('click', '.edit-racikan', function () {
+            const card = $(this).closest('.racikan-card');
+            // Enable fields for editing
+            card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
+            // Hide the save button, show the update button
+            card.find('.tambah-resepracikan').addClass('d-none');
+            card.find('.update-resepracikan').removeClass('d-none');
+        });
+
+        // UPDATE RACIKAN
+        $('#racikan-container').on('click', '.update-resepracikan', function () {
+            const card = $(this).closest('.racikan-card');
+            const racikanKe = card.data('racikan-ke');
+            const visitationId = $('#visitation_id').val();
+            const wadah = card.find('.wadah').val();
+            const bungkus = card.find('.bungkus').val() || card.find('.jumlah_bungkus').val();
+            const aturanPakai = card.find('.aturan_pakai').val();
+            
+            console.log('Update racikan - racikanKe:', racikanKe);
+            console.log('Update racikan - bungkus:', bungkus);
+            console.log('Update racikan - aturanPakai:', aturanPakai);
+            
+            // Validate required fields
+            if (!bungkus || !aturanPakai) {
+                alert('Field "Bungkus" dan "Aturan Pakai" wajib diisi.');
+                return;
+            }
+            
+            // Send AJAX request to update the racikan
+            $.ajax({
+                url: "{{ route('resep.racikan.update', '') }}/" + racikanKe,
+                method: "PUT",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    visitation_id: visitationId,
+                    wadah: wadah,
+                    bungkus: bungkus,
+                    aturan_pakai: aturanPakai
+                },
+                success: function (res) {
+                    alert(res.message || 'Racikan berhasil diupdate!');
+                    // Disable fields again
+                    card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', true);
+                    // Show save button, hide update button
+                    card.find('.tambah-resepracikan').removeClass('d-none');
+                    card.find('.update-resepracikan').addClass('d-none');
+                    // Update total price
+                    updateTotalPrice();
+                },
+                error: function (xhr) {
+                    console.log('Update racikan error:', xhr);
+                    alert('Gagal mengupdate racikan: ' + (xhr.responseJSON?.message || 'Error'));
+                }
+            });
+        });
+
         // MODAL RIWAYAT
         $(document).on('click', '.btn-riwayat', function () {
             console.log('Button clicked'); // Debugging
@@ -799,7 +864,14 @@
         });
     });
 
-
-
+    // DEBUG: Global handler for edit-racikan to ensure it always works
+    $(document).on('click', '.edit-racikan', function () {
+        const card = $(this).closest('.racikan-card');
+        // Enable all possible field classes to handle different naming conventions in the HTML
+        card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
+        card.find('.tambah-resepracikan').addClass('d-none');
+        card.find('.update-resepracikan').removeClass('d-none');
+        console.log('Edit racikan clicked - fields enabled');
+    });
 </script>
 @endsection
