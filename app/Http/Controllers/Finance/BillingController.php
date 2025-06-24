@@ -548,7 +548,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $dokterId = $request->input('dokter_id');
         $klinikId = $request->input('klinik_id');
         
-        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi'])
+        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice'])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59']);
         
         if ($dokterId) {
@@ -600,7 +600,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
             })
             ->addColumn('action', function ($visitation) {
-                return '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
+                $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
+                
+                // Add "Cetak Nota" button if invoice exists
+                if ($visitation->invoice) {
+                    $action .= ' <a href="'.route('finance.invoice.print-nota', $visitation->invoice->id).'" class="btn btn-sm btn-success ml-1" target="_blank">Cetak Nota</a>';
+                }
+                
+                return $action;
             })
             ->rawColumns(['action'])
             ->make(true);

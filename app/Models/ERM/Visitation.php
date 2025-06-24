@@ -75,4 +75,9 @@ class Visitation extends Model
     {
         return $this->hasOne(Cppt::class, 'visitation_id');
     }
+
+    public function invoice()
+    {
+        return $this->hasOne(\App\Models\Finance\Invoice::class, 'visitation_id');
+    }
 }
