@@ -653,6 +653,7 @@
             if (card.find('.resep-table-body tr').length === 0) {
                 card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="4" class="text-center text-muted">Belum ada data</td></tr>`);
             }
+            updateTotalPrice(); // Update total harga setelah obat dihapus dari racikan
         });
         // DELETE RACIKAN
         $(document).on('click', '.hapus-racikan', function () {
@@ -682,6 +683,7 @@
                 success: function (res) {
                     alert(res.message); // Notifikasi
                     card.remove(); // Hapus card racikan dari tampilan
+                    updateTotalPrice(); // Update total harga setelah racikan dihapus
                 },
                 error: function (err) {
                     alert('Gagal menghapus racikan');
