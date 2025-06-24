@@ -34,8 +34,12 @@
     </div><!--end row-->  
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
+    
+
+    <!-- Two column layout for Lab Management -->
     <div class="row">
-        <div class="col-md-12">
+        <!-- Left Column - Permintaan Lab -->
+        <div class="col-md-6">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center ">
                     <h5 class="mb-0"><i class="fa fa-history mr-2"></i> Riwayat Hasil Lab</h5>
@@ -61,47 +65,7 @@
                     </div>
                 </div>
             </div>
-        </div>
-        
-
-    </div>
-
-    <!-- Two column layout for Lab Management -->
-    <div class="row">
-        <!-- Left Column - Permintaan Lab -->
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center ">
-                    <h5 class="mb-0"><i class="fa fa-flask mr-2"></i> Permintaan Laboratorium</h5>
-                </div>
-                <div class="card-body">
-                    <div class="form-group">
-                        <label for="kategoriFilter">Filter Kategori:</label>
-                        <select id="kategoriFilter" class="form-control select2">
-                            <option value="">-- Semua Kategori --</option>
-                            @foreach($labCategories as $category)
-                                <option value="{{ $category->id }}">{{ $category->nama }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="table-responsive mt-3">
-                        <table id="permintaanLabTable" class="table table-bordered table-hover w-100">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th>Nama Pemeriksaan</th>
-                                    <th>Kategori</th>
-                                    <th>Harga</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Data will be loaded via DataTables -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            
         </div>
         
         <!-- Right Column - Riwayat Lab -->
@@ -159,6 +123,45 @@
                 </div>
             </div>
         </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center ">
+                    <h5 class="mb-0"><i class="fa fa-flask mr-2"></i> Permintaan Laboratorium</h5>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="kategoriFilter">Filter Kategori:</label>
+                        <select id="kategoriFilter" class="form-control select2">
+                            <option value="">-- Semua Kategori --</option>
+                            @foreach($labCategories as $category)
+                                <option value="{{ $category->id }}">{{ $category->nama }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="table-responsive mt-3">
+                        <table id="permintaanLabTable" class="table table-bordered table-hover w-100">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Nama Pemeriksaan</th>
+                                    <th>Kategori</th>
+                                    <th>Harga</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Data will be loaded via DataTables -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+        
+
     </div>
 </div>
 
