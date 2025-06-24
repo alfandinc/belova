@@ -36,8 +36,7 @@
 
     <div class="card">
         <div class="card-body">
-            <div class="container">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="container">                    <div class="d-flex justify-content-between align-items-center mb-3">
                     <div style="display: flex; align-items: center;">
                         <h4 style="margin: 0;">Total Harga: <strong>Rp.</strong></h4>
                         <h4 id="total-harga" style="margin: 0; color: white;"><strong>0</strong></h4>
@@ -45,8 +44,6 @@
                     </div>
                    
                     <div class="mb-3">
-                        <button id="copy-from-dokter" class="btn btn-warning btn-sm">Salin Resep dari Dokter</button>
-
                         <button class="btn btn-primary btn-sm btn-cetakresep" >Cetak Resep</button>
                         <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
                         <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
@@ -142,10 +139,9 @@
                     @foreach ($racikans as $ke => $items)
                     <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="{{ $ke }}">
                         <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 style="color: yellow;"><strong>Racikan {{ $ke }}</strong></h5>
                             <div>
-                                <button class="btn btn-warning btn-sm edit-racikan">Edit Racikan</button>
-                            </div>
-                            <div>
+                                <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
                                 <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
                             </div>
                         </div>
@@ -279,7 +275,7 @@
             let visitationId = $('#visitation_id').val();  // Pastikan id yang digunakan sama
             
 
-            if (!obatId || !jumlah || !aturanPakai) return alert("Semua field wajib diisi.");
+            if (!obatId || !jumlah || !aturanPakai) return Swal.fire('Peringatan', "Semua field wajib diisi.", "warning");
 
             // Kirim data via AJAX
             $.ajax({
@@ -320,7 +316,7 @@
                     $('#aturan_pakai').val('');
                 },
                 error: function (xhr) {
-                    alert('Gagal menambahkan resep: ' + xhr.responseJSON.message);
+                    Swal.fire('Error', 'Gagal menambahkan resep: ' + xhr.responseJSON.message, 'error');
                 }
             });
         });
@@ -330,14 +326,26 @@
             const row = $(this).closest('tr');
             const resepId = row.data('id');
 
-            if (!confirm('Yakin ingin menghapus resep ini?')) return;
-
-            $.ajax({
-                url: "{{ route('resepfarmasi.nonracikan.destroy', '') }}/" + resepId,
-                method: 'DELETE',
-                data: {
-                    _token: "{{ csrf_token() }}"
-                },
+            Swal.fire({
+                title: 'Konfirmasi',
+                text: 'Yakin ingin menghapus resep ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    deleteNonRacikan();
+                }
+            });
+            
+            function deleteNonRacikan() {
+                $.ajax({
+                    url: "{{ route('resepfarmasi.nonracikan.destroy', '') }}/" + resepId,
+                    method: 'DELETE',
+                    data: {
+                        _token: "{{ csrf_token() }}"
+                    },
                 success: function () {
                     row.remove();
                     if ($('#resep-table-body tr').length === 0) {
@@ -346,9 +354,10 @@
                     updateTotalPrice();
                 },
                 error: function () {
-                    alert('Gagal menghapus resep. Coba lagi.');
+                    Swal.fire('Error', 'Gagal menghapus resep. Coba lagi.', 'error');
                 }
             });
+            }
         });
 
         // UPDATE TOTAL HARGA
@@ -378,7 +387,10 @@
                 <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanCount}">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 style="color: yellow;"><strong>Racikan ${racikanCount}</strong></h5>
-                        <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        <div>
+                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
+                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        </div>
                     </div>
 
                     <div class="row mb-3">
@@ -514,7 +526,7 @@
             
             // Validate required fields
             if (!bungkus || !aturanPakai) {
-                alert('Jumlah bungkus dan aturan pakai harus diisi!');
+                Swal.fire('Peringatan', 'Jumlah bungkus dan aturan pakai harus diisi!', 'warning');
                 return;
             }
             
@@ -524,7 +536,7 @@
             console.log('Original racikanKe before update:', originalRacikanKe);
             
             if (originalRacikanKe === 0 || originalRacikanKe === '0') {
-                alert('Invalid racikan ID (0). Cannot update this racikan.');
+                Swal.fire('Error', 'Invalid racikan ID (0). Cannot update this racikan.', 'error');
                 return;
             }
             
@@ -541,7 +553,7 @@
                 },
                 success: function(response) {
                     if (response.success) {
-                        alert(response.message);
+                        Swal.fire('Sukses', response.message, 'success');
                         
                         // Disable all possible field classes to handle different naming conventions
                         card.find('.wadah, .bungkus, .jumlah_bungkus, .aturan_pakai').prop('disabled', true);
@@ -555,12 +567,12 @@
                         // Make sure data-racikan-ke attribute is preserved
                         card.attr('data-racikan-ke', originalRacikanKe);
                     } else {
-                        alert('Terjadi kesalahan: ' + response.message);
+                        Swal.fire('Error', 'Terjadi kesalahan: ' + response.message, 'error');
                     }
                 },
                 error: function(xhr, status, error) {
                     console.error('Update failed:', xhr, status, error);
-                    alert('Gagal menyimpan perubahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.responseText));
+                    Swal.fire('Error', 'Gagal menyimpan perubahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.responseText), 'error');
                 }
             });
         });
@@ -585,7 +597,7 @@
             let dosisAkhir = mode === 'tablet' ? defaultDosis * dosisInput : dosisInput;
 
             if (!obatId || !dosisInput) {
-                alert('Nama obat dan dosis harus diisi.');
+                Swal.fire('Peringatan', 'Nama obat dan dosis harus diisi.', 'warning');
                 return;
             }
 
@@ -613,7 +625,7 @@
 
                      // Validate required fields
             if (!bungkus || !aturanPakai) {
-                alert('Field "Bungkus" dan "Aturan Pakai" wajib diisi.');
+                Swal.fire('Peringatan', 'Field "Bungkus" dan "Aturan Pakai" wajib diisi.', 'warning');
                 return;
             }
 
@@ -629,7 +641,7 @@
             });
 
             if (obats.length === 0) {
-                alert('Tambahkan minimal satu obat dalam racikan');
+                Swal.fire('Peringatan', 'Tambahkan minimal satu obat dalam racikan', 'warning');
                 return;
             }
 
@@ -646,7 +658,7 @@
                     obats: obats
                 },
                 success: function (res) {
-                    alert(res.message);
+                    Swal.fire('Sukses', res.message, 'success');
                     card.find('.tambah-resepracikan').prop('disabled', true).text('Disimpan');
                 }
             });
@@ -675,25 +687,38 @@
                 return;
             }
 
-            if (!confirm('Yakin ingin menghapus resep ini?')) return;
-
-            // Request untuk menghapus racikan
-            $.ajax({
-                url: "{{ route('resepfarmasi.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
-                method: "DELETE",
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    visitation_id: visitationId,
-                },
+            Swal.fire({
+                title: 'Konfirmasi',
+                text: 'Yakin ingin menghapus racikan ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    deleteRacikan();
+                }
+            });
+            
+            function deleteRacikan() {
+                // Request untuk menghapus racikan
+                $.ajax({
+                    url: "{{ route('resepfarmasi.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
+                    method: "DELETE",
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        visitation_id: visitationId,
+                    },
                 success: function (res) {
-                    alert(res.message); // Notifikasi
+                    Swal.fire('Sukses', res.message, 'success'); // Notifikasi
                     card.remove(); // Hapus card racikan dari tampilan
                 },
                 error: function (err) {
-                    alert('Gagal menghapus racikan');
+                    Swal.fire('Error', 'Gagal menghapus racikan', 'error');
                 }
-            });
-        })
+                });
+            }
+        });
         // EDIT NON RACIKAN
         $('#resep-table-body').on('click', '.edit', function() {
             const row = $(this).closest('tr');
@@ -735,17 +760,28 @@
                 $('#editResepModal').modal('hide');
             })
             .fail(function(xhr) {
-                alert('Gagal menyimpan perubahan: ' + xhr.responseJSON.message);
+                Swal.fire('Error', 'Gagal menyimpan perubahan: ' + xhr.responseJSON.message, 'error');
             });
         });
 
         // SUBMIT KE BILLING
         $('#submit-all').on('click', function () {
-            if (!confirm('Yakin ingin submit resep ini?')) return;
-
             const $btn = $(this);
             const visitationId = $('#visitation_id').val();
-
+            
+            Swal.fire({
+                title: 'Konfirmasi',
+                text: 'Yakin ingin submit resep ini?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Submit!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    doSubmit(false);
+                }
+            });
+            
             function doSubmit(force = false) {
                 $btn.text('Telah disimpan').addClass('btn-secondary').removeClass('btn-success');
                 $.ajax({
@@ -758,52 +794,36 @@
                     },
                     success: function (res) {
                         if (res.status === 'warning' && res.need_confirm) {
-                            if (confirm(res.message)) {
-                                doSubmit(true); // Resubmit with force
-                            } else {
-                                $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
-                            }
+                            Swal.fire({
+                                title: 'Konfirmasi',
+                                text: res.message,
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: 'Ya, Submit!',
+                                cancelButtonText: 'Batal'
+                            }).then((result) => {
+                                if (result.value) {
+                                    doSubmit(true); // Resubmit with force
+                                } else {
+                                    $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
+                                }
+                            });
                         } else {
-                            alert(res.message);
+                            Swal.fire('Sukses', res.message, 'success');
                             // window.location.reload(); // Optionally reload the page
                         }
                     },
                     error: function () {
-                        alert('Gagal submit resep. Coba lagi.');
+                        Swal.fire('Error', 'Gagal submit resep. Coba lagi.', 'error');
                         $('button').not('.btn-primary, .btn-riwayat').prop('disabled', false);
                         $('input, select, textarea').prop('disabled', false);
                         $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
                     }
                 });
             }
-
-            doSubmit(false);
         });
 
-        //COPY RESEP DOKTER
-        $('#copy-from-dokter').on('click', function () {
-            const visitationId = $('#visitation_id').val();
 
-            $.ajax({
-                url: `/erm/eresepfarmasi/${visitationId}/copy-from-dokter`,
-                method: 'POST',
-                data: {
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function (res) {
-                    if (res.status === 'success') {
-                        alert(res.message);
-                        fetchFarmasiResep(); // load the copied data dynamically
-                        updateTotalPrice();
-                    } else {
-                        alert(res.message);
-                    }
-                },
-                error: function () {
-                    alert('Gagal menyalin resep dari dokter.');
-                }
-            });
-        });
 
 
         $(document).on('click', '.btn-riwayat', function () {
@@ -827,14 +847,27 @@
             const sourceType = $(this).data('source');
             const targetVisitationId = $('#visitation_id').val();
             
-            if (!confirm(`Yakin ingin menyalin resep ini ke kunjungan saat ini?`)) return;
+            // Show SweetAlert confirmation
+            Swal.fire({
+                title: 'Konfirmasi',
+                text: 'Yakin ingin menyalin resep ini ke kunjungan saat ini?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, Salin!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    copyResep();
+                }
+            });
             
-            // Show loading state
-            $(this).html('<i class="fas fa-spinner fa-spin"></i> Menyalin...');
-            const $button = $(this);
-            
-            // Send AJAX request to copy prescriptions
-            $.ajax({
+            function copyResep() {
+                // Show loading state
+                const $button = $('.btn-copy-resep');
+                $button.html('<i class="fas fa-spinner fa-spin"></i> Menyalin...');
+                
+                // Send AJAX request to copy prescriptions
+                $.ajax({
                 url: "{{ route('erm.eresepfarmasi.copyfromhistory') }}",
                 method: "POST",
                 data: {
@@ -845,19 +878,26 @@
                 },
                 success: function(response) {
                     if (response.status === 'success') {
-                        alert(response.message);
-                        location.reload(); // Reload to show the copied prescriptions
+                        Swal.fire({
+                            title: 'Sukses',
+                            text: response.message,
+                            icon: 'success',
+                            confirmButtonText: 'OK'
+                        }).then(() => {
+                            location.reload(); // Reload to show the copied prescriptions
+                        });
                     } else {
-                        alert(response.message);
+                        Swal.fire('Peringatan', response.message, 'warning');
                     }
                 },
                 error: function() {
-                    alert('Gagal menyalin resep. Silakan coba lagi.');
+                    Swal.fire('Error', 'Gagal menyalin resep. Silakan coba lagi.', 'error');
                 },
                 complete: function() {
                     $button.html('<i class="fas fa-copy"></i> Salin Resep');
                 }
             });
+            } // End of copyResep function
         });
 
         $('.btn-cetakresep').on('click', function() {
@@ -883,7 +923,6 @@
     $.get(`/erm/eresepfarmasi/${visitationId}/json`, function (res) {
         $('#resep-wrapper').show();
         $('#empty-resep-message').hide();
-        $('#copy-from-dokter').hide();
 
         // ==== NON RACIKAN ====
         const tbody = $('#resep-table-body');
