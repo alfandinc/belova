@@ -364,7 +364,7 @@ class EresepController extends Controller
                 'jumlah'         => $resep->jumlah,
                 'aturan_pakai'   => $resep->aturan_pakai,
                 'racikan_ke'     => $resep->racikan_ke,
-                'wadah_id'       => $resep->wadah,
+                'wadah_id'       => $resep->wadah_id, // FIXED: use wadah_id, not wadah
                 'bungkus'        => $resep->bungkus,
                 'dosis'          => $resep->dosis,
                 'dokter_id'      => optional($resep->visitation)->dokter_id,
@@ -466,15 +466,6 @@ class EresepController extends Controller
             $dosisRatio = $prescribedDosis / $baseDosis;
             $harga = $basePrice * $dosisRatio;
             
-            // Debug line - remove in production
-            \Log::info("Proportional price calculation", [
-                'obat_id' => $obat['obat_id'],
-                'basePrice' => $basePrice,
-                'prescribedDosis' => $prescribedDosis,
-                'baseDosis' => $baseDosis,
-                'dosisRatio' => $dosisRatio,
-                'calculatedPrice' => $harga
-            ]);
         }
 
         ResepFarmasi::create([
@@ -588,55 +579,7 @@ class EresepController extends Controller
         );
     }
     
-    /*
-    // Calculate service fees
-    $nonRacikanItems = $reseps->whereNull('racikan_ke')->count();
-    $racikanGroups = $reseps->whereNotNull('racikan_ke')->pluck('racikan_ke')->unique()->count();
-    
-    // Get the jasa farmasi prices
-    $jasaNonRacikan = JasaFarmasi::where('nama', 'Tuslah Non Racikan')->first();
-    $jasaRacikan = JasaFarmasi::where('nama', 'Tuslah Racikan')->first();
-    $jasaEmbalase = JasaFarmasi::where('nama', 'Embalase')->first();
-    
-    // 1. Tuslah Non Racikan
-    if ($nonRacikanItems > 0 && $jasaNonRacikan) {
-        $tuslahNonRacikanPrice = $jasaNonRacikan->harga * $nonRacikanItems;
-        Billing::create([
-            'visitation_id' => $visitationId,
-            'billable_id' => $jasaNonRacikan->id,
-            'billable_type' => JasaFarmasi::class,
-            'jumlah' => $tuslahNonRacikanPrice,
-            'keterangan' => "Tuslah Non Racikan: {$nonRacikanItems} item × " . 
-                             number_format($jasaNonRacikan->harga, 0, ',', '.'),
-        ]);
-    }
-    
-    // 2. Tuslah Racikan
-    if ($racikanGroups > 0 && $jasaRacikan) {
-        $tuslahRacikanPrice = $jasaRacikan->harga * $racikanGroups;
-        Billing::create([
-            'visitation_id' => $visitationId,
-            'billable_id' => $jasaRacikan->id,
-            'billable_type' => JasaFarmasi::class,
-            'jumlah' => $tuslahRacikanPrice,
-            'keterangan' => "Tuslah Racikan: {$racikanGroups} racikan × " . 
-                             number_format($jasaRacikan->harga, 0, ',', '.'),
-        ]);
-    }
-    
-    // 3. Embalase
-    if (($nonRacikanItems + $racikanGroups) > 0 && $jasaEmbalase) {
-        $embalasePrice = $jasaEmbalase->harga * ($nonRacikanItems + $racikanGroups);
-        Billing::create([
-            'visitation_id' => $visitationId,
-            'billable_id' => $jasaEmbalase->id,
-            'billable_type' => JasaFarmasi::class,
-            'jumlah' => $embalasePrice,
-            'keterangan' => "Embalase: " . ($nonRacikanItems + $racikanGroups) . 
-                             " item × " . number_format($jasaEmbalase->harga, 0, ',', '.'),
-        ]);
-    }
-    */
+
 
     return response()->json([
         'status' => 'success',
