@@ -142,10 +142,13 @@
                     @foreach ($racikans as $ke => $items)
                     <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="{{ $ke }}">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 style="color: yellow;"><strong>Racikan {{ $ke }}</strong></h5>
-                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                            <div>
+                                <button class="btn btn-warning btn-sm edit-racikan">Edit Racikan</button>
+                            </div>
+                            <div>
+                                <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                            </div>
                         </div>
-
                         <table class="table table-bordered text-white">
                             <thead>
                                 <tr>
@@ -185,8 +188,8 @@
                                 <input type="text" class="form-control aturan_pakai" value="{{ $items->first()->aturan_pakai }}">
                             </div>
                         </div>
-
                         <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
+                        <button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update</button>
                     </div>
                     @endforeach
                 </div>
@@ -419,7 +422,7 @@
 
                     <div class="row">
                         <div class="col-md-3">
-                            <label>Wadah</label>
+                            <label>Racikan</label>
                             <select class="form-control select2-wadah-racikan wadah" name="wadah_id">
                                 <option value="">Search and select wadah...</option>
                             </select>
@@ -493,6 +496,75 @@
 
 
         });
+        // UPDATE RACIKAN
+        $('#racikan-container').on('click', '.update-resepracikan', function () {
+            const card = $(this).closest('.racikan-card');
+            const racikanKe = card.data('racikan-ke');
+            const visitationId = $('#visitation_id').val();
+            const wadah = card.find('.wadah').val();
+            
+            // Find bungkus value - check both possible class names
+            const bungkus = card.find('.bungkus').val() || card.find('.jumlah_bungkus').val();
+            
+            const aturanPakai = card.find('.aturan_pakai').val();
+            
+            console.log('Debug - racikanKe:', racikanKe);
+            console.log('Debug - bungkus:', bungkus);
+            console.log('Debug - aturanPakai:', aturanPakai);
+            
+            // Validate required fields
+            if (!bungkus || !aturanPakai) {
+                alert('Jumlah bungkus dan aturan pakai harus diisi!');
+                return;
+            }
+            
+            // Store the original racikanKe before any updates
+            const originalRacikanKe = racikanKe;
+            
+            console.log('Original racikanKe before update:', originalRacikanKe);
+            
+            if (originalRacikanKe === 0 || originalRacikanKe === '0') {
+                alert('Invalid racikan ID (0). Cannot update this racikan.');
+                return;
+            }
+            
+            // Send AJAX request to update the racikan
+            $.ajax({
+                url: `/erm/resepfarmasi/racikan/${originalRacikanKe}`, // Add 'erm' prefix to match route definition
+                type: 'POST', // Change to POST and use _method to emulate PUT
+                data: {
+                    _method: 'PUT', // Laravel will treat this as a PUT request
+                    visitation_id: visitationId,
+                    bungkus: bungkus, // This should match the field name expected by the controller
+                    aturan_pakai: aturanPakai,
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert(response.message);
+                        
+                        // Disable all possible field classes to handle different naming conventions
+                        card.find('.wadah, .bungkus, .jumlah_bungkus, .aturan_pakai').prop('disabled', true);
+                        card.find('.update-resepracikan').addClass('d-none');
+                        card.find('.tambah-resepracikan').removeClass('d-none');
+                        
+                        // Update the local data without doing a full refresh
+                        card.find('.jumlah_bungkus, .bungkus').val(bungkus);
+                        card.find('.aturan_pakai').val(aturanPakai);
+                        
+                        // Make sure data-racikan-ke attribute is preserved
+                        card.attr('data-racikan-ke', originalRacikanKe);
+                    } else {
+                        alert('Terjadi kesalahan: ' + response.message);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Update failed:', xhr, status, error);
+                    alert('Gagal menyimpan perubahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : xhr.responseText));
+                }
+            });
+        });
+        
         // TAMBAH OBAT KE RACIKAN
         $('#racikan-container').on('click', '.tambah-obat', function () {
             const card = $(this).closest('.racikan-card');
@@ -806,6 +878,7 @@
 
     function fetchFarmasiResep() {
     const visitationId = $('#visitation_id').val();
+    console.log('Fetching resep data for visitation:', visitationId);
 
     $.get(`/erm/eresepfarmasi/${visitationId}/json`, function (res) {
         $('#resep-wrapper').show();
@@ -837,8 +910,16 @@
         const racikanWrapper = $('#racikan-container');
         racikanWrapper.empty(); // clear old data
         let racikanCount = 0;
+        
+        console.log('Racikan data from server:', res.racikans);
 
         Object.entries(res.racikans).forEach(([ke, items]) => {
+            console.log(`Processing racikan with ke=${ke}, items:`, items);
+            
+            if (ke === '0' || ke === 0) {
+                console.warn('WARNING: Found racikan with key 0, this will cause update problems!');
+            }
+            
             const wadah = items[0].wadah ?? '';
             const bungkus = items[0].bungkus ?? '';
             const aturan = items[0].aturan_pakai ?? '';
@@ -857,7 +938,10 @@
                 <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${ke}">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 style="color: yellow;"><strong>Racikan ${ke}</strong></h5>
-                        <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        <div>
+                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
+                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        </div>
                     </div>
 
                     <table class="table table-bordered text-white">
@@ -876,8 +960,8 @@
 
                     <div class="row">
                         <div class="col-md-3">
-                            <label>Wadah</label>
-                            <select class="form-control wadah">
+                            <label>Racikan</label>
+                            <select class="form-control wadah" disabled>
                                 ${['Kapsul', 'Ampul', 'Botol', 'Sachet'].map(opt => `
                                     <option value="${opt}" ${opt === wadah ? 'selected' : ''}>${opt}</option>
                                 `).join('')}
@@ -885,15 +969,16 @@
                         </div>
                         <div class="col-md-3">
                             <label>Bungkus</label>
-                            <input type="number" class="form-control jumlah_bungkus" value="${bungkus}">
+                            <input type="number" class="form-control jumlah_bungkus" value="${bungkus}" disabled>
                         </div>
                         <div class="col-md-6">
                             <label>Aturan Pakai</label>
-                            <input type="text" class="form-control aturan_pakai" value="${aturan}">
+                            <input type="text" class="form-control aturan_pakai" value="${aturan}" disabled>
                         </div>
                     </div>
 
                     <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
+                    <button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update</button>
                 </div>
             `);
 
@@ -902,5 +987,14 @@
     });
 }
 
+// DEBUG: Global handler for edit-racikan to ensure it always works
+$(document).on('click', '.edit-racikan', function () {
+    const card = $(this).closest('.racikan-card');
+    // Enable all possible field classes to handle different naming conventions in the HTML
+    card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
+    card.find('.tambah-resepracikan').addClass('d-none');
+    card.find('.update-resepracikan').removeClass('d-none');
+    console.log('Edit racikan clicked - fields enabled');
+});
 </script>
 @endsection

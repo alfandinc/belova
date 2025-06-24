@@ -536,6 +536,40 @@ class EresepController extends Controller
         ]);
     }
 
+    public function farmasiupdateRacikan(Request $request, $racikanKe)
+    {
+        try {
+            $validated = $request->validate([
+                'visitation_id' => 'required',
+                'bungkus' => 'required|integer',
+                'aturan_pakai' => 'required|string',
+            ]);
+
+            $updated = \App\Models\ERM\ResepFarmasi::where('visitation_id', $validated['visitation_id'])
+                ->where('racikan_ke', $racikanKe)
+                ->update([
+                    'bungkus' => $validated['bungkus'],
+                    'aturan_pakai' => $validated['aturan_pakai'],
+                ]);
+
+            if ($updated) {
+                return response()->json(['success' => true, 'message' => 'Racikan berhasil diupdate.']);
+            } else {
+                // Log the query information for debugging
+                \Illuminate\Support\Facades\Log::info('Racikan update failed', [
+                    'visitation_id' => $validated['visitation_id'],
+                    'racikan_ke' => $racikanKe,
+                    'bungkus' => $validated['bungkus'],
+                    'aturan_pakai' => $validated['aturan_pakai']
+                ]);
+                return response()->json(['success' => false, 'message' => 'Tidak ada data yang diupdate.'], 404);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error updating racikan: ' . $e->getMessage(), ['exception' => $e]);
+            return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
+        }
+    }
+
     // SUBMIT RESEP
 
     public function submitResep(Request $request)
