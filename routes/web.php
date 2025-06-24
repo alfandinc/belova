@@ -174,7 +174,7 @@ Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->n
     Route::delete('/eradiologi/permintaan/{id}', [EradiologiController::class, 'destroy'])->name('erm.eradiologi.destroy');
     Route::put('/eradiologi/permintaan/{id}/status', [EradiologiController::class, 'updateStatus'])->name('erm.eradiologi.update-status');
     Route::post('/eradiologi/permintaan/bulk-delete', [EradiologiController::class, 'bulkDelete'])->name('erm.eradiologi.bulk-delete');
-    Route::post('/eradiologi/permintaan/bulk-update', [EradiologiController::class, 'bulkUpdateStatus'])->name('erm.eradiologi.bulk-update');
+    Route::post('/eradiologi/permintaan/bulk-update', [EradiologiController::class, 'bulkUpdate'])->name('erm.eradiologi.bulk-update');
     Route::get('/eradiologi/{visitation_id}/print', [EradiologiController::class, 'printPermintaan'])->name('erm.eradiologi.print');
     Route::get('/eradiologi/{visitation_id}/dokumen/data', [EradiologiController::class, 'getRadiologiDokumenData'])->name('erm.eradiologi.dokumen.data');
     Route::post('/eradiologi/hasil/upload', [EradiologiController::class, 'uploadRadiologiHasil'])->name('erm.eradiologi.hasil.upload');
@@ -186,10 +186,10 @@ Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->n
     Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');
     Route::get('/elab/tests/data', [ElabController::class, 'getLabTestData'])->name('erm.elab.tests.data');
     Route::get('/elab/{visitation_id}/requests/data', [ElabController::class, 'getLabPermintaanData'])->name('erm.elab.requests.data');
-    Route::delete('/elab/permintaan/{id}', [ElabController::class, 'destroy'])->name('erm.elab.destroy');
+    Route::delete('/elab/{id}', [ElabController::class, 'destroy'])->name('erm.elab.destroy');
     Route::put('/elab/permintaan/{id}/status', [ElabController::class, 'updateStatus'])->name('erm.elab.update-status');
     Route::post('/elab/permintaan/bulk-delete', [ElabController::class, 'bulkDelete'])->name('erm.elab.bulk-delete');
-    Route::post('/elab/permintaan/bulk-update', [ElabController::class, 'bulkUpdateStatus'])->name('erm.elab.bulk-update');
+    Route::post('/elab/permintaan/bulk-update', [ElabController::class, 'bulkUpdate'])->name('erm.elab.bulk-update');
     Route::get('/elab/{visitation_id}/print', [ElabController::class, 'printPermintaan'])->name('erm.elab.print');
     Route::get('/elab/{visitation_id}/hasil/data', [ElabController::class, 'getLabHasilData'])->name('erm.elab.hasil.data');
     Route::post('/elab/hasil/upload', [ElabController::class, 'uploadLabHasil'])->name('erm.elab.hasil.upload');

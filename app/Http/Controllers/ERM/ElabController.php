@@ -60,15 +60,26 @@ class ElabController extends Controller
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
-        $labCategories = LabKategori::orderBy('nama')->get();
+        
+        // Get lab categories with their tests
+        $labCategories = LabKategori::with(['labTests' => function($query) {
+            $query->orderBy('nama');
+        }])->orderBy('nama')->get();
+        
+        // Get existing lab requests for this visitation
+        $existingLabRequests = LabPermintaan::where('visitation_id', $visitationId)
+                                ->with('labTest')
+                                ->get();
         
         // Get total estimated price
-        $totalHarga = LabPermintaan::where('visitation_id', $visitationId)
-                        ->with('labTest')
-                        ->get()
-                        ->sum(function($item) {
-                            return $item->labTest->harga;
-                        });
+        $totalHarga = $existingLabRequests->sum(function($item) {
+            return $item->labTest->harga;
+        });
+        
+        // Get existing lab test IDs for pre-checking checkboxes
+        $existingLabTestIds = $existingLabRequests->pluck('lab_test_id')->toArray();
+        // Map: lab_test_id => status
+        $existingLabTestStatuses = $existingLabRequests->pluck('status', 'lab_test_id')->toArray();
 
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
@@ -76,7 +87,9 @@ class ElabController extends Controller
         return view('erm.elab.create', array_merge([
             'visitation' => $visitation,
             'labCategories' => $labCategories,
-            'totalHarga' => $totalHarga
+            'totalHarga' => $totalHarga,
+            'existingLabTestIds' => $existingLabTestIds,
+            'existingLabTestStatuses' => $existingLabTestStatuses
         ], $pasienData, $createKunjunganData));
     }
 
@@ -131,6 +144,9 @@ class ElabController extends Controller
             ->addColumn('harga', function($row) {
                 return 'Rp ' . number_format($row->labTest->harga, 0, ',', '.');
             })
+            ->addColumn('lab_test_id', function($row) {
+                return $row->lab_test_id;
+            })
             ->addColumn('status_label', function($row) {
                 if ($row->status == 'requested') {
                     return '<span class="badge badge-warning">Diminta</span>';
@@ -144,7 +160,7 @@ class ElabController extends Controller
                 $editBtn = '<button class="btn btn-sm btn-info btn-edit-status mr-1" data-id="'.$row->id.'">
                                 <i class="fas fa-edit"></i> Edit
                             </button>';
-                $deleteBtn = '<button class="btn btn-sm btn-danger btn-delete-permintaan" data-id="'.$row->id.'">
+                $deleteBtn = '<button class="btn btn-sm btn-danger btn-delete-permintaan" data-id="'.$row->id.'" data-test-id="'.$row->lab_test_id.'">
                                 <i class="fas fa-trash"></i> Batal
                             </button>';
                 return $editBtn . $deleteBtn;
@@ -436,6 +452,61 @@ class ElabController extends Controller
         return response()->json([
             'success' => true,
             'data' => $labHasil
+        ]);
+    }
+
+    public function bulkUpdate(Request $request)
+    {
+        $request->validate([
+            'requests' => 'required|array',
+            'requests.*.lab_test_id' => 'required|integer|exists:erm_lab_test,id',
+            'requests.*.status' => 'required|in:requested,processing,completed',
+            'visitation_id' => 'required', // visitation_id is string
+        ]);
+
+        $visitationId = $request->input('visitation_id');
+        $requests = $request->input('requests', []);
+
+        $checkedIds = collect($requests)->pluck('lab_test_id')->toArray();
+
+        // 1. Add or update LabPermintaan and Billing
+        foreach ($requests as $item) {
+            $permintaan = \App\Models\ERM\LabPermintaan::where('visitation_id', $visitationId)
+                ->where('lab_test_id', $item['lab_test_id'])
+                ->first();
+            if ($permintaan) {
+                $permintaan->status = $item['status'];
+                $permintaan->save();
+            } else {
+                $permintaan = \App\Models\ERM\LabPermintaan::create([
+                    'visitation_id' => $visitationId,
+                    'lab_test_id' => $item['lab_test_id'],
+                    'status' => $item['status'],
+                    'dokter_id' => auth()->id(),
+                ]);
+                // Create billing entry
+                $labTest = \App\Models\ERM\LabTest::find($item['lab_test_id']);
+                $permintaan->billings()->create([
+                    'visitation_id' => $visitationId,
+                    'jumlah' => $labTest->harga,
+                    'keterangan' => 'Lab: ' . $labTest->nama,
+                ]);
+            }
+        }
+
+        // 2. Remove unchecked LabPermintaan and Billing
+        $toDelete = \App\Models\ERM\LabPermintaan::where('visitation_id', $visitationId)
+            ->whereNotIn('lab_test_id', $checkedIds)
+            ->get();
+        foreach ($toDelete as $permintaan) {
+            // Delete related billing
+            $permintaan->billings()->delete();
+            $permintaan->delete();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Permintaan laboratorium berhasil disimpan'
         ]);
     }
 }

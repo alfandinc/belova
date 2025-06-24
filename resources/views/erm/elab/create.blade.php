@@ -11,8 +11,64 @@
 
 
 @include('erm.partials.modal-alergipasien')
+<style>
+    .lab-category-box {
+        
+        margin-bottom: 24px;
+        height: 100%;
+        padding: 12px;
+        box-sizing: border-box;
+        
+        box-shadow: 0 2px 8px rgba(0,51,102,0.04);
+        transition: box-shadow 0.2s;
+    }
+    .lab-category-box:hover {
+        box-shadow: 0 4px 16px rgba(0,51,102,0.10);
+    }
+    .lab-category-header {
+        background: #00509e;
+        border-top-left-radius: 7px;
+        border-top-right-radius: 7px;
+        font-weight: bold;
+        border-bottom: 2px solid #00509e;
+        letter-spacing: 1px;
+        font-size: 1.05em;
+        padding-left: 8px;
+        padding-right: 8px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+    }
+    
+    .lab-category-content {
+        overflow-y: visible; /* Remove vertical scrollbar */
+        padding-top: 8px;
+        padding-bottom: 8px;
+        box-sizing: border-box;
+        padding-left: 8px;
+        padding-right: 26px; /* Add extra space for scrollbar */
+    }
+    
+    .form-check {
+        margin-bottom: 8px;
+        padding: 6px 0 6px 8px;
+        /* border-bottom: 1px dashed #cce0f6; */ /* Removed dashed line */
+    }
+    .form-check:last-child {
+        border-bottom: none;
+    }
+    /* Add spacing between columns */
+    .row > [class^='col-'] {
+        margin-bottom: 12px;
+    }
+    .custom-container-padding {
+        padding-left: 32px !important;
+        padding-right: 32px !important;
+    }
+</style>
 
-<div class="container-fluid">
+<div class="container-fluid custom-container-padding">
+    <!-- Hidden input for visitation ID -->
+    <input type="hidden" id="visitationId" value="{{ $visitation->id }}">
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">E-Laboratorium</h3>
     </div>
@@ -46,7 +102,7 @@
                 </div>
                 <div class="card-body">
 
-                    <div class="table-responsive mt-3">
+                    <div class="table-responsive">
                         <table id="hasilLabTable" class="table table-bordered table-hover w-100">
                             <thead class="thead-light">
                                 <tr>
@@ -65,58 +121,34 @@
                     </div>
                 </div>
             </div>
-            
         </div>
-        
-        <!-- Right Column - Riwayat Lab -->
+        <!-- Merged Card: Estimasi Harga & Permintaan Terpilih -->
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fa fa-file-medical-alt mr-2"></i> Riwayat Permintaan Lab</h5>
-                    
-                    <!-- Total Estimated Price -->
-                    <div class="text-right">
-                        
-                        <div class="h5">Estimasi Total: <span id="totalEstimasi">Rp {{ number_format($totalHarga, 0, ',', '.') }}</span></div>
+                    <div class="d-flex align-items-center" style="flex:1;">
+                        <h5 class="mb-0 mr-2"><i class="fa fa-flask mr-2"></i> Permintaan Lab</h5>
+                    </div>
+                    <div class="flex-grow-1 text-center">
+                        <span class="h5 mb-0">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
+                    </div>
+                    <div class="d-flex align-items-center" style="flex:1; justify-content: flex-end;">
+                        <button type="button" id="submitLabRequests" class="btn btn-sm btn-primary">Simpan Permintaan Lab</button>
                     </div>
                 </div>
                 <div class="card-body">
-                    <!-- Bulk action buttons -->
-                    <div class="mb-3">
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-sm btn-danger btn-bulk-delete mr-2" disabled>
-                                <i class="fas fa-trash"></i> Hapus Terpilih
-                            </button>
-                            <button type="button" class="btn btn-sm btn-info btn-bulk-edit mr-2" disabled data-toggle="dropdown">
-                                <i class="fas fa-edit"></i> Edit Status Terpilih
-                            </button>
-                            <a href="{{ route('erm.elab.print', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary mr-2">
-                                <i class="fas fa-print"></i> Print Permintaan
-                            </a>
-                            <div class="dropdown-menu">
-                                <a class="dropdown-item bulk-status-option" href="#" data-status="requested">Diminta</a>
-                                <a class="dropdown-item bulk-status-option" href="#" data-status="processing">Diproses</a>
-                                <a class="dropdown-item bulk-status-option" href="#" data-status="completed">Selesai</a>
-                            </div>
-                        </div>
-                    </div>
-                
                     <div class="table-responsive">
-                        <table id="riwayatLabTable" class="table table-bordered table-hover w-100">
+                        <table class="table table-bordered table-sm mb-0" id="checkedLabTable">
                             <thead class="thead-light">
                                 <tr>
-                                    <th>
-                                        <input type="checkbox" id="checkAll">
-                                    </th>
-                                    <th>Tanggal</th>
+                                    <th>No</th>
                                     <th>Pemeriksaan</th>
-                                    <th>Kategori</th>
+                                    <th>Harga</th>
                                     <th>Status</th>
-                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Data will be loaded via DataTables -->
+                                <!-- Filled by JS -->
                             </tbody>
                         </table>
                     </div>
@@ -127,41 +159,40 @@
     <div class="row">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center ">
-                    <h5 class="mb-0"><i class="fa fa-flask mr-2"></i> Permintaan Laboratorium</h5>
-                </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label for="kategoriFilter">Filter Kategori:</label>
-                        <select id="kategoriFilter" class="form-control select2">
-                            <option value="">-- Semua Kategori --</option>
+                    <form id="labRequestForm">
+                        @csrf
+                        <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                        <div class="row">
                             @foreach($labCategories as $category)
-                                <option value="{{ $category->id }}">{{ $category->nama }}</option>
+                            <div class="col-md-3 mb-3">
+                                <div class="lab-category-box">
+                                    <div class="lab-category-header text-center text-white py-1">
+                                        {{ strtoupper($category->nama) }}
+                                    </div>
+                                    <div class="lab-category-content p-2">
+                                        @foreach($category->labTests as $test)
+                                        <div class="form-check">
+                                            <input class="form-check-input lab-test-checkbox" type="checkbox" 
+                                                id="test-{{ $test->id }}" 
+                                                data-id="{{ $test->id }}" 
+                                                data-name="{{ $test->nama }}"
+                                                data-price="{{ $test->harga }}"
+                                                {{ in_array($test->id, $existingLabTestIds) ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="test-{{ $test->id }}">
+                                                {{ $test->nama }}
+                                            </label>
+                                        </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
                             @endforeach
-                        </select>
-                    </div>
-
-                    <div class="table-responsive mt-3">
-                        <table id="permintaanLabTable" class="table table-bordered table-hover w-100">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th>Nama Pemeriksaan</th>
-                                    <th>Kategori</th>
-                                    <th>Harga</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Data will be loaded via DataTables -->
-                            </tbody>
-                        </table>
-                    </div>
+                        </div>
+                    </form>
                 </div>
             </div>
-            
         </div>
-        
-
     </div>
 </div>
 
@@ -181,9 +212,9 @@
                     <div class="form-group">
                         <label for="statusSelect">Status</label>
                         <select class="form-control" id="statusSelect" name="status">
-                            <option value="requested">Diminta</option>
-                            <option value="processing">Diproses</option>
-                            <option value="completed">Selesai</option>
+                            <option value="requested">requested</option>
+                            <option value="processing">processing</option>
+                            <option value="completed">completed</option>
                         </select>
                     </div>
                     <div class="form-group" id="hasilGroup" style="display: none;">
@@ -201,37 +232,19 @@
 </div>
 @endsection
 
+
+
 @section('scripts')
 <script>  
+// Define lab test statuses from PHP to JavaScript
+var existingLabTestStatuses = @json($existingLabTestStatuses);
+
 $(document).ready(function () {
+    // Make it available in the window scope too
+    window.existingLabTestStatuses = existingLabTestStatuses;
+    
     // Initialize select2
     $('.select2').select2();
-    
-    // Initialize DataTables
-    let permintaanTable = $('#permintaanLabTable').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: {
-            url: '{{ route("erm.elab.tests.data") }}',
-            data: function (d) {
-                d.kategori_id = $('#kategoriFilter').val();
-            }
-        },
-        columns: [
-            { data: 'nama', name: 'nama' },
-            { data: 'kategori', name: 'kategori' },
-            { data: 'harga_formatted', name: 'harga' },
-            { data: 'action', name: 'action', orderable: false, searchable: false }
-        ],
-        language: {
-            search: "Cari:",
-            lengthMenu: "Tampilkan _MENU_ data per halaman",
-            zeroRecords: "Tidak ada data yang ditemukan",
-            info: "Menampilkan halaman _PAGE_ dari _PAGES_",
-            infoEmpty: "Tidak ada data tersedia",
-            infoFiltered: "(difilter dari _MAX_ total data)"
-        }
-    });
     
     let riwayatTable = $('#riwayatLabTable').DataTable({
         processing: true,
@@ -256,101 +269,205 @@ $(document).ready(function () {
         }
     });
     
-    // Filter by category when selection changes
-    $('#kategoriFilter').change(function() {
-        permintaanTable.ajax.reload();
-    });
-    
-    // Handle request lab button click using delegation (for dynamically created elements)
-    $('#permintaanLabTable').on('click', '.btn-permintaan-lab', function() {
+    // Handle lab test checkbox clicks
+    $('.lab-test-checkbox').on('change', function() {
         let testId = $(this).data('id');
+        let testName = $(this).data('name');
+        let testPrice = $(this).data('price');
         
-        $.ajax({
-            url: '{{ route("erm.elab.store") }}',
-            type: 'POST',
-            data: {
-                visitation_id: '{{ $visitation->id }}',
-                lab_test_id: testId,
-                _token: '{{ csrf_token() }}'
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Show success message
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil',
-                        text: response.message,
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                    
-                    // Update total price
-                    $('#totalEstimasi').text(response.totalHargaFormatted);
-                    
-                    // Reload riwayat table
-                    riwayatTable.ajax.reload();
-                }
-            },
-            error: function(xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Oops...',
-                    text: 'Terjadi kesalahan! Silakan coba lagi.'
-                });
-                console.error(xhr.responseText);
-            }
-        });
-    });
-    
-    // Handle delete button click
-    $('#riwayatLabTable').on('click', '.btn-delete-permintaan', function() {
-    let permintaanId = $(this).data('id');
-    
-    Swal.fire({
-        title: 'Apakah Anda yakin?',
-        text: "Permintaan lab akan dibatalkan!",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Ya, batalkan!',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        console.log('Swal pertama result:', result);
-        if (result.value) {
+        if (this.checked) {
+            // Add to lab request
             $.ajax({
-                url: '/erm/elab/permintaan/' + permintaanId,
-                type: 'DELETE',
+                url: '{{ route("erm.elab.store") }}',
+                type: 'POST',
                 data: {
+                    visitation_id: '{{ $visitation->id }}',
+                    lab_test_id: testId,
                     _token: '{{ csrf_token() }}'
                 },
                 success: function(response) {
                     if (response.success) {
-                        Swal.fire(
-                            'Dibatalkan!',
-                            'Permintaan lab berhasil dibatalkan.',
-                            'success'
-                        );
-                        
-                        // Update total price
+                        // Update price and refresh table
                         $('#totalEstimasi').text(response.totalHargaFormatted);
-                        
-                        // Reload riwayat table
                         riwayatTable.ajax.reload();
+                        
+                        // Show success message
+                        toastr.success('Permintaan lab berhasil ditambahkan');
                     }
                 },
                 error: function(xhr) {
-                    console.error(xhr.responseText);
-                    Swal.fire(
-                        'Error!',
-                        'Terjadi kesalahan saat membatalkan permintaan.',
-                        'error'
-                    );
+                    console.error(xhr);
+                    toastr.error('Gagal menambahkan permintaan lab');
+                    $(this).prop('checked', false);
                 }
             });
+        } else {
+            // Remove from lab request - find the request in the table first
+            let rowData = riwayatTable.rows().data().toArray();
+            let requestId = null;
+            
+            for (let i = 0; i < rowData.length; i++) {
+                if (rowData[i].lab_test_id == testId) {
+                    // Extract the ID from the checkbox HTML
+                    let checkboxHtml = $(rowData[i].checkbox);
+                    requestId = checkboxHtml.val();
+                    break;
+                }
+            }
+            
+            if (requestId) {
+                $.ajax({
+                    url: '/erm/elab/' + requestId,
+                    type: 'DELETE',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        // Update price and refresh table
+                        $('#totalEstimasi').text(response.totalHargaFormatted);
+                        riwayatTable.ajax.reload();
+                        
+                        toastr.success('Permintaan lab berhasil dihapus');
+                    },
+                    error: function(xhr) {
+                        console.error(xhr);
+                        toastr.error('Gagal menghapus permintaan lab');
+                        $(this).prop('checked', true);
+                    }
+                });
+            }
         }
     });
-});
+    
+    // --- Estimasi Harga calculation ---
+    function updateEstimasiHarga() {
+        let total = 0;
+        $('.lab-test-checkbox:checked').each(function() {
+            let price = parseInt($(this).data('price')) || 0;
+            total += price;
+        });
+        // Format as currency (Rp)
+        let formatted = total.toLocaleString('id-ID');
+        $('#estimasiHargaTotal').text(formatted);
+    }
+
+    // Update on page load and whenever a checkbox changes
+    updateEstimasiHarga();
+    $(document).on('change', '.lab-test-checkbox', updateEstimasiHarga);
+    
+    // Update checked lab tests table
+    function updateCheckedLabTable() {
+        let tbody = $('#checkedLabTable tbody');
+        tbody.empty();
+        let checked = $('.lab-test-checkbox:checked');
+        checked.each(function(idx) {
+            let name = $(this).data('name');
+            let price = parseInt($(this).data('price')) || 0;
+            let formatted = price.toLocaleString('id-ID');
+            let testId = $(this).data('id');
+            // Use old status if exists, otherwise default to 'requested'
+            // Convert testId to string to ensure consistent lookup
+            let testIdStr = String(testId);
+            
+            // Find the status - handle both number and string keys
+            let selectedStatus = 'requested'; // Default
+            if (window.existingLabTestStatuses) {
+                if (window.existingLabTestStatuses[testId] !== undefined) {
+                    selectedStatus = window.existingLabTestStatuses[testId];
+                } else if (window.existingLabTestStatuses[testIdStr] !== undefined) {
+                    selectedStatus = window.existingLabTestStatuses[testIdStr];
+                }
+            }
+            
+            let statusOptions = `
+                <select class="form-control form-control-sm status-select" data-test-id="${testId}">
+                    <option value="requested" ${selectedStatus === 'requested' ? 'selected' : ''}>Diminta</option>
+                    <option value="processing" ${selectedStatus === 'processing' ? 'selected' : ''}>Diproses</option>
+                    <option value="completed" ${selectedStatus === 'completed' ? 'selected' : ''}>Selesai</option>
+                </select>
+            `;
+            let row = `<tr>
+                <td>${idx + 1}</td>
+                <td>${name}</td>
+                <td>Rp ${formatted}</td>
+                <td>${statusOptions}</td>
+            </tr>`;
+            tbody.append(row);
+        });
+        if (checked.length === 0) {
+            tbody.append('<tr><td colspan="4" class="text-center text-muted">Belum ada permintaan dipilih</td></tr>');
+        }
+    }
+    // Update on page load and whenever a checkbox changes
+    updateCheckedLabTable();
+    $(document).on('change', '.lab-test-checkbox', updateCheckedLabTable);
+    
+    // Force update all status dropdowns to match their actual values
+    function forceUpdateStatusDropdowns() {
+        $('.status-select').each(function() {
+            let testId = $(this).data('test-id');
+            let testIdStr = String(testId);
+            let selectedStatus = 'requested';
+            
+            if (window.existingLabTestStatuses) {
+                if (window.existingLabTestStatuses[testId] !== undefined) {
+                    selectedStatus = window.existingLabTestStatuses[testId];
+                } else if (window.existingLabTestStatuses[testIdStr] !== undefined) {
+                    selectedStatus = window.existingLabTestStatuses[testIdStr];
+                }
+            }
+            
+            $(this).val(selectedStatus);
+        });
+    }
+    
+    // Run this after a short delay to ensure all elements are rendered
+    setTimeout(forceUpdateStatusDropdowns, 500);
+    
+    // Handler for status change (AJAX can be added here)
+    $(document).on('change', '.status-select', function() {
+        let testId = $(this).data('test-id');
+        let newStatus = $(this).val();
+        // TODO: Add AJAX call here if you want to update status in backend
+        // Example:
+        // $.post('/erm/elab/permintaan/' + testId + '/status', { status: newStatus, _token: '{{ csrf_token() }}' });
+    });
+    
+    // Handle the submit button for all lab requests
+    $('#submitLabRequests').on('click', function() {
+        let visitationId = $('#visitationId').val();
+        let requests = [];
+        $('.lab-test-checkbox').each(function() {
+            if (this.checked) {
+                let testId = $(this).data('id');
+                // Find the status from the corresponding status-select
+                let status = $(
+                    '.status-select[data-test-id="' + testId + '"]'
+                ).val() || 'requested';
+                requests.push({
+                    lab_test_id: testId,
+                    status: status
+                });
+            }
+        });
+
+        $.ajax({
+            url: '/erm/elab/permintaan/bulk-update',
+            method: 'POST',
+            data: {
+                visitation_id: visitationId,
+                requests: requests,
+                _token: '{{ csrf_token() }}'
+            },
+            success: function(response) {
+                Swal.fire('Berhasil', response.message, 'success');
+                // Optionally reload table or update UI
+            },
+            error: function(xhr) {
+                Swal.fire('Gagal', 'Terjadi kesalahan', 'error');
+            }
+        });
+    });
     
     // Handle edit status button click
     $('#riwayatLabTable').on('click', '.btn-edit-status', function() {
@@ -574,6 +691,8 @@ $(document).ready(function () {
 let hasilLabTable = $('#hasilLabTable').DataTable({
     processing: true,
     serverSide: true,
+    searching: false, // Hide search box
+    lengthChange: false, // Hide length menu
     ajax: {
         url: '/erm/elab/{{ $visitation->id }}/hasil/data',
     },
@@ -793,6 +912,5 @@ $('#hasilDetailTable').on('click', '.remove-detail', function() {
 
 
 });
-
 </script>    
 @endsection
