@@ -170,6 +170,12 @@ class EresepController extends Controller
             ->pluck('obat_id')
             ->toArray();
 
+        // Get racikan medications that exist in both doctor and pharmacy prescriptions
+        $farmasiRacikanObatIds = ResepFarmasi::where('visitation_id', $visitationId)
+            ->whereNotNull('racikan_ke')
+            ->pluck('obat_id')
+            ->toArray();
+
         // Hitung nilai racikan_ke terakhir dari database
         $lastRacikanKe = $reseps->whereNotNull('racikan_ke')->max('racikan_ke') ?? 0;
 
@@ -187,6 +193,7 @@ class EresepController extends Controller
             'lastRacikanKe' => $lastRacikanKe,
             'catatan_resep' => $catatan_resep,
             'farmasiObatIds' => $farmasiObatIds,
+            'farmasiRacikanObatIds' => $farmasiRacikanObatIds,
         ], $pasienData, $createKunjunganData));
     }
     public function storeNonRacikan(Request $request)

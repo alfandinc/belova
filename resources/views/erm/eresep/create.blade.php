@@ -11,8 +11,40 @@
         color: #28a745 !important;
         font-weight: bold;
     }
-    
-    /* Optional: Add background color for better visibility */
+         // Function to refresh row colors based on farmasi prescriptions
+        function refreshRowColors() {
+            // Handle non-racikan rows
+            $('#resep-table-body tr[data-id]').each(function() {
+                const row = $(this);
+                const obatId = row.data('obat-id');
+                
+                if (obatId) {
+                    checkIfObatInFarmasi(obatId, function(existsInFarmasi) {
+                        if (existsInFarmasi) {
+                            row.addClass('text-success row-in-farmasi');
+                        } else {
+                            row.removeClass('text-success row-in-farmasi');
+                        }
+                    });
+                }
+            });
+
+            // Handle racikan rows
+            $('#racikan-container .resep-table-body tr[data-obat-id]').each(function() {
+                const row = $(this);
+                const obatId = row.data('obat-id');
+                
+                if (obatId) {
+                    checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
+                        if (existsInFarmasi) {
+                            row.addClass('text-success row-in-farmasi');
+                        } else {
+                            row.removeClass('text-success row-in-farmasi');
+                        }
+                    });
+                }
+            });
+        }al: Add background color for better visibility */
     .row-in-farmasi {
         background-color: rgba(40, 167, 69, 0.1) !important;
     }
@@ -20,6 +52,15 @@
     /* Enhance the existing success color */
     tr.text-success td {
         color: #28a745 !important;
+    }
+
+    /* Apply styling to racikan tables as well */
+    #racikan-container .resep-table-body tr.text-success td {
+        color: #28a745 !important;
+    }
+    
+    #racikan-container .resep-table-body tr.row-in-farmasi {
+        background-color: rgba(40, 167, 69, 0.1) !important;
     }
 </style>
 
@@ -151,6 +192,12 @@
 
                 <!-- RACIKAN -->
                 <h5 style="color: yellow;"><strong>Resep Racikan</strong></h5>
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i> Keterangan: 
+                        <span class="text-success font-weight-bold">Hijau</span> = Obat sudah ada di resep farmasi racikan
+                    </small>
+                </div>
                 
                 <div id="racikan-container">
                     @foreach ($racikans as $ke => $items)
@@ -192,7 +239,7 @@
                             </thead>
                             <tbody class="resep-table-body">
                                 @foreach ($items as $resep)
-                                    <tr>
+                                    <tr data-obat-id="{{ $resep->obat_id }}" class="{{ in_array($resep->obat_id, $farmasiRacikanObatIds) ? 'text-success row-in-farmasi' : '' }}">
                                        
                                         <td data-id="{{ $resep->id }}">{{ $resep->obat->nama ?? '-' }}</td>
                                         <td>{{ $resep->obat->dosis ?? '-' }}</td>
@@ -254,6 +301,7 @@
 <script>
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
     let farmasiObatIds = @json($farmasiObatIds ?? []);
+    let farmasiRacikanObatIds = @json($farmasiRacikanObatIds ?? []);
 
     // Function to check if obat exists in farmasi prescriptions
     function checkIfObatInFarmasi(obatId, callback) {
@@ -266,6 +314,24 @@
             },
             error: function(xhr, status, error) {
                 console.log('Error checking farmasi prescriptions:', error);
+                callback(false);
+            }
+        });
+    }
+
+    // Function to check if obat exists in farmasi racikan prescriptions
+    function checkIfObatInFarmasiRacikan(obatId, callback) {
+        $.ajax({
+            url: "{{ route('erm.eresepfarmasi.json', $visitation->id) }}",
+            method: 'GET',
+            success: function(response) {
+                const exists = response.racikans && Object.values(response.racikans).some(racikanGroup => 
+                    racikanGroup.some(item => item.obat_id == obatId)
+                );
+                callback(exists);
+            },
+            error: function(xhr, status, error) {
+                console.log('Error checking farmasi racikan prescriptions:', error);
                 callback(false);
             }
         });
@@ -656,18 +722,27 @@
             // Calculate harga akhir
             let hargaAkhir = (defaultDosis > 0) ? (dosisAkhir / defaultDosis) * hargaNonfornas : 0;
 
-            // Append the new row to the table
-            tbody.append(`
-                <tr>
-                    <td data-id="${obatId}">${obatText}</td>
-                    <td>${selectedOption.dosis || '-'}</td>
-                    <td>${dosisAkhir} ${satuan}</td>
-                    <td>${hargaNonfornas}</td>
-                    <td>${hargaAkhir}</td>
-                    <td style="color: ${(stok < 10) ? 'red' : (stok < 100 ? 'yellow' : 'green')}">${stok}</td>
-                    <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
-                </tr>
-            `);
+            // Check if this medication exists in farmasi racikan prescriptions
+            checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
+                const rowClass = existsInFarmasi ? 'text-success row-in-farmasi' : '';
+                
+                // Append the new row to the table
+                tbody.append(`
+                    <tr data-obat-id="${obatId}" class="${rowClass}">
+                        <td data-id="${obatId}">${obatText}</td>
+                        <td>${selectedOption.dosis || '-'}</td>
+                        <td>${dosisAkhir} ${satuan}</td>
+                        <td>${hargaNonfornas}</td>
+                        <td>${hargaAkhir}</td>
+                        <td style="color: ${(stok < 10) ? 'red' : (stok < 100 ? 'yellow' : 'green')}">${stok}</td>
+                        <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                    </tr>
+                `);
+                
+                // Clear the form inputs
+                card.find('.select2-obat-racikan').val(null).trigger('change');
+                card.find('.dosis_input').val('');
+            });
         });
         // STORE RACIKAN
         $('#racikan-container').on('click', '.tambah-resepracikan', function () {
@@ -718,6 +793,9 @@
                     // Disable fields after successful save
                     card.find('.wadah, .bungkus, .aturan_pakai').prop('disabled', true);
                     updateTotalPrice();
+                    
+                    // Refresh row colors after saving racikan
+                    setTimeout(refreshRowColors, 500);
                 }
             });
             });
