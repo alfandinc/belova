@@ -322,6 +322,7 @@ class TindakanController extends Controller
         $results[] = [
             'id' => $tindakan->id,
             'text' => $tindakan->nama, // Only display the tindakan name
+            'harga' => $tindakan->harga, // <-- add harga to result
         ];
     }
     return response()->json(['results' => $results]);

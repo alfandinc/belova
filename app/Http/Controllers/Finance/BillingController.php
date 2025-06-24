@@ -10,6 +10,8 @@ use Yajra\DataTables\Facades\DataTables;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceItem;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class BillingController extends Controller
 {
@@ -162,6 +164,32 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
                 return 'Rp ' . number_format($row->jumlah, 0, ',', '.');
             })
+            ->addColumn('harga_akhir_raw', function ($row) {
+                // For pharmacy fees
+                if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                    return $row->fee_total_price;
+                }
+                
+                // For racikan items
+                if (isset($row->is_racikan) && $row->is_racikan) {
+                    return $row->racikan_total_price; // Don't multiply by quantity here, frontend will handle it
+                }
+
+                // Get the unit price (harga)  
+                $unitPrice = $row->jumlah;
+                
+                // Apply discount to the unit price
+                if ($row->diskon && $row->diskon > 0) {
+                    if ($row->diskon_type == '%') {
+                        $unitPrice = $unitPrice - ($unitPrice * ($row->diskon / 100));
+                    } else {
+                        $unitPrice = $unitPrice - $row->diskon;
+                    }
+                }
+
+                // Return the unit price after discount - frontend will multiply by qty
+                return $unitPrice;
+            })
             ->addColumn('harga_akhir', function ($row) {
                 // For pharmacy fees
                 if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
@@ -173,22 +201,27 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     return 'Rp ' . number_format($row->racikan_total_price * $row->racikan_bungkus, 0, ',', '.');
                 }
 
-                // Calculate the final price after discount
-                $finalPrice = $row->jumlah;
+                // Get the unit price (harga)
+                $unitPrice = $row->jumlah;
+                
+                // Apply discount to the unit price
                 if ($row->diskon && $row->diskon > 0) {
                     if ($row->diskon_type == '%') {
-                        $finalPrice = $finalPrice - ($finalPrice * ($row->diskon / 100));
+                        $unitPrice = $unitPrice - ($unitPrice * ($row->diskon / 100));
                     } else {
-                        $finalPrice = $finalPrice - $row->diskon;
+                        $unitPrice = $unitPrice - $row->diskon;
                     }
                 }
 
-                // Multiply by quantity
+                // Get quantity
                 $qty = $row->billable_type == 'App\Models\ERM\ResepFarmasi'
                     ? ($row->billable->jumlah ?? 1)
                     : ($row->billable->qty ?? 1);
 
-                return 'Rp ' . number_format($finalPrice * $qty, 0, ',', '.');
+                // Final calculation: unit_price_after_discount * qty
+                $finalPrice = $unitPrice * $qty;
+
+                return 'Rp ' . number_format($finalPrice, 0, ',', '.');
             })
             ->addColumn('qty', function ($row) {
                 if (isset($row->is_racikan) && $row->is_racikan) {
@@ -284,6 +317,34 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ], 404);
             }
 
+            // First, save any new items to the billing table
+            $newItems = collect($request->items)->filter(function($item) {
+                return isset($item['id']) && (
+                    str_starts_with($item['id'], 'tindakan-') ||
+                    str_starts_with($item['id'], 'lab-') ||
+                    str_starts_with($item['id'], 'konsultasi-') ||
+                    str_starts_with($item['id'], 'racikan-')
+                );
+            });
+
+            foreach ($newItems as $item) {
+                if (isset($item['deleted']) && $item['deleted']) {
+                    continue;
+                }
+
+                Billing::create([
+                    'visitation_id' => $request->visitation_id,
+                    'billable_type' => $item['billable_type'],
+                    'billable_id' => $item['billable_id'],
+                    'nama_item' => $item['nama_item'],
+                    'jumlah' => $item['jumlah_raw'] ?? $item['harga_akhir_raw'],
+                    'qty' => $item['qty'] ?? 1,
+                    'diskon' => $item['diskon_raw'] ?? 0,
+                    'diskon_type' => $item['diskon_type'] ?? 'nominal',
+                    'keterangan' => $item['deskripsi'] ?? null,
+                ]);
+            }
+
             // Get totals from request
             $totals = $request->totals;
             $subtotal = $totals['subtotal'] ?? 0;
@@ -303,7 +364,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'tax_percentage' => $totals['taxPercentage'] ?? 0,
                 'total_amount' => $grandTotal,
                 'status' => 'issued',
-                'user_id' => auth()->id(), // Add the current authenticated user ID
+                'user_id' => Auth::id(), // Add the current authenticated user ID
                 'notes' => $request->notes ?? null, // Add notes if available
             ]);
 
@@ -319,17 +380,24 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ) {
                     continue;
                 }
+
+                // Handle billable_id - only use if it's numeric, otherwise set to null
+                $billableId = null;
+                if (isset($item['billable_id']) && is_numeric($item['billable_id'])) {
+                    $billableId = intval($item['billable_id']);
+                }
+
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => $item['nama_item'] ?? 'Unknown Item',
                     'description' => $item['deskripsi'] ?? '',
                     'quantity' => intval($item['qty'] ?? 1),
-                    'unit_price' => floatval($item['jumlah_raw'] ?? 0),
+                    'unit_price' => floatval($item['jumlah_raw'] ?? $item['harga_akhir_raw'] ?? 0),
                     'discount' => floatval($item['diskon_raw'] ?? 0),
                     'discount_type' => $item['diskon_type'] ?? null,
-                    'final_amount' => floatval($item['harga_akhir_raw'] ?? 0),
+                    'final_amount' => floatval($item['harga_akhir_raw'] ?? 0) * intval($item['qty'] ?? 1),
                     'billable_type' => $item['billable_type'] ?? null,
-                    'billable_id' => $item['id'] ?? null,
+                    'billable_id' => $billableId, // This will be null for string IDs
                 ]);
             }
 
@@ -382,10 +450,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
     public function saveBilling(Request $request)
     {
+        Log::info('=== SAVE BILLING REQUEST START ===');
+        Log::info('Request data: ' . json_encode($request->all()));
+        Log::info('New items: ' . json_encode($request->input('new_items', [])));
+        Log::info('=== SAVE BILLING REQUEST END ===');
+
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
             'edited_items' => 'nullable|array',
             'deleted_items' => 'nullable|array',
+            'new_items' => 'nullable|array',
             'totals' => 'nullable|array',
         ]);
 
@@ -393,11 +467,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         try {
             // Process deleted items
             if (!empty($request->deleted_items)) {
+                Log::info('Processing deleted items: ' . json_encode($request->deleted_items));
                 Billing::whereIn('id', $request->deleted_items)->delete();
             }
 
             // Process edited items
             if (!empty($request->edited_items)) {
+                Log::info('Processing edited items: ' . json_encode($request->edited_items));
                 foreach ($request->edited_items as $item) {
                     // Skip deleted items that may have been edited before deletion
                     if (in_array($item['id'], $request->deleted_items ?? [])) {
@@ -415,10 +491,44 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
+            // Process new items (added through dropdowns)
+            if (!empty($request->new_items)) {
+                Log::info('Processing new items: ' . json_encode($request->new_items));
+                foreach ($request->new_items as $item) {
+                    Log::info('Processing new item: ' . json_encode($item));
+                    
+                    // Skip if this item was marked as deleted (check for both boolean and string)
+                    if ((isset($item['deleted']) && ($item['deleted'] === true || $item['deleted'] === 'true'))) {
+                        Log::info('Skipping deleted new item: ' . $item['id']);
+                        continue;
+                    }
+
+                    // Create new billing record
+                    $newBilling = Billing::create([
+                        'visitation_id' => $request->visitation_id,
+                        'billable_type' => $item['billable_type'],
+                        'billable_id' => $item['billable_id'],
+                        'nama_item' => $item['nama_item'],
+                        'jumlah' => $item['harga_akhir_raw'] ?? 0,
+                        'qty' => $item['qty'] ?? 1,
+                        'diskon' => $item['diskon'] ?? 0,
+                        'diskon_type' => $item['diskon_type'] ?? 'nominal',
+                        'keterangan' => $item['deskripsi'] ?? null,
+                    ]);
+                    
+                    Log::info('Created new billing: ' . json_encode($newBilling->toArray()));
+                }
+            } else {
+                Log::info('No new items to process');
+            }
+
             DB::commit();
+            Log::info('Save billing completed successfully');
             return response()->json(['success' => true, 'message' => 'Data billing berhasil disimpan']);
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Save billing failed: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }

@@ -11,6 +11,29 @@
     <div class="row mb-4">
         <div class="col">
             <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            <label for="select-tindakan">Tambah Tindakan</label>
+                            <select id="select-tindakan" class="form-control select2"></select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label for="select-lab">Tambah Lab</label>
+                            <select id="select-lab" class="form-control select2"></select>
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label for="select-konsultasi">Tambah Biaya Konsultasi</label>
+                            <select id="select-konsultasi" class="form-control select2"></select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card shadow-sm mt-4">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-user-circle mr-2"></i>Data Pasien
@@ -260,7 +283,14 @@
                 { data: 'jumlah', name: 'jumlah', width: "10%" },
                 { data: 'qty', name: 'qty', width: "5%" },
                 { data: 'diskon', name: 'diskon', width: "10%" },
-                { data: 'harga_akhir', name: 'harga_akhir', width: "10%" },
+                { data: 'harga_akhir', name: 'harga_akhir', width: "10%",
+                  render: function(data, type, row) {
+                      // Always calculate as harga (unit price) * qty
+                      const harga = (typeof row.harga_akhir_raw !== 'undefined' && !isNaN(row.harga_akhir_raw)) ? Number(row.harga_akhir_raw) : 0;
+                      const qty = row.qty ? Number(row.qty) : 1;
+                      return 'Rp ' + formatCurrency(harga * qty);
+                  }
+                },
                 { 
                     data: null,
                     width: "10%",
@@ -418,43 +448,26 @@
             calculateTotals();
         });
         
-        // Function to update the table without a full reload
+        // Function to update the table with all billingData (for add/edit/delete)
         function updateTable() {
-            const rowIndex = $('#edit_row_index').val();
-            if (!billingData[rowIndex]) return;
-            
-            // IMPORTANT: Temporarily disable Ajax source & server-side processing
-            const settings = table.settings()[0];
-            const previousServerSide = settings.oFeatures.bServerSide;
-            const previousAjax = settings.ajax;
-            
-            // Turn off server-side features
-            settings.oFeatures.bServerSide = false;
-            settings.ajax = null;
-            
-            // Get current table data as array
-            const currentData = table.data().toArray();
-            
-            // Update the specific row data
-            const updatedItem = billingData[rowIndex];
-            currentData[rowIndex].jumlah = updatedItem.jumlah;
-            currentData[rowIndex].jumlah_raw = updatedItem.jumlah_raw;
-            currentData[rowIndex].diskon = updatedItem.diskon;
-            currentData[rowIndex].diskon_raw = updatedItem.diskon_raw;
-            currentData[rowIndex].diskon_type = updatedItem.diskon_type;
-            currentData[rowIndex].harga_akhir = updatedItem.harga_akhir;
-            currentData[rowIndex].harga_akhir_raw = updatedItem.harga_akhir_raw;
-            
-            // Clear and reload the entire table with our modified data
-            table.clear().rows.add(currentData).draw();
-            
-            // Restore server-side settings AFTER drawing is complete
-            setTimeout(function() {
-                settings.oFeatures.bServerSide = previousServerSide;
-                settings.ajax = previousAjax;
-                table.columns.adjust(); // Readjust columns after update
-            }, 100);
-        }
+    // Temporarily disable Ajax source & server-side processing
+    const settings = table.settings()[0];
+    const previousServerSide = settings.oFeatures.bServerSide;
+    const previousAjax = settings.ajax;
+    settings.oFeatures.bServerSide = false;
+    settings.ajax = null;
+
+    // Only show non-deleted items
+    const currentData = billingData.filter(item => !item.deleted);
+    table.clear().rows.add(currentData).draw();
+
+    // Restore server-side settings AFTER drawing is complete
+    setTimeout(function() {
+        settings.oFeatures.bServerSide = previousServerSide;
+        settings.ajax = previousAjax;
+        table.columns.adjust();
+    }, 100);
+}
         
         // Helper function for formatting currency (removes unnecessary 0s)
         function formatCurrency(value) {
@@ -468,13 +481,105 @@
             return rounded.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         }
         
+        // Helper to parse harga string with comma/dot
+        function parseHarga(hargaStr) {
+            console.log('parseHarga input:', hargaStr, 'type:', typeof hargaStr);
+            
+            if (typeof hargaStr === 'number') {
+                console.log('parseHarga returning number:', hargaStr);
+                return hargaStr;
+            }
+            
+            if (typeof hargaStr === 'string') {
+                // Handle different formats:
+                // "150000.00" -> 150000
+                // "150.000,00" -> 150000 (European format)
+                // "150,000.00" -> 150000 (US format)
+                // "150000" -> 150000
+                
+                let cleaned = hargaStr.trim();
+                
+                // Check if it's in format like "150000.00" (decimal with dot, no thousand separators)
+                if (/^\d+\.\d{1,2}$/.test(cleaned)) {
+                    const result = parseFloat(cleaned);
+                    console.log('parseHarga decimal format:', hargaStr, '->', result);
+                    return result;
+                }
+                
+                // Check if it's in format like "150.000,00" (European: dots for thousands, comma for decimal)
+                if (/^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(cleaned)) {
+                    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+                    const result = parseFloat(cleaned);
+                    console.log('parseHarga European format:', hargaStr, '->', cleaned, '->', result);
+                    return result;
+                }
+                
+                // Check if it's in format like "150,000.00" (US: commas for thousands, dot for decimal)
+                if (/^\d{1,3}(,\d{3})*\.\d{1,2}$/.test(cleaned)) {
+                    cleaned = cleaned.replace(/,/g, '');
+                    const result = parseFloat(cleaned);
+                    console.log('parseHarga US format:', hargaStr, '->', cleaned, '->', result);
+                    return result;
+                }
+                
+                // Handle plain numbers (no decimal)
+                if (/^\d+$/.test(cleaned)) {
+                    const result = parseInt(cleaned);
+                    console.log('parseHarga plain number:', hargaStr, '->', result);
+                    return result;
+                }
+                
+                // Handle Indonesian format (dots for thousands, no decimal or comma for decimal)
+                if (/^\d{1,3}(\.\d{3})*$/.test(cleaned)) {
+                    cleaned = cleaned.replace(/\./g, '');
+                    const result = parseInt(cleaned);
+                    console.log('parseHarga Indonesian thousands:', hargaStr, '->', cleaned, '->', result);
+                    return result;
+                }
+                
+                // Fallback: try to parse as float
+                const result = parseFloat(cleaned);
+                console.log('parseHarga fallback:', hargaStr, '->', result);
+                return isNaN(result) ? 0 : result;
+            }
+            
+            console.log('parseHarga returning 0 for:', hargaStr);
+            return 0;
+        }
+
+        // Add selected Racikan to billingData (example, adapt as needed)
+        function addRacikanToBillingData(data) {
+            // data.harga should be the unit price, data.qty the quantity, or adapt as needed
+            const harga = parseHarga(data.harga);
+            const qty = parseInt(data.qty) || 1;
+            billingData.push({
+                id: 'racikan-' + (data.id || Date.now()),
+                billable_id: data.id,
+                billable_type: 'App\\Models\\ERM\\ResepFarmasi',
+                nama_item: 'Obat Racikan',
+                jumlah: 'Rp ' + formatCurrency(harga),
+                qty: qty,
+                diskon: 0,
+                diskon_type: 'nominal',
+                harga_akhir: 'Rp ' + formatCurrency(harga * qty),
+                harga_akhir_raw: harga,
+                deleted: false,
+                deskripsi: data.deskripsi || '',
+                is_racikan: true
+            });
+            updateTable();
+            calculateTotals();
+        }
+        
         // Calculate totals for the bottom section
         function calculateTotals() {
+            console.log('Current billingData for totals:', billingData);
             let subtotal = 0;
-            // Sum up all harga_akhir_raw values from non-deleted items
+            // Sum up all harga_akhir_raw * qty values from non-deleted items
             billingData.forEach(function(item) {
-                if (!item.deleted) {
-                    const value = parseFloat(item.harga_akhir_raw || 0);
+                if (!item.deleted && !isNaN(item.harga_akhir_raw) && item.harga_akhir_raw > 0) {
+                    const qty = item.qty || 1;
+                    const value = parseFloat(item.harga_akhir_raw) * qty;
                     subtotal += value;
                 }
             });
@@ -530,23 +635,50 @@ $('#saveAllChangesBtn').on('click', function() {
         // Force the visitation ID to be treated as a string
         const correctVisitationId = "{{ $visitation->id }}";
         
+        console.log('=== SAVE BILLING DEBUG START ===');
+        console.log('All billingData:', billingData);
         console.log('Visitation ID being sent:', correctVisitationId);
         console.log('Type of visitation ID:', typeof correctVisitationId);
+        
+        // Categorize items
+        const editedItems = billingData.filter(item => item.edited && !item.deleted);
+        const newItems = billingData.filter(item => 
+            !item.edited && 
+            !item.deleted && 
+            (item.id.toString().startsWith('tindakan-') || 
+             item.id.toString().startsWith('lab-') || 
+             item.id.toString().startsWith('konsultasi-') ||
+             item.id.toString().startsWith('racikan-'))
+        );
+        
+        console.log('Edited items:', editedItems);
+        console.log('New items:', newItems);
+        console.log('Deleted items:', deletedItems);
+        console.log('=== SAVE BILLING DEBUG END ===');
+        
+        const requestData = {
+            _token: "{{ csrf_token() }}",
+            visitation_id: correctVisitationId,
+            edited_items: editedItems,
+            new_items: newItems,
+            deleted_items: deletedItems,
+            totals: window.billingTotals
+        };
+        
+        console.log('Request data being sent:', requestData);
         
         $.ajax({
             url: "{{ route('finance.billing.save') }}",
             type: "POST",
-            data: {
-                _token: "{{ csrf_token() }}",
-                visitation_id: correctVisitationId, // This will now be sent as a string
-                edited_items: billingData.filter(item => item.edited),
-                deleted_items: deletedItems,
-                totals: window.billingTotals
-            },
+            data: requestData,
             success: function(response) {
+                console.log('Save response:', response);
                 alert('Data billing berhasil disimpan');
+                // Refresh the table to get the new IDs from database
+                location.reload();
             },
             error: function(xhr) {
+                console.error('Save error:', xhr);
                 alert('Terjadi kesalahan: ' + xhr.responseText);
                 console.error('Error details:', xhr.responseText);
             }
@@ -591,6 +723,142 @@ $('#saveAllChangesBtn').on('click', function() {
         });
     }
 });
+        
+        // --- Select2 AJAX for Tindakan ---
+        $('#select-tindakan').select2({
+            placeholder: 'Cari tindakan...',
+            ajax: {
+                url: '/tindakan/search',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    // Support both {results: [...]} and plain array
+                    var items = Array.isArray(data) ? data : (data.results || []);
+                    return {
+                        results: items.map(function(item) {
+                            return { id: item.id, text: item.text || item.nama, harga: item.harga };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 1
+        });
+        // --- Select2 AJAX for Lab ---
+        $('#select-lab').select2({
+            placeholder: 'Cari lab...',
+            ajax: {
+                url: '/labtest/search',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.map(function(item) {
+                            return { id: item.id, text: item.nama, harga: item.harga };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 1
+        });
+        // --- Select2 AJAX for Konsultasi ---
+        $('#select-konsultasi').select2({
+            placeholder: 'Cari biaya konsultasi...',
+            ajax: {
+                url: '/konsultasi/search',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.map(function(item) {
+                            return { id: item.id, text: item.nama, harga: item.harga };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 1
+        });
+
+        // Add selected Tindakan to billingData
+        $('#select-tindakan').on('select2:select', function(e) {
+            const data = e.params.data;
+            console.log('Tindakan selected data:', data);
+            const harga = parseHarga(data.harga);
+            console.log('Tindakan parsed harga:', harga);
+            
+            billingData.push({
+                id: 'tindakan-' + data.id,
+                billable_id: data.id,
+                billable_type: 'App\\Models\\ERM\\Tindakan',
+                nama_item: data.text,
+                jumlah: 'Rp ' + formatCurrency(harga),
+                qty: 1,
+                diskon: 0,
+                diskon_type: 'nominal',
+                harga_akhir: 'Rp ' + formatCurrency(harga),
+                harga_akhir_raw: harga,
+                deleted: false,
+                deskripsi: ''
+            });
+            updateTable();
+            calculateTotals();
+            $(this).val(null).trigger('change');
+        });
+        // Add selected Lab to billingData
+        $('#select-lab').on('select2:select', function(e) {
+            const data = e.params.data;
+            const harga = parseHarga(data.harga);
+            billingData.push({
+                id: 'lab-' + data.id,
+                billable_id: data.id,
+                billable_type: 'App\\Models\\ERM\\LabTest',
+                nama_item: data.text,
+                jumlah: 'Rp ' + formatCurrency(harga),
+                qty: 1,
+                diskon: 0,
+                diskon_type: 'nominal',
+                harga_akhir: 'Rp ' + formatCurrency(harga),
+                harga_akhir_raw: harga,
+                deleted: false,
+                deskripsi: ''
+            });
+            updateTable();
+            calculateTotals();
+            $(this).val(null).trigger('change');
+        });
+        // Add selected Konsultasi to billingData
+        $('#select-konsultasi').on('select2:select', function(e) {
+            const data = e.params.data;
+            const harga = parseHarga(data.harga);
+            billingData.push({
+                id: 'konsultasi-' + data.id,
+                billable_id: data.id,
+                billable_type: 'App\\Models\\ERM\\Konsultasi',
+                nama_item: data.text,
+                jumlah: 'Rp ' + formatCurrency(harga),
+                qty: 1,
+                diskon: 0,
+                diskon_type: 'nominal',
+                harga_akhir: 'Rp ' + formatCurrency(harga),
+                harga_akhir_raw: harga,
+                deleted: false,
+                deskripsi: ''
+            });
+            updateTable();
+            calculateTotals();
+            $(this).val(null).trigger('change');
+        });
         
         // Initial calculation of totals
         calculateTotals();
