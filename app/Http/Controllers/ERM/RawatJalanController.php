@@ -25,7 +25,7 @@ class RawatJalanController extends Controller
                 'erm_pasiens.tanggal_lahir as tanggal_lahir'
                 )
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
-                ->where('jenis_kunjungan', 1)
+                ->whereIn('jenis_kunjungan', [1, 2])
                 ->where('status_kunjungan', '!=', 7); // Exclude cancelled visits
 
             // Filter by klinik_id if provided
