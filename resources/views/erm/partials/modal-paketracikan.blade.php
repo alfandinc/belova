@@ -11,23 +11,19 @@
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-8">
-                        <h6><strong>Daftar Paket Racikan</strong></h6>
-                        <div class="table-responsive">
+                        <h6><strong>Daftar Paket Racikan</strong></h6>                        <div class="table-responsive">
                             <table class="table table-sm table-bordered" id="paketRacikanTable">
                                 <thead class="thead-light">
                                     <tr>
-                                        <th width="5%">No</th>
-                                        <th width="25%">Nama Paket</th>
-                                        <th width="20%">Deskripsi</th>
-                                        <th width="15%">Wadah</th>
-                                        <th width="10%">Bungkus</th>
-                                        <th width="15%">Aturan Pakai</th>
-                                        <th width="10%">Aksi</th>
+                                        <th width="8%">No</th>
+                                        <th width="40%">Nama Paket</th>
+                                        <th width="22%">Wadah</th>
+                                        <th width="30%">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody id="paketRacikanTableBody">
                                     <tr>
-                                        <td colspan="7" class="text-center">Loading...</td>
+                                        <td colspan="4" class="text-center">Loading...</td>
                                     </tr>
                                 </tbody>
                             </table>

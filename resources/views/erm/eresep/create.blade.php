@@ -484,23 +484,46 @@
             const row = $(this).closest('tr');
             const resepId = row.data('id');
 
-            if (!confirm('Yakin ingin menghapus resep ini?')) return;
-
-            $.ajax({
-                url: "{{ route('resep.nonracikan.destroy', '') }}/" + resepId,
-                method: 'DELETE',
-                data: {
-                    _token: "{{ csrf_token() }}"
-                },
-                success: function () {
-                    row.remove();
-                    if ($('#resep-table-body tr').length === 0) {
-                        $('#resep-table-body').append(`<tr class="no-data"><td colspan="6" class="text-center text-muted">Belum ada data</td></tr>`);
-                    }
-                    updateTotalPrice();
-                },
-                error: function () {
-                    alert('Gagal menghapus resep. Coba lagi.');
+            Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: 'Yakin ingin menghapus resep ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    $.ajax({
+                        url: "{{ route('resep.nonracikan.destroy', '') }}/" + resepId,
+                        method: 'DELETE',
+                        data: {
+                            _token: "{{ csrf_token() }}"
+                        },
+                        success: function () {
+                            row.remove();
+                            if ($('#resep-table-body tr').length === 0) {
+                                $('#resep-table-body').append(`<tr class="no-data"><td colspan="6" class="text-center text-muted">Belum ada data</td></tr>`);
+                            }
+                            updateTotalPrice();
+                            
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil!',
+                                text: 'Resep berhasil dihapus',
+                                confirmButtonColor: '#3085d6'
+                            });
+                        },
+                        error: function () {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Gagal Menghapus',
+                                text: 'Gagal menghapus resep. Coba lagi.',
+                                confirmButtonColor: '#3085d6'
+                            });
+                        }
+                    });
                 }
             });
         });
@@ -825,23 +848,44 @@
                 return;
             }
 
-            if (!confirm('Yakin ingin menghapus resep ini?')) return;
-
-            // Request untuk menghapus racikan
-            $.ajax({
-                url: "{{ route('resep.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
-                method: "DELETE",
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    visitation_id: visitationId,
-                },
-                success: function (res) {
-                    alert(res.message); // Notifikasi
-                    card.remove(); // Hapus card racikan dari tampilan
-                    updateTotalPrice(); // Update total harga setelah racikan dihapus
-                },
-                error: function (err) {
-                    alert('Gagal menghapus racikan');
+            Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: 'Yakin ingin menghapus racikan ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    // Request untuk menghapus racikan
+                    $.ajax({
+                        url: "{{ route('resep.racikan.destroy', ':racikanKe') }}".replace(':racikanKe', racikanKe),
+                        method: "DELETE",
+                        data: {
+                            _token: "{{ csrf_token() }}",
+                            visitation_id: visitationId,
+                        },
+                        success: function (res) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil!',
+                                text: res.message,
+                                confirmButtonColor: '#3085d6'
+                            });
+                            card.remove(); // Hapus card racikan dari tampilan
+                            updateTotalPrice(); // Update total harga setelah racikan dihapus
+                        },
+                        error: function (err) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Gagal Menghapus',
+                                text: 'Gagal menghapus racikan',
+                                confirmButtonColor: '#3085d6'
+                            });
+                        }
+                    });
                 }
             });
         })        
@@ -916,7 +960,12 @@
             
             // Validate required fields
             if (!bungkus || !aturanPakai) {
-                alert('Field "Bungkus" dan "Aturan Pakai" wajib diisi.');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Data Belum Lengkap',
+                    text: 'Field "Bungkus" dan "Aturan Pakai" wajib diisi.',
+                    confirmButtonColor: '#3085d6'
+                });
                 return;
             }
             
@@ -932,7 +981,12 @@
                     aturan_pakai: aturanPakai
                 },
                 success: function (res) {
-                    alert(res.message || 'Racikan berhasil diupdate!');
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil!',
+                        text: res.message || 'Racikan berhasil diupdate!',
+                        confirmButtonColor: '#3085d6'
+                    });
                     // Disable fields again
                     card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', true);
                     // Show save button, hide update button
@@ -943,7 +997,12 @@
                 },
                 error: function (xhr) {
                     console.log('Update racikan error:', xhr);
-                    alert('Gagal mengupdate racikan: ' + (xhr.responseJSON?.message || 'Error'));
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal Update',
+                        text: 'Gagal mengupdate racikan: ' + (xhr.responseJSON?.message || 'Error'),
+                        confirmButtonColor: '#3085d6'
+                    });
                 }
             });
         });
@@ -1060,20 +1119,16 @@
                         tbody.empty();
                         
                         if (response.data.length === 0) {
-                            tbody.append('<tr><td colspan="7" class="text-center">Belum ada paket racikan</td></tr>');
+                            tbody.append('<tr><td colspan="4" class="text-center">Belum ada paket racikan</td></tr>');
                         } else {
                             response.data.forEach(function(paket, index) {
                                 let wadahNama = paket.wadah ? paket.wadah.nama : '-';
-                                let deskripsi = paket.deskripsi || '-';
                                 
                                 tbody.append(`
                                     <tr>
                                         <td>${index + 1}</td>
                                         <td>${paket.nama_paket}</td>
-                                        <td>${deskripsi}</td>
                                         <td>${wadahNama}</td>
-                                        <td>${paket.bungkus_default}</td>
-                                        <td>${paket.aturan_pakai_default || '-'}</td>
                                         <td>
                                             <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}">Gunakan</button>
                                             <button class="btn btn-sm btn-info detail-paket" data-paket='${JSON.stringify(paket)}'>Detail</button>
@@ -1087,7 +1142,12 @@
                 },
                 error: function(xhr) {
                     console.error('Error loading paket racikan:', xhr);
-                    alert('Gagal memuat daftar paket racikan: ' + (xhr.responseJSON?.message || xhr.statusText));
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal Memuat Data',
+                        text: 'Gagal memuat daftar paket racikan: ' + (xhr.responseJSON?.message || xhr.statusText),
+                        confirmButtonColor: '#3085d6'
+                    });
                 }
             });
         }
@@ -1226,7 +1286,12 @@
             });
             
             if (obatsData.length === 0) {
-                alert('Minimal harus ada satu obat dalam paket');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Data Belum Lengkap',
+                    text: 'Minimal harus ada satu obat dalam paket',
+                    confirmButtonColor: '#3085d6'
+                });
                 return;
             }
             
@@ -1246,13 +1311,23 @@
                 data: data,
                 success: function(response) {
                     if (response.success) {
-                        alert(response.message);
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil!',
+                            text: response.message,
+                            confirmButtonColor: '#3085d6'
+                        });
                         resetFormPaket();
                         loadPaketRacikanList();
                     }
                 },
                 error: function(xhr) {
-                    alert('Gagal menyimpan paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'));
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal Menyimpan',
+                        text: 'Gagal menyimpan paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'),
+                        confirmButtonColor: '#3085d6'
+                    });
                 }
             });
         });
@@ -1262,48 +1337,69 @@
             let paketId = $(this).data('id');
             let visitationId = $('#visitation_id').val();
             
-            if (!confirm('Yakin ingin menggunakan paket racikan ini?')) return;
-            
-            // Show loading state
-            $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...').prop('disabled', true);
-            
-            $.ajax({
-                url: "{{ route('erm.paket-racikan.copy') }}",
-                method: 'POST',
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    paket_racikan_id: paketId,
-                    visitation_id: visitationId
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Update racikan counter
-                        racikanCount = response.racikan_ke;
-                        
-                        // Get the paket data to build the card
-                        let paket = null;
-                        $('.copy-paket[data-id="' + paketId + '"]').closest('tr').find('.detail-paket').each(function() {
-                            paket = $(this).data('paket');
-                        });
-                        
-                        if (paket) {
-                            // Create the racikan card HTML
-                            createRacikanCardFromPaket(paket, response.racikan_ke);
+            Swal.fire({
+                title: 'Konfirmasi',
+                text: 'Yakin ingin menggunakan paket racikan ini?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Ya, Gunakan!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    // Show loading state
+                    $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...').prop('disabled', true);
+                    
+                    $.ajax({
+                        url: "{{ route('erm.paket-racikan.copy') }}",
+                        method: 'POST',
+                        data: {
+                            _token: "{{ csrf_token() }}",
+                            paket_racikan_id: paketId,
+                            visitation_id: visitationId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Update racikan counter
+                                racikanCount = response.racikan_ke;
+                                
+                                // Get the paket data to build the card
+                                let paket = null;
+                                $('.copy-paket[data-id="' + paketId + '"]').closest('tr').find('.detail-paket').each(function() {
+                                    paket = $(this).data('paket');
+                                });
+                                
+                                if (paket) {
+                                    // Create the racikan card HTML
+                                    createRacikanCardFromPaket(paket, response.racikan_ke);
+                                }
+                                
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Berhasil!',
+                                    text: response.message,
+                                    confirmButtonColor: '#3085d6'
+                                });
+                                $('#paketRacikanModal').modal('hide');
+                                
+                                // Update total price
+                                updateTotalPrice();
+                            }
+                        },
+                        error: function(xhr) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Gagal',
+                                text: 'Gagal menggunakan paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'),
+                                confirmButtonColor: '#3085d6'
+                            });
+                        },
+                        complete: function() {
+                            // Reset button state
+                            $('.copy-paket').html('Gunakan').prop('disabled', false);
                         }
-                        
-                        alert(response.message);
-                        $('#paketRacikanModal').modal('hide');
-                        
-                        // Update total price
-                        updateTotalPrice();
-                    }
-                },
-                error: function(xhr) {
-                    alert('Gagal menggunakan paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'));
-                },
-                complete: function() {
-                    // Reset button state
-                    $('.copy-paket').html('Gunakan').prop('disabled', false);
+                    });
                 }
             });
         });
@@ -1464,22 +1560,43 @@
         $(document).on('click', '.delete-paket', function() {
             let paketId = $(this).data('id');
             
-            if (!confirm('Yakin ingin menghapus paket racikan ini?')) return;
-            
-            $.ajax({
-                url: "{{ route('erm.paket-racikan.delete', '') }}/" + paketId,
-                method: 'DELETE',
-                data: {
-                    _token: "{{ csrf_token() }}"
-                },
-                success: function(response) {
-                    if (response.success) {
-                        alert(response.message);
-                        loadPaketRacikanList();
-                    }
-                },
-                error: function(xhr) {
-                    alert('Gagal menghapus paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'));
+            Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: 'Yakin ingin menghapus paket racikan ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    $.ajax({
+                        url: "{{ route('erm.paket-racikan.delete', '') }}/" + paketId,
+                        method: 'DELETE',
+                        data: {
+                            _token: "{{ csrf_token() }}"
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Berhasil!',
+                                    text: response.message,
+                                    confirmButtonColor: '#3085d6'
+                                });
+                                loadPaketRacikanList();
+                            }
+                        },
+                        error: function(xhr) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Gagal Menghapus',
+                                text: 'Gagal menghapus paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'),
+                                confirmButtonColor: '#3085d6'
+                            });
+                        }
+                    });
                 }
             });
         });
