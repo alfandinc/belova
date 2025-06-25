@@ -23,6 +23,8 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\ResepDetail;
+use App\Models\ERM\PaketRacikan;
+use App\Models\ERM\PaketRacikanDetail;
 
 
 
@@ -90,7 +92,7 @@ class EresepController extends Controller
                 })
                 ->addColumn('asesmen_selesai', function($v) {
                     // Cari asesmen penunjang
-                    $asesmenPenunjang = \DB::table('erm_asesmen_penunjang')
+                    $asesmenPenunjang = DB::table('erm_asesmen_penunjang')
                         ->where('visitation_id', $v->id)
                         ->first();
                     if ($asesmenPenunjang && $asesmenPenunjang->created_at) {
@@ -98,7 +100,7 @@ class EresepController extends Controller
                         return \Carbon\Carbon::parse($asesmenPenunjang->created_at)->translatedFormat('H:i');
                     }
                     // Jika tidak ada, cari dari cppt
-                    $cppt = \DB::table('erm_cppt')
+                    $cppt = DB::table('erm_cppt')
                         ->where('visitation_id', $v->id)
                         ->orderBy('created_at', 'asc')
                         ->first();
@@ -1077,4 +1079,113 @@ class EresepController extends Controller
         ]);
     }
     
+    // PAKET RACIKAN METHODS
+    public function paketRacikanIndex()
+    {
+        return view('erm.paket-racikan.index');
+    }
+
+    public function getPaketRacikanList()
+    {
+        $paketRacikans = PaketRacikan::with(['details.obat', 'wadah'])
+            ->where('is_active', true)
+            ->orderBy('nama_paket')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $paketRacikans
+        ]);
+    }
+
+    public function copyFromPaketRacikan(Request $request)
+    {
+        $validated = $request->validate([
+            'paket_racikan_id' => 'required|exists:erm_paket_racikan,id',
+            'visitation_id' => 'required',
+        ]);
+
+        $paketRacikan = PaketRacikan::with(['details.obat', 'wadah'])
+            ->findOrFail($validated['paket_racikan_id']);
+
+        $visitationId = $validated['visitation_id'];
+
+        // Get the next racikan_ke number
+        $lastRacikanKe = ResepDokter::where('visitation_id', $visitationId)
+            ->whereNotNull('racikan_ke')
+            ->max('racikan_ke') ?? 0;
+        
+        $newRacikanKe = $lastRacikanKe + 1;
+
+        // Copy each medication from the paket racikan
+        foreach ($paketRacikan->details as $detail) {
+            $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+
+            ResepDokter::create([
+                'id' => $customId,
+                'visitation_id' => $visitationId,
+                'obat_id' => $detail->obat_id,
+                'aturan_pakai' => $paketRacikan->aturan_pakai_default,
+                'racikan_ke' => $newRacikanKe,
+                'wadah_id' => $paketRacikan->wadah_id,
+                'bungkus' => $paketRacikan->bungkus_default,
+                'dosis' => $detail->dosis,
+                'created_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Paket racikan '{$paketRacikan->nama_paket}' berhasil ditambahkan.",
+            'racikan_ke' => $newRacikanKe
+        ]);
+    }
+
+    public function storePaketRacikan(Request $request)
+    {
+        $validated = $request->validate([
+            'nama_paket' => 'required|string|max:255',
+            'deskripsi' => 'nullable|string',
+            'wadah_id' => 'nullable|exists:erm_wadah_obat,id',
+            'bungkus_default' => 'required|integer|min:1',
+            'aturan_pakai_default' => 'nullable|string',
+            'obats' => 'required|array|min:1',
+            'obats.*.obat_id' => 'required|exists:erm_obat,id',
+            'obats.*.dosis' => 'required|string',
+        ]);
+
+        $paketRacikan = PaketRacikan::create([
+            'nama_paket' => $validated['nama_paket'],
+            'deskripsi' => $validated['deskripsi'],
+            'wadah_id' => $validated['wadah_id'],
+            'bungkus_default' => $validated['bungkus_default'],
+            'aturan_pakai_default' => $validated['aturan_pakai_default'],
+            'created_by' => Auth::id(),
+        ]);
+
+        foreach ($validated['obats'] as $obat) {
+            PaketRacikanDetail::create([
+                'paket_racikan_id' => $paketRacikan->id,
+                'obat_id' => $obat['obat_id'],
+                'dosis' => $obat['dosis'],
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Paket racikan berhasil disimpan.',
+            'data' => $paketRacikan
+        ]);
+    }
+
+    public function deletePaketRacikan($id)
+    {
+        $paketRacikan = PaketRacikan::findOrFail($id);
+        $paketRacikan->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Paket racikan berhasil dihapus.'
+        ]);
+    }
 }

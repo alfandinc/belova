@@ -146,12 +146,14 @@ class ObatController extends Controller
         $obats = Obat::where('nama', 'LIKE', "%{$query}%")
             ->orWhere('dosis', 'LIKE', "%{$query}%")
             ->orWhere('satuan', 'LIKE', "%{$query}%")
+            ->limit(10)
             ->get();
 
-        // Return the data as JSON
+        // Return the data in Select2 format
         return response()->json($obats->map(function ($obat) {
             return [
                 'id' => $obat->id,
+                'text' => $obat->nama . ' - ' . $obat->dosis . ' ' . $obat->satuan,
                 'nama' => $obat->nama,
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
