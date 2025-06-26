@@ -112,8 +112,7 @@
                         </button>
                         
                         <button id="paket-racikan" class="btn btn-sm btn-warning">Paket Racikan</button>
-                        <button id="pasien-keluar-btn" class="btn btn-sm btn-info" data-pasien-id="{{ $pasien->id }}" data-pasien-name="{{ $pasien->nama }}">Pasien Keluar</button>
-                        <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button>
+                        <button id="pasien-keluar-btn" class="btn btn-sm btn-danger" data-pasien-id="{{ $pasien->id }}" data-pasien-name="{{ $pasien->nama }}">Keluar</button>
                     </div>
                 </div>
 
@@ -1664,12 +1663,12 @@
         
         Swal.fire({
             title: 'Konfirmasi',
-            text: `Apakah Anda yakin pasien ${pasienName} sudah keluar?`,
+            text: `Apakah Resep pasien ${pasienName} sudah bisa diproses farmasi?`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#3085d6',
             cancelButtonColor: '#d33',
-            confirmButtonText: 'Ya, Pasien Keluar',
+            confirmButtonText: 'Ya',
             cancelButtonText: 'Batal'
         }).then((result) => {
             if (result.value) {
@@ -1688,8 +1687,12 @@
                                 title: 'Berhasil!',
                                 text: 'Notifikasi telah dikirim ke farmasi',
                                 icon: 'success',
-                                timer: 2000,
-                                showConfirmButton: false
+                                confirmButtonText: 'OK',
+                                confirmButtonColor: '#3085d6'
+                            }).then((result) => {
+                                if (result.value) {
+                                    window.close();
+                                }
                             });
                         }
                     },

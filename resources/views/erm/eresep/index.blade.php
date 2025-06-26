@@ -196,14 +196,12 @@ $(document).ready(function() {
                 if (response.hasNew) {
                     // Show SweetAlert notification
                     Swal.fire({
-                        title: 'Notifikasi!',
+                        title: 'Pasien Keluar!',
                         text: response.message,
                         icon: 'info',
                         confirmButtonText: 'OK',
-                        timer: 8000,
-                        timerProgressBar: true,
-                        showCancelButton: true,
-                        cancelButtonText: 'Refresh Data'
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
                     }).then((result) => {
                         if (result.dismiss === Swal.DismissReason.cancel) {
                             // Refresh the DataTable when user clicks "Refresh Data"

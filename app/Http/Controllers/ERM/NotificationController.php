@@ -54,7 +54,7 @@ class NotificationController extends Controller
             $notificationKey = 'farmasi_notification_' . $user->id;
             
             Cache::put($notificationKey, [
-                'message' => "Pasien {$pasienName} (ID: {$pasienId}) telah keluar",
+                'message' => "Resep Pasien {$pasienName} (ID: {$pasienId}) sudah bisa diproses.",
                 'type' => 'pasien_keluar',
                 'timestamp' => time()
             ], 300); // Cache for 5 minutes
