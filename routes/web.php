@@ -231,11 +231,8 @@ Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->n
     Route::delete('/obat/{id}', [ObatController::class, 'destroy'])->name('erm.obat.destroy');
 
     // Surat Istirahat
-
     Route::get('/surat/{pasien_id}', [SuratIstirahatController::class, 'index'])->name('erm.suratistirahat.index');
     Route::post('/surat', [SuratIstirahatController::class, 'store'])->name('erm.suratistirahat.store');
-    Route::get('erm/surat/{id}/cetak', [SuratIstirahatController::class, 'cetak'])->name('erm.suratistirahat.cetak');
-
     Route::get('/surat-istirahat/{id}', [SuratIstirahatController::class, 'suratIstirahat'])->name('surat.istirahat');
 
     //Submit Billing Obat

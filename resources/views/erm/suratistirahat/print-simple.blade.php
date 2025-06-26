@@ -7,6 +7,7 @@
     body {
       font-family: Arial, sans-serif;
       font-size: 14px;
+      margin: 20px;
     }
     table {
       width: 100%;
@@ -21,39 +22,29 @@
     .no-border td {
       border: none;
     }
-    .header-logo {
-      width: 120px;
-    }
     .bold {
       font-weight: bold;
     }
     .center {
       text-align: center;
     }
-    .identity-table {
-      width: 100%;
-      margin-top: 10px;
-    }
-    .identity-table td {
-      padding: 6px;
-      vertical-align: top;
-    }
-    .identity-table .label {
-      text-align: right;
-      width: 30%;
-      padding-right: 10px;
-    }
-    .identity-table .value {
-      text-align: left;
-      width: 70%;
-    }
   </style>
 </head>
 <body>
-<table class="no-border">
-  <tr>
+<table class="no-border">  <tr>
     <td style="width: 20%;" class="header-logo">
-      <img src="{{ public_path('img/logo-premiere.png') }}" alt="Logo" width="130">
+      @php
+        $logoPath = public_path('img/logo-premiere.png');
+      @endphp
+      @if(file_exists($logoPath))
+        @php
+          $logoData = base64_encode(file_get_contents($logoPath));
+          $logoMimeType = mime_content_type($logoPath);
+        @endphp
+        <img src="data:{{ $logoMimeType }};base64,{{ $logoData }}" alt="Logo" width="130" style="max-height: 60px;">
+      @else
+        <div style="width: 130px; height: 60px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px;">Logo Not Found</div>
+      @endif
     </td>
     <td style="width: 80%; text-align: right; font-size: 12px;">
         <strong>KLINIK UTAMA PREMIERE BELOVA</strong> <br>
@@ -97,14 +88,31 @@
 
 <table style="width: 100%; margin-top: 20px;" class="no-border">
   <tr>
-    <td style="width: 50%;"></td>
-    <td style="width: 50%; text-align: center; ">
+    <td style="width: 50%;"></td>    <td style="width: 50%; text-align: center;">
       <p>Surakarta, {{ $tanggal_surat }} <br>
         Dokter Pemeriksa,
-    </p>
-      <img src="{{ public_path($ttd) }}" alt="QR Code" width="80">
+      </p>      @if($ttd)
+        @php
+          $ttdPath = public_path($ttd);
+        @endphp
+        <!-- Debug: TTD variable = {{ $ttd }} -->
+        <!-- Debug: TTD full path = {{ $ttdPath }} -->
+        <!-- Debug: TTD exists = {{ file_exists($ttdPath) ? 'Yes' : 'No' }} -->
+        @if(file_exists($ttdPath))
+          @php
+            $ttdData = base64_encode(file_get_contents($ttdPath));
+            $ttdMimeType = mime_content_type($ttdPath);
+          @endphp
+          <img src="data:{{ $ttdMimeType }};base64,{{ $ttdData }}" alt="Tanda Tangan" width="80" style="margin: 10px 0; max-height: 60px;">
+        @else
+          <div style="height: 60px; margin: 10px 0; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px;">TTD Not Found: {{ $ttd ?? 'No TTD provided' }}</div>
+        @endif
+      @else
+        <div style="height: 60px; margin: 10px 0; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px;">No TTD in data</div>
+      @endif
       <p style="margin-top: 10px; font-size: 12px;"><strong>{{ $nama_dokter }}</strong></p>
     </td>
   </tr>
 </table>
 </body>
+</html>
