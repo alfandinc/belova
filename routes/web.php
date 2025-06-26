@@ -39,6 +39,7 @@ use App\Http\Controllers\ERM\{
     RiwayatKunjunganController,
     ListAntrianController,
     SuratIstirahatController,
+    SuratMondokController,
     ResepCatatanController
 };
 
@@ -230,10 +231,16 @@ Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->n
     Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
     Route::delete('/obat/{id}', [ObatController::class, 'destroy'])->name('erm.obat.destroy');
 
-    // Surat Istirahat
+    // Surat Istirahat & Surat Mondok (Combined)
     Route::get('/surat/{pasien_id}', [SuratIstirahatController::class, 'index'])->name('erm.suratistirahat.index');
     Route::post('/surat', [SuratIstirahatController::class, 'store'])->name('erm.suratistirahat.store');
     Route::get('/surat-istirahat/{id}', [SuratIstirahatController::class, 'suratIstirahat'])->name('surat.istirahat');
+    
+    // Surat Mondok routes
+    Route::get('/suratmondok-data/{pasien_id}', [SuratIstirahatController::class, 'getMondokData'])->name('erm.suratmondok.data');
+    Route::post('/suratmondok', [SuratIstirahatController::class, 'storeMondok'])->name('erm.suratmondok.store');
+    Route::get('/surat-mondok/{id}', [SuratMondokController::class, 'suratMondok'])->name('surat.mondok');
+    Route::get('/suratmondok/asesmen-data/{visitation_id}', [SuratIstirahatController::class, 'getAsesmenData'])->name('erm.suratmondok.asesmen-data');
 
     //Submit Billing Obat
     Route::post('/resepfarmasi/submit', [EResepController::class, 'submitResep'])->name('resepfarmasi.submit');

@@ -46,4 +46,9 @@ class Pasien extends Model
     {
         return $this->hasMany(SuratIstirahat::class);
     }
+
+    public function suratMondoks()
+    {
+        return $this->hasMany(SuratMondok::class);
+    }
 }
