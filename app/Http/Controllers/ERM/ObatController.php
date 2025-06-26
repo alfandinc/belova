@@ -84,13 +84,16 @@ class ObatController extends Controller
     {
         $request->validate([
             'nama' => 'required|string',
-            'zataktif_id' => 'required|array',
-            'kategori' => 'required|string',
+            'kode_obat' => 'nullable|string',
+            'dosis' => 'nullable|string',
+            'satuan' => 'nullable|string',
+            'zataktif_id' => 'nullable|array',
+            'kategori' => 'nullable|string',
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
-            'harga_net' => 'required|numeric',
+            'harga_net' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
-            'harga_nonfornas' => 'nullable|numeric',
-            'stok' => 'required|integer|min:0',
+            'harga_nonfornas' => 'required|numeric',
+            'stok' => 'nullable|integer|min:0',
         ]);
 
         DB::beginTransaction();
@@ -100,12 +103,13 @@ class ObatController extends Controller
                 ['id' => $request->id ?? null],
                 [
                     'nama' => $request->nama,
+                    'kode_obat' => $request->kode_obat,
                     'dosis' => $request->dosis,
                     'satuan' => $request->satuan,
                     'harga_net' => $request->harga_net,
                     'harga_fornas' => $request->harga_fornas,
                     'harga_nonfornas' => $request->harga_nonfornas,
-                    'stok' => $request->stok,
+                    'stok' => $request->stok ?? 0,
                     'kategori' => $request->kategori,
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $request->has('status_aktif') ? 1 : 0,
@@ -113,7 +117,7 @@ class ObatController extends Controller
             );
 
             // Sync zat aktif
-            if ($request->has('zataktif_id')) {
+            if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
                 $obat->zatAktifs()->sync($request->zataktif_id);
             }
 

@@ -30,6 +30,9 @@
 
     <div class="card">
         <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> <strong>Catatan:</strong> Hanya <span class="text-danger">Nama Obat</span> dan <span class="text-danger">Harga Non-Fornas</span> yang wajib diisi. Field lainnya bersifat opsional.
+            </div>
             <form action="{{ route('erm.obat.store') }}" method="POST">
                 @csrf
                 @if(isset($obat->id))
@@ -38,24 +41,24 @@
 
                 <div class="form-row">
                     <div class="form-group col-md-6">
-                        <label for="nama">Nama Obat</label>
+                        <label for="nama">Nama Obat <span class="text-danger">*</span></label>
                         <input type="text" name="nama" id="nama" class="form-control" value="{{ $obat->nama ?? old('nama') }}" required>
                     </div>
                     
                     <div class="form-group col-md-6">
                         <label for="kode_obat">Kode Obat</label>
-                        <input type="text" name="kode_obat" id="kode_obat" class="form-control" value="{{ $obat->kode_obat ?? old('kode_obat') }}" required>
+                        <input type="text" name="kode_obat" id="kode_obat" class="form-control" value="{{ $obat->kode_obat ?? old('kode_obat') }}">
                     </div>
 
                     <div class="form-group col-md-3">
                         <label for="dosis">Dosis</label>
-                        <input type="text" name="dosis" id="dosis" class="form-control" value="{{ $obat->dosis ?? old('dosis') }}" required>
+                        <input type="text" name="dosis" id="dosis" class="form-control" value="{{ $obat->dosis ?? old('dosis') }}">
                     </div>
 
                     <div class="form-group col-md-3">
                         <label for="satuan">Satuan</label>
-                        <select id="satuan" name="satuan" class="form-control select2" required>
-                            <option value="" disabled selected>Pilih</option>
+                        <select id="satuan" name="satuan" class="form-control select2">
+                            <option value="">Pilih Satuan</option>
                             @foreach (['mg','g','ml','tablet','kapsul','sendok','tetes','vial','ampul','patch','suppositoria','puff'] as $satuan)
                                 <option value="{{ $satuan }}" {{ ($obat->satuan ?? old('satuan')) == $satuan ? 'selected' : '' }}>{{ ucfirst($satuan) }}</option>
                             @endforeach
@@ -64,8 +67,8 @@
 
                     <div class="form-group col-md-4">
                         <label for="kategori">Kategori</label>
-                        <select id="kategori" name="kategori" class="form-control select2" required>
-                            <option value="" disabled selected>Pilih Kategori</option>
+                        <select id="kategori" name="kategori" class="form-control select2">
+                            <option value="">Pilih Kategori</option>
                             @foreach ($kategoris as $kategori)
                                 <option value="{{ $kategori }}" {{ ($obat->kategori ?? old('kategori')) == $kategori ? 'selected' : '' }}>{{ $kategori }}</option>
                             @endforeach
@@ -92,7 +95,7 @@
 
                     <div class="form-group col-md-4">
                         <label for="harga_net">Harga Net (Rp)</label>
-                        <input type="number" name="harga_net" id="harga_net" class="form-control" step="0.01" value="{{ $obat->harga_net ?? old('harga_net') }}" required>
+                        <input type="number" name="harga_net" id="harga_net" class="form-control" step="0.01" value="{{ $obat->harga_net ?? old('harga_net') }}">
                     </div>
 
                     <div class="form-group col-md-4">
@@ -101,18 +104,18 @@
                     </div>
 
                     <div class="form-group col-md-4">
-                        <label for="harga_nonfornas">Harga Non-Fornas (Rp)</label>
-                        <input type="number" name="harga_nonfornas" id="harga_nonfornas" class="form-control" step="0.01" value="{{ $obat->harga_nonfornas ?? old('harga_nonfornas') }}">
+                        <label for="harga_nonfornas">Harga Non-Fornas (Rp) <span class="text-danger">*</span></label>
+                        <input type="number" name="harga_nonfornas" id="harga_nonfornas" class="form-control" step="0.01" value="{{ $obat->harga_nonfornas ?? old('harga_nonfornas') }}" required>
                     </div>
 
                     <div class="form-group col-md-4">
                         <label for="stok">Stok</label>
-                        <input type="number" name="stok" id="stok" class="form-control" value="{{ $obat->stok ?? old('stok', 0) }}" required>
+                        <input type="number" name="stok" id="stok" class="form-control" value="{{ $obat->stok ?? old('stok', 0) }}">
                     </div>
 
                     <div class="form-group col-12">
                         <label for="zataktif_id">Zat Aktif <small>(bisa lebih dari satu)</small></label>
-                        <select name="zataktif_id[]" id="zataktif_id" class="form-control select2" multiple required>
+                        <select name="zataktif_id[]" id="zataktif_id" class="form-control select2" multiple>
                             @foreach ($zatAktif as $zat)
                                 <option value="{{ $zat->id }}" {{ isset($obat) && $obat->zatAktifs->contains($zat->id) ? 'selected' : '' }}>{{ $zat->nama }}</option>
                             @endforeach
