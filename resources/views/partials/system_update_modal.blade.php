@@ -3,7 +3,7 @@
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="systemUpdateModalLabel">UPDATE SISTEM 23/06/2025</h5>
+        <h5 class="modal-title" id="systemUpdateModalLabel">UPDATE SISTEM 26/06/2025</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
@@ -13,30 +13,33 @@
         <ul>
           <li><b>Pendaftaran :</b>
             <ul>
-              <li>Fix Tanggal dan Waktu Local dalam sistem</li>
-              <li>Fix bug Antrian Pendaftaran</li>
-              <li>Fix bug Session Time Out</li>
-              <li>Update Informasi Waktu Kunjungan</li>
-              <li>Update Informasi Asesmen Selesai (Dokter submit asesmen)</li>
-              <li>Update Fitur Edit Antrian</li>
-              <li>Update Fitur Filter by Klinik</li>
+              <li>Fix Bug NIK Pasien (Required Error)</li>
+              <li>Update Fitur Pasien VIP</li>
             </ul>
           </li>
           <li><b>Dokter :</b>
             <ul>
-              <li>Fix Tanggal dan Waktu Local dalam sistem</li>
-              <li>Fix bug Tanggal Kunjungan Terakhir</li>
-              <li>Fix bug Urutan Resep Terbaru</li>
-              <li>Fix bug Save Catatan Dokter</li>
-              <li>Fix bug Copy History Resep</li>
-              <li>Fix bug Total Harga Resep</li>
-              <li>Update Informasi Waktu Kunjungan</li>
-              <li>Update Informasi Asesmen Selesai (Dokter submit asesmen)</li>
-              <li>Update Tabel Informasi Resep</li>
-              <li>Update Atutofil Aturan Pakai (Klik TAB)</li>
-              <li>Update Homepage login to Rawat Jalan Page</li>
+              <li>Fix Bug Kembali rawat Jalan</li>
+              <li>Fix Bug Templating Surat Istirahat</li>
+              <li>Fix Bug Edit Racikan Dokter</li>
+              <li>Fix Bug No Urut Rawat Jalan</li>
+              <li>Fix Bug Update Harga Resep</li>
+              <li>Update View Resep yang sudah dilayani Farmasi</li>
+              <li>Update Paket Racikan Dokter</li>
+              <li>Update View riwayat Scrollable</li>
+              <li>Update Surat Pengantar Mondok</li>
+              <li>Update View Lab</li>
+              <li>Update List Pemeriksaan Lab dan Harga</li>
+              <li>Update Fitur pasien VIP</li>
             </ul>
           </li>
+          <li><b>Farmasi :</b>
+            <ul>
+              <li>Fix Bug Edit Etiket Racikan</li>
+              <li>Fix Bug Edit Resep Racikan</li>
+              <li>Fix Bug Edit Resep Racikan</li>
+              <li>Update Notifikasi Dokter selesai buat Resep</li>
+            </ul>
         </ul>
         <strong>*Update akan terus dilakukan secara berkala.</strong>
       </div>
