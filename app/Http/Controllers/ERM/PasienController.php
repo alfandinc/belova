@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use App\Models\ERM\Pasien;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use App\Models\Area\Province;
 use App\Models\ERM\Visitation;
@@ -20,7 +21,7 @@ class PasienController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp');
+            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp', 'status_pasien');
 
             if ($request->no_rm) {
                 $pasiens->where('id', $request->no_rm);
@@ -36,6 +37,40 @@ class PasienController extends Controller
             }
 
             return DataTables::of($pasiens)
+                ->addColumn('status_pasien', function ($user) {
+                    // Status pasien configuration (exclude Regular from display)
+                    $statusConfig = [
+                        'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
+                        'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
+                        'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member']
+                    ];
+                    
+                    $status = $user->status_pasien ?? 'Regular';
+                    
+                    // Create clickable status display
+                    $statusDisplay = '<div class="d-flex align-items-center">';
+                    
+                    // Only show icon for non-Regular status
+                    if ($status !== 'Regular' && isset($statusConfig[$status])) {
+                        $config = $statusConfig[$status];
+                        $statusDisplay .= '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" 
+                                              style="width: 20px; height: 20px; background-color: ' . $config['color'] . '; border-radius: 3px;" 
+                                              title="' . $config['title'] . '">
+                                              <i class="' . $config['icon'] . ' text-white" style="font-size: 11px;"></i>
+                                          </span>';
+                    }
+                    
+                    $statusDisplay .= '<span class="status-text">' . $status . '</span>';
+                    $statusDisplay .= '<button class="btn btn-sm btn-link p-0 ml-2 edit-status-btn" 
+                                          data-pasien-id="' . $user->id . '" 
+                                          data-current-status="' . $status . '" 
+                                          title="Edit Status">
+                                          <i class="fas fa-edit text-primary"></i>
+                                      </button>';
+                    $statusDisplay .= '</div>';
+                    
+                    return $statusDisplay;
+                })
                 ->addColumn('actions', function ($user) {
                     return '
                 <div class="btn-group-vertical w-100 mb-1">
@@ -70,7 +105,7 @@ class PasienController extends Controller
                     </div>
                 </div>';
                 })
-                ->rawColumns(['actions'])
+                ->rawColumns(['status_pasien', 'actions'])
                 ->make(true);
         }
 
@@ -125,6 +160,7 @@ class PasienController extends Controller
         'no_hp' => 'required|string|max:15',
         'email' => 'nullable|email',
         'instagram' => 'nullable|string|max:255',
+        'status_pasien' => 'nullable|in:Regular,VIP,Familia,Black Card',
     ]);
 
     if ($validator->fails()) {
@@ -134,7 +170,7 @@ class PasienController extends Controller
         ], 422);
     }
 
-    $userId = auth()->id();
+    $userId = Auth::id();
 
     DB::beginTransaction();
 
@@ -157,10 +193,12 @@ class PasienController extends Controller
                 'gol_darah' => $request->gol_darah,
                 'notes' => $request->notes,
                 'alamat' => $request->alamat,
+                'village_id' => $request->village,
                 'no_hp' => $request->no_hp,
                 'no_hp2' => $request->no_hp2,
                 'email' => $request->email,
                 'instagram' => $request->instagram,
+                'status_pasien' => $request->status_pasien ?? 'Regular',
                 'user_id' => $userId,
             ]);
         } else {
@@ -187,10 +225,12 @@ class PasienController extends Controller
                 'gol_darah' => $request->gol_darah,
                 'notes' => $request->notes,
                 'alamat' => $request->alamat,
+                'village_id' => $request->village,
                 'no_hp' => $request->no_hp,
                 'no_hp2' => $request->no_hp2,
                 'email' => $request->email,
                 'instagram' => $request->instagram,
+                'status_pasien' => $request->status_pasien ?? 'Regular',
                 'user_id' => $userId,
             ]);
         }
