@@ -112,6 +112,7 @@
                         </button>
                         
                         <button id="paket-racikan" class="btn btn-sm btn-warning">Paket Racikan</button>
+                        <button id="pasien-keluar-btn" class="btn btn-sm btn-info" data-pasien-id="{{ $pasien->id }}" data-pasien-name="{{ $pasien->nama }}">Pasien Keluar</button>
                         <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button>
                     </div>
                 </div>
@@ -1654,6 +1655,55 @@
         card.find('.tambah-resepracikan').addClass('d-none');
         card.find('.update-resepracikan').removeClass('d-none');
         console.log('Edit racikan clicked - fields enabled');
+    });
+
+    // Pasien Keluar button handler
+    $('#pasien-keluar-btn').on('click', function() {
+        const pasienId = $(this).data('pasien-id');
+        const pasienName = $(this).data('pasien-name');
+        
+        Swal.fire({
+            title: 'Konfirmasi',
+            text: `Apakah Anda yakin pasien ${pasienName} sudah keluar?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Ya, Pasien Keluar',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.value) {
+                // Send notification to farmasi users
+                $.ajax({
+                    url: '{{ route("erm.notify.pasien.keluar") }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        pasien_id: pasienId,
+                        pasien_name: pasienName
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                title: 'Berhasil!',
+                                text: 'Notifikasi telah dikirim ke farmasi',
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'Gagal mengirim notifikasi',
+                            icon: 'error'
+                        });
+                        console.error('Failed to send notification:', error);
+                    }
+                });
+            }
+        });
     });
 </script>
 @endsection

@@ -174,6 +174,67 @@ function openRescheduleModal(visitationId, namaPasien, pasienId) {
     $('#reschedule-pasien-id').val(pasienId);
     $('#reschedule-nama-pasien').val(namaPasien);
 }
+
+// Notification polling for farmasi users
+@auth
+@if(auth()->user()->hasRole('Farmasi'))
+$(document).ready(function() {
+    let lastCheck = 0;
+    let isPolling = false;
+    
+    function checkForNewNotifications() {
+        if (isPolling) return;
+        isPolling = true;
+        
+        $.ajax({
+            url: '{{ route("erm.check.notifications") }}',
+            type: 'GET',
+            data: {
+                lastCheck: lastCheck
+            },
+            success: function(response) {
+                if (response.hasNew) {
+                    // Show SweetAlert notification
+                    Swal.fire({
+                        title: 'Notifikasi!',
+                        text: response.message,
+                        icon: 'info',
+                        confirmButtonText: 'OK',
+                        timer: 8000,
+                        timerProgressBar: true,
+                        showCancelButton: true,
+                        cancelButtonText: 'Refresh Data'
+                    }).then((result) => {
+                        if (result.dismiss === Swal.DismissReason.cancel) {
+                            // Refresh the DataTable when user clicks "Refresh Data"
+                            $('#rawatjalan-table').DataTable().ajax.reload();
+                        }
+                    });
+                }
+                lastCheck = response.timestamp;
+            },
+            error: function(xhr, status, error) {
+                console.error('Error checking for notifications:', error);
+            },
+            complete: function() {
+                isPolling = false;
+            }
+        });
+    }
+    
+    // Poll every 10 seconds for new notifications
+    setInterval(checkForNewNotifications, 10000);
+    
+    // Check immediately when page loads
+    checkForNewNotifications();
+    
+    // Optional: Check when user focuses on the tab
+    $(window).on('focus', function() {
+        checkForNewNotifications();
+    });
+});
+@endif
+@endauth
 </script>
 
 

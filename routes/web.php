@@ -40,7 +40,8 @@ use App\Http\Controllers\ERM\{
     ListAntrianController,
     SuratIstirahatController,
     SuratMondokController,
-    ResepCatatanController
+    ResepCatatanController,
+    NotificationController
 };
 
 use App\Http\Controllers\HRD\{
@@ -154,6 +155,10 @@ Route::prefix('erm')->group(function () {
 
     Route::post('/eresepfarmasi/copy-from-history', [EresepController::class, 'copyFromHistoryFarmasi'])->name('erm.eresepfarmasi.copyfromhistory');
     Route::post('/eresep/copy-from-history', [EresepController::class, 'copyFromHistory'])->name('erm.eresep.copyfromhistory');
+    
+    // Notification Routes
+    Route::get('/check-notifications', [NotificationController::class, 'checkNewNotifications'])->name('erm.check.notifications');
+    Route::post('/notify-pasien-keluar', [NotificationController::class, 'notifyPasienKeluar'])->name('erm.notify.pasien.keluar');
     
     // Paket Racikan Routes
     Route::get('/paket-racikan', [EresepController::class, 'paketRacikanIndex'])->name('erm.paket-racikan.index');
