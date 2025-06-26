@@ -137,7 +137,7 @@ class ObatController extends Controller
         $zatAktif = ZatAktif::all();
         $supplier = Supplier::all();
         $metodeBayars = MetodeBayar::all();
-        $kategoris = ['Antibiotik', 'Analgesik', 'Antipiretik', 'Antihistamin', 'Vitamin', 'Suplemen', 'Lainnya'];
+        $kategoris = ['Obat', 'Produk', 'Racikan', 'Antihistamin', 'Lainnya'];
 
         return view('erm.obat.create', compact('obat', 'zatAktif', 'supplier', 'metodeBayars', 'kategoris'));
     }
