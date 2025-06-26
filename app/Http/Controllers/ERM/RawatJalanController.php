@@ -22,7 +22,8 @@ class RawatJalanController extends Controller
                     'erm_pasiens.id as no_rm',
                     'erm_pasiens.no_hp as telepon_pasien',
                     'erm_pasiens.gender as gender',
-                'erm_pasiens.tanggal_lahir as tanggal_lahir'
+                    'erm_pasiens.tanggal_lahir as tanggal_lahir',
+                    'erm_pasiens.status_pasien as status_pasien'
                 )
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
                 ->whereIn('jenis_kunjungan', [1, 2])
@@ -63,7 +64,32 @@ class RawatJalanController extends Controller
                     return '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
                 })
                 ->addColumn('no_rm', fn($v) => $v->no_rm ?? '-') // Use the aliased column
-                ->addColumn('nama_pasien', fn($v) => $v->nama_pasien ?? '-') // Use the aliased column
+                ->addColumn('nama_pasien', function ($v) {
+                    $nama = $v->nama_pasien ?? '-';
+                    
+                    // Status pasien configuration (exclude Regular from display)
+                    $statusConfig = [
+                        'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
+                        'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
+                        'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member']
+                    ];
+                    
+                    $status = $v->status_pasien ?? 'Regular';
+                    
+                    // Only show icon for non-Regular status
+                    if ($status !== 'Regular' && isset($statusConfig[$status])) {
+                        $config = $statusConfig[$status];
+                        $statusIcon = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" 
+                                          style="width: 20px; height: 20px; background-color: ' . $config['color'] . '; border-radius: 3px; margin-right: 8px;" 
+                                          title="' . $config['title'] . '">
+                                          <i class="' . $config['icon'] . ' text-white" style="font-size: 11px;"></i>
+                                      </span>';
+                        return $statusIcon . $nama;
+                    }
+                    
+                    // Return just the name for Regular patients
+                    return $nama;
+                }) // Use the aliased column
                 ->addColumn('tanggal', function ($v) {
                     // Convert to Indonesian date format: 1 Januari 2025
                     $date = \Carbon\Carbon::parse($v->tanggal_visitation);
@@ -145,7 +171,7 @@ class RawatJalanController extends Controller
                 ->addColumn('waktu_kunjungan', function ($v) {
                     return $v->waktu_kunjungan ? substr($v->waktu_kunjungan, 0, 5) : '-';
                 })
-                ->rawColumns(['antrian', 'dokumen'])
+                ->rawColumns(['antrian', 'nama_pasien', 'dokumen'])
                 ->make(true);
         }
 

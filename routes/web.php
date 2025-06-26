@@ -94,6 +94,7 @@ Route::prefix('erm')->group(function () {
     Route::post('/pasiens', [PasienController::class, 'store'])->name('erm.pasiens.store');
     Route::get('/pasiens/{id}/edit', [PasienController::class, 'edit'])->name('erm.pasiens.edit');
     Route::put('/pasiens/{id}', [PasienController::class, 'update'])->name('erm.pasiens.update');
+    Route::post('/pasiens/{id}/update-status', [PasienController::class, 'updateStatus'])->name('erm.pasiens.update-status');
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 

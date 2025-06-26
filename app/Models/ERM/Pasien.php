@@ -34,6 +34,7 @@ class Pasien extends Model
         'no_hp2',
         'email',
         'instagram',
+        'status_pasien',
         'user_id', // tambahkan ini
     ];
 

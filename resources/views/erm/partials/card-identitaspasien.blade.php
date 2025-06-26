@@ -20,6 +20,28 @@
                                     <i class="fas fa-venus text-white" style="font-size: 20px;"></i>
                                 </span>
                             @endif
+                            
+                            {{-- Status Pasien Icon --}}
+                            @php
+                                $statusConfig = [
+                                    'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
+                                    'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
+                                    'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member'],
+                                    'Regular' => ['color' => '#6C757D', 'icon' => 'fas fa-user', 'title' => 'Regular Member']
+                                ];
+                                $status = $visitation->pasien->status_pasien ?? 'Regular';
+                                $config = $statusConfig[$status] ?? $statusConfig['Regular'];
+                            @endphp
+                            
+                            <span class="d-inline-flex align-items-center justify-content-center ml-2 status-pasien-icon" 
+                                  style="width: 25px; height: 25px; background-color: {{ $config['color'] }}; border-radius: 4px; cursor: pointer;"
+                                  title="{{ $config['title'] }}"
+                                  data-toggle="modal" 
+                                  data-target="#modalStatusPasien"
+                                  data-pasien-id="{{ $visitation->pasien->id }}"
+                                  data-current-status="{{ $status }}">
+                                <i class="{{ $config['icon'] }} text-white" style="font-size: 14px;"></i>
+                            </span>
                              
                         </div>     
                     </div> 
@@ -142,4 +164,102 @@
             </div>
         </div>
     </div>
+
+<!-- Modal Edit Status Pasien -->
+<div class="modal fade" id="modalStatusPasien" tabindex="-1" role="dialog" aria-labelledby="modalStatusPasienLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalStatusPasienLabel">Edit Status Pasien</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="statusPasienForm">
+                    <div class="form-group">
+                        <label for="status_pasien">Status Pasien</label>
+                        <select class="form-control" id="status_pasien" name="status_pasien" required>
+                            <option value="Regular">Regular</option>
+                            <option value="VIP">VIP</option>
+                            <option value="Familia">Familia</option>
+                            <option value="Black Card">Black Card</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveStatusPasien">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+@push('scripts')
+<script>
+$(document).ready(function() {
+    // Open modal and set current status
+    $('#modalStatusPasien').on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget);
+        var pasienId = button.data('pasien-id');
+        var currentStatus = button.data('current-status');
+        
+        $('#status_pasien').val(currentStatus);
+        $('#modalStatusPasien').data('pasien-id', pasienId);
+    });
+    
+    // Save status pasien
+    $('#saveStatusPasien').on('click', function() {
+        var pasienId = $('#modalStatusPasien').data('pasien-id');
+        var newStatus = $('#status_pasien').val();
+        
+        $.ajax({
+            url: '/erm/pasiens/' + pasienId + '/update-status',
+            type: 'POST',
+            data: {
+                _token: $('meta[name="csrf-token"]').attr('content'),
+                status_pasien: newStatus
+            },
+            success: function(response) {
+                if(response.success) {
+                    // Update the icon
+                    var statusConfig = {
+                        'VIP': {color: '#FFD700', icon: 'fas fa-crown', title: 'VIP Member'},
+                        'Familia': {color: '#32CD32', icon: 'fas fa-users', title: 'Familia Member'},
+                        'Black Card': {color: '#2F2F2F', icon: 'fas fa-credit-card', title: 'Black Card Member'},
+                        'Regular': {color: '#6C757D', icon: 'fas fa-user', title: 'Regular Member'}
+                    };
+                    
+                    var config = statusConfig[newStatus] || statusConfig['Regular'];
+                    var $icon = $('.status-pasien-icon');
+                    
+                    $icon.css('background-color', config.color);
+                    $icon.attr('title', config.title);
+                    $icon.attr('data-current-status', newStatus);
+                    $icon.find('i').attr('class', config.icon + ' text-white');
+                    
+                    $('#modalStatusPasien').modal('hide');
+                    
+                    // Show success message
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil!',
+                        text: 'Status pasien berhasil diperbarui.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'Gagal memperbarui status pasien.',
+                });
+            }
+        });
+    });
+});
+</script>
+@endpush
     

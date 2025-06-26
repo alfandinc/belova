@@ -6,6 +6,21 @@
 
 @section('content')
 
+<style>
+/* Status Pasien Icons in DataTable */
+.dataTables_wrapper .status-pasien-icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.dataTables_wrapper td {
+    vertical-align: middle;
+}
+</style>
+
 @include('erm.partials.modal-reschedule')
 <div class="modal fade" id="modalKonfirmasi" tabindex="-1" role="dialog" aria-labelledby="modalKonfirmasiTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">

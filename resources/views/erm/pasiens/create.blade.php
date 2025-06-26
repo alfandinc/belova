@@ -165,7 +165,7 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label for="gol_darah">Golongan Darah</label>
                                 <select class="form-control select2" id="gol_darah" name="gol_darah">
@@ -178,7 +178,18 @@
                                 
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="status_pasien">Status Pasien</label>
+                                <select class="form-control select2" id="status_pasien" name="status_pasien">
+                                    <option value="Regular">Regular</option>
+                                    <option value="VIP">VIP</option>
+                                    <option value="Familia">Familia</option>
+                                    <option value="Black Card">Black Card</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label for="notes">Catatan Khusus</label>
                                 <textarea class="form-control" id="notes" name="notes" rows="3">{{ $pasien->notes ?? '' }}</textarea>
@@ -538,6 +549,7 @@
         $('#pendidikan').val('{{ $pasien->pendidikan }}').trigger('change');
         $('#pekerjaan').val('{{ $pasien->pekerjaan }}').trigger('change');
         $('#gol_darah').val('{{ $pasien->gol_darah }}').trigger('change');
+        $('#status_pasien').val('{{ $pasien->status_pasien ?? "Regular" }}').trigger('change');
         
         // Handle address selection
         @if($pasien->village && $pasien->village->district && $pasien->village->district->regency && $pasien->village->district->regency->province)

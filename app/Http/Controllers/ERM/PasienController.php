@@ -245,4 +245,39 @@ class PasienController extends Controller
             'no_antrian' => $jumlahKunjungan + 1
         ]);
     }
+
+    public function updateStatus(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status_pasien' => 'required|in:Regular,VIP,Familia,Black Card'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $pasien = Pasien::findOrFail($id);
+            $pasien->status_pasien = $request->status_pasien;
+            $pasien->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status pasien berhasil diperbarui',
+                'data' => [
+                    'id' => $pasien->id,
+                    'status_pasien' => $pasien->status_pasien
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui status pasien'
+            ], 500);
+        }
+    }
 }
