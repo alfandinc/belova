@@ -221,6 +221,11 @@ Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->n
     Route::get('/tindakan/sop/{id}', [TindakanController::class, 'generateSopPdf'])->name('erm.tindakan.sop');
 
     Route::post('/tindakan/upload-foto/{id}', [TindakanController::class, 'uploadFoto'])->name('erm.tindakan.upload-foto');
+    
+    // SPK Routes
+    Route::get('/tindakan/spk/{inform_consent_id}', [TindakanController::class, 'getSpkData'])->name('erm.tindakan.spk.get');
+    Route::post('/tindakan/spk/save', [TindakanController::class, 'saveSpk'])->name('erm.tindakan.spk.save');
+    
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 

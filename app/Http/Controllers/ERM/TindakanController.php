@@ -12,6 +12,8 @@ use App\Models\ERM\Tindakan;
 use App\Models\ERM\PaketTindakan;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
 
@@ -196,7 +198,7 @@ class TindakanController extends Controller
 
         // Get all inform consents for all visitations of this patient
         $history = InformConsent::whereIn('visitation_id', $patientVisitations)
-            ->with(['tindakan', 'visitation'])
+            ->with(['tindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi'])
             ->get()
             ->map(function ($item) use ($visitationId) {
                 $paketName = null;
@@ -218,6 +220,8 @@ class TindakanController extends Controller
                     'tanggal' => $tanggalFormatted,
                     'tindakan' => $item->tindakan->nama ?? '-',
                     'paket' => $paketName ?? '-',
+                    'dokter' => $item->visitation->dokter->user->name ?? '-',
+                    'spesialisasi' => $item->visitation->dokter->spesialisasi->nama ?? '-',
                     'file_path' => $item->file_path,
                     'before_image_path' => $item->before_image_path,
                     'after_image_path' => $item->after_image_path,
@@ -227,26 +231,34 @@ class TindakanController extends Controller
 
         return datatables()->of($history)
             ->addColumn('dokumen', function ($row) {
-                if (empty($row['file_path'])) {
-                    return '<span class="text-muted">Tidak ada dokumen</span>';
+                $buttons = '';
+                
+                // Add document button if file exists
+                if (!empty($row['file_path'])) {
+                    $url = Storage::url($row['file_path']);
+                    $buttons .= '<a href="' . $url . '" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>';
                 }
-
-                $url = Storage::url($row['file_path']);
-                return '<a href="' . $url . '" target="_blank" class="btn btn-info btn-sm">Lihat</a>';
+                
+                // Always add foto hasil button
+                $buttons .= '<button class="btn btn-primary btn-sm foto-hasil-btn mr-1" ' .
+                    'data-id="' . $row['id'] . '" ' .
+                    'data-before="' . ($row['before_image_path'] ?? '') . '" ' .
+                    'data-after="' . ($row['after_image_path'] ?? '') . '">' .
+                    'Foto Hasil</button>';
+                
+                // Add SPK button
+                $buttons .= '<button class="btn btn-warning btn-sm spk-btn" ' .
+                    'data-id="' . $row['id'] . '">' .
+                    'SPK</button>';
+                
+                return $buttons ?: '<span class="text-muted">Tidak ada dokumen</span>';
             })
             ->addColumn('status', function ($row) {
                 return $row['current'] ?
                     '<span class="badge badge-success">Kunjungan Saat Ini</span>' :
                     '<span class="badge badge-secondary">Kunjungan Sebelumnya</span>';
             })
-            ->addColumn('foto_hasil', function ($row) {
-                return '<button class="btn btn-primary btn-sm foto-hasil-btn" ' .
-                    'data-id="' . $row['id'] . '" ' .
-                    'data-before="' . ($row['before_image_path'] ?? '') . '" ' .
-                    'data-after="' . ($row['after_image_path'] ?? '') . '">' .
-                    'Foto Hasil</button>';
-            })
-            ->rawColumns(['dokumen', 'status', 'foto_hasil'])
+            ->rawColumns(['dokumen', 'status'])
             ->make(true);
     }
 
@@ -311,5 +323,104 @@ class TindakanController extends Controller
             'before_path' => $informConsent->before_image_path ? Storage::url($informConsent->before_image_path) : null,
             'after_path' => $informConsent->after_image_path ? Storage::url($informConsent->after_image_path) : null,
         ]);
+    }
+
+    public function getSpkData($informConsentId)
+    {
+        $informConsent = InformConsent::with(['tindakan.sop', 'visitation.pasien', 'visitation.dokter.user'])
+            ->findOrFail($informConsentId);
+        
+        $spk = \App\Models\ERM\Spk::with('details.sop')->where('visitation_id', $informConsent->visitation_id)->first();
+        
+        // Get users with Dokter and Beautician roles
+        $users = \App\Models\User::whereHas('roles', function($query) {
+            $query->whereIn('name', ['Dokter', 'Beautician']);
+        })->get(['id', 'name']);
+        
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'inform_consent' => $informConsent,
+                'spk' => $spk,
+                'users' => $users,
+                'sop_list' => $informConsent->tindakan->sop ?? []
+            ]
+        ]);
+    }
+    
+    public function saveSpk(Request $request)
+    {
+        Log::info('SPK Save Request Data: ', $request->all());
+        
+        try {
+            $request->validate([
+                'inform_consent_id' => 'required|exists:erm_inform_consent,id',
+                'tanggal_tindakan' => 'required|date',
+                'details' => 'required|array',
+                'details.*.sop_id' => 'required|exists:erm_sop,id',
+                'details.*.penanggung_jawab' => 'required|string',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('SPK Validation Error: ', $e->errors());
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . json_encode($e->errors())
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Get inform consent to extract related data
+            $informConsent = InformConsent::with(['visitation', 'tindakan'])->findOrFail($request->inform_consent_id);
+
+            // Create or update SPK
+            $spk = \App\Models\ERM\Spk::updateOrCreate(
+                ['visitation_id' => $informConsent->visitation_id],
+                [
+                    'pasien_id' => $informConsent->visitation->pasien_id,
+                    'tindakan_id' => $informConsent->tindakan_id,
+                    'dokter_id' => $informConsent->visitation->dokter_id,
+                    'tanggal_tindakan' => $request->tanggal_tindakan,
+                ]
+            );
+
+            // Delete existing details
+            $spk->details()->delete();
+
+            // Create new details
+            foreach ($request->details as $detail) {
+                \App\Models\ERM\SpkDetail::create([
+                    'spk_id' => $spk->id,
+                    'sop_id' => $detail['sop_id'],
+                    'penanggung_jawab' => $detail['penanggung_jawab'],
+                    'sbk' => filter_var($detail['sbk'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'sba' => filter_var($detail['sba'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'sdc' => filter_var($detail['sdc'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'sdk' => filter_var($detail['sdk'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'sdl' => filter_var($detail['sdl'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'waktu_mulai' => !empty($detail['waktu_mulai']) ? $detail['waktu_mulai'] : null,
+                    'waktu_selesai' => !empty($detail['waktu_selesai']) ? $detail['waktu_selesai'] : null,
+                    'notes' => !empty($detail['notes']) ? $detail['notes'] : null,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'SPK berhasil disimpan',
+                'spk' => $spk->load('details.sop')
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('SPK Save Error: ' . $e->getMessage());
+            Log::error('SPK Save Trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan SPK: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

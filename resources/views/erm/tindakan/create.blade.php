@@ -82,6 +82,95 @@
   </div>
 </div>
 
+<!-- Modal for SPK -->
+<div class="modal fade" id="modalSpk" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-xl" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">SPK & CUCI TANGAN</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="spkForm">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>Nama Pasien</label>
+                <input type="text" class="form-control" id="spkNamaPasien" readonly>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>No RM</label>
+                <input type="text" class="form-control" id="spkNoRm" readonly>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>Tanggal Tindakan</label>
+                <input type="date" class="form-control" id="spkTanggalTindakan" name="tanggal_tindakan" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>Nama Tindakan</label>
+                <input type="text" class="form-control" id="spkNamaTindakan" readonly>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>Dokter Penanggung Jawab</label>
+                <input type="text" class="form-control" id="spkDokterPJ" readonly>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label>Harga</label>
+                <input type="text" class="form-control" id="spkHarga" readonly>
+              </div>
+            </div>
+          </div>
+          
+          <div class="table-responsive mt-4">
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th style="width: 5%">NO</th>
+                  <th style="width: 15%">TINDAKAN</th>
+                  <th style="width: 12%">PJ</th>
+                  <th style="width: 6%">SBK</th>
+                  <th style="width: 6%">SBA</th>
+                  <th style="width: 6%">SDC</th>
+                  <th style="width: 6%">SDK</th>
+                  <th style="width: 6%">SDL</th>
+                  <th style="width: 8%">MULAI</th>
+                  <th style="width: 8%">SELESAI</th>
+                  <th style="width: 22%">NOTES</th>
+                </tr>
+              </thead>
+              <tbody id="spkTableBody">
+                <!-- Will be populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+          
+          <input type="hidden" id="spkInformConsentId" name="inform_consent_id">
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-success" id="saveSpk">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
@@ -121,9 +210,11 @@
                                     <th>Tanggal</th>
                                     <th>Tindakan</th>
                                     <th>Paket Tindakan</th>
+                                    <th>Dokter</th>
+                                    <th>Spesialisasi</th>
                                     <th>Status</th>
                                     <th>Dokumen</th>
-                                    <th>Foto Hasil</th> <!-- New column -->
+                                   
                                 </tr>
                             </thead>
                         </table>
@@ -181,6 +272,8 @@
 @endsection
 @section('scripts')
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+{{-- <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> --}}
 
 <script>
     $(document).ready(function () {
@@ -260,14 +353,15 @@
                 { data: 'tanggal', name: 'tanggal' },
                 { data: 'tindakan', name: 'tindakan' },
                 { data: 'paket', name: 'paket' },
+                { data: 'dokter', name: 'dokter' },
+                { data: 'spesialisasi', name: 'spesialisasi' },
                 { data: 'status', name: 'status' },
                 { 
                     data: 'dokumen', 
                     name: 'dokumen', 
                     orderable: false, 
                     searchable: false 
-                },
-                { data: 'foto_hasil', name: 'foto_hasil', orderable: false, searchable: false }
+                }
             ],
             order: [[0, 'desc']] // Sort by date descending
         });
@@ -767,6 +861,193 @@
                 });
         }
 
+        // SPK Functionality
+        $(document).on('click', '.spk-btn', function() {
+            const informConsentId = $(this).data('id');
+            
+            // Reset form
+            $('#spkForm')[0].reset();
+            $('#spkTableBody').empty();
+            $('#spkInformConsentId').val(informConsentId);
+            
+            // Load SPK data
+            $.ajax({
+                url: `/erm/tindakan/spk/${informConsentId}`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const data = response.data;
+                        
+                        // Fill form with inform consent data
+                        $('#spkNamaPasien').val(data.inform_consent.visitation.pasien.nama);
+                        $('#spkNoRm').val(data.inform_consent.visitation.pasien.id);
+                        $('#spkNamaTindakan').val(data.inform_consent.tindakan.nama);
+                        $('#spkDokterPJ').val(data.inform_consent.visitation.dokter.user.name);
+                        $('#spkHarga').val(formatRupiah(data.inform_consent.tindakan.harga));
+                        
+                        // If SPK exists, fill with existing data
+                        if (data.spk) {
+                            console.log('SPK data found:', data.spk);
+                            console.log('Tanggal tindakan:', data.spk.tanggal_tindakan);
+                            // Format date for HTML input (YYYY-MM-DD)
+                            let tanggalTindakan = data.spk.tanggal_tindakan;
+                            if (tanggalTindakan) {
+                                // Convert to YYYY-MM-DD format if needed
+                                const date = new Date(tanggalTindakan);
+                                tanggalTindakan = date.toISOString().split('T')[0];
+                            }
+                            $('#spkTanggalTindakan').val(tanggalTindakan);
+                        } else {
+                            console.log('No existing SPK data found');
+                            // Default values
+                            $('#spkTanggalTindakan').val(new Date().toISOString().split('T')[0]);
+                        }
+                        
+                        // Populate SOP table
+                        let tableHtml = '';
+                        data.sop_list.forEach((sop, index) => {
+                            const existingDetail = data.spk ? data.spk.details.find(d => d.sop_id == sop.id) : null;
+                            
+                            // Format time values for HTML time input (HH:MM)
+                            let waktuMulai = '';
+                            let waktuSelesai = '';
+                            if (existingDetail) {
+                                waktuMulai = existingDetail.waktu_mulai ? existingDetail.waktu_mulai.substring(0, 5) : '';
+                                waktuSelesai = existingDetail.waktu_selesai ? existingDetail.waktu_selesai.substring(0, 5) : '';
+                            }
+                            
+                            tableHtml += `
+                                <tr>
+                                    <td>${index + 1}</td>
+                                    <td>${sop.nama_sop}</td>
+                                    <td>
+                                        <select class="form-control select2-spk" name="details[${index}][penanggung_jawab]" data-sop-id="${sop.id}" required>
+                                            <option value="">Pilih PJ</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="checkbox" name="details[${index}][sbk]" ${existingDetail && existingDetail.sbk ? 'checked' : ''}></td>
+                                    <td><input type="checkbox" name="details[${index}][sba]" ${existingDetail && existingDetail.sba ? 'checked' : ''}></td>
+                                    <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail && existingDetail.sdc ? 'checked' : ''}></td>
+                                    <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail && existingDetail.sdk ? 'checked' : ''}></td>
+                                    <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail && existingDetail.sdl ? 'checked' : ''}></td>
+                                    <td><input type="time" class="form-control" name="details[${index}][waktu_mulai]" value="${waktuMulai}"></td>
+                                    <td><input type="time" class="form-control" name="details[${index}][waktu_selesai]" value="${waktuSelesai}"></td>
+                                    <td><textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail && existingDetail.notes ? existingDetail.notes : ''}</textarea></td>
+                                    <input type="hidden" name="details[${index}][sop_id]" value="${sop.id}">
+                                </tr>
+                            `;
+                        });
+                        
+                        $('#spkTableBody').html(tableHtml);
+                        
+                        // Initialize Select2 for user selection
+                        $('.select2-spk').each(function() {
+                            const select = $(this);
+                            const sopId = select.data('sop-id');
+                            const existingDetail = data.spk ? data.spk.details.find(d => d.sop_id == sopId) : null;
+                            
+                            // Add options
+                            data.users.forEach(user => {
+                                const selected = existingDetail && existingDetail.penanggung_jawab === user.name ? 'selected' : '';
+                                select.append(`<option value="${user.name}" ${selected}>${user.name}</option>`);
+                            });
+                            
+                            // Initialize select2
+                            select.select2({
+                                dropdownParent: $('#modalSpk'),
+                                width: '100%'
+                            });
+                        });
+                        
+                        // Show modal
+                        $('#modalSpk').modal('show');
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Error loading SPK data:', xhr);
+                    Swal.fire('Error', 'Failed to load SPK data', 'error');
+                }
+            });
+        });
+        
+        // Save SPK
+        $('#saveSpk').click(function() {
+            const spkData = {
+                inform_consent_id: $('#spkInformConsentId').val(),
+                tanggal_tindakan: $('#spkTanggalTindakan').val(),
+                details: []
+            };
+            
+            // Collect details data
+            $('#spkTableBody tr').each(function(index) {
+                const row = $(this);
+                const detail = {
+                    sop_id: row.find('input[name*="[sop_id]"]').val(),
+                    penanggung_jawab: row.find('select[name*="[penanggung_jawab]"]').val(),
+                    sbk: row.find('input[name*="[sbk]"]').is(':checked'),
+                    sba: row.find('input[name*="[sba]"]').is(':checked'),
+                    sdc: row.find('input[name*="[sdc]"]').is(':checked'),
+                    sdk: row.find('input[name*="[sdk]"]').is(':checked'),
+                    sdl: row.find('input[name*="[sdl]"]').is(':checked'),
+                    waktu_mulai: row.find('input[name*="[waktu_mulai]"]').val(),
+                    waktu_selesai: row.find('input[name*="[waktu_selesai]"]').val(),
+                    notes: row.find('textarea[name*="[notes]"]').val()
+                };
+                
+                if (detail.penanggung_jawab) {
+                    spkData.details.push(detail);
+                }
+            });
+            
+            // Validate
+            if (spkData.details.length === 0) {
+                Swal.fire('Error', 'Harap pilih minimal satu penanggung jawab', 'error');
+                return;
+            }
+            
+            // Show loading
+            Swal.fire({
+                title: 'Menyimpan...',
+                text: 'Please wait while saving SPK data',
+                icon: 'info',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+            });
+            
+            // Submit
+            $.ajax({
+                url: '/erm/tindakan/spk/save',
+                method: 'POST',
+                data: spkData,
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire('Success', response.message, 'success');
+                        $('#modalSpk').modal('hide');
+                    } else {
+                        Swal.fire('Error', response.message, 'error');
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Error saving SPK:', xhr);
+                    console.error('Response Text:', xhr.responseText);
+                    console.error('Status:', xhr.status);
+                    
+                    let errorMessage = 'Failed to save SPK data';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    } else if (xhr.responseText) {
+                        errorMessage = xhr.responseText;
+                    }
+                    
+                    Swal.fire('Error', errorMessage, 'error');
+                }
+            });
+        });
+        
     
 
 
