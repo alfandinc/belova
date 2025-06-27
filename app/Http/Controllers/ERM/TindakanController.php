@@ -137,6 +137,17 @@ class TindakanController extends Controller
             'riwayat_tindakan_id' => $riwayatTindakan->id,
             'created_at' => now(),
         ]);
+
+        // Automatically create SPK record
+        $spk = \App\Models\ERM\Spk::create([
+            'visitation_id' => $data['visitation_id'],
+            'pasien_id' => $visitation->pasien_id,
+            'tindakan_id' => $data['tindakan_id'],
+            'dokter_id' => $visitation->dokter_id,
+            'tanggal_tindakan' => $data['tanggal'],
+            'riwayat_tindakan_id' => $riwayatTindakan->id,
+        ]);
+
         $billing = null;
 
         if (isset($data['paket_id'])) {
@@ -190,8 +201,9 @@ class TindakanController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Inform consent and billing created successfully',
+            'message' => 'Inform consent, SPK, and billing created successfully',
             'informConsent' => $informConsent,
+            'spk' => $spk,
             'billing' => $billing,
             'riwayatTindakan' => $riwayatTindakan
         ]);
@@ -379,17 +391,25 @@ class TindakanController extends Controller
             // Get inform consent to extract related data
             $informConsent = InformConsent::with(['visitation', 'tindakan', 'riwayatTindakan'])->findOrFail($request->inform_consent_id);
 
-            // Create or update SPK
-            $spk = \App\Models\ERM\Spk::updateOrCreate(
-                ['visitation_id' => $informConsent->visitation_id],
-                [
+            // Find existing SPK (should exist since we auto-create it)
+            $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $informConsent->riwayat_tindakan_id)->first();
+            
+            if (!$spk) {
+                // If for some reason SPK doesn't exist, create it
+                $spk = \App\Models\ERM\Spk::create([
+                    'visitation_id' => $informConsent->visitation_id,
                     'pasien_id' => $informConsent->visitation->pasien_id,
                     'tindakan_id' => $informConsent->tindakan_id,
                     'dokter_id' => $informConsent->visitation->dokter_id,
                     'tanggal_tindakan' => $request->tanggal_tindakan,
                     'riwayat_tindakan_id' => $informConsent->riwayat_tindakan_id,
-                ]
-            );
+                ]);
+            } else {
+                // Update existing SPK
+                $spk->update([
+                    'tanggal_tindakan' => $request->tanggal_tindakan,
+                ]);
+            }
 
             // Delete existing details
             $spk->details()->delete();
