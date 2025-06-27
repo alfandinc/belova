@@ -14,6 +14,7 @@ class InformConsent extends Model
         'file_path',
         'before_image_path',
         'after_image_path',
+        'riwayat_tindakan_id',
     ];
 
     public function tindakan()
@@ -24,5 +25,10 @@ class InformConsent extends Model
     public function visitation()
     {
         return $this->belongsTo(Visitation::class);
+    }
+
+    public function riwayatTindakan()
+    {
+        return $this->belongsTo(RiwayatTindakan::class, 'riwayat_tindakan_id');
     }
 }

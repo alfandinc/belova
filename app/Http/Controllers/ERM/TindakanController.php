@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\Tindakan;
 use App\Models\ERM\PaketTindakan;
+use App\Models\ERM\RiwayatTindakan;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -108,6 +109,14 @@ class TindakanController extends Controller
         $pasien = $visitation->pasien;
         $tindakan = Tindakan::findOrFail($data['tindakan_id']);
 
+        // Create RiwayatTindakan record first
+        $riwayatTindakan = RiwayatTindakan::create([
+            'visitation_id' => $data['visitation_id'],
+            'tanggal_tindakan' => $data['tanggal'],
+            'tindakan_id' => $data['tindakan_id'],
+            'paket_tindakan_id' => $data['paket_id'] ?? null,
+        ]);
+
         $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
         $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.{$viewName}", [
             'data' => $data,
@@ -125,6 +134,7 @@ class TindakanController extends Controller
             'tindakan_id' => $data['tindakan_id'],
             'file_path' => $pdfPath,
             'paket_id' => $data['paket_id'] ?? null,
+            'riwayat_tindakan_id' => $riwayatTindakan->id,
             'created_at' => now(),
         ]);
         $billing = null;
@@ -182,11 +192,12 @@ class TindakanController extends Controller
             'success' => true,
             'message' => 'Inform consent and billing created successfully',
             'informConsent' => $informConsent,
-            'billing' => $billing
+            'billing' => $billing,
+            'riwayatTindakan' => $riwayatTindakan
         ]);
     }
 
-    public function getInformConsentHistory($visitationId)
+    public function getRiwayatTindakanHistory($visitationId)
     {
         // First, get the patient ID from the current visitation
         $currentVisitation = Visitation::findOrFail($visitationId);
@@ -196,35 +207,27 @@ class TindakanController extends Controller
         $patientVisitations = Visitation::where('pasien_id', $patientId)
             ->pluck('id')->toArray();
 
-        // Get all inform consents for all visitations of this patient
-        $history = InformConsent::whereIn('visitation_id', $patientVisitations)
-            ->with(['tindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi'])
+        // Get all riwayat tindakan for all visitations of this patient
+        $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
+            ->with(['tindakan', 'paketTindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
             ->get()
             ->map(function ($item) use ($visitationId) {
-                $paketName = null;
-                if ($item->paket_id) {
-                    $paket = PaketTindakan::find($item->paket_id);
-                    $paketName = $paket ? $paket->nama : null;
-                }
-
                 // Format the date using Carbon
                 $tanggalFormatted = '-';
-                if (isset($item->visitation->tanggal_visitation)) {
-                    $tanggalFormatted = Carbon::parse($item->visitation->tanggal_visitation)
-                        ->locale('id') // Set locale to Indonesian
-                        ->isoFormat('D MMMM YYYY'); // Format: 4 Juni 2025
+                if ($item->tanggal_tindakan) {
+                    $tanggalFormatted = Carbon::parse($item->tanggal_tindakan)
+                        ->locale('id')
+                        ->isoFormat('D MMMM YYYY');
                 }
 
                 return [
-                    'id' => $item->id, // Add this line to include the ID
+                    'id' => $item->id,
                     'tanggal' => $tanggalFormatted,
                     'tindakan' => $item->tindakan->nama ?? '-',
-                    'paket' => $paketName ?? '-',
+                    'paket' => $item->paketTindakan->nama ?? '-',
                     'dokter' => $item->visitation->dokter->user->name ?? '-',
                     'spesialisasi' => $item->visitation->dokter->spesialisasi->nama ?? '-',
-                    'file_path' => $item->file_path,
-                    'before_image_path' => $item->before_image_path,
-                    'after_image_path' => $item->after_image_path,
+                    'inform_consent' => $item->informConsent,
                     'current' => ($item->visitation_id == $visitationId) ? true : false
                 ];
             });
@@ -233,25 +236,27 @@ class TindakanController extends Controller
             ->addColumn('dokumen', function ($row) {
                 $buttons = '';
                 
-                // Add document button if file exists
-                if (!empty($row['file_path'])) {
-                    $url = Storage::url($row['file_path']);
+                // Add document button if inform consent exists
+                if ($row['inform_consent']) {
+                    $url = Storage::url($row['inform_consent']->file_path);
                     $buttons .= '<a href="' . $url . '" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>';
+                    
+                    // Always add foto hasil button
+                    $buttons .= '<button class="btn btn-primary btn-sm foto-hasil-btn mr-1" ' .
+                        'data-id="' . $row['inform_consent']->id . '" ' .
+                        'data-before="' . ($row['inform_consent']->before_image_path ?? '') . '" ' .
+                        'data-after="' . ($row['inform_consent']->after_image_path ?? '') . '">' .
+                        'Foto Hasil</button>';
+                    
+                    // Add SPK button
+                    $buttons .= '<button class="btn btn-warning btn-sm spk-btn" ' .
+                        'data-id="' . $row['inform_consent']->id . '">' .
+                        'SPK</button>';
+                } else {
+                    $buttons = '<span class="text-muted">Belum ada inform consent</span>';
                 }
                 
-                // Always add foto hasil button
-                $buttons .= '<button class="btn btn-primary btn-sm foto-hasil-btn mr-1" ' .
-                    'data-id="' . $row['id'] . '" ' .
-                    'data-before="' . ($row['before_image_path'] ?? '') . '" ' .
-                    'data-after="' . ($row['after_image_path'] ?? '') . '">' .
-                    'Foto Hasil</button>';
-                
-                // Add SPK button
-                $buttons .= '<button class="btn btn-warning btn-sm spk-btn" ' .
-                    'data-id="' . $row['id'] . '">' .
-                    'SPK</button>';
-                
-                return $buttons ?: '<span class="text-muted">Tidak ada dokumen</span>';
+                return $buttons;
             })
             ->addColumn('status', function ($row) {
                 return $row['current'] ?
@@ -372,7 +377,7 @@ class TindakanController extends Controller
             DB::beginTransaction();
 
             // Get inform consent to extract related data
-            $informConsent = InformConsent::with(['visitation', 'tindakan'])->findOrFail($request->inform_consent_id);
+            $informConsent = InformConsent::with(['visitation', 'tindakan', 'riwayatTindakan'])->findOrFail($request->inform_consent_id);
 
             // Create or update SPK
             $spk = \App\Models\ERM\Spk::updateOrCreate(
@@ -382,6 +387,7 @@ class TindakanController extends Controller
                     'tindakan_id' => $informConsent->tindakan_id,
                     'dokter_id' => $informConsent->visitation->dokter_id,
                     'tanggal_tindakan' => $request->tanggal_tindakan,
+                    'riwayat_tindakan_id' => $informConsent->riwayat_tindakan_id,
                 ]
             );
 

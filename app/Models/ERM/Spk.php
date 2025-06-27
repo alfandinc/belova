@@ -13,7 +13,8 @@ class Spk extends Model
         'pasien_id',
         'tindakan_id',
         'dokter_id',
-        'tanggal_tindakan'
+        'tanggal_tindakan',
+        'riwayat_tindakan_id'
     ];
 
     protected $casts = [
@@ -43,5 +44,10 @@ class Spk extends Model
     public function details()
     {
         return $this->hasMany(SpkDetail::class, 'spk_id');
+    }
+
+    public function riwayatTindakan()
+    {
+        return $this->belongsTo(RiwayatTindakan::class, 'riwayat_tindakan_id');
     }
 }
