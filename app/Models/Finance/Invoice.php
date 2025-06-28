@@ -19,6 +19,9 @@ class Invoice extends Model
         'discount',
         'tax',
         'total_amount',
+        'amount_paid',
+        'change_amount',
+        'payment_method',
         'status',
         'payment_date',
         'notes',
@@ -34,6 +37,8 @@ class Invoice extends Model
         'discount' => 'decimal:2',
         'tax' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'amount_paid' => 'decimal:2',
+        'change_amount' => 'decimal:2',
     ];
 
     public function items()

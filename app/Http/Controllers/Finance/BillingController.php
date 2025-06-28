@@ -351,6 +351,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $discountAmount = $totals['discountAmount'] ?? 0;
             $taxAmount = $totals['taxAmount'] ?? 0;
             $grandTotal = $totals['grandTotal'] ?? $subtotal;
+            $amountPaid = $totals['amountPaid'] ?? 0;
+            $changeAmount = $totals['changeAmount'] ?? 0;
+            $paymentMethod = $totals['paymentMethod'] ?? 'cash';
 
             // Create the invoice
             $invoice = Invoice::create([
@@ -363,6 +366,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 'discount_value' => $totals['discountValue'] ?? 0,
                 'tax_percentage' => $totals['taxPercentage'] ?? 0,
                 'total_amount' => $grandTotal,
+                'amount_paid' => $amountPaid,
+                'change_amount' => $changeAmount,
+                'payment_method' => $paymentMethod,
                 'status' => 'issued',
                 'user_id' => Auth::id(), // Add the current authenticated user ID
                 'notes' => $request->notes ?? null, // Add notes if available

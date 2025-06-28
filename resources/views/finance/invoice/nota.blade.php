@@ -6,167 +6,277 @@
     <style>
         html, body {
             width: 100%;
-            margin: 20px;
+            margin: 0;
             padding: 0;
         }
         body {
             font-family: Arial, sans-serif;
-            font-size: 10pt;
-            margin: 0 14px; /* Increased left and right margin */
-            padding: 0;
+            font-size: 8pt;
+            margin: 0;
+            padding: 8px;
             width: auto;
-            line-height: 1.7;
-        }        .header {
+            line-height: 1.9;
+            max-width: 100%;
+            color: #000;
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #000;
+        }
+        .header img {
+            max-width: 250px;
+            height: auto;
+            margin: 0 auto;
+        }
+        .company-name {
+            font-weight: bold;
+            font-size: 11pt;
+            margin: 0 0 2px 0;
+            letter-spacing: 0.5px;
+        }
+        .company-tagline {
+            font-size: 8pt;
+            margin: 0 0 3px 0;
+            font-weight: normal;
+        }
+        .company-id {
+            font-size: 7pt;
+            margin: 0;
+            font-weight: normal;
+        }
+        .receipt-info {
+            margin-bottom: 10px;
+            font-size: 8pt;
+            line-height: 1.8;
+            border-bottom: 1px solid #000;
+            padding-bottom: 6px;
+        }
+        .receipt-info table {
             width: 100%;
+            border-collapse: collapse;
+        }
+        .receipt-info td {
+            padding: 2px 0;
+            vertical-align: top;
+        }
+        .receipt-info .label {
+            width: 40px;
+            font-weight: bold;
+            padding-right: 4px;
+        }
+        .receipt-info .colon {
+            width: 10px;
+            text-align: left;
+            padding-right: 4px;
+        }
+        .receipt-info .value {
+            width: auto;
+        }
+        .items-section {
+            margin-bottom: 10px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 6px;
+        }
+        .item-line {
+            margin: 3px 0;
+            font-size: 8pt;
+        }
+        .item-name {
+            font-weight: normal;
+            margin-bottom: 1px;
+        }
+        .item-table {
+            width: 100%;
+            margin-left: 6px;
+        }
+        .item-table td {
+            padding: 0;
+            vertical-align: top;
+        }
+        .item-table .qty-price {
+            width: 60%;
+            font-size: 8pt;
+        }
+        .item-table .amount {
+            width: 40%;
+            font-size: 8pt;
+            text-align: right;
+            font-weight: bold;
+        }
+        .totals-section {
+            font-size: 8pt;
             margin-bottom: 10px;
         }
-        .header-table {
+        .totals-table {
             width: 100%;
             border-collapse: collapse;
         }
-        .header-table td {
+        .totals-table td {
+            padding: 1px 0;
             vertical-align: top;
-            padding: 0;
         }
-        .logo-cell {
-            width: 65px;
-            padding-right: 10px;
+        .totals-table .total-label {
+            width: 60%;
+            font-weight: normal;
         }
-        .info-cell {
-            width: auto;
-        }
-        .header h3 {
-            margin: 0;
-            font-size: 12pt;
-        }
-        .header p {
-            margin: 0;
-            font-size: 9pt;
-        }
-        .info {
-            margin-bottom: 2px;
-            font-size: 9pt;
-            padding: 0;
-        }
-        .info-row {
-            margin: 2px 0;
-        }
-        table.items {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9pt;
-            margin: 0;
-            padding: 0;
-        }
-        table.items th, table.items td {
-            text-align: left;
-            padding: 6px 0; /* Increased vertical padding for more space between items */
-        }
-        .item-row td {
-            border-top: 1px dotted #ccc;
-            border-bottom: 1px dotted #ccc;
-        }
-        .items td.text-right, .items th.text-right {
+        .totals-table .total-amount {
+            width: 40%;
+            font-weight: normal;
             text-align: right;
         }
-        .total-section {
-            margin-top: 1px;
-            text-align: right;
-            padding: 0;
-        }
-        .total-row {
-            font-size: 9pt;
-            margin: 0;
-        }
-        .grand-total {
+        .totals-table .total-amount.bold {
             font-weight: bold;
-            font-size: 10pt;
-            margin-top: 0;
+        }
+        .totals-table .payment-separator {
+            border-top: 1px solid #000;
+            padding-top: 5px;
+        }
+        .totals-table .total-row {
+            padding-bottom: 3px;
+        }
+        .message-section {
+            text-align: center;
+            margin: 100px 0 8px 0;
+            font-size: 7pt;
+            line-height: 1.2;
+        }
+        .thank-you {
+            font-weight: bold;
+            margin-top: 3px;
         }
         .footer {
-            margin-top: 2px;
             text-align: center;
-            font-size: 9pt;
-        }
-        .text-right {
-            text-align: right;
+            font-size: 6pt;
+            margin-top: 10px;
+            padding-top: 6px;
+            border-top: 1px solid #000;
+            font-style: italic;
         }
     </style>
 </head>
-<body>    <div class="header">
-        <table class="header-table">
-            <tr>
-                <td class="logo-cell">
-                    @if(!empty($logoBase64))
-                        <img src="{{ $logoBase64 }}" alt="Logo" style="width:55px; height:auto;">
-                    @endif
-                </td>
-                <td class="info-cell">
-                    <p style="font-weight: bold; font-size: 11pt; margin: 0; line-height: 1.2;">KLINIK PRATAMA BELOVA SKIN & BEAUTY CENTER</p>
-                    <p style="font-size: 9pt; margin-top: 5px;">{{ Carbon\Carbon::parse($invoice->created_at)->format('d/m/Y H:i') }}</p>
-                </td>
-            </tr>        </table>
-    </div>
-
-    <hr style="border: 0; border-top: 1px solid #000; margin: 6px 0;">
-
-    <div class="info">
-        <div class="info-row">
-            <strong>No:</strong> {{ $invoice->invoice_number }}
-        </div>
-        <div class="info-row">
-            <strong>ID Pasien:</strong> {{ $invoice->visitation->pasien->id ?? '-' }}
-        </div>
-        <div class="info-row">
-            <strong>Pasien:</strong> {{ $invoice->visitation->pasien->nama ?? '-' }}
-        </div>
-        <div class="info-row">
-            <strong>Dokter:</strong> {{ $invoice->visitation->dokter->user->name ?? '-' }}
-        </div>
-        <div class="info-row">
-            <strong>Kasir:</strong> {{ auth()->user()->name ?? '-' }}
-        </div>
-    </div>
-
-    <hr style="border: 0; border-top: 1px solid #000; margin: 6px 0;">
-
-    <table class="items">
-        <tr>
-            <th width="55%">Item</th>
-            <th width="15%">Qty</th>
-            <th width="30%" class="text-right">Harga</th>
-        </tr>
+<body>
+    <div class="header">
+        @php
+            $klinikId = $invoice->visitation->klinik_id ?? 2;
+            $logoBase64 = '';
+            
+            switch($klinikId) {
+                case 1:
+                    $logoPath = public_path('img/logo-premiere.png');
+                    break;
+                case 2:
+                    $logoPath = public_path('img/logo-belovaskin.png');
+                    break;
+                default:
+                    $logoPath = public_path('img/logo-belovaskin.png');
+                    break;
+            }
+            
+            // Convert image to base64
+            if (file_exists($logoPath)) {
+                $imageData = base64_encode(file_get_contents($logoPath));
+                $imageMimeType = mime_content_type($logoPath);
+                $logoBase64 = 'data:' . $imageMimeType . ';base64,' . $imageData;
+            }
+        @endphp
         
-        @foreach($invoice->items as $item)
-        <tr class="item-row">
-            <td>{{ $item->name }}</td>
-            <td>{{ $item->quantity }}</td>
-            <td class="text-right">{{ number_format($item->final_amount, 0, ',', '.') }}</td>
-        </tr>
-        @endforeach
-    </table>
+        @if(!empty($logoBase64))
+            <img src="{{ $logoBase64 }}" alt="Logo" />
+        @else
+            <div class="company-name">BELOVA</div>
+            <div class="company-tagline">SKIN & BEAUTY CENTER</div>
+        @endif
+    </div>
 
-    <div class="total-section">
-        <div class="total-row">
-            <strong>Subtotal:</strong> Rp {{ number_format($invoice->subtotal, 0, ',', '.') }}
+    <div class="receipt-info">
+        <table>
+            <tr>
+                <td class="label">Tgl</td>
+                <td class="colon"> : </td>
+                <td class="value">{{ Carbon\Carbon::parse($invoice->created_at)->format('d M Y H:i') }}</td>
+            </tr>
+            <tr>
+                <td class="label">No RM</td>
+                <td class="colon"> : </td>
+                <td class="value">{{ $invoice->visitation->pasien->id ?? '-' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Nama</td>
+                <td class="colon"> : </td>
+                <td class="value">{{ strtoupper($invoice->visitation->pasien->nama ?? '-') }}</td>
+            </tr>
+            <tr>
+                <td class="label">Dokter</td>
+                <td class="colon"> : </td>
+                <td class="value">{{ $invoice->visitation->dokter->user->name ?? '-' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Kasir</td>
+                <td class="colon"> : </td>
+                <td class="value">{{ auth()->user()->name ?? 'administrator' }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="items-section">
+        @foreach($invoice->items as $item)
+        <div class="item-line">
+            <div class="item-name">{{ $item->name }}</div>
+            <table class="item-table">
+                <tr>
+                    <td class="qty-price">{{ $item->quantity }} x {{ number_format($item->unit_price, 0, ',', '.') }}</td>
+                    <td class="amount">{{ number_format($item->final_amount, 0, ',', '.') }}</td>
+                </tr>
+            </table>
         </div>
-        @if($invoice->discount > 0)
-        <div class="total-row">
-            <strong>Diskon:</strong> Rp {{ number_format($invoice->discount, 0, ',', '.') }}
-        </div>
-        @endif
-        @if($invoice->tax > 0)
-        <div class="total-row">
-            <strong>Pajak:</strong> Rp {{ number_format($invoice->tax, 0, ',', '.') }}
-        </div>
-        @endif
-        <div class="grand-total">
-            <strong>TOTAL:</strong> Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}
-        </div>
+        @endforeach
+    </div>
+
+    <div class="totals-section">
+        <table class="totals-table">
+            <tr>
+                <td class="total-label">Subtotal</td>
+                <td class="total-amount">{{ number_format($invoice->subtotal, 0, ',', '.') }}</td>
+            </tr>
+            @if($invoice->discount > 0)
+            <tr>
+                <td class="total-label">Diskon</td>
+                <td class="total-amount">-{{ number_format($invoice->discount, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+            @if($invoice->tax > 0)
+            <tr>
+                <td class="total-label">Pajak</td>
+                <td class="total-amount">{{ number_format($invoice->tax, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+            <tr>
+                <td class="total-label total-row"><strong>Total</strong></td>
+                <td class="total-amount bold total-row">{{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
+            </tr>
+            <tr>
+                <td class="total-label payment-separator">{{ $invoice->payment_method === 'cash' ? 'Tunai' : ($invoice->payment_method === 'non_cash' ? 'Non Tunai' : 'Campuran') }}</td>
+                <td class="total-amount payment-separator">{{ number_format($invoice->amount_paid, 0, ',', '.') }}</td>
+            </tr>
+            <tr>
+                <td class="total-label">Kembali</td>
+                <td class="total-amount">{{ number_format($invoice->change_amount, 0, ',', '.') }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="message-section">
+        <div>Senyum Anda adalah Semangat</div>
+        <div>kami dalam Melayani</div>
+        <div class="thank-you">TERIMA KASIH</div>
     </div>
 
     <div class="footer">
-        <p>Barang yang sudah dibeli tidak dapat dikembalikan</p>
+        *) Barang yang sudah dibeli/tidak<br>
+        dapat dikembalikan
     </div>
 </body>
 </html>

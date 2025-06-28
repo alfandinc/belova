@@ -140,21 +140,21 @@ class InvoiceController extends Controller
         }
 
         $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64'))
-            ->setPaper([0, 0, 226.77, 1000]) // 6 cm width (226.77 px) with dynamic height
+            ->setPaper([0, 0, 161.57, 1000]) // 57mm width (161.57 points) with dynamic height
             ->setOptions([
                 'defaultFont' => 'helvetica',
-                'fontHeightRatio' => 0.9,
+                'fontHeightRatio' => 0.8,
                 'isRemoteEnabled' => true,
                 'isHtml5ParserEnabled' => true,
                 'isFontSubsettingEnabled' => true,
-                'dpi' => 150,
+                'dpi' => 203, // Thermal printer DPI
                 'defaultMediaType' => 'print',
-                'enable_javascript' => true,
+                'enable_javascript' => false,
                 'no_background' => false,
-                'margin_top' => 2,
-                'margin_right' => 30,
-                'margin_bottom' => 2,
-                'margin_left' => 30
+                'margin_top' => 5,
+                'margin_right' => 5,
+                'margin_bottom' => 5,
+                'margin_left' => 5
             ]);
 
         return $pdf->stream('Nota-' . $invoice->invoice_number . '.pdf');

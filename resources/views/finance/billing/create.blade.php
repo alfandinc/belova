@@ -167,6 +167,28 @@
                         </div>
                     </div>
                     
+                    <!-- Payment Section -->
+                    <div class="border-top pt-3 mt-3">
+                        <h6 class="mb-3">Pembayaran</h6>
+                        <div class="form-group">
+                            <label for="amount_paid">Dibayar</label>
+                            <input type="number" class="form-control" id="amount_paid" min="0" value="0" placeholder="Jumlah uang yang diberikan pasien">
+                            <small class="text-muted">Masukkan jumlah uang yang diberikan oleh pasien</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="payment_method">Metode Pembayaran</label>
+                            <select class="form-control" id="payment_method">
+                                <option value="cash">Tunai</option>
+                                <option value="non_cash">Non Tunai</option>
+                                <option value="mixed">Campuran</option>
+                            </select>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span>Kembali:</span>
+                            <span id="change_amount" class="font-weight-bold text-success">Rp 0</span>
+                        </div>
+                    </div>
+                    
                     <div class="mt-4">
                         <button id="createInvoiceBtn" class="btn btn-primary btn-block">
                             <i class="fas fa-file-invoice mr-1"></i> Buat Invoice
@@ -637,6 +659,12 @@
             // Calculate and display grand total
             const grandTotal = afterDiscount + taxAmount + adminFee + shippingFee;
             $('#grand_total').text('Rp ' + formatCurrency(grandTotal));
+            
+            // Calculate change amount
+            const amountPaid = parseFloat($('#amount_paid').val() || 0);
+            const changeAmount = Math.max(0, amountPaid - grandTotal);
+            $('#change_amount').text('Rp ' + formatCurrency(changeAmount));
+            
             // Store these values for later use when saving/creating invoice
             window.billingTotals = {
                 subtotal: subtotal,
@@ -647,12 +675,15 @@
                 taxAmount: taxAmount,
                 adminFee: adminFee,
                 shippingFee: shippingFee,
-                grandTotal: grandTotal
+                grandTotal: grandTotal,
+                amountPaid: amountPaid,
+                changeAmount: changeAmount,
+                paymentMethod: $('#payment_method').val()
             };
         }
         
         // Event listeners for total calculation inputs
-        $('#global_discount, #global_discount_type, #tax_percentage, #admin_fee, #shipping_fee').on('change input', function() {
+        $('#global_discount, #global_discount_type, #tax_percentage, #admin_fee, #shipping_fee, #amount_paid, #payment_method').on('change input', function() {
             calculateTotals();
         });
         
