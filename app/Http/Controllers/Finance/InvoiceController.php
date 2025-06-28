@@ -153,9 +153,9 @@ class InvoiceController extends Controller
                 'enable_javascript' => false,
                 'no_background' => false,
                 'margin_top' => 5,
-                'margin_right' => 20, // Set right margin to 5mm
+                'margin_right' => 5, // Set right margin to 5mm
                 'margin_bottom' => 5,
-                'margin_left' => 20   // Set left margin to 5mm
+                'margin_left' => 5   // Set left margin to 5mm
             ]);
 
         return $pdf->stream('Nota-' . $invoice->invoice_number . '.pdf');
