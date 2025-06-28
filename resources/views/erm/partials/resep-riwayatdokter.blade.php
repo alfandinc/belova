@@ -23,6 +23,7 @@
                         <th>Nama Obat</th>
                         <th>Jumlah</th>
                         <th>Aturan Pakai</th>
+                        <th>Dibuat</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -31,6 +32,7 @@
                             <td>{{ $item->obat->nama ?? '-' }}</td>
                             <td>{{ $item->jumlah }}</td>
                             <td>{{ $item->aturan_pakai }}</td>
+                            <td>{{ $item->created_at ? \Carbon\Carbon::parse($item->created_at)->translatedFormat('d/m/Y H:i') : '-' }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -48,6 +50,7 @@
                     <tr>
                         <th>Nama Obat</th>
                         <th>Dosis</th>
+                        <th>Dibuat</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -55,6 +58,7 @@
                         <tr>
                             <td>{{ $racik->obat->nama ?? '-' }}</td>
                             <td>{{ $racik->dosis ?? '-' }}</td>
+                            <td>{{ $racik->created_at ? \Carbon\Carbon::parse($racik->created_at)->translatedFormat('d/m/Y H:i') : '-' }}</td>
                         </tr>
                     @endforeach
                 </tbody>
