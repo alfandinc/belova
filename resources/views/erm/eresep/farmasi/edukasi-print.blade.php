@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -374,12 +375,8 @@
                         @foreach($racikans as $key => $items)
                             <tr>
                                 <td>{{ $racikanIndex }}</td>
-                                <td>Racikan {{ $key }} (
-                                    @foreach($items as $index => $resep)
-                                        {{ $resep->obat->nama }}{{ $index + 1 < count($items) ? ', ' : '' }}
-                                    @endforeach
-                                )</td>
-                                <td>{{ $items->first()->jumlah }} bungkus</td>
+                                <td>Racikan {{ $key }}</td>
+                                <td>{{ $items->first()->bungkus }} bungkus</td>
                                 <td>{{ $items->first()->aturan_pakai }}</td>
                             </tr>
                             @php $racikanIndex++; @endphp
