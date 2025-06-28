@@ -549,7 +549,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $klinikId = $request->input('klinik_id');
         
         $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice'])
-            ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59']);
+            ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
+            ->where('status_kunjungan', 2); // Only show completed visits
         
         if ($dokterId) {
             $visitations->where('dokter_id', $dokterId);

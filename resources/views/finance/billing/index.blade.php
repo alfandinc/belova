@@ -157,6 +157,11 @@
             },
             order: [[4, 'desc']]
         });
+
+        // Auto-reload DataTable every 15 seconds
+        setInterval(function() {
+            billingTable.ajax.reload(null, false); // false keeps current page position
+        }, 15000); // 15000 milliseconds = 15 seconds
     });
 </script>
 @endsection

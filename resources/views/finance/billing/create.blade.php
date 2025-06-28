@@ -11,29 +11,6 @@
     <div class="row mb-4">
         <div class="col">
             <div class="card shadow-sm mt-4">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4 mb-2">
-                            <label for="select-tindakan">Tambah Tindakan</label>
-                            <select id="select-tindakan" class="form-control select2"></select>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <label for="select-lab">Tambah Lab</label>
-                            <select id="select-lab" class="form-control select2"></select>
-                        </div>
-                        <div class="col-md-4 mb-2">
-                            <label for="select-konsultasi">Tambah Biaya Konsultasi</label>
-                            <select id="select-konsultasi" class="form-control select2"></select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col">
-            <div class="card shadow-sm mt-4">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-user-circle mr-2"></i>Data Pasien
@@ -68,6 +45,33 @@
                                     <td>: {{ $visitation->pasien->tanggal_lahir }}</td>
                                 </tr>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <label for="select-tindakan">Tambah Tindakan</label>
+                            <select id="select-tindakan" class="form-control select2"></select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label for="select-lab">Tambah Lab</label>
+                            <select id="select-lab" class="form-control select2"></select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label for="select-konsultasi">Tambah Biaya Konsultasi</label>
+                            <select id="select-konsultasi" class="form-control select2"></select>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <label for="select-obat">Tambah Produk/Obat</label>
+                            <select id="select-obat" class="form-control select2"></select>
                         </div>
                     </div>
                 </div>
@@ -374,24 +378,47 @@
             const id = $(this).data('id');
             const rowIndex = $(this).data('row-index');
             
-            if (confirm('Apakah Anda yakin ingin menghapus item ini?')) {
-                try {
-                    console.log('Deleting row with index:', rowIndex, 'ID:', id);
-                    
-                    billingData[rowIndex].deleted = true;
-                    deletedItems.push(id);
-                    
-                    const tr = $(this).closest('tr');
-                    table.row(tr).remove().draw(false);
-                    
-                    calculateTotals();
-                    
-                    console.log('Item deleted successfully');
-                } catch(e) {
-                    console.error('Error deleting row:', e);
-                    alert('Terjadi kesalahan saat menghapus item: ' + e.message);
+            Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: 'Apakah Anda yakin ingin menghapus item ini?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    try {
+                        console.log('Deleting row with index:', rowIndex, 'ID:', id);
+                        
+                        billingData[rowIndex].deleted = true;
+                        deletedItems.push(id);
+                        
+                        const tr = $(this).closest('tr');
+                        table.row(tr).remove().draw(false);
+                        
+                        calculateTotals();
+                        
+                        console.log('Item deleted successfully');
+                        
+                        Swal.fire({
+                            title: 'Berhasil!',
+                            text: 'Item berhasil dihapus.',
+                            icon: 'success',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                    } catch(e) {
+                        console.error('Error deleting row:', e);
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'Terjadi kesalahan saat menghapus item: ' + e.message,
+                            icon: 'error'
+                        });
+                    }
                 }
-            }
+            });
         });
         
         // Save changes button in modal
@@ -631,97 +658,174 @@
         
         // Save all changes button
 $('#saveAllChangesBtn').on('click', function() {
-    if (confirm('Simpan semua perubahan billing?')) {
-        // Force the visitation ID to be treated as a string
-        const correctVisitationId = "{{ $visitation->id }}";
-        
-        console.log('=== SAVE BILLING DEBUG START ===');
-        console.log('All billingData:', billingData);
-        console.log('Visitation ID being sent:', correctVisitationId);
-        console.log('Type of visitation ID:', typeof correctVisitationId);
-        
-        // Categorize items
-        const editedItems = billingData.filter(item => item.edited && !item.deleted);
-        const newItems = billingData.filter(item => 
-            !item.edited && 
-            !item.deleted && 
-            (item.id.toString().startsWith('tindakan-') || 
-             item.id.toString().startsWith('lab-') || 
-             item.id.toString().startsWith('konsultasi-') ||
-             item.id.toString().startsWith('racikan-'))
-        );
-        
-        console.log('Edited items:', editedItems);
-        console.log('New items:', newItems);
-        console.log('Deleted items:', deletedItems);
-        console.log('=== SAVE BILLING DEBUG END ===');
-        
-        const requestData = {
-            _token: "{{ csrf_token() }}",
-            visitation_id: correctVisitationId,
-            edited_items: editedItems,
-            new_items: newItems,
-            deleted_items: deletedItems,
-            totals: window.billingTotals
-        };
-        
-        console.log('Request data being sent:', requestData);
-        
-        $.ajax({
-            url: "{{ route('finance.billing.save') }}",
-            type: "POST",
-            data: requestData,
-            success: function(response) {
-                console.log('Save response:', response);
-                alert('Data billing berhasil disimpan');
-                // Refresh the table to get the new IDs from database
-                location.reload();
-            },
-            error: function(xhr) {
-                console.error('Save error:', xhr);
-                alert('Terjadi kesalahan: ' + xhr.responseText);
-                console.error('Error details:', xhr.responseText);
-            }
-        });
-    }
+    Swal.fire({
+        title: 'Konfirmasi Simpan',
+        text: 'Simpan semua perubahan billing?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Ya, Simpan!',
+        cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.value) {
+            // Force the visitation ID to be treated as a string
+            const correctVisitationId = "{{ $visitation->id }}";
+            
+            console.log('=== SAVE BILLING DEBUG START ===');
+            console.log('All billingData:', billingData);
+            console.log('Visitation ID being sent:', correctVisitationId);
+            console.log('Type of visitation ID:', typeof correctVisitationId);
+            
+            // Categorize items
+            const editedItems = billingData.filter(item => item.edited && !item.deleted);
+            const newItems = billingData.filter(item => 
+                !item.edited && 
+                !item.deleted && 
+                (item.id.toString().startsWith('tindakan-') || 
+                 item.id.toString().startsWith('lab-') || 
+                 item.id.toString().startsWith('konsultasi-') ||
+                 item.id.toString().startsWith('obat-') ||
+                 item.id.toString().startsWith('racikan-'))
+            );
+            
+            console.log('Edited items:', editedItems);
+            console.log('New items:', newItems);
+            console.log('Deleted items:', deletedItems);
+            console.log('=== SAVE BILLING DEBUG END ===');
+            
+            const requestData = {
+                _token: "{{ csrf_token() }}",
+                visitation_id: correctVisitationId,
+                edited_items: editedItems,
+                new_items: newItems,
+                deleted_items: deletedItems,
+                totals: window.billingTotals
+            };
+            
+            console.log('Request data being sent:', requestData);
+            
+            // Show loading
+            Swal.fire({
+                title: 'Menyimpan...',
+                text: 'Harap tunggu, sedang memproses data billing.',
+                icon: 'info',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            $.ajax({
+                url: "{{ route('finance.billing.save') }}",
+                type: "POST",
+                data: requestData,
+                success: function(response) {
+                    console.log('Save response:', response);
+                    Swal.fire({
+                        title: 'Berhasil!',
+                        text: 'Data billing berhasil disimpan',
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        // Refresh the table to get the new IDs from database
+                        location.reload();
+                    });
+                },
+                error: function(xhr) {
+                    console.error('Save error:', xhr);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: 'Terjadi kesalahan: ' + xhr.responseText,
+                        icon: 'error'
+                    });
+                    console.error('Error details:', xhr.responseText);
+                }
+            });
+        }
+    });
 });
         
         // Create invoice button
         $('#createInvoiceBtn').on('click', function() {
-    if (confirm('Buat invoice dari billing ini?')) {
-        const items = billingData.filter(item => !item.deleted);
-        
-        if (items.length === 0) {
-            alert('Tidak ada item billing yang valid!');
-            return;
-        }
-        
-        // Force the visitation ID to be treated as a string, just like in saveAllChangesBtn
-        const correctVisitationId = "{{ $visitation->id }}";
-        
-        $.ajax({
-            url: "{{ route('finance.billing.createInvoice') }}",
-            type: "POST",
-            data: {
-                _token: "{{ csrf_token() }}",
-                visitation_id: correctVisitationId,
-                items: items,
-                totals: window.billingTotals
-            },
-            success: function(response) {
-                alert('Invoice berhasil dibuat dengan nomor: ' + response.invoice_number);
-            },
-            error: function(xhr) {
-                console.log('Error response:', xhr.responseText);
-                try {
-                    const errorObj = JSON.parse(xhr.responseText);
-                    alert('Terjadi kesalahan: ' + (errorObj.message || xhr.responseText));
-                } catch (e) {
-                    alert('Terjadi kesalahan dalam pembuatan invoice');
-                }
+    Swal.fire({
+        title: 'Konfirmasi Buat Invoice',
+        text: 'Buat invoice dari billing ini?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Ya, Buat Invoice!',
+        cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.value) {
+            const items = billingData.filter(item => !item.deleted);
+            
+            if (items.length === 0) {
+                Swal.fire({
+                    title: 'Peringatan!',
+                    text: 'Tidak ada item billing yang valid!',
+                    icon: 'warning'
+                });
+                return;
             }
-        });
-    }
+            
+            // Force the visitation ID to be treated as a string, just like in saveAllChangesBtn
+            const correctVisitationId = "{{ $visitation->id }}";
+            
+            // Show loading
+            Swal.fire({
+                title: 'Membuat Invoice...',
+                text: 'Harap tunggu, sedang memproses invoice.',
+                icon: 'info',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            $.ajax({
+                url: "{{ route('finance.billing.createInvoice') }}",
+                type: "POST",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    visitation_id: correctVisitationId,
+                    items: items,
+                    totals: window.billingTotals
+                },
+                success: function(response) {
+                    Swal.fire({
+                        title: 'Berhasil!',
+                        text: 'Invoice berhasil dibuat dengan nomor: ' + response.invoice_number,
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        // Redirect to billing index page
+                        window.location.href = "{{ route('finance.billing.index') }}";
+                    });
+                },
+                error: function(xhr) {
+                    console.log('Error response:', xhr.responseText);
+                    try {
+                        const errorObj = JSON.parse(xhr.responseText);
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'Terjadi kesalahan: ' + (errorObj.message || xhr.responseText),
+                            icon: 'error'
+                        });
+                    } catch (e) {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: 'Terjadi kesalahan dalam pembuatan invoice',
+                            icon: 'error'
+                        });
+                    }
+                }
+            });
+        }
+    });
 });
         
         // --- Select2 AJAX for Tindakan ---
@@ -790,6 +894,28 @@ $('#saveAllChangesBtn').on('click', function() {
             minimumInputLength: 1
         });
 
+        // --- Select2 AJAX for Obat/Produk ---
+        $('#select-obat').select2({
+            placeholder: 'Cari obat/produk...',
+            ajax: {
+                url: '/obat/search',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.map(function(item) {
+                            return { id: item.id, text: item.nama, harga: item.harga_nonfornas || item.harga || 0 };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 1
+        });
+
         // Add selected Tindakan to billingData
         $('#select-tindakan').on('select2:select', function(e) {
             const data = e.params.data;
@@ -845,6 +971,29 @@ $('#saveAllChangesBtn').on('click', function() {
                 id: 'konsultasi-' + data.id,
                 billable_id: data.id,
                 billable_type: 'App\\Models\\ERM\\Konsultasi',
+                nama_item: data.text,
+                jumlah: 'Rp ' + formatCurrency(harga),
+                qty: 1,
+                diskon: 0,
+                diskon_type: 'nominal',
+                harga_akhir: 'Rp ' + formatCurrency(harga),
+                harga_akhir_raw: harga,
+                deleted: false,
+                deskripsi: ''
+            });
+            updateTable();
+            calculateTotals();
+            $(this).val(null).trigger('change');
+        });
+
+        // Add selected Obat/Produk to billingData
+        $('#select-obat').on('select2:select', function(e) {
+            const data = e.params.data;
+            const harga = parseHarga(data.harga);
+            billingData.push({
+                id: 'obat-' + data.id,
+                billable_id: data.id,
+                billable_type: 'App\\Models\\ERM\\Obat',
                 nama_item: data.text,
                 jumlah: 'Rp ' + formatCurrency(harga),
                 qty: 1,

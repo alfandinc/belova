@@ -30,7 +30,6 @@
                         </a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/finance/billing"><i class="ti-control-record"></i>Billing</a></li>
-                            <li class="nav-item"><a class="nav-link" href="/finance/invoice"><i class="ti-control-record"></i>Invoice</a></li>
                         </ul>
                     </li>
                     <li>
