@@ -140,7 +140,7 @@ class InvoiceController extends Controller
         }
 
         $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64'))
-            ->setPaper([0, 0, 161.57, 1000]) // 57mm width (161.57 points) with dynamic height
+            ->setPaper([0, 0, 120, 1000]) // 57mm width (161.57 points) with dynamic height
             ->setOptions([
                 'defaultFont' => 'helvetica',
                 'fontHeightRatio' => 0.8,
