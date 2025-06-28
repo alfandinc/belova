@@ -85,7 +85,7 @@
     @foreach($nonRacikans as $index => $resep)
     <div class="etiket">
         <div class="header">
-            Klinik Utama Premiere Belova
+            {{ $visitation->klinik->nama ?? 'Klinik Utama Premiere Belova' }}
         </div>
         <div class="info-container">
             <table class="info-table">
@@ -125,7 +125,7 @@
     @foreach($racikans as $racikanKe => $items)
     <div class="etiket">
         <div class="header">
-            Klinik Utama Premiere Belova
+            {{ $visitation->klinik->nama ?? 'Klinik Utama Premiere Belova' }}
         </div>
         <div class="info-container">
             <table class="info-table">
