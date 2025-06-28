@@ -122,42 +122,45 @@
                         <span id="subtotal" class="font-weight-bold">Rp 0</span>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="global_discount">Diskon Global</label>
-                        <div class="input-group">
-                            <input type="number" class="form-control" id="global_discount" min="0" value="0">
-                            <div class="input-group-append">
-                                <select class="form-control" id="global_discount_type">
-                                    <option value="%">%</option>
-                                    <option value="nominal">Rp</option>
-                                </select>
+                    <div class="form-group row mb-2">
+                        <div class="col-6">
+                            <label for="global_discount">Diskon Global</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="global_discount" min="0" value="0">
+                                <div class="input-group-append">
+                                    <select class="form-control" id="global_discount_type">
+                                        <option value="%">%</option>
+                                        <option value="nominal">Rp</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="text-right mt-1">
+                                <small id="global_discount_amount" class="text-muted">- Rp 0</small>
                             </div>
                         </div>
-                        <div class="text-right mt-1">
-                            <small id="global_discount_amount" class="text-muted">- Rp 0</small>
+                        <div class="col-6">
+                            <label for="tax_percentage">Pajak (%)</label>
+                            <input type="number" class="form-control" id="tax_percentage" min="0" value="0">
+                            <div class="text-right mt-1">
+                                <small id="tax_amount" class="text-muted">+ Rp 0</small>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="tax_percentage">Pajak (%)</label>
-                        <input type="number" class="form-control" id="tax_percentage" min="0" value="0">
-                        <div class="text-right mt-1">
-                            <small id="tax_amount" class="text-muted">+ Rp 0</small>
+                    <div class="form-group row mb-2">
+                        <div class="col-6">
+                            <label for="admin_fee">Biaya Administrasi</label>
+                            <select class="form-control" id="admin_fee">
+                                <option value="10000">Rp 10.000</option>
+                                <option value="15000">Rp 15.000</option>
+                                <option value="20000">Rp 20.000</option>
+                                <option value="25000">Rp 25.000</option>
+                            </select>
                         </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="admin_fee">Biaya Administrasi</label>
-                        <select class="form-control" id="admin_fee">
-                            <option value="10000">Rp 10.000</option>
-                            <option value="15000">Rp 15.000</option>
-                            <option value="20000">Rp 20.000</option>
-                            <option value="25000">Rp 25.000</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="shipping_fee">Biaya Ongkir</label>
-                        <input type="number" class="form-control" id="shipping_fee" min="0" value="0">
+                        <div class="col-6">
+                            <label for="shipping_fee">Biaya Ongkir</label>
+                            <input type="number" class="form-control" id="shipping_fee" min="0" value="0">
+                        </div>
                     </div>
                     
                     <div class="border-top pt-3 mt-3">
@@ -170,18 +173,20 @@
                     <!-- Payment Section -->
                     <div class="border-top pt-3 mt-3">
                         <h6 class="mb-3">Pembayaran</h6>
-                        <div class="form-group">
-                            <label for="amount_paid">Dibayar</label>
-                            <input type="number" class="form-control" id="amount_paid" min="0" value="0" placeholder="Jumlah uang yang diberikan pasien">
-                            <small class="text-muted">Masukkan jumlah uang yang diberikan oleh pasien</small>
-                        </div>
-                        <div class="form-group">
-                            <label for="payment_method">Metode Pembayaran</label>
-                            <select class="form-control" id="payment_method">
-                                <option value="cash">Tunai</option>
-                                <option value="non_cash">Non Tunai</option>
-                                <option value="mixed">Campuran</option>
-                            </select>
+                        <div class="form-group row mb-2">
+                            <div class="col-6">
+                                <label for="amount_paid">Dibayar</label>
+                                <input type="number" class="form-control" id="amount_paid" min="0" value="0" placeholder="Jumlah uang yang diberikan pasien">
+                                <small class="text-muted">Masukkan jumlah uang yang diberikan oleh pasien</small>
+                            </div>
+                            <div class="col-6">
+                                <label for="payment_method">Metode Pembayaran</label>
+                                <select class="form-control" id="payment_method">
+                                    <option value="cash">Tunai</option>
+                                    <option value="non_cash">Non Tunai</option>
+                                    <option value="mixed">Campuran</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="d-flex justify-content-between">
                             <span>Kembali:</span>
