@@ -1035,5 +1035,48 @@ $(document).on('click', '.edit-racikan', function () {
     card.find('.update-resepracikan').removeClass('d-none');
     console.log('Edit racikan clicked - fields enabled');
 });
+
+// Notification polling for farmasi create page
+@if(auth()->user()->hasRole('Farmasi'))
+$(document).ready(function() {
+    let lastCheck = 0;
+    let isPolling = false;
+    
+    function checkForNewNotifications() {
+        if (isPolling) return;
+        isPolling = true;
+        
+        $.ajax({
+            url: '{{ route("erm.check.notifications") }}',
+            type: 'GET',
+            data: {
+                lastCheck: lastCheck,
+                page: 'create'
+            },
+            success: function(response) {
+                if (response.hasNew && response.message) {
+                    Swal.fire({
+                        title: 'Ada Perubahan di Resep Dokter!',
+                        text: response.message,
+                        icon: 'info',
+                        confirmButtonText: 'OK'
+                    });
+                }
+                lastCheck = response.timestamp;
+            },
+            error: function(xhr, status, error) {
+                console.error('Error checking for notifications:', error);
+            },
+            complete: function() {
+                isPolling = false;
+            }
+        });
+    }
+    
+    // Check for notifications every 10 seconds
+    setInterval(checkForNewNotifications, 10000);
+    checkForNewNotifications();
+});
+@endif
 </script>
 @endsection

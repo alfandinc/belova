@@ -190,7 +190,8 @@ $(document).ready(function() {
             url: '{{ route("erm.check.notifications") }}',
             type: 'GET',
             data: {
-                lastCheck: lastCheck
+                lastCheck: lastCheck,
+                page: 'index'
             },
             success: function(response) {
                 if (response.hasNew) {

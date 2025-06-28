@@ -18,10 +18,11 @@ class NotificationController extends Controller
         }
 
         $lastCheck = $request->get('lastCheck', 0);
+        $currentPage = $request->get('page', 'index'); // Get current page parameter
         $currentTime = time();
         
-        // Check for new notifications in cache
-        $notificationKey = 'farmasi_notification_' . Auth::id();
+        // Check for new notifications in cache based on page
+        $notificationKey = 'farmasi_notification_' . $currentPage . '_' . Auth::id();
         $notification = Cache::get($notificationKey);
         
         if ($notification && $notification['timestamp'] > $lastCheck) {
@@ -51,11 +52,19 @@ class NotificationController extends Controller
         $farmasiUsers = User::role('farmasi')->get();
         
         foreach ($farmasiUsers as $user) {
-            $notificationKey = 'farmasi_notification_' . $user->id;
-            
-            Cache::put($notificationKey, [
+            // Notification for index page (existing functionality)
+            $indexNotificationKey = 'farmasi_notification_index_' . $user->id;
+            Cache::put($indexNotificationKey, [
                 'message' => "Resep Pasien {$pasienName} (ID: {$pasienId}) sudah bisa diproses.",
                 'type' => 'pasien_keluar',
+                'timestamp' => time()
+            ], 300); // Cache for 5 minutes
+            
+            // Notification for farmasi create page (new functionality)
+            $createNotificationKey = 'farmasi_notification_create_' . $user->id;
+            Cache::put($createNotificationKey, [
+                'message' => "Dokter mungkin merubah/menambah resep pasien",
+                'type' => 'resep_updated',
                 'timestamp' => time()
             ], 300); // Cache for 5 minutes
         }
