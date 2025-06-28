@@ -5,20 +5,38 @@
     <title>Nota {{ $invoice->invoice_number }}</title>
     <style>
         html, body {
-            width: 100%;
-            margin: 5mm;
-            padding: 5mm;
+            width: 57mm;
+            max-width: 57mm;
+            margin: 0;
+            padding: 0;
         }
         body {
             font-family: Arial, sans-serif;
             font-size: 8pt;
             margin: 0;
             padding: 8px;
-            width: auto;
+            width: 57mm;
+            max-width: 57mm;
             line-height: 1.9;
-            max-width: 100%;
             color: #000;
             box-sizing: border-box;
+        }
+        @media print {
+            @page {
+                size: 57mm auto;
+                margin-left: 5mm;
+                margin-right: 5mm;
+                margin-top: 0mm;
+                margin-bottom: 0mm;
+            }
+            html, body {
+                width: 57mm;
+                max-width: 57mm;
+            }
+            body {
+                padding: 0;
+                margin: 0;
+            }
         }
         .header {
             text-align: center;
