@@ -6,8 +6,8 @@
     <style>
         html, body {
             width: 100%;
-            margin: 5mm;
-            padding: 5mm;
+            margin: 5px;
+            
         }
         body {
             font-family: Arial, sans-serif;
