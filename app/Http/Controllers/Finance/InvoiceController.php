@@ -139,8 +139,9 @@ class InvoiceController extends Controller
             $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
         }
 
+        // Set only the width for POS 58mm, let height be dynamic (small value, DomPDF will expand as needed)
         $pdf = PDF::loadView('finance.invoice.nota', compact('invoice', 'logoBase64'))
-            ->setPaper([0, 0, 161.57, 1000]) // 57mm width (161.57 points) with dynamic height
+            ->setPaper([0, 0, 161.57, 500]) // 58mm width, 500pt height (DomPDF will expand if needed)
             ->setOptions([
                 'defaultFont' => 'helvetica',
                 'fontHeightRatio' => 0.8,
