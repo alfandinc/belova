@@ -203,10 +203,8 @@ $(document).ready(function() {
                         allowOutsideClick: false,
                         allowEscapeKey: false
                     }).then((result) => {
-                        if (result.dismiss === Swal.DismissReason.cancel) {
-                            // Refresh the DataTable when user clicks "Refresh Data"
-                            $('#rawatjalan-table').DataTable().ajax.reload();
-                        }
+                        // Refresh the DataTable when user clicks "OK"
+                        $('#rawatjalan-table').DataTable().ajax.reload();
                     });
                 }
                 lastCheck = response.timestamp;
