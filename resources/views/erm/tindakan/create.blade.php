@@ -168,6 +168,23 @@
   </div>
 </div>
 
+<!-- Modal for SPK (Read-Only) -->
+<div class="modal fade" id="modalSpkReadOnly" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-xl" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detail SPK (Read Only)</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="modalSpkReadOnlyBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
@@ -357,7 +374,20 @@
                     data: 'dokumen', 
                     name: 'dokumen', 
                     orderable: false, 
-                    searchable: false 
+                    searchable: false,
+                    render: function(data, type, row) {
+                        // Ensure Inform Consent link uses /storage/ prefix
+                        if (row.inform_consent) {
+                            const fileUrl = `/storage/${row.inform_consent.file_path}`;
+                            return `
+                                <a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>
+                                <button class="btn btn-primary btn-sm foto-hasil-btn mr-1" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">Foto Hasil</button>
+                                <button class="btn btn-warning btn-sm spk-btn" data-riwayat-id="${row.id}">SPK</button>
+                            `;
+                        } else {
+                            return '<span class="text-muted">Belum ada inform consent</span>';
+                        }
+                    }
                 }
             ],
             order: [[0, 'desc']] // Sort by date descending
@@ -857,92 +887,61 @@
                     Swal.fire('Error', 'Some inform consents could not be saved.', 'error');
                 });
         }
-
-        // SPK Functionality
-        $(document).on('click', '.spk-btn', function() {
-            const informConsentId = $(this).data('id');
-            
-            // Reset form
-            $('#spkForm')[0].reset();
-            $('#spkTableBody').empty();
-            $('#spkInformConsentId').val(informConsentId);
-            
-            // Load SPK data
-            $.ajax({
-                url: `/erm/tindakan/spk/${informConsentId}`,
-                method: 'GET',
-                success: function(response) {
-                    if (response.success) {
-                        const data = response.data;
-                        
-                        // Fill form with inform consent data
-                        $('#spkNamaPasien').val(data.inform_consent.visitation.pasien.nama);
-                        $('#spkNoRm').val(data.inform_consent.visitation.pasien.id);
-                        $('#spkNamaTindakan').val(data.inform_consent.tindakan.nama);
-                        $('#spkDokterPJ').val(data.inform_consent.visitation.dokter.user.name);
-                        $('#spkHarga').val(formatRupiah(data.inform_consent.tindakan.harga));
-                        
-                        // If SPK exists, fill with existing data
-                        if (data.spk) {
-                            console.log('SPK data found:', data.spk);
-                            console.log('Tanggal tindakan:', data.spk.tanggal_tindakan);
-                            // Format date for HTML input (YYYY-MM-DD)
-                            let tanggalTindakan = data.spk.tanggal_tindakan;
-                            if (tanggalTindakan) {
-                                // Convert to YYYY-MM-DD format if needed
-                                const date = new Date(tanggalTindakan);
-                                tanggalTindakan = date.toISOString().split('T')[0];
-                            }
-                            $('#spkTanggalTindakan').val(tanggalTindakan);
-                        } else {
-                            console.log('No existing SPK data found');
-                            // Default values
-                            $('#spkTanggalTindakan').val(new Date().toISOString().split('T')[0]);
-                        }
-                        
-                        // Populate SOP table
-                        let tableHtml = '';
-                        data.sop_list.forEach((sop, index) => {
-                            const existingDetail = data.spk ? data.spk.details.find(d => d.sop_id == sop.id) : null;
-                            
-                            // Format time values for HTML time input (HH:MM)
-                            let waktuMulai = '';
-                            let waktuSelesai = '';
-                            if (existingDetail) {
-                                waktuMulai = existingDetail.waktu_mulai ? existingDetail.waktu_mulai.substring(0, 5) : '';
-                                waktuSelesai = existingDetail.waktu_selesai ? existingDetail.waktu_selesai.substring(0, 5) : '';
-                            }
-                            
-                            tableHtml += `
-                                <tr>
-                                    <td>${index + 1}</td>
-                                    <td>${sop.nama_sop}</td>
-                                    <td>${existingDetail && existingDetail.penanggung_jawab ? existingDetail.penanggung_jawab : '-'}</td>
-                                    <td><input type="checkbox" ${existingDetail && existingDetail.sbk ? 'checked' : ''} disabled></td>
-                                    <td><input type="checkbox" ${existingDetail && existingDetail.sba ? 'checked' : ''} disabled></td>
-                                    <td><input type="checkbox" ${existingDetail && existingDetail.sdc ? 'checked' : ''} disabled></td>
-                                    <td><input type="checkbox" ${existingDetail && existingDetail.sdk ? 'checked' : ''} disabled></td>
-                                    <td><input type="checkbox" ${existingDetail && existingDetail.sdl ? 'checked' : ''} disabled></td>
-                                    <td><input type="time" class="form-control" value="${waktuMulai}" readonly></td>
-                                    <td><input type="time" class="form-control" value="${waktuSelesai}" readonly></td>
-                                    <td><textarea class="form-control" rows="2" readonly>${existingDetail && existingDetail.notes ? existingDetail.notes : ''}</textarea></td>
-                                </tr>
-                            `;
-                        });
-                        
-                        $('#spkTableBody').html(tableHtml);
-                        
-                        // Show modal
-                        $('#modalSpk').modal('show');
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error loading SPK data:', xhr);
-                    Swal.fire('Error', 'Failed to load SPK data', 'error');
-                }
-            });
-        });
         
+        // SPK Read-Only Functionality
+$(document).on('click', '.spk-btn', function() {
+    const riwayatId = $(this).data('riwayat-id') || $(this).data('id');
+    $('#modalSpkReadOnlyBody').html('<div class="text-center py-4">Loading...</div>');
+    $('#modalSpkReadOnly').modal('show');
+    $.get(`/erm/tindakan/spk/by-riwayat/${riwayatId}`, function(response) {
+        if (response.success) {
+            const data = response.data;
+            
+            // Format tanggal tindakan ke format lokal yang lebih manusiawi
+            let tanggalTindakan = data.spk?.tanggal_tindakan || '-';
+            if (tanggalTindakan && tanggalTindakan !== '-') {
+                // Format ke YYYY-MM-DD (tanggal lokal)
+                const d = new Date(tanggalTindakan);
+                tanggalTindakan = !isNaN(d) ? d.toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : tanggalTindakan;
+            }
+            let html = `<div class='row mb-2'>
+                <div class='col-md-4'><b>Nama Pasien:</b> ${data.pasien_nama}</div>
+                <div class='col-md-4'><b>No RM:</b> ${data.pasien_id}</div>
+                <div class='col-md-4'><b>Dokter PJ:</b> ${data.dokter_nama}</div>
+            </div>
+            <div class='row mb-2'>
+                <div class='col-md-4'><b>Tanggal Tindakan:</b> ${tanggalTindakan}</div>
+                <div class='col-md-4'><b>Nama Tindakan:</b> ${data.tindakan_nama}</div>
+                <div class='col-md-4'><b>Harga:</b> ${data.harga}</div>
+            </div>`;
+            html += `<div class='table-responsive'><table class='table table-bordered'><thead><tr>
+                <th>NO</th><th>TINDAKAN</th><th>PJ</th><th>SBK</th><th>SBA</th><th>SDC</th><th>SDK</th><th>SDL</th><th>MULAI</th><th>SELESAI</th><th>NOTES</th>
+            </tr></thead><tbody>`;
+            data.sop_list.forEach((sop, idx) => {
+                const detail = data.spk?.details?.find(d => d.sop_id == sop.id) || {};
+                html += `<tr>
+                    <td>${idx+1}</td>
+                    <td>${sop.nama_sop}</td>
+                    <td>${detail.penanggung_jawab || '-'}</td>
+                    <td><input type='checkbox' disabled ${detail.sbk ? 'checked' : ''}></td>
+                    <td><input type='checkbox' disabled ${detail.sba ? 'checked' : ''}></td>
+                    <td><input type='checkbox' disabled ${detail.sdc ? 'checked' : ''}></td>
+                    <td><input type='checkbox' disabled ${detail.sdk ? 'checked' : ''}></td>
+                    <td><input type='checkbox' disabled ${detail.sdl ? 'checked' : ''}></td>
+                    <td>${detail.waktu_mulai || '-'}</td>
+                    <td>${detail.waktu_selesai || '-'}</td>
+                    <td>${detail.notes || ''}</td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+            $('#modalSpkReadOnlyBody').html(html);
+        } else {
+            $('#modalSpkReadOnlyBody').html('<div class="alert alert-danger">SPK data not found.</div>');
+        }
+    }).fail(function() {
+        $('#modalSpkReadOnlyBody').html('<div class="alert alert-danger">Failed to load SPK data.</div>');
+    });
+});
     });
 </script>
 
