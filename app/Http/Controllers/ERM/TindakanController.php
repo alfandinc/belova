@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\ERM\InformConsent;
-
+use App\Models\ERM\Spk;
+use App\Models\User;
 use Carbon\Carbon;
 
 
@@ -342,61 +343,109 @@ class TindakanController extends Controller
         ]);
     }
 
-    public function getSpkData($informConsentId)
+    // SPK: Show all riwayat tindakan (index)
+    public function spkIndex(Request $request)
     {
-        $informConsent = InformConsent::with(['tindakan.sop', 'visitation.pasien', 'visitation.dokter.user'])
-            ->findOrFail($informConsentId);
-        
-        $spk = \App\Models\ERM\Spk::with('details.sop')->where('visitation_id', $informConsent->visitation_id)->first();
-        
-        // Get users with Dokter and Beautician roles
-        $users = \App\Models\User::whereHas('roles', function($query) {
+        if ($request->ajax()) {
+            $riwayat = \App\Models\ERM\RiwayatTindakan::with(['visitation.pasien', 'tindakan', 'visitation.dokter.user', 'paketTindakan']);
+            return datatables()->of($riwayat)
+                ->addColumn('tanggal', function($row) {
+                    return $row->tanggal_tindakan;
+                })
+                ->addColumn('pasien', function($row) {
+                    return $row->visitation?->pasien?->nama ?? '-';
+                })
+                ->addColumn('tindakan', function($row) {
+                    return $row->tindakan?->nama ?? '-';
+                })
+                ->addColumn('dokter', function($row) {
+                    return $row->visitation?->dokter?->user?->name ?? '-';
+                })
+                ->addColumn('paket', function($row) {
+                    return $row->paketTindakan?->nama ?? '-';
+                })
+                ->addColumn('aksi', function($row) {
+                    return '<a href="'.route('erm.spk.create', ['riwayat_id' => $row->id]).'" class="btn btn-primary btn-sm">Input/Edit SPK</a>';
+                })
+                ->rawColumns(['aksi'])
+                ->make(true);
+        }
+        return view('erm.spk.index');
+    }
+
+    public function spkCreate(Request $request)
+    {
+        $riwayatId = $request->query('riwayat_id');
+        $riwayat = null;
+        if ($riwayatId) {
+            $riwayat = RiwayatTindakan::with([
+                'visitation.pasien',
+                'tindakan',
+                'visitation.dokter.user',
+                'paketTindakan',
+            ])->find($riwayatId);
+        }
+        return view('erm.spk.create', compact('riwayat'));
+    }
+    
+    public function getSpkDataByRiwayat($riwayatId)
+    {
+        $riwayat = RiwayatTindakan::with([
+            'tindakan.sop',
+            'visitation.pasien',
+            'visitation.dokter.user',
+            'paketTindakan',
+        ])->findOrFail($riwayatId);
+
+        $spk = Spk::with('details.sop')->where('riwayat_tindakan_id', $riwayatId)->first();
+        $users = User::whereHas('roles', function($query) {
             $query->whereIn('name', ['Dokter', 'Beautician']);
         })->get(['id', 'name']);
-        
+
+        $sopList = $riwayat->tindakan && $riwayat->tindakan->sop
+            ? $riwayat->tindakan->sop->sortBy('urutan')->values()
+            : collect();
+
+        $pasienNama = $riwayat->visitation?->pasien?->nama ?? '';
+        $pasienId = $riwayat->visitation?->pasien?->id ?? '';
+        $tindakanNama = $riwayat->tindakan?->nama ?? '';
+        $dokterNama = $riwayat->visitation?->dokter?->user?->name ?? '';
+        $harga = $riwayat->tindakan?->harga ?? '';
+
         return response()->json([
             'success' => true,
             'data' => [
-                'inform_consent' => $informConsent,
                 'spk' => $spk,
                 'users' => $users,
-                'sop_list' => $informConsent->tindakan->sop ?? []
+                'sop_list' => $sopList,
+                'riwayat' => $riwayat,
+                'pasien_nama' => $pasienNama,
+                'pasien_id' => $pasienId,
+                'tindakan_nama' => $tindakanNama,
+                'dokter_nama' => $dokterNama,
+                'harga' => $harga,
             ]
         ]);
     }
-    
+
     public function saveSpk(Request $request)
     {
-        Log::info('SPK Save Request Data: ', $request->all());
-        $informConsent = null;
-        $riwayatTindakan = null;
-        // Accept either inform_consent_id or riwayat_tindakan_id
-        if ($request->has('inform_consent_id') && $request->inform_consent_id) {
-            $informConsent = \App\Models\ERM\InformConsent::with(['visitation', 'tindakan', 'riwayatTindakan'])->find($request->inform_consent_id);
-            $riwayatTindakan = $informConsent ? $informConsent->riwayatTindakan : null;
-        } elseif ($request->has('riwayat_tindakan_id') && $request->riwayat_tindakan_id) {
-            $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::with(['visitation', 'tindakan'])->find($request->riwayat_tindakan_id);
-        }
+        $request->validate([
+            'riwayat_tindakan_id' => 'required|exists:erm_riwayat_tindakan,id',
+            'tanggal_tindakan' => 'required|date',
+            'details' => 'required|array',
+            'details.*.sop_id' => 'required|exists:erm_sop,id',
+            'details.*.penanggung_jawab' => 'required|string',
+        ]);
+
+        $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::with(['visitation', 'tindakan'])->find($request->riwayat_tindakan_id);
         if (!$riwayatTindakan) {
             return response()->json([
                 'success' => false,
                 'message' => 'Riwayat Tindakan tidak ditemukan.'
             ], 422);
         }
-        try {
-            $request->validate([
-                'tanggal_tindakan' => 'required|date',
-                'details' => 'required|array',
-                'details.*.sop_id' => 'required|exists:erm_sop,id',
-                'details.*.penanggung_jawab' => 'required|string',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error('SPK Validation Error: ', $e->errors());
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed: ' . json_encode($e->errors())
-            ], 422);
-        }
+
         try {
             DB::beginTransaction();
             // Find or create SPK by riwayat_tindakan_id
@@ -404,9 +453,9 @@ class TindakanController extends Controller
             if (!$spk) {
                 $spk = \App\Models\ERM\Spk::create([
                     'visitation_id' => $riwayatTindakan->visitation_id,
-                    'pasien_id' => $riwayatTindakan->visitation->pasien_id,
+                    'pasien_id' => $riwayatTindakan->visitation?->pasien_id,
                     'tindakan_id' => $riwayatTindakan->tindakan_id,
-                    'dokter_id' => $riwayatTindakan->visitation->dokter_id,
+                    'dokter_id' => $riwayatTindakan->visitation?->dokter_id,
                     'tanggal_tindakan' => $request->tanggal_tindakan,
                     'riwayat_tindakan_id' => $riwayatTindakan->id,
                 ]);
@@ -423,14 +472,14 @@ class TindakanController extends Controller
                     'spk_id' => $spk->id,
                     'sop_id' => $detail['sop_id'],
                     'penanggung_jawab' => $detail['penanggung_jawab'],
-                    'sbk' => filter_var($detail['sbk'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'sba' => filter_var($detail['sba'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'sdc' => filter_var($detail['sdc'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'sdk' => filter_var($detail['sdk'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'sdl' => filter_var($detail['sdl'] ?? false, FILTER_VALIDATE_BOOLEAN),
-                    'waktu_mulai' => !empty($detail['waktu_mulai']) ? $detail['waktu_mulai'] : null,
-                    'waktu_selesai' => !empty($detail['waktu_selesai']) ? $detail['waktu_selesai'] : null,
-                    'notes' => !empty($detail['notes']) ? $detail['notes'] : null,
+                    'sbk' => !empty($detail['sbk']),
+                    'sba' => !empty($detail['sba']),
+                    'sdc' => !empty($detail['sdc']),
+                    'sdk' => !empty($detail['sdk']),
+                    'sdl' => !empty($detail['sdl']),
+                    'waktu_mulai' => $detail['waktu_mulai'] ?? null,
+                    'waktu_selesai' => $detail['waktu_selesai'] ?? null,
+                    'notes' => $detail['notes'] ?? null,
                 ]);
             }
             DB::commit();
@@ -440,111 +489,11 @@ class TindakanController extends Controller
                 'spk' => $spk->load('details.sop')
             ]);
         } catch (\Exception $e) {
-            DB::rollback();
-            Log::error('SPK Save Error: ' . $e->getMessage());
-            Log::error('SPK Save Trace: ' . $e->getTraceAsString());
+            DB::rollBack();
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menyimpan SPK: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    // SPK: Show all riwayat tindakan (index)
-    public function spkIndex()
-    {
-        return view('erm.spk.index');
-    }
-
-    // SPK: Data for DataTables (all riwayat tindakan)
-    public function spkRiwayatData(Request $request)
-    {
-        $riwayat = \App\Models\ERM\RiwayatTindakan::with(['visitation.pasien', 'tindakan', 'visitation.dokter.user', 'paketTindakan']);
-        return datatables()->of($riwayat)
-            ->addColumn('tanggal', function($row) {
-                return $row->tanggal_tindakan;
-            })
-            ->addColumn('pasien', function($row) {
-                return $row->visitation && $row->visitation->pasien ? $row->visitation->pasien->nama : '-';
-            })
-            ->addColumn('tindakan', function($row) {
-                return $row->tindakan ? $row->tindakan->nama : '-';
-            })
-            ->addColumn('dokter', function($row) {
-                return $row->visitation && $row->visitation->dokter && $row->visitation->dokter->user ? $row->visitation->dokter->user->name : '-';
-            })
-            ->addColumn('paket', function($row) {
-                return $row->paketTindakan ? $row->paketTindakan->nama : '-';
-            })
-            ->addColumn('aksi', function($row) {
-                return '<a href="'.route('erm.spk.create', ['riwayat_id' => $row->id]).'" class="btn btn-primary btn-sm">Input/Edit SPK</a>';
-            })
-            ->rawColumns(['aksi'])
-            ->make(true);
-    }
-
-    // SPK: Show create/edit form for SPK (pass informConsentId to view)
-    public function spkCreate(Request $request)
-    {
-        $riwayatId = $request->query('riwayat_id');
-        $riwayat = null;
-        $informConsent = null;
-        if ($riwayatId) {
-            $riwayat = \App\Models\ERM\RiwayatTindakan::with(['visitation.pasien', 'tindakan', 'visitation.dokter.user', 'paketTindakan', 'informConsent'])->find($riwayatId);
-            // Get the latest inform consent for this riwayat
-            $informConsent = $riwayat && $riwayat->informConsent ? $riwayat->informConsent : \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayatId)->latest()->first();
-        }
-        $informConsentId = $informConsent ? $informConsent->id : null;
-        return view('erm.spk.create', compact('riwayat', 'informConsentId'));
-    }
-
-    // SPK: Store SPK data
-    public function spkStore(Request $request)
-    {
-        // Implement your SPK saving logic here
-        // Example: validate and save to Spk and SpkDetail models
-        // ...
-        return redirect()->route('erm.spk.index')->with('success', 'SPK berhasil disimpan!');
-    }
-
-    // Get SPK data by RiwayatTindakan ID (for SPK create page)
-    public function getSpkDataByRiwayat($riwayatId)
-    {
-        // Find the riwayat and its inform consent (1:1)
-        $riwayat = \App\Models\ERM\RiwayatTindakan::with([
-            'tindakan.sop',
-            'visitation.pasien',
-            'visitation.dokter.user',
-            'paketTindakan',
-            'informConsent',
-        ])->findOrFail($riwayatId);
-        $informConsent = $riwayat->informConsent;
-        // If not found, try to get the latest by riwayat_tindakan_id
-        if (!$informConsent) {
-            $informConsent = \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayatId)->latest()->first();
-        }
-        // Use the same logic as the modal: fetch SOPs from tindakan, users, and SPK by riwayat_tindakan_id
-        $spk = \App\Models\ERM\Spk::with('details.sop')->where('riwayat_tindakan_id', $riwayatId)->first();
-        $users = \App\Models\User::whereHas('roles', function($query) {
-            $query->whereIn('name', ['Dokter', 'Beautician']);
-        })->get(['id', 'name']);
-        $sopList = collect();
-        if ($riwayat->tindakan && $riwayat->tindakan->sop && $riwayat->tindakan->sop->count()) {
-            $sopList = $riwayat->tindakan->sop->sortBy('urutan')->values();
-        } else if ($riwayat->tindakan_id) {
-            $tindakan = \App\Models\ERM\Tindakan::with('sop')->find($riwayat->tindakan_id);
-            if ($tindakan && $tindakan->sop) {
-                $sopList = $tindakan->sop->sortBy('urutan')->values();
-            }
-        }
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'inform_consent' => $informConsent,
-                'spk' => $spk,
-                'users' => $users,
-                'sop_list' => $sopList,
-            ]
-        ]);
     }
 }

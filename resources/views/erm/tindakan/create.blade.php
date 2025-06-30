@@ -155,20 +155,14 @@
                 </tr>
               </thead>
               <tbody id="spkTableBody">
-                <!-- Will be populated dynamically, all fields should be disabled/readonly -->
+                <!-- Will be populated dynamically, all fields should be disabled/readonly or plain text -->
               </tbody>
             </table>
           </div>
-          
-          <input type="hidden" id="spkInformConsentId" name="inform_consent_id">
         </form>
-        <div class="mt-3">
-          <a href="/erm/spk/create" class="btn btn-primary">Edit SPK</a>
-        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <!-- Remove save button for read-only -->
       </div>
     </div>
   </div>
@@ -923,44 +917,20 @@
                                 <tr>
                                     <td>${index + 1}</td>
                                     <td>${sop.nama_sop}</td>
-                                    <td>
-                                        <select class="form-control select2-spk" name="details[${index}][penanggung_jawab]" data-sop-id="${sop.id}" required>
-                                            <option value="">Pilih PJ</option>
-                                        </select>
-                                    </td>
-                                    <td><input type="checkbox" name="details[${index}][sbk]" ${existingDetail && existingDetail.sbk ? 'checked' : ''}></td>
-                                    <td><input type="checkbox" name="details[${index}][sba]" ${existingDetail && existingDetail.sba ? 'checked' : ''}></td>
-                                    <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail && existingDetail.sdc ? 'checked' : ''}></td>
-                                    <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail && existingDetail.sdk ? 'checked' : ''}></td>
-                                    <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail && existingDetail.sdl ? 'checked' : ''}></td>
-                                    <td><input type="time" class="form-control" name="details[${index}][waktu_mulai]" value="${waktuMulai}"></td>
-                                    <td><input type="time" class="form-control" name="details[${index}][waktu_selesai]" value="${waktuSelesai}"></td>
-                                    <td><textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail && existingDetail.notes ? existingDetail.notes : ''}</textarea></td>
-                                    <input type="hidden" name="details[${index}][sop_id]" value="${sop.id}">
+                                    <td>${existingDetail && existingDetail.penanggung_jawab ? existingDetail.penanggung_jawab : '-'}</td>
+                                    <td><input type="checkbox" ${existingDetail && existingDetail.sbk ? 'checked' : ''} disabled></td>
+                                    <td><input type="checkbox" ${existingDetail && existingDetail.sba ? 'checked' : ''} disabled></td>
+                                    <td><input type="checkbox" ${existingDetail && existingDetail.sdc ? 'checked' : ''} disabled></td>
+                                    <td><input type="checkbox" ${existingDetail && existingDetail.sdk ? 'checked' : ''} disabled></td>
+                                    <td><input type="checkbox" ${existingDetail && existingDetail.sdl ? 'checked' : ''} disabled></td>
+                                    <td><input type="time" class="form-control" value="${waktuMulai}" readonly></td>
+                                    <td><input type="time" class="form-control" value="${waktuSelesai}" readonly></td>
+                                    <td><textarea class="form-control" rows="2" readonly>${existingDetail && existingDetail.notes ? existingDetail.notes : ''}</textarea></td>
                                 </tr>
                             `;
                         });
                         
                         $('#spkTableBody').html(tableHtml);
-                        
-                        // Initialize Select2 for user selection
-                        $('.select2-spk').each(function() {
-                            const select = $(this);
-                            const sopId = select.data('sop-id');
-                            const existingDetail = data.spk ? data.spk.details.find(d => d.sop_id == sopId) : null;
-                            
-                            // Add options
-                            data.users.forEach(user => {
-                                const selected = existingDetail && existingDetail.penanggung_jawab === user.name ? 'selected' : '';
-                                select.append(`<option value="${user.name}" ${selected}>${user.name}</option>`);
-                            });
-                            
-                            // Initialize select2
-                            select.select2({
-                                dropdownParent: $('#modalSpk'),
-                                width: '100%'
-                            });
-                        });
                         
                         // Show modal
                         $('#modalSpk').modal('show');
@@ -973,88 +943,6 @@
             });
         });
         
-        // Save SPK
-        $('#saveSpk').click(function() {
-            const spkData = {
-                inform_consent_id: $('#spkInformConsentId').val(),
-                tanggal_tindakan: $('#spkTanggalTindakan').val(),
-                details: []
-            };
-            
-            // Collect details data
-            $('#spkTableBody tr').each(function(index) {
-                const row = $(this);
-                const detail = {
-                    sop_id: row.find('input[name*="[sop_id]"]').val(),
-                    penanggung_jawab: row.find('select[name*="[penanggung_jawab]"]').val(),
-                    sbk: row.find('input[name*="[sbk]"]').is(':checked'),
-                    sba: row.find('input[name*="[sba]"]').is(':checked'),
-                    sdc: row.find('input[name*="[sdc]"]').is(':checked'),
-                    sdk: row.find('input[name*="[sdk]"]').is(':checked'),
-                    sdl: row.find('input[name*="[sdl]"]').is(':checked'),
-                    waktu_mulai: row.find('input[name*="[waktu_mulai]"]').val(),
-                    waktu_selesai: row.find('input[name*="[waktu_selesai]"]').val(),
-                    notes: row.find('textarea[name*="[notes]"]').val()
-                };
-                
-                if (detail.penanggung_jawab) {
-                    spkData.details.push(detail);
-                }
-            });
-            
-            // Validate
-            if (spkData.details.length === 0) {
-                Swal.fire('Error', 'Harap pilih minimal satu penanggung jawab', 'error');
-                return;
-            }
-            
-            // Show loading
-            Swal.fire({
-                title: 'Menyimpan...',
-                text: 'Please wait while saving SPK data',
-                icon: 'info',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-            });
-            
-            // Submit
-            $.ajax({
-                url: '/erm/tindakan/spk/save',
-                method: 'POST',
-                data: spkData,
-                headers: {
-                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                },
-                success: function(response) {
-                    if (response.success) {
-                        Swal.fire('Success', response.message, 'success');
-                        $('#modalSpk').modal('hide');
-                    } else {
-                        Swal.fire('Error', response.message, 'error');
-                    }
-                },
-                error: function(xhr) {
-                    console.error('Error saving SPK:', xhr);
-                    console.error('Response Text:', xhr.responseText);
-                    console.error('Status:', xhr.status);
-                    
-                    let errorMessage = 'Failed to save SPK data';
-                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                        errorMessage = xhr.responseJSON.message;
-                    } else if (xhr.responseText) {
-                        errorMessage = xhr.responseText;
-                    }
-                    
-                    Swal.fire('Error', errorMessage, 'error');
-                }
-            });
-        });
-        
-    
-
-
-
     });
 </script>
 

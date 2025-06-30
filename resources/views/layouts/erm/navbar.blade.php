@@ -113,12 +113,12 @@
                     @endhasrole
 
                     <!-- SPK / Riwayat Tindakan Section -->
-                    @hasanyrole('Dokter|Perawat|Admin')
+                    @hasanyrole('Beautician|Perawat|Admin')
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>SPK & Riwayat Tindakan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>SPK Tindakan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li>
-                                <a href="/erm/spk"><i data-feather="list" class="align-self-center menu-icon"></i><span>Daftar SPK / Riwayat Tindakan</span></a>
+                                <a href="/erm/spk"><i data-feather="list" class="align-self-center menu-icon"></i><span>Daftar SPK Tindakan</span></a>
                             </li>
                         </ul>
                     </li>

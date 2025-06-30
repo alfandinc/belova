@@ -88,98 +88,73 @@
 @endsection
 @section('scripts')
 <script>
-$(document).ready(function() {
-    var informConsentId = '{{ $informConsentId ?? '' }}';
-    if (informConsentId) {
-        $.ajax({
-            url: '/erm/tindakan/spk/' + informConsentId,
-            method: 'GET',
-            success: function(response) {
+const renderSpkTable = (sopList, spk, users) =>
+    sopList.map((sop, index) => {
+        const existingDetail = spk?.details?.find(d => d.sop_id == sop.id);
+        const waktuMulai = existingDetail?.waktu_mulai?.substring(0,5) || '';
+        const waktuSelesai = existingDetail?.waktu_selesai?.substring(0,5) || '';
+        return `<tr>
+            <td>${index + 1}</td>
+            <td>${sop.nama_sop}</td>
+            <td>
+                <select class="form-control select2-spk" name="details[${index}][penanggung_jawab]" data-sop-id="${sop.id}" required>
+                    <option value="">Pilih PJ</option>
+                </select>
+            </td>
+            <td><input type="checkbox" name="details[${index}][sbk]" ${existingDetail?.sbk ? 'checked' : ''}></td>
+            <td><input type="checkbox" name="details[${index}][sba]" ${existingDetail?.sba ? 'checked' : ''}></td>
+            <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail?.sdc ? 'checked' : ''}></td>
+            <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail?.sdk ? 'checked' : ''}></td>
+            <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail?.sdl ? 'checked' : ''}></td>
+            <td><input type="time" class="form-control" name="details[${index}][waktu_mulai]" value="${waktuMulai}"></td>
+            <td><input type="time" class="form-control" name="details[${index}][waktu_selesai]" value="${waktuSelesai}"></td>
+            <td><textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail?.notes || ''}</textarea></td>
+            <input type="hidden" name="details[${index}][sop_id]" value="${sop.id}">
+        </tr>`;
+    }).join('');
+
+const populateSelect2 = (users, spk) => {
+    document.querySelectorAll('.select2-spk').forEach(select => {
+        const sopId = select.dataset.sopId;
+        const existingDetail = spk?.details?.find(d => d.sop_id == sopId);
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.name;
+            option.textContent = user.name;
+            if (existingDetail?.penanggung_jawab === user.name) option.selected = true;
+            select.appendChild(option);
+        });
+        $(select).select2({ width: '100%' });
+    });
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const riwayatTindakanId = document.getElementById('spkRiwayatTindakanId')?.value;
+    if (riwayatTindakanId) {
+        fetch(`/erm/tindakan/spk/by-riwayat/${riwayatTindakanId}`)
+            .then(res => res.json())
+            .then(response => {
                 if (response.success) {
-                    var data = response.data;
-                    $('#spkNamaPasien').val(data.inform_consent.visitation.pasien.nama);
-                    $('#spkNoRm').val(data.inform_consent.visitation.pasien.id);
-                    $('#spkNamaTindakan').val(data.inform_consent.tindakan.nama);
-                    $('#spkDokterPJ').val(data.inform_consent.visitation.dokter.user.name);
-                    $('#spkHarga').val(data.inform_consent.tindakan.harga);
-                    let tanggalTindakan = data.spk && data.spk.tanggal_tindakan ? data.spk.tanggal_tindakan : '';
+                    const data = response.data;
+                    document.getElementById('spkNamaPasien').value = data.pasien_nama;
+                    document.getElementById('spkNoRm').value = data.pasien_id;
+                    document.getElementById('spkNamaTindakan').value = data.tindakan_nama;
+                    document.getElementById('spkDokterPJ').value = data.dokter_nama;
+                    document.getElementById('spkHarga').value = data.harga;
+                    let tanggalTindakan = data.spk?.tanggal_tindakan || '';
                     if (tanggalTindakan) {
-                        const date = new Date(tanggalTindakan);
-                        tanggalTindakan = date.toISOString().split('T')[0];
+                        tanggalTindakan = new Date(tanggalTindakan).toISOString().split('T')[0];
                     }
-                    $('#spkTanggalTindakan').val(tanggalTindakan || new Date().toISOString().split('T')[0]);
-                    let tableHtml = '';
-                    data.sop_list.forEach(function(sop, index) {
-                        var existingDetail = data.spk ? data.spk.details.find(function(d) { return d.sop_id == sop.id; }) : null;
-                        var waktuMulai = existingDetail && existingDetail.waktu_mulai ? existingDetail.waktu_mulai.substring(0,5) : '';
-                        var waktuSelesai = existingDetail && existingDetail.waktu_selesai ? existingDetail.waktu_selesai.substring(0,5) : '';
-                        tableHtml += `<tr>
-                            <td>${index + 1}</td>
-                            <td>${sop.nama_sop}</td>
-                            <td>
-                                <select class="form-control select2-spk" name="details[${index}][penanggung_jawab]" data-sop-id="${sop.id}" required>
-                                    <option value="">Pilih PJ</option>
-                                </select>
-                            </td>
-                            <td><input type="checkbox" name="details[${index}][sbk]" ${existingDetail && existingDetail.sbk ? 'checked' : ''}></td>
-                            <td><input type="checkbox" name="details[${index}][sba]" ${existingDetail && existingDetail.sba ? 'checked' : ''}></td>
-                            <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail && existingDetail.sdc ? 'checked' : ''}></td>
-                            <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail && existingDetail.sdk ? 'checked' : ''}></td>
-                            <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail && existingDetail.sdl ? 'checked' : ''}></td>
-                            <td><input type="time" class="form-control" name="details[${index}][waktu_mulai]" value="${waktuMulai}"></td>
-                            <td><input type="time" class="form-control" name="details[${index}][waktu_selesai]" value="${waktuSelesai}"></td>
-                            <td><textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail && existingDetail.notes ? existingDetail.notes : ''}</textarea></td>
-                            <input type="hidden" name="details[${index}][sop_id]" value="${sop.id}">
-                        </tr>`;
-                    });
-                    $('#spkTableBody').html(tableHtml);
-                    $('.select2-spk').each(function() {
-                        var select = $(this);
-                        var sopId = select.data('sop-id');
-                        var existingDetail = data.spk ? data.spk.details.find(function(d) { return d.sop_id == sopId; }) : null;
-                        data.users.forEach(function(user) {
-                            var selected = existingDetail && existingDetail.penanggung_jawab === user.name ? 'selected' : '';
-                            select.append(`<option value="${user.name}" ${selected}>${user.name}</option>`);
-                        });
-                        select.select2({ width: '100%' });
-                    });
+                    document.getElementById('spkTanggalTindakan').value = tanggalTindakan || new Date().toISOString().split('T')[0];
+                    document.getElementById('spkTableBody').innerHTML = renderSpkTable(data.sop_list, data.spk, data.users);
+                    populateSelect2(data.users, data.spk);
                 }
-            },
-            error: function(xhr) {
-                Swal.fire('Error', 'Failed to load SPK data', 'error');
-            }
-        });
+            })
+            .catch(() => Swal.fire('Error', 'Failed to load SPK data', 'error'));
     }
-    // Save SPK
-    $('#saveSpk').click(function() {
-        const spkData = {
-            inform_consent_id: $('#spkInformConsentId').val(),
-            riwayat_tindakan_id: $('#spkRiwayatTindakanId').val(), // Always send riwayat_tindakan_id
-            tanggal_tindakan: $('#spkTanggalTindakan').val(),
-            details: []
-        };
-        $('#spkTableBody tr').each(function(index) {
-            const row = $(this);
-            const detail = {
-                sop_id: row.find('input[name*="[sop_id]"]').val(),
-                penanggung_jawab: row.find('select[name*="[penanggung_jawab]"]').val(),
-                sbk: row.find('input[name*="[sbk]"]').is(':checked'),
-                sba: row.find('input[name*="[sba]"]').is(':checked'),
-                sdc: row.find('input[name*="[sdc]"]').is(':checked'),
-                sdk: row.find('input[name*="[sdk]"]').is(':checked'),
-                sdl: row.find('input[name*="[sdl]"]').is(':checked'),
-                waktu_mulai: row.find('input[name*="[waktu_mulai]"]').val(),
-                waktu_selesai: row.find('input[name*="[waktu_selesai]"]').val(),
-                notes: row.find('textarea[name*="[notes]"]').val()
-            };
-            if (detail.penanggung_jawab) {
-                spkData.details.push(detail);
-            }
-        });
-        if (spkData.details.length === 0) {
-            Swal.fire('Error', 'Harap pilih minimal satu penanggung jawab', 'error');
-            return;
-        }
+    document.getElementById('saveSpk').addEventListener('click', () => {
+        const form = document.getElementById('spkForm');
+        const formData = new FormData(form);
         Swal.fire({
             title: 'Menyimpan...',
             text: 'Please wait while saving SPK data',
@@ -188,29 +163,25 @@ $(document).ready(function() {
             allowEscapeKey: false,
             showConfirmButton: false,
         });
-        $.ajax({
-            url: '/erm/tindakan/spk/save',
+        fetch('/erm/tindakan/spk/save', {
             method: 'POST',
-            data: spkData,
+            body: formData,
             headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            },
-            success: function(response) {
-                if (response.success) {
-                    Swal.fire('Success', response.message, 'success');
-                } else {
-                    Swal.fire('Error', response.message, 'error');
-                }
-            },
-            error: function(xhr) {
-                let errorMessage = 'Failed to save SPK data';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMessage = xhr.responseJSON.message;
-                } else if (xhr.responseText) {
-                    errorMessage = xhr.responseText;
-                }
-                Swal.fire('Error', errorMessage, 'error');
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             }
+        })
+        .then(res => res.json())
+        .then(response => {
+            if (response.success) {
+                Swal.fire('Success', response.message, 'success');
+            } else {
+                Swal.fire('Error', response.message, 'error');
+            }
+        })
+        .catch(xhr => {
+            let errorMessage = 'Failed to save SPK data';
+            if (xhr?.responseJSON?.message) errorMessage = xhr.responseJSON.message;
+            Swal.fire('Error', errorMessage, 'error');
         });
     });
 });

@@ -44,7 +44,7 @@ $(document).ready(function() {
     $('#spkRiwayatTable').DataTable({
         processing: true,
         serverSide: true,
-        ajax: '/erm/spk/riwayat-data',
+        ajax: '/erm/spk',
         columns: [
             { data: 'tanggal', name: 'tanggal' },
             { data: 'pasien', name: 'pasien' },
@@ -55,10 +55,7 @@ $(document).ready(function() {
                 data: 'aksi', 
                 name: 'aksi', 
                 orderable: false, 
-                searchable: false,
-                render: function(data, type, row) {
-                    return `<a href="/erm/spk/create?riwayat_id=${row.id}" class="btn btn-primary btn-sm">Input/Edit SPK</a>`;
-                }
+                searchable: false
             },
         ]
     });

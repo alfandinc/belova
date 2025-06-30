@@ -179,7 +179,7 @@ Route::prefix('erm')->group(function () {
     // Riwayat Farmasi
     Route::get('/riwayat-resep/dokter/{pasienId}', [EresepController::class, 'getRiwayatDokter'])->name('resep.historydokter');
     Route::get('/riwayat-resep/farmasi/{pasienId}', [EresepController::class, 'getRiwayatFarmasi'])->name('resep.historyfarmasi');
-Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->name('resep.catatan.store');
+    Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->name('resep.catatan.store');
     //Alergi
     Route::post('/pasiens/{visitation}/alergi', [AlergiController::class, 'store'])->name('erm.alergi.store');
 
@@ -224,8 +224,11 @@ Route::post('/resep/catatan/store', [ResepCatatanController::class, 'store'])->n
     Route::post('/tindakan/upload-foto/{id}', [TindakanController::class, 'uploadFoto'])->name('erm.tindakan.upload-foto');
     
     // SPK Routes
-    Route::get('/tindakan/spk/{inform_consent_id}', [TindakanController::class, 'getSpkData'])->name('erm.tindakan.spk.get');
+    Route::get('/tindakan/spk/by-riwayat/{riwayat_id}', [TindakanController::class, 'getSpkDataByRiwayat'])->name('erm.tindakan.spk.byriwayat');
     Route::post('/tindakan/spk/save', [TindakanController::class, 'saveSpk'])->name('erm.tindakan.spk.save');
+    Route::get('/spk', [TindakanController::class, 'spkIndex'])->name('erm.spk.index');
+    Route::get('/spk/create', [TindakanController::class, 'spkCreate'])->name('erm.spk.create');
+
     
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
@@ -266,11 +269,7 @@ Route::get('/birthday/image/{filename}', [BirthdayController::class, 'showImage'
     Route::post('/rawatjalans/batalkan', [RawatJalanController::class, 'batalkan']);
     Route::post('/rawatjalans/edit-antrian', [RawatJalanController::class, 'editAntrian']);
 
-    // SPK & Riwayat Tindakan
-    Route::get('/spk', [App\Http\Controllers\ERM\TindakanController::class, 'spkIndex'])->name('erm.spk.index');
-    Route::get('/spk/riwayat-data', [App\Http\Controllers\ERM\TindakanController::class, 'spkRiwayatData'])->name('erm.spk.riwayat-data');
-    Route::get('/spk/create', [App\Http\Controllers\ERM\TindakanController::class, 'spkCreate'])->name('erm.spk.create');
-    Route::post('/spk/store', [App\Http\Controllers\ERM\TindakanController::class, 'spkStore'])->name('erm.spk.store');
+
 });
 
 
@@ -297,7 +296,7 @@ Route::prefix('finance')->group(
         Route::get('/invoice/{id}', [InvoiceController::class, 'show'])->name('finance.invoice.show');
         Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
         Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
-Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
+        Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
         
     }
 );
@@ -333,7 +332,7 @@ Route::prefix('hrd')->group(
         Route::get('/profile/edit-modal', [EmployeeSelfServiceController::class, 'getEditProfileModal'])->name('hrd.employee.profile.modal');
         Route::put('/profile', [EmployeeSelfServiceController::class, 'updateProfile'])->name('hrd.employee.profile.update');
 
-Route::put('/profile/password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
+        Route::put('/profile/password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
 
         // Division routes (for managers)
 
@@ -451,5 +450,3 @@ Route::get('/erm/dashboard/most-frequent-patient', [\App\Http\Controllers\ERMDas
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
 
-// Get SPK data by RiwayatTindakan ID (for SPK create page)
-Route::get('/tindakan/spk-by-riwayat/{riwayat_id}', [TindakanController::class, 'getSpkDataByRiwayat'])->name('erm.tindakan.spk.byriwayat');
