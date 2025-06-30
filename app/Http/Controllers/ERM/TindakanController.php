@@ -94,23 +94,26 @@ class TindakanController extends Controller
         if ($request->has('witnessSignatureData') && !$request->has('witness_signature')) {
             $request->merge(['witness_signature' => $request->witnessSignatureData]);
         }
-        $data = $request->validate([
+
+        // Make signature fields optional
+        $rules = [
             'visitation_id' => 'required|exists:erm_visitations,id',
             'tindakan_id' => 'required|exists:erm_tindakan,id',
             'tanggal' => 'required|date',
-            'signature' => 'required',
-            'witness_signature' => 'required',
+            'signature' => 'nullable',
+            'witness_signature' => 'nullable',
             'notes' => 'nullable|string',
-            'nama_pasien' => 'required|string',
-            'nama_saksi' => 'required|string',
+            'nama_pasien' => 'nullable|string',
+            'nama_saksi' => 'nullable|string',
             'paket_id' => 'nullable|exists:erm_paket_tindakan,id',
-        ]);
+        ];
+        $data = $request->validate($rules);
 
         $visitation = Visitation::findOrFail($data['visitation_id']);
         $pasien = $visitation->pasien;
         $tindakan = Tindakan::findOrFail($data['tindakan_id']);
 
-        // Create RiwayatTindakan record first
+        // Always create RiwayatTindakan
         $riwayatTindakan = RiwayatTindakan::create([
             'visitation_id' => $data['visitation_id'],
             'tanggal_tindakan' => $data['tanggal'],
@@ -118,26 +121,28 @@ class TindakanController extends Controller
             'paket_tindakan_id' => $data['paket_id'] ?? null,
         ]);
 
-        $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
-        $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.{$viewName}", [
-            'data' => $data,
-            'pasien' => $pasien,
-            'visitation' => $visitation,
-            'tindakan' => $tindakan,
-        ]);
-
-        $timestamp = now()->format('YmdHis');
-        $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
-        // Storage::put('public/' . $pdfPath, $pdf->output());
-        Storage::disk('public')->put($pdfPath, $pdf->output());
-        $informConsent = InformConsent::create([
-            'visitation_id' => $data['visitation_id'],
-            'tindakan_id' => $data['tindakan_id'],
-            'file_path' => $pdfPath,
-            'paket_id' => $data['paket_id'] ?? null,
-            'riwayat_tindakan_id' => $riwayatTindakan->id,
-            'created_at' => now(),
-        ]);
+        $informConsent = null;
+        // Only create InformConsent and PDF if signatures are present
+        if (!empty($data['signature']) && !empty($data['witness_signature'])) {
+            $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
+            $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.{$viewName}", [
+                'data' => $data,
+                'pasien' => $pasien,
+                'visitation' => $visitation,
+                'tindakan' => $tindakan,
+            ]);
+            $timestamp = now()->format('YmdHis');
+            $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
+            Storage::disk('public')->put($pdfPath, $pdf->output());
+            $informConsent = InformConsent::create([
+                'visitation_id' => $data['visitation_id'],
+                'tindakan_id' => $data['tindakan_id'],
+                'file_path' => $pdfPath,
+                'paket_id' => $data['paket_id'] ?? null,
+                'riwayat_tindakan_id' => $riwayatTindakan->id,
+                'created_at' => now(),
+            ]);
+        }
 
         // Automatically create SPK record
         $spk = \App\Models\ERM\Spk::create([
@@ -150,36 +155,27 @@ class TindakanController extends Controller
         ]);
 
         $billing = null;
-
         if (isset($data['paket_id'])) {
-            // This is a paket tindakan
             $paketId = $data['paket_id'];
             $visitationId = $data['visitation_id'];
-
-
             $existingBilling = Billing::where('visitation_id', $visitationId)
                 ->where('billable_id', $paketId)
                 ->where('billable_type', 'App\\Models\\ERM\\PaketTindakan')
                 ->first();
-
             if (!$existingBilling) {
-
                 $paketTindakan = PaketTindakan::find($paketId);
-
                 $billingData = [
                     'visitation_id' => $visitationId,
                     'billable_id' => $paketId,
                     'billable_type' => 'App\\Models\\ERM\\PaketTindakan',
-                    'jumlah' => !empty($data['jumlah']) ? $data['jumlah'] : $paketTindakan->harga_paket,
-                    'keterangan' => !empty($data['keterangan']) ? $data['keterangan'] : 'Paket Tindakan: ' . $paketTindakan->nama
+                    'jumlah' => !empty($data['jumlah']) ? $data['jumlah'] : ($paketTindakan->harga_paket ?? 0),
+                    'keterangan' => !empty($data['keterangan']) ? $data['keterangan'] : 'Paket Tindakan: ' . ($paketTindakan->nama ?? '')
                 ];
-
                 $billing = Billing::create($billingData);
             } else {
                 $billing = $existingBilling;
             }
         } else {
-            // This is a single tindakan
             $billingData = [
                 'visitation_id' => $data['visitation_id'],
                 'billable_id' => $data['tindakan_id'],
@@ -187,22 +183,18 @@ class TindakanController extends Controller
                 'jumlah' => $tindakan->harga,
                 'keterangan' => 'Tindakan: ' . $tindakan->nama
             ];
-
-            // Override with request data if provided
             if (!empty($data['jumlah'])) {
                 $billingData['jumlah'] = $data['jumlah'];
             }
-
             if (!empty($data['keterangan'])) {
                 $billingData['keterangan'] = $data['keterangan'];
             }
-
             $billing = Billing::create($billingData);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Inform consent, SPK, and billing created successfully',
+            'message' => 'Riwayat tindakan dan billing berhasil disimpan. Inform consent akan dibuat jika tersedia.',
             'informConsent' => $informConsent,
             'spk' => $spk,
             'billing' => $billing,

@@ -18,173 +18,10 @@
 
 @include('erm.partials.modal-alergipasien')
 
-<!-- Modal for Inform Consent -->
-<div class="modal fade" id="modalInformConsent" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-xl" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Inform Consent Tindakan</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body" id="modalInformConsentBody"></div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button id="saveInformConsent" class="btn btn-success d-none">Simpan</button> <!-- Add Simpan button -->
-      </div>
-    </div>
-  </div>
-</div>
+@include('erm.partials.modal-tindakan-informconsent')
+@include('erm.partials.modal-tindakan-fotohasil')
+@include('erm.partials.modal-tindakan-spk')
 
-<!-- Add this new modal after existing modals -->
-<div class="modal fade" id="modalFotoHasil" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Foto Hasil Tindakan</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form id="fotoHasilForm" enctype="multipart/form-data">
-          @csrf
-          <input type="hidden" id="informConsentId" name="inform_consent_id">
-          
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label for="beforeImage">Foto Before</label>
-                <input type="file" class="form-control" id="beforeImage" name="before_image" accept="image/*">
-                <div class="mt-2">
-                  <img id="beforePreview" style="max-width: 100%; max-height: 200px; display: none;">
-                </div>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label for="afterImage">Foto After</label>
-                <input type="file" class="form-control" id="afterImage" name="after_image" accept="image/*">
-                <div class="mt-2">
-                  <img id="afterPreview" style="max-width: 100%; max-height: 200px; display: none;">
-                </div>
-              </div>
-            </div>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" id="saveFotoHasil">Upload</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal for SPK (Read-Only) -->
-<div class="modal fade" id="modalSpk" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-xl" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">SPK & CUCI TANGAN</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body">
-        <form id="spkForm">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Nama Pasien</label>
-                <input type="text" class="form-control" id="spkNamaPasien" readonly>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>No RM</label>
-                <input type="text" class="form-control" id="spkNoRm" readonly>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Tanggal Tindakan</label>
-                <input type="date" class="form-control" id="spkTanggalTindakan" name="tanggal_tindakan" readonly>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Nama Tindakan</label>
-                <input type="text" class="form-control" id="spkNamaTindakan" readonly>
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Dokter Penanggung Jawab</label>
-                <input type="text" class="form-control" id="spkDokterPJ" readonly>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="form-group">
-                <label>Harga</label>
-                <input type="text" class="form-control" id="spkHarga" readonly>
-              </div>
-            </div>
-          </div>
-          
-          <div class="table-responsive mt-4">
-            <table class="table table-bordered">
-              <thead>
-                <tr>
-                  <th style="width: 5%">NO</th>
-                  <th style="width: 15%">TINDAKAN</th>
-                  <th style="width: 12%">PJ</th>
-                  <th style="width: 6%">SBK</th>
-                  <th style="width: 6%">SBA</th>
-                  <th style="width: 6%">SDC</th>
-                  <th style="width: 6%">SDK</th>
-                  <th style="width: 6%">SDL</th>
-                  <th style="width: 8%">MULAI</th>
-                  <th style="width: 8%">SELESAI</th>
-                  <th style="width: 22%">NOTES</th>
-                </tr>
-              </thead>
-              <tbody id="spkTableBody">
-                <!-- Will be populated dynamically, all fields should be disabled/readonly or plain text -->
-              </tbody>
-            </table>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal for SPK (Read-Only) -->
-<div class="modal fade" id="modalSpkReadOnly" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-xl" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Detail SPK (Read Only)</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body" id="modalSpkReadOnlyBody"></div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
@@ -595,6 +432,7 @@
 
             // Fungsi buat-tindakan
         $(document).on('click', '.buat-tindakan', function () {
+            window.lastTindakanIdClicked = $(this).data('id'); // Always set this first!
             const type = $(this).data('type');
             const id = $(this).data('id');
             const visitationId = @json($visitation->id);
@@ -704,33 +542,41 @@
         // Fungsi untuk menyimpan satu inform consent
         function saveSingleInformConsent() {
             const form = $('#informConsentForm');
-            const tindakanId = form.find('input[name="tindakan_id"]').val();
-            const visitationId = form.find('input[name="visitation_id"]').val();
-
-            // Validasi
-            if (!signaturePads[1] || !signaturePads[1].patient || !signaturePads[1].witness) {
-                Swal.fire('Error', 'Signature pads are not initialized.', 'error');
-                return;
+            // Get tindakanId from form or fallback to last clicked button
+            let tindakanId = form.find('input[name="tindakan_id"]').val();
+            if (!tindakanId) {
+                // Try to get from last clicked .buat-tindakan button
+                tindakanId = window.lastTindakanIdClicked || null;
             }
-
-            if (signaturePads[1].patient.isEmpty()) {
-                Swal.fire('Error', 'Please provide a signature for the patient.', 'error');
-                return;
+            // Get visitationId from form or from PHP context
+            let visitationId = form.find('input[name="visitation_id"]').val();
+            if (!visitationId) {
+                visitationId = @json($visitation->id);
             }
-
-            if (signaturePads[1].witness.isEmpty()) {
-                Swal.fire('Error', 'Please provide a signature for the witness.', 'error');
-                return;
+            // If there is no signature pad (no form fields for signature), skip signature validation
+            const hasSignaturePad = signaturePads[1] && signaturePads[1].patient && signaturePads[1].witness;
+            if (form.length && hasSignaturePad) {
+                if (signaturePads[1].patient.isEmpty()) {
+                    Swal.fire('Error', 'Please provide a signature for the patient.', 'error');
+                    return;
+                }
+                if (signaturePads[1].witness.isEmpty()) {
+                    Swal.fire('Error', 'Please provide a signature for the witness.', 'error');
+                    return;
+                }
+                // Capture signature data
+                $('#signatureData').val(signaturePads[1].patient.toDataURL());
+                $('#witnessSignatureData').val(signaturePads[1].witness.toDataURL());
             }
-
-            // Capture signature data
-            $('#signatureData').val(signaturePads[1].patient.toDataURL());
-            $('#witnessSignatureData').val(signaturePads[1].witness.toDataURL());
-
-            // Add billing data to the form
-            form.append(`<input type="hidden" name="jumlah" value="${form.find('.harga-tindakan').data('harga') || 0}">`);
-            form.append(`<input type="hidden" name="keterangan" value="Tindakan: ${form.find('.nama-tindakan').text()}">`);
-
+            // Add billing data to the form if present
+            if (form.length) {
+                if (!form.find('input[name="jumlah"]').length) {
+                    form.append(`<input type="hidden" name="jumlah" value="${form.find('.harga-tindakan').data('harga') || 0}">`);
+                }
+                if (!form.find('input[name="keterangan"]').length) {
+                    form.append(`<input type="hidden" name="keterangan" value="Tindakan: ${form.find('.nama-tindakan').text()}">`);
+                }
+            }
             // Show loading
             Swal.fire({
                 title: 'Saving...',
@@ -740,12 +586,23 @@
                 allowEscapeKey: false,
                 showConfirmButton: false,
             });
-
-            // Submit the form
-            const formData = new FormData(form[0]);
-
+            // Submit the form (or just send minimal data if no form)
+            let formData;
+            let url;
+            if (form.length) {
+                formData = new FormData(form[0]);
+                url = form.attr('action');
+            } else {
+                // No form, send minimal data
+                formData = new FormData();
+                formData.append('tindakan_id', tindakanId);
+                formData.append('visitation_id', visitationId);
+                formData.append('tanggal', new Date().toISOString().split('T')[0]);
+                console.log('DEBUG: Saving without form', { tindakanId, visitationId });
+                url = '/erm/tindakan/inform-consent/save';
+            }
             $.ajax({
-                url: form.attr('action'),
+                url: url,
                 method: 'POST',
                 data: formData,
                 processData: false,
