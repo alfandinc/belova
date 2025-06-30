@@ -1,0 +1,258 @@
+"id","nama","harga","spesialis_id"
+1,Facial Light  ,"95.000,00",6
+2,Facial Preparation  ,"50.000,00",6
+3,Facial Facial Essential  ,"120.000,00",6
+4,Facial Oxygeneo  ,"288.750,00",6
+5,Facial Korean Silk  ,"135.000,00",6
+6,Peeling Microdermabrasi  ,"78.750,00",6
+7,Peeling Chemical AHA 20% ,"56.250,00",6
+8,Peeling Chemical AHA 35% ,"63.750,00",6
+9,Peeling Chemical AHA 70% ,"112.500,00",6
+10,Peeling Chemical BHA 20% ,"63.750,00",6
+11,Peeling Chemical Complex ,"75.000,00",6
+12,Peeling Chemical Retinol ,"187.500,00",6
+13,Peeling Chemical Sparkling HD ,"225.000,00",6
+14,Peeling Chemical Sparkling FD ,"337.500,00",6
+15,Peeling Chemical Mandelaic ,"187.500,00",6
+16,Peeling Chemical TCA ,"187.500,00",6
+17,Peeling Chemical Bio Re Peel ,"300.000,00",6
+18,Laser ND-Yag 1450 nm - F0,"158.178,29",6
+19,Laser ND-Yag Blackdoll,"171.889,71",6
+20,Laser ND-Yag 1450 nm - F50,"163.218,29",6
+21,Laser ND-Yag 532 nm,"154.715,43",6
+22,Laser CO2 Face (2 Spot),"420.000,00",6
+23,Laser CO2 Vagina,"169.134,86",6
+24,Laser Bikini ,"450.000,00",6
+25,Laser Korean ,"158.178,29",6
+26,Laser Korean Blackdoll ,"171.889,71",6
+27,Laser Freckles ,"158.178,29",6
+28,Laser Lip Care ,"161.313,52",6
+29,Laser Arm Pit ,"249.962,86",6
+30,Peeling Chemical Intimate ,"262.500,00",6
+31,Advance IPL Toning Shower ,"220.000,00",6
+32,Advance IPL Acne ,"220.000,00",6
+33,Brightening IPL Arm Pit Hair ,"281.250,00",6
+34,Brightening IPL Brazilian ,"487.500,00",6
+35, Mesotheraphy Dermapen ,"360.000,00",6
+36,Brightening Mesotheraphy Needle ,"375.000,00",6
+37,Brightening Mesotheraphy Aqua Injector ,"750.000,00",6
+38,Brightening Mesotheraphy Dark Circle Eye ,"450.000,00",6
+39,Advance  Nucleofil Strong ,"3.500.000,00",6
+40,Advance  Rejuran Healer Half ,"4.050.000,00",6
+41,Advance  Rejuran HB ,"4.450.000,00",6
+42,Brightening DNA Premium Injection The A ,"543.750,00",6
+43,Advance HA Injection Profhilo ,"4.950.000,00",6
+44,Brightening HA Injection Aqua C ,"1.087.500,00",6
+45,Brightening Ascorbic Acid 200 mg ,"90.000,00",6
+46,Brightening Injection Aura ,"150.000,00",6
+47,Brightening Infus Basic ,"247.500,00",6
+48,Brightening Infus Energy Boost ,"937.500,00",6
+49,Brightening Infus Energy ,"720.000,00",6
+50,Brightening Infus Skin Glow ,"495.000,00",6
+51,Brightening Infus Energy Skin Glow ,"1.012.500,00",6
+52,Injeksi Tica  per CC,"25.000,00",6
+53,Brightening Infus Chromosome ,"1.500.000,00",6
+54,Lifting RF Sineson Bipolar  ,"275.000,00",6
+55,Lifting RF Tripolar  ,"112.500,00",6
+56,Lifting RF Monopolar Sineson for Face  ,"330.000,00",6
+57,Lifting HIFU 6D 1 Layer ,"675.000,00",6
+58,Lifting HIFU 6D 3 Layer ,"1.350.000,00",6
+59,Lifting Threadlift PDO Mono 10 thrd,"1.500.000,00",6
+60,Lifting Threadlift PDO Barb 1 Thrd,"412.500,00",6
+61,Lifting Threadlift Silhouette Soft Bidirect 1 Thrd,"6.600.000,00",6
+62,Lifting Threadlift Bidirect PDO Bidirect 1 Thrd,"2.437.500,00",6
+63,Lifting Threadlift Facelifting 2 Thrd,"742.500,00",6
+64,Advance Collagen Stimulator Facetem ,"4.200.000,00",6
+65,Advance Collagen Stimulator Radiese ,"0,00",6
+66,Advance Dermal Filler Juvederm ,"3.750.000,00",6
+67,Advance Dermal Filler Eye ,"3.150.000,00",6
+68,Advance Dermal Filler Smile Line ,"4.125.000,00",6
+69,Advance Botox Bio Per IU ,"36.000,00",6
+70,Advance Botox Lanzox Per IU ,"65.000,00",6
+71,Adds on Botox Micro ,"40.000,00",6
+72,Advance Subsicion  ,"275.000,00",6
+73,Slimming Face V - Line ,"420.000,00",6
+74,Slimming Fat Injection Mesococktail / amp ,"300.000,00",6
+75,Slimming Fat Injection Mesococktail / 10 amp paket ,"2.600.000,00",6
+76,Slimming RF Sineson SF  ,"400.000,00",6
+77,Slimming RF Sineson VF  ,"450.000,00",6
+78,Woman Injeksi Kamasutra ,"150.000,00",6
+79,Hair Treatment Creambath Org ,"80.000,00",6
+80,Hair Treatment Filler Repair ,"150.000,00",6
+81,Hair Treatment Mask Pro  ,"175.000,00",6
+82,Hair Treatment Root Care ,"150.000,00",6
+83,Hair Treatment Bye Dandruff ,"150.000,00",6
+84,Hair Treatment Smoothing ,"400.000,00",6
+85,Hair Treatment Toning Pdk ,"150.000,00",6
+86,Hair Treatment Spa Keratin ,"100.000,00",6
+87,Hair Treatment Toning Rb Pendek ,"60.000,00",6
+88,Hair Treatment Toning Rb Panjang ,"250.000,00",6
+89,Hair Treatment Spa Keratin Pro ,"100.000,00",6
+90,Hair Treatment Toning ,"250.000,00",6
+91,Hair Treatment Creambath Diamond ,"125.000,00",6
+92,Hair Treatment Creambath Blue ,"125.000,00",6
+93,Hair Treatment Creambath Platinum ,"100.000,00",6
+94,Hair Treatment Creambath Organik ,"70.000,00",6
+95,Hair Treatment Cut By Mas Joko ,"200.000,00",6
+96,Adds on Treatment Detox ,"25.000,00",6
+97,Adds on Serum Derma Acne ,"95.000,00",6
+98,Adds on Oxy Infusion ,"35.000,00",6
+99,Adds on Masker Aloevera & Cucumber Rubber Peel Off ,"20.000,00",6
+100,Adds on Masker Gold Facial Peel OFF PM ,"20.000,00",6
+101,Adds on Masker Peppermint Rubber Soft PM Peel Off ,"20.000,00",6
+102,Adds on Masker PeelBlack & White Sesame Seed Peel Off ,"20.000,00",6
+103,Adds on Masker Tissue ,"15.000,00",6
+104,Adds on Treatment Glow PDT ,"20.000,00",6
+105,Adds on Treatment Acne PDT ,"20.000,00",6
+106,Adds on Anestesi Soft Layer ,"96.000,00",6
+107,Adds on Anestesi Dolonese ,"60.000,00",6
+108,Advance Treatment Couterisasi ,"150.000,00",6
+109,Advance Treatment Minor ,"450.000,00",6
+110,Adds on Anestesi Korea ,"25.000,00",6
+111,Adds on Treatment Komedo Ekstraksi ,"25.000,00",6
+112,Adds on Treatment PRP ,"175.000,00",6
+113,Slimming Treatment Akupuntur ,"75.000,00",6
+114,Scaling and Polishing (Pembersihan Karang Gigi) Basic  ,"400.000,00",6
+115,Teeth Whitening (Pemutihan Gigi)   ,"1.800.000,00",6
+116,Dental Filling (Tambal Gigi) GIC  ,"250.000,00",6
+117,Root Canal Treatment (Perawatan Saluran Akar) 36  ,"600.000,00",6
+118,Tooth Extraction (Cabut Gigi) Dental Hecting  ,"200.000,00",6
+119,Tooth Extraction (Cabut Gigi) Aff Dental Hecting  ,"200.000,00",6
+120,Tooth Extraction (Cabut Gigi) Anak  ,"250.000,00",6
+121,Tooth Extraction (Cabut Gigi) Dewasa  ,"350.000,00",6
+122,Tooth Extraction (Cabut Gigi) Geraham  ,"1.000.000,00",6
+123,Tooth Extraction (Cabut Gigi) Odontektomi  ,"850.000,00",6
+124,Dental Crown   ,"1.000.000,00",6
+125,Veneer   ,"750.000,00",6
+126,Braces (Kawat Gigi)   ,"6.000.000,00",6
+127,Dentures (Gigi Palsu)   ,"1.300.000,00",6
+128,Fluoride Treatment   ,"75.000,00",6
+129,Sealant   ,"350.000,00",6
+130,Konsultasi   ,"50.000,00",6
+131,Pemeriksaan  Fisik  ,"80.000,00",6
+132,Injeksi Preparation infus  ,"85.000,00",6
+133,Injeksi Preparation IV Wing  ,"48.000,00",6
+134,Injeksi Preparation IV Bolus  ,"35.000,00",6
+135,Konsultasi dr. Andhika  ,"20.000,00",6
+136,Konsultasi dr. Dynar  ,"20.000,00",6
+137,Adds on Redness Serum  ,"35.000,00",6
+138,Brightening Derma Bright  ,"25.000,00",6
+139,Adds on Hyaluronic Acid  ,"35.000,00",6
+140,Advance Microbotox with Aqua Injector  ,"1.200.000,00",6
+141,Masker Papaya Peel Off  ,"26.000,00",6
+142,Masker Peppermint Peel Off  ,"26.000,00",6
+143,Masker Pearl Peel Off  ,"26.000,00",6
+144,Masker SkinTech  ,"33.000,00",6
+145,Peeling Home Care Brightening   ,"100.000,00",6
+146,Peeling Home Care Acne  ,"100.000,00",6
+147,Paket Nyindhen 1  ,"420.000,00",6
+148,Advance Preparation with Anestesi Cream  ,"42.000,00",6
+149,Advance Preparation for IV  ,"35.000,00",6
+150,Advance Preparation with Anestesi Injeksi  ,"35.000,00",6
+151,Paket Paket Nyindhen 2  ,"1.070.000,00",6
+152,Peeling SA Mandelaic  ,"150.000,00",6
+153,Hair Cutting  ,"200.000,00",6
+154,Hair Smoothing  ,"850.000,00",6
+155,Body SPA 60 menit,"150.000,00",6
+156,Body SPA 90 menit,"200.000,00",6
+157,Advance Slim & Tight Face Body per CC ,"200.000,00",6
+158,Adds on PDRN DNA Salmon  ,"61.630,00",6
+159,Injeksi Acne  ,"25.000,00",6
+160,Facial Deep Hydration  ,"184.000,00",6
+161,Adds on Acne Fighter Serum  ,"35.000,00",6
+162,Advance Exosome Skinbooster  ,"2.390.000,00",6
+163,Paket 3 x Brightening Aqua Injector  ,"1.953.358,67",6
+164,Peeling Back Care  ,"212.000,00",6
+165,Peeling Neck Care  ,"50.000,00",6
+166,Slimming V Shape (Promo)  ,"215.000,00",6
+167,Slimming Edukasi Healthy Life + Meal Plan  ,"500.000,00",6
+168,Paket Pregnancy Glow Theraphy  ,"1.036.000,00",6
+169,Paket 3x Pregnancy Glow Theraphy  ,"2.730.000,00",6
+170,Paket Melasma 99  ,"99.000,00",6
+171,Injeksi 10 Poin PDRN DNA Salmon  ,"250.000,00",6
+172,"Paket Anti Aging for Face Sign by Dr. Andhika, M.Biomed (AAM)","928.000,00",6
+173,Paket Radiant Boost,"320.000,00",6
+174,Paket Radiant Boost IPL Glow,"610.000,00",6
+175,Paket PDRN DNA Salmon Skinbooster with Dermapen,"550.000,00",6
+176,Paket PDRN DNA Salmon + HA Skinbooster with Aqua Injector,"1.230.000,00",6
+177,Paket Exosome Skin Booster,"2.660.000,00",6
+178,Paket Nucleofill Skin Booster,"3.500.000,00",6
+179,Paket Lift & Glow RF ,"950.000,00",6
+180,Paket V-Sculpture HIFU,"1.400.000,00",6
+181,Paket Duo Prime Set,"187.000,00",6
+182,Paket Full Complete Set,"383.000,00",6
+183,Paket Full Set + Oral Supplement,"478.000,00",6
+184,Paket Basic Acne Treatment,"320.000,00",6
+185,Paket Advanced Acne Treatment,"610.000,00",6
+186,Paket Quick Acne Relief Shot ,"25.000,00",6
+187,Paket Scar Treatment Basic,"830.000,00",6
+188,Paket Scar Treatment mix Subsisi,"1.380.000,00",6
+189,Paket Scar Treatment with Skinbooster,"3.582.800,00",6
+190,Paket Scar Remodelling with PRP & CO2 Laser,"865.000,00",6
+191,Paket Duo Acne Prime Set,"171.000,00",6
+192,Paket Full Complete Acne Set,"368.000,00",6
+193,Paket Full Complete Acne Set + Acne Supplement,"463.000,00",6
+194,Paket Radiance Glow Program for Brightening / Melasma Epidermal,"365.000,00",6
+195,Paket Luminous Perfection Program for Brightening / Melasma Epidermal,"596.000,00",6
+196,Paket NucleoPeptide HA Skin Booster with Dermapen,"478.000,00",6
+197,Paket DNA Salmon 1% + TRX Skin Booster with Aqua Injector,"1.215.000,00",6
+198,Paket Nucleofill Strong Skinbooster,"3.500.000,00",6
+199,Paket Duo Prime Set,"187.000,00",6
+200,Paket Full Complete Set,"383.000,00",6
+201,Paket Full Set + Oral Supplement,"478.000,00",6
+202,Paket Collagen Stimulator with Sineson & Face Firming with Microtox,"1.550.000,00",6
+203,Paket Collagen Stimulator with Hifu & Face Firming with Microtox,"2.550.000,00",6
+204,Paket Collagen Stimulator with Facetem,"4.200.000,00",6
+205,Paket Ultimate V Shape for Face Duo,"1.190.000,00",6
+206,Paket Neck Mesotherapy Brightening,"443.000,00",6
+207,Paket Collagen Stimulator with Sineson & Neck Firming with Microtox,"1.540.000,00",6
+208,Paket Collagen Stimulator with Hifu & Neck Firming with Microtox,"2.550.000,00",6
+209,Paket Collagen Stimulator with Facetem,"4.200.000,00",6
+210,Paket Add On Pore Refining with CO2,"420.000,00",6
+211,Paket Add On Pore Refining with Microtox,"1.200.000,00",6
+212,Paket Neck Slim Duo,"770.000,00",6
+213,Paket Duo Neck Care,"182.000,00",6
+214,Paket Armpit Glow Basic ,"176.000,00",6
+215,Paket Armpit Glow Advance,"825.000,00",6
+216,Paket Hyperhidrosis Treatment,"3.725.000,00",6
+217,Paket Peeling Back ,"424.000,00",6
+218,Paket Peeling Intimate,"216.000,00",6
+219,Paket Intimate Brightening Basic ,"245.000,00",6
+220,Paket Intimate Brightening Advance,"1.085.000,00",6
+221,Paket Korean Glow - Tox,"1.165.000,00",6
+222,Paket Europe Glow - Tox,"1.745.000,00",6
+223,Paket Botox Full Face,"3.325.000,00",6
+224,Paket Korean Botox Full Face,"3.100.000,00",6
+225,Paket Europe Botox Full Face,"5.645.000,00",6
+226,Paket Korean - Botox Masseter,"648.000,00",6
+227,Paket Europe Botox Masseter,"1.170.000,00",6
+228,Paket Korean - Botox Leher,"1.800.000,00",6
+229,Paket Europe Botox Leher,"3.250.000,00",6
+230,Paket 1 x Visit ,"2.420.000,00",6
+231,Paket 4 x Visit ,"5.080.000,00",6
+232,Peeling Hand,"250.000,00",6
+233,Peeling Leg,"450.000,00",6
+234,Botox Korea 1/3 Atas,"1.000.000,00",6
+235,Paket Brightening Skin Barier Sign by dr. Dynar,"658.639,07",6
+236,Peeling Tummy,"320.000,00",6
+237,Facial Essential,"115.000,00",6
+238,Facial Signature for Acne,"155.000,00",6
+239,Facial Signature for Anti Aging,"185.000,00",6
+240,Facial Signature for Sensitive Skin,"135.000,00",6
+241,Injeksi Immune C Booster,"120.000,00",6
+242,Injeksi Eye Bag,"550.000,00",6
+243,Skinbooster Juvelook Collagen & Aqua Therapy,"1.599.000,00",6
+244,Laser Pico Brightening Face,"681.000,00",6
+245,Laser Pico Lip Care,"250.000,00",6
+246,Laser Pico Brightening Arm Pit ,"425.000,00",6
+247,Laser Pico Brightening Bikini ,"425.000,00",6
+248,Laser Pico Scar Renew,"425.000,00",6
+249,Laser PicoInk Erase,"632.000,00",6
+250,Laser Pico Melasma Care,"681.000,00",6
+251,Laser Pico Blackdoll Glow,"425.000,00",6
+252,Paket Radiant Rejuvenation by dr. Fifi,"690.000,00",6
+253,Paket Fresh & Nourish,"380.000,00",6
+254,Paket Skin & Lashes,"400.000,00",6
+255,Paket Glow & Relax,"420.000,00",6
+256,Laser Pico ScarAway Legs,"750.000,00",6
+257,Laser Pico ScarAway Hands,"675.000,00",6

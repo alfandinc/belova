@@ -10,9 +10,19 @@
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">Daftar SPK / Riwayat Tindakan</h3>
     </div>
-    <div class="row">
-        <div class="col-sm-12">
-            <div class="page-title-box"></div>
+    <div class="row mb-3 mt-3">
+        <div class="col-md-3">
+            <label for="filterTanggal">Tanggal</label>
+            <input type="text" id="filterTanggal" class="form-control" autocomplete="off" />
+        </div>
+        <div class="col-md-3">
+            <label for="filterDokter">Dokter</label>
+            <select id="filterDokter" class="form-control select2">
+                <option value="">Semua Dokter</option>
+                @foreach(\App\Models\ERM\Dokter::with('user')->get() as $dokter)
+                    <option value="{{ $dokter->id }}">{{ $dokter->user->name ?? '-' }}</option>
+                @endforeach
+            </select>
         </div>
     </div>
     <div class="card mt-3">
@@ -41,10 +51,34 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
-    $('#spkRiwayatTable').DataTable({
+    // Initialize select2 for dokter filter
+    $('#filterDokter').select2({
+        width: '100%',
+        placeholder: 'Pilih Dokter',
+        allowClear: true
+    });
+
+    // Date range picker
+    $('#filterTanggal').daterangepicker({
+        locale: { format: 'YYYY-MM-DD' },
+        startDate: moment().format('YYYY-MM-DD'),
+        endDate: moment().format('YYYY-MM-DD'),
+        autoUpdateInput: true,
+        autoApply: true
+    });
+
+    var table = $('#spkRiwayatTable').DataTable({
         processing: true,
         serverSide: true,
-        ajax: '/erm/spk',
+        ajax: {
+            url: '/erm/spk',
+            data: function(d) {
+                var tanggal = $('#filterTanggal').val().split(' - ');
+                d.tanggal_start = tanggal[0];
+                d.tanggal_end = tanggal[1] || tanggal[0];
+                d.dokter_id = $('#filterDokter').val();
+            }
+        },
         columns: [
             { data: 'tanggal', name: 'tanggal' },
             { data: 'pasien', name: 'pasien' },
@@ -58,6 +92,10 @@ $(document).ready(function() {
                 searchable: false
             },
         ]
+    });
+
+    $('#filterTanggal, #filterDokter').on('change', function() {
+        table.ajax.reload();
     });
 });
 </script>

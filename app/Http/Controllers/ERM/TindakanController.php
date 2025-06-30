@@ -348,9 +348,37 @@ class TindakanController extends Controller
     {
         if ($request->ajax()) {
             $riwayat = \App\Models\ERM\RiwayatTindakan::with(['visitation.pasien', 'tindakan', 'visitation.dokter.user', 'paketTindakan']);
+
+            // Filter by date range
+            $tanggalStart = $request->input('tanggal_start');
+            $tanggalEnd = $request->input('tanggal_end');
+            if ($tanggalStart && $tanggalEnd) {
+                $riwayat = $riwayat->whereBetween('tanggal_tindakan', [$tanggalStart, $tanggalEnd]);
+            } elseif ($tanggalStart) {
+                $riwayat = $riwayat->whereDate('tanggal_tindakan', $tanggalStart);
+            }
+
+            // Filter by dokter
+            $dokterId = $request->input('dokter_id');
+            if ($dokterId) {
+                $riwayat = $riwayat->whereHas('visitation', function($q) use ($dokterId) {
+                    $q->where('dokter_id', $dokterId);
+                });
+            }
+
             return datatables()->of($riwayat)
                 ->addColumn('tanggal', function($row) {
-                    return $row->tanggal_tindakan;
+                    // Format tanggal to '1 Januari 2025'
+                    if ($row->tanggal_tindakan) {
+                        try {
+                            return \Carbon\Carbon::parse($row->tanggal_tindakan)
+                                ->locale('id')
+                                ->isoFormat('D MMMM YYYY');
+                        } catch (\Exception $e) {
+                            return $row->tanggal_tindakan;
+                        }
+                    }
+                    return '-';
                 })
                 ->addColumn('pasien', function($row) {
                     return $row->visitation?->pasien?->nama ?? '-';
