@@ -82,7 +82,7 @@
   </div>
 </div>
 
-<!-- Modal for SPK -->
+<!-- Modal for SPK (Read-Only) -->
 <div class="modal fade" id="modalSpk" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-xl" role="document">
     <div class="modal-content">
@@ -112,7 +112,7 @@
             <div class="col-md-6">
               <div class="form-group">
                 <label>Tanggal Tindakan</label>
-                <input type="date" class="form-control" id="spkTanggalTindakan" name="tanggal_tindakan" required>
+                <input type="date" class="form-control" id="spkTanggalTindakan" name="tanggal_tindakan" readonly>
               </div>
             </div>
             <div class="col-md-6">
@@ -155,17 +155,20 @@
                 </tr>
               </thead>
               <tbody id="spkTableBody">
-                <!-- Will be populated dynamically -->
+                <!-- Will be populated dynamically, all fields should be disabled/readonly -->
               </tbody>
             </table>
           </div>
           
           <input type="hidden" id="spkInformConsentId" name="inform_consent_id">
         </form>
+        <div class="mt-3">
+          <a href="/erm/spk/create" class="btn btn-primary">Edit SPK</a>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-success" id="saveSpk">Simpan</button>
+        <!-- Remove save button for read-only -->
       </div>
     </div>
   </div>

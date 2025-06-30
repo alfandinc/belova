@@ -87,6 +87,7 @@ Route::fallback(function () {
     }
 });
 
+// ERM Routes
 Route::prefix('erm')->group(function () {
     // Pasien Management
     // Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
@@ -264,6 +265,12 @@ Route::get('/birthday/image/{filename}', [BirthdayController::class, 'showImage'
 
     Route::post('/rawatjalans/batalkan', [RawatJalanController::class, 'batalkan']);
     Route::post('/rawatjalans/edit-antrian', [RawatJalanController::class, 'editAntrian']);
+
+    // SPK & Riwayat Tindakan
+    Route::get('/spk', [App\Http\Controllers\ERM\TindakanController::class, 'spkIndex'])->name('erm.spk.index');
+    Route::get('/spk/riwayat-data', [App\Http\Controllers\ERM\TindakanController::class, 'spkRiwayatData'])->name('erm.spk.riwayat-data');
+    Route::get('/spk/create', [App\Http\Controllers\ERM\TindakanController::class, 'spkCreate'])->name('erm.spk.create');
+    Route::post('/spk/store', [App\Http\Controllers\ERM\TindakanController::class, 'spkStore'])->name('erm.spk.store');
 });
 
 
@@ -443,3 +450,6 @@ Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\Visitati
 Route::get('/erm/dashboard/most-frequent-patient', [\App\Http\Controllers\ERMDashboardAjaxController::class, 'mostFrequentPatient'])->name('erm.dashboard.most-frequent-patient');
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
+
+// Get SPK data by RiwayatTindakan ID (for SPK create page)
+Route::get('/tindakan/spk-by-riwayat/{riwayat_id}', [TindakanController::class, 'getSpkDataByRiwayat'])->name('erm.tindakan.spk.byriwayat');
