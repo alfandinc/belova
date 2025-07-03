@@ -75,10 +75,10 @@
         </div>
         
         <!-- Tindakan DataTable -->
-        <div class="col-lg-6 col-md-12 mb-3">
+        <div class="col-lg-12 col-md-12 mb-3">
             <div class="card h-100">
                 <div class="card-header">
-                    <h5 class="mb-0">Daftar Tindakan</h5>
+                    <h5 class="mb-0">Daftar Tindakan Dokter</h5>
                 </div>
                 <div class="card-body p-2">
                     <div class="table-responsive">
@@ -97,7 +97,7 @@
             </div>
         </div>
         <!-- Paket Tindakan DataTable -->
-        <div class="col-lg-6 col-md-12 mb-3">
+        {{-- <div class="col-lg-6 col-md-12 mb-3">
             <div class="card h-100">
                 <div class="card-header">
                     <h5 class="mb-0">Daftar Paket Tindakan</h5>
@@ -117,7 +117,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </div> --}}
     </div>
 </div>
 @endsection

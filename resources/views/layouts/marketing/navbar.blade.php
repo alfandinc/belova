@@ -39,6 +39,9 @@
             
             <li class="menu-label">Administration</li>
             <li>
+                <a href="/marketing/customer-data"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Customer Data</span></a>
+            </li>
+            <li>
                 <a href="javascript: void(0);"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Manage Tindakan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('marketing.tindakan.index') }}"><i class="ti-control-record"></i>Tindakan</a></li>

@@ -22,13 +22,26 @@
                 <h5 class="mb-0">Persetujuan Tindakan Brightening Ascorbic Acid 200 mg</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Brightening Ascorbic Acid 200 mg dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Brightening Infusion di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Deskripsi Tindakan: Brightening Infusion yaitu infus yang bertujuan untuk mencerahkan kulit dan meningkatkan kilau alami kulit. Prosedur ini melibatkan pemberian infus yang mengandung kombinasi vitamin, antioksidan, dan bahan aktif lainnya yang dirancang untuk memperbaiki kecerahan kulit, mengurangi hiperpigmentasi, serta memberikan hidrasi yang lebih baik pada kulit.</p>
+                <p>Manfaat :</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Meningkatkan kecerahan dan kilau alami kulit</li>
+                    <li>Mengurangi tanda-tanda hiperpigmentasi seperti noda hitam atau bekas jerawat</li>
+                    <li>Meningkatkan hidrasi kulit dan elastisitas</li>
+                    <li>Memberikan efek kulit yang lebih sehat, bercahaya, dan merata</li>
+                    <li>Meningkatkan produksi kolagen untuk kulit yang lebih kenyal</li>
                 </ol>
-                
+                <p>Risiko dan Komplikasi:</p>
+                <ol>
+                    <li>Rasa tidak nyaman atau sedikit nyeri pada area suntikan</li>
+                    <li>Kemerahan atau pembengkakan ringan di tempat infus</li>
+                    <li>Reaksi alergi terhadap salah satu bahan dalam infus</li>
+                    <li>Pusing atau mual</li>
+                    <li>Infeksi pada area suntikan (jarang terjadi)</li>
+                </ol>
+                <p>Alternatif : Saya telah diberi penjelasan tentang alternatif pengobatan atau perawatan lainnya, dan setelah mempertimbangkan pilihan-pilihan tersebut, saya memilih untuk melanjutkan dengan prosedur Brightening Infusion.</p>
+                <p>Persetujuan: Dengan ini, saya menyatakan bahwa saya telah membaca dan memahami informasi yang diberikan di atas, serta memberikan persetujuan saya untuk menjalani prosedur Brightening Infusion.</p>
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
                     <textarea class="form-control" name="notes" id="notes" rows="3"></textarea>

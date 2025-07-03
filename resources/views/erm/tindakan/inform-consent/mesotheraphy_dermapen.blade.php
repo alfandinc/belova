@@ -22,13 +22,25 @@
                 <h5 class="mb-0">Persetujuan Tindakan Mesotheraphy Dermapen</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Mesotheraphy Dermapen dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Dermapen di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Deskripsi Tindakan: Dermapen adalah prosedur perawatan kulit yang menggunakan alat microneedling untuk menstimulasi produksi kolagen dan memperbaiki tekstur kulit. Alat ini memiliki jarum kecil yang digerakkan secara otomatis untuk membuat lubang-lubang kecil pada kulit.</p>
+                <p>Manfaat: Perawatan Dermapen dapat memberikan manfaat sebagai berikut:</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Merangsang produksi kolagen, yang dapat mengurangi kerutan dan garis halus.</li>
+                    <li>Memperbaiki tekstur kulit yang kasar atau berjerawat.</li>
+                    <li>Mengurangi bekas luka jerawat.</li>
+                    <li>Membantu meratakan warna kulit.</li>
                 </ol>
-                
+                <p>Risiko dan Komplikasi: Meskipun Dermapen umumnya dianggap aman, tetapi setiap prosedur medis memiliki risiko. Beberapa risiko dan komplikasi yang mungkin terjadi termasuk:</p>
+                <ol>
+                    <li>Kulit menjadi merah atau teriritasi setelah perawatan.</li>
+                    <li>Kemungkinan infeksi pada kulit.</li>
+                    <li>Munculnya bekas luka atau perubahan warna kulit.</li>
+                    <li>Sensitivitas kulit yang meningkat terhadap sinar matahari.</li>
+                </ol>
+                <p>Alternatif: Terdapat beberapa alternatif untuk perawatan kulit, seperti krim atau losion topikal, peeling kimia, atau prosedur laser lainnya. Dokter atau terapis telah membahas opsi yang paling sesuai dengan kondisi kulit saya.</p>
+                <p>Persetujuan: Saya telah diberikan kesempatan untuk bertanya tentang tindakan ini dan semua pertanyaan saya telah dijawab dengan memuaskan. Saya mengerti bahwa hasil dari perawatan Dermapen tidak dapat dijamin dan dapat bervariasi dari individu ke individu. Saya juga memahami bahwa saya memiliki hak untuk menolak atau menghentikan tindakan ini kapan saja.</p>
+                <p>Penjelasan Risiko dan Manfaat: Saya telah diberikan penjelasan yang memadai tentang risiko, manfaat, dan alternatif dari tindakan ini. Saya mengerti dan setuju dengan penjelasan tersebut.</p>
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
                     <textarea class="form-control" name="notes" id="notes" rows="3"></textarea>

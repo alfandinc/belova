@@ -22,13 +22,28 @@
                 <h5 class="mb-0">Persetujuan Tindakan Brightening Injection Aura</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Brightening Injection Aura dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Inject Aura di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Deskripsi Tindakan: Injeksi Aura adalah prosedur non-bedah yang bertujuan untuk mencerahkan kulit, meratakan warna kulit, dan meningkatkan kesehatan kulit secara keseluruhan. Bahan yang disuntikkan dapat berupa vitamin, antioksidan, atau zat lain yang dirancang untuk perawatan estetika kulit. Prosedur ini dilakukan oleh tenaga medis yang kompeten.</p>
+                <p>Manfaat :</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Membantu meningkatkan kecerahan kulit.</li>
+                    <li>Memperbaiki tekstur dan elastisitas kulit.</li>
+                    <li>Mengurangi tanda-tanda penuaan dini atau kelelahan kulit.</li>
                 </ol>
-                
+                <p>Risiko dan Komplikasi:</p>
+                <ol>
+                    <li>Efek lokal ringan: Kemerahan, pembengkakan, memar, atau nyeri pada area injeksi.</li>
+                    <li>Reaksi alergi terhadap bahan yang disuntikkan.</li>
+                    <li>Infeksi (meskipun jarang terjadi, dapat terjadi pada area injeksi).</li>
+                    <li>Hasil yang tidak sesuai harapan, seperti perubahan warna kulit sementara.</li>
+                </ol>
+                <p>Alternatif :</p>
+                <ol>
+                    <li>Perawatan topikal (krim mata atau serum).</li>
+                    <li>Terapi laser atau radiofrekuensi untuk peremajaan kulit.</li>
+                    <li>Tidak menjalani perawatan dengan memahami risiko kondisi tetap tidak berubah.</li>
+                </ol>
+                <p>Persetujuan: Pasien harus menyatakan bahwa mereka memahami informasi yang diberikan tentang prosedur, termasuk manfaat, risiko, alternatif, dan kemungkinan hasil. Pasien setuju untuk menjalani prosedur tersebut dengan kesadaran penuh bahwa hasilnya bisa bervariasi.</p>
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
                     <textarea class="form-control" name="notes" id="notes" rows="3"></textarea>

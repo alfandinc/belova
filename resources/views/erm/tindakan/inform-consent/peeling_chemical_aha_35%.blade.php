@@ -5,7 +5,7 @@
         <input type="hidden" name="tindakan_id" value="{{ $tindakan->id }}">
         <input type="hidden" name="tanggal" value="{{ now()->format('Y-m-d') }}">
         
-        <h4 class="text-center mb-4">INFORMED CONSENT LASER KOREAN</h4>
+        <h4 class="text-center mb-4">INFORMED CONSENT PEELING CHEMICAL AHA 35%</h4>
         
         <div class="card mb-4">
             <div class="card-body">
@@ -19,16 +19,26 @@
 
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Persetujuan Tindakan Laser Korean</h5>
+                <h5 class="mb-0">Persetujuan Tindakan Peeling Chemical AHA 35%</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Laser Korean dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini menyetujui untuk menjalani perawatan Chemical Peeling AHA35% di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Saya mengerti bahwa Chemical Peeling adalah prosedur perawatan yang melibatkan penerapan larutan kimia pada kulit, yang menyebabkan regenerasi lapisan kulit terluar (kulit mati), namun dapat menjadikan kulit yang lebih halus dan meningkatkan kolagenisasi. Tujuan dari perawatan ini adalah untuk memperbaiki penampilan kulit di wajah, leher, atau tangan.</p>
+                <p>Saya mengerti bahwa manfaat Chemical Peeling diantaranya termasuk :</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Kulit lebih halus dan kencang</li>
+                    <li>Mengurangi munculnya garis-garis halus dan kerutan</li>
+                    <li>Memperbaiki tekstur dan warna tidak merata pada kulit</li>
                 </ol>
-                
+                <p>Saya juga memahami bahwa ada risiko dan efek samping tertentu yang terkait dengan Chemical Peeling, yang mungkin termasuk tetapi tidak terbatas diantaranya :</p>
+                <ol>
+                    <li>Kemerahan, bengkak, dan iritasi pada kulit</li>
+                    <li>Perubahan warna kulit, termasuk penggelapan atau pencerahan kulit</li>
+                    <li>Terbentuk jaringan parut</li>
+                    <li>Reaksi alergi terhadap larutan kimia</li>
+                </ol>
+                <p>Saya mengerti bahwa hasil Chemical Peeling tidak dijamin dan dapat bervariasi pada tiap orang. Saya telah diberitahu tentang pengobatan alternatif dan memahami bahwa saya memiliki hak untuk menolak atau menghentikan pengobatan setiap saat.</p>
+                <p>Saya memiliki kesempatan untuk mengajukan pertanyaan tentang perawatan Chemical Peeling, dan semua pertanyaan saya telah dijawab dengan memuaskan. Saya memahami risiko, manfaat, dan alternatif yang terkait dengan perawatan ini, dan saya setuju untuk menjalani prosedur.</p>
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
                     <textarea class="form-control" name="notes" id="notes" rows="3"></textarea>
@@ -73,9 +83,22 @@
                 </div>
             </div>
         </div>
-
-        <div class="text-center">
-            <button type="submit" class="btn btn-primary">Simpan Persetujuan</button>
-        </div>
     </form>
 </div>
+
+<style>
+.card {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.border-right {
+    border-right: 1px solid #dee2e6;
+}
+@media (max-width: 768px) {
+    .border-right {
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+    }
+}
+</style>

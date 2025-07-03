@@ -22,13 +22,23 @@
                 <h5 class="mb-0">Persetujuan Tindakan Peeling Chemical Complex</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Peeling Chemical Complex dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini menyetujui untuk menjalani perawatan Chemical Peeling Complex di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Saya mengerti bahwa Chemical Peeling adalah prosedur perawatan yang melibatkan penerapan larutan kimia pada kulit, yang menyebabkan regenerasi lapisan kulit terluar (kulit mati), namun dapat menjadikan kulit yang lebih halus dan meningkatkan kolagenisasi. Tujuan dari perawatan ini adalah untuk memperbaiki penampilan kulit di wajah, leher, atau tangan.</p>
+                <p>Saya mengerti bahwa manfaat Chemical Peeling diantaranya termasuk :</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Kulit lebih halus dan kencang</li>
+                    <li>Mengurangi munculnya garis-garis halus dan kerutan</li>
+                    <li>Memperbaiki tekstur dan warna tidak merata pada kulit</li>
                 </ol>
-                
+                <p>Saya juga memahami bahwa ada risiko dan efek samping tertentu yang terkait dengan Chemical Peeling, yang mungkin termasuk tetapi tidak terbatas diantaranya :</p>
+                <ol>
+                    <li>Kemerahan, bengkak, dan iritasi pada kulit</li>
+                    <li>Perubahan warna kulit, termasuk penggelapan atau pencerahan kulit</li>
+                    <li>Terbentuk jaringan parut</li>
+                    <li>Reaksi alergi terhadap larutan kimia</li>
+                </ol>
+                <p>Saya mengerti bahwa hasil Chemical Peeling tidak dijamin dan dapat bervariasi pada tiap orang. Saya telah diberitahu tentang pengobatan alternatif dan memahami bahwa saya memiliki hak untuk menolak atau menghentikan pengobatan setiap saat.</p>
+                <p>Saya memiliki kesempatan untuk mengajukan pertanyaan tentang perawatan Chemical Peeling, dan semua pertanyaan saya telah dijawab dengan memuaskan. Saya memahami risiko, manfaat, dan alternatif yang terkait dengan perawatan ini, dan saya setuju untuk menjalani prosedur.</p>
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
                     <textarea class="form-control" name="notes" id="notes" rows="3"></textarea>

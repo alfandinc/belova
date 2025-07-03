@@ -4,9 +4,9 @@
         <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
         <input type="hidden" name="tindakan_id" value="{{ $tindakan->id }}">
         <input type="hidden" name="tanggal" value="{{ now()->format('Y-m-d') }}">
-        
-        <h4 class="text-center mb-4">INFORMED CONSENT ADVANCE NUCLEOFIL STRONG</h4>
-        
+
+        <h4 class="text-center mb-4">INFORMED CONSENT PDT</h4>
+
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
@@ -19,15 +19,26 @@
 
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Persetujuan Tindakan Advance Nucleofil Strong</h5>
+                <h5 class="mb-0">Persetujuan Tindakan PDT</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Advance Nucleofil Strong dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Facial di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Deskripsi Tindakan : Perawatan PDT Photodynamic Therapy" (Terapi Fotodinamik). Ini adalah metode perawatan medis yang menggunakan kombinasi cahaya sensitif dan obat fotosensitif untuk mengobati berbagai kondisi kulit, termasuk jerawat parah, beberapa jenis anker kulit, dan kerusakan kulit akibat paparan sinar matahari. Dalam prosedur PDT, obat fotosensitif diaplikasikan pada kulit dan kemudian diaktifkan dengan cahaya dengan panjang gelombang tertentu, yang menyebabkan reaksi yang merusak sel-sel yang ditargetkan.</p>
+                <p>Manfaat: Perawatan PDT dapat memberikan manfaat sebagai berikut:</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Mengurangi lesi kanker kulit atau memperbaiki penampilan jerawat.</li>
+                    <li>Mengurangi Jerawat.</li>
+                    <li>Meremajakan Kulit.</li>
+                    <li>Mengobati Kerusakan Kulit Akibat Paparan Sinar Matahari.</li>
                 </ol>
+                <p>Risiko dan Komplilasi: Meskipun perawatan PDT umumnya dianggap aman, tetapi setiap prosedur medis memiliki risiko. Beberapa risiko dan komplikasi yang mungkin terjadi termasuk:</p>
+                <ol>
+                    <li>Sensitivitas cahaya: Pasien mungkin mengalami sensitivitas cahaya yang meningkat selama beberapa hari setelah perawatan, sehingga dianjurkan untuk menghindari sinar matahari langsung atau cahaya terang.</li>
+                    <li>Reaksi kulit: Termasuk kemerahan, pembengkakan, dan peeling. Beberapa pasien mungkin mengalami sakit atau terbakar selama dan sesaat setelah terapi.</li>
+                    <li>Hasil yang berbeda-beda: Efek dan keberhasilan terapi dapat bervariasi antar individu.</li>
+                </ol>
+                <p>Persetujuan: Saya telah diberikan kesempatan untuk bertanya tentang tindakan ini dan semua pertanyaan saya telah dijawab dengan memuaskan. Saya mengerti bahwa hasil dari perawatan PDT tidak dapat dijamin dan dapat bervariasi dari individu ke individu. Saya juga memahami bahwa saya memiliki hak untuk menolak atau menghentikan tindakan ini kapan saja.</p>
+                <p>Penjelasan Risiko dan Manfaat: Saya telah diberikan penjelasan yang memadai tentang risiko, manfaat, dan alternatif dari tindakan ini. Saya mengerti dan setuju dengan penjelasan tersebut.</p>
                 
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
@@ -77,7 +88,6 @@
 </div>
 
 <style>
-/* Custom styles for the form */
 .card {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }

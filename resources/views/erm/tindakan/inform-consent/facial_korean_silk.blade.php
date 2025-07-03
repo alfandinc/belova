@@ -22,12 +22,23 @@
                 <h5 class="mb-0">Persetujuan Tindakan Facial Korean Silk</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Facial Korean Silk dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Facial di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Deskripsi Tindakan : Perawatan Facial adalah prosedur perawatan kulit wajah yang bertujuan untuk membersihkan, menghidrasi, dan meremajakan kulit. Facial umumnya dilakukan di salon kecantikan atau spa oleh estetisi berlisensi atau terapis kecantikan. Prosedur ini dapat mencakup berbagai langkah dan teknik tergantung pada jenis kulit, kondisi kulit, dan tujuan perawatan.</p>
+                <p>Manfaat: PerawatanFacial dapat memberikan manfaat sebagai berikut:</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Perbaikan kulit seperti peningkatan hidrasi</li>
+                    <li>Pengurangan jerawat.</li>
+                    <li>Penampilan kulit yang lebih muda</li>
+                    <li>Efek relaksasi yang mungkin dirasakan selama dan setelah perawatan.</li>
                 </ol>
+                <p>Risiko dan Komplilasi: Meskipun perawatan Facial  umumnya dianggap aman, tetapi setiap prosedur medis memiliki risiko. Beberapa risiko dan komplikasi yang mungkin terjadi termasuk:</p>
+                <ol>
+                    <li>Iritasi kulit: Beberapa pelanggan mungkin mengalami kemerahan, iritasi, atau reaksi alergi terhadap produk yang digunakan.</li>
+                    <li>Sensitivitas terhadap sinar matahari: Kulit mungkin menjadi lebih sensitif terhadap sinar matahari setelah eksfoliasi.</li>
+                    <li>Kondisi spesifik: Diskusikan kemungkinan kontraindikasi, seperti kondisi kulit tertentu yang mungkin memperburuk dengan perawatan tertentu.</li>
+                </ol>
+                <p>Persetujuan: Saya telah diberikan kesempatan untuk bertanya tentang tindakan ini dan semua pertanyaan saya telah dijawab dengan memuaskan. Saya mengerti bahwa hasil dari perawatan Facial tidak dapat dijamin dan dapat bervariasi dari individu ke individu. Saya juga memahami bahwa saya memiliki hak untuk menolak atau menghentikan tindakan ini kapan saja.</p>
+                <p>Penjelasan Risiko dan Manfaat: Saya telah diberikan penjelasan yang memadai tentang risiko, manfaat, dan alternatif dari tindakan ini. Saya mengerti dan setuju dengan penjelasan tersebut.</p>
                 
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>

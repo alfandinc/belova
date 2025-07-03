@@ -5,7 +5,7 @@
         <input type="hidden" name="tindakan_id" value="{{ $tindakan->id }}">
         <input type="hidden" name="tanggal" value="{{ now()->format('Y-m-d') }}">
         
-        <h4 class="text-center mb-4">INFORMED CONSENT LASER BIKINI</h4>
+        <h4 class="text-center mb-4">INFORMED CONSENT ADVANCE COUTERASI</h4>
         
         <div class="card mb-4">
             <div class="card-body">
@@ -19,15 +19,27 @@
 
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Persetujuan Tindakan Laser Bikini</h5>
+                <h5 class="mb-0">Persetujuan Tindakan Advance Couterisasi</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Laser Bikini dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Couterisasi di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Deskripsi Tindakan: Perawatan Couterisasi adalah prosedur medis yang menggunakan alat khusus untuk membakar atau menghancurkan jaringan kulit yang abnormal atau tidak diinginkan, seperti kutil, kondiloma, atau lesi kulit lainnya.</p>
+                <p>Manfaat: Perawatan Couterisasi dapat memberikan manfaat sebagai berikut:</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Menghilangkan atau mengurangi ukuran kutil atau lesi kulit lainnya.</li>
+                    <li>Mencegah pertumbuhan lebih lanjut dari jaringan yang tidak diinginkan.</li>
+                    <li>Mengurangi rasa tidak nyaman atau gatal yang disebabkan oleh kutil atau lesi kulit.</li>
                 </ol>
+                <p>Risiko dan Komplikasi: Meskipun perawatan Couterisasi umumnya dianggap aman, tetapi setiap prosedur medis memiliki risiko. Beberapa risiko dan komplikasi yang mungkin terjadi termasuk:</p>
+                <ol>
+                    <li>Rasa sakit atau sensasi terbakar selama atau setelah prosedur.</li>
+                    <li>Kemungkinan terjadinya infeksi pada area yang diobati.</li>
+                    <li>Risiko terjadinya bekas luka atau perubahan warna kulit.</li>
+
+                </ol>
+                <p>Alternatif: Terdapat beberapa alternatif untuk perawatan jaringan kulit abnormal, seperti penggunaan obat topikal, krioterapi (pengobatan dingin), atau pembedahan. Dokter atau terapis telah membahas opsi yang paling sesuai dengan kondisi kulit saya.</p>
+                <p>Persetujuan: Saya telah diberikan kesempatan untuk bertanya tentang tindakan ini dan semua pertanyaan saya telah dijawab dengan memuaskan. Saya mengerti bahwa hasil dari perawatan Couterisasi tidak dapat dijamin dan dapat bervariasi dari individu ke individu. Saya juga memahami bahwa saya memiliki hak untuk menolak atau menghentikan tindakan ini kapan saja.</p>
+                <p>Penjelasan Risiko dan Manfaat: Saya telah diberikan penjelasan yang memadai tentang risiko, manfaat, dan alternatif dari tindakan ini. Saya mengerti dan setuju dengan penjelasan tersebut.</p>
                 
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
@@ -73,9 +85,23 @@
                 </div>
             </div>
         </div>
-
-        <div class="text-center">
-            <button type="submit" class="btn btn-primary">Simpan Persetujuan</button>
-        </div>
     </form>
 </div>
+
+<style>
+/* Custom styles for the form */
+.card {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.border-right {
+    border-right: 1px solid #dee2e6;
+}
+@media (max-width: 768px) {
+    .border-right {
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+    }
+}
+</style>

@@ -22,12 +22,21 @@
                 <h5 class="mb-0">Persetujuan Tindakan Advance HA Injection Profhilo</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Advance HA Injection Profhilo dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Advance HA Injection Profhilo di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Penjelasan Prosedur: Skin Booster Exosome adalah produk perawatan kulit yang dirancang untuk meningkatkan kecerahan dan kejernihan kulit. Berikut beberapa detail penting tentangnya:</p>
+                <p>Kegunaan: Produk ini bertujuan untuk mencerahkan kulit, mengurangi bintik hitam, dan memperbaiki warna dan tekstur kulit secara keseluruhan.</p>
+                <p>Bahan Utama: Eksosom: Ini adalah vesikel ekstraseluler yang berperan dalam komunikasi dan regenerasi sel, membantu memperbaiki dan meremajakan kulit. Agen Pencerah: Bahan yang menargetkan pigmentasi dan membuat warna kulit lebih merata.</p>
+                <p>Penggunaan: Biasanya, produk ini digunakan sebagai bagian dari rutinitas perawatan kulit sehari-hari. Ini diterapkan setelah pembersihan dan sebelum pelembab.</p>
+                <p>Manfaat:</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Meningkatkan kecerahan dan kecerahan kulit.</li>
+                    <li>Mengurangi munculnya bintik hitam dan hiperpigmentasi.</li>
+                    <li>Meningkatkan hidrasi dan kehalusan kulit.</li>
+                    <li>Mempromosikan kulit yang lebih merata dan awet muda.</li>
+                    
                 </ol>
+                <p>Aplikasi: Oleskan beberapa tetes ke wajah dan leher, pijat lembut ke kulit sampai terserap sepenuhnya.</p>
+                <p>Penjelasan Risiko dan Manfaat: Saya telah diberikan penjelasan yang memadai tentang risiko, manfaat, dan alternatif dari tindakan ini. Saya mengerti dan setuju dengan penjelasan tersebut.</p>
                 
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>

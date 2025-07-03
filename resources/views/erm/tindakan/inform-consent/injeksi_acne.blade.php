@@ -4,9 +4,9 @@
         <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
         <input type="hidden" name="tindakan_id" value="{{ $tindakan->id }}">
         <input type="hidden" name="tanggal" value="{{ now()->format('Y-m-d') }}">
-        
-        <h4 class="text-center mb-4">INFORMED CONSENT PEELING CHEMICAL AHA 70%</h4>
-        
+
+        <h4 class="text-center mb-4">INFORMED CONSENT INJEKSI ACNE</h4>
+
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row">
@@ -19,16 +19,28 @@
 
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0">Persetujuan Tindakan Peeling Chemical AHA 70%</h5>
+                <h5 class="mb-0">Persetujuan Tindakan Injeksi Acne</h5>
             </div>
             <div class="card-body">
-                <p>Saya yang bertanda tangan dibawah ini menyetujui untuk dilakukan tindakan Peeling Chemical AHA 70% dengan ketentuan:</p>
+                <p>Saya, yang bertanda tangan di bawah ini, dengan ini memberikan persetujuan untuk menjalani perawatan Injeksi Jerawat di Klinik Pratama Belova Skin & Beauty Center.</p>
+                <p>Deskripsi Tindakan: Perawatan Injeksi Jerawat melibatkan penyuntikan obat anti-inflamasi atau obat penghilang jerawat langsung ke dalam jerawat atau kista jerawat. Tujuannya adalah untuk mengurangi peradangan, menghilangkan jerawat, dan mencegah bekas jerawat.</p>
+                <p>Manfaat: Perawatan Injeksi Jerawat dapat memberikan manfaat sebagai berikut:</p>
                 <ol>
-                    <li>Saya telah mendapat penjelasan mengenai prosedur tindakan</li>
-                    <li>Saya mengerti tentang manfaat dan risiko yang mungkin timbul</li>
-                    <li>Saya setuju untuk dilakukan tindakan yang diperlukan</li>
+                    <li>Mengurangi peradangan pada jerawat.</li>
+                    <li>Mempercepat penyembuhan jerawat.</li>
+                    <li>Mencegah jerawat menjadi lebih parah.</li>
+                    <li>Mengurangi risiko bekas jerawat.</li>
                 </ol>
-                
+                <p>Risiko dan Komplikasi: Meskipun perawatan Injeksi Jerawat umumnya dianggap aman, tetapi setiap prosedur medis memiliki risiko. Beberapa risiko dan komplikasi yang mungkin terjadi termasuk:</p>
+                <ol>
+                    <li>Nyeri atau sensasi terbakar saat disuntikkan.</li>
+                    <li>Kemungkinan terjadi kemerahan, bengkak, atau memar pada area yang diobati.</li>
+                    <li>Infeksi pada area yang disuntikkan.</li>
+                    <li>Kemungkinan terjadinya bekas atau pigmentasi kulit yang tidak merata.</li>
+                </ol>
+                <p>Alternatif: Terdapat beberapa alternatif untuk perawatan jerawat, seperti penggunaan obat topikal, peeling kimia, atau terapi laser. Dokter atau terapis telah membahas opsi yang paling sesuai dengan kondisi kulit saya.</p>
+                <p>Persetujuan: Saya telah diberikan kesempatan untuk bertanya tentang tindakan ini dan semua pertanyaan saya telah dijawab dengan memuaskan. Saya mengerti bahwa hasil dari perawatan Injeksi Jerawat tidak dapat dijamin dan dapat bervariasi dari individu ke individu. Saya juga memahami bahwa saya memiliki hak untuk menolak atau menghentikan tindakan ini kapan saja.</p>
+                <p>Penjelasan Risiko dan Manfaat: Saya telah diberikan penjelasan yang memadai tentang risiko, manfaat, dan alternatif dari tindakan ini. Saya mengerti dan setuju dengan penjelasan tersebut.</p>
                 <div class="form-group mt-4">
                     <label for="notes">Catatan Tambahan:</label>
                     <textarea class="form-control" name="notes" id="notes" rows="3"></textarea>
@@ -77,6 +89,7 @@
 </div>
 
 <style>
+/* Custom styles for the form */
 .card {
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
