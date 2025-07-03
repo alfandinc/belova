@@ -323,6 +323,7 @@ Route::prefix('hrd')->group(
         Route::get('/employee/create', [EmployeeController::class, 'create'])->name('hrd.employee.create');
         Route::post('/employee', [EmployeeController::class, 'store'])->name('hrd.employee.store');
         Route::get('/employee/{id}', [EmployeeController::class, 'show'])->name('hrd.employee.show');
+        Route::get('/employee/{id}/get-details', [EmployeeController::class, 'getDetails'])->name('hrd.employee.get-details');
         Route::get('/employee/{id}/edit', [EmployeeController::class, 'edit'])->name('hrd.employee.edit');
         Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
         Route::delete('/employee/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');

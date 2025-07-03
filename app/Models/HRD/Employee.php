@@ -16,6 +16,7 @@ class Employee extends Model
         'tempat_lahir',
         'tanggal_lahir',
         'nik',
+        'no_induk',
         'alamat',
         'village_id',
         'position',       // Changed from 'posisi' to match migration

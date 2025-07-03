@@ -21,19 +21,16 @@ class EmployeeController extends Controller
     public function index(Request $request)
 {
     if ($request->ajax()) {
-        $employees = Employee::with(['position', 'division', 'user'])
+        $employees = Employee::with(['division', 'user'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
-        return DataTables::of($employees)
-            ->addColumn('status_label', function ($employee) {
-                $statusColors = [
-                    'tetap' => 'success',
-                    'kontrak' => 'warning',
-                    'tidak aktif' => 'danger'
-                ];
-                $status = $employee->status ?? 'tidak aktif';
-                return '<span class="badge badge-' . ($statusColors[$status] ?? 'secondary') . '">' . ucfirst($status) . '</span>';
+        $dataTable = DataTables::of($employees)
+            ->addColumn('position_name', function ($employee) {
+                // Get position name from the Position model
+                $position = Position::find($employee->position);
+                return $position ? $position->name : '-';
             })
+            // No longer need to add status_label column, handling it client-side
             ->addColumn('action', function ($employee) {
                 $viewBtn = '<a href="' . route('hrd.employee.show', $employee->id) . '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>';
                 $editBtn = '<a href="' . route('hrd.employee.edit', $employee->id) . '" class="btn btn-sm btn-primary ml-1"><i class="fas fa-edit"></i></a>';
@@ -41,8 +38,44 @@ class EmployeeController extends Controller
 
                 return $viewBtn . $editBtn . $deleteBtn;
             })
-            ->rawColumns(['status_label', 'action'])
-            ->make(true);
+            ->rawColumns(['position_name', 'action']);
+            
+        // Add custom sorting for kontrak_berakhir column    
+        $dataTable->order(function ($query) use ($request) {
+            if ($request->has('order') && $request->input('order.0.column') == 6) { // Sisa Kontrak column
+                $direction = $request->input('order.0.dir');
+                // For ascending order: show employees with the least time left first
+                // For descending order: show employees with the most time left first
+                if ($direction == 'asc') {
+                    // Show contract employees first, ordered by nearest end date
+                    // Then show non-contract employees
+                    $query->orderByRaw("
+                        CASE 
+                            WHEN status = 'kontrak' THEN 0 
+                            ELSE 1 
+                        END,
+                        CASE 
+                            WHEN status = 'kontrak' THEN kontrak_berakhir
+                            ELSE NULL
+                        END " . $direction);
+                } else {
+                    // For descending order: employees with longest contract time first,
+                    // then permanent employees, then inactive employees
+                    $query->orderByRaw("
+                        CASE 
+                            WHEN status = 'kontrak' THEN 0
+                            WHEN status = 'tetap' THEN 1
+                            ELSE 2
+                        END,
+                        CASE
+                            WHEN status = 'kontrak' THEN kontrak_berakhir
+                            ELSE NULL
+                        END " . $direction);
+                }
+            }
+        });
+        
+        return $dataTable->make(true);
     }
 
     return view('hrd.employee.index');
@@ -52,12 +85,10 @@ class EmployeeController extends Controller
     {
         $positions = Position::all();
         $divisions = Division::all();
-        // $villages = Village::all();
-
-        return view('hrd.employee.create', compact(
+        
+        return view('hrd.employee.form', compact(
             'positions',
-            'divisions',
-
+            'divisions'
         ));
     }
 
@@ -68,6 +99,7 @@ class EmployeeController extends Controller
             'tempat_lahir' => 'required|string|max:100',
             'tanggal_lahir' => 'required|date',
             'nik' => 'required|string|unique:hrd_employee',
+            'no_induk' => 'required|string|unique:hrd_employee,no_induk',
             'alamat' => 'required|string',
             'village_id' => 'nullable|exists:area_villages,id',
             'position' => 'required|exists:hrd_position,id',
@@ -91,7 +123,7 @@ class EmployeeController extends Controller
         // Handle file uploads
         foreach (['doc_cv', 'doc_ktp', 'doc_kontrak', 'doc_pendukung'] as $doc) {
             if ($request->hasFile($doc)) {
-                $data[$doc] = $request->file($doc)->store('documents/employees');
+                $data[$doc] = $request->file($doc)->store('documents/employees', 'public');
             }
         }
 
@@ -139,7 +171,7 @@ class EmployeeController extends Controller
         $positions = Position::all();
         $divisions = Division::all();
 
-        return view('hrd.employee.edit', compact(
+        return view('hrd.employee.form', compact(
             'employee',
             'positions',
             'divisions'
@@ -155,6 +187,7 @@ class EmployeeController extends Controller
             'tempat_lahir' => 'required|string|max:100',
             'tanggal_lahir' => 'required|date',
             'nik' => 'required|string|unique:hrd_employee,nik,' . $employee->id,
+            'no_induk' => 'required|string|unique:hrd_employee,no_induk,' . $employee->id,
             'alamat' => 'required|string',
             'position' => 'required|exists:hrd_position,id',
             'division_id' => 'required|exists:hrd_division,id',
@@ -176,9 +209,9 @@ class EmployeeController extends Controller
             if ($request->hasFile($doc)) {
                 // Delete old file if exists
                 if ($employee->{$doc}) {
-                    Storage::delete($employee->{$doc});
+                    Storage::disk('public')->delete($employee->{$doc});
                 }
-                $data[$doc] = $request->file($doc)->store('documents/employees');
+                $data[$doc] = $request->file($doc)->store('documents/employees', 'public');
             }
         }
 
@@ -219,5 +252,33 @@ class EmployeeController extends Controller
 
         return redirect()->route('hrd.employee.index')
             ->with('success', 'Karyawan berhasil dihapus');
+    }
+
+    public function getDetails($id)
+    {
+        try {
+            $employee = Employee::with(['position', 'division', 'village', 'user'])->findOrFail($id);
+            
+            // Convert document paths to public URLs if they exist
+            foreach (['doc_cv', 'doc_ktp', 'doc_kontrak', 'doc_pendukung'] as $doc) {
+                if ($employee->{$doc}) {
+                    // If the file doesn't begin with 'public/', add it to ensure correct path
+                    if (strpos($employee->{$doc}, 'public/') !== 0) {
+                        // Just keep the path as is since asset('storage') will be used in frontend
+                    }
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'data' => $employee
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load employee details',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

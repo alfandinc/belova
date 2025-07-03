@@ -38,6 +38,12 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
+                            <label for="no_induk"><i class="fas fa-fingerprint mr-1"></i>No Induk</label>
+                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', $employee->no_induk) }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
                             <label for="tempat_lahir">Tempat Lahir</label>
                             <input type="text" id="tempat_lahir" name="tempat_lahir" class="form-control" value="{{ old('tempat_lahir', $employee->tempat_lahir) }}" required>
                         </div>

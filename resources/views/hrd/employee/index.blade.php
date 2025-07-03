@@ -14,40 +14,17 @@
             </a>
         </div>
         <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <div class="form-group">
-                        <select class="form-control form-control-sm" id="entries-select">
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                        </select>
-                        <label for="entries-select" class="ml-2">entries</label>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="input-group">
-                        <input type="text" class="form-control form-control-sm" id="search-input" placeholder="Search...">
-                        <div class="input-group-append">
-                            <button class="btn btn-sm btn-outline-secondary" type="button">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
             <div class="table-responsive">
                 <table id="employees-table" class="table table-bordered table-hover table-striped">
                     <thead class="thead-light">
                         <tr>
                             <th width="8%">NIK</th>
+                            <th width="8%">No Induk</th>
                             <th width="20%">Nama</th>
                             <th width="15%">Posisi</th>
                             <th width="15%">Divisi</th>
                             <th width="10%">Status</th>
-                            <th width="15%">Tanggal Masuk</th>
+                            <th width="15%">Sisa Kontrak</th>
                             <th width="17%">Aksi</th>
                         </tr>
                     </thead>
@@ -57,17 +34,125 @@
                 </table>
             </div>
             
-            <div class="row mt-3">
-                <div class="col-md-5">
-                    <div class="dataTables_info" id="table-info" role="status" aria-live="polite">
-                        Showing <span id="showing-entries">0 to 0</span> of <span id="total-entries">0</span> entries
+            <!-- DataTables will handle pagination and info display automatically -->
+        </div>
+    </div>
+</div>
+
+<!-- Employee Detail Modal -->
+<div class="modal fade" id="employeeDetailModal" tabindex="-1" role="dialog" aria-labelledby="employeeDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="employeeDetailModalLabel"><i class="fas fa-user mr-2"></i>Detail Karyawan</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
                     </div>
                 </div>
-                <div class="col-md-7">
-                    <div class="dataTables_paginate paging_simple_numbers" id="pagination-container">
-                        <!-- Pagination will be handled by DataTables -->
+                <div id="employeeDetailContent" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-3 text-center mb-4">
+                            <div id="employee-photo-container">
+                                <!-- Photo will be loaded here -->
+                            </div>
+                            <h5 class="mt-3" id="employee-name">-</h5>
+                            <p class="text-muted mb-0" id="employee-position">-</p>
+                            <p class="text-muted" id="employee-division">-</p>
+                        </div>
+                        <div class="col-md-9">
+                            <div class="row">
+                                <div class="col-12 mb-3">
+                                    <h5 class="border-bottom pb-2">Data Pribadi</h5>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-id-card mr-1"></i>NIK:</strong>
+                                    <p class="text-muted" id="employee-nik">-</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-fingerprint mr-1"></i>No Induk:</strong>
+                                    <p class="text-muted" id="employee-no_induk">-</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-map-marker-alt mr-1"></i>Tempat, Tanggal Lahir:</strong>
+                                    <p class="text-muted" id="employee-ttl">-</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-phone mr-1"></i>No HP:</strong>
+                                    <p class="text-muted" id="employee-no_hp">-</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-home mr-1"></i>Alamat:</strong>
+                                    <p class="text-muted" id="employee-alamat">-</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-graduation-cap mr-1"></i>Pendidikan:</strong>
+                                    <p class="text-muted" id="employee-pendidikan">-</p>
+                                </div>
+                                
+                                <div class="col-12 mt-3 mb-3">
+                                    <h5 class="border-bottom pb-2">Data Kepegawaian</h5>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-calendar-alt mr-1"></i>Tanggal Masuk:</strong>
+                                    <p class="text-muted" id="employee-tanggal_masuk">-</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-user-check mr-1"></i>Status:</strong>
+                                    <p id="employee-status">-</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3 kontrak-info" style="display: none;">
+                                    <strong><i class="fas fa-calendar-times mr-1"></i>Kontrak Berakhir:</strong>
+                                    <p class="text-muted" id="employee-kontrak_berakhir">-</p>
+                                </div>
+                                
+                                <div class="col-12 mt-3 mb-3">
+                                    <h5 class="border-bottom pb-2">Dokumen</h5>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-file-alt mr-1"></i>CV:</strong>
+                                    <p id="employee-doc_cv">Tidak ada dokumen</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-id-card-alt mr-1"></i>KTP:</strong>
+                                    <p id="employee-doc_ktp">Tidak ada dokumen</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-file-contract mr-1"></i>Kontrak:</strong>
+                                    <p id="employee-doc_kontrak">Tidak ada dokumen</p>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-file-invoice mr-1"></i>Dokumen Pendukung:</strong>
+                                    <p id="employee-doc_pendukung">Tidak ada dokumen</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" class="btn btn-primary" id="edit-employee-btn">
+                    <i class="fas fa-edit mr-1"></i>Edit
+                </a>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
     </div>
@@ -84,12 +169,27 @@
         margin: 0 3px;
     }
     
-    .badge-active {
-        background-color: #28a745;
+    /* Status badge styles that match the enum values in the database */
+    .badge-tetap {
+        background-color: #28a745;  /* success green */
     }
     
-    .badge-inactive {
-        background-color: #dc3545;
+    .badge-kontrak {
+        background-color: #ffc107;  /* warning yellow */
+    }
+    
+    .badge-tidak-aktif {
+        background-color: #dc3545;  /* danger red */
+    }
+    
+    /* Sisa Kontrak badge styles */
+    .badge-info {
+        background-color: #17a2b8;
+        color: #fff;
+    }
+    
+    .badge-warning {
+        color: #212529;
     }
     
     @media (max-width: 767px) {
@@ -113,13 +213,25 @@
 @section('scripts')
 <script>
 $(function() {
-     var table = $('#employees-table').DataTable({
+    // Initialize tooltips
+    $('body').tooltip({
+        selector: '[data-toggle="tooltip"]',
+        container: 'body'
+    });
+    
+    var table = $('#employees-table').DataTable({
         processing: true,
         serverSide: true,
         responsive: true,
-        dom: '<"top"f>rt<"bottom"lip><"clear">',
+        dom: '<"top"fl>rt<"bottom"ip><"clear">',
+        order: [[6, 'asc']], // Order by the 7th column (Sisa Kontrak) in ascending order
         language: {
             processing: '<i class="fa fa-spinner fa-spin fa-3x fa-fw"></i><span class="sr-only">Loading...</span>',
+            search: "Cari:",
+            lengthMenu: "Tampilkan _MENU_ entri",
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ entri",
+            infoEmpty: "Menampilkan 0 sampai 0 dari 0 entri",
+            infoFiltered: "(disaring dari _MAX_ entri keseluruhan)",
             paginate: {
                 previous: '<i class="fas fa-chevron-left"></i>',
                 next: '<i class="fas fa-chevron-right"></i>'
@@ -140,31 +252,108 @@ $(function() {
         },
         columns: [
             {data: 'nik', name: 'nik', defaultContent: '-'},
+            {data: 'no_induk', name: 'no_induk', defaultContent: '-'},
             {data: 'nama', name: 'nama', defaultContent: '-'},
-            {data: 'position.name', name: 'position.name', defaultContent: '-'},
+            {data: 'position_name', name: 'position', defaultContent: '-'},
             {data: 'division.name', name: 'division.name', defaultContent: '-'},
             {
-                data: 'status_label', 
+                data: 'status', 
                 name: 'status', 
                 defaultContent: '-',
                 searchable: false,
                 render: function(data, type, row) {
-                    var statusClass = row.status ? 'badge-active' : 'badge-inactive';
-                    var statusText = row.status ? 'Aktif' : 'Tidak aktif';
-                    return '<span class="badge badge-pill ' + statusClass + '">' + statusText + '</span>';
+                    var statusColors = {
+                        'tetap': 'success',
+                        'kontrak': 'warning',
+                        'tidak aktif': 'danger'
+                    };
+                    
+                    var status = data || 'tidak aktif';
+                    var statusColor = statusColors[status] || 'secondary';
+                    
+                    return '<span class="badge badge-pill badge-' + statusColor + '">' + 
+                           (status.charAt(0).toUpperCase() + status.slice(1)) + '</span>';
                 }
             },
             {
-                data: 'tanggal_masuk', 
-                name: 'tanggal_masuk', 
+                data: 'kontrak_berakhir', 
+                name: 'kontrak_berakhir',
                 defaultContent: '-',
-                render: function(data) {
-                    if (!data) return '-';
-                    return new Date(data).toLocaleDateString('id-ID', {
+                orderable: true,
+                type: 'date',
+                render: function(data, type, row) {
+                    // For employees with status other than 'kontrak', just show a dash
+                    if (row.status !== 'kontrak' || !row.kontrak_berakhir) {
+                        return '-';
+                    }
+                    
+                    // Calculate days remaining in contract
+                    var today = new Date();
+                    var endDate = new Date(row.kontrak_berakhir);
+                    
+                    // Reset time part for accurate day calculation
+                    today.setHours(0, 0, 0, 0);
+                    endDate.setHours(0, 0, 0, 0);
+                    
+                    var diffTime = endDate - today;
+                    var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    
+                    // Format the end date for tooltip display
+                    var formattedEndDate = endDate.toLocaleDateString('id-ID', {
                         day: '2-digit',
                         month: 'short',
                         year: 'numeric'
                     });
+                    
+                    // Calculate years, months, and days
+                    var formattedDuration = '';
+                    var textColor = '';
+                    
+                    if (diffDays < 0) {
+                        textColor = 'text-danger';
+                        formattedDuration = 'Kontrak Berakhir';
+                    } else if (diffDays === 0) {
+                        textColor = 'text-warning';
+                        formattedDuration = 'Berakhir Hari Ini';
+                    } else {
+                        // Calculate years, months, and days more accurately
+                        var years = 0;
+                        var months = 0;
+                        var days = diffDays;
+                        
+                        // Calculate years
+                        if (days >= 365) {
+                            years = Math.floor(days / 365);
+                            days = days % 365;
+                        }
+                        
+                        // Calculate months
+                        if (days >= 30) {
+                            months = Math.floor(days / 30);
+                            days = days % 30;
+                        }
+                        
+                        // Format the duration string
+                        var parts = [];
+                        
+                        if (years > 0) {
+                            parts.push(years + ' thn');
+                        }
+                        
+                        if (months > 0) {
+                            parts.push(months + ' bln');
+                        }
+                        
+                        if (days > 0 || parts.length === 0) {
+                            parts.push(days + ' hari');
+                        }
+                        
+                        formattedDuration = parts.join(' ');
+                        textColor = diffDays <= 30 ? 'text-warning' : '';
+                    }
+                    
+                    return '<div class="' + textColor + '" data-toggle="tooltip" title="Berakhir pada: ' + 
+                           formattedEndDate + '">' + formattedDuration + '</div>';
                 }
             },
             {
@@ -174,10 +363,11 @@ $(function() {
                 searchable: false,
                 render: function(data, type, row) {
                     return `
-                        <div class="btn-group">                            <a href="/hrd/employee/${row.id}" class="btn btn-sm btn-info table-action-btn" title="View">
+                        <div class="btn-group">                            
+                            <button type="button" class="btn btn-sm btn-info show-employee table-action-btn" data-id="${row.id}" title="View">
                                 <i class="fas fa-eye"></i>
-                            </a>
-                            <a href="/hrd/employee/${row.id}/edit" class="btn btn-sm btn-primary table-action-btn" title="Edit">
+                            </button>
+                            <a href="{{ url('/hrd/employee') }}/${row.id}/edit" class="btn btn-sm btn-primary table-action-btn" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
                             <button type="button" class="btn btn-sm btn-danger delete-employee table-action-btn" data-id="${row.id}" title="Delete">
@@ -188,22 +378,13 @@ $(function() {
                 }
             }
         ],
-        drawCallback: function(settings) {
-            var info = this.api().page.info();
-            $('#showing-entries').text((info.start + 1) + ' to ' + info.end);
-            $('#total-entries').text(info.recordsTotal);
+        drawCallback: function() {
+            // Reinitialize tooltips after each table draw
+            $('[data-toggle="tooltip"]').tooltip();
         }
     });
     
-    // Connect the custom search box to DataTables
-    $('#search-input').on('keyup', function() {
-        table.search(this.value).draw();
-    });
-    
-    // Connect the entries select to DataTables
-    $('#entries-select').on('change', function() {
-        table.page.len(parseInt(this.value, 10)).draw();
-    });
+    // DataTables built-in search and pagination are now used
     
     // Handle delete button with SweetAlert
     $('#employees-table').on('click', '.delete-employee', function() {
@@ -266,6 +447,138 @@ $(function() {
         timerProgressBar: true
     });
     @endif
+    
+    // Handle employee detail modal
+    $('#employees-table').on('click', '.show-employee', function() {
+        var employeeId = $(this).data('id');
+        
+        // Show loading spinner
+        $('#employeeDetailContent').hide();
+        $('.spinner-border').show();
+        $('#employeeDetailModal').modal('show');
+        
+        // Set edit button URL
+        $('#edit-employee-btn').attr('href', '{{ url("/hrd/employee") }}/' + employeeId + '/edit');
+        
+        // Fetch employee data via AJAX
+        $.ajax({
+            url: '/hrd/employee/' + employeeId + '/get-details',
+            type: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    var employee = response.data;
+                    
+                    // Set employee basic info
+                    $('#employee-name').text(employee.nama || '-');
+                    $('#employee-position').text((employee.position && employee.position.name) ? employee.position.name : '-');
+                    $('#employee-division').text((employee.division && employee.division.name) ? employee.division.name : '-');
+                    $('#employee-nik').text(employee.nik || '-');
+                    $('#employee-no_induk').text(employee.no_induk || '-');
+                    
+                    // Format birthdate
+                    var ttl = employee.tempat_lahir || '-';
+                    if (employee.tanggal_lahir) {
+                        var birthDate = new Date(employee.tanggal_lahir);
+                        var formattedBirthDate = new Intl.DateTimeFormat('id-ID', {
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric'
+                        }).format(birthDate);
+                        ttl += ', ' + formattedBirthDate;
+                    }
+                    $('#employee-ttl').text(ttl);
+                    
+                    $('#employee-no_hp').text(employee.no_hp || '-');
+                    $('#employee-alamat').text(employee.alamat || '-');
+                    $('#employee-pendidikan').text(employee.pendidikan || '-');
+                    
+                    // Format join date
+                    if (employee.tanggal_masuk) {
+                        var joinDate = new Date(employee.tanggal_masuk);
+                        var formattedJoinDate = new Intl.DateTimeFormat('id-ID', {
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric'
+                        }).format(joinDate);
+                        $('#employee-tanggal_masuk').text(formattedJoinDate);
+                    } else {
+                        $('#employee-tanggal_masuk').text('-');
+                    }
+                    
+                    // Set status with badge
+                    var statusColors = {
+                        'tetap': 'success',
+                        'kontrak': 'warning',
+                        'tidak aktif': 'danger'
+                    };
+                    var status = employee.status || 'tidak aktif';
+                    var badgeHtml = `<span class="badge badge-pill badge-${statusColors[status] || 'secondary'}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+                    $('#employee-status').html(badgeHtml);
+                    
+                    // Show contract end date if status is contract
+                    if (status === 'kontrak' && employee.kontrak_berakhir) {
+                        $('.kontrak-info').show();
+                        var contractEndDate = new Date(employee.kontrak_berakhir);
+                        var formattedContractEndDate = new Intl.DateTimeFormat('id-ID', {
+                            day: '2-digit', 
+                            month: 'short', 
+                            year: 'numeric'
+                        }).format(contractEndDate);
+                        $('#employee-kontrak_berakhir').text(formattedContractEndDate);
+                    } else {
+                        $('.kontrak-info').hide();
+                    }
+                    
+                    // Set photo
+                    if (employee.photo) {
+                        $('#employee-photo-container').html(`<img src="{{ asset('storage') }}/${employee.photo}" alt="${employee.nama}" class="img-thumbnail rounded-circle" style="width: 180px; height: 180px; object-fit: cover;">`);
+                    } else {
+                        $('#employee-photo-container').html(`<div class="bg-light rounded-circle d-flex align-items-center justify-content-center mx-auto" style="width: 180px; height: 180px;"><i class="fas fa-user-tie fa-6x text-secondary"></i></div>`);
+                    }
+                    
+                    // Set documents
+                    var documentTypes = ['cv', 'ktp', 'kontrak', 'pendukung'];
+                    var docNames = {
+                        'cv': 'CV',
+                        'ktp': 'KTP',
+                        'kontrak': 'Kontrak',
+                        'pendukung': 'Dokumen Pendukung'
+                    };
+                    
+                    documentTypes.forEach(function(docType) {
+                        if (employee['doc_' + docType]) {
+                            // Create the full URL to the document
+                            let storageUrl = "{{ asset('storage') }}/";
+                            let documentPath = employee['doc_' + docType];
+                            
+                            $(`#employee-doc_${docType}`).html(`<a href="${storageUrl}${documentPath}" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-download mr-1"></i>Download ${docNames[docType]}</a>`);
+                        } else {
+                            $(`#employee-doc_${docType}`).text('Tidak ada dokumen');
+                        }
+                    });
+                    
+                    // Hide spinner and show content
+                    $('.spinner-border').hide();
+                    $('#employeeDetailContent').show();
+                } else {
+                    $('#employeeDetailModal').modal('hide');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to load employee details'
+                    });
+                }
+            },
+            error: function() {
+                $('#employeeDetailModal').modal('hide');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to load employee details'
+                });
+            }
+        });
+    });
 });
 </script>
 @endsection
