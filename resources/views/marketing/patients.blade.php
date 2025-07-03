@@ -64,6 +64,46 @@
             </div><!--end card-->
         </div><!--end col-->
     </div><!--end row-->
+    
+    <!-- Address Distribution Chart -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Distribusi Pasien Berdasarkan Wilayah</h4>
+                </div><!--end card-header-->
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div id="area-chart" class="apex-charts"></div>
+                        </div>
+                        <div class="col-lg-4">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Wilayah</th>
+                                            <th>Jumlah</th>
+                                            <th>Persentase</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($addressStats as $area => $stats)
+                                        <tr>
+                                            <td>{{ $area }}</td>
+                                            <td>{{ $stats['count'] }}</td>
+                                            <td>{{ $stats['percentage'] }}%</td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div><!--end card-body-->
+            </div><!--end card-->
+        </div><!--end col-->
+    </div><!--end row-->
 
     <!-- Patient Loyalty & Geographic Distribution Charts -->
     <div class="row">
@@ -245,6 +285,49 @@
             geographicDistributionOptions
         );
         geographicDistributionChart.render();
+        
+        // Address Distribution Chart
+        var areaChartOptions = {
+            series: [
+                @foreach($addressStats as $area => $stats)
+                {{ $stats['percentage'] }},
+                @endforeach
+            ],
+            chart: {
+                type: 'donut',
+                height: 380
+            },
+            labels: [
+                @foreach($addressStats as $area => $stats)
+                '{{ $area }}',
+                @endforeach
+            ],
+            plotOptions: {
+                pie: {
+                    donut: {
+                        size: '65%'
+                    }
+                }
+            },
+            legend: {
+                position: 'bottom'
+            },
+            colors: ['#3b5998', '#55acee', '#0077b5', '#007bb5', '#00a0d1', '#3aaa35', '#c32aa3', '#bd081c', '#ea4c89'],
+            responsive: [{
+                breakpoint: 480,
+                options: {
+                    chart: {
+                        width: 280
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }]
+        };
+
+        var areaChart = new ApexCharts(document.querySelector("#area-chart"), areaChartOptions);
+        areaChart.render();
     });
 </script>
 @endsection

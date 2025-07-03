@@ -39,7 +39,7 @@
             
             <li class="menu-label">Administration</li>
             <li>
-                <a href="/marketing/customer-data"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Customer Data</span></a>
+                <a href="/marketing/pasien-data"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Pasien Data</span></a>
             </li>
             <li>
                 <a href="javascript: void(0);"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Manage Tindakan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>

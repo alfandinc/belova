@@ -26,6 +26,90 @@ class MarketingController extends Controller
         return view('marketing.dashboard');
     }
 
+    public function pasienData(Request $request)
+    {
+        if ($request->ajax()) {
+            $data = Pasien::select('id', 'nama', 'tanggal_lahir', 'gender', 'alamat');
+            
+            // Apply area filter if provided
+            if ($request->has('area') && $request->area != 'all') {
+                $area = $request->area;
+                $data = $data->where('alamat', 'like', "%$area%");
+            }
+            
+            return datatables()
+                ->of($data)
+                ->addColumn('umur', function($row) {
+                    return Carbon::parse($row->tanggal_lahir)->age . ' tahun';
+                })
+                ->addColumn('gender_text', function($row) {
+                    return $row->gender == 'L' ? 'Laki-laki' : 'Perempuan';
+                })
+                ->addColumn('area', function($row) {
+                    $areas = ['Laweyan', 'Banjarsari', 'Serengan', 'Pasar Kliwon', 'Jebres', 'Sukoharjo', 'Wonogiri', 'Karanganyar'];
+                    foreach($areas as $area) {
+                        if (stripos($row->alamat, $area) !== false) {
+                            return $area;
+                        }
+                    }
+                    return 'Lainnya';
+                })
+                ->rawColumns(['umur', 'gender_text', 'area'])
+                ->make(true);
+        }
+        
+        return view('marketing.pasien-data.index');
+    }
+    
+    /**
+     * Calculate address statistics for the areas
+     * 
+     * @param int|null $clinicId
+     * @return array
+     */
+    private function getAddressStatistics($clinicId = null)
+    {
+        $areas = ['Laweyan', 'Banjarsari', 'Serengan', 'Pasar Kliwon', 'Jebres', 'Sukoharjo', 'Wonogiri', 'Karanganyar'];
+        $stats = [];
+        
+        // Base query
+        $query = Pasien::query();
+        
+        // Apply clinic filter if provided
+        if ($clinicId) {
+            $query = $query->whereHas('visitations', function($q) use ($clinicId) {
+                $q->where('klinik_id', $clinicId);
+            });
+        }
+        
+        $totalPatients = $query->count();
+        
+        foreach($areas as $area) {
+            $areaQuery = clone $query;
+            $count = $areaQuery->where('alamat', 'like', "%$area%")->count();
+            $percentage = $totalPatients > 0 ? round(($count / $totalPatients) * 100, 1) : 0;
+            $stats[$area] = [
+                'count' => $count,
+                'percentage' => $percentage
+            ];
+        }
+        
+        // Count others (patients that don't match any of the areas)
+        $matchedAreas = 0;
+        foreach($stats as $data) {
+            $matchedAreas += $data['count'];
+        }
+        $otherCount = $totalPatients - $matchedAreas;
+        $otherPercentage = $totalPatients > 0 ? round(($otherCount / $totalPatients) * 100, 1) : 0;
+        
+        $stats['Lainnya'] = [
+            'count' => $otherCount,
+            'percentage' => $otherPercentage
+        ];
+        
+        return $stats;
+    }
+
     public function revenue(Request $request)
     {
         $year = $request->input('year', date('Y'));
@@ -68,6 +152,9 @@ class MarketingController extends Controller
 
         // 4. Geographic Distribution
         $geographicDistribution = $this->getGeographicDistribution($clinicId);
+        
+        // 5. Address Distribution
+        $addressStats = $this->getAddressStatistics($clinicId);
 
         $clinics = Klinik::all();
 
@@ -76,6 +163,7 @@ class MarketingController extends Controller
             'genderDemographics',
             'patientLoyalty',
             'geographicDistribution',
+            'addressStats',
             'clinics',
             'year',
             'clinicId'

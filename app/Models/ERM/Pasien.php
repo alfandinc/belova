@@ -52,4 +52,9 @@ class Pasien extends Model
     {
         return $this->hasMany(SuratMondok::class);
     }
+    
+    public function visitations()
+    {
+        return $this->hasMany(Visitation::class, 'pasien_id');
+    }
 }
