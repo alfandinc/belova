@@ -8,7 +8,8 @@
 
 <style>
 /* Status Pasien Icons in DataTable */
-.dataTables_wrapper .status-pasien-icon {
+.dataTables_wrapper .status-pasien-icon,
+.dataTables_wrapper .status-akses-icon {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;

@@ -4,10 +4,15 @@
     @include('layouts.erm.navbar')
 @endsection
 @section('content')
-
 <style>
 /* Status Pasien styling in DataTable */
 .status-pasien-icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-akses-icon {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
@@ -58,6 +63,35 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                 <button type="button" class="btn btn-primary" id="saveEditStatusPasien">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Edit Status Akses -->
+<div class="modal fade" id="modalEditStatusAkses" tabindex="-1" role="dialog" aria-labelledby="modalEditStatusAksesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditStatusAksesLabel">Edit Status Akses</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editStatusAksesForm">
+                    <div class="form-group">
+                        <label for="edit_status_akses">Status Akses</label>
+                        <select class="form-control" id="edit_status_akses" name="status_akses" required>
+                            <option value="normal">Normal</option>
+                            <option value="akses cepat">Akses Cepat</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveEditStatusAkses">Simpan</button>
             </div>
         </div>
     </div>
@@ -118,6 +152,7 @@
                         <th>Alamat</th>
                         <th>No HP</th>
                         <th>Status Pasien</th>
+                        <th>Status Akses</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -155,12 +190,14 @@ $(document).ready(function () {
             { data: 'alamat', name: 'alamat' },
             { data: 'no_hp', name: 'no_hp' },
             { data: 'status_pasien', name: 'status_pasien', orderable: false, searchable: false },
+            { data: 'status_akses', name: 'status_akses', orderable: false, searchable: false },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
         columnDefs: [
             { targets: 0, width: '50px' },
             { targets: 5, width: '120px' }, // Status Pasien column
-            { targets: 6, width: '250px' } // Action column
+            { targets: 6, width: '120px' }, // Status Akses column
+            { targets: 7, width: '250px' } // Action column
         ]
     });
 
@@ -265,6 +302,53 @@ let currentPasienId;
                     icon: 'error',
                     title: 'Error!',
                     text: 'Gagal memperbarui status pasien.',
+                });
+            }
+        });
+    });
+
+    // Handle edit status akses button click
+    $(document).on('click', '.edit-status-akses-btn', function() {
+        let pasienId = $(this).data('pasien-id');
+        let currentStatus = $(this).data('current-status');
+        
+        $('#edit_status_akses').val(currentStatus);
+        $('#modalEditStatusAkses').data('pasien-id', pasienId);
+        $('#modalEditStatusAkses').modal('show');
+    });
+    
+    // Handle save status akses
+    $('#saveEditStatusAkses').on('click', function() {
+        let pasienId = $('#modalEditStatusAkses').data('pasien-id');
+        let newStatus = $('#edit_status_akses').val();
+        
+        $.ajax({
+            url: '/erm/pasiens/' + pasienId + '/update-status-akses',
+            type: 'POST',
+            data: {
+                _token: $('meta[name="csrf-token"]').attr('content'),
+                status_akses: newStatus
+            },
+            success: function(response) {
+                if(response.success) {
+                    $('#modalEditStatusAkses').modal('hide');
+                    table.ajax.reload(); // Reload the DataTable
+                    
+                    // Show success message
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil!',
+                        text: 'Status akses pasien berhasil diperbarui.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'Gagal memperbarui status akses pasien.',
                 });
             }
         });

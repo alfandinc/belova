@@ -21,7 +21,7 @@ class PasienController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp', 'status_pasien');
+            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp', 'status_pasien', 'status_akses');
 
             if ($request->no_rm) {
                 $pasiens->where('id', $request->no_rm);
@@ -71,6 +71,32 @@ class PasienController extends Controller
                     
                     return $statusDisplay;
                 })
+                ->addColumn('status_akses', function ($user) {
+                    $status = $user->status_akses ?? 'normal';
+                    
+                    // Create clickable status display
+                    $statusDisplay = '<div class="d-flex align-items-center">';
+                    
+                    // Only show wheelchair icon for 'akses cepat' status
+                    if ($status === 'akses cepat') {
+                        $statusDisplay .= '<span class="status-akses-icon d-inline-flex align-items-center justify-content-center mr-2" 
+                                              style="width: 20px; height: 20px; background-color: #007BFF; border-radius: 3px;" 
+                                              title="Akses Cepat">
+                                              <i class="fas fa-wheelchair text-white" style="font-size: 11px;"></i>
+                                          </span>';
+                    }
+                    
+                    $statusDisplay .= '<span class="status-text">' . ucfirst($status) . '</span>';
+                    $statusDisplay .= '<button class="btn btn-sm btn-link p-0 ml-2 edit-status-akses-btn" 
+                                          data-pasien-id="' . $user->id . '" 
+                                          data-current-status="' . $status . '" 
+                                          title="Edit Status Akses">
+                                          <i class="fas fa-edit text-primary"></i>
+                                      </button>';
+                    $statusDisplay .= '</div>';
+                    
+                    return $statusDisplay;
+                })
                 ->addColumn('actions', function ($user) {
                     return '
                 <div class="btn-group-vertical w-100 mb-1">
@@ -105,7 +131,7 @@ class PasienController extends Controller
                     </div>
                 </div>';
                 })
-                ->rawColumns(['status_pasien', 'actions'])
+                ->rawColumns(['status_pasien', 'status_akses', 'actions'])
                 ->make(true);
         }
 
@@ -161,6 +187,7 @@ class PasienController extends Controller
         'email' => 'nullable|email',
         'instagram' => 'nullable|string|max:255',
         'status_pasien' => 'nullable|in:Regular,VIP,Familia,Black Card',
+        'status_akses' => 'nullable|in:normal,akses cepat',
     ]);
 
     if ($validator->fails()) {
@@ -199,6 +226,7 @@ class PasienController extends Controller
                 'email' => $request->email,
                 'instagram' => $request->instagram,
                 'status_pasien' => $request->status_pasien ?? 'Regular',
+                'status_akses' => $request->status_akses ?? 'normal',
                 'user_id' => $userId,
             ]);
         } else {
@@ -231,6 +259,7 @@ class PasienController extends Controller
                 'email' => $request->email,
                 'instagram' => $request->instagram,
                 'status_pasien' => $request->status_pasien ?? 'Regular',
+                'status_akses' => $request->status_akses ?? 'normal',
                 'user_id' => $userId,
             ]);
         }
@@ -317,6 +346,41 @@ class PasienController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat memperbarui status pasien'
+            ], 500);
+        }
+    }
+
+    public function updateStatusAkses(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status_akses' => 'required|in:normal,akses cepat'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $pasien = Pasien::findOrFail($id);
+            $pasien->status_akses = $request->status_akses;
+            $pasien->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status akses pasien berhasil diperbarui',
+                'data' => [
+                    'id' => $pasien->id,
+                    'status_akses' => $pasien->status_akses
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui status akses pasien'
             ], 500);
         }
     }

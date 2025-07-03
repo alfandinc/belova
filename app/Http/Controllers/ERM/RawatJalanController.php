@@ -23,7 +23,8 @@ class RawatJalanController extends Controller
                     'erm_pasiens.no_hp as telepon_pasien',
                     'erm_pasiens.gender as gender',
                     'erm_pasiens.tanggal_lahir as tanggal_lahir',
-                    'erm_pasiens.status_pasien as status_pasien'
+                    'erm_pasiens.status_pasien as status_pasien',
+                    'erm_pasiens.status_akses as status_akses'
                 )
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
                 ->whereIn('jenis_kunjungan', [1, 2])
@@ -66,6 +67,7 @@ class RawatJalanController extends Controller
                 ->addColumn('no_rm', fn($v) => $v->no_rm ?? '-') // Use the aliased column
                 ->addColumn('nama_pasien', function ($v) {
                     $nama = $v->nama_pasien ?? '-';
+                    $icons = '';
                     
                     // Status pasien configuration (exclude Regular from display)
                     $statusConfig = [
@@ -74,21 +76,29 @@ class RawatJalanController extends Controller
                         'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member']
                     ];
                     
+                    // Add status_pasien icon if not Regular
                     $status = $v->status_pasien ?? 'Regular';
-                    
-                    // Only show icon for non-Regular status
                     if ($status !== 'Regular' && isset($statusConfig[$status])) {
                         $config = $statusConfig[$status];
-                        $statusIcon = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" 
-                                          style="width: 20px; height: 20px; background-color: ' . $config['color'] . '; border-radius: 3px; margin-right: 8px;" 
-                                          title="' . $config['title'] . '">
-                                          <i class="' . $config['icon'] . ' text-white" style="font-size: 11px;"></i>
-                                      </span>';
-                        return $statusIcon . $nama;
+                        $icons .= '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" 
+                                      style="width: 20px; height: 20px; background-color: ' . $config['color'] . '; border-radius: 3px; margin-right: 8px;" 
+                                      title="' . $config['title'] . '">
+                                      <i class="' . $config['icon'] . ' text-white" style="font-size: 11px;"></i>
+                                  </span>';
                     }
                     
-                    // Return just the name for Regular patients
-                    return $nama;
+                    // Add status_akses icon if akses cepat
+                    $statusAkses = $v->status_akses ?? 'normal';
+                    if ($statusAkses === 'akses cepat') {
+                        $icons .= '<span class="status-akses-icon d-inline-flex align-items-center justify-content-center" 
+                                      style="width: 20px; height: 20px; background-color: #007BFF; border-radius: 3px; margin-right: 8px;" 
+                                      title="Akses Cepat">
+                                      <i class="fas fa-wheelchair text-white" style="font-size: 11px;"></i>
+                                  </span>';
+                    }
+                    
+                    // Return icons + name
+                    return $icons . $nama;
                 }) // Use the aliased column
                 ->addColumn('tanggal', function ($v) {
                     // Convert to Indonesian date format: 1 Januari 2025

@@ -1,4 +1,3 @@
-
 <div class="card">
         <div class="card-body">  
                   
@@ -42,6 +41,19 @@
                                   data-current-status="{{ $status }}">
                                 <i class="{{ $config['icon'] }} text-white" style="font-size: 14px;"></i>
                             </span>
+                            
+                            {{-- Status Akses Icon (only show for "akses cepat") --}}
+                            @if(($visitation->pasien->status_akses ?? 'normal') == 'akses cepat')
+                                <span class="d-inline-flex align-items-center justify-content-center ml-2 status-akses-icon" 
+                                      style="width: 25px; height: 25px; background-color: #007BFF; border-radius: 4px; cursor: pointer;"
+                                      title="Akses Cepat"
+                                      data-toggle="modal" 
+                                      data-target="#modalStatusAkses"
+                                      data-pasien-id="{{ $visitation->pasien->id }}"
+                                      data-current-status="akses cepat">
+                                    <i class="fas fa-wheelchair text-white" style="font-size: 14px;"></i>
+                                </span>
+                            @endif
                              
                         </div>     
                     </div> 
@@ -195,6 +207,36 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Edit Status Akses -->
+<div class="modal fade" id="modalStatusAkses" tabindex="-1" role="dialog" aria-labelledby="modalStatusAksesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalStatusAksesLabel">Edit Status Akses</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="statusAksesForm">
+                    <div class="form-group">
+                        <label for="status_akses">Status Akses</label>
+                        <select class="form-control" id="status_akses" name="status_akses" required>
+                            <option value="normal">Normal</option>
+                            <option value="akses cepat">Akses Cepat</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveStatusAkses">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
 $(document).ready(function() {
@@ -259,7 +301,46 @@ $(document).ready(function() {
             }
         });
     });
+    
+    // Open Status Akses modal and set current status
+    $('#modalStatusAkses').on('show.bs.modal', function (event) {
+        var button = $(event.relatedTarget);
+        var pasienId = button.data('pasien-id');
+        var currentStatus = button.data('current-status');
+        
+        $('#status_akses').val(currentStatus);
+        $('#modalStatusAkses').data('pasien-id', pasienId);
+    });
+    
+    // Save status akses
+    $('#saveStatusAkses').on('click', function() {
+        var pasienId = $('#modalStatusAkses').data('pasien-id');
+        var newStatus = $('#status_akses').val();
+        
+        $.ajax({
+            url: '/erm/pasiens/' + pasienId + '/update-status-akses',
+            type: 'POST',
+            data: {
+                _token: $('meta[name="csrf-token"]').attr('content'),
+                status_akses: newStatus
+            },
+            success: function(response) {
+                if(response.success) {
+                    $('#modalStatusAkses').modal('hide');
+                    
+                    // Reload the page to update the UI
+                    location.reload();
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'Gagal memperbarui status akses pasien.',
+                });
+            }
+        });
+    });
 });
 </script>
 @endpush
-    
