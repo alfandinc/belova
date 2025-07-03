@@ -196,9 +196,15 @@ $(function() {
                             icon: 'success',
                             title: 'Berhasil!',
                             text: response.message,
+                            confirmButtonText: 'OK',
                             timer: 2000,
                             timerProgressBar: true,
                             willClose: function() {
+                                window.location.reload();
+                            }
+                        }).then((result) => {
+                            // Reload page when user clicks OK
+                            if (result.value) {
                                 window.location.reload();
                             }
                         });
@@ -256,8 +262,17 @@ $(function() {
                             icon: 'success',
                             title: 'Berhasil!',
                             text: response.message,
+                            confirmButtonText: 'OK',
                             timer: 2000,
-                            timerProgressBar: true
+                            timerProgressBar: true,
+                            willClose: function() {
+                                window.location.reload();
+                            }
+                        }).then((result) => {
+                            // Reload page when user clicks OK
+                            if (result.isConfirmed) {
+                                window.location.reload();
+                            }
                         });
                     } else {
                         Swal.fire({
