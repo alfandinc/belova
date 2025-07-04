@@ -172,7 +172,7 @@ class PengajuanLiburController extends Controller
     if ($user->hasRole('Employee')) {
         $employee = $user->employee;
         if ($employee) {
-            $jatahLibur = $employee->jatahLibur ?? null;
+            $jatahLibur = $employee->ensureJatahLibur();
         }
     } 
     elseif ($user->hasRole('Manager')) {
@@ -199,7 +199,7 @@ class PengajuanLiburController extends Controller
     public function create()
     {
         $employee = Auth::user()->employee;
-        $jatahLibur = $employee->jatahLibur ?? new JatahLibur();
+        $jatahLibur = $employee->ensureJatahLibur();
 
         return view('hrd.libur.create', compact('jatahLibur'));
     }
@@ -218,7 +218,7 @@ class PengajuanLiburController extends Controller
         $totalHari = $tanggalMulai->diffInDays($tanggalSelesai) + 1;
 
         $employee = Auth::user()->employee;
-        $jatahLibur = $employee->jatahLibur;
+        $jatahLibur = $employee->ensureJatahLibur();
 
         // Periksa apakah karyawan memiliki jatah libur yang cukup
         if ($request->jenis_libur == 'cuti_tahunan' && ($jatahLibur->jatah_cuti_tahunan < $totalHari)) {
@@ -229,7 +229,7 @@ class PengajuanLiburController extends Controller
             return redirect()->back()->with('error', 'Jatah ganti libur Anda tidak mencukupi.');
         }
 
-        PengajuanLibur::create([
+        $pengajuan = PengajuanLibur::create([
             'employee_id' => $employee->id,
             'jenis_libur' => $request->jenis_libur,
             'tanggal_mulai' => $request->tanggal_mulai,
@@ -237,6 +237,14 @@ class PengajuanLiburController extends Controller
             'total_hari' => $totalHari,
             'alasan' => $request->alasan,
         ]);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengajuan libur berhasil diajukan',
+                'data' => $pengajuan
+            ]);
+        }
 
         return redirect()->route('hrd.libur.index')->with('success', 'Pengajuan libur berhasil diajukan.');
     }

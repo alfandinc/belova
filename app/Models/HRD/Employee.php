@@ -144,4 +144,25 @@ class Employee extends Model
     {
         return $this->hasMany(PengajuanLibur::class, 'employee_id');
     }
+
+    /**
+     * Ensure the employee has a jatah libur record
+     * If not, it creates a new one with default values
+     *
+     * @param int $defaultCutiTahunan Default value for annual leave
+     * @param int $defaultGantiLibur Default value for replacement leave
+     * @return JatahLibur
+     */
+    public function ensureJatahLibur($defaultCutiTahunan = 0, $defaultGantiLibur = 0)
+    {
+        if (!$this->jatahLibur) {
+            return JatahLibur::create([
+                'employee_id' => $this->id,
+                'jatah_cuti_tahunan' => $defaultCutiTahunan,
+                'jatah_ganti_libur' => $defaultGantiLibur
+            ]);
+        }
+        
+        return $this->jatahLibur;
+    }
 }
