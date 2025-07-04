@@ -28,7 +28,11 @@
             @if(auth()->user()->hasRole('Employee'))
                 @include('hrd.libur.karyawan-index')
             @elseif(auth()->user()->hasRole('Manager'))
-                @include('hrd.libur.manager-index')
+                @if(isset($viewType) && $viewType == 'team')
+                    @include('hrd.libur.manager-index')
+                @else
+                    @include('hrd.libur.karyawan-index')
+                @endif
             @elseif(auth()->user()->hasRole('Hrd'))
                 @include('hrd.libur.hrd-index')
             @endif
@@ -133,7 +137,7 @@
             </div>
             <form id="formApprovalManager">
                 @csrf
-                @method('PUT')
+                <input type="hidden" name="_method" value="PUT">
                 <input type="hidden" name="pengajuan_id" id="manager_pengajuan_id">
                 <div class="modal-body">
                     <div class="form-group">
@@ -170,7 +174,7 @@
             </div>
             <form id="formApprovalHRD">
                 @csrf
-                @method('PUT')
+                <input type="hidden" name="_method" value="PUT">
                 <input type="hidden" name="pengajuan_id" id="hrd_pengajuan_id">
                 <div class="modal-body">
                     <div class="form-group">
@@ -204,7 +208,7 @@ $(document).ready(function() {
     var tableKaryawan = $('#tableLiburKaryawan').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.libur.index') }}",
+        ajax: "{{ route('hrd.libur.index') }}?view=personal",
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'jenis_libur', name: 'jenis_libur'},
@@ -221,7 +225,7 @@ $(document).ready(function() {
     var tableManager = $('#tableLiburManager').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.libur.index') }}",
+        ajax: "{{ route('hrd.libur.index') }}?view=team",
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
@@ -238,7 +242,7 @@ $(document).ready(function() {
     var tableHRD = $('#tableLiburHRD').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.libur.index') }}",
+        ajax: "{{ route('hrd.libur.index') }}?view=approval",
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
@@ -325,7 +329,23 @@ $(document).ready(function() {
         var id = $(this).data('id');
         $('#manager_pengajuan_id').val(id);
         $('#formApprovalManager')[0].reset();
-        $('#modalApprovalManager').modal('show');
+        
+        // Fetch current status and notes
+        $.ajax({
+            url: "{{ url('hrd/libur') }}/" + id + "/approval-status",
+            type: "GET",
+            success: function(response) {
+                if (response.success) {
+                    var data = response.data;
+                    $('#status_manager').val(data.status_manager);
+                    $('#komentar_manager').val(data.komentar_manager);
+                }
+                $('#modalApprovalManager').modal('show');
+            },
+            error: function() {
+                $('#modalApprovalManager').modal('show');
+            }
+        });
     });
     
     // Submit manager approval
@@ -337,7 +357,7 @@ $(document).ready(function() {
         
         $.ajax({
             url: "{{ url('hrd/libur') }}/" + id + "/manager",
-            type: "POST",
+            type: "PUT",
             data: formData,
             beforeSend: function() {
                 $('#btnSubmitApprovalManager').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
@@ -382,7 +402,23 @@ $(document).ready(function() {
         var id = $(this).data('id');
         $('#hrd_pengajuan_id').val(id);
         $('#formApprovalHRD')[0].reset();
-        $('#modalApprovalHRD').modal('show');
+        
+        // Fetch current status and notes
+        $.ajax({
+            url: "{{ url('hrd/libur') }}/" + id + "/approval-status",
+            type: "GET",
+            success: function(response) {
+                if (response.success) {
+                    var data = response.data;
+                    $('#status_hrd').val(data.status_hrd);
+                    $('#komentar_hrd').val(data.komentar_hrd);
+                }
+                $('#modalApprovalHRD').modal('show');
+            },
+            error: function() {
+                $('#modalApprovalHRD').modal('show');
+            }
+        });
     });
     
     // Submit HRD approval
@@ -394,7 +430,7 @@ $(document).ready(function() {
         
         $.ajax({
             url: "{{ url('hrd/libur') }}/" + id + "/hrd",
-            type: "POST",
+            type: "PUT",
             data: formData,
             beforeSend: function() {
                 $('#btnSubmitApprovalHRD').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');

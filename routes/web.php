@@ -387,6 +387,7 @@ Route::prefix('hrd')->group(
                 Route::get('/buat', [PengajuanLiburController::class, 'create'])->name('create');
                 Route::post('/', [PengajuanLiburController::class, 'store'])->name('store');
                 Route::get('/{id}', [PengajuanLiburController::class, 'show'])->name('show');
+                Route::get('/{id}/approval-status', [PengajuanLiburController::class, 'getApprovalStatus'])->name('approval.status');
                 Route::put('/{id}/manager', [PengajuanLiburController::class, 'persetujuanManager'])->name('manager.approve');
                 Route::put('/{id}/hrd', [PengajuanLiburController::class, 'persetujuanHRD'])->name('hrd.approve');
             });

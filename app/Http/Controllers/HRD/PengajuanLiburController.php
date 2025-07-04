@@ -18,6 +18,7 @@ class PengajuanLiburController extends Controller
     public function index(Request $request)
 {
     $user = Auth::user();
+    $viewType = $request->input('view', 'personal'); // Default to personal view
 
     // dd($user->getRoleNames()); // Debugging line to check user roles
     // For debugging role issues
@@ -31,7 +32,8 @@ class PengajuanLiburController extends Controller
     }
     
     if ($request->ajax()) {
-        if ($user->hasRole('Employee')) {
+        // For employee view - show their own requests
+        if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Employee')) {
             $data = PengajuanLibur::where('employee_id', $user->employee->id)
                 ->latest()
                 ->get();
@@ -72,7 +74,8 @@ class PengajuanLiburController extends Controller
                 ->rawColumns(['status_manager', 'status_hrd', 'action'])
                 ->make(true);
         } 
-        else if ($user->hasRole('Manager')) {
+        // For manager team view - show team requests
+        else if ($viewType == 'team' && $user->hasRole('Manager')) {
             $employee = $user->employee;
             if ($employee) {
                 $division = $employee->division;
@@ -120,8 +123,51 @@ class PengajuanLiburController extends Controller
             }
             
             return DataTables::of([])->make(true);
-        } 
-        else if ($user->hasRole('Hrd')) {
+        }
+        // For manager personal view - show their own requests
+        else if ($viewType == 'personal' && $user->hasRole('Manager')) {
+            $data = PengajuanLibur::where('employee_id', $user->employee->id)
+                ->latest()
+                ->get();
+            
+            return DataTables::of($data)
+                ->addIndexColumn()
+                ->addColumn('jenis_libur', function($row) {
+                    return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
+                })
+                ->addColumn('tanggal_mulai', function($row) {
+                    return $row->tanggal_mulai->format('d/m/Y');
+                })
+                ->addColumn('tanggal_selesai', function($row) {
+                    return $row->tanggal_selesai->format('d/m/Y');
+                })
+                ->addColumn('status_manager', function($row) {
+                    if ($row->status_manager == 'menunggu') {
+                        return '<span class="badge badge-warning">Menunggu</span>';
+                    } elseif ($row->status_manager == 'disetujui') {
+                        return '<span class="badge badge-success">Disetujui</span>';
+                    } else {
+                        return '<span class="badge badge-danger">Ditolak</span>';
+                    }
+                })
+                ->addColumn('status_hrd', function($row) {
+                    if ($row->status_hrd == 'menunggu') {
+                        return '<span class="badge badge-warning">Menunggu</span>';
+                    } elseif ($row->status_hrd == 'disetujui') {
+                        return '<span class="badge badge-success">Disetujui</span>';
+                    } else {
+                        return '<span class="badge badge-danger">Ditolak</span>';
+                    }
+                })
+                ->addColumn('action', function($row) {
+                    $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button>';
+                    return $btn;
+                })
+                ->rawColumns(['status_manager', 'status_hrd', 'action'])
+                ->make(true);
+        }
+        // For HRD approval view
+        else if (($viewType == 'approval' || empty($viewType)) && $user->hasRole('Hrd')) {
             // Show all requests with status_manager = 'disetujui', regardless of status_hrd
             $data = PengajuanLibur::where('status_manager', 'disetujui')
                 ->with('employee')
@@ -165,7 +211,7 @@ class PengajuanLiburController extends Controller
         return response()->json(['error' => 'Unauthorized'], 403);
     }
     
-    // For non-AJAX requests, gather necessary data based on role
+    // For non-AJAX requests, gather necessary data based on role and view type
     $pengajuanLibur = null;
     $jatahLibur = null;
     
@@ -176,13 +222,20 @@ class PengajuanLiburController extends Controller
         }
     } 
     elseif ($user->hasRole('Manager')) {
-        $employee = $user->employee;
-        if ($employee && $employee->division) {
-            $teamEmployeeIds = $employee->division->employees->pluck('id')->toArray();
-            $pengajuanLibur = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
-                ->where('status_manager', 'menunggu')
-                ->with('employee')
-                ->count();
+        if ($viewType == 'team') {
+            $employee = $user->employee;
+            if ($employee && $employee->division) {
+                $teamEmployeeIds = $employee->division->employees->pluck('id')->toArray();
+                $pengajuanLibur = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
+                    ->where('status_manager', 'menunggu')
+                    ->with('employee')
+                    ->count();
+            }
+        } else {
+            $employee = $user->employee;
+            if ($employee) {
+                $jatahLibur = $employee->ensureJatahLibur();
+            }
         }
     } 
     elseif ($user->hasRole('Hrd')) {
@@ -192,8 +245,28 @@ class PengajuanLiburController extends Controller
             ->count();
     }
     
-    // Always return the main index view with all necessary data
-    return view('hrd.libur.index', compact('pengajuanLibur', 'jatahLibur'));
+    // Determine which view to render based on user role and view type
+    if ($user->hasRole('Manager') && $viewType == 'team') {
+        return view('hrd.libur.index', [
+            'viewType' => 'team',
+            'pengajuanLibur' => $pengajuanLibur,
+            'jatahLibur' => $jatahLibur
+        ]);
+    } 
+    elseif ($user->hasRole('Hrd') && $viewType == 'approval') {
+        return view('hrd.libur.index', [
+            'viewType' => 'approval',
+            'pengajuanLibur' => $pengajuanLibur,
+            'jatahLibur' => $jatahLibur
+        ]);
+    } 
+    else {
+        return view('hrd.libur.index', [
+            'viewType' => 'personal',
+            'pengajuanLibur' => $pengajuanLibur,
+            'jatahLibur' => $jatahLibur
+        ]);
+    }
 }
 
     public function create()
@@ -260,9 +333,17 @@ class PengajuanLiburController extends Controller
 
         $pengajuanLibur->update([
             'status_manager' => $request->status,
-            'komentar_manager' => $request->komentar_manager,
+            'notes_manager' => $request->komentar_manager,
             'tanggal_persetujuan_manager' => now(),
         ]);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengajuan libur berhasil diperbarui',
+                'data' => $pengajuanLibur
+            ]);
+        }
 
         return redirect()->route('hrd.libur.index')->with('success', 'Pengajuan libur berhasil diperbarui.');
     }
@@ -278,7 +359,7 @@ class PengajuanLiburController extends Controller
 
         $pengajuanLibur->update([
             'status_hrd' => $request->status,
-            'komentar_hrd' => $request->komentar_hrd,
+            'notes_hrd' => $request->komentar_hrd,
             'tanggal_persetujuan_hrd' => now(),
         ]);
 
@@ -296,6 +377,14 @@ class PengajuanLiburController extends Controller
             $jatahLibur->save();
         }
 
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Pengajuan libur berhasil diperbarui',
+                'data' => $pengajuanLibur
+            ]);
+        }
+
         return redirect()->route('hrd.libur.index')->with('success', 'Pengajuan libur berhasil diperbarui.');
     }
 
@@ -303,5 +392,19 @@ class PengajuanLiburController extends Controller
     {
         $pengajuanLibur = PengajuanLibur::findOrFail($id);
         return view('hrd.libur.show', compact('pengajuanLibur'));
+    }
+    
+    public function getApprovalStatus($id)
+    {
+        $pengajuanLibur = PengajuanLibur::findOrFail($id);
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'status_manager' => $pengajuanLibur->status_manager,
+                'komentar_manager' => $pengajuanLibur->notes_manager,
+                'status_hrd' => $pengajuanLibur->status_hrd,
+                'komentar_hrd' => $pengajuanLibur->notes_hrd,
+            ]
+        ]);
     }
 }

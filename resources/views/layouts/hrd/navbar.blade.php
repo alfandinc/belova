@@ -32,12 +32,12 @@
                     
                     <!-- For Managers: Approval cuti team -->
                     @if(Auth::check() && Auth::user()->hasRole('Manager'))
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Persetujuan Tim</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=team"><i class="ti-control-record"></i>Persetujuan Tim</a></li>
                     @endif
                     
                     <!-- For HRD: Full leave management -->
                     @if(Auth::check() && Auth::user()->hasRole('Hrd'))
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Persetujuan HRD</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=approval"><i class="ti-control-record"></i>Persetujuan HRD</a></li>
                     @endif
                 </ul>
             </li>
