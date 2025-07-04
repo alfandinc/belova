@@ -41,7 +41,7 @@
                     </div>
                     <div class="form-group col-md-6">
                         <label>NIK</label>
-                        <input type="text" class="form-control" value="{{ $employee->nik }}" disabled>
+                        <input type="text" name="nik" class="form-control" value="{{ old('nik', $employee->nik) }}">
                     </div>
                 </div>
                 <div class="form-row">

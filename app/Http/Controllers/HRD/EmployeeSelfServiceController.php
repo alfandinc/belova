@@ -77,6 +77,7 @@ public function updateProfile(Request $request)
         'alamat' => 'nullable|string',
         'village_id' => 'nullable|exists:area_villages,id',
         'no_hp' => 'nullable|string',
+        'nik' => 'nullable|string',
         'tanggal_masuk' => 'nullable|date',
         'photo' => 'nullable|image',
         'doc_cv' => 'nullable|file|max:2048',
