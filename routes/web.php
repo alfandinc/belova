@@ -317,6 +317,36 @@ Route::prefix('inventory')->group(
 
 Route::prefix('hrd')->group(
     function () {
+        // Master Data Routes
+        // Division Management
+        Route::prefix('master/division')->name('hrd.master.division.')->group(function () {
+            Route::get('/', [App\Http\Controllers\HRD\DivisionMasterController::class, 'index'])->name('index');
+            Route::get('/data', [App\Http\Controllers\HRD\DivisionMasterController::class, 'getData'])->name('data');
+            Route::post('/', [App\Http\Controllers\HRD\DivisionMasterController::class, 'store'])->name('store');
+            Route::get('/{id}', [App\Http\Controllers\HRD\DivisionMasterController::class, 'show'])->name('show');
+            Route::put('/{id}', [App\Http\Controllers\HRD\DivisionMasterController::class, 'update'])->name('update');
+            Route::delete('/{id}', [App\Http\Controllers\HRD\DivisionMasterController::class, 'destroy'])->name('destroy');
+        });
+
+        // Position Management
+        Route::prefix('master/position')->name('hrd.master.position.')->group(function () {
+            Route::get('/', [App\Http\Controllers\HRD\PositionMasterController::class, 'index'])->name('index');
+            Route::get('/data', [App\Http\Controllers\HRD\PositionMasterController::class, 'getData'])->name('data');
+            Route::post('/', [App\Http\Controllers\HRD\PositionMasterController::class, 'store'])->name('store');
+            Route::get('/{id}', [App\Http\Controllers\HRD\PositionMasterController::class, 'show'])->name('show');
+            Route::put('/{id}', [App\Http\Controllers\HRD\PositionMasterController::class, 'update'])->name('update');
+            Route::delete('/{id}', [App\Http\Controllers\HRD\PositionMasterController::class, 'destroy'])->name('destroy');
+        });
+
+        // Jatah Libur Management
+        Route::prefix('master/jatah-libur')->name('hrd.master.jatah-libur.')->group(function () {
+            Route::get('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'index'])->name('index');
+            Route::get('/data', [App\Http\Controllers\HRD\JatahLiburController::class, 'getData'])->name('data');
+            Route::get('/employees-without-jatah-libur', [App\Http\Controllers\HRD\JatahLiburController::class, 'getEmployeesWithoutJatahLibur'])->name('employees-without-jatah-libur');
+            Route::post('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'store'])->name('store');
+            Route::get('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'show'])->name('show');
+            Route::put('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'update'])->name('update');
+        });
 
         // Employee Management Routes
         // Add these routes if they're missing

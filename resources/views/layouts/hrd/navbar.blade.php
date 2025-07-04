@@ -87,7 +87,9 @@
             <li>
                 <a href="javascript: void(0);"> <i data-feather="briefcase" class="align-self-center menu-icon"></i><span>Master Data</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Divisi</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.division.index') }}"><i class="ti-control-record"></i>Divisi</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.position.index') }}"><i class="ti-control-record"></i>Jabatan</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.jatah-libur.index') }}"><i class="ti-control-record"></i>Jatah Libur</a></li>
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Posisi/Jabatan</a></li>
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Saldo Cuti</a></li>
                 </ul>

@@ -13,7 +13,7 @@ class JatahLibur extends Model
 
     protected $fillable = [
         'employee_id',
-        'jatah_libur_tahunan',
+        'jatah_cuti_tahunan',
         'jatah_ganti_libur'
     ];
 

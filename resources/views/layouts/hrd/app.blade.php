@@ -7,6 +7,7 @@
     <meta content="Admin & Dashboard Template" name="description" />
     <meta content="" name="author" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
 
     <!-- App favicon -->
     <link rel="shortcut icon" href="{{ asset('img/logo-favicon-belova.png') }}">
@@ -81,6 +82,15 @@
 
     <!-- Theme Toggle Script -->
     <script>
+        // Set up CSRF token for all AJAX requests
+        $(document).ready(function() {
+            $.ajaxSetup({
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                }
+            });
+        });
+        
         function applyTheme(isDark) {
             const html = document.documentElement;
             const bootstrapDark = document.getElementById('bootstrap-dark');
