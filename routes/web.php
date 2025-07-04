@@ -98,6 +98,7 @@ Route::prefix('erm')->group(function () {
     Route::put('/pasiens/{id}', [PasienController::class, 'update'])->name('erm.pasiens.update');
     Route::post('/pasiens/{id}/update-status', [PasienController::class, 'updateStatus'])->name('erm.pasiens.update-status');
     Route::post('/pasiens/{id}/update-status-akses', [PasienController::class, 'updateStatusAkses'])->name('erm.pasiens.update-status-akses');
+    Route::post('/pasiens/{id}/update-status-combined', [PasienController::class, 'updateStatusCombined'])->name('erm.pasiens.update-status-combined');
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 

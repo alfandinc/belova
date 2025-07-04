@@ -384,4 +384,42 @@ class PasienController extends Controller
             ], 500);
         }
     }
+
+    public function updateStatusCombined(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status_pasien' => 'required|in:Regular,VIP,Familia,Black Card',
+            'status_akses' => 'required|in:normal,akses cepat'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $pasien = Pasien::findOrFail($id);
+            $pasien->status_pasien = $request->status_pasien;
+            $pasien->status_akses = $request->status_akses;
+            $pasien->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status pasien berhasil diperbarui',
+                'data' => [
+                    'id' => $pasien->id,
+                    'status_pasien' => $pasien->status_pasien,
+                    'status_akses' => $pasien->status_akses
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui status pasien'
+            ], 500);
+        }
+    }
 }
