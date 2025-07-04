@@ -113,6 +113,18 @@
                     @endhasrole
 
                     <!-- SPK / Riwayat Tindakan Section -->
+                    @hasanyrole('Lab|Perawat|Admin')
+                    <li>
+                        <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>Laboratorium</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <ul class="nav-second-level" aria-expanded="false">
+                            <li>
+                                <a href="/erm/elab"><i data-feather="list" class="align-self-center menu-icon"></i><span>Kunjungan Lab</span></a>
+                            </li>
+                        </ul>
+                    </li>
+                    @endhasanyrole
+
+                    <!-- SPK / Riwayat Tindakan Section -->
                     @hasanyrole('Beautician|Perawat|Admin')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>SPK Tindakan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>

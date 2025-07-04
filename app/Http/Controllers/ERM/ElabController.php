@@ -45,8 +45,8 @@ class ElabController extends Controller
                 ->addColumn('status_kunjungan', fn($v) => $v->progress) // 🛠️ Tambah kolom progress!
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
-                    $asesmenUrl = $user->hasRole('Perawat') ? route('erm.elab.create', $v->id)
-                        : ($user->hasRole('Perawat') ? route('erm.elab.create', $v->id) : '#');
+                    $asesmenUrl = $user->hasRole('Perawat') || $user->hasRole('Lab') ? route('erm.elab.create', $v->id)
+                        : ($user->hasRole('Dokter') ? route('erm.elab.create', $v->id) : '#');
                     return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
                 })
                 ->rawColumns(['dokumen'])
