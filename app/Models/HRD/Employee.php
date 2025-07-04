@@ -69,6 +69,24 @@ class Employee extends Model
     {
         return $this->belongsTo(\App\Models\User::class);
     }
+    
+    public function contracts()
+    {
+        return $this->hasMany(EmployeeContract::class, 'employee_id');
+    }
+    
+    public function activeContract()
+    {
+        return $this->hasOne(EmployeeContract::class, 'employee_id')
+                    ->where('status', 'active')
+                    ->orderBy('end_date', 'desc');
+    }
+    
+    public function lastContract()
+    {
+        return $this->hasOne(EmployeeContract::class, 'employee_id')
+                    ->latest('end_date');
+    }
 
     public function isManager()
     {

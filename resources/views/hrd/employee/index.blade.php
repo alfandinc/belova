@@ -370,6 +370,9 @@ $(function() {
                             <a href="{{ url('/hrd/employee') }}/${row.id}/edit" class="btn btn-sm btn-primary table-action-btn" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </a>
+                            <a href="{{ url('/hrd/employee') }}/${row.id}/contracts" class="btn btn-sm btn-info table-action-btn" title="Kontrak">
+                                <i class="fas fa-file-contract"></i>
+                            </a>
                             <button type="button" class="btn btn-sm btn-danger delete-employee table-action-btn" data-id="${row.id}" title="Delete">
                                 <i class="fas fa-trash"></i>
                             </button>

@@ -46,6 +46,7 @@ use App\Http\Controllers\ERM\{
 
 use App\Http\Controllers\HRD\{
     EmployeeController,
+    EmployeeContractController,
     DivisionController,
     EmployeeSelfServiceController,
     PengajuanLiburController,
@@ -336,8 +337,17 @@ Route::prefix('hrd')->group(
 
         Route::put('/profile/password', [EmployeeSelfServiceController::class, 'updatePassword'])->name('hrd.employee.password.update');
 
+        // Employee Contract Routes
+        Route::get('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'index'])->name('hrd.employee.contracts.index');
+        Route::get('/employee/{employeeId}/contracts/create', [EmployeeContractController::class, 'create'])->name('hrd.employee.contracts.create');
+        Route::post('/employee/{employeeId}/contracts', [EmployeeContractController::class, 'store'])->name('hrd.employee.contracts.store');
+        Route::get('/employee/{employeeId}/contracts/{contractId}', [EmployeeContractController::class, 'show'])->name('hrd.employee.contracts.show');
+        Route::post('/employee/{employeeId}/contracts/{contractId}/terminate', [EmployeeContractController::class, 'terminate'])->name('hrd.employee.contracts.terminate');
+        // AJAX routes for modals
+        Route::get('/employee/{employeeId}/contracts/modal/create', [EmployeeContractController::class, 'getCreateModal'])->name('hrd.employee.contracts.modal.create');
+        Route::get('/employee/{employeeId}/contracts/{contractId}/modal', [EmployeeContractController::class, 'getShowModal'])->name('hrd.employee.contracts.modal.show');
+        
         // Division routes (for managers)
-
         Route::get('/my-division', [DivisionController::class, 'showMyDivision'])->name('hrd.division.mine');
         Route::get('/my-team', [DivisionController::class, 'showMyTeam'])->name('hrd.division.team');
 
