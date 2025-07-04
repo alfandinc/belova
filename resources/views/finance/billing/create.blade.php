@@ -151,6 +151,7 @@
                         <div class="col-6">
                             <label for="admin_fee">Biaya Administrasi</label>
                             <select class="form-control" id="admin_fee">
+                                <option value="0">Rp 0</option>
                                 <option value="10000">Rp 10.000</option>
                                 <option value="15000">Rp 15.000</option>
                                 <option value="20000">Rp 20.000</option>
@@ -183,8 +184,14 @@
                                 <label for="payment_method">Metode Pembayaran</label>
                                 <select class="form-control" id="payment_method">
                                     <option value="cash">Tunai</option>
-                                    <option value="non_cash">Non Tunai</option>
-                                    <option value="mixed">Campuran</option>
+                                    {{-- <option value="non_cash">Non Tunai</option> --}}
+                                    <option value="edc_bca">EDC BCA</option>
+                                    <option value="edc_bni">EDC BNI</option>
+                                    <option value="qris">QRIS</option>
+                                    <option value="transfer">Transfer</option>
+                                    <option value="shopee">Shopee</option>
+                                    <option value="tiktokshop">Tiktokshop</option>
+                                    <option value="tokopedia">Tokopedia</option>
                                 </select>
                             </div>
                         </div>
