@@ -44,44 +44,44 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="nama"><i class="fas fa-user mr-1"></i>Nama</label>
-                            <input type="text" id="nama" name="nama" class="form-control" value="{{ old('nama', $employee->nama ?? '') }}" required>
+                            <input type="text" id="nama" name="nama" class="form-control" value="{{ old('nama', $employee->nama ?? '') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="nik"><i class="fas fa-id-card mr-1"></i>NIK</label>
-                            <input type="text" id="nik" name="nik" class="form-control" value="{{ old('nik', $employee->nik ?? '') }}" required>
+                            <input type="text" id="nik" name="nik" class="form-control" value="{{ old('nik', $employee->nik ?? '') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="no_induk"><i class="fas fa-fingerprint mr-1"></i>No Induk</label>
-                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', $employee->no_induk ?? '') }}" required>
+                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', $employee->no_induk ?? '') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="tempat_lahir">Tempat Lahir</label>
-                            <input type="text" id="tempat_lahir" name="tempat_lahir" class="form-control" value="{{ old('tempat_lahir', $employee->tempat_lahir ?? '') }}" required>
+                            <input type="text" id="tempat_lahir" name="tempat_lahir" class="form-control" value="{{ old('tempat_lahir', $employee->tempat_lahir ?? '') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="tanggal_lahir">Tanggal Lahir</label>
                             <input type="date" id="tanggal_lahir" name="tanggal_lahir" class="form-control" 
-                                value="{{ old('tanggal_lahir', isset($employee->tanggal_lahir) ? $employee->tanggal_lahir->format('Y-m-d') : '') }}" required>
+                                value="{{ old('tanggal_lahir', isset($employee->tanggal_lahir) ? $employee->tanggal_lahir->format('Y-m-d') : '') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="alamat">Alamat</label>
-                            <textarea id="alamat" name="alamat" class="form-control" rows="3" required>{{ old('alamat', $employee->alamat ?? '') }}</textarea>
+                            <textarea id="alamat" name="alamat" class="form-control" rows="3">{{ old('alamat', $employee->alamat ?? '') }}</textarea>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="no_hp"><i class="fas fa-phone mr-1"></i>No HP</label>
-                            <input type="text" id="no_hp" name="no_hp" class="form-control" value="{{ old('no_hp', $employee->no_hp ?? '') }}" required>
+                            <input type="text" id="no_hp" name="no_hp" class="form-control" value="{{ old('no_hp', $employee->no_hp ?? '') }}">
                         </div>
                     </div>
 
@@ -92,7 +92,7 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="position">Posisi</label>
-                            <select name="position" id="position" class="form-control select2" required>
+                            <select name="position" id="position" class="form-control select2">
                                 <option value="">-- Pilih Posisi --</option>
                                 @foreach($positions as $position)
                                     <option value="{{ $position->id }}" {{ old('position', $employee->position ?? '') == $position->id ? 'selected' : '' }}>
@@ -105,7 +105,7 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="division_id">Divisi</label>
-                            <select name="division_id" id="division_id" class="form-control select2" required>
+                            <select name="division_id" id="division_id" class="form-control select2">
                                 <option value="">-- Pilih Divisi --</option>
                                 @foreach($divisions as $division)
                                     <option value="{{ $division->id }}" {{ old('division_id', $employee->division_id ?? '') == $division->id ? 'selected' : '' }}>
@@ -118,20 +118,20 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="pendidikan">Pendidikan</label>
-                            <input type="text" id="pendidikan" name="pendidikan" class="form-control" value="{{ old('pendidikan', $employee->pendidikan ?? '') }}" required>
+                            <input type="text" id="pendidikan" name="pendidikan" class="form-control" value="{{ old('pendidikan', $employee->pendidikan ?? '') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="tanggal_masuk">Tanggal Masuk</label>
                             <input type="date" id="tanggal_masuk" name="tanggal_masuk" class="form-control" 
-                                value="{{ old('tanggal_masuk', isset($employee->tanggal_masuk) ? $employee->tanggal_masuk->format('Y-m-d') : '') }}" required>
+                                value="{{ old('tanggal_masuk', isset($employee->tanggal_masuk) ? $employee->tanggal_masuk->format('Y-m-d') : '') }}">
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="status">Status</label>
-                            <select name="status" id="status" class="form-control" required>
+                            <select name="status" id="status" class="form-control">
                                 <option value="">-- Pilih Status --</option>
                                 <option value="tetap" {{ old('status', $employee->status ?? '') == 'tetap' ? 'selected' : '' }}>Tetap</option>
                                 <option value="kontrak" {{ old('status', $employee->status ?? '') == 'kontrak' ? 'selected' : '' }}>Kontrak</option>
