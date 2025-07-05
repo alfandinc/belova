@@ -188,14 +188,71 @@ class RiwayatKunjunganController extends Controller
             'diagnosis' => !empty($diagnosisList) ? implode(', ', $diagnosisList) : '-',
             'tindak_lanjut' => $visitation->asesmenPenunjang ? ($visitation->asesmenPenunjang->standing_order ?? '-') : '-',
             'ttd' => $visitation->dokter->ttd ?? '',
+            // Store the full path for debugging
+            'ttd_debug' => $visitation->dokter->ttd ? ('Original path: ' . $visitation->dokter->ttd) : 'No TTD found',
         ];
 
-        // Check and log if TTD file exists
-        if (!empty($data['ttd']) && !file_exists(public_path($data['ttd']))) {
-            Log::warning('TTD file not found: ' . $data['ttd']);
+        // Process TTD path and check for file existence
+        if (!empty($data['ttd'])) {
+            $originalTtd = $data['ttd'];
+            
+            // Special case for the specific TTD we're having trouble with
+            if ($originalTtd === 'qr-wahyuaji.png') {
+                if (file_exists(public_path('img/qr/qr-wahyuaji.png'))) {
+                    Log::info('Found the wahyuaji QR image in img/qr/');
+                    $data['ttd'] = 'img/qr/qr-wahyuaji.png';
+                }
+            } else {
+                // Try different path combinations
+                $possiblePaths = [
+                    $originalTtd,
+                    'img/qr/' . $originalTtd,
+                ];
+                
+                // If it starts with qr-, try also without the prefix
+                if (strpos($originalTtd, 'qr-') === 0) {
+                    $possiblePaths[] = 'img/qr/' . substr($originalTtd, 3);
+                }
+                
+                // Try without file extension if it has one
+                $pathInfo = pathinfo($originalTtd);
+                if (isset($pathInfo['extension'])) {
+                    $baseNameWithoutExt = $pathInfo['filename'];
+                    $possiblePaths[] = 'img/qr/' . $baseNameWithoutExt . '.png';
+                    $possiblePaths[] = 'img/qr/' . $baseNameWithoutExt . '.jpg';
+                }
+                
+                $found = false;
+                foreach ($possiblePaths as $path) {
+                    if (file_exists(public_path($path))) {
+                        $found = true;
+                        Log::info('TTD file found at: ' . $path);
+                        // Update the TTD path in the data array
+                        $data['ttd'] = $path;
+                        break;
+                    }
+                }
+                
+                if (!$found) {
+                    Log::warning('TTD file not found: ' . $originalTtd . '. Tried paths: ' . implode(', ', $possiblePaths));
+                }
+            }
         }
 
         try {
+            // Add the TTD image data directly if found
+            if (!empty($data['ttd']) && file_exists(public_path($data['ttd']))) {
+                try {
+                    $data['ttd_image_data'] = base64_encode(file_get_contents(public_path($data['ttd'])));
+                    $data['ttd_exists'] = true;
+                } catch (\Exception $imgEx) {
+                    Log::error('Error loading TTD image: ' . $imgEx->getMessage());
+                    $data['ttd_exists'] = false;
+                }
+            } else {
+                $data['ttd_exists'] = false;
+            }
+            
             $pdf = PDF::loadView('erm.riwayatkunjungan.resume-medis', $data);
             return $pdf->stream('resume-medis.pdf');
         } catch (\Exception $e) {
