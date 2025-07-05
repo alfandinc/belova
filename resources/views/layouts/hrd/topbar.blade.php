@@ -17,7 +17,11 @@
                             <a class="nav-link dropdown-toggle waves-effect waves-light nav-user" data-toggle="dropdown" href="#" role="button"
                                 aria-haspopup="false" aria-expanded="false">
                                 <span class="ml-1 mr-2 nav-user-name hidden-sm">{{ Auth::user()->name ?? '-'}}</span>
-                                <img src="{{ asset('img/avatar.png')}}" alt="profile-user" class="rounded-circle thumb-xs" />                                 
+                                @if(Auth::user() && Auth::user()->employee && Auth::user()->employee->photo)
+                                    <img src="{{ asset('storage/' . Auth::user()->employee->photo) }}" alt="profile-user" class="rounded-circle thumb-xs" style="width: 36px; height: 36px; object-fit: cover;" />
+                                @else
+                                    <img src="{{ asset('img/avatar.png') }}" alt="profile-user" class="rounded-circle thumb-xs" />
+                                @endif                                 
                             </a>
                             <div class="dropdown-menu dropdown-menu-right">
                                 <a class="dropdown-item" href="{{ route('hrd.employee.profile') }}"><i data-feather="user" class="align-self-center icon-xs icon-dual mr-1"></i> Profile</a>
