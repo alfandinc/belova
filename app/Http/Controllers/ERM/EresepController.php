@@ -78,7 +78,7 @@ class EresepController extends Controller
                     $user = Auth::user();
                     $asesmenUrl = $user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id)
                         : ($user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id) : '#');
-                    return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
+                    return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary" target="_blank">Lihat</a> ';
                 })
                 ->addColumn('nama_dokter', function($v) {
                     return $v->dokter && $v->dokter->user ? $v->dokter->user->name : '-';
