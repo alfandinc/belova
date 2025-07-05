@@ -8,7 +8,8 @@ use App\Http\Controllers\{
     HRDDashboardController,
     InventoryDashboardController,
     MarketingDashboardController,
-    FinanceDashboardController
+    FinanceDashboardController,
+    WorkdocDashboardController,
 };
 use App\Http\Controllers\Admin\{
     UserController,
@@ -69,6 +70,7 @@ Route::get('/finance/login', [AuthController::class, 'showFinanceLoginForm'])->n
 Route::get('/hrd/login', [AuthController::class, 'showHRDLoginForm'])->name('hrd.login');
 Route::get('/inventory/login', [AuthController::class, 'showInventoryLoginForm'])->name('inventory.login');
 Route::get('/marketing/login', [AuthController::class, 'showMarketingLoginForm'])->name('marketing.login');
+Route::get('/workdoc/login', [AuthController::class, 'showWorkdocLoginForm'])->name('workdoc.login');
 
 // Single POST route for login processing (all forms submit here)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -80,6 +82,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/hrd', [HRDDashboardController::class, 'index'])->name('hrd.dashboard');
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/marketing', [MarketingDashboardController::class, 'index'])->name('marketing.dashboard');
+    Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
 });
 
 Route::fallback(function () {
@@ -274,6 +277,13 @@ Route::prefix('erm')->group(function () {
 
 
 });
+
+Route::prefix('workdoc')->group(
+    function () {
+        // Route::get('/', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
+        // Add more Workdoc routes here as needed
+    }
+);
 
 
 Route::prefix('finance')->group(

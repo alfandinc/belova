@@ -318,7 +318,7 @@
                 </a>
                 
                 <!-- Dokumen Kerja Tile -->
-                <a href="/dokumen-kerja/login" class="menu-tile tile-dokumen animate-item delay-6">
+                <a href="/workdoc/login" class="menu-tile tile-dokumen animate-item delay-6">
                     <div class="menu-icon">
                         <i class="fas fa-folder-open"></i>
                     </div>

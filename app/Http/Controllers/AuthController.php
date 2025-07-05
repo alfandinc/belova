@@ -32,6 +32,10 @@ class AuthController extends Controller
     {
         return view('auth.finance_login'); // Finance Login Page
     }
+    public function showWorkdocLoginForm()
+    {
+        return view('auth.workdoc_login'); // Workdoc Login Page
+    }
 
     // Handle login request
     public function login(Request $request)
@@ -51,6 +55,7 @@ class AuthController extends Controller
             'finance' => ['Kasir'],
             'inventory' => ['Inventaris'],
             'marketing' => ['Marketing'],
+            'workdoc' => ['Hrd', 'Ceo', 'Manager'],
         ];
 
         // Check if the module is valid
