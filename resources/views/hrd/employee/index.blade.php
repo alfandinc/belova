@@ -403,7 +403,7 @@ $(function() {
             confirmButtonText: 'Ya, hapus!',
             cancelButtonText: 'Batal'
         }).then((result) => {
-            if (result.isConfirmed) {
+            if (result.value) {
                 $.ajax({
                     url: '/hrd/employee/' + employeeId,
                     type: 'DELETE',
