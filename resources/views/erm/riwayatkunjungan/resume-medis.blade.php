@@ -157,10 +157,8 @@
     <td style="width: 50%; text-align: center;">
       <p>Surakarta, {{ \Carbon\Carbon::parse($tanggal_visit)->translatedFormat('d F Y') }}</p>
       
-      @if(isset($ttd_exists) && $ttd_exists && isset($ttd_image_data))
-        <img src="data:image/png;base64,{{ $ttd_image_data }}" alt="Tanda Tangan" width="100">
-      @elseif($ttd && file_exists(public_path($ttd)))
-        <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path($ttd))) }}" alt="Tanda Tangan" width="100">
+      @if(!empty($ttd_image_path))
+        <img src="{{ $ttd_image_path }}" alt="Tanda Tangan" width="100">
       @else
         <div style="height: 60px;"></div>
       @endif
