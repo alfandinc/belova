@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\ERM\Visitation;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class RiwayatKunjunganController extends Controller
@@ -189,10 +190,20 @@ class RiwayatKunjunganController extends Controller
             'ttd' => $visitation->dokter->ttd ?? '',
         ];
 
-        // dd($data);
+        // Check and log if TTD file exists
+        if (!empty($data['ttd']) && !file_exists(public_path($data['ttd']))) {
+            Log::warning('TTD file not found: ' . $data['ttd']);
+        }
 
-        $pdf = PDF::loadView('erm.riwayatkunjungan.resume-medis', $data);
-
-        return $pdf->stream('resume-medis.pdf');
+        try {
+            $pdf = PDF::loadView('erm.riwayatkunjungan.resume-medis', $data);
+            return $pdf->stream('resume-medis.pdf');
+        } catch (\Exception $e) {
+            Log::error('Error generating resume PDF: ' . $e->getMessage());
+            return response()->view('errors.custom', [
+                'message' => 'Terjadi kesalahan saat membuat resume medis. Silakan coba lagi atau hubungi admin.',
+                'exception' => $e
+            ], 500);
+        }
     }
 }

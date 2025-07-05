@@ -156,7 +156,11 @@
     <td style="width: 50%;"></td>
     <td style="width: 50%; text-align: center;">
       <p>Surakarta, {{ \Carbon\Carbon::parse($tanggal_visit)->translatedFormat('d F Y') }}</p>
-      <img src="{{ public_path($ttd) }}" alt="QR Code" width="100">
+      @if($ttd && file_exists(public_path($ttd)))
+        <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path($ttd))) }}" alt="Tanda Tangan" width="100">
+      @else
+        <div style="height: 60px;"></div>
+      @endif
       <p style="margin-top: 10px;"><strong>{{ $nama_dokter }}</strong></p>
     </td>
   </tr>
