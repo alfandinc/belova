@@ -48,6 +48,22 @@ class Visitation extends Model
     {
         return $this->hasOne(AsesmenDalam::class);
     }
+    public function asesmenEstetika()
+    {
+        return $this->hasOne(AsesmenEstetika::class);
+    }
+    public function asesmenSaraf()
+    {
+        return $this->hasOne(AsesmenSaraf::class);
+    }
+    public function asesmenAnak()
+    {
+        return $this->hasOne(AsesmenAnak::class);
+    }
+    public function asesmenGigi()
+    {
+        return $this->hasOne(AsesmenGigi::class);
+    }
 
     public function asesmenPenunjang()
     {
