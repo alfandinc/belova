@@ -77,9 +77,16 @@ class AuthController extends Controller
                 if ($user->hasRole('Farmasi')) {
                     return redirect()->route('erm.eresepfarmasi.index'); // E-Resep Farmasi menu route
                 }
+                // Check for Lab role
+                if ($user->hasRole('Lab')) {
+                    return redirect()->route('erm.elab.index'); // E-Lab index route
+                }
                 // For Dokter, Pendaftaran, Perawat
                 if ($user->hasAnyRole(['Dokter', 'Pendaftaran', 'Perawat'])) {
                     return redirect()->route('erm.rawatjalans.index');
+                }
+                if ($user->hasRole('Beautician')) {
+                    return redirect()->route('erm.spk.index'); // E-SPK index route
                 }
                 // Default fallback for ERM
                 return redirect()->route('erm.dashboard');

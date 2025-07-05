@@ -43,6 +43,7 @@
                             'Admin' => 'bg-primary',
                             'Dokter' => 'bg-success',
                             'Perawat' => 'bg-info',
+                            'Lab' => 'bg-warning',
                             default => 'bg-secondary',
                         };
                     @endphp
