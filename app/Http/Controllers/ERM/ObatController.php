@@ -100,6 +100,13 @@ class ObatController extends Controller
 
     public function store(Request $request)
     {
+        // Debug: Log the request parameters
+        \Illuminate\Support\Facades\Log::info('Obat store/update request:', [
+            'has_status_aktif' => $request->has('status_aktif'),
+            'status_aktif_value' => $request->input('status_aktif'),
+            'all_inputs' => $request->all()
+        ]);
+        
         $request->validate([
             'nama' => 'required|string',
             'kode_obat' => 'nullable|string',
@@ -117,9 +124,17 @@ class ObatController extends Controller
         DB::beginTransaction();
 
         try {
-            $obat = Obat::updateOrCreate(
-                ['id' => $request->id ?? null],
-                [
+            // Log the ID being used for update
+            \Illuminate\Support\Facades\Log::info('Obat update/create with ID: ' . ($request->id ?? 'null'));
+            
+            // The status_aktif value to be used
+            $statusAktif = ($request->has('status_aktif_submitted') && $request->has('status_aktif')) ? 1 : 0;
+            
+            // Check if we're updating an existing record or creating a new one
+            if ($request->filled('id')) {
+                // Update existing record using find + update
+                $obat = Obat::withInactive()->findOrFail($request->id);
+                $obat->update([
                     'nama' => $request->nama,
                     'kode_obat' => $request->kode_obat,
                     'dosis' => $request->dosis,
@@ -130,9 +145,24 @@ class ObatController extends Controller
                     'stok' => $request->stok ?? 0,
                     'kategori' => $request->kategori,
                     'metode_bayar_id' => $request->metode_bayar_id,
-                    'status_aktif' => $request->has('status_aktif') ? 1 : 0,
-                ]
-            );
+                    'status_aktif' => $statusAktif,
+                ]);
+            } else {
+                // Create new record
+                $obat = Obat::create([
+                    'nama' => $request->nama,
+                    'kode_obat' => $request->kode_obat,
+                    'dosis' => $request->dosis,
+                    'satuan' => $request->satuan,
+                    'harga_net' => $request->harga_net,
+                    'harga_fornas' => $request->harga_fornas,
+                    'harga_nonfornas' => $request->harga_nonfornas,
+                    'stok' => $request->stok ?? 0,
+                    'kategori' => $request->kategori,
+                    'metode_bayar_id' => $request->metode_bayar_id,
+                    'status_aktif' => $statusAktif,
+                ]);
+            }
 
             // Sync zat aktif
             if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
@@ -152,6 +182,14 @@ class ObatController extends Controller
     public function edit($id)
     {
         $obat = Obat::withInactive()->with('zatAktifs')->findOrFail($id);
+        
+        // Debug: Log the obat status when loading edit form
+        \Illuminate\Support\Facades\Log::info('Obat edit loaded:', [
+            'id' => $obat->id,
+            'name' => $obat->nama,
+            'status_aktif' => $obat->status_aktif
+        ]);
+        
         $zatAktif = ZatAktif::all();
         $supplier = Supplier::all();
         $metodeBayars = MetodeBayar::all();

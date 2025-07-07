@@ -87,9 +87,12 @@
 
                     <div class="form-group col-md-4 d-flex align-items-end">
                         <div class="custom-control custom-switch">
-                            <input type="checkbox" name="status_aktif" class="custom-control-input" id="status_aktif" 
+                            <!-- Hidden field to ensure the parameter is always submitted -->
+                            <input type="hidden" name="status_aktif_submitted" value="1">
+                            <input type="checkbox" name="status_aktif" class="custom-control-input" id="status_aktif" value="1"
                                 {{ isset($obat) ? ($obat->status_aktif ? 'checked' : '') : 'checked' }}>
                             <label class="custom-control-label" for="status_aktif">Status Aktif</label>
+                            <small class="form-text text-muted">Obat dengan status aktif akan muncul pada pencarian di E-Resep. Obat yang tidak aktif tidak akan muncul pada pencarian.</small>
                         </div>
                     </div>
 
@@ -121,6 +124,8 @@
                             @endforeach
                         </select>
                     </div>
+
+
                 </div>
 
                 <div class="mt-3">
@@ -138,6 +143,19 @@
     $(document).ready(function () {
         $('.select2').select2({
             width: '100%'
+        });
+        
+        // Debug status checkbox
+        console.log('Initial status_aktif checked:', $('#status_aktif').is(':checked'));
+        
+        // Monitor changes to the status checkbox
+        $('#status_aktif').on('change', function() {
+            console.log('Status checkbox changed to:', $(this).is(':checked'));
+        });
+        
+        // Log form data on submit
+        $('form').on('submit', function() {
+            console.log('Form submitted with status_aktif checked:', $('#status_aktif').is(':checked'));
         });
     });
 </script>
