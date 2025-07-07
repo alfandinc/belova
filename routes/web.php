@@ -220,6 +220,8 @@ Route::prefix('erm')->group(function () {
     Route::get('/elab/{visitation_id}/hasil/data', [ElabController::class, 'getLabHasilData'])->name('erm.elab.hasil.data');
     Route::post('/elab/hasil/upload', [ElabController::class, 'uploadLabHasil'])->name('erm.elab.hasil.upload');
     Route::get('/elab/hasil/{id}', [ElabController::class, 'getLabHasilDetails'])->name('erm.elab.hasil.detail');
+    Route::get('/elab/{visitation_id}/hasil-lis/data', [ElabController::class, 'getHasilLisData'])->name('erm.elab.hasil-lis.data');
+    Route::get('/elab/hasil-lis/{visitation_id}', [ElabController::class, 'getHasilLisDetails'])->name('erm.elab.hasil-lis.detail');
 
     //Tindakan & Inform Consent
     Route::get('/tindakan/{visitation_id}/create', [TindakanController::class, 'create'])->name('erm.tindakan.create');

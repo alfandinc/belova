@@ -8,6 +8,7 @@
 @section('content')
 @include('erm.partials.modal-lab-create')
 @include('erm.partials.modal-lab-hasil')
+@include('erm.partials.modal-lis-hasil')
 
 
 @include('erm.partials.modal-alergipasien')
@@ -91,31 +92,34 @@
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
     
+    <!-- New Card for HasilLis Data -->
+    {{-- <div class="row mt-3">
+        <div class="col-md-12">
+            
+        </div>
+    </div> --}}
 
     <!-- Two column layout for Lab Management -->
     <div class="row">
         <!-- Left Column - Permintaan Lab -->
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center ">
-                    <h5 class="mb-0"><i class="fa fa-history mr-2"></i> Riwayat Hasil Lab</h5>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-flask mr-2"></i> Riwayat Hasil LAB Pasien</h5>
                 </div>
                 <div class="card-body">
-
                     <div class="table-responsive">
-                        <table id="hasilLabTable" class="table table-bordered table-hover w-100">
+                        <table id="hasilLisTable" class="table table-bordered table-hover w-100">
                             <thead class="thead-light">
                                 <tr>
                                     <th>No</th>
-                                    <th>Tanggal Pemeriksaan</th>
-                                    <th>Asal Lab</th>  
-                                    <th>Pemeriksaan</th>    
-                                    <th>Dokter</th> 
-                                    <th>Hasil</th>
+                                    <th>Tanggal Kunjungan</th>
+                                    <th>Dokter</th>
+                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Data will be loaded via DataTables -->
+                                <!-- Data will be populated by DataTables -->
                             </tbody>
                         </table>
                     </div>
@@ -557,67 +561,67 @@ $(document).ready(function () {
     
     // Handle bulk delete button click
     $('.btn-bulk-delete').on('click', function() {
-    let selectedIds = [];
-    $('.permintaan-checkbox:checked').each(function() {
-        selectedIds.push($(this).val());
-    });
-    
-    if (selectedIds.length === 0) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Perhatian',
-            text: 'Pilih setidaknya satu permintaan lab untuk dibatalkan.'
+        let selectedIds = [];
+        $('.permintaan-checkbox:checked').each(function() {
+            selectedIds.push($(this).val());
         });
-        return;
-    }
     
-    Swal.fire({
-        title: 'Apakah Anda yakin?',
-        text: selectedIds.length + " permintaan lab akan dibatalkan!",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Ya, batalkan!',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.value) {
-            $.ajax({
-                url: "{{ route('erm.elab.bulk-delete') }}",
-                type: 'POST',
-                data: {
-                    ids: selectedIds,
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        Swal.fire(
-                            'Dibatalkan!',
-                            response.message,
-                            'success'
-                        );
-                        
-                        // Update total price
-                        $('#totalEstimasi').text(response.totalHargaFormatted);
-                        
-                        // Reload riwayat table and reset checkAll
-                        $('#checkAll').prop('checked', false);
-                        riwayatTable.ajax.reload();
-                        toggleBulkButtons();
-                    }
-                },
-                error: function(xhr) {
-                    console.error(xhr.responseText);
-                    Swal.fire(
-                        'Error!',
-                        'Terjadi kesalahan saat membatalkan permintaan.',
-                        'error'
-                    );
-                }
+        if (selectedIds.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Perhatian',
+                text: 'Pilih setidaknya satu permintaan lab untuk dibatalkan.'
             });
+            return;
         }
+    
+        Swal.fire({
+            title: 'Apakah Anda yakin?',
+            text: selectedIds.length + " permintaan lab akan dibatalkan!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Ya, batalkan!',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.value) {
+                $.ajax({
+                    url: "{{ route('erm.elab.bulk-delete') }}",
+                    type: 'POST',
+                    data: {
+                        ids: selectedIds,
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire(
+                                'Dibatalkan!',
+                                response.message,
+                                'success'
+                            );
+                            
+                            // Update total price
+                            $('#totalEstimasi').text(response.totalHargaFormatted);
+                            
+                            // Reload riwayat table and reset checkAll
+                            $('#checkAll').prop('checked', false);
+                            riwayatTable.ajax.reload();
+                            toggleBulkButtons();
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error(xhr.responseText);
+                        Swal.fire(
+                            'Error!',
+                            'Terjadi kesalahan saat membatalkan permintaan.',
+                            'error'
+                        );
+                    }
+                });
+            }
+        });
     });
-});
     
     // Handle bulk edit status options
     $('.bulk-status-option').on('click', function(e) {
@@ -650,266 +654,320 @@ $(document).ready(function () {
         cancelButtonColor: '#d33',
         confirmButtonText: 'Ya, ubah!',
         cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.value) {
-            $.ajax({
-                url: "{{ route('erm.elab.bulk-update') }}",
-                type: 'POST',
-                data: {
-                    ids: selectedIds,
-                    status: newStatus,
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(response) {
-                    if (response.success) {
+        }).then((result) => {
+            if (result.value) {
+                $.ajax({
+                    url: "{{ route('erm.elab.bulk-update') }}",
+                    type: 'POST',
+                    data: {
+                        ids: selectedIds,
+                        status: newStatus,
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire(
+                                'Berhasil!',
+                                response.message,
+                                'success'
+                            );
+                            
+                            // Reload riwayat table and reset checkAll
+                            $('#checkAll').prop('checked', false);
+                            riwayatTable.ajax.reload();
+                            toggleBulkButtons();
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error(xhr.responseText);
                         Swal.fire(
-                            'Berhasil!',
-                            response.message,
-                            'success'
+                            'Error!',
+                            'Terjadi kesalahan saat mengubah status permintaan.',
+                            'error'
                         );
-                        
-                        // Reload riwayat table and reset checkAll
-                        $('#checkAll').prop('checked', false);
-                        riwayatTable.ajax.reload();
-                        toggleBulkButtons();
                     }
-                },
-                error: function(xhr) {
-                    console.error(xhr.responseText);
-                    Swal.fire(
-                        'Error!',
-                        'Terjadi kesalahan saat mengubah status permintaan.',
-                        'error'
-                    );
-                }
-            });
-        }
-    });
-});
-
-// Initialize DataTable for hasilLabTable
-let hasilLabTable = $('#hasilLabTable').DataTable({
-    processing: true,
-    serverSide: true,
-    searching: false, // Hide search box
-    lengthChange: false, // Hide length menu
-    ajax: {
-        url: '/erm/elab/{{ $visitation->id }}/hasil/data',
-    },
-    columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
-        { data: 'tanggal', name: 'tanggal_pemeriksaan' },
-        { data: 'asal_lab', name: 'asal_lab' },
-        { data: 'nama_pemeriksaan', name: 'nama_pemeriksaan' },
-        { data: 'dokter', name: 'dokter' },
-        { data: 'action', name: 'action', orderable: false, searchable: false }
-    ],
-    order: [[1, 'desc']],
-    language: {
-        search: "Cari:",
-        lengthMenu: "Tampilkan _MENU_ data per halaman",
-        zeroRecords: "Tidak ada data yang ditemukan",
-        info: "Menampilkan halaman _PAGE_ dari _PAGES_",
-        infoEmpty: "Tidak ada data tersedia",
-        infoFiltered: "(difilter dari _MAX_ total data)"
-    }
-});
-
-// Add button to upload new lab result
-$('.card-header').first().append(
-    '<button id="addLabHasil" class="btn btn-sm btn-primary ml-2">' +
-    '<i class="fas fa-plus"></i> Upload Hasil Lab</button>'
-);
-
-// Show upload modal when button is clicked
-$('#addLabHasil').on('click', function() {
-    $('#uploadLabHasilModal').modal('show');
-});
-
-// View lab result details
-$('#hasilLabTable').on('click', '.btn-view-hasil', function() {
-    let hasilId = $(this).data('id');
-    
-    // Get lab result details
-    $.ajax({
-        url: '/erm/elab/hasil/' + hasilId,
-        type: 'GET',
-        success: function(response) {
-            if (response.success) {
-                let hasil = response.data;
-                
-                // Populate modal with data
-                $('#viewLabHasilModal #viewNamaPemeriksaan').text(hasil.nama_pemeriksaan);
-                $('#viewLabHasilModal #viewTanggalPemeriksaan').text(moment(hasil.tanggal_pemeriksaan).format('DD-MM-YYYY'));
-                $('#viewLabHasilModal #viewAsalLab').text(hasil.asal_lab === 'internal' ? 'Lab Internal' : 'Lab Eksternal');
-                $('#viewLabHasilModal #viewDokter').text(hasil.dokter);
-                $('#viewLabHasilModal #viewCatatan').text(hasil.catatan || '-');
-                
-                // Clear the result table first
-                $('#viewLabHasilModal #resultTable tbody').empty();
-                
-                if (hasil.asal_lab === 'internal' && hasil.hasil_detail) {
-                    // Populate table with result details
-                    $('#viewLabHasilModal #resultTableContainer').show();
-                    $('#viewLabHasilModal #pdfViewerContainer').hide();
-                    
-                    // Add rows to the table
-                    $.each(hasil.hasil_detail, function(i, item) {
-                        let row = $('<tr>');
-                        row.append($('<td>').text(item.nama_test || ''));
-                        row.append($('<td>').text(item.flag || ''));
-                        row.append($('<td>').text(item.hasil || ''));
-                        row.append($('<td>').text(item.satuan || ''));
-                        row.append($('<td>').text(item.nilai_rujukan || ''));
-                        $('#viewLabHasilModal #resultTable tbody').append(row);
-                    });
-                } else if (hasil.asal_lab === 'eksternal' && hasil.file_path) {
-                    // Show PDF viewer for external lab results
-                    $('#viewLabHasilModal #resultTableContainer').hide();
-                    $('#viewLabHasilModal #pdfViewerContainer').show();
-                    
-                    // Use the correct URL for accessing storage files
-                    let pdfUrl = '/storage/' + hasil.file_path;
-                    $('#viewLabHasilModal #pdfViewer').attr('src', pdfUrl);
-                }
-                
-                // Show the modal
-                $('#viewLabHasilModal').modal('show');
-            }
-        },
-        error: function(xhr) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: 'Terjadi kesalahan! Silakan coba lagi.'
-            });
-            console.error(xhr.responseText);
-        }
-    });
-});
-// Handle upload form submission
-$('#uploadLabHasilForm').on('submit', function(e) {
-    e.preventDefault();
-    
-    // Additional validation for internal lab
-    if ($('#asalLab').val() === 'internal') {
-        // Check if at least one row exists
-        if ($('#hasilDetailTable tbody tr').length === 0) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Mohon tambahkan setidaknya satu hasil lab untuk Lab Internal'
-            });
-            return false;
-        }
-    }
-    
-    // Continue with form submission
-    let formData = new FormData(this);
-    
-    $.ajax({
-        url: '/erm/elab/hasil/upload',
-        type: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
-        success: function(response) {
-            if (response.success) {
-                $('#uploadLabHasilModal').modal('hide');
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Berhasil',
-                    text: response.message,
-                    timer: 1500,
-                    showConfirmButton: false
                 });
-                
-                // Reset form and reload table
-                $('#uploadLabHasilForm')[0].reset();
-                hasilLabTable.ajax.reload();
             }
+        });
+    });
+
+    // Initialize DataTable for hasilLabTable
+    let hasilLabTable = $('#hasilLabTable').DataTable({
+        processing: true,
+        serverSide: true,
+        searching: false, // Hide search box
+        lengthChange: false, // Hide length menu
+        ajax: {
+            url: '/erm/elab/{{ $visitation->id }}/hasil/data',
         },
-        error: function(xhr) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: 'Terjadi kesalahan! Silakan coba lagi.'
-            });
-            console.error(xhr.responseText);
+        columns: [
+            { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
+            { data: 'tanggal', name: 'tanggal_pemeriksaan' },
+            { data: 'asal_lab', name: 'asal_lab' },
+            { data: 'nama_pemeriksaan', name: 'nama_pemeriksaan' },
+            { data: 'dokter', name: 'dokter' },
+            { data: 'action', name: 'action', orderable: false, searchable: false }
+        ],
+        order: [[1, 'desc']],
+        language: {
+            search: "Cari:",
+            lengthMenu: "Tampilkan _MENU_ data per halaman",
+            zeroRecords: "Tidak ada data yang ditemukan",
+            info: "Menampilkan halaman _PAGE_ dari _PAGES_",
+            infoEmpty: "Tidak ada data tersedia",
+            infoFiltered: "(difilter dari _MAX_ total data)"
         }
     });
-});
 
-// Toggle hasil detail form based on asal lab selection
-$('#asalLab').on('change', function() {
-    if ($(this).val() === 'internal') {
-        // Show internal fields, hide external
-        $('#hasilFileGroup').hide();
-        $('#hasilDetailGroup').show();
+    // // Add button to upload new lab result
+    // $('.card-header').first().append(
+    //     '<button id="addLabHasil" class="btn btn-sm btn-primary ml-2">' +
+    //     '<i class="fas fa-plus"></i> Upload Hasil Lab</button>'
+    // );
+
+    // Show upload modal when button is clicked
+    $('#addLabHasil').on('click', function() {
+        $('#uploadLabHasilModal').modal('show');
+    });
+
+    // View lab result details
+    $('#hasilLabTable').on('click', '.btn-view-hasil', function() {
+        let hasilId = $(this).data('id');
         
-        // Make file upload not required
-        $('#hasilFile').prop('required', false);
+        // Get lab result details
+        $.ajax({
+            url: '/erm/elab/hasil/' + hasilId,
+            type: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    let hasil = response.data;
+                    
+                    // Populate modal with data
+                    $('#viewLabHasilModal #viewNamaPemeriksaan').text(hasil.nama_pemeriksaan);
+                    $('#viewLabHasilModal #viewTanggalPemeriksaan').text(moment(hasil.tanggal_pemeriksaan).format('DD-MM-YYYY'));
+                    $('#viewLabHasilModal #viewAsalLab').text(hasil.asal_lab === 'internal' ? 'Lab Internal' : 'Lab Eksternal');
+                    $('#viewLabHasilModal #viewDokter').text(hasil.dokter);
+                    $('#viewLabHasilModal #viewCatatan').text(hasil.catatan || '-');
+                    
+                    // Clear the result table first
+                    $('#viewLabHasilModal #resultTable tbody').empty();
+                    
+                    if (hasil.asal_lab === 'internal' && hasil.hasil_detail) {
+                        // Populate table with result details
+                        $('#viewLabHasilModal #resultTableContainer').show();
+                        $('#viewLabHasilModal #pdfViewerContainer').hide();
+                        
+                        // Add rows to the table
+                        $.each(hasil.hasil_detail, function(i, item) {
+                            let row = $('<tr>');
+                            row.append($('<td>').text(item.nama_test || ''));
+                            row.append($('<td>').text(item.flag || ''));
+                            row.append($('<td>').text(item.hasil || ''));
+                            row.append($('<td>').text(item.satuan || ''));
+                            row.append($('<td>').text(item.nilai_rujukan || ''));
+                            $('#viewLabHasilModal #resultTable tbody').append(row);
+                        });
+                    } else if (hasil.asal_lab === 'eksternal' && hasil.file_path) {
+                        // Show PDF viewer for external lab results
+                        $('#viewLabHasilModal #resultTableContainer').hide();
+                        $('#viewLabHasilModal #pdfViewerContainer').show();
+                        
+                        // Use the correct URL for accessing storage files
+                        let pdfUrl = '/storage/' + hasil.file_path;
+                        $('#viewLabHasilModal #pdfViewer').attr('src', pdfUrl);
+                    }
+                    
+                    // Show the modal
+                    $('#viewLabHasilModal').modal('show');
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Terjadi kesalahan! Silakan coba lagi.'
+                });
+                console.error(xhr.responseText);
+            }
+        });
+    });
+    // Handle upload form submission
+    $('#uploadLabHasilForm').on('submit', function(e) {
+        e.preventDefault();
         
-        // Make the first row fields required if they exist
-        if ($('#hasilDetailTable tbody tr').length > 0) {
-            $('#hasilDetailTable tbody tr:first-child input[name$="[nama_test]"]').prop('required', true);
-            $('#hasilDetailTable tbody tr:first-child input[name$="[hasil]"]').prop('required', true);
+        // Additional validation for internal lab
+        if ($('#asalLab').val() === 'internal') {
+            // Check if at least one row exists
+            if ($('#hasilDetailTable tbody tr').length === 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Mohon tambahkan setidaknya satu hasil lab untuk Lab Internal'
+                });
+                return false;
+            }
         }
-    } else {
-        // Show external fields, hide internal
-        $('#hasilFileGroup').show();
-        $('#hasilDetailGroup').hide();
         
-        // Make file upload required
-        $('#hasilFile').prop('required', true);
+        // Continue with form submission
+        let formData = new FormData(this);
         
-        // Remove required from all internal lab fields
-        $('#hasilDetailTable tbody input[required]').prop('required', false);
-    }
-});
+        $.ajax({
+            url: '/erm/elab/hasil/upload',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    $('#uploadLabHasilModal').modal('hide');
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    
+                    // Reset form and reload table
+                    $('#uploadLabHasilForm')[0].reset();
+                    hasilLabTable.ajax.reload();
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Terjadi kesalahan! Silakan coba lagi.'
+                });
+                console.error(xhr.responseText);
+            }
+        });
+    });
 
-$('#asalLab').trigger('change');
+    // Toggle hasil detail form based on asal lab selection
+    $('#asalLab').on('change', function() {
+        if ($(this).val() === 'internal') {
+            // Show internal fields, hide external
+            $('#hasilFileGroup').hide();
+            $('#hasilDetailGroup').show();
+            
+            // Make file upload not required
+            $('#hasilFile').prop('required', false);
+            
+            // Make the first row fields required if they exist
+            if ($('#hasilDetailTable tbody tr').length > 0) {
+                $('#hasilDetailTable tbody tr:first-child input[name$="[nama_test]"]').prop('required', true);
+                $('#hasilDetailTable tbody tr:first-child input[name$="[hasil]"]').prop('required', true);
+            }
+        } else {
+            // Show external fields, hide internal
+            $('#hasilFileGroup').show();
+            $('#hasilDetailGroup').hide();
+            
+            // Make file upload required
+            $('#hasilFile').prop('required', true);
+            
+            // Remove required from all internal lab fields
+            $('#hasilDetailTable tbody input[required]').prop('required', false);
+        }
+    });
 
-// Add a new row to hasil detail table
-$('#addHasilDetail').on('click', function() {
+    $('#asalLab').trigger('change');
+
+    // Add a new row to hasil detail table
+    $('#addHasilDetail').on('click', function() {
         let rowCount = $('#hasilDetailTable tbody tr').length;
         let newRow = `
-            <tr>
-                <td>
-                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][nama_test]" 
-                        ${$('#asalLab').val() === 'internal' ? 'required' : ''}>
-                </td>
-                <td>
-                    <select class="form-control" name="hasil_detail[${rowCount}][flag]">
-                        <option value="">-</option>
-                        <option value="H">H</option>
-                        <option value="L">L</option>
-                    </select>
-                </td>
-                <td>
-                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][hasil]" 
-                        ${$('#asalLab').val() === 'internal' ? 'required' : ''}>
-                </td>
-                <td>
-                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][satuan]">
-                </td>
-                <td>
-                    <input type="text" class="form-control" name="hasil_detail[${rowCount}][nilai_rujukan]">
-                </td>
-                <td>
-                    <button type="button" class="btn btn-danger btn-sm remove-detail"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
         `;
         $('#hasilDetailTable tbody').append(newRow);
     });
 
-// Remove a row from hasil detail table
-$('#hasilDetailTable').on('click', '.remove-detail', function() {
-    $(this).closest('tr').remove();
-});
+    // Remove a row from hasil detail table
+    $('#hasilDetailTable').on('click', '.remove-detail', function() {
+        $(this).closest('tr').remove();
+    });
 
+    // Initialize HasilLis DataTable
+    let hasilLisTable = $('#hasilLisTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: '/erm/elab/{{ $visitation->id }}/hasil-lis/data',
+        columns: [
+            { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
+            { data: 'tanggal', name: 'tanggal_visitation' },
+            { data: 'dokter', name: 'dokter' },
+            { data: 'action', name: 'action', orderable: false, searchable: false }
+        ],
+        order: [[1, 'desc']],
+        language: {
+            processing: 'Memproses...',
+            search: 'Cari:',
+            lengthMenu: 'Tampilkan _MENU_ data',
+            info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+            infoEmpty: 'Tidak ada data yang ditampilkan',
+            infoFiltered: '(difilter dari _MAX_ total data)',
+            zeroRecords: 'Tidak ada hasil pencarian ditemukan',
+            emptyTable: 'Tidak ada data di tabel',
+            paginate: {
+                first: '<<',
+                previous: '<',
+                next: '>',
+                last: '>>'
+            }
+        }
+    });
+
+    // Handle view HasilLis details button click
+    $('#hasilLisTable').on('click', '.btn-view-hasil-lis', function() {
+        let visitationId = $(this).data('id');
+        
+        // Get hasil LIS details
+        $.ajax({
+            url: '/erm/elab/hasil-lis/' + visitationId,
+            method: 'GET',
+            beforeSend: function() {
+                $('#hasilLisDetailTable tbody').html(
+                    '<tr><td colspan="8" class="text-center">Memuat data...</td></tr>'
+                );
+            },
+            success: function(response) {
+                // Clear table
+                $('#hasilLisDetailTable tbody').empty();
+                
+                if (response.data.length === 0) {
+                    $('#hasilLisDetailTable tbody').html(
+                        '<tr><td colspan="8" class="text-center">Tidak ada data hasil</td></tr>'
+                    );
+                    return;
+                }
+                
+                // Populate table with data
+                $.each(response.data, function(index, item) {
+                    $('#hasilLisDetailTable tbody').append(`
+                        <tr>
+                            <td>${item.header || '-'}</td>
+                            <td>${item.sub_header || '-'}</td>
+                            <td>${item.nama_test || '-'}</td>
+                            <td>${item.hasil || '-'}</td>
+                            <td>${item.flag || '-'}</td>
+                            <td>${item.metode || '-'}</td>
+                            <td>${item.nilai_rujukan || '-'}</td>
+                            <td>${item.satuan || '-'}</td>
+                        </tr>
+                    `);
+                });
+            },
+            error: function(xhr, status, error) {
+                $('#hasilLisDetailTable tbody').html(
+                    '<tr><td colspan="8" class="text-center">Error: ' + error + '</td></tr>'
+                );
+            }
+        });
+        
+        // Show modal
+        $('#hasilLisModal').modal('show');
+    });
 
 });
 </script>    

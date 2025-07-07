@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use App\Models\ERM\Dokter;
+use App\Models\ERM\HasilLis;
 use App\Models\ERM\LabHasil;
 use App\Models\ERM\LabKategori;
 use App\Models\ERM\LabPermintaan;
@@ -507,6 +508,79 @@ class ElabController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Permintaan laboratorium berhasil disimpan'
+        ]);
+    }
+
+    public function getHasilLisData($visitationId)
+    {
+        // Get patient ID from visitation
+        $visitation = Visitation::findOrFail($visitationId);
+        $pasienId = $visitation->pasien_id;
+        
+        // Get all visitations for this patient to show all lab results
+        $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id')->toArray();
+        
+        $query = HasilLis::whereIn('visitation_id', $visitationIds)
+                ->join('erm_visitations', 'erm_hasil_lis.visitation_id', '=', 'erm_visitations.id')
+                ->leftJoin('erm_dokters', 'erm_visitations.dokter_id', '=', 'erm_dokters.id')
+                ->leftJoin('users', 'erm_dokters.user_id', '=', 'users.id')
+                ->select(
+                    'erm_hasil_lis.kode',
+                    'erm_hasil_lis.visitation_id',
+                    
+                    'erm_hasil_lis.kode_lis',
+                    'erm_hasil_lis.header',
+                    'erm_hasil_lis.sub_header',
+                    'erm_hasil_lis.nama_test',
+                    'erm_hasil_lis.hasil',
+                    'erm_hasil_lis.flag',
+                    'erm_hasil_lis.metode',
+                    'erm_hasil_lis.nilai_rujukan',
+                    'erm_hasil_lis.satuan',
+                    'erm_visitations.tanggal_visitation',
+                    'users.name as nama_dokter'
+                )
+                ->orderBy('erm_visitations.tanggal_visitation', 'desc')
+                ->groupBy(
+                    'erm_hasil_lis.kode',
+                    'erm_hasil_lis.visitation_id',
+                    
+                    'erm_hasil_lis.kode_lis',
+                    'erm_hasil_lis.header',
+                    'erm_hasil_lis.sub_header',
+                    'erm_hasil_lis.nama_test',
+                    'erm_hasil_lis.hasil',
+                    'erm_hasil_lis.flag',
+                    'erm_hasil_lis.metode',
+                    'erm_hasil_lis.nilai_rujukan',
+                    'erm_hasil_lis.satuan',
+                    'erm_visitations.tanggal_visitation',
+                    'users.name'
+                ); // Include all selected columns in the GROUP BY
+        
+        return DataTables::of($query)
+            ->addIndexColumn()
+            ->addColumn('tanggal', function($row) {
+                return date('d-m-Y', strtotime($row->tanggal_visitation));
+            })
+            ->addColumn('dokter', function($row) {
+                return $row->nama_dokter ?? 'Tidak ada dokter';
+            })
+            ->addColumn('action', function($row) {
+                return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-lis" data-id="'.$row->visitation_id.'">
+                            <i class="fas fa-eye"></i> Lihat Hasil
+                        </button>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    public function getHasilLisDetails($visitationId)
+    {
+        $hasilLis = HasilLis::where('visitation_id', $visitationId)->get();
+        
+        return response()->json([
+            'data' => $hasilLis
         ]);
     }
 }

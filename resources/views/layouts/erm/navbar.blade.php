@@ -66,7 +66,7 @@
                     @endhasrole
 
                     <!-- Pendaftaran Section -->
-                    @hasanyrole('Pendaftaran|Perawat|Farmasi|Admin|Beautician')
+                    @hasanyrole('Pendaftaran|Perawat|Farmasi|Admin|Beautician|Lab')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="user" class="align-self-center menu-icon"></i><span>Pendaftaran</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
