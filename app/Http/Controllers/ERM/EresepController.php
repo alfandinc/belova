@@ -1054,13 +1054,16 @@ class EresepController extends Controller
             $obat = Obat::find($resep->obat_id);
             $harga = $obat ? $obat->harga_nonfornas : 0;
 
+            // Get obat for satuan information
+            $obat = Obat::find($resep->obat_id);
+            
             // Create new ResepFarmasi record
             ResepFarmasi::create([
                 'id' => $customId,
                 'visitation_id' => $targetVisitationId,
                 'obat_id' => $resep->obat_id,
                 'jumlah' => $resep->jumlah,
-                'dosis' => $resep->dosis,
+                'dosis' => $resep->dosis . ($obat && !str_contains($resep->dosis, $obat->satuan) ? ' ' . $obat->satuan : ''),
                 'bungkus' => $resep->bungkus,
                 'racikan_ke' => $resep->racikan_ke,
                 'aturan_pakai' => $resep->aturan_pakai,

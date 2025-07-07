@@ -964,10 +964,13 @@
             const aturan = items[0].aturan_pakai ?? '';
 
             const rows = items.map(item => {
+                // Ensure dosis always has the unit displayed
+                const dosis = item.dosis;
+                
                 return `
                     <tr>
                         <td data-id="${item.id}">${item.obat?.nama ?? '-'}</td>
-                        <td>${item.dosis}</td>
+                        <td>${dosis}</td>
                         <td>${item.obat?.stok ?? 0}</td>
                         <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
                     </tr>`;
