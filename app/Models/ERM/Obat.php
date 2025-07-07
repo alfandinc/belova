@@ -5,6 +5,7 @@ namespace App\Models\ERM;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\ERM\Supplier;
+use Illuminate\Database\Eloquent\Builder;
 
 class Obat extends Model
 {
@@ -25,7 +26,26 @@ class Obat extends Model
         'metode_bayar_id',
         'status_aktif'
     ];
+    
+    /**
+     * The "booted" method of the model.
+     * This ensures that only active medications are shown by default
+     */
+    protected static function booted()
+    {
+        static::addGlobalScope('active', function (Builder $builder) {
+            $builder->where('status_aktif', 1);
+        });
+    }
 
+    /**
+     * Scope to include inactive medications when needed
+     */
+    public function scopeWithInactive($query)
+    {
+        return $query->withoutGlobalScope('active');
+    }
+    
     public function supplier()
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');

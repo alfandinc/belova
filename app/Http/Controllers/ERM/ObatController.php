@@ -17,7 +17,7 @@ class ObatController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $query = Obat::with(['zatAktifs', 'metodeBayar']);
+            $query = Obat::withInactive()->with(['zatAktifs', 'metodeBayar']);
 
             // Apply filters if provided
             if ($request->has('kategori') && !empty($request->kategori)) {
@@ -146,10 +146,13 @@ class ObatController extends Controller
     {
         $query = $request->get('q');
 
-        // Fetch obat data based on the search query
-        $obats = Obat::where('nama', 'LIKE', "%{$query}%")
-            ->orWhere('dosis', 'LIKE', "%{$query}%")
-            ->orWhere('satuan', 'LIKE', "%{$query}%")
+        // Fetch obat data based on the search query and only show active medications
+        $obats = Obat::where('status_aktif', 1)
+            ->where(function($q) use ($query) {
+                $q->where('nama', 'LIKE', "%{$query}%")
+                  ->orWhere('dosis', 'LIKE', "%{$query}%")
+                  ->orWhere('satuan', 'LIKE', "%{$query}%");
+            })
             ->limit(10)
             ->get();
 
