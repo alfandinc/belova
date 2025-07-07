@@ -13,14 +13,12 @@
                     <table class="table table-bordered" id="hasilLisDetailTable">
                         <thead>
                             <tr>
-                                <th>Header</th>
-                                <th>Sub Header</th>
-                                <th>Nama Test</th>
-                                <th>Hasil</th>
-                                <th>Flag</th>
-                                <th>Metode</th>
-                                <th>Nilai Rujukan</th>
-                                <th>Satuan</th>
+                                <th style="width: 5%">No.</th>
+                                <th style="width: 30%">Nama Pemeriksaan</th>
+                                <th style="width: 15%">Hasil</th>
+                                <th style="width: 10%">Flag</th>
+                                <th style="width: 25%">Nilai Rujukan</th>
+                                <th style="width: 15%">Satuan</th>
                             </tr>
                         </thead>
                         <tbody>

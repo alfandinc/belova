@@ -928,7 +928,7 @@ $(document).ready(function () {
             method: 'GET',
             beforeSend: function() {
                 $('#hasilLisDetailTable tbody').html(
-                    '<tr><td colspan="8" class="text-center">Memuat data...</td></tr>'
+                    '<tr><td colspan="6" class="text-center">Memuat data...</td></tr>'
                 );
             },
             success: function(response) {
@@ -937,30 +937,64 @@ $(document).ready(function () {
                 
                 if (response.data.length === 0) {
                     $('#hasilLisDetailTable tbody').html(
-                        '<tr><td colspan="8" class="text-center">Tidak ada data hasil</td></tr>'
+                        '<tr><td colspan="6" class="text-center">Tidak ada data hasil</td></tr>'
                     );
                     return;
                 }
                 
-                // Populate table with data
+                // Group data by header and sub_header
+                var groupedData = {};
+                var rowNumber = 1;
+                
                 $.each(response.data, function(index, item) {
+                    if (!groupedData[item.header]) {
+                        groupedData[item.header] = {};
+                    }
+                    
+                    if (!groupedData[item.header][item.sub_header]) {
+                        groupedData[item.header][item.sub_header] = [];
+                    }
+                    
+                    groupedData[item.header][item.sub_header].push(item);
+                });
+                
+                // Populate table with data
+                $.each(groupedData, function(header, subHeaders) {
+                    // Add header row
                     $('#hasilLisDetailTable tbody').append(`
                         <tr>
-                            <td>${item.header || '-'}</td>
-                            <td>${item.sub_header || '-'}</td>
-                            <td>${item.nama_test || '-'}</td>
-                            <td>${item.hasil || '-'}</td>
-                            <td>${item.flag || '-'}</td>
-                            <td>${item.metode || '-'}</td>
-                            <td>${item.nilai_rujukan || '-'}</td>
-                            <td>${item.satuan || '-'}</td>
+                            <td colspan="6" style="background-color: #f8f9fa; font-weight: bold; color: #000; text-transform: uppercase;">${header}</td>
                         </tr>
                     `);
+                    
+                    $.each(subHeaders, function(subHeader, items) {
+                        // Add sub-header row
+                        $('#hasilLisDetailTable tbody').append(`
+                            <tr>
+                                <td colspan="6" style="background-color: #f0f0f0; font-weight: bold; padding-left: 20px; color: green;">${subHeader}</td>
+                            </tr>
+                        `);
+                        
+                        // Add items
+                        $.each(items, function(i, item) {
+                            $('#hasilLisDetailTable tbody').append(`
+                                <tr>
+                                    <td>${rowNumber}</td>
+                                    <td>${item.nama_test || '-'}</td>
+                                    <td>${item.hasil || '-'}</td>
+                                    <td>${item.flag || '-'}</td>
+                                    <td>${item.nilai_rujukan || '-'}</td>
+                                    <td>${item.satuan || '-'}</td>
+                                </tr>
+                            `);
+                            rowNumber++;
+                        });
+                    });
                 });
             },
             error: function(xhr, status, error) {
                 $('#hasilLisDetailTable tbody').html(
-                    '<tr><td colspan="8" class="text-center">Error: ' + error + '</td></tr>'
+                    '<tr><td colspan="6" class="text-center">Error: ' + error + '</td></tr>'
                 );
             }
         });
@@ -970,5 +1004,6 @@ $(document).ready(function () {
     });
 
 });
-</script>    
+</script>   
+ 
 @endsection

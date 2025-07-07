@@ -518,45 +518,28 @@ class ElabController extends Controller
         $pasienId = $visitation->pasien_id;
         
         // Get all visitations for this patient to show all lab results
-        $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id')->toArray();
+        $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id');
         
+        // Simplified query using with() for eager loading instead of joins
         $query = HasilLis::whereIn('visitation_id', $visitationIds)
-                ->join('erm_visitations', 'erm_hasil_lis.visitation_id', '=', 'erm_visitations.id')
-                ->leftJoin('erm_dokters', 'erm_visitations.dokter_id', '=', 'erm_dokters.id')
-                ->leftJoin('users', 'erm_dokters.user_id', '=', 'users.id')
+                ->with(['visitation' => function($query) {
+                    $query->with('dokter.user');
+                }])
                 ->select(
-                    'erm_hasil_lis.kode',
-                    'erm_hasil_lis.visitation_id',
-                    
-                    'erm_hasil_lis.kode_lis',
-                    'erm_hasil_lis.header',
-                    'erm_hasil_lis.sub_header',
-                    'erm_hasil_lis.nama_test',
-                    'erm_hasil_lis.hasil',
-                    'erm_hasil_lis.flag',
-                    'erm_hasil_lis.metode',
-                    'erm_hasil_lis.nilai_rujukan',
-                    'erm_hasil_lis.satuan',
-                    'erm_visitations.tanggal_visitation',
-                    'users.name as nama_dokter'
+                    'erm_hasil_lis.kode', 
+                    'erm_hasil_lis.visitation_id', 
+                    'erm_hasil_lis.kode_lis', 
+                    'erm_hasil_lis.header', 
+                    'erm_hasil_lis.nama_test', 
+                    'erm_hasil_lis.hasil', 
+                    'erm_hasil_lis.flag'
                 )
-                ->orderBy('erm_visitations.tanggal_visitation', 'desc')
-                ->groupBy(
-                    'erm_hasil_lis.kode',
-                    'erm_hasil_lis.visitation_id',
-                    
-                    'erm_hasil_lis.kode_lis',
-                    'erm_hasil_lis.header',
-                    'erm_hasil_lis.sub_header',
-                    'erm_hasil_lis.nama_test',
-                    'erm_hasil_lis.hasil',
-                    'erm_hasil_lis.flag',
-                    'erm_hasil_lis.metode',
-                    'erm_hasil_lis.nilai_rujukan',
-                    'erm_hasil_lis.satuan',
-                    'erm_visitations.tanggal_visitation',
-                    'users.name'
-                ); // Include all selected columns in the GROUP BY
+                ->distinct(); // Using distinct instead of complex groupBy
+                
+        // Join with visitations to be able to sort by visitation date        
+        $query = $query->join('erm_visitations', 'erm_hasil_lis.visitation_id', '=', 'erm_visitations.id')
+                ->addSelect('erm_visitations.tanggal_visitation') // Add this column for sorting and display
+                ->orderBy('erm_visitations.tanggal_visitation', 'desc');
         
         return DataTables::of($query)
             ->addIndexColumn()
@@ -564,7 +547,9 @@ class ElabController extends Controller
                 return date('d-m-Y', strtotime($row->tanggal_visitation));
             })
             ->addColumn('dokter', function($row) {
-                return $row->nama_dokter ?? 'Tidak ada dokter';
+                return $row->visitation && $row->visitation->dokter && $row->visitation->dokter->user 
+                    ? $row->visitation->dokter->user->name 
+                    : 'Tidak ada dokter';
             })
             ->addColumn('action', function($row) {
                 return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-lis" data-id="'.$row->visitation_id.'">
