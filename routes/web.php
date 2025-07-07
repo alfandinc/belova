@@ -10,6 +10,7 @@ use App\Http\Controllers\{
     MarketingDashboardController,
     FinanceDashboardController,
     WorkdocDashboardController,
+    AkreditasiDashboardController
 };
 use App\Http\Controllers\Admin\{
     UserController,
@@ -71,6 +72,7 @@ Route::get('/hrd/login', [AuthController::class, 'showHRDLoginForm'])->name('hrd
 Route::get('/inventory/login', [AuthController::class, 'showInventoryLoginForm'])->name('inventory.login');
 Route::get('/marketing/login', [AuthController::class, 'showMarketingLoginForm'])->name('marketing.login');
 Route::get('/workdoc/login', [AuthController::class, 'showWorkdocLoginForm'])->name('workdoc.login');
+Route::get('/akreditasi/login', [AuthController::class, 'showAkreditasiLoginForm'])->name('akreditasi.login');
 
 // Single POST route for login processing (all forms submit here)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -83,6 +85,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
     Route::get('/marketing', [MarketingDashboardController::class, 'index'])->name('marketing.dashboard');
     Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
+    Route::get('/akreditasi', [AkreditasiDashboardController::class, 'index'])->name('akreditasi.dashboard');
 });
 
 Route::fallback(function () {
@@ -282,6 +285,12 @@ Route::prefix('workdoc')->group(
     function () {
         // Route::get('/', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
         // Add more Workdoc routes here as needed
+    }
+);
+Route::prefix('akreditasi')->group(
+    function () {
+        Route::get('/', [AkreditasiDashboardController::class, 'index'])->name('akreditasi.dashboard');
+        // Add more Akreditasi routes here as needed
     }
 );
 

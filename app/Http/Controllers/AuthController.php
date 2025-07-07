@@ -36,6 +36,10 @@ class AuthController extends Controller
     {
         return view('auth.workdoc_login'); // Workdoc Login Page
     }
+    public function showAkreditasiLoginForm()
+    {
+        return view('auth.akreditasi_login'); // Akreditasi Login Page
+    }
 
     // Handle login request
     public function login(Request $request)
@@ -55,7 +59,8 @@ class AuthController extends Controller
             'finance' => ['Kasir'],
             'inventory' => ['Inventaris'],
             'marketing' => ['Marketing'],
-            'workdoc' => ['Hrd', 'Ceo', 'Manager'],
+            'workdoc' => ['Hrd', 'Ceo', 'Manager', 'Employee'],
+            'akreditasi' => ['Hrd', 'Ceo', 'Manager', 'Employee'],
         ];
 
         // Check if the module is valid
