@@ -17,7 +17,12 @@ class ObatController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $query = Obat::withInactive()->with(['zatAktifs', 'metodeBayar']);
+            // Debug the incoming status_aktif parameter
+            \Illuminate\Support\Facades\Log::info('Obat status filter: ' . $request->status_aktif);
+            
+            // Always get all medications (both active and inactive)
+            // This completely bypasses the global scope in the Obat model
+            $query = Obat::withoutGlobalScope('active')->with(['zatAktifs', 'metodeBayar']);
 
             // Apply filters if provided
             if ($request->has('kategori') && !empty($request->kategori)) {
@@ -27,6 +32,16 @@ class ObatController extends Controller
             if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
                 $query->where('metode_bayar_id', $request->metode_bayar_id);
             }
+            
+            // Filter by status if provided
+            if ($request->filled('status_aktif')) {
+                \Illuminate\Support\Facades\Log::info('Applying status filter: ' . $request->status_aktif);
+                $query->where('status_aktif', $request->status_aktif);
+            } else {
+                \Illuminate\Support\Facades\Log::info('No status filter applied, showing all medications');
+            }
+            // When no status filter is applied or empty string is passed, 
+            // we want to show all medications (both active and inactive)
 
             // Handle ordering
             if ($request->has('order') && !empty($request->order)) {
@@ -53,6 +68,9 @@ class ObatController extends Controller
                         $zats[] = '<span class="badge bg-secondary">' . $zat->nama . '</span>';
                     }
                     return implode(' ', $zats);
+                })
+                ->addColumn('status_aktif', function ($obat) {
+                    return $obat->status_aktif;
                 })
                 ->addColumn('action', function ($obat) {
                     $editBtn = '<a href="' . route('erm.obat.edit', $obat->id) . '" class="btn btn-sm btn-info"><i class="fas fa-edit"></i></a>';
@@ -133,7 +151,7 @@ class ObatController extends Controller
 
     public function edit($id)
     {
-        $obat = Obat::with('zatAktifs')->findOrFail($id);
+        $obat = Obat::withInactive()->with('zatAktifs')->findOrFail($id);
         $zatAktif = ZatAktif::all();
         $supplier = Supplier::all();
         $metodeBayars = MetodeBayar::all();
@@ -173,7 +191,7 @@ class ObatController extends Controller
     public function destroy($id)
     {
         try {
-            $obat = Obat::findOrFail($id);
+            $obat = Obat::withInactive()->findOrFail($id);
             $obat->zatAktifs()->detach();
             $obat->delete();
 

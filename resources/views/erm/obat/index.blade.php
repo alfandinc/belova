@@ -33,7 +33,7 @@
                 <div class="card-body">
                     <h5 class="card-title">Filter</h5>
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label for="filter_kategori">Kategori</label>
                                 <select id="filter_kategori" class="form-control select2">
@@ -44,7 +44,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="form-group">
                                 <label for="filter_metode_bayar">Metode Bayar</label>
                                 <select id="filter_metode_bayar" class="form-control select2">
@@ -54,6 +54,21 @@
                                     @endforeach
                                 </select>
                             </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="filter_status">Status</label>
+                                <select id="filter_status" class="form-control select2">
+                                    <option value="">Semua Status</option>
+                                    <option value="1">Aktif</option>
+                                    <option value="0">Tidak Aktif</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <button id="reload-table" class="btn btn-secondary">Refresh Data</button>
                         </div>
                     </div>
                 </div>
@@ -72,6 +87,7 @@
                         <th>Kategori</th>
                         <th>Zat Aktif</th>
                         <th class="text-right">Stok</th>
+                        <th>Status</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -89,6 +105,27 @@
     #obat-table td:nth-child(6) {
         text-align: right;
     }
+    
+    /* Style for inactive medications */
+    tr.inactive-medication {
+        background-color: #ffe0e0 !important;
+    }
+    
+    .status-badge {
+        font-weight: bold;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+    
+    .status-active {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .status-inactive {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
 </style>
 <script>
     $(document).ready(function () {
@@ -96,6 +133,9 @@
         $('.select2').select2({
             width: '100%'
         });
+        
+        // Make sure filter_status has an empty value initially
+        $('#filter_status').val('').trigger('change.select2');
 
         // Initialize DataTable
         let table = $('#obat-table').DataTable({
@@ -106,6 +146,16 @@
                 data: function(d) {
                     d.kategori = $('#filter_kategori').val();
                     d.metode_bayar_id = $('#filter_metode_bayar').val();
+                    
+                    // Always send the status_aktif parameter
+                    // Even when it's empty, to ensure the controller gets it
+                    d.status_aktif = $('#filter_status').val();
+                    
+                    console.log('Sending filters:', {
+                        kategori: d.kategori,
+                        metode_bayar_id: d.metode_bayar_id,
+                        status_aktif: d.status_aktif
+                    });
                 }
             },
             columns: [
@@ -126,13 +176,45 @@
                     name: 'stok',
                     className: 'text-right'
                 },
+                { 
+                    data: 'status_aktif', 
+                    name: 'status_aktif',
+                    render: function(data) {
+                        if (data === 1) {
+                            return '<span class="status-badge status-active">Aktif</span>';
+                        } else {
+                            return '<span class="status-badge status-inactive">Tidak Aktif</span>';
+                        }
+                    }
+                },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
             ],
-            order: [[ 5, 'asc' ]] // Default ordering by stok ascending (now at column 5)
+            order: [[ 5, 'asc' ]], // Default ordering by stok ascending (now at column 5)
+            rowCallback: function(row, data) {
+                // Add a class to rows with inactive medications
+                if (data.status_aktif === 0) {
+                    $(row).addClass('inactive-medication');
+                }
+            }
         });
 
         // Apply filter when select changes (no button needed)
-        $('#filter_kategori, #filter_metode_bayar').on('change', function() {
+        $('#filter_kategori, #filter_metode_bayar, #filter_status').on('change', function() {
+            var statusFilter = $('#filter_status').val();
+            console.log('Status filter changed to:', statusFilter);
+            
+            // Add special handling for the "All" option
+            if (statusFilter === '') {
+                console.log('All statuses selected');
+            }
+            
+            table.ajax.reload();
+        });
+        
+        // Add reload button functionality
+        $('#reload-table').on('click', function() {
+            console.log('Manually reloading table...');
+            $('#filter_status').val('').trigger('change.select2');
             table.ajax.reload();
         });
 
