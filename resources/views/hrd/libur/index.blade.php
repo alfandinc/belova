@@ -25,6 +25,15 @@
                 </div>
             </div>
             
+            <style>
+                /* Hide any dynamically added "akan mengajukan libur" messages */
+                [id$="day-info"], 
+                div:contains("Anda akan mengajukan libur"),
+                p:contains("Anda akan mengajukan libur") {
+                    display: none !important;
+                }
+            </style>
+            
             @if(auth()->user()->hasRole('Employee'))
                 @include('hrd.libur.karyawan-index')
             @elseif(auth()->user()->hasRole('Manager'))
@@ -76,6 +85,11 @@
                                 <input type="date" class="form-control" name="tanggal_selesai" id="tanggal_selesai" required>
                             </div>
                         </div>
+                    </div>
+                    <div class="alert alert-info small">
+                        <i class="fas fa-info-circle"></i> Catatan: Jumlah hari dihitung secara inklusif termasuk tanggal awal dan akhir.
+                        <br>Contoh: Libur 1 hari (1 Jan) - isi tanggal mulai dan selesai sama: 1 Jan.
+                        <br>Contoh: Libur 4 hari (9-12 Jan) - isi tanggal mulai: 9 Jan, tanggal selesai: 12 Jan.
                     </div>
                     
                     <div class="form-group">
@@ -202,8 +216,26 @@
 @endsection
 
 @section('scripts')
+<style>
+/* Hide the "Anda akan mengajukan libur" messages outside of modal */
+.page-content .alert-info p.mb-0 + .hari-info,
+.page-content .alert-info div:contains("Anda akan mengajukan libur") {
+    display: none !important;
+}
+</style>
 <script>
 $(document).ready(function() {
+    // Remove any "Anda akan mengajukan libur" text from the main page alerts
+    $('.page-content .alert-info').each(function() {
+        $(this).find('div, p').each(function() {
+            if ($(this).text().indexOf('Anda akan mengajukan libur') !== -1) {
+                $(this).remove();
+            }
+        });
+    });
+    
+    // Also clean up any dynamically added elements with specific IDs
+    $('[id$="day-info"]').not('#modalCreateLibur [id$="day-info"]').remove();
     // Initialize DataTable for Employee
     var tableKaryawan = $('#tableLiburKaryawan').DataTable({
         processing: true,
@@ -470,7 +502,43 @@ $(document).ready(function() {
         });
     });
     
-    // Date validation
+    // Date validation and day calculation
+    function updateDayCount() {
+        var startDateVal = $('#tanggal_mulai').val();
+        var endDateVal = $('#tanggal_selesai').val();
+        
+        if (startDateVal && endDateVal) {
+            var startDate = new Date(startDateVal + 'T00:00:00'); // Add time to ensure proper date handling
+            var endDate = new Date(endDateVal + 'T00:00:00');
+            
+            // Calculate days between dates (inclusive)
+            // Force absolute value to ensure positive number regardless of date order
+            var diffTime = Math.abs(endDate - startDate);
+            var diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end date
+            
+            // Safety check - ensure at least 1 day
+            if (diffDays < 1) {
+                diffDays = 1;
+            }
+            
+            // Show message with day count only in the modal's info alert about calculation
+            var infoMessage = 'Anda akan mengajukan libur selama <b>' + diffDays + ' hari</b>.';
+            
+            // Find the alert in the modal that contains the calculation info
+            var $targetAlert = $('#modalCreateLibur .alert-info').filter(function() {
+                return $(this).text().indexOf('Jumlah hari dihitung secara inklusif') !== -1;
+            });
+            
+            if (!$('#day-info').length) {
+                // Only append to the alert in the modal that explains the calculation
+                $targetAlert.append('<div id="day-info" class="mt-2">' + infoMessage + '</div>');
+            } else {
+                $('#day-info').html(infoMessage);
+            }
+        }
+    }
+
+    
     $('#tanggal_selesai').change(function() {
         var startDate = new Date($('#tanggal_mulai').val());
         var endDate = new Date($(this).val());
@@ -483,22 +551,29 @@ $(document).ready(function() {
                 confirmButtonText: 'OK'
             });
             $(this).val('');
+        } else {
+            updateDayCount();
         }
     });
     
     $('#tanggal_mulai').change(function() {
         var startDate = new Date($(this).val());
         var endDateInput = $('#tanggal_selesai');
-        var endDate = new Date(endDateInput.val());
         
-        if (endDateInput.val() && endDate < startDate) {
-            Swal.fire({
-                title: 'Peringatan!',
-                text: 'Tanggal mulai tidak boleh setelah tanggal selesai',
-                icon: 'warning',
-                confirmButtonText: 'OK'
-            });
-            $(this).val('');
+        if (endDateInput.val()) {
+            var endDate = new Date(endDateInput.val());
+            
+            if (endDate < startDate) {
+                Swal.fire({
+                    title: 'Peringatan!',
+                    text: 'Tanggal mulai tidak boleh setelah tanggal selesai',
+                    icon: 'warning',
+                    confirmButtonText: 'OK'
+                });
+                $(this).val('');
+            } else {
+                updateDayCount();
+            }
         }
     });
 });

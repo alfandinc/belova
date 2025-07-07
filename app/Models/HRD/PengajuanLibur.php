@@ -37,4 +37,37 @@ class PengajuanLibur extends Model
     {
         return $this->belongsTo(Employee::class);
     }
+    
+    /**
+     * Calculate the total days between start and end dates when saving
+     */
+    protected static function boot()
+    {
+        parent::boot();
+        
+        // Force correct day calculation on both create and update
+        static::saving(function ($model) {
+            // Always recalculate total_hari for consistency
+            $start = \Carbon\Carbon::parse($model->tanggal_mulai)->startOfDay();
+            $end = \Carbon\Carbon::parse($model->tanggal_selesai)->startOfDay();
+            
+            // Calculate days by counting dates between start and end (inclusive)
+            // Manual calculation to ensure accuracy:
+            // 1. Get all days between the two dates
+            // 2. Count them + 1 to include the start date
+            $startTimestamp = $start->getTimestamp();
+            $endTimestamp = $end->getTimestamp();
+            $totalHari = (int)round(($endTimestamp - $startTimestamp) / 86400) + 1;
+            
+            // Force positive value (absolute) to prevent negative days
+            $totalHari = abs($totalHari);
+            
+            // Safety check - ensure at least 1 day
+            if ($totalHari < 1) {
+                $totalHari = 1;
+            }
+            
+            $model->total_hari = $totalHari;
+        });
+    }
 }

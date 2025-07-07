@@ -11,6 +11,7 @@ use App\Models\HRD\PengajuanLibur;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanLiburController extends Controller
@@ -286,9 +287,36 @@ class PengajuanLiburController extends Controller
             'alasan' => 'required|string',
         ]);
 
-        $tanggalMulai = Carbon::parse($request->tanggal_mulai);
-        $tanggalSelesai = Carbon::parse($request->tanggal_selesai);
-        $totalHari = $tanggalMulai->diffInDays($tanggalSelesai) + 1;
+        // Parse dates with Carbon to ensure consistent handling
+        $tanggalMulai = Carbon::parse($request->tanggal_mulai)->startOfDay();
+        $tanggalSelesai = Carbon::parse($request->tanggal_selesai)->startOfDay();
+
+        // Calculate days by counting dates between start and end (inclusive)
+        // Manual calculation to ensure accuracy:
+        // 1. Get all days between the two dates
+        // 2. Count them + 1 to include the start date
+        $startTimestamp = $tanggalMulai->getTimestamp();
+        $endTimestamp = $tanggalSelesai->getTimestamp();
+        $totalHari = (int)round(($endTimestamp - $startTimestamp) / 86400) + 1;
+        
+        // Force positive value (absolute) to prevent negative days
+        $totalHari = abs($totalHari);
+        
+        // Safety check - ensure at least 1 day
+        if ($totalHari < 1) {
+            $totalHari = 1;
+        }
+        
+        // Add debug logging to ensure calculation is correct
+        Log::info('PengajuanLibur - Day Calculation', [
+            'tanggal_mulai' => $tanggalMulai->toDateString(),
+            'tanggal_selesai' => $tanggalSelesai->toDateString(),
+            'start_timestamp' => $startTimestamp,
+            'end_timestamp' => $endTimestamp,
+            'diff_seconds' => $endTimestamp - $startTimestamp,
+            'diff_days_raw' => ($endTimestamp - $startTimestamp) / 86400,
+            'total_hari' => $totalHari
+        ]);
 
         $employee = Auth::user()->employee;
         $jatahLibur = $employee->ensureJatahLibur();
