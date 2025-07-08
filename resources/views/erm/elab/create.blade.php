@@ -234,15 +234,17 @@
                     <div class="d-flex align-items-center" style="flex:1;">
                         <h5 class="mb-0 mr-2"><i class="fa fa-flask mr-2"></i> <strong>PERMINTAAN LAB</strong></h5>
                     </div>
-                    <div class="flex-grow-1 text-center">
+                    {{-- <div class="flex-grow-1 text-center">
                         <span class="h5 mb-0">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
-                    </div>
-                    <div class="d-flex align-items-center" style="flex:1; justify-content: flex-end;">
-                        <button type="button" id="submitLabRequests" class="btn btn-sm btn-primary">Simpan Permintaan Lab</button>
-                    </div>
+                    </div> --}}
+                    
                 </div>
                 
                 <div class="card-body">
+                    <!-- Move Estimasi Harga to the top of the form permintaan lab card -->
+                    {{-- <div class="mb-3 text-right">
+                        <span class="h5 mb-0">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
+                    </div> --}}
                     <!-- Tabs navigation -->
                     <ul class="nav nav-tabs" id="labTabs" role="tablist">
                         <li class="nav-item">
@@ -261,6 +263,9 @@
                     <div class="tab-content mt-3" id="labTabsContent">
                         <!-- Current Lab Requests Tab -->
                         <div class="tab-pane fade show active" id="current-content" role="tabpanel" aria-labelledby="current-tab">
+                            <div class="d-flex align-items-center" style="flex:1; justify-content: flex-end; margin-bottom: 10px;">
+                                <button type="button" id="submitLabRequests" class="btn btn-sm btn-primary">Simpan Permintaan Lab</button>
+                            </div>
                             <!-- Bulk Actions Section -->
                             <div class="bulk-actions mb-3 p-2 bg-light rounded">
                                 <div class="d-flex align-items-center">
@@ -318,6 +323,14 @@
             </div>
         </div>
     </div>
+    <!-- Estimasi Harga moved here between the two cards above and the form card below -->
+    <div class="row">
+        <div class="col-12">
+            <div class="mb-3 text-center">
+                <span class="h3 mb-0 font-weight-bold">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
+            </div>
+        </div>
+    </div>
     <div class="row">
         <div class="col-md-12">
             <div class="card">
@@ -325,6 +338,10 @@
                     <h5 class="mb-0"><i class="fas fa-flask mr-2"></i> <strong>FORM PERMINTAAN LAB</strong></h5>
                 </div>
                 <div class="card-body">
+                    <!-- Move Estimasi Harga here -->
+                    {{-- <div class="mb-3 text-right">
+                        <span class="h5 mb-0">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
+                    </div> --}}
                     <form id="labRequestForm">
                         @csrf
                         <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
