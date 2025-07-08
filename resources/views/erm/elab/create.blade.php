@@ -180,7 +180,7 @@
                 </div>
             </div>
         </div>
-        <!-- Merged Card: Estimasi Harga & Permintaan Terpilih -->
+        <!-- Merged Card: Estimasi Harga & Permintaan Terpilih with Tabs -->
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -194,38 +194,78 @@
                         <button type="button" id="submitLabRequests" class="btn btn-sm btn-primary">Simpan Permintaan Lab</button>
                     </div>
                 </div>
+                
                 <div class="card-body">
-                    <!-- Bulk Actions Section -->
-                    <div class="bulk-actions mb-3 p-2 bg-light rounded">
-                        <div class="d-flex align-items-center">
-                            <div class="custom-control custom-checkbox mr-2">
-                                <input type="checkbox" class="custom-control-input" id="selectAllLab">
-                                <label class="custom-control-label" for="selectAllLab">Pilih Semua</label>
-                            </div>
-                            <div class="ml-3 bulk-status-container" style="display: none;">
-                                <span class="mr-2">Ubah Status:</span>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-warning text-dark bulk-status-btn" data-status="requested">Diminta</button>
-                                    <button type="button" class="btn btn-info text-white bulk-status-btn" data-status="processing">Diproses</button>
-                                    <button type="button" class="btn btn-success text-white bulk-status-btn" data-status="completed">Selesai</button>
+                    <!-- Tabs navigation -->
+                    <ul class="nav nav-tabs" id="labTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="current-tab" data-toggle="tab" href="#current-content" role="tab" aria-controls="current-content" aria-selected="true">
+                                <i class="fas fa-clipboard-list mr-1"></i> Permintaan Saat Ini
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="history-tab" data-toggle="tab" href="#history-content" role="tab" aria-controls="history-content" aria-selected="false">
+                                <i class="fas fa-history mr-1"></i> Riwayat Permintaan Lab
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tabs content -->
+                    <div class="tab-content mt-3" id="labTabsContent">
+                        <!-- Current Lab Requests Tab -->
+                        <div class="tab-pane fade show active" id="current-content" role="tabpanel" aria-labelledby="current-tab">
+                            <!-- Bulk Actions Section -->
+                            <div class="bulk-actions mb-3 p-2 bg-light rounded">
+                                <div class="d-flex align-items-center">
+                                    <div class="custom-control custom-checkbox mr-2">
+                                        <input type="checkbox" class="custom-control-input" id="selectAllLab">
+                                        <label class="custom-control-label" for="selectAllLab">Pilih Semua</label>
+                                    </div>
+                                    <div class="ml-3 bulk-status-container" style="display: none;">
+                                        <span class="mr-2">Ubah Status:</span>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button type="button" class="btn btn-warning text-dark bulk-status-btn" data-status="requested">Diminta</button>
+                                            <button type="button" class="btn btn-info text-white bulk-status-btn" data-status="processing">Diproses</button>
+                                            <button type="button" class="btn btn-success text-white bulk-status-btn" data-status="completed">Selesai</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-sm mb-0" id="checkedLabTable">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th width="5%">No</th>
+                                            <th width="45%">Pemeriksaan</th>
+                                            <th width="20%">Harga</th>
+                                            <th width="30%">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Filled by JS -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-sm mb-0" id="checkedLabTable">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th width="5%">No</th>
-                                    <th width="45%">Pemeriksaan</th>
-                                    <th width="20%">Harga</th>
-                                    <th width="30%">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Filled by JS -->
-                            </tbody>
-                        </table>
+                        
+                        <!-- Lab Request History Tab -->
+                        <div class="tab-pane fade" id="history-content" role="tabpanel" aria-labelledby="history-tab">
+                            <div class="table-responsive">
+                                <table id="labHistoryTable" class="table table-bordered table-hover w-100">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th style="width: 5%">No</th>
+                                            <th style="width: 20%">Tanggal Kunjungan</th>
+                                            <th style="width: 55%">Dokter</th>
+                                            <th style="width: 20%">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Data will be populated by DataTables -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -301,6 +341,42 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                 <button type="button" class="btn btn-primary" id="saveStatus">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lab History Detail Modal -->
+<div class="modal fade" id="labHistoryDetailModal" tabindex="-1" role="dialog" aria-labelledby="labHistoryDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="labHistoryDetailModalLabel">Detail Permintaan Lab</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm" id="labHistoryDetailTable">
+                        <thead class="thead-light">
+                            <tr>
+                                <th width="5%">No</th>
+                                <th width="30%">Pemeriksaan</th>
+                                <th width="15%">Kategori</th>
+                                <th width="15%">Harga</th>
+                                <th width="15%">Status</th>
+                                {{-- <th width="20%">Hasil</th> --}}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Will be filled by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
     </div>
@@ -975,6 +1051,93 @@ $(document).ready(function () {
         }
     });
     
+    // Initialize Lab History DataTable when history tab is shown
+    $('#history-tab').on('shown.bs.tab', function (e) {
+        if (!$.fn.DataTable.isDataTable('#labHistoryTable')) {
+            // Get the patient ID from the visitation's pasien relationship - as a string to preserve leading zeros
+            let pasienId = '{{ $visitation->pasien->id }}';
+            
+            // Initialize DataTable for lab history
+            $('#labHistoryTable').DataTable({
+                processing: true,
+                serverSide: true,
+                searching: true,
+                ajax: '/erm/elab/patient/' + pasienId + '/history',
+                columns: [
+                    { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
+                    { data: 'tanggal', name: 'tanggal_visitation' },
+                    { data: 'dokter', name: 'dokter' },
+                    { data: 'action', name: 'action', orderable: false, searchable: false }
+                ],
+                order: [[1, 'desc']],
+                language: {
+                    processing: 'Memproses...',
+                    search: 'Cari:',
+                    lengthMenu: 'Tampilkan _MENU_ data',
+                    info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                    infoEmpty: 'Tidak ada data yang ditampilkan',
+                    infoFiltered: '(difilter dari _MAX_ total data)',
+                    zeroRecords: 'Tidak ada hasil pencarian ditemukan',
+                    emptyTable: 'Tidak ada data di tabel',
+                    paginate: {
+                        first: '<<',
+                        previous: '<',
+                        next: '>',
+                        last: '>>'
+                    }
+                }
+            });
+        }
+    });
+    
+    // Handle view lab history detail button click
+    $(document).on('click', '.btn-view-lab-history', function() {
+        let visitationId = $(this).data('id');
+        
+        // Get lab history details for this visitation
+        $.ajax({
+            url: '/erm/elab/visitation/' + visitationId + '/detail',
+            method: 'GET',
+            beforeSend: function() {
+                $('#labHistoryDetailTable tbody').html(
+                    '<tr><td colspan="6" class="text-center">Memuat data...</td></tr>'
+                );
+            },
+            success: function(response) {
+                // Clear table
+                $('#labHistoryDetailTable tbody').empty();
+                
+                if (response.data.length === 0) {
+                    $('#labHistoryDetailTable tbody').html(
+                        '<tr><td colspan="6" class="text-center">Tidak ada data permintaan lab</td></tr>'
+                    );
+                    return;
+                }
+                
+                // Populate table with data
+                $.each(response.data, function(index, item) {
+                    $('#labHistoryDetailTable tbody').append(`
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${item.nama_pemeriksaan}</td>
+                            <td>${item.kategori}</td>
+                            <td>${item.harga}</td>
+                            <td>${item.status_label}</td>
+                            
+                        </tr>
+                    `);
+                });
+            },
+            error: function(xhr, status, error) {
+                $('#labHistoryDetailTable tbody').html(
+                    '<tr><td colspan="6" class="text-center">Error: ' + error + '</td></tr>'
+                );
+            }
+        });
+        
+        // Show modal
+        $('#labHistoryDetailModal').modal('show');
+    });
 });
 </script>   
  

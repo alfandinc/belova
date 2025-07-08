@@ -10,6 +10,7 @@ use App\Models\ERM\HasilLis;
 use App\Models\ERM\LabHasil;
 use App\Models\ERM\LabKategori;
 use App\Models\ERM\LabPermintaan;
+use App\Models\ERM\Pasien;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\LabTest;
@@ -17,6 +18,7 @@ use App\Models\ERM\MetodeBayar;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
 
 class ElabController extends Controller
@@ -294,6 +296,80 @@ class ElabController extends Controller
         
         return response()->json([
             'data' => $hasilLis
+        ]);
+    }
+
+    public function getPatientLabHistory($pasienId)
+    {
+        // First, try to find the patient
+        $pasien = Pasien::find($pasienId);
+        
+        if (!$pasien) {
+            return DataTables::of(collect([]))->make(true);
+        }
+        
+        // Get all visitations for this patient
+        $visitations = Visitation::where('pasien_id', $pasienId)
+                                ->whereExists(function ($query) {
+                                    $query->select(DB::raw(1))
+                                          ->from('erm_lab_permintaan')
+                                          ->whereColumn('erm_lab_permintaan.visitation_id', 'erm_visitations.id');
+                                })
+                                ->with(['dokter.user', 'pasien'])
+                                ->orderBy('tanggal_visitation', 'desc');
+        
+        return DataTables::of($visitations)
+            ->addIndexColumn()
+            ->addColumn('tanggal', function($row) {
+                return date('d-m-Y', strtotime($row->tanggal_visitation));
+            })
+            ->addColumn('dokter', function($row) {
+                if ($row->dokter && $row->dokter->user) {
+                    return $row->dokter->user->name;
+                }
+                return 'N/A';
+            })
+            ->addColumn('action', function($row) {
+                return '<button type="button" class="btn btn-sm btn-info btn-view-lab-history" data-id="'.$row->id.'">Lihat</button>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    public function getVisitationLabDetail($visitationId)
+    {
+        $labPermintaan = LabPermintaan::with(['labTest.labKategori', 'dokter.user'])
+                            ->where('visitation_id', $visitationId)
+                            ->orderBy('created_at', 'desc')
+                            ->get();
+
+        // Transform the data to include formatted display
+        $data = $labPermintaan->map(function($item) {
+            // Format status for display
+            $statusLabel = '';
+            if ($item->status == 'requested') {
+                $statusLabel = '<span class="badge badge-warning text-dark">Diminta</span>';
+            } elseif ($item->status == 'processing') {
+                $statusLabel = '<span class="badge badge-info text-white">Diproses</span>';
+            } elseif ($item->status == 'completed') {
+                $statusLabel = '<span class="badge badge-success text-white">Selesai</span>';
+            }
+
+            // Return formatted data
+            return [
+                'id' => $item->id,
+                'tanggal' => $item->created_at->format('d-m-Y H:i'),
+                'nama_pemeriksaan' => $item->labTest->nama,
+                'kategori' => $item->labTest->labKategori->nama,
+                'harga' => 'Rp ' . number_format($item->labTest->harga, 0, ',', '.'),
+                'status_label' => $statusLabel,
+                'dokter' => $item->dokter->user->name ?? 'N/A',
+                // 'hasil' => $item->hasil ?? '-'
+            ];
+        });
+
+        return response()->json([
+            'data' => $data
         ]);
     }
 
