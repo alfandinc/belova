@@ -7,6 +7,7 @@ use App\Http\Controllers\ERM\Helper\PasienHelperController;
 use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\HasilLis;
+use App\Models\ERM\HasilEksternal;
 use App\Models\ERM\LabHasil;
 use App\Models\ERM\LabKategori;
 use App\Models\ERM\LabPermintaan;
@@ -453,6 +454,100 @@ class ElabController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menyimpan permintaan lab: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    public function getHasilEksternalData($visitationId)
+    {
+        // Get patient ID from visitation
+        $visitation = Visitation::findOrFail($visitationId);
+        $pasienId = $visitation->pasien_id;
+        
+        // Get all visitations for this patient to show all lab results
+        $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id');
+        
+        // Query to get all external lab results for this patient
+        $query = HasilEksternal::whereIn('visitation_id', $visitationIds)
+                ->orderBy('tanggal_pemeriksaan', 'desc');
+        
+        return DataTables::of($query)
+            ->addIndexColumn()
+            ->addColumn('asal_lab', function($row) {
+                return $row->asal_lab;
+            })
+            ->addColumn('dokter', function($row) {
+                return $row->dokter;
+            })
+            ->addColumn('tanggal_pemeriksaan', function($row) {
+                return date('d-m-Y', strtotime($row->tanggal_pemeriksaan));
+            })
+            ->addColumn('action', function($row) {
+                return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-eksternal" data-id="'.$row->id.'">
+                            <i class="fas fa-eye"></i> Lihat Hasil
+                        </button>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    public function getHasilEksternalDetail($id)
+    {
+        $hasilEksternal = HasilEksternal::findOrFail($id);
+        
+        // Prepare file URL if exists
+        $fileUrl = null;
+        if ($hasilEksternal->file_path) {
+            $fileUrl = asset('storage/' . $hasilEksternal->file_path);
+        }
+        
+        return response()->json([
+            'data' => $hasilEksternal,
+            'fileUrl' => $fileUrl
+        ]);
+    }
+
+    public function storeHasilEksternal(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'asal_lab' => 'required|string|max:255',
+            'nama_pemeriksaan' => 'required|string|max:255',
+            'tanggal_pemeriksaan' => 'required|date',
+            'dokter' => 'required|string|max:255',
+            'catatan' => 'nullable|string',
+            'file_hasil' => 'required|file|mimes:pdf|max:5120', // Max 5MB
+        ]);
+        
+        try {
+            // Handle file upload
+            $filePath = null;
+            if ($request->hasFile('file_hasil')) {
+                $file = $request->file('file_hasil');
+                $fileName = time() . '_' . $file->getClientOriginalName();
+                $filePath = $file->storeAs('hasil_lab_eksternal', $fileName, 'public');
+            }
+            
+            // Create hasil eksternal record
+            $hasilEksternal = HasilEksternal::create([
+                'visitation_id' => $request->visitation_id,
+                'asal_lab' => $request->asal_lab,
+                'nama_pemeriksaan' => $request->nama_pemeriksaan,
+                'tanggal_pemeriksaan' => $request->tanggal_pemeriksaan,
+                'dokter' => $request->dokter,
+                'catatan' => $request->catatan,
+                'file_path' => $filePath,
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Hasil lab eksternal berhasil ditambahkan',
+                'data' => $hasilEksternal
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menambahkan hasil lab eksternal: ' . $e->getMessage()
             ], 500);
         }
     }

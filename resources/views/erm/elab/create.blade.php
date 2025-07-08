@@ -7,6 +7,8 @@
 
 @section('content')
 @include('erm.partials.modal-lis-hasil')
+@include('erm.partials.modal-eksternal-hasil')
+@include('erm.partials.modal-eksternal-hasil-add')
 
 @include('erm.partials.modal-alergipasien')
 <style>
@@ -162,20 +164,65 @@
                     <h5 class="mb-0"><i class="fas fa-flask mr-2"></i> Riwayat Hasil LAB Pasien</h5>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table id="hasilLisTable" class="table table-bordered table-hover w-100">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th style="width: 5%">No</th>
-                                    <th style="width: 20%">Tanggal Kunjungan</th>
-                                    <th style="width: 55%">Dokter</th>
-                                    <th style="width: 20%">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Data will be populated by DataTables -->
-                            </tbody>
-                        </table>
+                    <!-- Tabs navigation for lab results -->
+                    <ul class="nav nav-tabs" id="labResultsTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="hasil-lis-tab" data-toggle="tab" href="#hasil-lis-content" role="tab" aria-controls="hasil-lis-content" aria-selected="true">
+                                <i class="fas fa-hospital mr-1"></i> Hasil LIS
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="hasil-eksternal-tab" data-toggle="tab" href="#hasil-eksternal-content" role="tab" aria-controls="hasil-eksternal-content" aria-selected="false">
+                                <i class="fas fa-file-medical mr-1"></i> Hasil Eksternal
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tabs content -->
+                    <div class="tab-content mt-3" id="labResultsTabsContent">
+                        <!-- Hasil LIS Tab -->
+                        <div class="tab-pane fade show active" id="hasil-lis-content" role="tabpanel" aria-labelledby="hasil-lis-tab">
+                            <div class="table-responsive">
+                                <table id="hasilLisTable" class="table table-bordered table-hover w-100">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th style="width: 5%">No</th>
+                                            <th style="width: 20%">Tanggal Kunjungan</th>
+                                            <th style="width: 55%">Dokter</th>
+                                            <th style="width: 20%">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Data will be populated by DataTables -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Hasil Eksternal Tab -->
+                        <div class="tab-pane fade" id="hasil-eksternal-content" role="tabpanel" aria-labelledby="hasil-eksternal-tab">
+                            <div class="d-flex justify-content-end mb-3">
+                                <button class="btn btn-sm btn-primary" id="addEksternalHasilBtn">
+                                    <i class="fas fa-plus mr-1"></i> Tambah Hasil Lab Eksternal
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table id="hasilEksternalTable" class="table table-bordered table-hover w-100">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th style="width: 5%">No</th>
+                                            <th style="width: 20%">Asal Lab</th>
+                                            <th style="width: 20%">Nama Dokter</th>
+                                            <th style="width: 20%">Tanggal Periksa</th>
+                                            <th style="width: 20%">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Data will be populated by DataTables -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -954,6 +1001,76 @@ $(document).ready(function () {
         $('#hasilLisModal').modal('show');
     });
     
+    // Initialize HasilEksternal DataTable
+    let hasilEksternalTable = $('#hasilEksternalTable').DataTable({
+        processing: true,
+        serverSide: true,
+        searching: false, // Hide search box
+        lengthChange: false, // Hide length menu
+        ajax: '/erm/elab/{{ $visitation->id }}/hasil-eksternal/data',
+        columns: [
+            { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
+            { data: 'asal_lab', name: 'asal_lab' },
+            { data: 'dokter', name: 'dokter' },
+            { data: 'tanggal_pemeriksaan', name: 'tanggal_pemeriksaan' },
+            { data: 'action', name: 'action', orderable: false, searchable: false }
+        ],
+        order: [[3, 'desc']],
+        language: {
+            processing: 'Memproses...',
+            paginate: {
+                first: '<<',
+                previous: '<',
+                next: '>',
+                last: '>>'
+            }
+        }
+    });
+
+    // Handle view HasilEksternal details button click
+    $('#hasilEksternalTable').on('click', '.btn-view-hasil-eksternal', function() {
+        let id = $(this).data('id');
+        
+        // Get hasil eksternal details
+        $.ajax({
+            url: '/erm/elab/hasil-eksternal/' + id,
+            method: 'GET',
+            beforeSend: function() {
+                // Show loading state
+                $('#hasilEksternalAsalLab').text('Memuat...');
+                $('#hasilEksternalNamaPemeriksaan').text('Memuat...');
+                $('#hasilEksternalTanggalPemeriksaan').text('Memuat...');
+                $('#hasilEksternalDokter').text('Memuat...');
+                $('#hasilEksternalCatatan').text('Memuat...');
+                $('#pdfViewer').attr('src', '');
+            },
+            success: function(response) {
+                // Populate the modal with data
+                $('#hasilEksternalAsalLab').text(response.data.asal_lab);
+                $('#hasilEksternalNamaPemeriksaan').text(response.data.nama_pemeriksaan);
+                $('#hasilEksternalTanggalPemeriksaan').text(new Date(response.data.tanggal_pemeriksaan).toLocaleDateString('id-ID'));
+                $('#hasilEksternalDokter').text(response.data.dokter);
+                $('#hasilEksternalCatatan').text(response.data.catatan || '-');
+                
+                // Set PDF viewer if file exists
+                if (response.fileUrl) {
+                    $('#pdfViewer').attr('src', response.fileUrl);
+                    $('#downloadPdfLink').attr('href', response.fileUrl);
+                    $('#pdfViewerContainer').show();
+                } else {
+                    $('#pdfViewerContainer').hide();
+                }
+                
+                // Show the modal
+                $('#hasilEksternalModal').modal('show');
+            },
+            error: function(xhr) {
+                console.error(xhr);
+                alert('Gagal mengambil data hasil lab eksternal');
+            }
+        });
+    });
+
     // Bulk selection handling
     $('#selectAllLab').on('change', function() {
         // Check or uncheck all row checkboxes in the table
@@ -1137,6 +1254,71 @@ $(document).ready(function () {
         
         // Show modal
         $('#labHistoryDetailModal').modal('show');
+    });
+    
+    // Handle adding new external lab results
+    $('#addEksternalHasilBtn').on('click', function() {
+        // Reset the form
+        $('#addEksternalHasilForm')[0].reset();
+        // Set default date to today
+        $('#tanggal_pemeriksaan').val(new Date().toISOString().split('T')[0]);
+        // Show the modal
+        $('#addEksternalHasilModal').modal('show');
+    });
+    
+    // Handle saving external lab results
+    $('#saveEksternalHasil').on('click', function() {
+        // Create FormData object to handle file upload
+        let formData = new FormData($('#addEksternalHasilForm')[0]);
+        
+        // Submit the form
+        $.ajax({
+            url: '{{ route("erm.elab.hasil-eksternal.store") }}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            beforeSend: function() {
+                // Disable the save button
+                $('#saveEksternalHasil').prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Menyimpan...');
+            },
+            success: function(response) {
+                // Show success message
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: 'Hasil lab eksternal berhasil ditambahkan',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                
+                // Refresh the data table
+                hasilEksternalTable.ajax.reload();
+                
+                // Close the modal
+                $('#addEksternalHasilModal').modal('hide');
+            },
+            error: function(xhr) {
+                // Show error message
+                let message = 'Terjadi kesalahan saat menyimpan hasil lab eksternal';
+                
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
+                } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    html: message
+                });
+            },
+            complete: function() {
+                // Re-enable the save button
+                $('#saveEksternalHasil').prop('disabled', false).html('Simpan');
+            }
+        });
     });
 });
 </script>   
