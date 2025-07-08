@@ -161,7 +161,7 @@
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-flask mr-2"></i> Riwayat Hasil LAB Pasien</h5>
+                    <h5 class="mb-0"><i class="fas fa-flask mr-2"></i> <strong>HASIL LAB</strong></h5>
                 </div>
                 <div class="card-body">
                     <!-- Tabs navigation for lab results -->
@@ -232,7 +232,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center" style="flex:1;">
-                        <h5 class="mb-0 mr-2"><i class="fa fa-flask mr-2"></i> Permintaan Lab</h5>
+                        <h5 class="mb-0 mr-2"><i class="fa fa-flask mr-2"></i> <strong>PERMINTAAN LAB</strong></h5>
                     </div>
                     <div class="flex-grow-1 text-center">
                         <span class="h5 mb-0">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
@@ -321,6 +321,9 @@
     <div class="row">
         <div class="col-md-12">
             <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-flask mr-2"></i> <strong>FORM PERMINTAAN LAB</strong></h5>
+                </div>
                 <div class="card-body">
                     <form id="labRequestForm">
                         @csrf
