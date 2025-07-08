@@ -152,25 +152,51 @@ class ElabController extends Controller
             'lab_test_id' => 'required|exists:erm_lab_test,id'
         ]);
 
-        // Create lab request
-        $labRequest = LabPermintaan::create([
-            'visitation_id' => $request->visitation_id,
-            'lab_test_id' => $request->lab_test_id,
-            'status' => 'requested',
-            'dokter_id' => Auth::id()
-        ]);
+        // Check if a lab request already exists for this visitation and lab test
+        $existingRequest = LabPermintaan::where('visitation_id', $request->visitation_id)
+            ->where('lab_test_id', $request->lab_test_id)
+            ->first();
+            
+        if ($existingRequest) {
+            // If it exists, update its status to 'requested' (reactivate it)
+            $existingRequest->status = 'requested';
+            $existingRequest->save();
+            
+            // Make sure there's a billing entry
+            if (!$existingRequest->billings()->exists()) {
+                $labTest = LabTest::find($request->lab_test_id);
+                $billing = new \App\Models\Finance\Billing([
+                    'visitation_id' => $request->visitation_id,
+                    'jumlah' => $labTest->harga,
+                    'keterangan' => 'Lab: ' . $labTest->nama
+                ]);
+                
+                $existingRequest->billings()->save($billing);
+            }
+            
+            $labRequest = $existingRequest;
+            $labRequest->load(['labTest.labKategori', 'dokter']);
+        } else {
+            // Create new lab request if it doesn't exist
+            $labRequest = LabPermintaan::create([
+                'visitation_id' => $request->visitation_id,
+                'lab_test_id' => $request->lab_test_id,
+                'status' => 'requested',
+                'dokter_id' => Auth::id()
+            ]);
 
-        $labRequest->load(['labTest.labKategori', 'dokter']);
-        
-        // Create billing entry
-        $labTest = LabTest::find($request->lab_test_id);
-        $billing = new \App\Models\Finance\Billing([
-            'visitation_id' => $request->visitation_id,
-            'jumlah' => $labTest->harga,
-            'keterangan' => 'Lab: ' . $labTest->nama
-        ]);
-        
-        $labRequest->billings()->save($billing);
+            $labRequest->load(['labTest.labKategori', 'dokter']);
+            
+            // Create billing entry
+            $labTest = LabTest::find($request->lab_test_id);
+            $billing = new \App\Models\Finance\Billing([
+                'visitation_id' => $request->visitation_id,
+                'jumlah' => $labTest->harga,
+                'keterangan' => 'Lab: ' . $labTest->nama
+            ]);
+            
+            $labRequest->billings()->save($billing);
+        }
 
         // Get updated total price
         $totalHarga = LabPermintaan::where('visitation_id', $request->visitation_id)
@@ -447,12 +473,10 @@ class ElabController extends Controller
             }
             
             return response()->json([
-                'success' => true,
                 'message' => 'Permintaan lab berhasil disimpan'
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
                 'message' => 'Gagal menyimpan permintaan lab: ' . $e->getMessage()
             ], 500);
         }
