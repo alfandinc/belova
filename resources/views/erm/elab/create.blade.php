@@ -112,10 +112,10 @@
                         <table id="hasilLisTable" class="table table-bordered table-hover w-100">
                             <thead class="thead-light">
                                 <tr>
-                                    <th>No</th>
-                                    <th>Tanggal Kunjungan</th>
-                                    <th>Dokter</th>
-                                    <th>Aksi</th>
+                                    <th style="width: 5%">No</th>
+                                    <th style="width: 20%">Tanggal Kunjungan</th>
+                                    <th style="width: 55%">Dokter</th>
+                                    <th style="width: 20%">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -892,6 +892,8 @@ $(document).ready(function () {
     let hasilLisTable = $('#hasilLisTable').DataTable({
         processing: true,
         serverSide: true,
+        searching: false, // Hide search box
+        lengthChange: false, // Hide length menu
         ajax: '/erm/elab/{{ $visitation->id }}/hasil-lis/data',
         columns: [
             { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
@@ -947,15 +949,21 @@ $(document).ready(function () {
                 var rowNumber = 1;
                 
                 $.each(response.data, function(index, item) {
+                    // Skip items with empty header
+                    if (!item.header) return;
+                    
                     if (!groupedData[item.header]) {
                         groupedData[item.header] = {};
                     }
                     
-                    if (!groupedData[item.header][item.sub_header]) {
-                        groupedData[item.header][item.sub_header] = [];
+                    // Default to empty string if sub_header is null
+                    let subHeader = item.sub_header || '';
+                    
+                    if (!groupedData[item.header][subHeader]) {
+                        groupedData[item.header][subHeader] = [];
                     }
                     
-                    groupedData[item.header][item.sub_header].push(item);
+                    groupedData[item.header][subHeader].push(item);
                 });
                 
                 // Populate table with data

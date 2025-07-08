@@ -16,6 +16,7 @@ use App\Models\ERM\LabTest;
 use App\Models\ERM\MetodeBayar;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
 class ElabController extends Controller
@@ -520,26 +521,16 @@ class ElabController extends Controller
         // Get all visitations for this patient to show all lab results
         $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id');
         
-        // Simplified query using with() for eager loading instead of joins
-        $query = HasilLis::whereIn('visitation_id', $visitationIds)
-                ->with(['visitation' => function($query) {
-                    $query->with('dokter.user');
-                }])
-                ->select(
-                    'erm_hasil_lis.kode', 
-                    'erm_hasil_lis.visitation_id', 
-                    'erm_hasil_lis.kode_lis', 
-                    'erm_hasil_lis.header', 
-                    'erm_hasil_lis.nama_test', 
-                    'erm_hasil_lis.hasil', 
-                    'erm_hasil_lis.flag'
-                )
-                ->distinct(); // Using distinct instead of complex groupBy
-                
-        // Join with visitations to be able to sort by visitation date        
-        $query = $query->join('erm_visitations', 'erm_hasil_lis.visitation_id', '=', 'erm_visitations.id')
-                ->addSelect('erm_visitations.tanggal_visitation') // Add this column for sorting and display
-                ->orderBy('erm_visitations.tanggal_visitation', 'desc');
+        // Query to get unique visitation IDs that have LIS results
+        // We'll select directly from visitations to ensure one row per visitation
+        $query = Visitation::whereIn('id', $visitationIds)
+                ->whereExists(function ($query) {
+                    $query->select(DB::raw(1))
+                          ->from('erm_hasil_lis')
+                          ->whereRaw('erm_hasil_lis.visitation_id = erm_visitations.id');
+                })
+                ->with(['dokter.user'])
+                ->orderBy('tanggal_visitation', 'desc');
         
         return DataTables::of($query)
             ->addIndexColumn()
@@ -547,12 +538,12 @@ class ElabController extends Controller
                 return date('d-m-Y', strtotime($row->tanggal_visitation));
             })
             ->addColumn('dokter', function($row) {
-                return $row->visitation && $row->visitation->dokter && $row->visitation->dokter->user 
-                    ? $row->visitation->dokter->user->name 
+                return $row->dokter && $row->dokter->user 
+                    ? $row->dokter->user->name 
                     : 'Tidak ada dokter';
             })
             ->addColumn('action', function($row) {
-                return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-lis" data-id="'.$row->visitation_id.'">
+                return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-lis" data-id="'.$row->id.'">
                             <i class="fas fa-eye"></i> Lihat Hasil
                         </button>';
             })
