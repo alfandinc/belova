@@ -201,9 +201,9 @@
                         
                         <!-- Hasil Eksternal Tab -->
                         <div class="tab-pane fade" id="hasil-eksternal-content" role="tabpanel" aria-labelledby="hasil-eksternal-tab">
-                            <div class="d-flex justify-content-end mb-3">
+                            <div class="d-flex justify-content-end">
                                 <button class="btn btn-sm btn-primary" id="addEksternalHasilBtn">
-                                    <i class="fas fa-plus mr-1"></i> Tambah Hasil Lab Eksternal
+                                    Tambah Hasil Lab Eksternal
                                 </button>
                             </div>
                             <div class="table-responsive">
