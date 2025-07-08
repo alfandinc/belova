@@ -62,6 +62,71 @@
         padding-left: 32px !important;
         padding-right: 32px !important;
     }
+    
+    /* Status styling */
+    .status-select {
+        font-weight: bold;
+        border: none !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        width: 100%;
+    }
+    .status-select option {
+        font-weight: bold;
+    }
+    /* Fix text contrast in badges */
+    .badge-warning.text-dark {
+        color: #212529 !important;
+    }
+    /* Style the status display to be clickable */
+    .status-display {
+        cursor: pointer;
+    }
+    .status-display .badge {
+        cursor: pointer;
+        font-size: 0.9rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .status-display:hover .badge {
+        filter: brightness(95%);
+    }
+    /* Container for the status elements */
+    .status-container {
+        position: relative;
+    }
+    
+    /* Bulk actions styling */
+    .bulk-actions {
+        border: 1px solid #e0e0e0;
+    }
+    
+    .bulk-status-btn {
+        font-weight: bold;
+        min-width: 90px;
+    }
+    
+    /* Custom checkboxes for rows */
+    .custom-control-input:checked ~ .custom-control-label::before {
+        border-color: #007bff;
+        background-color: #007bff;
+    }
+
+    /* Button pulse animation for unsaved changes */
+    @keyframes pulse-animation {
+        0% {
+            box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.4);
+        }
+        70% {
+            box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+        }
+    }
+    
+    .btn-pulse {
+        animation: pulse-animation 2s infinite;
+        position: relative;
+    }
 </style>
 
 <div class="container-fluid custom-container-padding">
@@ -130,14 +195,31 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <!-- Bulk Actions Section -->
+                    <div class="bulk-actions mb-3 p-2 bg-light rounded">
+                        <div class="d-flex align-items-center">
+                            <div class="custom-control custom-checkbox mr-2">
+                                <input type="checkbox" class="custom-control-input" id="selectAllLab">
+                                <label class="custom-control-label" for="selectAllLab">Pilih Semua</label>
+                            </div>
+                            <div class="ml-3 bulk-status-container" style="display: none;">
+                                <span class="mr-2">Ubah Status:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-warning text-dark bulk-status-btn" data-status="requested">Diminta</button>
+                                    <button type="button" class="btn btn-info text-white bulk-status-btn" data-status="processing">Diproses</button>
+                                    <button type="button" class="btn btn-success text-white bulk-status-btn" data-status="completed">Selesai</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered table-sm mb-0" id="checkedLabTable">
                             <thead class="thead-light">
                                 <tr>
-                                    <th>No</th>
-                                    <th>Pemeriksaan</th>
-                                    <th>Harga</th>
-                                    <th>Status</th>
+                                    <th width="5%">No</th>
+                                    <th width="45%">Pemeriksaan</th>
+                                    <th width="20%">Harga</th>
+                                    <th width="30%">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -239,6 +321,13 @@ $(document).ready(function () {
     // Initialize select2
     $('.select2').select2();
     
+    // Initialize bulk status options visibility
+    if ($('.row-checkbox:checked').length > 0) {
+        $('.bulk-status-container').show();
+    } else {
+        $('.bulk-status-container').hide();
+    }
+    
     let riwayatTable = $('#riwayatLabTable').DataTable({
         processing: true,
         serverSide: true,
@@ -267,6 +356,7 @@ $(document).ready(function () {
         let testId = $(this).data('id');
         let testName = $(this).data('name');
         let testPrice = $(this).data('price');
+        let checkbox = $(this);
         
         if (this.checked) {
             // Add to lab request
@@ -284,14 +374,30 @@ $(document).ready(function () {
                         $('#totalEstimasi').text(response.totalHargaFormatted);
                         riwayatTable.ajax.reload();
                         
-                        // Show success message
-                        toastr.success('Permintaan lab berhasil ditambahkan');
+                        // Show success message using SweetAlert2
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: 'Permintaan lab berhasil ditambahkan',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
                     }
                 },
                 error: function(xhr) {
                     console.error(xhr);
-                    toastr.error('Gagal menambahkan permintaan lab');
-                    $(this).prop('checked', false);
+                    
+                    // Show error message using SweetAlert2
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: 'Gagal menambahkan permintaan lab',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    
+                    // Uncheck the checkbox on error
+                    checkbox.prop('checked', false);
                 }
             });
         } else {
@@ -320,12 +426,28 @@ $(document).ready(function () {
                         $('#totalEstimasi').text(response.totalHargaFormatted);
                         riwayatTable.ajax.reload();
                         
-                        toastr.success('Permintaan lab berhasil dihapus');
+                        // Show success message using SweetAlert2
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: 'Permintaan lab berhasil dihapus',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
                     },
                     error: function(xhr) {
                         console.error(xhr);
-                        toastr.error('Gagal menghapus permintaan lab');
-                        $(this).prop('checked', true);
+                        
+                        // Show error message using SweetAlert2
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal',
+                            text: 'Gagal menghapus permintaan lab',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                        // Need to use the original element context
+                        $('.lab-test-checkbox[data-id="' + testId + '"]').prop('checked', true);
                     }
                 });
             }
@@ -353,6 +475,14 @@ $(document).ready(function () {
         let tbody = $('#checkedLabTable tbody');
         tbody.empty();
         let checked = $('.lab-test-checkbox:checked');
+        
+        // Store existing row checkbox states before updating the table
+        let rowCheckStates = {};
+        $('.row-checkbox').each(function() {
+            let testId = $(this).data('test-id');
+            rowCheckStates[testId] = $(this).prop('checked');
+        });
+        
         checked.each(function(idx) {
             let name = $(this).data('name');
             let price = parseInt($(this).data('price')) || 0;
@@ -372,70 +502,187 @@ $(document).ready(function () {
                 }
             }
             
+            // Create the status display element based on the current status
+            let statusDisplay;
+            if (selectedStatus === 'requested') {
+                statusDisplay = `<span class="badge badge-warning text-dark w-100 py-2">Diminta</span>`;
+            } else if (selectedStatus === 'processing') {
+                statusDisplay = `<span class="badge badge-info text-white w-100 py-2">Diproses</span>`;
+            } else if (selectedStatus === 'completed') {
+                statusDisplay = `<span class="badge badge-success text-white w-100 py-2">Selesai</span>`;
+            }
+            
+            // Create dropdown with hidden select
             let statusOptions = `
-                <select class="form-control form-control-sm status-select" data-test-id="${testId}">
-                    <option value="requested" ${selectedStatus === 'requested' ? 'selected' : ''}>Diminta</option>
-                    <option value="processing" ${selectedStatus === 'processing' ? 'selected' : ''}>Diproses</option>
-                    <option value="completed" ${selectedStatus === 'completed' ? 'selected' : ''}>Selesai</option>
-                </select>
+                <div class="status-container" data-test-id="${testId}">
+                    <div class="status-display">${statusDisplay}</div>
+                    <select class="form-control form-control-sm status-select d-none" data-test-id="${testId}">
+                        <option value="requested" ${selectedStatus === 'requested' ? 'selected' : ''}>Diminta</option>
+                        <option value="processing" ${selectedStatus === 'processing' ? 'selected' : ''}>Diproses</option>
+                        <option value="completed" ${selectedStatus === 'completed' ? 'selected' : ''}>Selesai</option>
+                    </select>
+                </div>
             `;
+            
+            // Determine if the row checkbox should be checked based on previous state
+            let isChecked = rowCheckStates[testId] !== undefined ? rowCheckStates[testId] : false;
+            
             let row = `<tr>
-                <td>${idx + 1}</td>
+                <td>
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input row-checkbox" id="rowCheck-${testId}" data-test-id="${testId}" ${isChecked ? 'checked' : ''}>
+                        <label class="custom-control-label" for="rowCheck-${testId}">${idx + 1}</label>
+                    </div>
+                </td>
                 <td>${name}</td>
                 <td>Rp ${formatted}</td>
                 <td>${statusOptions}</td>
             </tr>`;
             tbody.append(row);
         });
+        
         if (checked.length === 0) {
             tbody.append('<tr><td colspan="4" class="text-center text-muted">Belum ada permintaan dipilih</td></tr>');
+            $('.bulk-status-container').hide();
+        } else {
+            // Update select all checkbox based on if all row checkboxes are checked
+            updateSelectAllCheckbox();
+            
+            // Show bulk status options if any row is checked
+            if ($('.row-checkbox:checked').length > 0) {
+                $('.bulk-status-container').show();
+            } else {
+                $('.bulk-status-container').hide();
+            }
         }
+    }
+    
+    // Function to update the "Select All" checkbox state
+    function updateSelectAllCheckbox() {
+        const rowCheckboxes = $('.row-checkbox');
+        if (rowCheckboxes.length === 0) {
+            $('#selectAllLab').prop('checked', false);
+            return;
+        }
+        
+        const allChecked = $('.row-checkbox:not(:checked)').length === 0;
+        $('#selectAllLab').prop('checked', allChecked);
     }
     // Update on page load and whenever a checkbox changes
     updateCheckedLabTable();
     $(document).on('change', '.lab-test-checkbox', updateCheckedLabTable);
     
-    // Handler for status change (AJAX can be added here)
-    $(document).on('change', '.status-select', function() {
-        let testId = $(this).data('test-id');
+    // Handle clicks on the status display to show dropdown
+    $(document).on('click', '.status-display', function() {
+        // Get the parent container
+        let container = $(this).closest('.status-container');
+        // Hide the display and show the select
+        $(this).hide();
+        container.find('.status-select').removeClass('d-none');
+        container.find('.status-select').focus();
+    });
+    
+    // Hide select and show display when focus is lost or change is made
+    $(document).on('blur change', '.status-select', function() {
+        // Get the parent container
+        let container = $(this).closest('.status-container');
+        // Hide the select
+        $(this).addClass('d-none');
+        
+        // Get the new status and update the display
         let newStatus = $(this).val();
+        let statusDisplay;
+        
+        if (newStatus === 'requested') {
+            statusDisplay = `<span class="badge badge-warning text-dark w-100 py-2">Diminta</span>`;
+        } else if (newStatus === 'processing') {
+            statusDisplay = `<span class="badge badge-info text-white w-100 py-2">Diproses</span>`;
+        } else if (newStatus === 'completed') {
+            statusDisplay = `<span class="badge badge-success text-white w-100 py-2">Selesai</span>`;
+        }
+        
+        // Update the display and show it
+        container.find('.status-display').html(statusDisplay);
+        container.find('.status-display').show();
+        
+        // Show the save reminder
+        $('#submitLabRequests').addClass('btn-pulse').removeClass('btn-primary').addClass('btn-warning');
+        $('#submitLabRequests').text('Simpan Perubahan');
+        
+        if (!$('#save-reminder').length) {
+            $('<div id="save-reminder" class="text-danger small mt-1 mb-2 text-right">' +
+              '<i class="fas fa-exclamation-circle"></i> Jangan lupa klik "Simpan Perubahan" untuk menyimpan' +
+              '</div>').insertBefore('#submitLabRequests');
+        }
+        
         // TODO: Add AJAX call here if you want to update status in backend
         // Example:
+        // let testId = $(this).data('test-id');
         // $.post('/erm/elab/permintaan/' + testId + '/status', { status: newStatus, _token: '{{ csrf_token() }}' });
     });
     
     // Handle the submit button for all lab requests
     $('#submitLabRequests').on('click', function() {
         let visitationId = $('#visitationId').val();
-        let requests = [];
+        let requestsData = {};
+        let hasChanges = false;
+        
+        // Get all lab tests (both checked and unchecked)
         $('.lab-test-checkbox').each(function() {
-            if (this.checked) {
-                let testId = $(this).data('id');
-                // Find the status from the corresponding status-select
+            let testId = $(this).data('id');
+            let isChecked = $(this).prop('checked');
+            
+            // If checked, include it in the request with its status
+            if (isChecked) {
+                // Get status regardless of row checkbox state - we need to save all checked lab tests
                 let status = $(
-                    '.status-select[data-test-id="' + testId + '"]'
+                    '.status-container[data-test-id="' + testId + '"] .status-select'
                 ).val() || 'requested';
-                requests.push({
-                    lab_test_id: testId,
+                
+                // Add to requests object with test ID as key
+                requestsData[testId] = {
                     status: status
-                });
+                };
+                hasChanges = true;
             }
+            // Note: unchecked tests are handled server-side by their absence in the request
         });
+        
+        // Check if any requests are selected or if we have changes to save
+        if (!hasChanges && Object.keys(requestsData).length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Tidak Ada Perubahan',
+                text: 'Pilih minimal satu permintaan lab untuk disimpan',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            return;
+        }
 
         $.ajax({
             url: '/erm/elab/permintaan/bulk-update',
             method: 'POST',
             data: {
                 visitation_id: visitationId,
-                requests: requests,
+                requests: requestsData,
                 _token: '{{ csrf_token() }}'
             },
             success: function(response) {
                 Swal.fire('Berhasil', response.message, 'success');
                 // Optionally reload table or update UI
+                if (riwayatTable) {
+                    riwayatTable.ajax.reload();
+                }
+                
+                // Reset the button state
+                $('#submitLabRequests').removeClass('btn-pulse btn-warning').addClass('btn-primary');
+                $('#submitLabRequests').text('Simpan Permintaan Lab');
+                $('#save-reminder').remove();
             },
             error: function(xhr) {
-                Swal.fire('Gagal', 'Terjadi kesalahan', 'error');
+                console.error(xhr.responseJSON || xhr.responseText);
+                Swal.fire('Gagal', 'Terjadi kesalahan: ' + (xhr.responseJSON?.message || 'Unknown error'), 'error');
             }
         });
     });
@@ -630,7 +877,104 @@ $(document).ready(function () {
         // Show modal
         $('#hasilLisModal').modal('show');
     });
-
+    
+    // Bulk selection handling
+    $('#selectAllLab').on('change', function() {
+        // Check or uncheck all row checkboxes in the table
+        $('.row-checkbox').prop('checked', this.checked);
+        
+        // Show/hide bulk status options
+        if (this.checked && $('.row-checkbox').length > 0) {
+            $('.bulk-status-container').show();
+        } else {
+            $('.bulk-status-container').hide();
+        }
+    });
+    
+    // When a lab test checkbox changes, update the table
+    $(document).on('change', '.lab-test-checkbox', function() {
+        // Update the table and price calculation
+        updateCheckedLabTable();
+        updateEstimasiHarga();
+    });
+    
+    // Handle row checkboxes
+    $(document).on('change', '.row-checkbox', function() {
+        // Update the Select All checkbox
+        updateSelectAllCheckbox();
+        
+        // Show/hide bulk status options based on whether any row is checked
+        if ($('.row-checkbox:checked').length > 0) {
+            $('.bulk-status-container').show();
+        } else {
+            $('.bulk-status-container').hide();
+        }
+    });
+    
+    // Bulk status change
+    $('.bulk-status-btn').on('click', function() {
+        const newStatus = $(this).data('status');
+        let statusText = '';
+        
+        if (newStatus === 'requested') {
+            statusText = 'Diminta';
+        } else if (newStatus === 'processing') {
+            statusText = 'Diproses';
+        } else if (newStatus === 'completed') {
+            statusText = 'Selesai';
+        }
+        
+        // Get all checked rows
+        const checkedRows = $('.row-checkbox:checked');
+        
+        // If no rows are checked, show a warning
+        if (checkedRows.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Tidak Ada Item Terpilih',
+                text: 'Pilih minimal satu item untuk mengubah status',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            return;
+        }
+        
+        // Update all checked rows' status
+        checkedRows.each(function() {
+            const testId = $(this).data('test-id');
+            const statusContainer = $(`.status-container[data-test-id="${testId}"]`);
+            const statusSelect = statusContainer.find('.status-select');
+            
+            // Update the select value
+            statusSelect.val(newStatus);
+            
+            // Update the display
+            let statusDisplay;
+            if (newStatus === 'requested') {
+                statusDisplay = `<span class="badge badge-warning text-dark w-100 py-2">Diminta</span>`;
+            } else if (newStatus === 'processing') {
+                statusDisplay = `<span class="badge badge-info text-white w-100 py-2">Diproses</span>`;
+            } else if (newStatus === 'completed') {
+                statusDisplay = `<span class="badge badge-success text-white w-100 py-2">Selesai</span>`;
+            }
+            
+            statusContainer.find('.status-display').html(statusDisplay);
+        });
+        
+        // Show a subtle notification that doesn't block interaction
+        $('#submitLabRequests').addClass('btn-pulse').removeClass('btn-primary').addClass('btn-warning');
+        
+        // Add a tooltip or change the button text to indicate changes need to be saved
+        $('#submitLabRequests').text('Simpan Perubahan');
+        
+        // Create a small notification above the button
+        if (!$('#save-reminder').length) {
+            $('<div id="save-reminder" class="text-danger small mt-1 mb-2 text-right">' +
+              '<i class="fas fa-exclamation-circle"></i> Jangan lupa klik "Simpan Perubahan" untuk menyimpan' +
+              '</div>').insertBefore('#submitLabRequests');
+        }
+    });
+    
 });
 </script>   
  

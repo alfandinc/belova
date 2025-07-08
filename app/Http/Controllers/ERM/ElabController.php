@@ -122,11 +122,11 @@ class ElabController extends Controller
             })
             ->addColumn('status_label', function($row) {
                 if ($row->status == 'requested') {
-                    return '<span class="badge badge-warning">Diminta</span>';
+                    return '<span class="badge badge-warning text-dark">Diminta</span>';
                 } elseif ($row->status == 'processing') {
-                    return '<span class="badge badge-info">Diproses</span>';
+                    return '<span class="badge badge-info text-white">Diproses</span>';
                 } else {
-                    return '<span class="badge badge-success">Selesai</span>';
+                    return '<span class="badge badge-success text-white">Selesai</span>';
                 }
             })
             ->addColumn('action', function($row) {
@@ -295,5 +295,89 @@ class ElabController extends Controller
         return response()->json([
             'data' => $hasilLis
         ]);
+    }
+
+    public function bulkUpdate(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'requests' => 'required|array'
+        ]);
+
+        try {
+            $visitationId = $request->visitation_id;
+            $requestsData = $request->requests;
+            
+            // Get all lab tests that are checked (included in the request)
+            $labTestIds = [];
+            foreach ($requestsData as $key => $requestData) {
+                if (isset($key) && is_numeric($key)) {
+                    $labTestIds[] = $key;
+                }
+            }
+            
+            // First, handle deletion of any lab tests that were unchecked
+            // Get all existing lab requests for this visitation
+            $existingRequests = LabPermintaan::where('visitation_id', $visitationId)->get();
+            
+            // Delete any existing requests that are not in the new request data
+            foreach ($existingRequests as $existingRequest) {
+                if (!in_array($existingRequest->lab_test_id, $labTestIds)) {
+                    // Delete related billing entries
+                    $existingRequest->billings()->delete();
+                    
+                    // Delete the request
+                    $existingRequest->delete();
+                }
+            }
+            
+            // Process each lab test in the request
+            foreach ($requestsData as $labTestId => $requestData) {
+                if (is_numeric($labTestId)) {
+                    // Check if request already exists
+                    $existingRequest = LabPermintaan::where('visitation_id', $visitationId)
+                                        ->where('lab_test_id', $labTestId)
+                                        ->first();
+                    
+                    $status = $requestData['status'] ?? 'requested';
+                    
+                    if ($existingRequest) {
+                        // Update existing request
+                        $existingRequest->status = $status;
+                        $existingRequest->save();
+                    } else {
+                        // Create new request
+                        $labRequest = new LabPermintaan([
+                            'visitation_id' => $visitationId,
+                            'lab_test_id' => $labTestId,
+                            'status' => $status,
+                            'dokter_id' => Auth::id()
+                        ]);
+                        $labRequest->save();
+                        
+                        // Create billing entry
+                        $labTest = LabTest::find($labTestId);
+                        if ($labTest) {
+                            $billing = new \App\Models\Finance\Billing([
+                                'visitation_id' => $visitationId,
+                                'jumlah' => $labTest->harga,
+                                'keterangan' => 'Lab: ' . $labTest->nama
+                            ]);
+                            $labRequest->billings()->save($billing);
+                        }
+                    }
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Permintaan lab berhasil disimpan'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan permintaan lab: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

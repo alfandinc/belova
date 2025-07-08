@@ -211,8 +211,9 @@ Route::prefix('erm')->group(function () {
     Route::get('/elab/{visitation_id}/create', [ElabController::class, 'create'])->name('erm.elab.create');
     Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');  
     Route::get('/elab/{visitation_id}/requests/data', [ElabController::class, 'getLabPermintaanData'])->name('erm.elab.requests.data');
-    Route::delete('/elab/{id}', [ElabController::class, 'destroy'])->name('erm.elab.destroy');
+    Route::delete('/elab/permintaan/{id}', [ElabController::class, 'destroy'])->name('erm.elab.destroy');
     Route::put('/elab/permintaan/{id}/status', [ElabController::class, 'updateStatus'])->name('erm.elab.update-status');
+    Route::post('/elab/permintaan/bulk-update', [ElabController::class, 'bulkUpdate'])->name('erm.elab.bulk-update');
     Route::get('/elab/{visitation_id}/hasil-lis/data', [ElabController::class, 'getHasilLisData'])->name('erm.elab.hasil-lis.data');
     Route::get('/elab/hasil-lis/{visitation_id}', [ElabController::class, 'getHasilLisDetails'])->name('erm.elab.hasil-lis.detail');
 
