@@ -326,9 +326,13 @@
     <!-- Estimasi Harga moved here between the two cards above and the form card below -->
     <div class="row">
         <div class="col-12">
-            <div class="mb-3 text-center">
-                <span class="h3 mb-0 font-weight-bold">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
-            </div>
+            <div class="card">
+                <div class="card-body">
+                    <div class="text-center">
+                        <span class="h3 mb-0 font-weight-bold">Estimasi Harga: Rp <span id="estimasiHargaTotal">0</span></span>
+                    </div>
+                </div>
+            </div> 
         </div>
     </div>
     <div class="row">
