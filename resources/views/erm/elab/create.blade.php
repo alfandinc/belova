@@ -6,10 +6,7 @@
 @endsection
 
 @section('content')
-@include('erm.partials.modal-lab-create')
-@include('erm.partials.modal-lab-hasil')
 @include('erm.partials.modal-lis-hasil')
-
 
 @include('erm.partials.modal-alergipasien')
 <style>
@@ -91,14 +88,6 @@
     </div><!--end row-->  
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
-    
-    <!-- New Card for HasilLis Data -->
-    {{-- <div class="row mt-3">
-        <div class="col-md-12">
-            
-        </div>
-    </div> --}}
-
     <!-- Two column layout for Lab Management -->
     <div class="row">
         <!-- Left Column - Permintaan Lab -->
@@ -406,28 +395,6 @@ $(document).ready(function () {
     updateCheckedLabTable();
     $(document).on('change', '.lab-test-checkbox', updateCheckedLabTable);
     
-    // Force update all status dropdowns to match their actual values
-    function forceUpdateStatusDropdowns() {
-        $('.status-select').each(function() {
-            let testId = $(this).data('test-id');
-            let testIdStr = String(testId);
-            let selectedStatus = 'requested';
-            
-            if (window.existingLabTestStatuses) {
-                if (window.existingLabTestStatuses[testId] !== undefined) {
-                    selectedStatus = window.existingLabTestStatuses[testId];
-                } else if (window.existingLabTestStatuses[testIdStr] !== undefined) {
-                    selectedStatus = window.existingLabTestStatuses[testIdStr];
-                }
-            }
-            
-            $(this).val(selectedStatus);
-        });
-    }
-    
-    // Run this after a short delay to ensure all elements are rendered
-    setTimeout(forceUpdateStatusDropdowns, 500);
-    
     // Handler for status change (AJAX can be added here)
     $(document).on('change', '.status-select', function() {
         let testId = $(this).data('test-id');
@@ -482,15 +449,6 @@ $(document).ready(function () {
         $('#editStatusModal').modal('show');
     });
     
-    // Show/hide hasil field based on status selection
-    $('#statusSelect').on('change', function() {
-        if ($(this).val() === 'completed') {
-            $('#hasilGroup').show();
-        } else {
-            $('#hasilGroup').hide();
-        }
-    });
-    
     // Handle save status button click
     $('#saveStatus').on('click', function() {
         let permintaanId = $('#permintaanId').val();
@@ -532,11 +490,7 @@ $(document).ready(function () {
         });
     });
     
-    // Handle check all checkbox
-    $('#checkAll').on('click', function() {
-        $('.permintaan-checkbox').prop('checked', this.checked);
-        toggleBulkButtons();
-    });
+
     
     // Handle individual checkbox clicks
     $('#riwayatLabTable').on('click', '.permintaan-checkbox', function() {
@@ -553,340 +507,6 @@ $(document).ready(function () {
         toggleBulkButtons();
     });
     
-    // Toggle bulk action buttons based on selection
-    function toggleBulkButtons() {
-        let anyChecked = $('.permintaan-checkbox:checked').length > 0;
-        $('.btn-bulk-delete, .btn-bulk-edit').prop('disabled', !anyChecked);
-    }
-    
-    // Handle bulk delete button click
-    $('.btn-bulk-delete').on('click', function() {
-        let selectedIds = [];
-        $('.permintaan-checkbox:checked').each(function() {
-            selectedIds.push($(this).val());
-        });
-    
-        if (selectedIds.length === 0) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Perhatian',
-                text: 'Pilih setidaknya satu permintaan lab untuk dibatalkan.'
-            });
-            return;
-        }
-    
-        Swal.fire({
-            title: 'Apakah Anda yakin?',
-            text: selectedIds.length + " permintaan lab akan dibatalkan!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Ya, batalkan!',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.value) {
-                $.ajax({
-                    url: "{{ route('erm.elab.bulk-delete') }}",
-                    type: 'POST',
-                    data: {
-                        ids: selectedIds,
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            Swal.fire(
-                                'Dibatalkan!',
-                                response.message,
-                                'success'
-                            );
-                            
-                            // Update total price
-                            $('#totalEstimasi').text(response.totalHargaFormatted);
-                            
-                            // Reload riwayat table and reset checkAll
-                            $('#checkAll').prop('checked', false);
-                            riwayatTable.ajax.reload();
-                            toggleBulkButtons();
-                        }
-                    },
-                    error: function(xhr) {
-                        console.error(xhr.responseText);
-                        Swal.fire(
-                            'Error!',
-                            'Terjadi kesalahan saat membatalkan permintaan.',
-                            'error'
-                        );
-                    }
-                });
-            }
-        });
-    });
-    
-    // Handle bulk edit status options
-    $('.bulk-status-option').on('click', function(e) {
-    e.preventDefault();
-    
-    let selectedIds = [];
-    $('.permintaan-checkbox:checked').each(function() {
-        selectedIds.push($(this).val());
-    });
-    
-    if (selectedIds.length === 0) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Perhatian',
-            text: 'Pilih setidaknya satu permintaan lab untuk diubah statusnya.'
-        });
-        return;
-    }
-    
-    let newStatus = $(this).data('status');
-    let statusText = newStatus === 'requested' ? 'Diminta' : 
-                    (newStatus === 'processing' ? 'Diproses' : 'Selesai');
-    
-    Swal.fire({
-        title: 'Ubah status?',
-        text: "Status " + selectedIds.length + " permintaan lab akan diubah menjadi '" + statusText + "'",
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Ya, ubah!',
-        cancelButtonText: 'Batal'
-        }).then((result) => {
-            if (result.value) {
-                $.ajax({
-                    url: "{{ route('erm.elab.bulk-update') }}",
-                    type: 'POST',
-                    data: {
-                        ids: selectedIds,
-                        status: newStatus,
-                        _token: '{{ csrf_token() }}'
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            Swal.fire(
-                                'Berhasil!',
-                                response.message,
-                                'success'
-                            );
-                            
-                            // Reload riwayat table and reset checkAll
-                            $('#checkAll').prop('checked', false);
-                            riwayatTable.ajax.reload();
-                            toggleBulkButtons();
-                        }
-                    },
-                    error: function(xhr) {
-                        console.error(xhr.responseText);
-                        Swal.fire(
-                            'Error!',
-                            'Terjadi kesalahan saat mengubah status permintaan.',
-                            'error'
-                        );
-                    }
-                });
-            }
-        });
-    });
-
-    // Initialize DataTable for hasilLabTable
-    let hasilLabTable = $('#hasilLabTable').DataTable({
-        processing: true,
-        serverSide: true,
-        searching: false, // Hide search box
-        lengthChange: false, // Hide length menu
-        ajax: {
-            url: '/erm/elab/{{ $visitation->id }}/hasil/data',
-        },
-        columns: [
-            { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
-            { data: 'tanggal', name: 'tanggal_pemeriksaan' },
-            { data: 'asal_lab', name: 'asal_lab' },
-            { data: 'nama_pemeriksaan', name: 'nama_pemeriksaan' },
-            { data: 'dokter', name: 'dokter' },
-            { data: 'action', name: 'action', orderable: false, searchable: false }
-        ],
-        order: [[1, 'desc']],
-        language: {
-            search: "Cari:",
-            lengthMenu: "Tampilkan _MENU_ data per halaman",
-            zeroRecords: "Tidak ada data yang ditemukan",
-            info: "Menampilkan halaman _PAGE_ dari _PAGES_",
-            infoEmpty: "Tidak ada data tersedia",
-            infoFiltered: "(difilter dari _MAX_ total data)"
-        }
-    });
-
-    // // Add button to upload new lab result
-    // $('.card-header').first().append(
-    //     '<button id="addLabHasil" class="btn btn-sm btn-primary ml-2">' +
-    //     '<i class="fas fa-plus"></i> Upload Hasil Lab</button>'
-    // );
-
-    // Show upload modal when button is clicked
-    $('#addLabHasil').on('click', function() {
-        $('#uploadLabHasilModal').modal('show');
-    });
-
-    // View lab result details
-    $('#hasilLabTable').on('click', '.btn-view-hasil', function() {
-        let hasilId = $(this).data('id');
-        
-        // Get lab result details
-        $.ajax({
-            url: '/erm/elab/hasil/' + hasilId,
-            type: 'GET',
-            success: function(response) {
-                if (response.success) {
-                    let hasil = response.data;
-                    
-                    // Populate modal with data
-                    $('#viewLabHasilModal #viewNamaPemeriksaan').text(hasil.nama_pemeriksaan);
-                    $('#viewLabHasilModal #viewTanggalPemeriksaan').text(moment(hasil.tanggal_pemeriksaan).format('DD-MM-YYYY'));
-                    $('#viewLabHasilModal #viewAsalLab').text(hasil.asal_lab === 'internal' ? 'Lab Internal' : 'Lab Eksternal');
-                    $('#viewLabHasilModal #viewDokter').text(hasil.dokter);
-                    $('#viewLabHasilModal #viewCatatan').text(hasil.catatan || '-');
-                    
-                    // Clear the result table first
-                    $('#viewLabHasilModal #resultTable tbody').empty();
-                    
-                    if (hasil.asal_lab === 'internal' && hasil.hasil_detail) {
-                        // Populate table with result details
-                        $('#viewLabHasilModal #resultTableContainer').show();
-                        $('#viewLabHasilModal #pdfViewerContainer').hide();
-                        
-                        // Add rows to the table
-                        $.each(hasil.hasil_detail, function(i, item) {
-                            let row = $('<tr>');
-                            row.append($('<td>').text(item.nama_test || ''));
-                            row.append($('<td>').text(item.flag || ''));
-                            row.append($('<td>').text(item.hasil || ''));
-                            row.append($('<td>').text(item.satuan || ''));
-                            row.append($('<td>').text(item.nilai_rujukan || ''));
-                            $('#viewLabHasilModal #resultTable tbody').append(row);
-                        });
-                    } else if (hasil.asal_lab === 'eksternal' && hasil.file_path) {
-                        // Show PDF viewer for external lab results
-                        $('#viewLabHasilModal #resultTableContainer').hide();
-                        $('#viewLabHasilModal #pdfViewerContainer').show();
-                        
-                        // Use the correct URL for accessing storage files
-                        let pdfUrl = '/storage/' + hasil.file_path;
-                        $('#viewLabHasilModal #pdfViewer').attr('src', pdfUrl);
-                    }
-                    
-                    // Show the modal
-                    $('#viewLabHasilModal').modal('show');
-                }
-            },
-            error: function(xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Oops...',
-                    text: 'Terjadi kesalahan! Silakan coba lagi.'
-                });
-                console.error(xhr.responseText);
-            }
-        });
-    });
-    // Handle upload form submission
-    $('#uploadLabHasilForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        // Additional validation for internal lab
-        if ($('#asalLab').val() === 'internal') {
-            // Check if at least one row exists
-            if ($('#hasilDetailTable tbody tr').length === 0) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'Mohon tambahkan setidaknya satu hasil lab untuk Lab Internal'
-                });
-                return false;
-            }
-        }
-        
-        // Continue with form submission
-        let formData = new FormData(this);
-        
-        $.ajax({
-            url: '/erm/elab/hasil/upload',
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-                if (response.success) {
-                    $('#uploadLabHasilModal').modal('hide');
-                    
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil',
-                        text: response.message,
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                    
-                    // Reset form and reload table
-                    $('#uploadLabHasilForm')[0].reset();
-                    hasilLabTable.ajax.reload();
-                }
-            },
-            error: function(xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Oops...',
-                    text: 'Terjadi kesalahan! Silakan coba lagi.'
-                });
-                console.error(xhr.responseText);
-            }
-        });
-    });
-
-    // Toggle hasil detail form based on asal lab selection
-    $('#asalLab').on('change', function() {
-        if ($(this).val() === 'internal') {
-            // Show internal fields, hide external
-            $('#hasilFileGroup').hide();
-            $('#hasilDetailGroup').show();
-            
-            // Make file upload not required
-            $('#hasilFile').prop('required', false);
-            
-            // Make the first row fields required if they exist
-            if ($('#hasilDetailTable tbody tr').length > 0) {
-                $('#hasilDetailTable tbody tr:first-child input[name$="[nama_test]"]').prop('required', true);
-                $('#hasilDetailTable tbody tr:first-child input[name$="[hasil]"]').prop('required', true);
-            }
-        } else {
-            // Show external fields, hide internal
-            $('#hasilFileGroup').show();
-            $('#hasilDetailGroup').hide();
-            
-            // Make file upload required
-            $('#hasilFile').prop('required', true);
-            
-            // Remove required from all internal lab fields
-            $('#hasilDetailTable tbody input[required]').prop('required', false);
-        }
-    });
-
-    $('#asalLab').trigger('change');
-
-    // Add a new row to hasil detail table
-    $('#addHasilDetail').on('click', function() {
-        let rowCount = $('#hasilDetailTable tbody tr').length;
-        let newRow = `
-        `;
-        $('#hasilDetailTable tbody').append(newRow);
-    });
-
-    // Remove a row from hasil detail table
-    $('#hasilDetailTable').on('click', '.remove-detail', function() {
-        $(this).closest('tr').remove();
-    });
 
     // Initialize HasilLis DataTable
     let hasilLisTable = $('#hasilLisTable').DataTable({

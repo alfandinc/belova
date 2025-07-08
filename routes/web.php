@@ -209,17 +209,10 @@ Route::prefix('erm')->group(function () {
     //Lab
     Route::get('/elab', [ElabController::class, 'index'])->name('erm.elab.index');
     Route::get('/elab/{visitation_id}/create', [ElabController::class, 'create'])->name('erm.elab.create');
-    Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');
-    Route::get('/elab/tests/data', [ElabController::class, 'getLabTestData'])->name('erm.elab.tests.data');
+    Route::post('/elab/store', [ElabController::class, 'store'])->name('erm.elab.store');  
     Route::get('/elab/{visitation_id}/requests/data', [ElabController::class, 'getLabPermintaanData'])->name('erm.elab.requests.data');
     Route::delete('/elab/{id}', [ElabController::class, 'destroy'])->name('erm.elab.destroy');
     Route::put('/elab/permintaan/{id}/status', [ElabController::class, 'updateStatus'])->name('erm.elab.update-status');
-    Route::post('/elab/permintaan/bulk-delete', [ElabController::class, 'bulkDelete'])->name('erm.elab.bulk-delete');
-    Route::post('/elab/permintaan/bulk-update', [ElabController::class, 'bulkUpdate'])->name('erm.elab.bulk-update');
-    Route::get('/elab/{visitation_id}/print', [ElabController::class, 'printPermintaan'])->name('erm.elab.print');
-    Route::get('/elab/{visitation_id}/hasil/data', [ElabController::class, 'getLabHasilData'])->name('erm.elab.hasil.data');
-    Route::post('/elab/hasil/upload', [ElabController::class, 'uploadLabHasil'])->name('erm.elab.hasil.upload');
-    Route::get('/elab/hasil/{id}', [ElabController::class, 'getLabHasilDetails'])->name('erm.elab.hasil.detail');
     Route::get('/elab/{visitation_id}/hasil-lis/data', [ElabController::class, 'getHasilLisData'])->name('erm.elab.hasil-lis.data');
     Route::get('/elab/hasil-lis/{visitation_id}', [ElabController::class, 'getHasilLisDetails'])->name('erm.elab.hasil-lis.detail');
 
