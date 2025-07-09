@@ -57,6 +57,9 @@ class MaintenanceBarangController extends Controller
                     }
                     return '-';
                 })
+                ->addColumn('status', function($row){
+                    return $row->status ?? '-';
+                })
                 ->addColumn('keterangan', function($row){
                     return $row->keterangan ?? '-';
                 })
@@ -94,6 +97,7 @@ class MaintenanceBarangController extends Controller
             'no_faktur' => 'nullable|string|max:255',
             'keterangan' => 'nullable|string',
             'tanggal_next_maintenance' => 'nullable|date',
+            'status' => 'nullable|string|max:50',
         ]);
 
         $maintenance = MaintenanceBarang::updateOrCreate(
@@ -106,6 +110,7 @@ class MaintenanceBarangController extends Controller
                 'no_faktur' => $request->no_faktur,
                 'keterangan' => $request->keterangan,
                 'tanggal_next_maintenance' => $request->tanggal_next_maintenance,
+                'status' => $request->status,
             ]
         );
 

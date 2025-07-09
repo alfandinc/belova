@@ -304,7 +304,7 @@
                 if (typeof stok === 'string') stok = parseInt(stok);
                 if (stok === 0) {
                     $(row).addClass('stok-zero-row');
-                } else if (data.under_maintenance) {
+                } else if (data.under_maintenance && data.under_maintenance === 'Proses') {
                     $(row).addClass('maintenance-row');
                 }
             }

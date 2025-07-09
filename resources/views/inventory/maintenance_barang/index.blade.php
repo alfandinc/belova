@@ -47,6 +47,7 @@
                                     <th>Nama Vendor</th>
                                     <th>No Faktur</th>
                                     <th>Tanggal Next Maintenance</th>
+                                    <th>Status</th>
                                     <th>Keterangan</th>
                                     <th width="15%">Action</th>
                                 </tr>
@@ -123,6 +124,17 @@
                                 <input type="date" class="form-control" id="tanggal_next_maintenance" name="tanggal_next_maintenance">
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <select class="form-control" id="status" name="status">
+                                    <option value="">-- Pilih Status --</option>
+                                    <option value="Selesai">Selesai</option>
+                                    <option value="Proses">Proses</option>
+                                    <option value="Batal">Batal</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group mb-3">
                         <label for="keterangan" class="form-label">Keterangan</label>
@@ -181,9 +193,19 @@
                 {data: 'nama_vendor', name: 'nama_vendor'},
                 {data: 'no_faktur', name: 'no_faktur'},
                 {data: 'tanggal_next_maintenance', name: 'tanggal_next_maintenance'},
+                {data: 'status', name: 'status'},
                 {data: 'keterangan', name: 'keterangan'},
                 {data: 'action', name: 'action', orderable: false, searchable: false},
-            ]
+            ],
+            createdRow: function(row, data, dataIndex) {
+                if (data.status === 'Batal') {
+                    $(row).css('background-color', '#f8d7da'); // red
+                } else if (data.status === 'Selesai') {
+                    $(row).css('background-color', '#d4edda'); // green
+                } else if (data.status === 'Proses') {
+                    $(row).css('background-color', '#fff3cd'); // yellow
+                }
+            }
         });
 
         // Initialize select2
@@ -210,11 +232,12 @@
                 $('#ajaxModel').modal('show');
                 $('#maintenance_id').val(data.id);
                 $('#tanggal_maintenance').val(data.tanggal_maintenance);
-                $('#deskripsi').val(data.deskripsi);
                 $('#status').val(data.status);
-                $('#teknisi').val(data.teknisi);
-                $('#biaya').val(data.biaya);
-                $('#catatan').val(data.catatan);
+                $('#biaya_maintenance').val(data.biaya_maintenance);
+                $('#keterangan').val(data.keterangan);
+                $('#nama_vendor').val(data.nama_vendor);
+                $('#no_faktur').val(data.no_faktur);
+                $('#tanggal_next_maintenance').val(data.tanggal_next_maintenance);
                 $('#barang_id').val(data.barang_id).trigger('change');
             });
         });

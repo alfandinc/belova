@@ -19,7 +19,7 @@ class MaintenanceBarang extends Model
         'no_faktur',
         'keterangan',
         'tanggal_next_maintenance',
-        
+        'status',
     ];
     
     public function barang()
