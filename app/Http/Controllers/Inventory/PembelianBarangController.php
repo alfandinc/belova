@@ -10,6 +10,7 @@ use App\Models\Inventory\StokBarang;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class PembelianBarangController extends Controller
 {
@@ -22,6 +23,17 @@ class PembelianBarangController extends Controller
     {
         if ($request->ajax()) {
             $data = PembelianBarang::with(['barang', 'gedung'])->latest();
+
+            // Filter by tanggal_pembelian if the request has a tanggal_range
+            if ($request->filled('tanggal_range')) {
+                $dates = explode(' - ', $request->tanggal_range);
+                if (count($dates) == 2) {
+                    $start = \Carbon\Carbon::createFromFormat('d-m-Y', trim($dates[0]))->startOfDay();
+                    $end = \Carbon\Carbon::createFromFormat('d-m-Y', trim($dates[1]))->endOfDay();
+                    $data = $data->whereBetween('tanggal_pembelian', [$start, $end]);
+                }
+            }
+
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('barang', function($row){
@@ -34,7 +46,10 @@ class PembelianBarangController extends Controller
                     return 'Rp ' . number_format($row->jumlah * $row->harga_satuan, 0, ',', '.');
                 })
                 ->addColumn('tanggal', function($row){
-                    return date('d-m-Y', strtotime($row->tanggal_pembelian));
+                    // Set locale to Indonesian
+                    $date = Carbon::parse($row->tanggal_pembelian);
+                    $date->locale('id');
+                    return $date->translatedFormat('j F Y');
                 })
                 ->addColumn('action', function($row){
                     $actionBtn = '<a href="javascript:void(0)" data-id="'.$row->id.'" class="edit btn btn-success btn-sm">Edit</a> <a href="javascript:void(0)" data-id="'.$row->id.'" class="delete btn btn-danger btn-sm">Delete</a>';

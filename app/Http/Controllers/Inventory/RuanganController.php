@@ -18,7 +18,12 @@ class RuanganController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $data = Ruangan::with('gedung')->latest();
+            $data = Ruangan::with('gedung');
+            // Filter by gedung_id if provided
+            if ($request->filled('gedung_id')) {
+                $data = $data->where('gedung_id', $request->gedung_id);
+            }
+            $data = $data->latest();
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('gedung', function($row){

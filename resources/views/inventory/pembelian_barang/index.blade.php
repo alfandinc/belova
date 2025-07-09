@@ -30,6 +30,12 @@
                     <button type="button" class="btn btn-primary" id="createNewPembelian">Add New Pembelian</button>
                 </div>
                 <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-lg-4">
+                            <label for="filterTanggal">Filter Tanggal Pembelian</label>
+                            <input type="text" id="filterTanggal" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-bordered dt-responsive nowrap data-table" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
                             <thead>
@@ -147,10 +153,31 @@
             }
         });
 
+        // Initialize daterangepicker
+        $('#filterTanggal').daterangepicker({
+            autoUpdateInput: false,
+            locale: {
+                cancelLabel: 'Clear',
+                format: 'DD-MM-YYYY'
+            }
+        });
+        $('#filterTanggal').on('apply.daterangepicker', function(ev, picker) {
+            $(this).val(picker.startDate.format('DD-MM-YYYY') + ' - ' + picker.endDate.format('DD-MM-YYYY'));
+            table.ajax.reload();
+        });
+        $('#filterTanggal').on('cancel.daterangepicker', function(ev, picker) {
+            $(this).val('');
+            table.ajax.reload();
+        });
         var table = $('.data-table').DataTable({
             processing: true,
             serverSide: true,
-            ajax: "{{ route('pembelian.index') }}",
+            ajax: {
+                url: "{{ route('pembelian.index') }}",
+                data: function (d) {
+                    d.tanggal_range = $('#filterTanggal').val();
+                }
+            },
             columns: [
                 {data: 'DT_RowIndex', name: 'DT_RowIndex'},
                 {data: 'no_faktur', name: 'no_faktur'},

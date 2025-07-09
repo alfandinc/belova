@@ -7,6 +7,7 @@ use App\Models\Inventory\MaintenanceBarang;
 use App\Models\Inventory\Barang;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
+use Carbon\Carbon;
 
 class MaintenanceBarangController extends Controller
 {
@@ -19,13 +20,25 @@ class MaintenanceBarangController extends Controller
     {
         if ($request->ajax()) {
             $data = MaintenanceBarang::with('barang')->latest();
+
+            if ($request->filled('tanggal_range')) {
+                $dates = explode(' - ', $request->tanggal_range);
+                if (count($dates) == 2) {
+                    $start = \Carbon\Carbon::createFromFormat('d-m-Y', trim($dates[0]))->startOfDay();
+                    $end = \Carbon\Carbon::createFromFormat('d-m-Y', trim($dates[1]))->endOfDay();
+                    $data = $data->whereBetween('tanggal_maintenance', [$start, $end]);
+                }
+            }
+
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('barang', function($row){
                     return $row->barang ? $row->barang->name : 'N/A';
                 })
                 ->addColumn('tanggal_maintenance', function($row){
-                    return date('d-m-Y', strtotime($row->tanggal_maintenance));
+                    $date = Carbon::parse($row->tanggal_maintenance);
+                    $date->locale('id');
+                    return $date->translatedFormat('j F Y');
                 })
                 ->addColumn('biaya_maintenance', function($row){
                     return 'Rp ' . number_format($row->biaya_maintenance, 2, ',', '.');
@@ -37,7 +50,12 @@ class MaintenanceBarangController extends Controller
                     return $row->no_faktur ?? '-';
                 })
                 ->addColumn('tanggal_next_maintenance', function($row){
-                    return $row->tanggal_next_maintenance ? date('d-m-Y', strtotime($row->tanggal_next_maintenance)) : '-';
+                    if ($row->tanggal_next_maintenance) {
+                        $date = Carbon::parse($row->tanggal_next_maintenance);
+                        $date->locale('id');
+                        return $date->translatedFormat('j F Y');
+                    }
+                    return '-';
                 })
                 ->addColumn('keterangan', function($row){
                     return $row->keterangan ?? '-';

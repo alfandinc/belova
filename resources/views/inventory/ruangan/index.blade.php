@@ -22,6 +22,18 @@
         </div>
     </div>
 
+    <div class="row mb-3">
+        <div class="col-lg-3">
+            <label for="filterGedung">Filter by Gedung</label>
+            <select id="filterGedung" class="form-control select2">
+                <option value="">All Gedung</option>
+                @foreach($gedungs as $gedung)
+                    <option value="{{ $gedung->id }}">{{ $gedung->name }}</option>
+                @endforeach
+            </select>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-lg-12">
             <div class="card">
@@ -101,10 +113,21 @@
             }
         });
 
+        // Initialize select2 for filter (outside modal)
+        $('#filterGedung').select2({
+            width: '100%',
+            dropdownParent: $(document.body)
+        });
+
         var table = $('.data-table').DataTable({
             processing: true,
             serverSide: true,
-            ajax: "{{ route('ruangan.index') }}",
+            ajax: {
+                url: "{{ route('ruangan.index') }}",
+                data: function (d) {
+                    d.gedung_id = $('#filterGedung').val();
+                }
+            },
             columns: [
                 {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
                 {data: 'name', name: 'name'},
@@ -114,8 +137,13 @@
             ]
         });
 
-        // Initialize select2
-        $('.select2').select2({
+        // Filter event
+        $('#filterGedung').on('change', function() {
+            table.ajax.reload();
+        });
+
+        // Initialize select2 for modal (inside modal only)
+        $('#gedung_id').select2({
             dropdownParent: $('#ajaxModel'),
             width: '100%'
         });

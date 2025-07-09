@@ -22,6 +22,45 @@
         </div>
     </div>
 
+    <div class="row mb-3">
+        <div class="col-lg-3">
+            <label for="filterGedung">Filter by Gedung</label>
+            <select id="filterGedung" class="form-control select2">
+                <option value="">All Gedung</option>
+                @foreach($gedungs as $gedung)
+                    <option value="{{ $gedung->id }}">{{ $gedung->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="col-lg-3">
+            <label for="filterRuangan">Filter by Ruangan</label>
+            <select id="filterRuangan" class="form-control select2" disabled>
+                <option value="">All Ruangan</option>
+            </select>
+        </div>
+        <div class="col-lg-3">
+            <label for="filterTipeBarang">Filter by Tipe Barang</label>
+            <select id="filterTipeBarang" class="form-control select2">
+                <option value="">All Tipe Barang</option>
+                @foreach($tipeBarangs as $tipeBarang)
+                    <option value="{{ $tipeBarang->id }}">{{ $tipeBarang->name }}</option>
+                @endforeach
+            </select>
+        </div>
+    </div>
+
+    <div class="row mb-2">
+        <div class="col-lg-12">
+            <div class="mb-2">
+                <strong>Keterangan Warna:</strong>
+                <span style="display:inline-block;width:20px;height:20px;background:#f8d7da;border:1px solid #ccc;margin-right:5px;vertical-align:middle;"></span>
+                <span style="margin-right:15px;vertical-align:middle;">Stok 0</span>
+                <span style="display:inline-block;width:20px;height:20px;background:#fff3cd;border:1px solid #ccc;margin-right:5px;vertical-align:middle;"></span>
+                <span style="vertical-align:middle;">Barang Under Maintenance</span>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-lg-12">
             <div class="card">
@@ -171,6 +210,15 @@
         </div>
     </div>
 </div>
+
+<style>
+    .stok-zero-row {
+        background-color: #f8d7da !important;
+    }
+    .maintenance-row {
+        background-color: #fff3cd !important;
+    }
+</style>
 @endsection
 
 @section('scripts')
@@ -182,10 +230,64 @@
             }
         });
 
+        // Initialize select2 for filters (outside modal)
+        $('#filterGedung').select2({
+            width: '100%',
+            dropdownParent: $(document.body)
+        });
+        $('#filterRuangan').select2({
+            width: '100%',
+            dropdownParent: $(document.body)
+        });
+        $('#filterTipeBarang').select2({
+            width: '100%',
+            dropdownParent: $(document.body)
+        });
+
+        // Handle Gedung filter change
+        $('#filterGedung').on('change', function() {
+            var gedungId = $(this).val();
+            $('#filterRuangan').prop('disabled', true).html('<option value="">All Ruangan</option>');
+            if (gedungId) {
+                // Fetch ruangan by gedung
+                $.get('/inventory/ruangan/by-gedung/' + gedungId, function(data) {
+                    var options = '<option value="">All Ruangan</option>';
+                    if (data && data.length > 0) {
+                        $.each(data, function(i, ruangan) {
+                            options += '<option value="' + ruangan.id + '">' + ruangan.name + '</option>';
+                        });
+                        $('#filterRuangan').html(options).prop('disabled', false);
+                    } else {
+                        $('#filterRuangan').html('<option value="">No Ruangan</option>').prop('disabled', true);
+                    }
+                });
+            } else {
+                $('#filterRuangan').prop('disabled', true).html('<option value="">All Ruangan</option>');
+            }
+            table.ajax.reload();
+        });
+
+        // Handle Ruangan filter change
+        $('#filterRuangan').on('change', function() {
+            table.ajax.reload();
+        });
+
+        // Handle Tipe Barang filter change
+        $('#filterTipeBarang').on('change', function() {
+            table.ajax.reload();
+        });
+
         var table = $('.data-table').DataTable({
             processing: true,
             serverSide: true,
-            ajax: "{{ route('barang.index') }}",
+            ajax: {
+                url: "{{ route('barang.index') }}",
+                data: function (d) {
+                    d.gedung_id = $('#filterGedung').val();
+                    d.ruangan_id = $('#filterRuangan').val();
+                    d.tipe_barang_id = $('#filterTipeBarang').val();
+                }
+            },
             columns: [
                 {data: 'DT_RowIndex', name: 'DT_RowIndex'},
                 {data: 'kode', name: 'kode'},
@@ -195,11 +297,25 @@
                 {data: 'stok', name: 'stok'},
                 {data: 'satuan', name: 'satuan'},
                 {data: 'action', name: 'action', orderable: false, searchable: false},
-            ]
+                {data: 'under_maintenance', name: 'under_maintenance', visible: false, searchable: false},
+            ],
+            createdRow: function(row, data, dataIndex) {
+                var stok = data.stok;
+                if (typeof stok === 'string') stok = parseInt(stok);
+                if (stok === 0) {
+                    $(row).addClass('stok-zero-row');
+                } else if (data.under_maintenance) {
+                    $(row).addClass('maintenance-row');
+                }
+            }
         });
 
-        // Initialize select2
-        $('.select2').select2({
+        // Initialize select2 for modal (inside modal only)
+        $('#tipe_barang_id').select2({
+            dropdownParent: $('#ajaxModel'),
+            width: '100%'
+        });
+        $('#ruangan_id').select2({
             dropdownParent: $('#ajaxModel'),
             width: '100%'
         });

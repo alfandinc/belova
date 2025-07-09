@@ -21,7 +21,22 @@ class BarangController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $data = Barang::with(['tipeBarang', 'ruangan', 'stokBarang'])->latest();
+            $data = Barang::with(['tipeBarang', 'ruangan', 'stokBarang']);
+            // Filter by gedung if provided
+            if ($request->filled('gedung_id')) {
+                $data = $data->whereHas('ruangan', function($q) use ($request) {
+                    $q->where('gedung_id', $request->gedung_id);
+                });
+            }
+            // Filter by ruangan if provided
+            if ($request->filled('ruangan_id')) {
+                $data = $data->where('ruangan_id', $request->ruangan_id);
+            }
+            // Filter by tipe_barang_id if provided
+            if ($request->filled('tipe_barang_id')) {
+                $data = $data->where('tipe_barang_id', $request->tipe_barang_id);
+            }
+            $data = $data->latest();
             return DataTables::of($data)
                 ->addIndexColumn()
                 ->addColumn('tipe_barang', function($row){
@@ -32,6 +47,9 @@ class BarangController extends Controller
                 })
                 ->addColumn('stok', function($row){
                     return $row->stokBarang ? $row->stokBarang->jumlah : '0';
+                })
+                ->addColumn('under_maintenance', function($row){
+                    return $row->maintenanceBarang && $row->maintenanceBarang->count() > 0 ? true : false;
                 })
                 ->addColumn('action', function($row){
                     $actionBtn = '<a href="javascript:void(0)" data-id="'.$row->id.'" class="edit btn btn-success btn-sm">Edit</a> <a href="javascript:void(0)" data-id="'.$row->id.'" class="delete btn btn-danger btn-sm">Delete</a> <a href="javascript:void(0)" data-id="'.$row->id.'" class="editStok btn btn-info btn-sm">Stok</a>';
@@ -45,9 +63,10 @@ class BarangController extends Controller
         }
         
         $tipeBarangs = TipeBarang::all();
-        $ruangans = Ruangan::all();
+        $ruangans = Ruangan::with('gedung')->get();
+        $gedungs = \App\Models\Inventory\Gedung::all();
         
-        return view('inventory.barang.index', compact('tipeBarangs', 'ruangans'));
+        return view('inventory.barang.index', compact('tipeBarangs', 'ruangans', 'gedungs'));
     }
 
     /**
@@ -182,5 +201,12 @@ class BarangController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Failed to update stok: ' . $e->getMessage()]);
         }
+    }
+
+    // Add endpoint for AJAX ruangan by gedung
+    public function getRuanganByGedung($gedungId)
+    {
+        $ruangans = \App\Models\Inventory\Ruangan::where('gedung_id', $gedungId)->select('id', 'name')->get();
+        return response()->json($ruangans);
     }
 }

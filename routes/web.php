@@ -354,7 +354,6 @@ Route::prefix('inventory')->group(
         // Master Inventory
         Route::resource('gedung', App\Http\Controllers\Inventory\GedungController::class);
         Route::resource('ruangan', App\Http\Controllers\Inventory\RuanganController::class);
-        Route::get('get-ruangan-by-gedung/{gedung_id}', [App\Http\Controllers\Inventory\RuanganController::class, 'getRuanganByGedung'])->name('inventory.get-ruangan-by-gedung');
         Route::resource('tipe-barang', App\Http\Controllers\Inventory\TipeBarangController::class);
         
         // Manajemen Barang
@@ -548,4 +547,7 @@ Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\Visitati
 Route::get('/erm/dashboard/most-frequent-patient', [\App\Http\Controllers\ERMDashboardAjaxController::class, 'mostFrequentPatient'])->name('erm.dashboard.most-frequent-patient');
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
+
+// AJAX: Get ruangan by gedung for filter (move to RuanganController for consistency)
+Route::get('/inventory/ruangan/by-gedung/{gedungId}', [App\Http\Controllers\Inventory\RuanganController::class, 'getRuanganByGedung']);
 
