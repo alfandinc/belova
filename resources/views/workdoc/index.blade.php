@@ -694,17 +694,22 @@
                             <textarea class="form-control" id="folder_description" name="description" rows="3"></textarea>
                         </div>
                         <div class="form-group mt-3">
-                            <label for="division_id">Division (Optional)</label>
-                            <select class="form-control" id="division_id" name="division_id">
-                                <option value="">None (Available to All)</option>
-                                @foreach($divisions as $division)
-                                    <option value="{{ $division->id }}">{{ $division->name }}</option>
-                                @endforeach
-                            </select>
+                            <label for="division_id">Division</label>
+                            @if($isAdmin)
+                                <select class="form-control" id="division_id" name="division_id">
+                                    <option value="">None (Available to All)</option>
+                                    @foreach($divisions as $division)
+                                        <option value="{{ $division->id }}">{{ $division->name }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <input type="hidden" name="division_id" id="division_id" value="{{ $userDivisionId }}">
+                                <input type="text" class="form-control" value="{{ $user->employee && $user->employee->division ? $user->employee->division->name : 'No Division' }}" disabled>
+                            @endif
                         </div>
                         <div class="form-check mt-3">
-                            <input type="checkbox" class="form-check-input" id="is_private" name="is_private">
-                            <label class="form-check-label" for="is_private">Private (Only visible to you and selected division)</label>
+                            <input type="checkbox" class="form-check-input" id="is_public" name="is_public" value="1">
+                            <label class="form-check-label" for="is_public">Public (Visible to all divisions)</label>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -743,17 +748,22 @@
                             <textarea class="form-control" id="edit_folder_description" name="description" rows="3"></textarea>
                         </div>
                         <div class="form-group mt-3">
-                            <label for="edit_division_id">Division (Optional)</label>
-                            <select class="form-control" id="edit_division_id" name="division_id">
-                                <option value="">None (Available to All)</option>
-                                @foreach($divisions as $division)
-                                    <option value="{{ $division->id }}">{{ $division->name }}</option>
-                                @endforeach
-                            </select>
+                            <label for="edit_division_id">Division</label>
+                            @if($isAdmin)
+                                <select class="form-control" id="edit_division_id" name="division_id">
+                                    <option value="">None (Available to All)</option>
+                                    @foreach($divisions as $division)
+                                        <option value="{{ $division->id }}">{{ $division->name }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <input type="hidden" name="division_id" id="edit_division_id" value="{{ $userDivisionId }}">
+                                <input type="text" class="form-control" value="{{ $user->employee && $user->employee->division ? $user->employee->division->name : 'No Division' }}" disabled>
+                            @endif
                         </div>
                         <div class="mb-3 form-check">
-                            <input type="checkbox" class="form-check-input" id="edit_is_private" name="is_private">
-                            <label class="form-check-label" for="edit_is_private">Private (Only visible to you and selected division)</label>
+                            <input type="checkbox" class="form-check-input" id="edit_is_public" name="is_public" value="1">
+                            <label class="form-check-label" for="edit_is_public">Public (Visible to all divisions)</label>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -793,17 +803,22 @@
                             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                         </div>
                         <div class="form-group mt-3">
-                            <label for="upload_division_id">Division (Optional)</label>
-                            <select class="form-control" id="upload_division_id" name="division_id">
-                                <option value="">None (Available to All)</option>
-                                @foreach($divisions as $division)
-                                    <option value="{{ $division->id }}">{{ $division->name }}</option>
-                                @endforeach
-                            </select>
+                            <label for="upload_division_id">Division</label>
+                            @if($isAdmin)
+                                <select class="form-control" id="upload_division_id" name="division_id">
+                                    <option value="">None (Available to All)</option>
+                                    @foreach($divisions as $division)
+                                        <option value="{{ $division->id }}">{{ $division->name }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <input type="hidden" name="division_id" id="upload_division_id" value="{{ $userDivisionId }}">
+                                <input type="text" class="form-control" value="{{ $user->employee && $user->employee->division ? $user->employee->division->name : 'No Division' }}" disabled>
+                            @endif
                         </div>
                         <div class="form-check mt-3">
-                            <input type="checkbox" class="form-check-input" id="upload_is_private" name="is_private">
-                            <label class="form-check-label" for="upload_is_private">Private (Only visible to you and selected division)</label>
+                            <input type="checkbox" class="form-check-input" id="upload_is_public" name="is_public" value="1">
+                            <label class="form-check-label" for="upload_is_public">Public (Visible to all divisions)</label>
                         </div>
                     </div>
                     <div class="modal-footer">
