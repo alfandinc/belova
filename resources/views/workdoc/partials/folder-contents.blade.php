@@ -77,23 +77,18 @@
                                             <td>{{ $subfolder->updated_at->format('M d, Y') }}</td>
                                             <td>--</td>
                                             <td class="text-right">
-                                                <div class="dropdown d-inline-block">
-                                                    <a class="nav-link dropdown-toggle arrow-none" id="folder-{{ $subfolder->id }}-menu" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                                        <i class="fas fa-ellipsis-v font-18 text-muted"></i>
-                                                    </a>
-                                                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="folder-{{ $subfolder->id }}-menu">
-                                                        @can('update', $subfolder)
-                                                            <a class="dropdown-item" href="#" data-toggle="modal" data-target="#editFolderModal" data-folder-id="{{ $subfolder->id }}" data-folder-name="{{ $subfolder->name }}">
-                                                                <i class="fas fa-edit mr-2"></i>Edit
-                                                            </a>
-                                                        @endcan
-                                                        @can('delete', $subfolder)
-                                                            <a class="dropdown-item delete-folder" href="#" data-folder-id="{{ $subfolder->id }}">
-                                                                <i class="fas fa-trash-alt mr-2"></i>Delete
-                                                            </a>
-                                                        @endcan
-                                                    </div>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-sm btn-outline-primary rename-folder-btn" data-folder-id="{{ $subfolder->id }}" data-folder-name="{{ $subfolder->name }}" title="Rename">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger delete-folder" data-folder-id="{{ $subfolder->id }}" title="Delete">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
                                                 </div>
+                                                <form id="delete-folder-{{ $subfolder->id }}" action="{{ route('workdoc.folders.destroy', $subfolder->id) }}" method="POST" style="display:none;">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                </form>
                                             </td>
                                         </tr>
                                     @endforeach
@@ -109,26 +104,24 @@
                                             <td>{{ $document->updated_at->format('M d, Y') }}</td>
                                             <td>{{ formatBytes($document->file_size) }}</td>
                                             <td class="text-right">
-                                                <div class="dropdown d-inline-block">
-                                                    <a class="nav-link dropdown-toggle arrow-none" id="doc-{{ $document->id }}-menu" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                                        <i class="fas fa-ellipsis-v font-18 text-muted"></i>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-sm btn-outline-info preview-file-btn" data-file-url="{{ asset('storage/' . $document->file_path) }}" data-file-type="{{ pathinfo($document->file_path, PATHINFO_EXTENSION) }}" data-file-name="{{ $document->name }}" title="Preview">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <a class="btn btn-sm btn-outline-success" href="{{ route('workdoc.documents.download', $document->id) }}" target="_blank" title="Download">
+                                                        <i class="fas fa-download"></i>
                                                     </a>
-                                                    <div class="dropdown-menu dropdown-menu-right" aria-labelledby="doc-{{ $document->id }}-menu">
-                                                        <a class="dropdown-item" href="{{ route('workdoc.documents.download', $document->id) }}">
-                                                            <i class="fas fa-download mr-2"></i>Download
-                                                        </a>
-                                                        @can('update', $document)
-                                                            <a class="dropdown-item" href="#" data-toggle="modal" data-target="#editDocumentModal" data-document-id="{{ $document->id }}" data-document-name="{{ $document->name }}">
-                                                                <i class="fas fa-edit mr-2"></i>Edit
-                                                            </a>
-                                                        @endcan
-                                                        @can('delete', $document)
-                                                            <a class="dropdown-item delete-document" href="#" data-document-id="{{ $document->id }}">
-                                                                <i class="fas fa-trash-alt mr-2"></i>Delete
-                                                            </a>
-                                                        @endcan
-                                                    </div>
+                                                    <button class="btn btn-sm btn-outline-primary rename-file-btn" data-document-id="{{ $document->id }}" data-document-name="{{ $document->name }}" title="Rename">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-danger delete-document" data-document-id="{{ $document->id }}" title="Delete">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
                                                 </div>
+                                                <form id="delete-document-{{ $document->id }}" action="{{ route('workdoc.documents.destroy', $document->id) }}" method="POST" style="display:none;">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                </form>
                                             </td>
                                         </tr>
                                     @endforeach

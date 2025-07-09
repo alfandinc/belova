@@ -165,20 +165,21 @@ class DocumentController extends Controller
     public function destroy($id)
     {
         $document = Document::findOrFail($id);
-        
         // Check permission
         $user = Auth::user();
-        
         if ($document->created_by != $user->id && !$user->hasRole(['admin', 'super admin'])) {
+            if (request()->ajax()) {
+                return response()->json(['error' => 'You do not have permission to delete this document.'], 403);
+            }
             return redirect()->back()->with('error', 'You do not have permission to delete this document.');
         }
-        
         // Delete the file
         Storage::disk('public')->delete($document->file_path);
-        
         // Delete the record
         $document->delete();
-        
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Document deleted successfully.']);
+        }
         return redirect()->back()->with('success', 'Document deleted successfully.');
     }
     
@@ -348,5 +349,26 @@ class DocumentController extends Controller
         $bytes /= pow(1024, $pow);
        
         return round($bytes, $precision) . ' ' . $units[$pow]; 
+    }
+
+    /**
+     * Rename a document (AJAX)
+     */
+    public function rename(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['error' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+        $document = Document::findOrFail($id);
+        $user = Auth::user();
+        if ($document->created_by != $user->id && !$user->hasRole(['admin', 'super admin'])) {
+            return response()->json(['error' => 'You do not have permission to rename this file.'], 403);
+        }
+        $document->name = $request->name;
+        $document->save();
+        return response()->json(['success' => true, 'message' => 'File renamed successfully.']);
     }
 }

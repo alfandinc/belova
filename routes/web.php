@@ -298,6 +298,10 @@ Route::prefix('workdoc')->name('workdoc.')->middleware(['auth'])->group(function
     Route::post('/folders', [App\Http\Controllers\Workdoc\FolderController::class, 'store'])->name('folders.store');
     Route::put('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'update'])->name('folders.update');
     Route::delete('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'destroy'])->name('folders.destroy');
+    Route::put('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'rename'])->name('folders.rename');
+    Route::put('/documents/{document}', [App\Http\Controllers\Workdoc\DocumentController::class, 'rename'])->name('documents.rename');
+    // Optionally, add a preview route if you want to serve files securely
+    // Route::get('/documents/{document}/preview', [App\Http\Controllers\Workdoc\DocumentController::class, 'preview'])->name('documents.preview');
 });
 Route::prefix('akreditasi')->group(
     function () {

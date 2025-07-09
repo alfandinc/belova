@@ -384,19 +384,9 @@
                                 <h4 class="card-title">Categories</h4>                      
                             </div><!--end col-->
                             <div class="col-auto"> 
-                                <div class="dropdown">
-                                    <a href="#" class="btn btn-sm btn-outline-light dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
-                                        <i class="mdi mdi-dots-horizontal text-muted"></i>
-                                    </a>
-                                    <div class="dropdown-menu dropdown-menu-right">
-                                        <a class="dropdown-item" href="#" data-toggle="modal" data-target="#createFolderModal">
-                                            <i class="mdi mdi-folder-plus mr-2"></i> Create Folder
-                                        </a>
-                                        <a class="dropdown-item" href="#" data-toggle="modal" data-target="#uploadFileModal">
-                                            <i class="mdi mdi-upload mr-2"></i> Upload File
-                                        </a>
-                                    </div>
-                                </div>       
+                                <button class="btn btn-sm btn-outline-primary" id="create-category-btn" data-toggle="modal" data-target="#createFolderModal">
+                                    <i class="mdi mdi-folder-plus mr-2"></i> Create Category
+                                </button>
                             </div><!--end col-->
                         </div>  <!--end row-->                                  
                     </div><!--end card-header-->
@@ -404,81 +394,26 @@
                         <div class="files-nav">                                     
                             <div class="nav flex-column nav-pills" id="folder-tabs" role="tablist">
                                 @php
-                                    // Get the root folder
-                                    $rootFolder = \App\Models\Workdoc\Folder::where('name', 'Root')->first();
-                                    $publicFolder = \App\Models\Workdoc\Folder::where('name', 'Public Documents')->first();
-                                    $templateFolder = \App\Models\Workdoc\Folder::where('name', 'Templates')->first();
-                                    $archiveFolder = \App\Models\Workdoc\Folder::where('name', 'Archive')->first();
+                                    // Get all folders where parent_id = 1
+                                    $categoryFolders = \App\Models\Workdoc\Folder::where('parent_id', 1)->get();
                                 @endphp
-                                
-                                <a class="nav-link {{ !$currentFolder || $currentFolder->name == 'Root' ? 'active' : '' }}" 
-                                   id="folder-tab-{{ $rootFolder ? $rootFolder->id : 'root' }}" 
-                                   data-toggle="pill" 
-                                   href="#folder-content-{{ $rootFolder ? $rootFolder->id : 'root' }}" 
-                                   role="tab"
-                                   data-folder-id="{{ $rootFolder ? $rootFolder->id : '' }}"
-                                   aria-selected="{{ !$currentFolder || $currentFolder->name == 'Root' ? 'true' : 'false' }}">
-                                    <i class="mdi mdi-home align-self-center"></i>
-                                    <div class="d-inline-block align-self-center">
-                                        <h5 class="m-0">Home</h5>
-                                        <small>Root Directory</small>                                                    
-                                    </div>
-                                </a>
-
-                                <a class="nav-link {{ $currentFolder && $currentFolder->name == 'Public Documents' ? 'active' : '' }}" 
-                                   id="folder-tab-{{ $publicFolder ? $publicFolder->id : 'public' }}"
-                                   data-toggle="pill" 
-                                   href="#folder-content-{{ $publicFolder ? $publicFolder->id : 'public' }}" 
-                                   role="tab"
-                                   data-folder-id="{{ $publicFolder ? $publicFolder->id : '' }}"
-                                   aria-selected="{{ $currentFolder && $currentFolder->name == 'Public Documents' ? 'true' : 'false' }}">
-                                    <i class="mdi mdi-folder-open align-self-center"></i>
-                                    <div class="d-inline-block align-self-center">
-                                        <h5 class="m-0">Public Documents</h5>
-                                        <small>Shared with all users</small>                                                    
-                                    </div>
-                                </a>
-                                
-                                <a class="nav-link {{ $currentFolder && $currentFolder->name == 'Templates' ? 'active' : '' }}" 
-                                   id="folder-tab-{{ $templateFolder ? $templateFolder->id : 'templates' }}"
-                                   data-toggle="pill" 
-                                   href="#folder-content-{{ $templateFolder ? $templateFolder->id : 'templates' }}" 
-                                   role="tab"
-                                   data-folder-id="{{ $templateFolder ? $templateFolder->id : '' }}"
-                                   aria-selected="{{ $currentFolder && $currentFolder->name == 'Templates' ? 'true' : 'false' }}">
-                                    <i class="mdi mdi-file-document-outline align-self-center"></i>
-                                    <div class="d-inline-block align-self-center">
-                                        <h5 class="m-0">Templates</h5>
-                                        <small>Document templates</small>                                                    
-                                    </div>
-                                </a>
-
-                                <a class="nav-link" 
-                                   id="folder-tab-starred"
-                                   data-toggle="pill" 
-                                   href="#folder-content-starred" 
-                                   role="tab"
-                                   aria-selected="false">
-                                    <i class="mdi mdi-star align-self-center"></i>
-                                    <div class="d-inline-block align-self-center">
-                                        <h5 class="m-0">Starred</h5>
-                                        <small>Favorite documents</small>                                                    
-                                    </div>
-                                </a>
-                                
-                                <a class="nav-link {{ $currentFolder && $currentFolder->name == 'Archive' ? 'active' : '' }}" 
-                                   id="folder-tab-{{ $archiveFolder ? $archiveFolder->id : 'archive' }}"
-                                   data-toggle="pill" 
-                                   href="#folder-content-{{ $archiveFolder ? $archiveFolder->id : 'archive' }}" 
-                                   role="tab"
-                                   data-folder-id="{{ $archiveFolder ? $archiveFolder->id : '' }}"
-                                   aria-selected="{{ $currentFolder && $currentFolder->name == 'Archive' ? 'true' : 'false' }}">
-                                    <i class="mdi mdi-archive align-self-center"></i>
-                                    <div class="d-inline-block align-self-center">
-                                        <h5 class="m-0">Archive</h5>
-                                        <small>Archived documents</small>                                                    
-                                    </div>
-                                </a>
+                                @php $first = true; @endphp
+                                @foreach($categoryFolders as $folder)
+                                    <a class="nav-link {{ ($currentFolder && $currentFolder->id == $folder->id) || (!$currentFolder && $first) ? 'active' : '' }}"
+                                       id="folder-tab-{{ $folder->id }}"
+                                       data-toggle="pill"
+                                       href="#folder-content-{{ $folder->id }}"
+                                       role="tab"
+                                       data-folder-id="{{ $folder->id }}"
+                                       aria-selected="{{ ($currentFolder && $currentFolder->id == $folder->id) || (!$currentFolder && $first) ? 'true' : 'false' }}">
+                                        <i class="mdi mdi-folder align-self-center"></i>
+                                        <div class="d-inline-block align-self-center">
+                                            <h5 class="m-0">{{ $folder->name }}</h5>
+                                            <small>{{ $folder->description ?? 'Folder' }}</small>
+                                        </div>
+                                    </a>
+                                    @php $first = false; @endphp
+                                @endforeach
                             </div>
                         </div>
                     </div><!--end card-body-->
@@ -546,116 +481,35 @@
                     </div>
                     
                     <div class="card">
-                        <div class="card-header">
-                            <div class="row align-items-center">
-                                <div class="col">
-                                    <!-- Breadcrumb Navigation -->
-                                    <nav aria-label="breadcrumb">
-                                        <ol class="breadcrumb mb-0 p-0" id="folder-breadcrumbs">
-                                            <li class="breadcrumb-item">
-                                                <a href="{{ route('workdoc.documents.index') }}">
-                                                    <i class="mdi mdi-home"></i> Home
-                                                </a>
-                                            </li>
-                                            @foreach($breadcrumbs as $breadcrumb)
-                                                <li class="breadcrumb-item {{ $loop->last ? 'active' : '' }}">
-                                                    @if(!$loop->last)
-                                                        <a href="{{ route('workdoc.documents.index', ['folder_id' => $breadcrumb->id]) }}">
-                                                            {{ $breadcrumb->name }}
-                                                        </a>
-                                                    @else
-                                                        {{ $breadcrumb->name }}
-                                                    @endif
-                                                </li>
-                                            @endforeach
-                                        </ol>
-                                    </nav>
-                                </div>
-                                
-                                <div class="col-auto">
-                                    <div class="button-items" id="folder-actions">
-                                        @if($currentFolder && $currentFolder->parent_id)
-                                            <a href="{{ route('workdoc.documents.index', ['folder_id' => $currentFolder->parent_id]) }}" 
-                                              class="btn btn-sm btn-outline-light back-button">
-                                                <i class="mdi mdi-arrow-left"></i> Back
-                                            </a>
-                                        @endif
-                                        
-                                        <button class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#createFolderModal">
-                                            <i class="mdi mdi-folder-plus"></i> Create Folder
-                                        </button>
-                                        <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#uploadFileModal">
-                                            <i class="mdi mdi-upload"></i> Upload File
-                                        </button>
-                                        
-                                        @if($currentFolder)
-                                            <div class="btn-group">
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle="modal" data-target="#editFolderModal">
-                                                    <i class="mdi mdi-pencil"></i> Edit
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-danger folder-delete-btn" data-folder-id="{{ $currentFolder->id }}">
-                                                    <i class="mdi mdi-delete"></i> Delete
-                                                </button>
-                                                <form id="delete-folder-{{ $currentFolder->id }}" action="{{ route('workdoc.folders.destroy', $currentFolder->id) }}" method="POST" style="display: none;">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                </form>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="card-body">                    
+                        <div class="card-body">
+                            
                             <div class="tab-content" id="folder-content-tabContent">
-                            <!-- Tab panes that will be loaded via AJAX -->
-                            <div class="tab-pane fade show {{ !$currentFolder || $currentFolder->name == 'Root' ? 'active' : '' }}" 
-                                 id="folder-content-{{ $rootFolder ? $rootFolder->id : 'root' }}" 
-                                 role="tabpanel" 
-                                 aria-labelledby="folder-tab-{{ $rootFolder ? $rootFolder->id : 'root' }}">
-                                <!-- Content will be loaded via AJAX -->
-                                <div class="ajax-loading text-center py-5">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="sr-only">Loading...</span>
+                                <div class="d-flex justify-content-end mb-3" id="folder-actions">
+                                <button class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#createFolderModal">
+                                    <i class="mdi mdi-folder-plus"></i> Create Folder
+                                </button>
+                                <button class="btn btn-sm btn-primary ml-2" data-toggle="modal" data-target="#uploadFileModal">
+                                    <i class="mdi mdi-upload"></i> Upload File
+                                </button>
+                            </div>
+                                <!-- Tab pane for Home (Root) -->
+                                <!-- Tab panes for each category folder -->
+                                @foreach($categoryFolders as $folder)
+                                    <div class="tab-pane fade {{ $currentFolder && $currentFolder->id == $folder->id ? 'show active' : '' }}"
+                                        id="folder-content-{{ $folder->id }}"
+                                        role="tabpanel"
+                                        aria-labelledby="folder-tab-{{ $folder->id }}">
+                                        
+                                        <!-- Content will be loaded via AJAX -->
+                                        <div class="ajax-loading text-center py-5">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="sr-only">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Loading content...</p>
+                                        </div>
                                     </div>
-                                    <p class="mt-2">Loading content...</p>
-                                </div>
+                                @endforeach
                             </div>
-                            
-                            <!-- Additional tab panes for other folders -->
-                            <div class="tab-pane fade {{ $currentFolder && $currentFolder->name == 'Public Documents' ? 'show active' : '' }}"
-                                 id="folder-content-{{ $publicFolder ? $publicFolder->id : 'public' }}"
-                                 role="tabpanel"
-                                 aria-labelledby="folder-tab-{{ $publicFolder ? $publicFolder->id : 'public' }}">
-                                <!-- Content will be loaded via AJAX -->
-                            </div>
-                            
-                            <div class="tab-pane fade {{ $currentFolder && $currentFolder->name == 'Templates' ? 'show active' : '' }}"
-                                 id="folder-content-{{ $templateFolder ? $templateFolder->id : 'templates' }}"
-                                 role="tabpanel"
-                                 aria-labelledby="folder-tab-{{ $templateFolder ? $templateFolder->id : 'templates' }}">
-                                <!-- Content will be loaded via AJAX -->
-                            </div>
-                            
-                            <div class="tab-pane fade"
-                                 id="folder-content-starred"
-                                 role="tabpanel"
-                                 aria-labelledby="folder-tab-starred">
-                                <div class="py-5 text-center">
-                                    <i class="mdi mdi-star-outline" style="font-size: 5rem; color: #adb5bd;"></i>
-                                    <h4 class="mt-3">Starred Documents</h4>
-                                    <p class="text-muted">Star your important documents for quick access</p>
-                                </div>
-                            </div>
-                            
-                            <div class="tab-pane fade {{ $currentFolder && $currentFolder->name == 'Archive' ? 'show active' : '' }}"
-                                 id="folder-content-{{ $archiveFolder ? $archiveFolder->id : 'archive' }}"
-                                 role="tabpanel"
-                                 aria-labelledby="folder-tab-{{ $archiveFolder ? $archiveFolder->id : 'archive' }}">
-                                <!-- Content will be loaded via AJAX -->
-                            </div>
-                        </div>
                         <script>
                             // This script will be executed on page load
                             document.addEventListener('DOMContentLoaded', function() {
@@ -793,8 +647,6 @@
                                     @endforeach
                                 }
                                 
-                                // Insert the populated template into the DOM
-                                document.getElementById('folder-content-{{ $rootFolder ? $rootFolder->id : 'root' }}').appendChild(template);
                             });
                         </script>
                                 </div> <!-- end tab pane -->
@@ -859,7 +711,7 @@
     <div class="modal fade" id="editFolderModal" tabindex="-1" role="dialog" aria-labelledby="editFolderModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form id="edit-folder-form" action="{{ route('workdoc.folders.update', $currentFolder ? $currentFolder->id : 0) }}" method="POST">
+                <form id="edit-folder-form" action="{{ route('workdoc.folders.rename', $currentFolder ? $currentFolder->id : 0) }}" method="POST">
                     @csrf
                     @method('PUT')
                     
@@ -953,28 +805,96 @@
             </div>
         </div>
     </div>
+
+    <!-- Rename Folder Modal -->
+    <div class="modal fade" id="renameFolderModal" tabindex="-1" role="dialog" aria-labelledby="renameFolderModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="rename-folder-form" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="renameFolderModalLabel">Rename Folder</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="rename-folder-name">New Folder Name</label>
+                            <input type="text" class="form-control" id="rename-folder-name" name="name" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Rename</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename File Modal -->
+    <div class="modal fade" id="renameFileModal" tabindex="-1" role="dialog" aria-labelledby="renameFileModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="rename-file-form" method="POST">
+                    @csrf
+                    @method('PUT')
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="renameFileModalLabel">Rename File</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="rename-file-name">New File Name</label>
+                            <input type="text" class="form-control" id="rename-file-name" name="name" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Rename</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview File Modal -->
+    <div class="modal fade" id="previewFileModal" tabindex="-1" role="dialog" aria-labelledby="previewFileModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewFileModalLabel">Preview</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body text-center" id="preview-file-content">
+                    <!-- Content will be injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('scripts')
 <script>
     $(document).ready(function() {
-        // Function to show an alert message
+        // Function to show an alert message using SweetAlert2
         function showAlert(message, type = 'success') {
-            const alertHTML = `
-                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-                    ${message}
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-            `;
-            
-            $('#alert-container').html(alertHTML);
-            
-            // Auto-dismiss after 5 seconds
-            setTimeout(function() {
-                $('.alert').alert('close');
-            }, 5000);
+            Swal.fire({
+                icon: type,
+                title: type === 'success' ? 'Success' : 'Error',
+                html: message,
+                timer: 2500,
+                showConfirmButton: false,
+                timerProgressBar: true,
+                position: 'top-end',
+                toast: true
+            });
         }
         
         // Enhance icons throughout the application
@@ -1196,43 +1116,6 @@
             // Set parent ID for create folder modal
             $('#createFolderModal').data('parent-id', folderId);
             $('#create-folder-parent-id').val(folderId);
-            
-            // Delete folder button
-            $('.delete-folder').off('click').on('click', function(e) {
-                e.preventDefault();
-                
-                const folderToDeleteId = $(this).data('folder-id');
-                
-                if (confirm('Are you sure you want to delete this folder? This action cannot be undone.')) {
-                    // Submit the delete form
-                    $(`#delete-folder-${folderToDeleteId}`).submit();
-                }
-            });
-            
-            // Delete document button
-            $('.delete-document').off('click').on('click', function(e) {
-                e.preventDefault();
-                
-                const documentToDeleteId = $(this).data('document-id');
-                
-                if (confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
-                    // Submit the delete form
-                    $(`#delete-document-${documentToDeleteId}`).submit();
-                }
-            });
-            
-            // Handle back button
-            $('.back-button').off('click').on('click', function(e) {
-                e.preventDefault();
-                
-                const parentId = $(this).data('parent-id');
-                const tabSelector = `#folder-tab-${parentId}`;
-                
-                // If the tab exists, activate it
-                if ($(tabSelector).length) {
-                    $(tabSelector).tab('show');
-                }
-            });
         }
         
         // Initialize everything
@@ -1242,7 +1125,11 @@
             enhanceIcons();
             
             // Trigger click on the active tab to load its content
-            $('.nav-link.active[data-folder-id]').trigger('click');
+            if ($('.nav-link.active[data-folder-id]').length) {
+                $('.nav-link.active[data-folder-id]').trigger('click');
+            } else {
+                $('.nav-link[data-folder-id]').first().trigger('click');
+            }
             
             // Handle form submissions via AJAX
             $('#upload-file-form, #create-folder-form, #edit-folder-form, #edit-document-form').on('submit', function(e) {
@@ -1289,7 +1176,7 @@
                         }
                         
                         // Show error message
-                        form.find('.alert-danger').html(errorMessage).removeClass('d-none');
+                        showAlert(errorMessage, 'error');
                     },
                     complete: function() {
                         // Re-enable submit button
@@ -1297,10 +1184,202 @@
                     }
                 });
             });
+            
+            // Handle create folder form submission via AJAX (prevent double binding)
+            $('#create-folder-form').off('submit').on('submit', function(e) {
+                e.preventDefault();
+                var form = $(this);
+                var formData = form.serialize();
+                var submitBtn = form.find('button[type="submit"]');
+                submitBtn.prop('disabled', true);
+                $.ajax({
+                    url: form.attr('action'),
+                    method: 'POST',
+                    data: formData,
+                    success: function(response) {
+                        $('#createFolderModal').modal('hide');
+                        showAlert('Folder created successfully!', 'success');
+                        form[0].reset();
+                        // Reload sidebar
+                        $.get(window.location.href, function(data) {
+                            var newSidebar = $(data).find('#folder-tabs').html();
+                            $('#folder-tabs').html(newSidebar);
+                            enhanceIcons();
+                            initFolderTabs();
+                            // Reload the parent folder's tab content (not just the active tab)
+                            var parentId = $('#create-folder-parent-id').val();
+                            if (parentId && $('#folder-tab-' + parentId).length) {
+                                $('#folder-tab-' + parentId).tab('show');
+                                setTimeout(function() {
+                                    $('#folder-tab-' + parentId).trigger('click');
+                                }, 100); // Ensure tab is shown before triggering click
+                            } else {
+                                // Fallback: reload the first tab
+                                $('.nav-link[data-folder-id]').first().trigger('click');
+                            }
+                        });
+                    },
+                    error: function(xhr) {
+                        var errorMsg = 'Failed to create category.';
+                        if (xhr.responseJSON && xhr.responseJSON.errors) {
+                            errorMsg = Object.values(xhr.responseJSON.errors).join('<br>');
+                        }
+                        showAlert(errorMsg, 'error');
+                    },
+                    complete: function() {
+                        submitBtn.prop('disabled', false);
+                    }
+                });
+            });
         }
         
         // Initialize everything
         init();
+        
+        // Ensure Create Category in sidebar always sets parent_id = 1
+        $('#create-category-btn').on('click', function() {
+            $('#create-folder-parent-id').val(1);
+        });
+        
+        // Preview file button
+        $(document).on('click', '.preview-file-btn', function(e) {
+            e.preventDefault();
+            var url = $(this).data('file-url');
+            var type = $(this).data('file-type').toLowerCase();
+            var name = $(this).data('file-name');
+            var content = '';
+            if(['jpg','jpeg','png','gif','bmp','webp'].includes(type)) {
+                content = '<img src="'+url+'" alt="'+name+'" class="img-fluid">';
+            } else if(type === 'pdf') {
+                content = '<iframe src="'+url+'#toolbar=0" style="width:100%;height:70vh;" frameborder="0"></iframe>';
+            } else {
+                content = '<div class="alert alert-info">Preview not available for this file type.</div>';
+            }
+            $('#previewFileModalLabel').text('Preview: ' + name);
+            $('#preview-file-content').html(content);
+            $('#previewFileModal').modal('show');
+        });
+
+        // Rename folder button
+        $(document).on('click', '.rename-folder-btn', function(e) {
+            e.preventDefault();
+            var folderId = $(this).data('folder-id');
+            var folderName = $(this).data('folder-name');
+            $('#rename-folder-name').val(folderName);
+            // Use the correct route for AJAX rename
+            $('#rename-folder-form').attr('action', '{{ url('/workdoc/folders') }}/' + folderId);
+            $('#renameFolderModal').modal('show');
+        });
+        // Rename file button
+        $(document).on('click', '.rename-file-btn', function(e) {
+            e.preventDefault();
+            var docId = $(this).data('document-id');
+            var docName = $(this).data('document-name');
+            $('#rename-file-name').val(docName);
+            $('#rename-file-form').attr('action', '/workdoc/documents/' + docId);
+            $('#renameFileModal').modal('show');
+        });
+        // AJAX rename folder
+        $('#rename-folder-form').on('submit', function(e) {
+            e.preventDefault();
+            var form = $(this);
+            var formData = form.serialize();
+            $.ajax({
+                url: form.attr('action'),
+                method: 'POST',
+                data: formData,
+                success: function(response) {
+                    $('#renameFolderModal').modal('hide');
+                    showAlert('Folder renamed successfully!','success');
+                    // Reload current folder content
+                    $('.nav-link.active[data-folder-id]').trigger('click');
+                },
+                error: function(xhr) {
+                    showAlert('Failed to rename folder.','error');
+                }
+            });
+        });
+        // AJAX rename file
+        $('#rename-file-form').on('submit', function(e) {
+            e.preventDefault();
+            var form = $(this);
+            var formData = form.serialize();
+            $.ajax({
+                url: form.attr('action'),
+                method: 'POST',
+                data: formData,
+                success: function(response) {
+                    $('#renameFileModal').modal('hide');
+                    showAlert('File renamed successfully!','success');
+                    // Reload current folder content
+                    $('.nav-link.active[data-folder-id]').trigger('click');
+                },
+                error: function(xhr) {
+                    showAlert('Failed to rename file.','error');
+                }
+            });
+        });
+        
+        // Folder delete AJAX
+        $(document).on('click', '.delete-folder', function(e) {
+            e.preventDefault();
+            var folderId = $(this).data('folder-id');
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'This will permanently delete the folder and all its contents!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.value) {
+                    var form = $('#delete-folder-' + folderId);
+                    $.ajax({
+                        url: form.attr('action'),
+                        type: 'POST',
+                        data: form.serialize(),
+                        success: function(response) {
+                            showAlert('Folder deleted successfully!', 'success');
+                            // Reload current folder content
+                            $('.nav-link.active[data-folder-id]').trigger('click');
+                        },
+                        error: function(xhr) {
+                            showAlert('Failed to delete folder.', 'error');
+                        }
+                    });
+                }
+            });
+        });
+        // Document delete AJAX
+        $(document).on('click', '.delete-document', function(e) {
+            e.preventDefault();
+            var docId = $(this).data('document-id');
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'This will permanently delete the file!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.value) {
+                    var form = $('#delete-document-' + docId);
+                    $.ajax({
+                        url: form.attr('action'),
+                        type: 'POST',
+                        data: form.serialize(),
+                        success: function(response) {
+                            showAlert('File deleted successfully!', 'success');
+                            // Reload current folder content
+                            $('.nav-link.active[data-folder-id]').trigger('click');
+                        },
+                        error: function(xhr) {
+                            showAlert('Failed to delete file.', 'error');
+                        }
+                    });
+                }
+            });
+        });
     });
 </script>
 <style>

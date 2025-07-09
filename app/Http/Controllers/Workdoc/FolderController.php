@@ -94,17 +94,40 @@ class FolderController extends Controller
     public function destroy($id)
     {
         $folder = Folder::findOrFail($id);
-        
         // Check permission
         $user = Auth::user();
-        
         if ($folder->created_by != $user->id && !$user->hasRole(['admin', 'super admin'])) {
+            if (request()->ajax()) {
+                return response()->json(['error' => 'You do not have permission to delete this folder.'], 403);
+            }
             return redirect()->back()->with('error', 'You do not have permission to delete this folder.');
         }
-        
         // Delete the folder (cascade will delete subfolders and documents)
         $folder->delete();
-        
+        if (request()->ajax()) {
+            return response()->json(['success' => true, 'message' => 'Folder deleted successfully.']);
+        }
         return redirect()->route('workdoc.index')->with('success', 'Folder deleted successfully.');
+    }
+    
+    /**
+     * Rename a folder (AJAX)
+     */
+    public function rename(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['error' => 'Validation failed', 'errors' => $validator->errors()], 422);
+        }
+        $folder = Folder::findOrFail($id);
+        $user = Auth::user();
+        if ($folder->created_by != $user->id && !$user->hasRole(['admin', 'super admin'])) {
+            return response()->json(['error' => 'You do not have permission to rename this folder.'], 403);
+        }
+        $folder->name = $request->name;
+        $folder->save();
+        return response()->json(['success' => true, 'message' => 'Folder renamed successfully.']);
     }
 }
