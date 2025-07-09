@@ -20,4 +20,14 @@ class PembelianBarang extends Model
         'no_faktur',
         'harga_satuan',
     ];
+    
+    public function barang()
+    {
+        return $this->belongsTo(Barang::class, 'barang_id');
+    }
+    
+    public function gedung()
+    {
+        return $this->belongsTo(Gedung::class, 'gedung_id');
+    }
 }

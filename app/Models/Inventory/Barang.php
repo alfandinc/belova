@@ -21,4 +21,29 @@ class Barang extends Model
         'spec',
         'depreciation_rate',
     ];
+    
+    public function tipeBarang()
+    {
+        return $this->belongsTo(TipeBarang::class, 'tipe_barang_id');
+    }
+    
+    public function ruangan()
+    {
+        return $this->belongsTo(Ruangan::class, 'ruangan_id');
+    }
+    
+    public function stokBarang()
+    {
+        return $this->hasOne(StokBarang::class, 'barang_id');
+    }
+    
+    public function pembelianBarang()
+    {
+        return $this->hasMany(PembelianBarang::class, 'barang_id');
+    }
+    
+    public function maintenanceBarang()
+    {
+        return $this->hasMany(MaintenanceBarang::class, 'barang_id');
+    }
 }

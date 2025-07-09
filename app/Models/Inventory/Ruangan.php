@@ -16,4 +16,14 @@ class Ruangan extends Model
         'gedung_id',
         'description',
     ];
+    
+    public function gedung()
+    {
+        return $this->belongsTo(Gedung::class, 'gedung_id');
+    }
+    
+    public function barangs()
+    {
+        return $this->hasMany(Barang::class, 'ruangan_id');
+    }
 }

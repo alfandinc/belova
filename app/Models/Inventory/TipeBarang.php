@@ -16,4 +16,9 @@ class TipeBarang extends Model
         'description',
         'maintenance',
     ];
+    
+    public function barangs()
+    {
+        return $this->hasMany(Barang::class, 'tipe_barang_id');
+    }
 }

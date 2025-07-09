@@ -17,7 +17,13 @@ class MaintenanceBarang extends Model
         'biaya_maintenance',
         'nama_vendor',
         'no_faktur',
-        'tanggal_next_maintenance',
         'keterangan',
+        'tanggal_next_maintenance',
+        
     ];
+    
+    public function barang()
+    {
+        return $this->belongsTo(Barang::class, 'barang_id');
+    }
 }

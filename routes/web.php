@@ -341,13 +341,31 @@ Route::prefix('finance')->group(
 
 Route::prefix('inventory')->group(
     function () {
-
+        Route::get('/', [App\Http\Controllers\InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
+        
+        // Existing Item routes
         Route::get('/item', [ItemController::class, 'index'])->name('inventory.item.index');
         Route::get('/item/create', [ItemController::class, 'create'])->name('inventory.item.create');
         Route::post('/item', [ItemController::class, 'store'])->name('inventory.item.store');
         Route::get('/item/{id}/edit', [ItemController::class, 'edit'])->name('inventory.item.edit');
         Route::put('/item/{id}', [ItemController::class, 'update'])->name('inventory.item.update');
         Route::delete('/item/{id}', [ItemController::class, 'destroy'])->name('inventory.item.destroy');
+        
+        // Master Inventory
+        Route::resource('gedung', App\Http\Controllers\Inventory\GedungController::class);
+        Route::resource('ruangan', App\Http\Controllers\Inventory\RuanganController::class);
+        Route::get('get-ruangan-by-gedung/{gedung_id}', [App\Http\Controllers\Inventory\RuanganController::class, 'getRuanganByGedung'])->name('inventory.get-ruangan-by-gedung');
+        Route::resource('tipe-barang', App\Http\Controllers\Inventory\TipeBarangController::class);
+        
+        // Manajemen Barang
+        Route::resource('barang', App\Http\Controllers\Inventory\BarangController::class);
+        Route::post('barang/update-stok', [App\Http\Controllers\Inventory\BarangController::class, 'updateStok'])->name('inventory.barang.update-stok');
+        
+        // Pembelian Barang
+        Route::resource('pembelian', App\Http\Controllers\Inventory\PembelianBarangController::class);
+        
+        // Maintenance Barang
+        Route::resource('maintenance', App\Http\Controllers\Inventory\MaintenanceBarangController::class);
     }
 );
 

@@ -15,4 +15,14 @@ class Gedung extends Model
         'name',
         'address',
     ];
+    
+    public function ruangans()
+    {
+        return $this->hasMany(Ruangan::class, 'gedung_id');
+    }
+    
+    public function pembelianBarangs()
+    {
+        return $this->hasMany(PembelianBarang::class, 'gedung_id');
+    }
 }

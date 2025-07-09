@@ -36,6 +36,8 @@
     <link href="{{ asset('dastone/plugins/animate/animate.css') }}" rel="stylesheet" />
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
     <style>
         body { visibility: hidden; }
         .no-transition *, .no-transition *::before, .no-transition *::after {
@@ -77,6 +79,7 @@
     <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
     <script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script>
     <script src="{{ asset('dastone/default/assets/js/app.js') }}"></script>
+    <script src="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.js') }}"></script>
 
     <!-- Theme Toggle Script -->
     <script>
