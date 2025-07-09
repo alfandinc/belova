@@ -282,12 +282,23 @@ Route::prefix('erm')->group(function () {
 
 });
 
-Route::prefix('workdoc')->group(
-    function () {
-        // Route::get('/', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
-        // Add more Workdoc routes here as needed
-    }
-);
+Route::prefix('workdoc')->name('workdoc.')->middleware(['auth'])->group(function () {
+    Route::get('/', [WorkdocDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'index'])->name('documents.index');
+    
+    // AJAX route for folder contents
+    Route::get('/documents/folder/{folder_id}/contents', [App\Http\Controllers\Workdoc\DocumentController::class, 'getFolderContents'])->name('documents.folder.contents');
+    
+    // File operations
+    Route::post('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'store'])->name('documents.store');
+    Route::get('/documents/{document}/download', [App\Http\Controllers\Workdoc\DocumentController::class, 'download'])->name('documents.download');
+    Route::delete('/documents/{document}', [App\Http\Controllers\Workdoc\DocumentController::class, 'destroy'])->name('documents.destroy');
+    
+    // Folder operations
+    Route::post('/folders', [App\Http\Controllers\Workdoc\FolderController::class, 'store'])->name('folders.store');
+    Route::put('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'update'])->name('folders.update');
+    Route::delete('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'destroy'])->name('folders.destroy');
+});
 Route::prefix('akreditasi')->group(
     function () {
         Route::get('/', [AkreditasiDashboardController::class, 'index'])->name('akreditasi.dashboard');

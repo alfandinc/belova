@@ -1,13 +1,12 @@
-            <!-- Top Bar Start -->
-            <div class="topbar">
-                            
-                <!-- Navbar -->
-                <nav class="navbar-custom">    
-                    <ul class="list-unstyled topbar-nav float-right mb-0">  
-                        <!-- Dark Mode Toggle -->
-                        <li class="nav-item mt-3">
-                            <div class="dark-mode-toggle">
-                                <label class="switch">
+<!-- Top Bar Start -->
+<div class="topbar">            
+    <!-- Navbar -->
+    <nav class="navbar-custom">    
+        <ul class="list-unstyled topbar-nav float-right mb-0">
+            <!-- Dark Mode Toggle -->
+            <li class="nav-item mt-3">
+                <div class="dark-mode-toggle">
+                    <label class="switch">
                                     <input type="checkbox" id="darkModeSwitch">
                                     <span class="slider round"></span>
                                 </label>

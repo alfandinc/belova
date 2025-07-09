@@ -322,7 +322,7 @@
                     <div class="menu-icon">
                         <i class="fas fa-folder-open"></i>
                     </div>
-                    <div class="menu-label">DOKUMEN KERJA</div>
+                    <div class="menu-label">WORKDOC</div>
                 </a>
                 
                 <!-- Cuatomer Tile -->

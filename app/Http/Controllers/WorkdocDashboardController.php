@@ -12,6 +12,7 @@ class WorkdocDashboardController extends Controller
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 
+        // Display the dashboard
         return view('workdoc.dashboard');
     }
 }

@@ -19,8 +19,11 @@
             <li>
                 <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="/workdoc"><i class="ti-control-record"></i>Analytics</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('workdoc.dashboard') }}"><i class="ti-control-record"></i>Home</a></li>
                 </ul>
+            </li>
+            <li>
+                <a href="{{ route('workdoc.documents.index') }}"> <i data-feather="folder" class="align-self-center menu-icon"></i><span>Document Manager</span></a>
             </li>
         </ul>              
     </div>
