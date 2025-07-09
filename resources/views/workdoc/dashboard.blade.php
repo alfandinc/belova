@@ -38,7 +38,42 @@
                                     <div class="row d-flex justify-content-center">
                                         <div class="col">
                                             <p class="text-dark mb-0 font-weight-semibold">Documents</p>
-                                            <h3 class="m-0">{{ \App\Models\Workdoc\Document::count() }}</h3>
+                                            @php
+                                                $user = Auth::user();
+                                                $userDivision = $user->employee->division_id ?? null;
+                                                $isAdmin = $user->hasRole('Admin');
+
+                                                // Filtered document count
+                                                $documentQuery = \App\Models\Workdoc\Document::query();
+                                                $folderQuery = \App\Models\Workdoc\Folder::query();
+                                                if (!$isAdmin && $userDivision) {
+                                                    $documentQuery->where('division_id', $userDivision);
+                                                    $folderQuery->where('division_id', $userDivision);
+                                                }
+                                                $documentCount = $documentQuery->count();
+                                                $folderCount = $folderQuery->count();
+                                                $myDocumentCount = \App\Models\Workdoc\Document::where('created_by', $user->id)->count();
+                                                $totalSize = $documentQuery->sum('file_size');
+                                                $totalSizeFormatted = "0 B";
+                                                if ($totalSize >= 1073741824) {
+                                                    $totalSizeFormatted = number_format($totalSize / 1073741824, 2) . ' GB';
+                                                } elseif ($totalSize >= 1048576) {
+                                                    $totalSizeFormatted = number_format($totalSize / 1048576, 2) . ' MB';
+                                                } elseif ($totalSize >= 1024) {
+                                                    $totalSizeFormatted = number_format($totalSize / 1024, 2) . ' KB';
+                                                } else {
+                                                    $totalSizeFormatted = $totalSize . ' bytes';
+                                                }
+                                                // Recent documents filtered by division (unless admin)
+                                                $recentDocs = \App\Models\Workdoc\Document::with(['creator', 'division'])
+                                                    ->when(!$isAdmin && $userDivision, function($query) use ($userDivision) {
+                                                        $query->where('division_id', $userDivision);
+                                                    })
+                                                    ->latest()
+                                                    ->take(5)
+                                                    ->get();
+                                            @endphp
+                                            <h3 class="m-0">{{ $documentCount }}</h3>
                                             <p class="mb-0 text-truncate text-muted"><span class="text-success"><i class="mdi mdi-file-document"></i></span> Total Documents</p>
                                         </div>
                                         <div class="col-auto align-self-center">
@@ -57,7 +92,7 @@
                                     <div class="row d-flex justify-content-center">
                                         <div class="col">
                                             <p class="text-dark mb-0 font-weight-semibold">Folders</p>
-                                            <h3 class="m-0">{{ \App\Models\Workdoc\Folder::count() }}</h3>
+                                            <h3 class="m-0">{{ $folderCount }}</h3>
                                             <p class="mb-0 text-truncate text-muted"><span class="text-success"><i class="mdi mdi-folder"></i></span> Total Folders</p>
                                         </div>
                                         <div class="col-auto align-self-center">
@@ -76,7 +111,7 @@
                                     <div class="row d-flex justify-content-center">
                                         <div class="col">
                                             <p class="text-dark mb-0 font-weight-semibold">My Documents</p>
-                                            <h3 class="m-0">{{ \App\Models\Workdoc\Document::where('created_by', Auth::id())->count() }}</h3>
+                                            <h3 class="m-0">{{ $myDocumentCount }}</h3>
                                             <p class="mb-0 text-truncate text-muted"><span class="text-success"><i class="mdi mdi-account-multiple"></i></span> Your Uploads</p>
                                         </div>
                                         <div class="col-auto align-self-center">
@@ -95,20 +130,6 @@
                                     <div class="row d-flex justify-content-center">
                                         <div class="col">
                                             <p class="text-dark mb-0 font-weight-semibold">Storage Used</p>
-                                            @php
-                                                $totalSize = \App\Models\Workdoc\Document::sum('file_size');
-                                                $totalSizeFormatted = "0 B";
-                                                
-                                                if ($totalSize >= 1073741824) {
-                                                    $totalSizeFormatted = number_format($totalSize / 1073741824, 2) . ' GB';
-                                                } elseif ($totalSize >= 1048576) {
-                                                    $totalSizeFormatted = number_format($totalSize / 1048576, 2) . ' MB';
-                                                } elseif ($totalSize >= 1024) {
-                                                    $totalSizeFormatted = number_format($totalSize / 1024, 2) . ' KB';
-                                                } else {
-                                                    $totalSizeFormatted = $totalSize . ' bytes';
-                                                }
-                                            @endphp
                                             <h3 class="m-0">{{ $totalSizeFormatted }}</h3>
                                             <p class="mb-0 text-truncate text-muted"><span class="text-success"><i class="mdi mdi-database"></i></span> Total Storage</p>
                                         </div>
@@ -146,14 +167,10 @@
                                                 @php
                                                     $user = Auth::user();
                                                     $userDivision = $user->employee->division_id ?? null;
-                                                    
-                                                    $recentDocs = \App\Models\Workdoc\Document::where(function($query) use ($user, $userDivision) {
-                                                            $query->where('created_by', $user->id)
-                                                                ->orWhere('is_private', false)
-                                                                ->orWhere(function($q) use ($userDivision) {
-                                                                    $q->where('is_private', true)
-                                                                        ->where('division_id', $userDivision);
-                                                                });
+                                                    $isAdmin = $user->hasRole('Admin');
+
+                                                    $recentDocs = \App\Models\Workdoc\Document::when(!$isAdmin, function($query) use ($userDivision) {
+                                                            $query->where('division_id', $userDivision);
                                                         })
                                                         ->with(['creator', 'division'])
                                                         ->latest()

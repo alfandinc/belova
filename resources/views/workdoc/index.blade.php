@@ -394,8 +394,17 @@
                         <div class="files-nav">                                     
                             <div class="nav flex-column nav-pills" id="folder-tabs" role="tablist">
                                 @php
-                                    // Get all folders where parent_id = 1
-                                    $categoryFolders = \App\Models\Workdoc\Folder::where('parent_id', 1)->get();
+                                    $user = auth()->user();
+                                    $userDivisionId = $user->employee ? $user->employee->division_id : null;
+                                    $isAdmin = $user->hasRole(['Admin']);
+                                    // Only show categories for user's division unless admin
+                                    $categoryFolders = \App\Models\Workdoc\Folder::where('parent_id', 1)
+                                        ->when(!$isAdmin && $userDivisionId, function($query) use ($userDivisionId) {
+                                            $query->where(function($q) use ($userDivisionId) {
+                                                $q->whereNull('division_id')->orWhere('division_id', $userDivisionId);
+                                            });
+                                        })
+                                        ->get();
                                 @endphp
                                 @php $first = true; @endphp
                                 @foreach($categoryFolders as $folder)
