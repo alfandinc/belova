@@ -32,8 +32,10 @@
         <div class="card-body">
             <div class="row mb-3">
                 <div class="col-md-3">
-                    <label for="filter_tanggal">Filter Tanggal Kunjungan</label>
-                    <input type="date" id="filter_tanggal" class="form-control">
+                    <label for="filter_tanggal_range">Filter Tanggal Kunjungan</label>
+                    <input type="text" id="filter_tanggal_range" class="form-control" placeholder="Pilih Rentang Tanggal">
+                    <input type="hidden" id="filter_tanggal_mulai">
+                    <input type="hidden" id="filter_tanggal_selesai">
                 </div>
                 <div class="col-md-3">
                     <label for="filter_dokter">Filter Dokter</label>
@@ -84,9 +86,35 @@
 @section('scripts')
 <script>
 $(document).ready(function () {
+    // Initialize date range picker
+    $('#filter_tanggal_range').daterangepicker({
+        opens: 'left',
+        autoApply: true,
+        locale: {
+            format: 'DD-MM-YYYY',
+            separator: ' s/d ',
+            applyLabel: 'Pilih',
+            cancelLabel: 'Batal',
+            fromLabel: 'Dari',
+            toLabel: 'Sampai',
+            customRangeLabel: 'Custom',
+            weekLabel: 'M',
+            daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+            monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+            firstDay: 1
+        },
+        startDate: moment(),
+        endDate: moment()
+    }, function(start, end, label) {
+        $('#filter_tanggal_mulai').val(start.format('YYYY-MM-DD'));
+        $('#filter_tanggal_selesai').val(end.format('YYYY-MM-DD'));
+        table.ajax.reload();
+    });
+    
     // Set default value tanggal ke hari ini
-    var today = new Date().toISOString().substr(0, 10);
-    $('#filter_tanggal').val(today);
+    $('#filter_tanggal_mulai').val(moment().format('YYYY-MM-DD'));
+    $('#filter_tanggal_selesai').val(moment().format('YYYY-MM-DD'));
+    
     $('.select2').select2({ width: '100%' });
     $('#filter_status_resep').val('0').trigger('change'); // set default to 0
 
@@ -97,7 +125,8 @@ $(document).ready(function () {
         ajax: {
             url: '{{ route("erm.eresepfarmasi.index") }}',
             data: function(d) {
-                d.tanggal = $('#filter_tanggal').val();
+                d.tanggal_mulai = $('#filter_tanggal_mulai').val();
+                d.tanggal_selesai = $('#filter_tanggal_selesai').val();
                 d.dokter_id = $('#filter_dokter').val();
                 d.klinik_id = $('#filter_klinik').val();
                 d.status_resep = $('#filter_status_resep').val(); // add status_resep
@@ -126,12 +155,7 @@ $(document).ready(function () {
     });
 
     // Event ganti filter
-    $('#filter_tanggal, #filter_dokter, #filter_klinik, #filter_status_resep').on('change', function () {
-        table.ajax.reload();
-    });
-
-    // Event ganti tanggal
-    $('#filter_tanggal').on('change', function () {
+    $('#filter_dokter, #filter_klinik, #filter_status_resep').on('change', function () {
         table.ajax.reload();
     });
 

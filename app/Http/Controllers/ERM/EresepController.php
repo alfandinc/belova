@@ -35,8 +35,9 @@ class EresepController extends Controller
         if ($request->ajax()) {
             $visitations = Visitation::with(['pasien', 'metodeBayar', 'dokter.user', 'dokter.spesialisasi'])->select('erm_visitations.*');
 
-            if ($request->tanggal) {
-                $visitations->whereDate('tanggal_visitation', $request->tanggal);
+            if ($request->tanggal_mulai && $request->tanggal_selesai) {
+                $visitations->whereDate('tanggal_visitation', '>=', $request->tanggal_mulai)
+                           ->whereDate('tanggal_visitation', '<=', $request->tanggal_selesai);
             }
             if ($request->dokter_id) {
                 $visitations->where('dokter_id', $request->dokter_id);
