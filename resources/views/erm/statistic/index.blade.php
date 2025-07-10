@@ -146,7 +146,7 @@
         <div class="col-lg-12">
             <div class="card">
                 <div class="card-header">
-                    <h4 class="card-title">Statistik Resep Racikan dan Non-Racikan</h4>
+                    <h4 class="card-title">Statistik Obat Racikan dan Non-Racikan yang Terlayani</h4>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -154,8 +154,8 @@
                             <thead class="thead-light">
                                 <tr>
                                     <th>Periode</th>
-                                    <th>Non-Racikan</th>
-                                    <th>Racikan</th>
+                                    <th>Obat Non-Racikan</th>
+                                    <th>Racikan (Paket)</th>
                                     <th>Total</th>
                                 </tr>
                             </thead>
@@ -165,6 +165,12 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i>* Obat Non-Racikan: Jumlah item obat individu yang tidak termasuk dalam racikan</i><br>
+                            <i>* Racikan (Paket): Jumlah paket racikan (setiap paket racikan dihitung sebagai 1 item meskipun berisi beberapa obat)</i>
+                        </small>
                     </div>
                 </div>
             </div>

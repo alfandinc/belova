@@ -167,19 +167,19 @@ class StatisticController extends Controller
                 $dateFormat = '%Y-%m'; // Year-month
         }
         
-        // Join with erm_resepdetail to only count prescriptions that are also in the resepdetail table
-        // This ensures consistency with the E-Resep datatable
+        // Join with erm_resepdetail to only count medications in prescriptions that have been processed
         
-        // Query for non-racikan prescriptions - count distinct visitation_ids
+        // Query for non-racikan medications - count individual medications that are non-racikan
         $nonRacikanQuery = DB::table('erm_resepfarmasi')
             ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
             ->select(
                 DB::raw("DATE_FORMAT(erm_visitations.tanggal_visitation, '$dateFormat') as time_label"),
-                DB::raw('COUNT(DISTINCT erm_visitations.id) as count')
+                DB::raw('COUNT(erm_resepfarmasi.id) as count') // Count each medication
             )
             ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
             ->whereIn('erm_visitations.status_kunjungan', [1, 2])
+            ->where('erm_resepdetail.status', 1) // Only count medications that have been served/processed
             ->where(function($query) {
                 $query->whereNull('erm_resepfarmasi.racikan_ke')
                       ->orWhere('erm_resepfarmasi.racikan_ke', '');
@@ -187,16 +187,17 @@ class StatisticController extends Controller
             ->groupBy('time_label')
             ->orderBy('time_label');
             
-        // Query for racikan prescriptions - count distinct visitations that have racikan prescriptions
+        // Query for racikan medications - count unique racikan_ke combinations per visitation as one item
         $racikanQuery = DB::table('erm_resepfarmasi')
             ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
             ->select(
                 DB::raw("DATE_FORMAT(erm_visitations.tanggal_visitation, '$dateFormat') as time_label"),
-                DB::raw('COUNT(DISTINCT erm_visitations.id) as count')
+                DB::raw('COUNT(DISTINCT CONCAT(erm_resepfarmasi.visitation_id, "-", erm_resepfarmasi.racikan_ke)) as count') // Count each unique racikan as one
             )
             ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
             ->whereIn('erm_visitations.status_kunjungan', [1, 2])
+            ->where('erm_resepdetail.status', 1) // Only count medications that have been served/processed
             ->whereNotNull('erm_resepfarmasi.racikan_ke')
             ->where('erm_resepfarmasi.racikan_ke', '!=', '')
             ->groupBy('time_label')
@@ -280,39 +281,37 @@ class StatisticController extends Controller
             'nonRacikan' => $nonRacikanValues,
             'racikan' => $racikanValues
         ];
-    }
-
-    private function getRacikanStats($startDate = null, $endDate = null, $klinikId = null, $dokterId = null)
+    }    private function getRacikanStats($startDate = null, $endDate = null, $klinikId = null, $dokterId = null)
     {
-        // Total counts for the whole period, consistent with the datatable
-        // For non-racikan count - count visitations that have non-racikan prescriptions
+        // Total counts for the whole period - counting medications, not visitations
+        // For non-racikan count - count individual non-racikan medications 
         $nonRacikanQuery = DB::table('erm_resepfarmasi')
             ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
             ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
             ->whereIn('erm_visitations.status_kunjungan', [1, 2])
+            ->where('erm_resepdetail.status', 1) // Only count medications that have been served/processed
             ->where(function($query) {
                 $query->whereNull('erm_resepfarmasi.racikan_ke')
                       ->orWhere('erm_resepfarmasi.racikan_ke', '');
-            })
-            ->select('erm_visitations.id');
+            });
 
-        // For racikan count - count visitations that have racikan prescriptions
+        // For racikan count - count unique combinations of visitation_id and racikan_ke
         $racikanQuery = DB::table('erm_resepfarmasi')
             ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
             ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
             ->whereIn('erm_visitations.status_kunjungan', [1, 2])
+            ->where('erm_resepdetail.status', 1) // Only count medications that have been served/processed
             ->whereNotNull('erm_resepfarmasi.racikan_ke')
-            ->where('erm_resepfarmasi.racikan_ke', '!=', '')
-            ->select('erm_visitations.id');
+            ->where('erm_resepfarmasi.racikan_ke', '!=', '');
 
         // Apply date filtering if provided
         if ($startDate && $endDate) {
             $nonRacikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
             $racikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
         }
-
+        
         // Apply clinic filter if specified
         if ($klinikId) {
             $nonRacikanQuery->where('erm_visitations.klinik_id', $klinikId);
@@ -325,9 +324,9 @@ class StatisticController extends Controller
             $racikanQuery->where('erm_visitations.dokter_id', $dokterId);
         }
 
-        // Get distinct count of visitations
-        $nonRacikan = $nonRacikanQuery->distinct()->count('erm_visitations.id');
-        $racikan = $racikanQuery->distinct()->count('erm_visitations.id');
+        // Count medications and unique racikan combinations
+        $nonRacikan = $nonRacikanQuery->count('erm_resepfarmasi.id'); // Count each medication
+        $racikan = $racikanQuery->distinct()->count(DB::raw('CONCAT(erm_resepfarmasi.visitation_id, "-", erm_resepfarmasi.racikan_ke)')); // Count each unique racikan
 
         return [
             'racikan' => $racikan,
