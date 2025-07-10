@@ -233,7 +233,7 @@ class TindakanController extends Controller
                     'spesialisasi' => $item->visitation->dokter->spesialisasi->nama ?? '-',
                     'inform_consent' => $item->informConsent,
                     'current' => ($item->visitation_id == $visitationId) ? true : false
-                ];
+                };
             });
 
         return datatables()->of($history)
@@ -362,7 +362,9 @@ class TindakanController extends Controller
                     return $row->paketTindakan?->nama ?? '-';
                 })
                 ->addColumn('aksi', function($row) {
-                    return '<a href="'.route('erm.spk.create', ['riwayat_id' => $row->id]).'" class="btn btn-primary btn-sm">Input/Edit SPK</a>';
+                    $editBtn = '<a href="'.route('erm.spk.create', ['riwayat_id' => $row->id]).'" class="btn btn-primary btn-sm mr-1">Input/Edit SPK</a>';
+                    $printBtn = '<a href="'.route('erm.spk.print', ['riwayatId' => $row->id]).'" class="btn btn-info btn-sm" target="_blank"><i class="fas fa-print"></i> Print SPK</a>';
+                    return $editBtn . $printBtn;
                 })
                 ->rawColumns(['aksi'])
                 ->make(true);
@@ -428,10 +430,6 @@ class TindakanController extends Controller
     public function saveSpk(Request $request)
     {
         $request->validate([
-            'riwayat_tindakan_id' => 'required|exists:erm_riwayat_tindakan,id',
-            'tanggal_tindakan' => 'required|date',
-            'details' => 'required|array',
-            'details.*.sop_id' => 'required|exists:erm_sop,id',
             'details.*.penanggung_jawab' => 'required|string',
         ]);
 
@@ -439,51 +437,45 @@ class TindakanController extends Controller
         if (!$riwayatTindakan) {
             return response()->json([
                 'success' => false,
-                'message' => 'Riwayat Tindakan tidak ditemukan.'
-            ], 422);
+                'message' => 'Riwayat tindakan tidak ditemukan'
+            ], 404);
         }
 
         try {
             DB::beginTransaction();
-            // Find or create SPK by riwayat_tindakan_id
-            $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayatTindakan->id)->first();
-            if (!$spk) {
-                $spk = \App\Models\ERM\Spk::create([
-                    'visitation_id' => $riwayatTindakan->visitation_id,
-                    'pasien_id' => $riwayatTindakan->visitation?->pasien_id,
-                    'tindakan_id' => $riwayatTindakan->tindakan_id,
-                    'dokter_id' => $riwayatTindakan->visitation?->dokter_id,
-                    'tanggal_tindakan' => $request->tanggal_tindakan,
-                    'riwayat_tindakan_id' => $riwayatTindakan->id,
-                ]);
-            } else {
-                $spk->update([
-                    'tanggal_tindakan' => $request->tanggal_tindakan,
-                ]);
-            }
-            // Delete existing details
+
+            // Get existing SPK or create new one
+            $spk = Spk::firstOrCreate(['riwayat_tindakan_id' => $riwayatTindakan->id]);
+            $spk->tanggal = now();
+            $spk->inform_consent_id = $request->inform_consent_id;
+            $spk->save();
+
+            // Delete existing details if any
             $spk->details()->delete();
+
             // Create new details
-            foreach ($request->details as $detail) {
-                \App\Models\ERM\SpkDetail::create([
-                    'spk_id' => $spk->id,
+            $details = $request->input('details', []);
+            foreach ($details as $detail) {
+                if (!isset($detail['sop_id'])) continue;
+                
+                $spk->details()->create([
                     'sop_id' => $detail['sop_id'],
-                    'penanggung_jawab' => $detail['penanggung_jawab'],
-                    'sbk' => !empty($detail['sbk']),
-                    'sba' => !empty($detail['sba']),
-                    'sdc' => !empty($detail['sdc']),
-                    'sdk' => !empty($detail['sdk']),
-                    'sdl' => !empty($detail['sdl']),
+                    'penanggung_jawab' => $detail['penanggung_jawab'] ?? null,
+                    'sbk' => isset($detail['sbk']),
+                    'sba' => isset($detail['sba']),
+                    'sdc' => isset($detail['sdc']),
+                    'sdk' => isset($detail['sdk']),
+                    'sdl' => isset($detail['sdl']),
                     'waktu_mulai' => $detail['waktu_mulai'] ?? null,
                     'waktu_selesai' => $detail['waktu_selesai'] ?? null,
                     'notes' => $detail['notes'] ?? null,
                 ]);
             }
+
             DB::commit();
             return response()->json([
                 'success' => true,
-                'message' => 'SPK berhasil disimpan',
-                'spk' => $spk->load('details.sop')
+                'message' => 'SPK berhasil disimpan'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -492,5 +484,44 @@ class TindakanController extends Controller
                 'message' => 'Gagal menyimpan SPK: ' . $e->getMessage()
             ], 500);
         }
+    }
+    
+    public function printSpk($riwayatId)
+    {
+        $riwayat = RiwayatTindakan::with([
+            'paketTindakan',
+            'tindakan',
+            'visitation.pasien',
+            'visitation.dokter.user',
+            'spk.details.sop'
+        ])->findOrFail($riwayatId);
+        
+        $users = User::whereHas('roles', function($query) {
+            $query->whereIn('name', ['Dokter', 'Beautician']);
+        })->get(['id', 'name']);
+        
+        $sopList = $riwayat->tindakan && $riwayat->tindakan->sop ? $riwayat->tindakan->sop : collect();
+        
+        $pasienNama = $riwayat->visitation?->pasien?->nama ?? '';
+        $pasienId = $riwayat->visitation?->pasien?->id ?? '';
+        $tindakanNama = $riwayat->tindakan?->nama ?? '';
+        $dokterNama = $riwayat->visitation?->dokter?->user?->name ?? '';
+        $harga = $riwayat->tindakan?->harga ?? '';
+        $tanggalTindakan = $riwayat->created_at ? Carbon::parse($riwayat->created_at)->format('d F Y') : date('d F Y');
+        
+        $pdf = PDF::loadView('erm.spk.print', [
+            'riwayat' => $riwayat,
+            'spk' => $riwayat->spk,
+            'sopList' => $sopList,
+            'users' => $users,
+            'pasienNama' => $pasienNama,
+            'pasienId' => $pasienId,
+            'tindakanNama' => $tindakanNama,
+            'dokterNama' => $dokterNama,
+            'harga' => $harga,
+            'tanggalTindakan' => $tanggalTindakan
+        ]);
+        
+        return $pdf->stream('SPK-' . $pasienNama . '-' . $tanggalTindakan . '.pdf');
     }
 }

@@ -38,7 +38,7 @@ class RiwayatTindakan extends Model
     {
         return $this->hasOne(InformConsent::class, 'riwayat_tindakan_id');
     }
-
+    
     public function spk()
     {
         return $this->hasOne(Spk::class, 'riwayat_tindakan_id');

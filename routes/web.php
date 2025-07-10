@@ -238,8 +238,8 @@ Route::prefix('erm')->group(function () {
     Route::post('/tindakan/spk/save', [TindakanController::class, 'saveSpk'])->name('erm.tindakan.spk.save');
     Route::get('/spk', [TindakanController::class, 'spkIndex'])->name('erm.spk.index');
     Route::get('/spk/create', [TindakanController::class, 'spkCreate'])->name('erm.spk.create');
+    Route::get('/spk/print/{riwayatId}', [TindakanController::class, 'printSpk'])->name('erm.spk.print');
 
-    
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 
