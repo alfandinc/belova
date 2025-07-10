@@ -54,23 +54,46 @@
         <div class="col-lg-12 mb-4">
             <div class="card">
                 <div class="card-body">
-                    <h4 class="card-title">Filter Periode</h4>
-                    <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
-                        <label class="btn btn-primary active">
-                            <input type="radio" name="period" id="daily" value="daily" checked> Harian
-                        </label>
-                        <label class="btn btn-primary">
-                            <input type="radio" name="period" id="weekly" value="weekly"> Mingguan
-                        </label>
-                        <label class="btn btn-primary">
-                            <input type="radio" name="period" id="monthly" value="monthly"> Bulanan
-                        </label>
-                        <label class="btn btn-primary">
-                            <input type="radio" name="period" id="yearly" value="yearly"> Tahunan
-                        </label>
-                        <label class="btn btn-primary">
-                            <input type="radio" name="period" id="all" value="all"> Semua
-                        </label>
+                    <h4 class="card-title">Filter Statistik</h4>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label>Filter Periode:</label>
+                            <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                                <label class="btn btn-primary active">
+                                    <input type="radio" name="period" id="daily" value="daily" checked> Harian
+                                </label>
+                                <label class="btn btn-primary">
+                                    <input type="radio" name="period" id="weekly" value="weekly"> Mingguan
+                                </label>
+                                <label class="btn btn-primary">
+                                    <input type="radio" name="period" id="monthly" value="monthly"> Bulanan
+                                </label>
+                                <label class="btn btn-primary">
+                                    <input type="radio" name="period" id="yearly" value="yearly"> Tahunan
+                                </label>
+                                <label class="btn btn-primary">
+                                    <input type="radio" name="period" id="all" value="all"> Semua
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="filter_klinik">Filter Klinik:</label>
+                                <select id="filter_klinik" class="form-control select2">
+                                    <option value="">Semua Klinik</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="filter_dokter">Filter Dokter:</label>
+                                <select id="filter_dokter" class="form-control select2">
+                                    <option value="">Semua Dokter</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -154,12 +177,38 @@
 @section('scripts')
 <script>
     $(document).ready(function() {
+        // Initialize select2
+        $('.select2').select2({
+            width: '100%'
+        });
+        
+        // Populate dropdown options for klinik and dokter
+        @if(isset($kliniks))
+        @foreach($kliniks as $klinik)
+            $('#filter_klinik').append(new Option('{{ $klinik->nama }}', '{{ $klinik->id }}'));
+        @endforeach
+        @endif
+        
+        @if(isset($dokters))
+        @foreach($dokters as $dokter)
+            $('#filter_dokter').append(new Option('{{ $dokter->user->name ?? "-" }}', '{{ $dokter->id }}'));
+        @endforeach
+        @endif
+        
         // Function to load statistics data
-        function loadStatisticsData(period) {
+        function loadStatisticsData() {
+            const period = $('input[name="period"]:checked').val();
+            const klinikId = $('#filter_klinik').val();
+            const dokterId = $('#filter_dokter').val();
+            
             $.ajax({
                 url: '/erm/statistic/data',
                 method: 'GET',
-                data: { period: period },
+                data: { 
+                    period: period,
+                    klinik_id: klinikId,
+                    dokter_id: dokterId
+                },
                 success: function(response) {
                     // Calculate totals
                     const totalTerlayani = response.terlayani.reduce((a, b) => a + b, 0);
@@ -235,12 +284,16 @@
         }
         
         // Load initial data (daily by default)
-        loadStatisticsData('daily');
+        loadStatisticsData();
         
         // Handle period change
         $('input[name="period"]').change(function() {
-            const period = $(this).val();
-            loadStatisticsData(period);
+            loadStatisticsData();
+        });
+        
+        // Handle filter changes
+        $('#filter_klinik, #filter_dokter').change(function() {
+            loadStatisticsData();
         });
         
         // Initialize Feather icons

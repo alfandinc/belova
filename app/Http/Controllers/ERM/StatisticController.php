@@ -12,12 +12,18 @@ class StatisticController extends Controller
 {
     public function index()
     {
-        return view('erm.statistic.index');
+        // Get all doctors and clinics for the filter dropdowns
+        $dokters = \App\Models\ERM\Dokter::with('user', 'spesialisasi')->get();
+        $kliniks = \App\Models\ERM\Klinik::all();
+        
+        return view('erm.statistic.index', compact('dokters', 'kliniks'));
     }
 
     public function getResepData(Request $request)
     {
         $period = $request->period ?? 'daily';
+        $klinikId = $request->klinik_id ?? null;
+        $dokterId = $request->dokter_id ?? null;
         $today = Carbon::now();
         
         switch ($period) {
@@ -78,8 +84,19 @@ class StatisticController extends Controller
             ->whereIn('erm_visitations.jenis_kunjungan', [1, 2]) // Only count Rawat Jalan
             ->whereIn('erm_visitations.status_kunjungan', [1, 2]); // Match the condition in the datatable
         
+        // Apply date filter
         if ($startDate && $endDate) {
             $visitations->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        }
+        
+        // Apply clinic filter if specified
+        if ($klinikId) {
+            $visitations->where('erm_visitations.klinik_id', $klinikId);
+        }
+        
+        // Apply doctor filter if specified
+        if ($dokterId) {
+            $visitations->where('erm_visitations.dokter_id', $dokterId);
         }
 
         $data = $visitations
@@ -88,7 +105,7 @@ class StatisticController extends Controller
             ->get();
         
         // Get racikan and non-racikan statistics by time period
-        $racikanByPeriod = $this->getRacikanByPeriod($period, $groupBy, $startDate, $endDate);
+        $racikanByPeriod = $this->getRacikanByPeriod($period, $groupBy, $startDate, $endDate, $klinikId, $dokterId);
         
         // Format labels based on period
         $formattedData = $data->map(function ($item) use ($period, $format, $groupBy) {
@@ -114,7 +131,7 @@ class StatisticController extends Controller
         });
 
         // Get total Racikan vs Non-Racikan statistics
-        $racikanStats = $this->getRacikanStats($startDate, $endDate);
+        $racikanStats = $this->getRacikanStats($startDate, $endDate, $klinikId, $dokterId);
 
         return response()->json([
             'labels' => $racikanByPeriod['labels'],
@@ -128,7 +145,7 @@ class StatisticController extends Controller
         ]);
     }
 
-    private function getRacikanByPeriod($period, $groupBy, $startDate = null, $endDate = null)
+    private function getRacikanByPeriod($period, $groupBy, $startDate = null, $endDate = null, $klinikId = null, $dokterId = null)
     {
         // Date format for grouping by period
         $dateFormat = '';
@@ -189,6 +206,18 @@ class StatisticController extends Controller
         if ($startDate && $endDate) {
             $nonRacikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
             $racikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        }
+        
+        // Apply clinic filter if specified
+        if ($klinikId) {
+            $nonRacikanQuery->where('erm_visitations.klinik_id', $klinikId);
+            $racikanQuery->where('erm_visitations.klinik_id', $klinikId);
+        }
+        
+        // Apply doctor filter if specified
+        if ($dokterId) {
+            $nonRacikanQuery->where('erm_visitations.dokter_id', $dokterId);
+            $racikanQuery->where('erm_visitations.dokter_id', $dokterId);
         }
         
         $nonRacikanData = $nonRacikanQuery->get();
@@ -253,7 +282,7 @@ class StatisticController extends Controller
         ];
     }
 
-    private function getRacikanStats($startDate = null, $endDate = null)
+    private function getRacikanStats($startDate = null, $endDate = null, $klinikId = null, $dokterId = null)
     {
         // Total counts for the whole period, consistent with the datatable
         // For non-racikan count - count visitations that have non-racikan prescriptions
@@ -282,6 +311,18 @@ class StatisticController extends Controller
         if ($startDate && $endDate) {
             $nonRacikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
             $racikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        }
+
+        // Apply clinic filter if specified
+        if ($klinikId) {
+            $nonRacikanQuery->where('erm_visitations.klinik_id', $klinikId);
+            $racikanQuery->where('erm_visitations.klinik_id', $klinikId);
+        }
+        
+        // Apply doctor filter if specified
+        if ($dokterId) {
+            $nonRacikanQuery->where('erm_visitations.dokter_id', $dokterId);
+            $racikanQuery->where('erm_visitations.dokter_id', $dokterId);
         }
 
         // Get distinct count of visitations
