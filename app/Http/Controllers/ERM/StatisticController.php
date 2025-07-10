@@ -58,28 +58,34 @@ class StatisticController extends Controller
                 $groupBy = 'hour';
         }
 
-        // Get status statistics (terlayani, tidak terlayani)
-        $query = ResepDetail::select(
-            DB::raw("
-                CASE 
-                    WHEN '$groupBy' = 'hour' THEN DATE_FORMAT(created_at, '%H') 
-                    WHEN '$groupBy' = 'day' AND '$period' = 'weekly' THEN DATE_FORMAT(created_at, '%w')
-                    WHEN '$groupBy' = 'day' AND '$period' = 'monthly' THEN DATE_FORMAT(created_at, '%d')
-                    WHEN '$groupBy' = 'month' THEN DATE_FORMAT(created_at, '%m')
-                    ELSE DATE_FORMAT(created_at, '%Y-%m')
-                END as time_label
-            "),
-            DB::raw('SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as terlayani'),
-            DB::raw('SUM(CASE WHEN status = 0 THEN 1 ELSE 0 END) as tidak_terlayani')
-        );
-
+        // Get visitations that have resep - count one prescription per visitation, not all resepdetail entries
+        $visitations = DB::table('erm_visitations')
+            ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
+            ->select(
+                DB::raw("
+                    CASE 
+                        WHEN '$groupBy' = 'hour' THEN DATE_FORMAT(erm_visitations.tanggal_visitation, '%H') 
+                        WHEN '$groupBy' = 'day' AND '$period' = 'weekly' THEN DATE_FORMAT(erm_visitations.tanggal_visitation, '%w')
+                        WHEN '$groupBy' = 'day' AND '$period' = 'monthly' THEN DATE_FORMAT(erm_visitations.tanggal_visitation, '%d')
+                        WHEN '$groupBy' = 'month' THEN DATE_FORMAT(erm_visitations.tanggal_visitation, '%m')
+                        ELSE DATE_FORMAT(erm_visitations.tanggal_visitation, '%Y-%m')
+                    END as time_label
+                "),
+                DB::raw('COUNT(DISTINCT erm_visitations.id) as total'),
+                DB::raw('SUM(CASE WHEN erm_resepdetail.status = 1 THEN 1 ELSE 0 END) as terlayani'),
+                DB::raw('SUM(CASE WHEN erm_resepdetail.status = 0 THEN 1 ELSE 0 END) as tidak_terlayani')
+            )
+            ->whereIn('erm_visitations.jenis_kunjungan', [1, 2]) // Only count Rawat Jalan
+            ->whereIn('erm_visitations.status_kunjungan', [1, 2]); // Match the condition in the datatable
+        
         if ($startDate && $endDate) {
-            $query->whereBetween('created_at', [$startDate, $endDate]);
+            $visitations->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
         }
 
-        $data = $query->groupBy('time_label')
-                     ->orderBy('time_label')
-                     ->get();
+        $data = $visitations
+            ->groupBy('time_label')
+            ->orderBy('time_label')
+            ->get();
         
         // Get racikan and non-racikan statistics by time period
         $racikanByPeriod = $this->getRacikanByPeriod($period, $groupBy, $startDate, $endDate);
@@ -144,34 +150,45 @@ class StatisticController extends Controller
                 $dateFormat = '%Y-%m'; // Year-month
         }
         
-        // Query for non-racikan prescriptions
+        // Join with erm_resepdetail to only count prescriptions that are also in the resepdetail table
+        // This ensures consistency with the E-Resep datatable
+        
+        // Query for non-racikan prescriptions - count distinct visitation_ids
         $nonRacikanQuery = DB::table('erm_resepfarmasi')
+            ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
             ->select(
-                DB::raw("DATE_FORMAT(created_at, '$dateFormat') as time_label"),
-                DB::raw('COUNT(*) as count')
+                DB::raw("DATE_FORMAT(erm_visitations.tanggal_visitation, '$dateFormat') as time_label"),
+                DB::raw('COUNT(DISTINCT erm_visitations.id) as count')
             )
+            ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
+            ->whereIn('erm_visitations.status_kunjungan', [1, 2])
             ->where(function($query) {
-                $query->whereNull('racikan_ke')
-                      ->orWhere('racikan_ke', '');
+                $query->whereNull('erm_resepfarmasi.racikan_ke')
+                      ->orWhere('erm_resepfarmasi.racikan_ke', '');
             })
             ->groupBy('time_label')
             ->orderBy('time_label');
             
-        // Query for racikan prescriptions - count distinct combinations of visitation_id and racikan_ke
+        // Query for racikan prescriptions - count distinct visitations that have racikan prescriptions
         $racikanQuery = DB::table('erm_resepfarmasi')
+            ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
             ->select(
-                DB::raw("DATE_FORMAT(created_at, '$dateFormat') as time_label"),
-                DB::raw('COUNT(DISTINCT CONCAT(visitation_id, racikan_ke)) as count')
+                DB::raw("DATE_FORMAT(erm_visitations.tanggal_visitation, '$dateFormat') as time_label"),
+                DB::raw('COUNT(DISTINCT erm_visitations.id) as count')
             )
-            ->whereNotNull('racikan_ke')
-            ->where('racikan_ke', '!=', '')
+            ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
+            ->whereIn('erm_visitations.status_kunjungan', [1, 2])
+            ->whereNotNull('erm_resepfarmasi.racikan_ke')
+            ->where('erm_resepfarmasi.racikan_ke', '!=', '')
             ->groupBy('time_label')
             ->orderBy('time_label');
             
         // Apply date filtering if provided
         if ($startDate && $endDate) {
-            $nonRacikanQuery->whereBetween('created_at', [$startDate, $endDate]);
-            $racikanQuery->whereBetween('created_at', [$startDate, $endDate]);
+            $nonRacikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+            $racikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
         }
         
         $nonRacikanData = $nonRacikanQuery->get();
@@ -238,30 +255,38 @@ class StatisticController extends Controller
 
     private function getRacikanStats($startDate = null, $endDate = null)
     {
-        // Total counts for the whole period
-        // For non-racikan count (doesn't have racikan_ke value or racikan_ke is null)
+        // Total counts for the whole period, consistent with the datatable
+        // For non-racikan count - count visitations that have non-racikan prescriptions
         $nonRacikanQuery = DB::table('erm_resepfarmasi')
-            ->whereNull('racikan_ke')
-            ->orWhere('racikan_ke', '');
+            ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
+            ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
+            ->whereIn('erm_visitations.status_kunjungan', [1, 2])
+            ->where(function($query) {
+                $query->whereNull('erm_resepfarmasi.racikan_ke')
+                      ->orWhere('erm_resepfarmasi.racikan_ke', '');
+            })
+            ->select('erm_visitations.id');
 
-        // For racikan count (has racikan_ke value, count unique combinations of visitation_id and racikan_ke)
+        // For racikan count - count visitations that have racikan prescriptions
         $racikanQuery = DB::table('erm_resepfarmasi')
-            ->whereNotNull('racikan_ke')
-            ->where('racikan_ke', '!=', '');
+            ->join('erm_visitations', 'erm_resepfarmasi.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_resepdetail', 'erm_visitations.id', '=', 'erm_resepdetail.visitation_id')
+            ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
+            ->whereIn('erm_visitations.status_kunjungan', [1, 2])
+            ->whereNotNull('erm_resepfarmasi.racikan_ke')
+            ->where('erm_resepfarmasi.racikan_ke', '!=', '')
+            ->select('erm_visitations.id');
 
         // Apply date filtering if provided
         if ($startDate && $endDate) {
-            $nonRacikanQuery->whereBetween('created_at', [$startDate, $endDate]);
-            $racikanQuery->whereBetween('created_at', [$startDate, $endDate]);
+            $nonRacikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+            $racikanQuery->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
         }
 
-        // Get non-racikan count
-        $nonRacikan = $nonRacikanQuery->count();
-
-        // Get distinct count of racikan (grouped by visitation_id and racikan_ke)
-        $racikan = $racikanQuery->select('visitation_id', 'racikan_ke')
-            ->distinct()
-            ->count(DB::raw('CONCAT(visitation_id, racikan_ke)'));
+        // Get distinct count of visitations
+        $nonRacikan = $nonRacikanQuery->distinct()->count('erm_visitations.id');
+        $racikan = $racikanQuery->distinct()->count('erm_visitations.id');
 
         return [
             'racikan' => $racikan,
