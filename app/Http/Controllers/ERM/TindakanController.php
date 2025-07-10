@@ -48,7 +48,6 @@ class TindakanController extends Controller
             ->addColumn('action', function ($row) {
                 return '
                 <button class="btn btn-success btn-sm buat-tindakan" data-id="' . $row->id . '" data-type="tindakan">Buat Tindakan</button>
-                <a href="' . route('erm.tindakan.sop', $row->id) . '" class="btn btn-info btn-sm" target="_blank">SOP</a>
             ';
             })
             ->rawColumns(['action'])
@@ -270,28 +269,6 @@ class TindakanController extends Controller
             })
             ->rawColumns(['dokumen', 'status'])
             ->make(true);
-    }
-
-    public function generateSopPdf($id)
-    {
-        $tindakan = Tindakan::with('sop')->findOrFail($id);
-
-        // If SOP doesn't exist, return a message
-        if ($tindakan->sop->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'SOP belum tersedia untuk tindakan ini'
-            ]);
-        }
-
-        $pdf = PDF::loadView('erm.tindakan.sop.pdf', [
-            'tindakan' => $tindakan,
-            'sopList' => $tindakan->sop->sortBy('urutan')
-        ]);
-
-        $filename = 'SOP-' . str_replace(' ', '-', $tindakan->nama) . '.pdf';
-
-        return $pdf->stream($filename);
     }
 
     public function uploadFoto(Request $request, $id)
