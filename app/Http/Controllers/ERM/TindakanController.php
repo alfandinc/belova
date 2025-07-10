@@ -233,7 +233,7 @@ class TindakanController extends Controller
                     'spesialisasi' => $item->visitation->dokter->spesialisasi->nama ?? '-',
                     'inform_consent' => $item->informConsent,
                     'current' => ($item->visitation_id == $visitationId) ? true : false
-                };
+                ];
             });
 
         return datatables()->of($history)
