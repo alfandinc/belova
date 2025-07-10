@@ -100,8 +100,12 @@
                     <li>
                         <a href="javascript: void(0);"><i data-feather="shopping-bag" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
+                            
                             <li>
                                 <a href="/erm/eresepfarmasi"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep Farmasi</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/statistic"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
                             </li>
                             <li>
                                 <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Stok Obat</span></a>

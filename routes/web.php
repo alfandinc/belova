@@ -40,6 +40,7 @@ use App\Http\Controllers\ERM\{
     KeluhanUtamaController,
     RiwayatKunjunganController,
     ListAntrianController,
+    StatisticController,
     SuratIstirahatController,
     SuratMondokController,
     ResepCatatanController,
@@ -179,6 +180,10 @@ Route::prefix('erm')->group(function () {
     Route::delete('/paket-racikan/{id}', [EresepController::class, 'deletePaketRacikan'])->name('erm.paket-racikan.delete');
     
     Route::get('/eresepfarmasi/{visitation_id}/print-etiket', [EresepController::class, 'printEtiket'])->name('erm.eresepfarmasi.print-etiket');
+
+    // Statistik Farmasi Routes
+    Route::get('/statistic', [StatisticController::class, 'index'])->name('erm.statistic.index');
+    Route::get('/statistic/data', [StatisticController::class, 'getResepData'])->name('erm.statistic.data');
 
     Route::post('/edukasi-obat/store', [EresepController::class, 'storeEdukasiObat'])->name('edukasi.obat.store');
     Route::get('/edukasi-obat/{visitationId}/print', [EresepController::class, 'printEdukasiObat'])->name('edukasi.obat.print');

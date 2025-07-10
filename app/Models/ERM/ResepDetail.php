@@ -13,5 +13,6 @@ class ResepDetail extends Model
         'visitation_id',
         'no_resep',
         'catatan_dokter',
+        'status',
     ];
 }
