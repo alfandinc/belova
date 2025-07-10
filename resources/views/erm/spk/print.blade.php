@@ -68,33 +68,36 @@
             content: "✓";
             font-weight: bold;
         }
+        .identity-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media print {
+            .identity-grid { grid-template-columns: 1fr 1fr !important; }
+        }
     </style>
 </head>
 <body>
     <div class="header">
+        <img src="{{ asset('img/logo-belovaskin.png') }}" alt="Belovaskin Logo" style="height: 60px; margin-bottom: 10px; display: block; margin-left: auto; margin-right: auto;">
         <h2>STANDAR PROSEDUR KERJA & CUCI TANGAN</h2>
         <h3>{{ $riwayat->tindakan ? $riwayat->tindakan->nama : 'Tindakan' }}</h3>
     </div>
     
-    <div class="info-box">
-        <table style="border: none; width: 100%;">
+    <div class="info-box" style="padding: 10px 16px; margin-bottom: 10px; border-radius: 5px;">
+        <table style="width:100%; border:none; border-collapse:collapse;">
             <tr>
-                <td style="border: none; width: 25%;"><strong>Nama Pasien</strong></td>
-                <td style="border: none; width: 25%;">: {{ $pasienNama }}</td>
-                <td style="border: none; width: 25%;"><strong>No. RM</strong></td>
-                <td style="border: none; width: 25%;">: {{ $pasienId }}</td>
-            </tr>
-            <tr>
-                <td style="border: none;"><strong>Tanggal Tindakan</strong></td>
-                <td style="border: none;">: {{ $tanggalTindakan }}</td>
-                <td style="border: none;"><strong>Dokter</strong></td>
-                <td style="border: none;">: {{ $dokterNama }}</td>
-            </tr>
-            <tr>
-                <td style="border: none;"><strong>Nama Tindakan</strong></td>
-                <td style="border: none;">: {{ $tindakanNama }}</td>
-                <td style="border: none;"><strong>Harga</strong></td>
-                <td style="border: none;">: Rp {{ number_format($harga, 0, ',', '.') }}</td>
+                <td style="vertical-align:top; width:50%; border:none; padding:0 8px 0 0;">
+                    <div><strong>Nama Pasien:</strong> {{ $pasienNama }}</div>
+                    <div><strong>Tanggal Tindakan:</strong> {{ $tanggalTindakan }}</div>
+                    <div><strong>Nama Tindakan:</strong> {{ $tindakanNama }}</div>
+                </td>
+                <td style="vertical-align:top; width:50%; border:none; padding:0 0 0 8px;">
+                    <div><strong>No. RM:</strong> {{ $pasienId }}</div>
+                    <div><strong>Dokter:</strong> {{ $dokterNama }}</div>
+                    <div><strong>Harga:</strong> Rp {{ number_format($harga, 0, ',', '.') }}</div>
+                </td>
             </tr>
         </table>
     </div>
@@ -147,17 +150,6 @@
         </tbody>
     </table>
 
-    <div class="footer">
-        <div class="signature-box">
-            <p>Dokter</p>
-            <div class="signature-line">{{ $dokterNama }}</div>
-        </div>
-        <div class="signature-box">
-            <p>Beautician</p>
-            <div class="signature-line"></div>
-        </div>
-    </div>
-    
     <div style="margin-top: 30px;">
         <p><strong>Keterangan:</strong></p>
         <p>SBK : Sebelum Kontak dengan pasien</p>

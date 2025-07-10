@@ -18,6 +18,8 @@
                 </div>
             </div>
             <form id="spkForm">
+                @csrf
+                <input type="hidden" name="_token" value="{{ csrf_token() }}">
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
@@ -169,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveSpk').addEventListener('click', () => {
         const form = document.getElementById('spkForm');
         const formData = new FormData(form);
+        
         Swal.fire({
             title: 'Menyimpan...',
             text: 'Please wait while saving SPK data',
@@ -177,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allowEscapeKey: false,
             showConfirmButton: false,
         });
+        
         fetch('/erm/tindakan/spk/save', {
             method: 'POST',
             body: formData,
@@ -189,13 +193,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.success) {
                 Swal.fire('Success', response.message, 'success');
             } else {
-                Swal.fire('Error', response.message, 'error');
+                Swal.fire('Error', response.message || 'Failed to save SPK data', 'error');
             }
         })
-        .catch(xhr => {
-            let errorMessage = 'Failed to save SPK data';
-            if (xhr?.responseJSON?.message) errorMessage = xhr.responseJSON.message;
-            Swal.fire('Error', errorMessage, 'error');
+        .catch(error => {
+            Swal.fire('Error', 'Failed to save SPK data', 'error');
         });
     });
     document.getElementById('spkTableBody').addEventListener('click', function(e) {
