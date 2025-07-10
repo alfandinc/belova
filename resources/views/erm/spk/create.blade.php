@@ -55,10 +55,19 @@
                             <input type="text" class="form-control" id="spkDokterPJ" readonly>
                         </div>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-3">
                         <div class="form-group">
                             <label>Harga</label>
                             <input type="text" class="form-control" id="spkHarga" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Waktu Batch</label>
+                            <div class="d-flex">
+                                <button type="button" class="btn btn-primary mr-1 flex-grow-1" id="setAllStartTime">Start All</button>
+                                <button type="button" class="btn btn-secondary flex-grow-1" id="setAllEndTime">End All</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -200,6 +209,26 @@ document.addEventListener('DOMContentLoaded', () => {
             Swal.fire('Error', 'Failed to save SPK data', 'error');
         });
     });
+    document.getElementById('setAllStartTime').addEventListener('click', () => {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const currentTime = `${hh}:${mm}`;
+        document.querySelectorAll('input.spk-mulai').forEach(input => {
+            input.value = currentTime;
+        });
+    });
+    
+    document.getElementById('setAllEndTime').addEventListener('click', () => {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const currentTime = `${hh}:${mm}`;
+        document.querySelectorAll('input.spk-selesai').forEach(input => {
+            input.value = currentTime;
+        });
+    });
+
     document.getElementById('spkTableBody').addEventListener('click', function(e) {
         if (e.target.classList.contains('check-all-btn')) {
             const row = e.target.closest('tr');
