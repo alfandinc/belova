@@ -32,7 +32,7 @@ return [
 
         'local' => [
             'driver' => 'local',
-            'root' => 'D:/belova_storage',
+            'root' => 'D:/belova_storage/private',
             'serve' => true,
             'throw' => false,
             'report' => false,
@@ -40,7 +40,7 @@ return [
 
         'public' => [
             'driver' => 'local',
-            'root' => 'D:/belova_storage',
+            'root' => 'D:/belova_storage/public',
             'url' => env('APP_URL').'/storage',
             'visibility' => 'public',
             'throw' => false,
