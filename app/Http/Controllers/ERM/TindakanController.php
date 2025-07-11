@@ -550,10 +550,16 @@ class TindakanController extends Controller
             ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
             ->where('visitation_id', $riwayat->visitation_id)
             ->delete();
-        // Delete associated InformConsent
-        \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->delete();
-        // Delete associated Spk
-        \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->delete();
+        // Delete associated InformConsent if exists
+        $informConsent = \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->first();
+        if ($informConsent) {
+            $informConsent->delete();
+        }
+        // Delete associated Spk if exists
+        $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->first();
+        if ($spk) {
+            $spk->delete();
+        }
 
         $riwayat->delete();
 

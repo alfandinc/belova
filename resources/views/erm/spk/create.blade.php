@@ -61,13 +61,18 @@
                             <input type="text" class="form-control" id="spkHarga" readonly>
                         </div>
                     </div>
+                </div>
+                <div class="row">
                     <div class="col-md-3">
                         <div class="form-group">
-                            <label>Waktu Batch</label>
-                            <div class="d-flex">
-                                <button type="button" class="btn btn-primary mr-1 flex-grow-1" id="setAllStartTime">Start All</button>
-                                <button type="button" class="btn btn-secondary flex-grow-1" id="setAllEndTime">End All</button>
-                            </div>
+                            <label>Jam Mulai</label>
+                            <input type="time" class="form-control" id="globalJamMulai">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Jam Selesai</label>
+                            <input type="time" class="form-control" id="globalJamSelesai">
                         </div>
                     </div>
                 </div>
@@ -107,8 +112,7 @@
 const renderSpkTable = (sopList, spk, users) =>
     sopList.map((sop, index) => {
         const existingDetail = spk?.details?.find(d => d.sop_id == sop.id);
-        const waktuMulai = existingDetail?.waktu_mulai?.substring(0,5) || '';
-        const waktuSelesai = existingDetail?.waktu_selesai?.substring(0,5) || '';
+        // Remove per-row time input, use hidden fields
         return `<tr>
             <td>${index + 1}</td>
             <td>${sop.nama_sop}</td>
@@ -122,15 +126,12 @@ const renderSpkTable = (sopList, spk, users) =>
             <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail?.sdc ? 'checked' : ''}></td>
             <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail?.sdk ? 'checked' : ''}></td>
             <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail?.sdl ? 'checked' : ''}></td>
-            <td class="d-flex align-items-center">
-                <input type="time" class="form-control mr-1 spk-mulai" name="details[${index}][waktu_mulai]" value="${waktuMulai}">
-                <button type="button" class="btn btn-sm btn-secondary set-time-btn" data-target="mulai">Now</button>
-            </td>
-            <td class="d-flex align-items-center">
-                <input type="time" class="form-control mr-1 spk-selesai" name="details[${index}][waktu_selesai]" value="${waktuSelesai}">
-                <button type="button" class="btn btn-sm btn-secondary set-time-btn" data-target="selesai">Now</button>
-            </td>
             <td>
+                <input type="hidden" class="spk-mulai" name="details[${index}][waktu_mulai]" value="${existingDetail?.waktu_mulai?.substring(0,5) || ''}">
+                <input type="hidden" class="spk-selesai" name="details[${index}][waktu_selesai]" value="${existingDetail?.waktu_selesai?.substring(0,5) || ''}">
+                <span class="text-muted">(Ikuti input di atas)</span>
+            </td>
+            <td class="d-flex align-items-center">
                 <textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail?.notes || ''}</textarea>
                 <button type="button" class="btn btn-sm btn-primary mt-2 check-all-btn" data-checked="0">Check All</button>
             </td>
@@ -178,6 +179,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(() => Swal.fire('Error', 'Failed to load SPK data', 'error'));
     }
     document.getElementById('saveSpk').addEventListener('click', () => {
+        // Before submit, set all waktu_mulai and waktu_selesai per row from global input
+        const jamMulai = document.getElementById('globalJamMulai').value;
+        const jamSelesai = document.getElementById('globalJamSelesai').value;
+        document.querySelectorAll('input.spk-mulai').forEach(input => {
+            input.value = jamMulai;
+        });
+        document.querySelectorAll('input.spk-selesai').forEach(input => {
+            input.value = jamSelesai;
+        });
         const form = document.getElementById('spkForm');
         const formData = new FormData(form);
         
@@ -209,26 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
             Swal.fire('Error', 'Failed to save SPK data', 'error');
         });
     });
-    document.getElementById('setAllStartTime').addEventListener('click', () => {
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, '0');
-        const mm = String(now.getMinutes()).padStart(2, '0');
-        const currentTime = `${hh}:${mm}`;
-        document.querySelectorAll('input.spk-mulai').forEach(input => {
-            input.value = currentTime;
-        });
-    });
-    
-    document.getElementById('setAllEndTime').addEventListener('click', () => {
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, '0');
-        const mm = String(now.getMinutes()).padStart(2, '0');
-        const currentTime = `${hh}:${mm}`;
-        document.querySelectorAll('input.spk-selesai').forEach(input => {
-            input.value = currentTime;
-        });
-    });
-
     document.getElementById('spkTableBody').addEventListener('click', function(e) {
         if (e.target.classList.contains('check-all-btn')) {
             const row = e.target.closest('tr');
@@ -237,18 +227,6 @@ document.addEventListener('DOMContentLoaded', () => {
             checkboxes.forEach(cb => cb.checked = !isChecked);
             e.target.setAttribute('data-checked', isChecked ? '0' : '1');
             e.target.textContent = isChecked ? 'Check All' : 'Uncheck All';
-        }
-        if (e.target.classList.contains('set-time-btn')) {
-            const row = e.target.closest('tr');
-            const now = new Date();
-            const hh = String(now.getHours()).padStart(2, '0');
-            const mm = String(now.getMinutes()).padStart(2, '0');
-            const currentTime = `${hh}:${mm}`;
-            if (e.target.dataset.target === 'mulai') {
-                row.querySelector('input.spk-mulai').value = currentTime;
-            } else if (e.target.dataset.target === 'selesai') {
-                row.querySelector('input.spk-selesai').value = currentTime;
-            }
         }
     });
 });
