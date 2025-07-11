@@ -32,10 +32,10 @@
                     <thead>
                         <tr>
                             <th>Tanggal</th>
+                            <th>Jam Kunjungan</th>
                             <th>Pasien</th>
                             <th>Tindakan</th>
                             <th>Dokter</th>
-                            <th>Paket</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -81,17 +81,26 @@ $(document).ready(function() {
         },
         columns: [
             { data: 'tanggal', name: 'tanggal' },
+            { data: 'jam_kunjungan', name: 'jam_kunjungan' },
             { data: 'pasien', name: 'pasien' },
             { data: 'tindakan', name: 'tindakan' },
             { data: 'dokter', name: 'dokter' },
-            { data: 'paket', name: 'paket' },
             { 
                 data: 'aksi', 
                 name: 'aksi', 
                 orderable: false, 
                 searchable: false
             },
-        ]
+        ],
+        rowCallback: function(row, data) {
+            // Remove previous color classes
+            $(row).removeClass('table-success table-warning');
+            if (data.spk_status_color === 'green') {
+                $(row).addClass('table-success');
+            } else if (data.spk_status_color === 'yellow') {
+                $(row).addClass('table-warning');
+            }
+        }
     });
 
     $('#filterTanggal, #filterDokter').on('change', function() {

@@ -316,7 +316,28 @@ class TindakanController extends Controller
                     '<span class="badge badge-success">Kunjungan Saat Ini</span>' :
                     '<span class="badge badge-secondary">Kunjungan Sebelumnya</span>';
             })
-            ->rawColumns(['dokumen', 'status'])
+            ->addColumn('spk_status_color', function($row) {
+                // Check SPK detail status for this riwayat
+                $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
+                if ($spk) {
+                    $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                    if ($hasSelesai) return 'green';
+                    $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                    if ($hasMulai) return 'yellow';
+                }
+                return '';
+            })
+            ->setRowClass(function($row) {
+                $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
+                if ($spk) {
+                    $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                    if ($hasSelesai) return 'table-success';
+                    $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                    if ($hasMulai) return 'table-warning';
+                }
+                return '';
+            })
+            ->rawColumns(['dokumen', 'status', 'aksi'])
             ->make(true);
     }
 
@@ -420,6 +441,17 @@ class TindakanController extends Controller
                     }
                     return '-';
                 })
+                ->addColumn('jam_kunjungan', function($row) {
+                    // Use waktu from visitation (format as H:i if datetime)
+                    if ($row->visitation && $row->visitation->waktu_kunjungan) {
+                        try {
+                            return \Carbon\Carbon::parse($row->visitation->waktu_kunjungan)->format('H:i');
+                        } catch (\Exception $e) {
+                            return $row->visitation->waktu_kunjungan;
+                        }
+                    }
+                    return '-';
+                })
                 ->addColumn('pasien', function($row) {
                     return $row->visitation?->pasien?->nama ?? '-';
                 })
@@ -429,11 +461,36 @@ class TindakanController extends Controller
                 ->addColumn('dokter', function($row) {
                     return $row->visitation?->dokter?->user?->name ?? '-';
                 })
-                ->addColumn('paket', function($row) {
-                    return $row->paketTindakan?->nama ?? '-';
-                })
                 ->addColumn('aksi', function($row) {
                     return '<a href="'.route('erm.spk.create', ['riwayat_id' => $row->id]).'" class="btn btn-primary btn-sm">Input/Edit SPK</a>';
+                })
+                ->addColumn('spk_filled', function($row) {
+                    // Check if any SPK detail for this riwayat has waktu_mulai filled
+                    $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
+                    if ($spk && $spk->details()->whereNotNull('waktu_mulai')->exists()) {
+                        return true;
+                    }
+                    return false;
+                })
+                ->addColumn('spk_status_color', function($row) {
+                    $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
+                    if ($spk) {
+                        $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                        if ($hasSelesai) return 'green';
+                        $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                        if ($hasMulai) return 'yellow';
+                    }
+                    return '';
+                })
+                ->setRowClass(function($row) {
+                    $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
+                    if ($spk) {
+                        $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                        if ($hasSelesai) return 'table-success';
+                        $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                        if ($hasMulai) return 'table-warning';
+                    }
+                    return '';
                 })
                 ->rawColumns(['aksi'])
                 ->make(true);

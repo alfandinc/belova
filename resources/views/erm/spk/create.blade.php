@@ -179,6 +179,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     document.getElementById('spkTanggalTindakan').value = tanggalTindakan || new Date().toISOString().split('T')[0];
                     document.getElementById('spkTableBody').innerHTML = renderSpkTable(data.sop_list, data.spk, data.users);
+                    // Set globalJamMulai and globalJamSelesai from first detail if available
+                    if (data.spk && data.spk.details && data.spk.details.length > 0) {
+                        const firstDetail = data.spk.details[0];
+                        if (firstDetail.waktu_mulai) {
+                            document.getElementById('globalJamMulai').value = firstDetail.waktu_mulai.substring(0,5);
+                        }
+                        if (firstDetail.waktu_selesai) {
+                            document.getElementById('globalJamSelesai').value = firstDetail.waktu_selesai.substring(0,5);
+                        }
+                    }
                     populateSelect2(data.users, data.spk);
                 }
             })
