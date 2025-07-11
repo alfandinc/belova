@@ -545,11 +545,14 @@ class TindakanController extends Controller
     {
         $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
 
-        // Delete associated billing (for tindakan, not paket)
-        \App\Models\Finance\Billing::where('billable_id', $riwayat->tindakan_id)
+        // Delete associated billing (for tindakan, not paket) if exists
+        $billing = \App\Models\Finance\Billing::where('billable_id', $riwayat->tindakan_id)
             ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
             ->where('visitation_id', $riwayat->visitation_id)
-            ->delete();
+            ->first();
+        if ($billing) {
+            $billing->delete();
+        }
         // Delete associated InformConsent if exists
         $informConsent = \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->first();
         if ($informConsent) {
