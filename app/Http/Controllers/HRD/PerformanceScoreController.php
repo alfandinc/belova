@@ -22,6 +22,12 @@ class PerformanceScoreController extends Controller
         $employee = Employee::where('user_id', $user->id)->first();
 
         if ($evaluation->evaluator_id != $employee->id) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not authorized to submit this evaluation.'
+                ], 403);
+            }
             return redirect()->back()->with('error', 'You are not authorized to submit this evaluation.');
         }
 
@@ -64,10 +70,18 @@ class PerformanceScoreController extends Controller
         $evaluation->completed_at = Carbon::now();
         $evaluation->save();
 
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluation submitted successfully.'
+            ]);
+        }
+
         return redirect()->route('hrd.performance.my-evaluations')
             ->with('success', 'Evaluation submitted successfully.');
     }
 
+    // Determine which type of evaluation this is based on evaluator and evaluatee positions
     private function determineEvaluationType(PerformanceEvaluation $evaluation)
     {
         $evaluator = $evaluation->evaluator;

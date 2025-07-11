@@ -22,7 +22,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('hrd.performance.evaluations.submit', $evaluation) }}">
+    <form id="evaluationForm" method="POST" action="{{ route('hrd.performance.evaluations.submit', $evaluation) }}">
         @csrf
         
         @foreach($categories as $category)
@@ -79,10 +79,78 @@
         @endforeach
         
         <div class="text-center mb-4">
-            <button type="submit" class="btn btn-primary btn-lg" onclick="return confirm('Are you sure you want to submit this evaluation? You cannot change it afterwards.')">
+            <button type="button" id="submitEvaluation" class="btn btn-primary btn-lg">
                 <i class="fa fa-paper-plane"></i> Submit Evaluation
             </button>
         </div>
     </form>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+    $(document).ready(function() {
+        // Handle form submission with AJAX
+        $('#submitEvaluation').click(function() {
+            // Show confirmation SweetAlert
+            Swal.fire({
+                title: 'Submit Evaluation?',
+                text: 'You cannot change it afterwards.',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, submit it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.value) {
+                    // Show loading state
+                    Swal.fire({
+                        title: 'Submitting...',
+                        text: 'Please wait while your evaluation is being submitted.',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+                    
+                    // Submit the form via AJAX
+                    $.ajax({
+                        url: $('#evaluationForm').attr('action'),
+                        type: 'POST',
+                        data: $('#evaluationForm').serialize(),
+                        success: function(response) {
+                            Swal.fire({
+                                title: 'Success!',
+                                text: 'Your evaluation has been submitted successfully.',
+                                icon: 'success',
+                                confirmButtonText: 'OK'
+                            }).then((result) => {
+                                window.location.href = "{{ route('hrd.performance.my-evaluations') }}";
+                            });
+                        },
+                        error: function(xhr) {
+                            let errorMessage = 'An error occurred. Please try again.';
+                            
+                            if (xhr.responseJSON && xhr.responseJSON.errors) {
+                                const errors = xhr.responseJSON.errors;
+                                errorMessage = Object.values(errors).flat().join('<br>');
+                            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMessage = xhr.responseJSON.message;
+                            }
+                            
+                            Swal.fire({
+                                title: 'Error!',
+                                html: errorMessage,
+                                icon: 'error',
+                                confirmButtonText: 'OK'
+                            });
+                        }
+                    });
+                }
+            });
+        });
+    });
+</script>
 @endsection

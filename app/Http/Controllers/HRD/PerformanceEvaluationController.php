@@ -12,6 +12,7 @@ use App\Models\HRD\{
     Division
 };
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class PerformanceEvaluationController extends Controller
@@ -306,6 +307,7 @@ class PerformanceEvaluationController extends Controller
         return view('hrd.performance.fill-evaluation', compact('evaluation', 'categories'));
     }
 
+    // Determine which type of evaluation this is based on evaluator and evaluatee positions
     private function determineEvaluationType(PerformanceEvaluation $evaluation)
     {
         $evaluator = $evaluation->evaluator;
@@ -418,5 +420,108 @@ class PerformanceEvaluationController extends Controller
         $overallAverage = round($scores->avg('score'), 2);
 
         return view('hrd.performance.results.employee', compact('period', 'employee', 'categoryResults', 'overallAverage'));
+    }
+
+    // Handle evaluation form submission
+    public function submitEvaluation(Request $request, PerformanceEvaluation $evaluation)
+    {
+        // Validate the request
+        $request->validate([
+            'scores.*' => 'required|integer|min:1|max:5',
+            'comments.*' => 'nullable|string|max:500',
+        ]);
+
+        // Check if the evaluation is already completed
+        if ($evaluation->status === 'completed') {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This evaluation has already been submitted.'
+                ], 422);
+            }
+            
+            return redirect()->back()->with('error', 'This evaluation has already been submitted.');
+        }
+
+        // Get the authenticated user
+        $user = Auth::user();
+        $employee = Employee::where('user_id', $user->id)->first();
+
+        // Check if user is authorized to submit this evaluation
+        if ($evaluation->evaluator_id != $employee->id) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not authorized to submit this evaluation.'
+                ], 403);
+            }
+            
+            return redirect()->back()->with('error', 'You are not authorized to submit this evaluation.');
+        }
+
+        // Begin transaction
+        DB::beginTransaction();
+
+        try {
+            // Save scores and comments
+            foreach ($request->scores as $questionId => $score) {
+                $comment = $request->comments[$questionId] ?? null;
+                
+                $evaluation->scores()->create([
+                    'question_id' => $questionId,
+                    'score' => $score,
+                    'comment' => $comment
+                ]);
+            }
+
+            // Mark evaluation as completed
+            $evaluation->status = 'completed';
+            $evaluation->completed_at = now();
+            $evaluation->save();
+
+            // Check if period is complete
+            $this->checkPeriodCompletion($evaluation->period);
+
+            DB::commit();
+            
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Evaluation submitted successfully.'
+                ]);
+            }
+            
+            return redirect()->route('hrd.performance.my-evaluations')
+                ->with('success', 'Evaluation submitted successfully.');
+                
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'An error occurred while submitting the evaluation: ' . $e->getMessage()
+                ], 500);
+            }
+            
+            return redirect()->back()
+                ->with('error', 'An error occurred while submitting the evaluation.')
+                ->withInput();
+        }
+    }
+
+    // Check if all evaluations for a period are completed and mark the period as completed if so
+    private function checkPeriodCompletion(PerformanceEvaluationPeriod $period)
+    {
+        $totalEvaluations = PerformanceEvaluation::where('period_id', $period->id)->count();
+        $completedEvaluations = PerformanceEvaluation::where('period_id', $period->id)
+            ->where('status', 'completed')
+            ->count();
+
+        if ($totalEvaluations > 0 && $totalEvaluations === $completedEvaluations) {
+            $period->status = 'completed';
+            $period->completed_at = now();
+            $period->save();
+        }
     }
 }
