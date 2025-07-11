@@ -66,13 +66,23 @@
                     <div class="col-md-3">
                         <div class="form-group">
                             <label>Jam Mulai</label>
-                            <input type="time" class="form-control" id="globalJamMulai">
+                            <div class="input-group">
+                                <input type="time" class="form-control" id="globalJamMulai">
+                                <div class="input-group-append">
+                                    <button type="button" class="btn btn-secondary" id="btnNowJamMulai">Now</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
                             <label>Jam Selesai</label>
-                            <input type="time" class="form-control" id="globalJamSelesai">
+                            <div class="input-group">
+                                <input type="time" class="form-control" id="globalJamSelesai">
+                                <div class="input-group-append">
+                                    <button type="button" class="btn btn-secondary" id="btnNowJamSelesai">Now</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -88,7 +98,6 @@
                                 <th style="width: 4%">SDC</th>
                                 <th style="width: 4%">SDK</th>
                                 <th style="width: 4%">SDL</th>
-                                <th style="width: 18%">JAM MULAI/SELESAI</th>
                                 <th style="width: 30%">NOTES</th>
                             </tr>
                         </thead>
@@ -126,15 +135,12 @@ const renderSpkTable = (sopList, spk, users) =>
             <td><input type="checkbox" name="details[${index}][sdc]" ${existingDetail?.sdc ? 'checked' : ''}></td>
             <td><input type="checkbox" name="details[${index}][sdk]" ${existingDetail?.sdk ? 'checked' : ''}></td>
             <td><input type="checkbox" name="details[${index}][sdl]" ${existingDetail?.sdl ? 'checked' : ''}></td>
-            <td>
-                <input type="hidden" class="spk-mulai" name="details[${index}][waktu_mulai]" value="${existingDetail?.waktu_mulai?.substring(0,5) || ''}">
-                <input type="hidden" class="spk-selesai" name="details[${index}][waktu_selesai]" value="${existingDetail?.waktu_selesai?.substring(0,5) || ''}">
-                <span class="text-muted">(Ikuti input di atas)</span>
-            </td>
             <td class="d-flex align-items-center">
                 <textarea class="form-control" name="details[${index}][notes]" rows="2" placeholder="Catatan...">${existingDetail?.notes || ''}</textarea>
                 <button type="button" class="btn btn-sm btn-primary mt-2 check-all-btn" data-checked="0">Check All</button>
             </td>
+            <input type="hidden" class="spk-mulai" name="details[${index}][waktu_mulai]" value="${existingDetail?.waktu_mulai?.substring(0,5) || ''}">
+            <input type="hidden" class="spk-selesai" name="details[${index}][waktu_selesai]" value="${existingDetail?.waktu_selesai?.substring(0,5) || ''}">
             <input type="hidden" name="details[${index}][sop_id]" value="${sop.id}">
         </tr>`;
     }).join('');
@@ -228,6 +234,18 @@ document.addEventListener('DOMContentLoaded', () => {
             e.target.setAttribute('data-checked', isChecked ? '0' : '1');
             e.target.textContent = isChecked ? 'Check All' : 'Uncheck All';
         }
+    });
+    document.getElementById('btnNowJamMulai').addEventListener('click', function() {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        document.getElementById('globalJamMulai').value = `${hh}:${mm}`;
+    });
+    document.getElementById('btnNowJamSelesai').addEventListener('click', function() {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        document.getElementById('globalJamSelesai').value = `${hh}:${mm}`;
     });
 });
 </script>
