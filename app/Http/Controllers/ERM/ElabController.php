@@ -12,6 +12,7 @@ use App\Models\ERM\LabHasil;
 use App\Models\ERM\LabKategori;
 use App\Models\ERM\LabPermintaan;
 use App\Models\ERM\Pasien;
+use App\Models\ERM\AsesmenPenunjang;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\LabTest;
@@ -86,6 +87,13 @@ class ElabController extends Controller
         // Map: lab_test_id => status
         $existingLabTestStatuses = $existingLabRequests->pluck('status', 'lab_test_id')->toArray();
 
+        // Get last assessment with diagnosa kerja for this patient
+        $lastAsesmen = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($visitation) {
+                $query->where('pasien_id', $visitation->pasien_id);
+            })
+            ->orderBy('created_at', 'desc')
+            ->first();
+
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
@@ -94,7 +102,8 @@ class ElabController extends Controller
             'labCategories' => $labCategories,
             'totalHarga' => $totalHarga,
             'existingLabTestIds' => $existingLabTestIds,
-            'existingLabTestStatuses' => $existingLabTestStatuses
+            'existingLabTestStatuses' => $existingLabTestStatuses,
+            'lastAsesmen' => $lastAsesmen
         ], $pasienData, $createKunjunganData));
     }
 
@@ -390,8 +399,7 @@ class ElabController extends Controller
                 'kategori' => $item->labTest->labKategori->nama,
                 'harga' => 'Rp ' . number_format($item->labTest->harga, 0, ',', '.'),
                 'status_label' => $statusLabel,
-                'dokter' => $item->dokter->user->name ?? 'N/A',
-                // 'hasil' => $item->hasil ?? '-'
+                'dokter' => $item->dokter->user->name ?? 'N/A'
             ];
         });
 

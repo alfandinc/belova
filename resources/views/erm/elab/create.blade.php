@@ -155,6 +155,57 @@
     </div><!--end row-->  
     <!-- end page title end breadcrumb -->
     @include('erm.partials.card-identitaspasien')
+
+    <!-- Diagnosa Kerja Card -->
+    <div class="card mb-3">
+        <div class="card-header bg-primary">
+            <h5 class="text-white mb-0">Diagnosa Kerja (Asesmen Terakhir)</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                @if(isset($lastAsesmen) && $lastAsesmen)
+                    <div class="col-md-12">
+
+                        <div>
+                            @if($lastAsesmen->diagnosakerja_1)
+                                <div class="d-inline-block bg-light text-primary border border-primary rounded px-3 py-1 mr-2 mb-2">
+                                    <span class="h6 m-0">{{ $lastAsesmen->diagnosakerja_1 }}</span>
+                                </div>
+                            @endif
+                            @if($lastAsesmen->diagnosakerja_2)
+                                <div class="d-inline-block bg-light text-primary border border-primary rounded px-3 py-1 mr-2 mb-2">
+                                    <span class="h6 m-0">{{ $lastAsesmen->diagnosakerja_2 }}</span>
+                                </div>
+                            @endif
+                            @if($lastAsesmen->diagnosakerja_3)
+                                <div class="d-inline-block bg-light text-primary border border-primary rounded px-3 py-1 mr-2 mb-2">
+                                    <span class="h6 m-0">{{ $lastAsesmen->diagnosakerja_3 }}</span>
+                                </div>
+                            @endif
+                            @if($lastAsesmen->diagnosakerja_4)
+                                <div class="d-inline-block bg-light text-primary border border-primary rounded px-3 py-1 mr-2 mb-2">
+                                    <span class="h6 m-0">{{ $lastAsesmen->diagnosakerja_4 }}</span>
+                                </div>
+                            @endif
+                            @if($lastAsesmen->diagnosakerja_5)
+                                <div class="d-inline-block bg-light text-primary border border-primary rounded px-3 py-1 mr-2 mb-2">
+                                    <span class="h6 m-0">{{ $lastAsesmen->diagnosakerja_5 }}</span>
+                                </div>
+                            @endif
+                            @if(!$lastAsesmen->diagnosakerja_1 && !$lastAsesmen->diagnosakerja_2 && !$lastAsesmen->diagnosakerja_3 && !$lastAsesmen->diagnosakerja_4 && !$lastAsesmen->diagnosakerja_5)
+                                <span class="text-muted">Tidak ada diagnosa kerja</span>
+                            @endif
+                        </div>
+                    </div>
+                @else
+                    <div class="col-md-12">
+                        <p class="text-muted mb-0">Belum ada diagnosa kerja untuk pasien ini.</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+    
     <!-- Two column layout for Lab Management -->
     <div class="row">
         <!-- Left Column - Permintaan Lab -->
