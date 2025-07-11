@@ -214,16 +214,20 @@
                     searchable: false,
                     render: function(data, type, row) {
                         // Ensure Inform Consent link uses /storage/ prefix
+                        let buttons = '';
                         if (row.inform_consent) {
                             const fileUrl = `/storage/${row.inform_consent.file_path}`;
-                            return `
+                            buttons += `
                                 <a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>
                                 <button class="btn btn-primary btn-sm foto-hasil-btn mr-1" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">Foto Hasil</button>
-                                <button class="btn btn-warning btn-sm spk-btn" data-riwayat-id="${row.id}">SPK</button>
+                                <button class="btn btn-warning btn-sm spk-btn mr-1" data-riwayat-id="${row.id}">SPK</button>
                             `;
                         } else {
-                            return '<span class="text-muted">Belum ada inform consent</span>';
+                            buttons += '<span class="text-muted">Belum ada inform consent</span>';
                         }
+                        // Add Batalkan button for all rows
+                        buttons += `<button class="btn btn-danger btn-sm batalkan-tindakan-btn" data-id="${row.id}">Batalkan</button>`;
+                        return buttons;
                     }
                 }
             ],
@@ -612,6 +616,8 @@
                         Swal.fire('Success', 'Tindakan dan billing berhasil disimpan!', 'success')
                             .then(() => {
                                 $('#modalInformConsent').modal('hide');
+                                // Reload riwayat tindakan table after saving
+                                $('#historyTindakanTable').DataTable().ajax.reload();
                             });
                     } else {
                         Swal.fire('Error', 'Failed to save Inform Consent.', 'error');
@@ -737,6 +743,8 @@
                     Swal.fire('Success', 'Semua Tindakan dan billing berhasil disimpan!', 'success')
                         .then(() => {
                             $('#modalInformConsent').modal('hide');
+                            // Reload riwayat tindakan table after saving paket
+                            $('#historyTindakanTable').DataTable().ajax.reload();
                         });
                 })
                 .catch(errors => {
@@ -797,6 +805,40 @@ $(document).on('click', '.spk-btn', function() {
         }
     }).fail(function() {
         $('#modalSpkReadOnlyBody').html('<div class="alert alert-danger">Failed to load SPK data.</div>');
+    });
+});
+
+// Add Batalkan handler
+$(document).on('click', '.batalkan-tindakan-btn', function() {
+    const id = $(this).data('id');
+    Swal.fire({
+        title: 'Batalkan Tindakan?',
+        text: 'Tindakan dan billing terkait akan dihapus.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, batalkan!',
+        cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.value) {
+            $.ajax({
+                url: `/erm/tindakan/riwayat/${id}`,
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire('Berhasil', response.message, 'success');
+                        $('#historyTindakanTable').DataTable().ajax.reload();
+                    } else {
+                        Swal.fire('Gagal', 'Tidak dapat membatalkan tindakan.', 'error');
+                    }
+                },
+                error: function() {
+                    Swal.fire('Gagal', 'Terjadi kesalahan server.', 'error');
+                }
+            });
+        }
     });
 });
     });

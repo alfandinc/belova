@@ -48,7 +48,6 @@ class TindakanController extends Controller
             ->addColumn('action', function ($row) {
                 return '
                 <button class="btn btn-success btn-sm buat-tindakan" data-id="' . $row->id . '" data-type="tindakan">Buat Tindakan</button>
-                <a href="' . route('erm.tindakan.sop', $row->id) . '" class="btn btn-info btn-sm" target="_blank">SOP</a>
             ';
             })
             ->rawColumns(['action'])
@@ -272,27 +271,27 @@ class TindakanController extends Controller
             ->make(true);
     }
 
-    public function generateSopPdf($id)
-    {
-        $tindakan = Tindakan::with('sop')->findOrFail($id);
+    // public function generateSopPdf($id)
+    // {
+    //     $tindakan = Tindakan::with('sop')->findOrFail($id);
 
-        // If SOP doesn't exist, return a message
-        if ($tindakan->sop->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'SOP belum tersedia untuk tindakan ini'
-            ]);
-        }
+    //     // If SOP doesn't exist, return a message
+    //     if ($tindakan->sop->isEmpty()) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'SOP belum tersedia untuk tindakan ini'
+    //         ]);
+    //     }
 
-        $pdf = PDF::loadView('erm.tindakan.sop.pdf', [
-            'tindakan' => $tindakan,
-            'sopList' => $tindakan->sop->sortBy('urutan')
-        ]);
+    //     $pdf = PDF::loadView('erm.tindakan.sop.pdf', [
+    //         'tindakan' => $tindakan,
+    //         'sopList' => $tindakan->sop->sortBy('urutan')
+    //     ]);
 
-        $filename = 'SOP-' . str_replace(' ', '-', $tindakan->nama) . '.pdf';
+    //     $filename = 'SOP-' . str_replace(' ', '-', $tindakan->nama) . '.pdf';
 
-        return $pdf->stream($filename);
-    }
+    //     return $pdf->stream($filename);
+    // }
 
     public function uploadFoto(Request $request, $id)
     {
@@ -540,5 +539,24 @@ class TindakanController extends Controller
                 'message' => 'Terjadi kesalahan saat memproses data'
             ], 500);
         }
+    }
+
+    public function destroyRiwayatTindakan($id)
+    {
+        $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
+
+        // Delete associated billing (for tindakan, not paket)
+        \App\Models\Finance\Billing::where('billable_id', $riwayat->tindakan_id)
+            ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
+            ->where('visitation_id', $riwayat->visitation_id)
+            ->delete();
+        // Delete associated InformConsent
+        \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->delete();
+        // Delete associated Spk
+        \App\Models\ERM\Spk::where('riwayat_tindakan_id', $riwayat->id)->delete();
+
+        $riwayat->delete();
+
+        return response()->json(['success' => true, 'message' => 'Riwayat tindakan, billing, inform consent, dan SPK berhasil dibatalkan.']);
     }
 }

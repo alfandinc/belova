@@ -285,6 +285,8 @@ Route::prefix('erm')->group(function () {
     Route::post('/rawatjalans/edit-antrian', [RawatJalanController::class, 'editAntrian']);
 
 
+    // Batalkan (delete) riwayat tindakan
+    Route::delete('/tindakan/riwayat/{id}', [TindakanController::class, 'destroyRiwayatTindakan'])->name('erm.tindakan.riwayat.destroy');
 });
 
 Route::prefix('workdoc')->name('workdoc.')->middleware(['auth'])->group(function () {
