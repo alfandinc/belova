@@ -124,12 +124,60 @@ class TindakanController extends Controller
         // Only create InformConsent and PDF if signatures are present
         if (!empty($data['signature']) && !empty($data['witness_signature'])) {
             $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
-            $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.{$viewName}", [
+            $bladeView = "erm.tindakan.inform-consent.{$viewName}";
+            $consentText = '';
+            if (View::exists($bladeView)) {
+                // Render the Blade view to HTML
+                $html = View::make($bladeView, [
+                    'tindakan' => $tindakan,
+                    'pasien' => $pasien,
+                    'visitation' => $visitation,
+                    'data' => $data,
+                ])->render();
+                // Parse the HTML to extract .card-body before Catatan Tambahan
+                $dom = new \DOMDocument();
+                libxml_use_internal_errors(true);
+                $dom->loadHTML('<?xml encoding="utf-8" ?>' . $html);
+                libxml_clear_errors();
+                $finder = new \DOMXPath($dom);
+                $cardBodies = $finder->query("//div[contains(@class, 'card-body')]");
+                if ($cardBodies->length > 0) {
+                    // Find the card-body that contains the consent text (the one with Catatan Tambahan inside)
+                    foreach ($cardBodies as $cardBody) {
+                        $hasCatatan = false;
+                        foreach ($cardBody->getElementsByTagName('label') as $label) {
+                            if (stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
+                                $hasCatatan = true;
+                                break;
+                            }
+                        }
+                        if ($hasCatatan) {
+                            // Only get content before Catatan Tambahan
+                            $content = '';
+                            foreach ($cardBody->childNodes as $child) {
+                                // Stop at the Catatan Tambahan label
+                                if ($child->nodeType === XML_ELEMENT_NODE && $child->nodeName === 'div') {
+                                    $label = $child->getElementsByTagName('label')->item(0);
+                                    if ($label && stripos($label->nodeValue, 'Catatan Tambahan') !== false) {
+                                        break;
+                                    }
+                                }
+                                $content .= $dom->saveHTML($child);
+                            }
+                            $consentText = $content;
+                            break;
+                        }
+                    }
+                }
+            }
+            // Generate PDF using the generic template
+            $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.generic", [
                 'data' => $data,
                 'pasien' => $pasien,
                 'visitation' => $visitation,
                 'tindakan' => $tindakan,
                 'klinik_id' => $visitation->klinik_id, // pass klinik_id for logo
+                'content' => $consentText,
             ]);
             $timestamp = now()->format('YmdHis');
             $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
