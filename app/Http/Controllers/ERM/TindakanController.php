@@ -129,6 +129,7 @@ class TindakanController extends Controller
                 'pasien' => $pasien,
                 'visitation' => $visitation,
                 'tindakan' => $tindakan,
+                'klinik_id' => $visitation->klinik_id, // pass klinik_id for logo
             ]);
             $timestamp = now()->format('YmdHis');
             $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
