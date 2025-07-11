@@ -83,18 +83,14 @@
                     @endif
                     
                     @if($period->status == 'active')
-                        <button class="btn btn-warning btn-block mb-2" onclick="alert('Send reminder emails to employees with pending evaluations')">
-                            <i class="fa fa-envelope"></i> Send Reminders
-                        </button>
-                        
-                        <form action="{{ route('hrd.performance.periods.update', $period) }}" method="POST">
+                        <form id="completeForm" action="{{ route('hrd.performance.periods.update', $period) }}" method="POST">
                             @csrf
                             @method('PUT')
                             <input type="hidden" name="name" value="{{ $period->name }}">
                             <input type="hidden" name="start_date" value="{{ $period->start_date->format('Y-m-d') }}">
                             <input type="hidden" name="end_date" value="{{ $period->end_date->format('Y-m-d') }}">
                             <input type="hidden" name="status" value="completed">
-                            <button type="submit" class="btn btn-success btn-block" onclick="return confirm('Are you sure you want to mark this period as completed?')">
+                            <button type="button" id="markCompleteBtn" class="btn btn-success btn-block">
                                 <i class="fa fa-check-circle"></i> Mark as Completed
                             </button>
                         </form>
@@ -160,4 +156,27 @@
         </div>
     </div>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+    $(document).ready(function() {
+        $('#markCompleteBtn').on('click', function() {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You are about to mark this evaluation period as completed. This will finalize all evaluations.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, mark as completed!'
+            }).then((result) => {
+                if (result.value) {
+                    // Submit the form
+                    $('#completeForm').submit();
+                }
+            });
+        });
+    });
+</script>
 @endsection

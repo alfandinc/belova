@@ -16,9 +16,15 @@ use Carbon\Carbon;
 
 class PerformanceEvaluationController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $periods = PerformanceEvaluationPeriod::orderBy('created_at', 'desc')->paginate(10);
+        
+        if ($request->ajax()) {
+            // Return the full rendered view for AJAX requests
+            return view('hrd.performance.periods.index', compact('periods'))->render();
+        }
+        
         return view('hrd.performance.periods.index', compact('periods'));
     }
 
@@ -33,10 +39,20 @@ class PerformanceEvaluationController extends Controller
             'name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
-            'status' => 'required|in:pending,active,completed',
         ]);
 
-        PerformanceEvaluationPeriod::create($validated);
+        // Always set status to pending for new periods
+        $validated['status'] = 'pending';
+
+        $period = PerformanceEvaluationPeriod::create($validated);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluation period created successfully.',
+                'period' => $period
+            ]);
+        }
 
         return redirect()->route('hrd.performance.periods.index')
             ->with('success', 'Evaluation period created successfully.');
@@ -62,26 +78,54 @@ class PerformanceEvaluationController extends Controller
             'name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
-            'status' => 'required|in:pending,active,completed',
         ]);
 
+        // For edit modal, maintain the existing status (don't reset to pending)
+        if (!$request->has('status')) {
+            $validated['status'] = $period->status;
+        } else {
+            $validated['status'] = $request->status;
+        }
+
         $period->update($validated);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluation period updated successfully.',
+                'period' => $period
+            ]);
+        }
 
         return redirect()->route('hrd.performance.periods.index')
             ->with('success', 'Evaluation period updated successfully.');
     }
 
-    public function destroy(PerformanceEvaluationPeriod $period)
+    public function destroy(Request $request, PerformanceEvaluationPeriod $period)
     {
         // Check if evaluations exist
         $hasEvaluations = PerformanceEvaluation::where('period_id', $period->id)->exists();
 
         if ($hasEvaluations) {
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete period with existing evaluations.'
+                ], 422);
+            }
+            
             return redirect()->route('hrd.performance.periods.index')
                 ->with('error', 'Cannot delete period with existing evaluations.');
         }
 
         $period->delete();
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluation period deleted successfully.'
+            ]);
+        }
 
         return redirect()->route('hrd.performance.periods.index')
             ->with('success', 'Evaluation period deleted successfully.');
@@ -194,6 +238,13 @@ class PerformanceEvaluationController extends Controller
 
         $period->status = 'active';
         $period->save();
+
+        if (request()->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Evaluation period initiated successfully.'
+            ]);
+        }
 
         return redirect()->route('hrd.performance.periods.show', $period)
             ->with('success', 'Evaluation period initiated successfully.');

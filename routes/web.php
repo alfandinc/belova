@@ -458,10 +458,8 @@ Route::prefix('hrd')->group(
         Route::prefix('performance')->name('hrd.performance.')->middleware(['auth'])->group(function () {
             // Evaluation Periods
             Route::get('/periods', [PerformanceEvaluationController::class, 'index'])->name('periods.index');
-            Route::get('/periods/create', [PerformanceEvaluationController::class, 'create'])->name('periods.create');
             Route::post('/periods', [PerformanceEvaluationController::class, 'store'])->name('periods.store');
             Route::get('/periods/{period}', [PerformanceEvaluationController::class, 'show'])->name('periods.show');
-            Route::get('/periods/{period}/edit', [PerformanceEvaluationController::class, 'edit'])->name('periods.edit');
             Route::put('/periods/{period}', [PerformanceEvaluationController::class, 'update'])->name('periods.update');
             Route::delete('/periods/{period}', [PerformanceEvaluationController::class, 'destroy'])->name('periods.destroy');
             Route::post('/periods/{period}/initiate', [PerformanceEvaluationController::class, 'initiate'])->name('periods.initiate');

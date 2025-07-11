@@ -1,5 +1,5 @@
 @extends('layouts.hrd.app')
-@section('title', 'HRD | Tambah Karyawan')
+@section('title', 'HRD | Performance Evaluation Periods')
 @section('navbar')
     @include('layouts.hrd.navbar')
 @endsection
@@ -11,9 +11,9 @@
             <h2>Performance Evaluation Periods</h2>
         </div>
         <div class="col-md-4 text-right">
-            <a href="{{ route('hrd.performance.periods.create') }}" class="btn btn-primary">
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#createPeriodModal">
                 <i class="fa fa-plus"></i> Create New Period
-            </a>
+            </button>
         </div>
     </div>
 
@@ -53,13 +53,22 @@
                                 <i class="fa fa-eye"></i> Details
                             </a>
                             @if($period->status == 'pending')
-                            <a href="{{ route('hrd.performance.periods.edit', $period) }}" class="btn btn-sm btn-primary">
+                            <button type="button" class="btn btn-sm btn-primary edit-period" 
+                                data-id="{{ $period->id }}"
+                                data-name="{{ $period->name }}"
+                                data-start="{{ $period->start_date->format('Y-m-d') }}"
+                                data-end="{{ $period->end_date->format('Y-m-d') }}"
+                                data-status="{{ $period->status }}"
+                                data-toggle="modal" data-target="#editPeriodModal">
                                 <i class="fa fa-edit"></i> Edit
-                            </a>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-success btn-initiate" data-id="{{ $period->id }}">
+                                <i class="fa fa-play"></i> Initiate
+                            </button>
                             <form action="{{ route('hrd.performance.periods.destroy', $period) }}" method="POST" class="d-inline">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this period?')">
+                                <button type="button" class="btn btn-sm btn-danger btn-delete">
                                     <i class="fa fa-trash"></i> Delete
                                 </button>
                             </form>
@@ -80,4 +89,339 @@
         </div>
     </div>
 </div>
+
+<!-- Create Period Modal -->
+<div class="modal fade" id="createPeriodModal" tabindex="-1" role="dialog" aria-labelledby="createPeriodModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createPeriodModalLabel">Create New Evaluation Period</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="createPeriodForm">
+                @csrf
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="name">Period Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="start_date">Start Date</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="end_date">End Date</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" required>
+                    </div>
+                    <input type="hidden" name="status" value="pending">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Create Period</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Period Modal -->
+<div class="modal fade" id="editPeriodModal" tabindex="-1" role="dialog" aria-labelledby="editPeriodModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPeriodModalLabel">Edit Evaluation Period</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="editPeriodForm">
+                @csrf
+                @method('PUT')
+                <input type="hidden" id="edit_period_id">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="edit_name">Period Name</label>
+                        <input type="text" class="form-control" id="edit_name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_start_date">Start Date</label>
+                        <input type="date" class="form-control" id="edit_start_date" name="start_date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit_end_date">End Date</label>
+                        <input type="date" class="form-control" id="edit_end_date" name="end_date" required>
+                    </div>
+                    <input type="hidden" id="edit_status" name="status" value="pending">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Update Period</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@endsection
+
+@section('scripts')
+<script>
+    $(document).ready(function() {
+        // Initialize event handlers
+        reattachEventHandlers();
+        
+
+        // Handle create form submission
+        $('#createPeriodForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            $.ajax({
+                url: "{{ route('hrd.performance.periods.store') }}",
+                method: "POST",
+                data: $(this).serialize(),
+                success: function(response) {
+                    // Reset the form first
+                    $('#createPeriodForm')[0].reset();
+                    
+                    // Close the modal
+                    $('#createPeriodModal').modal('hide');
+                    
+                    // Show success message with SweetAlert
+                    Swal.fire({
+                        title: 'Success!',
+                        text: 'Evaluation period created successfully',
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        // Refresh table without reloading the page
+                        refreshPeriodsTable();
+                    });
+                },
+                error: function(xhr) {
+                    // Handle errors - display validation errors or other issues
+                    let errors = xhr.responseJSON.errors;
+                    let errorMessage = 'Something went wrong!';
+                    
+                    if (errors) {
+                        errorMessage = Object.values(errors).flat().join('<br>');
+                    }
+                    
+                    Swal.fire({
+                        title: 'Error!',
+                        html: errorMessage,
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
+                }
+            });
+        });
+        
+        // Handle edit form submission
+        $('#editPeriodForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const periodId = $('#edit_period_id').val();
+            
+            $.ajax({
+                url: `/hrd/performance/periods/${periodId}`,
+                method: "PUT",
+                data: $(this).serialize(),
+                success: function(response) {
+                    // Reset the form
+                    $('#editPeriodForm')[0].reset();
+                    
+                    // Close the modal
+                    $('#editPeriodModal').modal('hide');
+                    
+                    // Show success message
+                    Swal.fire({
+                        title: 'Success!',
+                        text: 'Evaluation period updated successfully',
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        // Refresh table without reloading the page
+                        refreshPeriodsTable();
+                    });
+                },
+                error: function(xhr) {
+                    // Handle errors
+                    let errors = xhr.responseJSON.errors;
+                    let errorMessage = 'Something went wrong!';
+                    
+                    if (errors) {
+                        errorMessage = Object.values(errors).flat().join('<br>');
+                    }
+                    
+                    Swal.fire({
+                        title: 'Error!',
+                        html: errorMessage,
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
+                }
+            });
+        });
+        
+        // Delete handler is now in reattachEventHandlers function
+        
+        // Function to refresh the periods table
+        function refreshPeriodsTable() {
+            $.ajax({
+                url: "{{ route('hrd.performance.periods.index') }}",
+                method: "GET",
+                data: { ajax: true },
+                dataType: 'html',
+                success: function(response) {
+                    // Create a temporary div to hold the response HTML
+                    let tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = response;
+                    
+                    // Find the table body content
+                    let newTableContent = $(tempDiv).find('table.table tbody').html();
+                    $('table.table tbody').html(newTableContent);
+                    
+                    // Update pagination if needed
+                    let newPagination = $(tempDiv).find('.mt-4').html();
+                    if(newPagination) {
+                        $('.mt-4').html(newPagination);
+                    }
+                    
+                    // Re-attach event handlers to new elements
+                    reattachEventHandlers();
+                },
+                error: function(xhr) {
+                    console.error('Error refreshing table:', xhr.responseText);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: 'Failed to refresh the table. Please reload the page.',
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
+                }
+            });
+        }
+        
+        // Function to reattach event handlers after HTML update
+        function reattachEventHandlers() {
+            // Reattach edit button handlers
+            $('.edit-period').off('click').on('click', function() {
+                const id = $(this).data('id');
+                const name = $(this).data('name');
+                const start = $(this).data('start');
+                const end = $(this).data('end');
+                const status = $(this).data('status');
+                
+                // Store period ID
+                $('#edit_period_id').val(id);
+                
+                // Fill form fields
+                $('#edit_name').val(name);
+                $('#edit_start_date').val(start);
+                $('#edit_end_date').val(end);
+            });
+            
+            // Reattach delete button handlers
+            $('.btn-delete').off('click').on('click', function(e) {
+                e.preventDefault();
+                const deleteForm = $(this).closest('form');
+                
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: "You won't be able to revert this!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Yes, delete it!'
+                }).then((result) => {
+                    if (result.value) {
+                        $.ajax({
+                            url: deleteForm.attr('action'),
+                            method: 'DELETE',
+                            data: deleteForm.serialize(),
+                            success: function(response) {
+                                Swal.fire(
+                                    'Deleted!',
+                                    'Evaluation period has been deleted.',
+                                    'success'
+                                ).then(() => {
+                                    refreshPeriodsTable();
+                                });
+                            },
+                            error: function(xhr) {
+                                Swal.fire(
+                                    'Error!',
+                                    xhr.responseJSON.message || 'Something went wrong!',
+                                    'error'
+                                );
+                            }
+                        });
+                    }
+                });
+            });
+            
+            // Reattach initiate button handlers
+            $('.btn-initiate').off('click').on('click', function() {
+                const periodId = $(this).data('id');
+                
+                Swal.fire({
+                    title: 'Are you sure?',
+                    text: "This will initiate the evaluation period and create all necessary evaluations.",
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'Yes, initiate it!'
+                }).then((result) => {
+                    if (result.value) {
+                        // Show loading state
+                        Swal.fire({
+                            title: 'Processing...',
+                            html: 'Please wait while we set up all evaluations.',
+                            allowOutsideClick: false,
+                            didOpen: () => {
+                                Swal.showLoading();
+                            }
+                        });
+                        
+                        // Send AJAX request to initiate period
+                        $.ajax({
+                            url: `/hrd/performance/periods/${periodId}/initiate`,
+                            method: 'POST',
+                            data: {
+                                _token: $('meta[name="csrf-token"]').attr('content')
+                            },
+                            success: function(response) {
+                                Swal.fire({
+                                    title: 'Success!',
+                                    text: 'Evaluation period initiated successfully.',
+                                    icon: 'success',
+                                    confirmButtonText: 'OK'
+                                }).then(() => {
+                                    refreshPeriodsTable();
+                                });
+                            },
+                            error: function(xhr) {
+                                let errorMessage = 'Something went wrong!';
+                                if (xhr.responseJSON && xhr.responseJSON.message) {
+                                    errorMessage = xhr.responseJSON.message;
+                                }
+                                
+                                Swal.fire({
+                                    title: 'Error!',
+                                    text: errorMessage,
+                                    icon: 'error',
+                                    confirmButtonText: 'OK'
+                                });
+                            }
+                        });
+                    }
+                });
+            });
+        }
+    });
+</script>
 @endsection
