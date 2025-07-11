@@ -287,6 +287,9 @@ Route::prefix('erm')->group(function () {
 
     // Batalkan (delete) riwayat tindakan
     Route::delete('/tindakan/riwayat/{id}', [TindakanController::class, 'destroyRiwayatTindakan'])->name('erm.tindakan.riwayat.destroy');
+    
+// SOP route
+Route::get('/tindakan/{id}/sop-list', [TindakanController::class, 'getSopList']);
 });
 
 Route::prefix('workdoc')->name('workdoc.')->middleware(['auth'])->group(function () {
@@ -557,4 +560,5 @@ Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController
 
 // AJAX: Get ruangan by gedung for filter (move to RuanganController for consistency)
 Route::get('/inventory/ruangan/by-gedung/{gedungId}', [App\Http\Controllers\Inventory\RuanganController::class, 'getRuanganByGedung']);
+
 

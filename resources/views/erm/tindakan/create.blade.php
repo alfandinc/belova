@@ -120,6 +120,33 @@
         </div> --}}
     </div>
 </div>
+
+<!-- SOP Detail Modal -->
+<div class="modal fade" id="modalSopDetail" tabindex="-1" aria-labelledby="modalSopDetailLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalSopDetailLabel">SOP Tindakan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-bordered" id="sopTable">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>SOP</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- SOP rows will be injected here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 @endsection
 @section('scripts')
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
@@ -159,10 +186,15 @@
                     }
                 },
                 { 
-                    data: 'action', 
-                    name: 'action', 
-                    orderable: false, 
+                    data: null,
+                    orderable: false,
                     searchable: false,
+                    render: function (data, type, row) {
+                        return `
+                            <button class="btn btn-success btn-sm buat-tindakan" data-id="${row.id}" data-type="tindakan">Buat Tindakan</button>
+                            <button class="btn btn-info btn-sm detail-sop-btn" data-id="${row.id}">Detail</button>
+                        `;
+                    }
                 },
             ],
         });
@@ -839,6 +871,32 @@ $(document).on('click', '.batalkan-tindakan-btn', function() {
                 }
             });
         }
+    });
+});
+
+// Handle click on Detail button
+$(document).on('click', '.detail-sop-btn', function() {
+    const tindakanId = $(this).data('id');
+    $('#modalSopDetailLabel').text('SOP Tindakan');
+    $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Loading...</td></tr>');
+    $('#modalSopDetail').modal('show');
+    $.get(`/erm/tindakan/${tindakanId}/sop-list`, function(response) {
+        if (response.success) {
+            $('#modalSopDetailLabel').text('SOP Tindakan: ' + response.tindakan);
+            let rows = '';
+            if (response.sop.length > 0) {
+                response.sop.forEach(function(item) {
+                    rows += `<tr><td>${item.no}</td><td>${item.nama_sop}</td></tr>`;
+                });
+            } else {
+                rows = '<tr><td colspan="2" class="text-center">Tidak ada SOP</td></tr>';
+            }
+            $('#sopTable tbody').html(rows);
+        } else {
+            $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Gagal memuat SOP</td></tr>');
+        }
+    }).fail(function() {
+        $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Gagal memuat SOP</td></tr>');
     });
 });
     });

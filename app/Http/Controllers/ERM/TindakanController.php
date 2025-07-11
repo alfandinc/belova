@@ -617,4 +617,24 @@ class TindakanController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Riwayat tindakan, billing, inform consent, dan SPK berhasil dibatalkan.']);
     }
+
+    public function getSopList($tindakanId)
+    {
+        $tindakan = \App\Models\ERM\Tindakan::with(['sop' => function($q) {
+            $q->orderBy('urutan');
+        }])->findOrFail($tindakanId);
+
+        $sopList = $tindakan->sop->map(function($sop, $i) {
+            return [
+                'no' => $i + 1,
+                'nama_sop' => $sop->nama_sop,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'sop' => $sopList,
+            'tindakan' => $tindakan->nama,
+        ]);
+    }
 }
