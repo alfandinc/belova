@@ -792,84 +792,107 @@ $('#saveAllChangesBtn').on('click', function() {
         
         // Create invoice button
         $('#createInvoiceBtn').on('click', function() {
-    Swal.fire({
-        title: 'Konfirmasi Buat Invoice',
-        text: 'Buat invoice dari billing ini?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#28a745',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Ya, Buat Invoice!',
-        cancelButtonText: 'Batal'
-    }).then((result) => {
-        if (result.value) {
-            const items = billingData.filter(item => !item.deleted);
-            
-            if (items.length === 0) {
-                Swal.fire({
-                    title: 'Peringatan!',
-                    text: 'Tidak ada item billing yang valid!',
-                    icon: 'warning'
-                });
-                return;
-            }
-            
-            // Force the visitation ID to be treated as a string, just like in saveAllChangesBtn
-            const correctVisitationId = "{{ $visitation->id }}";
-            
-            // Show loading
             Swal.fire({
-                title: 'Membuat Invoice...',
-                text: 'Harap tunggu, sedang memproses invoice.',
-                icon: 'info',
-                allowOutsideClick: false,
-                showConfirmButton: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-            
-            $.ajax({
-                url: "{{ route('finance.billing.createInvoice') }}",
-                type: "POST",
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    visitation_id: correctVisitationId,
-                    items: items,
-                    totals: window.billingTotals
-                },
-                success: function(response) {
+                title: 'Konfirmasi',
+                text: 'Simpan semua perubahan billing dan buat invoice sekarang?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Ya, Simpan & Buat Invoice!',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    // Simpan billing dulu
+                    const correctVisitationId = "{{ $visitation->id }}";
+                    const editedItems = billingData.filter(item => item.edited && !item.deleted);
+                    const newItems = billingData.filter(item =>
+                        !item.edited &&
+                        !item.deleted &&
+                        (item.id.toString().startsWith('tindakan-') ||
+                         item.id.toString().startsWith('lab-') ||
+                         item.id.toString().startsWith('konsultasi-') ||
+                         item.id.toString().startsWith('obat-') ||
+                         item.id.toString().startsWith('racikan-'))
+                    );
+                    const requestData = {
+                        _token: "{{ csrf_token() }}",
+                        visitation_id: correctVisitationId,
+                        edited_items: editedItems,
+                        new_items: newItems,
+                        deleted_items: deletedItems,
+                        totals: window.billingTotals
+                    };
                     Swal.fire({
-                        title: 'Berhasil!',
-                        text: 'Invoice berhasil dibuat dengan nomor: ' + response.invoice_number,
-                        icon: 'success',
-                        confirmButtonText: 'OK'
-                    }).then(() => {
-                        // Redirect to billing index page
-                        window.location.href = "{{ route('finance.billing.index') }}";
+                        title: 'Menyimpan...',
+                        text: 'Harap tunggu, sedang menyimpan billing.',
+                        icon: 'info',
+                        allowOutsideClick: false,
+                        showConfirmButton: false,
+                        didOpen: () => { Swal.showLoading(); }
                     });
-                },
-                error: function(xhr) {
-                    console.log('Error response:', xhr.responseText);
-                    try {
-                        const errorObj = JSON.parse(xhr.responseText);
-                        Swal.fire({
-                            title: 'Error!',
-                            text: 'Terjadi kesalahan: ' + (errorObj.message || xhr.responseText),
-                            icon: 'error'
-                        });
-                    } catch (e) {
-                        Swal.fire({
-                            title: 'Error!',
-                            text: 'Terjadi kesalahan dalam pembuatan invoice',
-                            icon: 'error'
-                        });
-                    }
+                    $.ajax({
+                        url: "{{ route('finance.billing.save') }}",
+                        type: "POST",
+                        data: requestData,
+                        success: function(saveResponse) {
+                            // Setelah simpan sukses, lanjut buat invoice
+                            const items = billingData.filter(item => !item.deleted);
+                            if (items.length === 0) {
+                                Swal.fire({
+                                    title: 'Peringatan!',
+                                    text: 'Tidak ada item billing yang valid!',
+                                    icon: 'warning'
+                                });
+                                return;
+                            }
+                            Swal.fire({
+                                title: 'Membuat Invoice...',
+                                text: 'Harap tunggu, sedang memproses invoice.',
+                                icon: 'info',
+                                allowOutsideClick: false,
+                                showConfirmButton: false,
+                                didOpen: () => { Swal.showLoading(); }
+                            });
+                            $.ajax({
+                                url: "{{ route('finance.billing.createInvoice') }}",
+                                type: "POST",
+                                data: {
+                                    _token: "{{ csrf_token() }}",
+                                    visitation_id: correctVisitationId,
+                                    items: items,
+                                    totals: window.billingTotals
+                                },
+                                success: function(invoiceResponse) {
+                                    Swal.fire({
+                                        title: 'Berhasil!',
+                                        text: 'Invoice berhasil dibuat dengan nomor: ' + invoiceResponse.invoice_number,
+                                        icon: 'success',
+                                        confirmButtonText: 'OK'
+                                    }).then(() => {
+                                        window.location.href = "{{ route('finance.billing.index') }}";
+                                    });
+                                },
+                                error: function(xhr) {
+                                    Swal.fire({
+                                        title: 'Error!',
+                                        text: 'Terjadi kesalahan dalam pembuatan invoice: ' + xhr.responseText,
+                                        icon: 'error'
+                                    });
+                                }
+                            });
+                        },
+                        error: function(xhr) {
+                            Swal.fire({
+                                title: 'Error!',
+                                text: 'Terjadi kesalahan saat menyimpan billing: ' + xhr.responseText,
+                                icon: 'error'
+                            });
+                        }
+                    });
                 }
             });
-        }
-    });
-});
+        });
         
         // --- Select2 AJAX for Tindakan ---
         $('#select-tindakan').select2({
@@ -983,6 +1006,13 @@ $('#saveAllChangesBtn').on('click', function() {
             updateTable();
             calculateTotals();
             $(this).val(null).trigger('change');
+            Swal.fire({
+                icon: 'info',
+                title: 'Perhatian',
+                text: 'Harap informasikan perawat untuk menambah tindakan ini ke riwayat tindakan.',
+                timer: 2500,
+                showConfirmButton: false
+            });
         });
         // Add selected Lab to billingData
         $('#select-lab').on('select2:select', function(e) {
@@ -1005,6 +1035,13 @@ $('#saveAllChangesBtn').on('click', function() {
             updateTable();
             calculateTotals();
             $(this).val(null).trigger('change');
+            Swal.fire({
+                icon: 'info',
+                title: 'Perhatian',
+                text: 'Harap informasikan petugas lab untuk menambah pemeriksaan ini ke riwayat lab.',
+                timer: 2500,
+                showConfirmButton: false
+            });
         });
         // Add selected Konsultasi to billingData
         $('#select-konsultasi').on('select2:select', function(e) {
@@ -1050,6 +1087,13 @@ $('#saveAllChangesBtn').on('click', function() {
             updateTable();
             calculateTotals();
             $(this).val(null).trigger('change');
+            Swal.fire({
+                icon: 'info',
+                title: 'Perhatian',
+                text: 'Harap informasikan farmasi untuk menambah produk/obat ini ke riwayat farmasi.',
+                timer: 2500,
+                showConfirmButton: false
+            });
         });
         
         // Initial calculation of totals
