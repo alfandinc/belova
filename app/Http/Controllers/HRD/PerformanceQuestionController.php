@@ -34,6 +34,29 @@ class PerformanceQuestionController extends Controller
         return response()->json($categories);
     }
     
+    /**
+     * Get all questions with their categories for the modal display
+     */
+    public function getAllQuestions()
+    {
+        $questions = PerformanceQuestion::with('category')
+            ->select(
+                'performance_questions.id',
+                'performance_questions.question_text',
+                'performance_questions.evaluation_type',
+                'performance_questions.is_active',
+                'performance_questions.category_id',
+                'performance_question_categories.name as category_name',
+                'performance_question_categories.description as category_description'
+            )
+            ->join('performance_question_categories', 'performance_question_categories.id', '=', 'performance_questions.category_id')
+            ->orderBy('performance_question_categories.name')
+            ->orderBy('performance_questions.evaluation_type')
+            ->get();
+        
+        return response()->json($questions);
+    }
+    
     public function getCategories(Request $request)
     {
         $categories = PerformanceQuestionCategory::select(['id', 'name', 'description', 'is_active']);

@@ -478,6 +478,7 @@ Route::prefix('hrd')->group(
             // Questions AJAX routes
             Route::get('/questions/data', [PerformanceQuestionController::class, 'getQuestions'])->name('questions.data');
             Route::get('/questions/grouped', [PerformanceQuestionController::class, 'getGroupedQuestions'])->name('questions.grouped');
+            Route::get('/questions/all', [PerformanceQuestionController::class, 'getAllQuestions'])->name('questions.getAll');
             Route::get('/questions/{id}', [PerformanceQuestionController::class, 'getQuestionById'])->name('questions.get');
             Route::post('/questions', [PerformanceQuestionController::class, 'storeQuestion'])->name('questions.store');
             Route::put('/questions/{id}', [PerformanceQuestionController::class, 'updateQuestion'])->name('questions.update');

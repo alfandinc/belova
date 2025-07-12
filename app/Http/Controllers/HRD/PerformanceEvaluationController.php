@@ -19,14 +19,98 @@ class PerformanceEvaluationController extends Controller
 {
     public function index(Request $request)
     {
-        $periods = PerformanceEvaluationPeriod::orderBy('created_at', 'desc')->paginate(10);
-        
         if ($request->ajax()) {
-            // Return the full rendered view for AJAX requests
-            return view('hrd.performance.periods.index', compact('periods'))->render();
+            if ($request->has('draw')) {
+                // This is a DataTables request
+                $query = PerformanceEvaluationPeriod::query();
+                
+                // Total records count
+                $totalRecords = $query->count();
+                
+                // Apply search
+                if ($request->has('search') && !empty($request->search['value'])) {
+                    $searchValue = $request->search['value'];
+                    $query->where(function ($q) use ($searchValue) {
+                        $q->where('name', 'like', "%{$searchValue}%")
+                          ->orWhere('status', 'like', "%{$searchValue}%");
+                    });
+                }
+                
+                // Total records after filtering
+                $totalRecordsFiltered = $query->count();
+                
+                // Apply ordering
+                if ($request->has('order')) {
+                    $columns = ['name', 'start_date', 'end_date', 'status', null];
+                    $orderColumn = $request->order[0]['column'];
+                    $orderDir = $request->order[0]['dir'];
+                    
+                    if (isset($columns[$orderColumn]) && $columns[$orderColumn] !== null) {
+                        $query->orderBy($columns[$orderColumn], $orderDir);
+                    }
+                } else {
+                    $query->orderBy('created_at', 'desc');
+                }
+                
+                // Apply pagination
+                if ($request->has('start') && $request->has('length')) {
+                    $query->skip($request->start)->take($request->length);
+                }
+                
+                $periods = $query->get();
+                
+                $data = [];
+                foreach ($periods as $period) {
+                    $actions = '<a href="' . route('hrd.performance.periods.show', $period) . '" class="btn btn-sm btn-info">
+                                    <i class="fa fa-eye"></i> Details
+                                </a>';
+                    
+                    if ($period->status == 'pending') {
+                        $actions .= ' <button type="button" class="btn btn-sm btn-primary edit-period" 
+                                        data-id="' . $period->id . '"
+                                        data-name="' . $period->name . '"
+                                        data-start="' . $period->start_date->format('Y-m-d') . '"
+                                        data-end="' . $period->end_date->format('Y-m-d') . '"
+                                        data-status="' . $period->status . '"
+                                        data-toggle="modal" data-target="#editPeriodModal">
+                                        <i class="fa fa-edit"></i> Edit
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-success btn-initiate" data-id="' . $period->id . '">
+                                        <i class="fa fa-play"></i> Initiate
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-danger btn-delete" data-id="' . $period->id . '">
+                                        <i class="fa fa-trash"></i> Delete
+                                    </button>';
+                    }
+                    
+                    $status = '<span class="badge badge-' . ($period->status == 'pending' ? 'warning' : ($period->status == 'active' ? 'primary' : 'success')) . '">
+                                ' . ucfirst($period->status) . '
+                               </span>';
+                    
+                    $data[] = [
+                        $period->name,
+                        $period->start_date->format('d M Y'),
+                        $period->end_date->format('d M Y'),
+                        $status,
+                        $actions
+                    ];
+                }
+                
+                return response()->json([
+                    'draw' => intval($request->draw),
+                    'recordsTotal' => $totalRecords,
+                    'recordsFiltered' => $totalRecordsFiltered,
+                    'data' => $data
+                ]);
+            } else {
+                // Return the full rendered view for other AJAX requests (backward compatibility)
+                $periods = PerformanceEvaluationPeriod::orderBy('created_at', 'desc')->paginate(10);
+                return view('hrd.performance.periods.index', compact('periods'))->render();
+            }
         }
         
-        return view('hrd.performance.periods.index', compact('periods'));
+        // Initial page load
+        return view('hrd.performance.periods.index');
     }
 
     public function create()

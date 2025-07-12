@@ -90,11 +90,15 @@
                             <input type="hidden" name="start_date" value="{{ $period->start_date->format('Y-m-d') }}">
                             <input type="hidden" name="end_date" value="{{ $period->end_date->format('Y-m-d') }}">
                             <input type="hidden" name="status" value="completed">
-                            <button type="button" id="markCompleteBtn" class="btn btn-success btn-block">
+                            <button type="button" id="markCompleteBtn" class="btn btn-success btn-block mb-2">
                                 <i class="fa fa-check-circle"></i> Mark as Completed
                             </button>
                         </form>
                     @endif
+                    
+                    <button type="button" id="showQuestionsBtn" class="btn btn-primary btn-block">
+                        <i class="fa fa-question-circle"></i> Detail Pertanyaan
+                    </button>
                 </div>
             </div>
         </div>
@@ -105,7 +109,7 @@
             <h5>Evaluation Assignments</h5>
         </div>
         <div class="card-body">
-            <table class="table table-bordered table-striped">
+            <table class="table table-bordered table-striped" id="evaluationsTable">
                 <thead>
                     <tr>
                         <th>Evaluator</th>
@@ -156,11 +160,58 @@
         </div>
     </div>
 </div>
+
+<!-- Questions Modal -->
+<div class="modal fade" id="questionsModal" tabindex="-1" role="dialog" aria-labelledby="questionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="questionsModalLabel">Detail Pertanyaan Evaluasi</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4" id="loadingQuestions">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading questions...</p>
+                </div>
+                <div id="questionsContainer" style="display: none;">
+                    <!-- Questions will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
 <script>
     $(document).ready(function() {
+        // Initialize DataTable
+        $('#evaluationsTable').DataTable({
+            responsive: true,
+            pageLength: 25,
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                infoEmpty: "Showing 0 to 0 of 0 entries",
+                infoFiltered: "(filtered from _MAX_ total entries)",
+                emptyTable: "No evaluations found."
+            },
+            columnDefs: [
+                { className: "align-middle", targets: '_all' },
+                { className: "text-center", targets: [2, 3] }
+            ]
+        });
+
+        // Mark as completed button handler
         $('#markCompleteBtn').on('click', function() {
             Swal.fire({
                 title: 'Are you sure?',
@@ -177,6 +228,141 @@
                 }
             });
         });
+        
+        // Show Questions button handler
+        $('#showQuestionsBtn').on('click', function() {
+            // Show modal with loading indicator
+            $('#questionsModal').modal('show');
+            $('#loadingQuestions').show();
+            $('#questionsContainer').hide();
+            
+            // Load questions via AJAX
+            $.ajax({
+                url: "{{ route('hrd.performance.questions.getAll') }}",
+                method: "GET",
+                success: function(response) {
+                    // Process and display questions
+                    displayQuestions(response);
+                },
+                error: function(xhr) {
+                    // Handle error
+                    $('#loadingQuestions').hide();
+                    $('#questionsContainer').html('<div class="alert alert-danger">Failed to load questions. Please try again.</div>').show();
+                }
+            });
+        });
+        
+        // Function to display questions grouped by category
+        function displayQuestions(data) {
+            if (!data || data.length === 0) {
+                $('#loadingQuestions').hide();
+                $('#questionsContainer').html('<div class="alert alert-info">No questions found for this evaluation period.</div>').show();
+                return;
+            }
+            
+            // Group questions by category
+            var questionsByCategory = {};
+            
+            // First pass: collect all categories
+            data.forEach(function(question) {
+                if (!questionsByCategory[question.category_name]) {
+                    questionsByCategory[question.category_name] = {
+                        id: question.category_id,
+                        name: question.category_name,
+                        description: question.category_description || '',
+                        questions: []
+                    };
+                }
+                
+                // Add question to its category
+                questionsByCategory[question.category_name].questions.push({
+                    id: question.id,
+                    text: question.question_text,
+                    evaluationType: question.evaluation_type,
+                    isActive: question.is_active
+                });
+            });
+            
+            // Build HTML for categories and questions
+            var html = '<div class="accordion" id="questionsAccordion">';
+            
+            // For each category
+            var categoryIndex = 0;
+            for (var categoryName in questionsByCategory) {
+                var category = questionsByCategory[categoryName];
+                var categoryId = 'category-' + category.id;
+                var headingId = 'heading-' + category.id;
+                var collapseId = 'collapse-' + category.id;
+                
+                html += '<div class="card mb-2">';
+                html += '  <div class="card-header" id="' + headingId + '">';
+                html += '    <h5 class="mb-0">';
+                html += '      <button class="btn btn-link' + (categoryIndex === 0 ? '' : ' collapsed') + '" type="button" data-toggle="collapse" data-target="#' + collapseId + '" aria-expanded="' + (categoryIndex === 0 ? 'true' : 'false') + '" aria-controls="' + collapseId + '">';
+                html += '        ' + category.name + ' (' + category.questions.length + ' pertanyaan)';
+                html += '      </button>';
+                html += '    </h5>';
+                html += '  </div>';
+                
+                html += '  <div id="' + collapseId + '" class="collapse' + (categoryIndex === 0 ? ' show' : '') + '" aria-labelledby="' + headingId + '" data-parent="#questionsAccordion">';
+                html += '    <div class="card-body">';
+                
+                if (category.description) {
+                    html += '    <p class="text-muted">' + category.description + '</p>';
+                }
+                
+                // Add table of questions for this category
+                html += '    <table class="table table-sm">';
+                html += '      <thead>';
+                html += '        <tr>';
+                html += '          <th>#</th>';
+                html += '          <th>Question</th>';
+                html += '          <th>Type</th>';
+                html += '          <th>Status</th>';
+                html += '        </tr>';
+                html += '      </thead>';
+                html += '      <tbody>';
+                
+                // Add each question row
+                category.questions.forEach(function(question, index) {
+                    html += '    <tr>';
+                    html += '      <td>' + (index + 1) + '</td>';
+                    html += '      <td>' + question.text + '</td>';
+                    html += '      <td>' + formatEvaluationType(question.evaluationType) + '</td>';
+                    html += '      <td>' + (question.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-secondary">Inactive</span>') + '</td>';
+                    html += '    </tr>';
+                });
+                
+                html += '      </tbody>';
+                html += '    </table>';
+                html += '    </div>';
+                html += '  </div>';
+                html += '</div>';
+                
+                categoryIndex++;
+            }
+            
+            html += '</div>';
+            
+            // Update the container
+            $('#loadingQuestions').hide();
+            $('#questionsContainer').html(html).show();
+        }
+        
+        // Helper function to format evaluation type
+        function formatEvaluationType(type) {
+            switch(type) {
+                case 'hrd_to_manager':
+                    return 'HRD to Manager';
+                case 'manager_to_employee':
+                    return 'Manager to Employee';
+                case 'employee_to_manager':
+                    return 'Employee to Manager';
+                case 'manager_to_hrd':
+                    return 'Manager to HRD';
+                default:
+                    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            }
+        }
     });
 </script>
 @endsection
