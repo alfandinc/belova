@@ -9,7 +9,7 @@ class PerformanceQuestion extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['question_text', 'category_id', 'evaluation_type', 'is_active'];
+    protected $fillable = ['question_text', 'category_id', 'question_type', 'evaluation_type', 'is_active'];
 
     public function category()
     {

@@ -44,6 +44,7 @@ class PerformanceQuestionController extends Controller
                 'performance_questions.id',
                 'performance_questions.question_text',
                 'performance_questions.evaluation_type',
+                'performance_questions.question_type',
                 'performance_questions.is_active',
                 'performance_questions.category_id',
                 'performance_question_categories.name as category_name',
@@ -102,6 +103,9 @@ class PerformanceQuestionController extends Controller
                     'manager_to_hrd' => 'Manager to HRD'
                 ];
                 return $types[$question->evaluation_type] ?? 'Unknown';
+            })
+            ->addColumn('question_type_display', function ($question) {
+                return ucfirst($question->question_type);
             })
             ->rawColumns(['action', 'status'])
             ->make(true);
@@ -192,6 +196,7 @@ class PerformanceQuestionController extends Controller
         $validated = $request->validate([
             'question_text' => 'required|string',
             'category_id' => 'required|exists:performance_question_categories,id',
+            'question_type' => 'required|in:score,text',
             'evaluation_type' => 'required|in:hrd_to_manager,manager_to_employee,employee_to_manager,manager_to_hrd',
             'is_active' => 'boolean'
         ]);
@@ -212,6 +217,7 @@ class PerformanceQuestionController extends Controller
         $validated = $request->validate([
             'question_text' => 'required|string',
             'category_id' => 'required|exists:performance_question_categories,id',
+            'question_type' => 'required|in:score,text',
             'evaluation_type' => 'required|in:hrd_to_manager,manager_to_employee,employee_to_manager,manager_to_hrd',
             'is_active' => 'boolean'
         ]);

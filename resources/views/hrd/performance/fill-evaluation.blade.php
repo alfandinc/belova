@@ -39,7 +39,7 @@
                             <thead>
                                 <tr>
                                     <th width="60%">Question</th>
-                                    <th width="20%">Score (1-5)</th>
+                                    <th width="20%">Response</th>
                                     <th width="20%">Comment (Optional)</th>
                                 </tr>
                             </thead>
@@ -49,19 +49,28 @@
                                         <td>{{ $question->question_text }}</td>
                                         <td>
                                             <div class="form-group mb-0">
-                                                <select name="scores[{{ $question->id }}]" class="form-control @error('scores.'.$question->id) is-invalid @enderror" required>
-                                                    <option value="">Select score</option>
-                                                    <option value="1">1 - Poor</option>
-                                                    <option value="2">2 - Below Average</option>
-                                                    <option value="3">3 - Average</option>
-                                                    <option value="4">4 - Good</option>
-                                                    <option value="5">5 - Excellent</option>
-                                                </select>
-                                                @error('scores.'.$question->id)
-                                                    <span class="invalid-feedback" role="alert">
-                                                        <strong>{{ $message }}</strong>
-                                                    </span>
-                                                @enderror
+                                                @if($question->question_type == 'score')
+                                                    <select name="scores[{{ $question->id }}]" class="form-control @error('scores.'.$question->id) is-invalid @enderror" required>
+                                                        <option value="">Select score</option>
+                                                        <option value="1">1 - Poor</option>
+                                                        <option value="2">2 - Below Average</option>
+                                                        <option value="3">3 - Average</option>
+                                                        <option value="4">4 - Good</option>
+                                                        <option value="5">5 - Excellent</option>
+                                                    </select>
+                                                    @error('scores.'.$question->id)
+                                                        <span class="invalid-feedback" role="alert">
+                                                            <strong>{{ $message }}</strong>
+                                                        </span>
+                                                    @enderror
+                                                @else
+                                                    <textarea name="text_answers[{{ $question->id }}]" class="form-control @error('text_answers.'.$question->id) is-invalid @enderror" rows="3" required placeholder="Enter your answer"></textarea>
+                                                    @error('text_answers.'.$question->id)
+                                                        <span class="invalid-feedback" role="alert">
+                                                            <strong>{{ $message }}</strong>
+                                                        </span>
+                                                    @enderror
+                                                @endif
                                             </div>
                                         </td>
                                         <td>

@@ -9,7 +9,7 @@ class PerformanceScore extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['evaluation_id', 'question_id', 'score', 'comment'];
+    protected $fillable = ['evaluation_id', 'question_id', 'score', 'text_answer', 'comment'];
 
     public function evaluation()
     {

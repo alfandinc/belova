@@ -279,6 +279,7 @@
                     id: question.id,
                     text: question.question_text,
                     evaluationType: question.evaluation_type,
+                    questionType: question.question_type || 'score',
                     isActive: question.is_active
                 });
             });
@@ -316,7 +317,8 @@
                 html += '        <tr>';
                 html += '          <th>#</th>';
                 html += '          <th>Question</th>';
-                html += '          <th>Type</th>';
+                html += '          <th>Evaluation Type</th>';
+                html += '          <th>Question Type</th>';
                 html += '          <th>Status</th>';
                 html += '        </tr>';
                 html += '      </thead>';
@@ -328,6 +330,7 @@
                     html += '      <td>' + (index + 1) + '</td>';
                     html += '      <td>' + question.text + '</td>';
                     html += '      <td>' + formatEvaluationType(question.evaluationType) + '</td>';
+                    html += '      <td>' + (question.questionType === 'score' ? 'Score (1-5)' : 'Text Answer') + '</td>';
                     html += '      <td>' + (question.isActive ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-secondary">Inactive</span>') + '</td>';
                     html += '    </tr>';
                 });

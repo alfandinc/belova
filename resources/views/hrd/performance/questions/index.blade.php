@@ -141,6 +141,14 @@
                         <div class="invalid-feedback" id="category_id-error"></div>
                     </div>
                     <div class="form-group">
+                        <label for="question_type">Question Type <span class="text-danger">*</span></label>
+                        <select class="form-control" id="question_type" name="question_type" required>
+                            <option value="score">Score (1-5)</option>
+                            <option value="text">Text Answer</option>
+                        </select>
+                        <div class="invalid-feedback" id="question_type-error"></div>
+                    </div>
+                    <div class="form-group">
                         <label for="evaluation_type">Evaluation Type <span class="text-danger">*</span></label>
                         <select class="form-control" id="evaluation_type" name="evaluation_type" required>
                             <option value="">Select Type</option>
@@ -253,8 +261,9 @@
                                     <table class="table table-bordered" id="category-${category.id}-table">
                                         <thead>
                                             <tr>
-                                                <th width="50%">Question</th>
+                                                <th width="40%">Question</th>
                                                 <th>Evaluation Type</th>
+                                                <th>Question Type</th>
                                                 <th>Status</th>
                                                 <th>Actions</th>
                                             </tr>
@@ -276,10 +285,15 @@
                                         '<span class="badge badge-success">Active</span>' : 
                                         '<span class="badge badge-secondary">Inactive</span>';
                                         
+                                    var questionType = question.question_type ? 
+                                        (question.question_type === 'score' ? 'Score (1-5)' : 'Text Answer') : 
+                                        'Score (1-5)';
+
                                     html += `
                                         <tr>
                                             <td>${question.question_text}</td>
                                             <td>${evaluationType}</td>
+                                            <td>${questionType}</td>
                                             <td>${status}</td>
                                             <td>
                                                 <button data-id="${question.id}" class="edit-question btn btn-sm btn-primary">
@@ -292,7 +306,7 @@
                                         </tr>`;
                                 });
                             } else {
-                                html += '<tr><td colspan="4" class="text-center">No questions in this category.</td></tr>';
+                                html += '<tr><td colspan="5" class="text-center">No questions in this category.</td></tr>';
                             }
                             
                             html += `
@@ -542,8 +556,9 @@
                         // Load categories with the selected ID
                         loadCategories(response.category_id);
                         
-                        // Set evaluation type and active status
+                        // Set evaluation type, question type and active status
                         $('#evaluation_type').val(response.evaluation_type).trigger('change');
+                        $('#question_type').val(response.question_type || 'score').trigger('change');
                         $('#question_is_active').prop('checked', response.is_active == 1);
                         
                         console.log('Question data loaded and dropdowns initialized');
@@ -565,6 +580,7 @@
             var formData = {
                 question_text: $('#question_text').val(),
                 category_id: $('#category_id').val(),
+                question_type: $('#question_type').val(),
                 evaluation_type: $('#evaluation_type').val(),
                 is_active: $('#question_is_active').is(':checked') ? 1 : 0
             };

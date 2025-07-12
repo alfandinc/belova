@@ -25,16 +25,21 @@
                 <div class="col-md-6">
                     <div class="card">
                         <div class="card-body text-center">
-                            <h3 class="mb-0">{{ number_format($overallAverage, 2) }} / 5.00</h3>
-                            <p class="text-muted">Overall Average Score</p>
-                            <div class="progress mt-3">
-                                <div class="progress-bar bg-{{ $overallAverage >= 4 ? 'success' : ($overallAverage >= 3 ? 'info' : ($overallAverage >= 2 ? 'warning' : 'danger')) }}" 
-                                     role="progressbar" 
-                                     style="width: {{ ($overallAverage / 5) * 100 }}%" 
-                                     aria-valuenow="{{ $overallAverage }}" 
-                                     aria-valuemin="0" 
-                                     aria-valuemax="5"></div>
-                            </div>
+                            @if($overallAverage !== null)
+                                <h3 class="mb-0">{{ number_format($overallAverage, 2) }} / 5.00</h3>
+                                <p class="text-muted">Overall Average Score</p>
+                                <div class="progress mt-3">
+                                    <div class="progress-bar bg-{{ $overallAverage >= 4 ? 'success' : ($overallAverage >= 3 ? 'info' : ($overallAverage >= 2 ? 'warning' : 'danger')) }}" 
+                                        role="progressbar" 
+                                        style="width: {{ ($overallAverage / 5) * 100 }}%" 
+                                        aria-valuenow="{{ $overallAverage }}" 
+                                        aria-valuemin="0" 
+                                        aria-valuemax="5"></div>
+                                </div>
+                            @else
+                                <h3 class="mb-0">N/A</h3>
+                                <p class="text-muted">No score-based questions</p>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -46,9 +51,13 @@
                                 @foreach($categoryResults as $category)
                                 <li class="list-group-item d-flex justify-content-between align-items-center">
                                     {{ $category['name'] }}
+                                    @if($category['average'] !== null)
                                     <span class="badge badge-{{ $category['average'] >= 4 ? 'success' : ($category['average'] >= 3 ? 'info' : ($category['average'] >= 2 ? 'warning' : 'danger')) }} badge-pill">
                                         {{ number_format($category['average'], 2) }}
                                     </span>
+                                    @else
+                                    <span class="badge badge-secondary badge-pill">Text Only</span>
+                                    @endif
                                 </li>
                                 @endforeach
                             </ul>
@@ -63,16 +72,20 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">{{ $category['name'] }}</h5>
+                @if($category['average'] !== null)
                 <span class="badge badge-{{ $category['average'] >= 4 ? 'success' : ($category['average'] >= 3 ? 'info' : ($category['average'] >= 2 ? 'warning' : 'danger')) }} badge-pill">
                     {{ number_format($category['average'], 2) }}
                 </span>
+                @else
+                <span class="badge badge-secondary badge-pill">Text Only</span>
+                @endif
             </div>
             <div class="card-body">
                 <table class="table table-striped">
                     <thead>
                         <tr>
                             <th>Question</th>
-                            <th width="100">Score</th>
+                            <th width="100">Response</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -80,6 +93,18 @@
                             <tr>
                                 <td>
                                     {{ $question['question'] }}
+                                    
+                                    @if($question['question_type'] == 'text' && !empty($question['text_answers']))
+                                        <div class="mt-2">
+                                            <strong>Answers:</strong>
+                                            <ul class="pl-3 mb-0">
+                                                @foreach($question['text_answers'] as $answer)
+                                                    <li>{{ $answer }}</li>
+                                                @endforeach
+                                            </ul>
+                                        </div>
+                                    @endif
+                                    
                                     @if(!empty($question['comments']))
                                         <div class="mt-2">
                                             <strong>Comments:</strong>
@@ -92,9 +117,13 @@
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge badge-{{ $question['average_score'] >= 4 ? 'success' : ($question['average_score'] >= 3 ? 'info' : ($question['average_score'] >= 2 ? 'warning' : 'danger')) }} badge-pill">
-                                        {{ number_format($question['average_score'], 1) }}
-                                    </span>
+                                    @if($question['question_type'] == 'score')
+                                        <span class="badge badge-{{ $question['average_score'] >= 4 ? 'success' : ($question['average_score'] >= 3 ? 'info' : ($question['average_score'] >= 2 ? 'warning' : 'danger')) }} badge-pill">
+                                            {{ number_format($question['average_score'], 1) }}
+                                        </span>
+                                    @else
+                                        <span class="badge badge-secondary">Text</span>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach

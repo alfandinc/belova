@@ -487,21 +487,48 @@ class PerformanceEvaluationController extends Controller
         $categoryResults = [];
         foreach ($categoryScores as $category => $catScores) {
             $questionScores = $catScores->groupBy('question_id')->map(function ($item) {
-                return [
-                    'question' => $item->first()->question->question_text,
-                    'average_score' => round($item->avg('score'), 2),
-                    'comments' => $item->pluck('comment')->filter()->values()->all()
-                ];
+                $firstItem = $item->first();
+                $question = $firstItem->question;
+                
+                if ($question->question_type === 'score') {
+                    return [
+                        'question' => $question->question_text,
+                        'question_type' => 'score',
+                        'average_score' => round($item->avg('score'), 2),
+                        'comments' => $item->pluck('comment')->filter()->values()->all()
+                    ];
+                } else {
+                    return [
+                        'question' => $question->question_text,
+                        'question_type' => 'text',
+                        'text_answers' => $item->pluck('text_answer')->filter()->values()->all(),
+                        'comments' => $item->pluck('comment')->filter()->values()->all()
+                    ];
+                }
             });
+            
+            // Only calculate average for categories with score-type questions
+            $scoreTypeQuestions = $catScores->filter(function ($score) {
+                return $score->question->question_type === 'score';
+            });
+            
+            $categoryAverage = $scoreTypeQuestions->isEmpty() ? 
+                null : round($scoreTypeQuestions->avg('score'), 2);
 
             $categoryResults[] = [
                 'name' => $category,
-                'average' => round($catScores->avg('score'), 2),
+                'average' => $categoryAverage,
                 'questions' => $questionScores
             ];
         }
 
-        $overallAverage = round($scores->avg('score'), 2);
+        // Only calculate overall average for score-type questions
+        $scoreTypeScores = $scores->filter(function ($score) {
+            return $score->question->question_type === 'score';
+        });
+        
+        $overallAverage = $scoreTypeScores->isEmpty() ? 
+            null : round($scoreTypeScores->avg('score'), 2);
 
         return view('hrd.performance.results.employee', compact('period', 'employee', 'categoryResults', 'overallAverage'));
     }
@@ -511,7 +538,8 @@ class PerformanceEvaluationController extends Controller
     {
         // Validate the request
         $request->validate([
-            'scores.*' => 'required|integer|min:1|max:5',
+            'scores.*' => 'nullable|integer|min:1|max:5',
+            'text_answers.*' => 'nullable|string|max:1000',
             'comments.*' => 'nullable|string|max:500',
         ]);
 
@@ -547,13 +575,39 @@ class PerformanceEvaluationController extends Controller
         DB::beginTransaction();
 
         try {
-            // Save scores and comments
-            foreach ($request->scores as $questionId => $score) {
+            // Get all questions being evaluated
+            $questionIds = array_unique(
+                array_merge(
+                    array_keys($request->scores ?? []), 
+                    array_keys($request->text_answers ?? [])
+                )
+            );
+            
+            // Save scores, text answers, and comments
+            foreach ($questionIds as $questionId) {
+                $question = PerformanceQuestion::find($questionId);
+                if (!$question) continue;
+                
+                $score = null;
+                $textAnswer = null;
                 $comment = $request->comments[$questionId] ?? null;
+                
+                if ($question->question_type === 'score') {
+                    $score = $request->scores[$questionId] ?? null;
+                    if ($score === null) {
+                        throw new \Exception("Score is required for question ID {$questionId}");
+                    }
+                } else {
+                    $textAnswer = $request->text_answers[$questionId] ?? null;
+                    if ($textAnswer === null || trim($textAnswer) === '') {
+                        throw new \Exception("Text answer is required for question ID {$questionId}");
+                    }
+                }
                 
                 $evaluation->scores()->create([
                     'question_id' => $questionId,
                     'score' => $score,
+                    'text_answer' => $textAnswer,
                     'comment' => $comment
                 ]);
             }
