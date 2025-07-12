@@ -493,6 +493,8 @@ Route::prefix('hrd')->group(
 );
 
 Route::prefix('marketing')->group(function () {
+    // AJAX search for SOPs
+    Route::get('/sop/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchSop']);
 
     Route::get('/revenue', [MarketingController::class, 'revenue'])->name('marketing.revenue');
     Route::get('/patients', [MarketingController::class, 'patients'])->name('marketing.patients');
@@ -507,6 +509,10 @@ Route::prefix('marketing')->group(function () {
     Route::post('/tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'store'])->name('marketing.tindakan.store');
     Route::get('/tindakan/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'getTindakan']);
     Route::delete('/tindakan/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'destroy']);
+
+    // SOP Tindakan endpoints for modal
+    Route::get('/tindakan/{id}/sop', [App\Http\Controllers\Marketing\TindakanController::class, 'getSopTindakan']);
+    Route::post('/tindakan/{id}/sop', [App\Http\Controllers\Marketing\TindakanController::class, 'updateSopTindakan']);
     
     // Get list of specialists (for dropdown)
     Route::get('/spesialisasi/list', [App\Http\Controllers\Marketing\TindakanController::class, 'getSpesialisasiList'])->name('marketing.spesialisasi.list');

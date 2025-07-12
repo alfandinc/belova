@@ -57,6 +57,35 @@
             </div>
         </div>
     </div>
+<!-- Modal for Edit SOP Tindakan -->
+<div class="modal fade" id="editSopTindakanModal" tabindex="-1" role="dialog" aria-labelledby="editSopTindakanModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editSopTindakanModalLabel">Edit SOP Tindakan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="tindakan_id" value="">
+                <div class="form-group">
+                    <label>SOP List (Order with Up/Down, remove with X, add with search)</label>
+                    <ul id="sopSortableList" class="list-group mb-2">
+                        <!-- Assigned SOPs will be loaded here -->
+                    </ul>
+                    <div class="input-group">
+                        <select id="addSopSelect" class="form-control" style="width:100%"></select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveSopTindakanBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
 </div>
 
 <!-- Modal for Create/Edit Tindakan -->
@@ -126,6 +155,149 @@
             width: '100%',
             dropdownParent: $('#tindakanModal')
         });
+
+
+        // Initialize Select2 for add SOP
+        $('#addSopSelect').select2({
+            width: '100%',
+            placeholder: 'Search SOP...',
+            ajax: {
+                url: '/marketing/sop/search',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.map(function(sop) {
+                            return { id: sop.id, text: sop.nama_sop };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 1
+        });
+
+        // Load only assigned SOPs for tindakan
+        $(document).on('click', '.edit-sop-tindakan', function() {
+            var tindakanId = $(this).data('id');
+            $('#editSopTindakanModal').modal('show');
+            $('#editSopTindakanModal input[name="tindakan_id"]').val(tindakanId);
+            $.ajax({
+                url: '/marketing/tindakan/' + tindakanId + '/sop',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    var sopList = $('#sopSortableList');
+                    sopList.empty();
+                    let sopMap = {};
+                    data.all_sop.forEach(sop => sopMap[sop.id] = sop);
+                    data.selected_sop_ids.forEach(function(sopId, idx, arr) {
+                        let sop = sopMap[sopId];
+                        if (sop) {
+                            sopList.append('<li class="list-group-item d-flex align-items-center" data-id="'+sop.id+'">'
+                                +'<span class="sop-order badge badge-secondary mr-2">'+(idx+1)+'</span>'
+                                +'<span>'+sop.nama_sop+'</span>'
+                                +'<div class="ml-auto btn-group btn-group-sm" role="group">'
+                                    +'<button type="button" class="btn btn-light move-up" title="Up">&#8593;</button>'
+                                    +'<button type="button" class="btn btn-light move-down" title="Down">&#8595;</button>'
+                                    +'<button type="button" class="btn btn-danger remove-sop-btn">&times;</button>'
+                                +'</div>'
+                            +'</li>');
+                        }
+                    });
+                }
+            });
+            // Reset select2
+            $('#addSopSelect').val(null).trigger('change');
+        });
+
+        // Add SOP to list when selected from Select2
+        $('#addSopSelect').on('select2:select', function(e) {
+            var sopId = e.params.data.id;
+            var sopText = e.params.data.text;
+            if (!sopId) return;
+            // Prevent duplicate
+            if ($('#sopSortableList li[data-id="'+sopId+'"]')[0]) return;
+            var order = $('#sopSortableList li').length + 1;
+            $('#sopSortableList').append('<li class="list-group-item d-flex align-items-center" data-id="'+sopId+'">'
+                +'<span class="sop-order badge badge-secondary mr-2">'+order+'</span>'
+                +'<span>'+sopText+'</span>'
+                +'<div class="ml-auto btn-group btn-group-sm" role="group">'
+                    +'<button type="button" class="btn btn-light move-up" title="Up">&#8593;</button>'
+                    +'<button type="button" class="btn btn-light move-down" title="Down">&#8595;</button>'
+                    +'<button type="button" class="btn btn-danger remove-sop-btn">&times;</button>'
+                +'</div>'
+            +'</li>');
+            updateSopOrderNumbers();
+            $('#addSopSelect').val(null).trigger('change');
+        });
+        // Move SOP up
+        $(document).on('click', '.move-up', function() {
+            var li = $(this).closest('li');
+            var prev = li.prev('li');
+            if (prev.length) {
+                prev.before(li);
+                updateSopOrderNumbers();
+            }
+        });
+
+        // Move SOP down
+        $(document).on('click', '.move-down', function() {
+            var li = $(this).closest('li');
+            var next = li.next('li');
+            if (next.length) {
+                next.after(li);
+                updateSopOrderNumbers();
+            }
+        });
+
+        // Update order numbers after any change
+        function updateSopOrderNumbers() {
+            $('#sopSortableList li').each(function(idx) {
+                $(this).find('.sop-order').text(idx+1);
+            });
+        }
+
+        // Also update order numbers when removing
+        $(document).on('click', '.remove-sop-btn', function() {
+            $(this).closest('li').remove();
+            updateSopOrderNumbers();
+        });
+
+        // Remove SOP from list
+        $(document).on('click', '.remove-sop-btn', function() {
+            $(this).closest('li').remove();
+        });
+
+        // Save SOPs for tindakan (with order)
+        $('#saveSopTindakanBtn').click(function() {
+            var tindakanId = $('#editSopTindakanModal input[name="tindakan_id"]').val();
+            var sopIds = [];
+            $('#sopSortableList li').each(function() {
+                sopIds.push($(this).attr('data-id'));
+            });
+            $.ajax({
+                url: '/marketing/tindakan/' + tindakanId + '/sop',
+                type: 'POST',
+                data: {
+                    sop_ids: sopIds,
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(response) {
+                    $('#editSopTindakanModal').modal('hide');
+                    Swal.fire({ icon: 'success', title: 'Success', text: response.message });
+                    table.ajax.reload();
+                },
+                error: function(xhr) {
+                    showError(xhr.responseJSON.message);
+                }
+            });
+        });
+        // jQuery UI Sortable CSS (for highlight)
+        $('<style>.ui-state-highlight{height:2.5em;line-height:1.2em;background:#f0f0f0;border:1px dashed #ccc;}</style>').appendTo('head');
         
         // Load specialists on page load
         loadSpesialisasi();

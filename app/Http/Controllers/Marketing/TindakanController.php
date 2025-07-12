@@ -36,6 +36,9 @@ class TindakanController extends Controller
                     <button type="button" class="btn btn-primary btn-sm edit-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-edit"></i> Edit
                     </button>
+                    <button type="button" class="btn btn-warning btn-sm edit-sop-tindakan" data-id="'.$row->id.'">
+                        <i class="fas fa-cogs"></i> Edit SOP Tindakan
+                    </button>
                     <button type="button" class="btn btn-danger btn-sm delete-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-trash"></i> Delete
                     </button>
@@ -43,6 +46,92 @@ class TindakanController extends Controller
             })
             ->rawColumns(['action'])
             ->make(true);
+    }
+
+        /**
+     * AJAX search for SOPs (for Select2)
+     */
+    public function searchSop(Request $request)
+    {
+        $q = $request->input('q');
+        $sopQuery = \App\Models\ERM\Sop::query();
+        if ($q) {
+            $sopQuery->where('nama_sop', 'like', "%".$q."%");
+        }
+        $sops = $sopQuery->orderBy('nama_sop')->limit(20)->get(['id', 'nama_sop']);
+        $results = $sops->map(function($sop) {
+            return [
+                'id' => $sop->id,
+                'nama_sop' => $sop->nama_sop
+            ];
+        });
+        return response()->json($results);
+    }
+
+    /**
+     * Get all SOPs and selected SOPs for a tindakan (for modal select2)
+     */
+    public function getSopTindakan($id)
+    {
+        $tindakan = Tindakan::with(['sop' => function($q) { $q->orderBy('urutan'); }])->findOrFail($id);
+        $orderedSops = $tindakan->sop;
+        $allSop = \App\Models\ERM\Sop::all(['id', 'nama_sop']);
+        $selectedSopIds = $orderedSops->pluck('id')->toArray();
+        return response()->json([
+            'all_sop' => $allSop,
+            'selected_sop_ids' => $selectedSopIds
+        ]);
+    }
+
+    /**
+     * Update SOPs for a tindakan (from modal select2)
+     */
+    public function updateSopTindakan(Request $request, $id)
+    {
+        $tindakan = Tindakan::findOrFail($id);
+        $sopIds = $request->input('sop_ids', []);
+        $currentSops = $tindakan->sop;
+        $toDelete = $currentSops->whereNotIn('id', $sopIds);
+        $notDeleted = [];
+        foreach ($toDelete as $sop) {
+            $isReferenced = \DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
+            if ($isReferenced) {
+                $notDeleted[] = $sop->nama_sop;
+                continue;
+            }
+            $sop->delete();
+        }
+        // Add new SOPs (clone from master SOP if not already present)
+        $existingIds = $currentSops->pluck('id')->toArray();
+        foreach ($sopIds as $idx => $sopId) {
+            if (!in_array($sopId, $existingIds)) {
+                $sop = \App\Models\ERM\Sop::find($sopId);
+                if ($sop) {
+                    $tindakan->sop()->create([
+                        'nama_sop' => $sop->nama_sop,
+                        'deskripsi' => $sop->deskripsi,
+                        'urutan' => $idx + 1
+                    ]);
+                }
+            }
+        }
+        // Update urutan for all assigned SOPs (including existing)
+        $assignedSops = $tindakan->sop()->whereIn('id', $sopIds)->get();
+        foreach ($sopIds as $idx => $sopId) {
+            $sop = $assignedSops->where('id', $sopId)->first();
+            if ($sop) {
+                $sop->urutan = $idx + 1;
+                $sop->save();
+            }
+        }
+        $msg = 'SOP tindakan updated successfully.';
+        if (count($notDeleted)) {
+            $msg .= ' Some SOPs were not deleted because they are in use: ' . implode(', ', $notDeleted);
+        }
+        return response()->json([
+            'success' => true,
+            'message' => $msg
+        ]);
     }
 
     /**
