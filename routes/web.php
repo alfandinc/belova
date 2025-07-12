@@ -464,20 +464,24 @@ Route::prefix('hrd')->group(
             Route::delete('/periods/{period}', [PerformanceEvaluationController::class, 'destroy'])->name('periods.destroy');
             Route::post('/periods/{period}/initiate', [PerformanceEvaluationController::class, 'initiate'])->name('periods.initiate');
 
-            // Question Categories
+            // Questions & Categories with AJAX
             Route::get('/questions', [PerformanceQuestionController::class, 'index'])->name('questions.index');
-            Route::get('/questions/categories/create', [PerformanceQuestionController::class, 'createCategory'])->name('categories.create');
+            
+            // Categories AJAX routes
+            Route::get('/questions/categories/data', [PerformanceQuestionController::class, 'getCategories'])->name('categories.data');
+            Route::get('/questions/categories/active', [PerformanceQuestionController::class, 'getActiveCategories'])->name('categories.active');
+            Route::get('/questions/categories/{id}', [PerformanceQuestionController::class, 'getCategoryById'])->name('categories.get');
             Route::post('/questions/categories', [PerformanceQuestionController::class, 'storeCategory'])->name('categories.store');
-            Route::get('/questions/categories/{category}/edit', [PerformanceQuestionController::class, 'editCategory'])->name('categories.edit');
-            Route::put('/questions/categories/{category}', [PerformanceQuestionController::class, 'updateCategory'])->name('categories.update');
-            Route::delete('/questions/categories/{category}', [PerformanceQuestionController::class, 'destroyCategory'])->name('categories.destroy');
-
-            // Questions
-            Route::get('/questions/create', [PerformanceQuestionController::class, 'createQuestion'])->name('questions.create');
+            Route::put('/questions/categories/{id}', [PerformanceQuestionController::class, 'updateCategory'])->name('categories.update');
+            Route::delete('/questions/categories/{id}', [PerformanceQuestionController::class, 'destroyCategory'])->name('categories.destroy');
+            
+            // Questions AJAX routes
+            Route::get('/questions/data', [PerformanceQuestionController::class, 'getQuestions'])->name('questions.data');
+            Route::get('/questions/grouped', [PerformanceQuestionController::class, 'getGroupedQuestions'])->name('questions.grouped');
+            Route::get('/questions/{id}', [PerformanceQuestionController::class, 'getQuestionById'])->name('questions.get');
             Route::post('/questions', [PerformanceQuestionController::class, 'storeQuestion'])->name('questions.store');
-            Route::get('/questions/{question}/edit', [PerformanceQuestionController::class, 'editQuestion'])->name('questions.edit');
-            Route::put('/questions/{question}', [PerformanceQuestionController::class, 'updateQuestion'])->name('questions.update');
-            Route::delete('/questions/{question}', [PerformanceQuestionController::class, 'destroyQuestion'])->name('questions.destroy');
+            Route::put('/questions/{id}', [PerformanceQuestionController::class, 'updateQuestion'])->name('questions.update');
+            Route::delete('/questions/{id}', [PerformanceQuestionController::class, 'destroyQuestion'])->name('questions.destroy');
 
             // My Evaluations
             Route::get('/my-evaluations', [PerformanceEvaluationController::class, 'myEvaluations'])->name('my-evaluations');
