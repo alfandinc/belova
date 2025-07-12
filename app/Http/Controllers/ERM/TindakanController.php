@@ -273,7 +273,8 @@ class TindakanController extends Controller
                         ->isoFormat('D MMMM YYYY');
                 }
 
-                return [
+                // Return as object, not array
+                return (object) [
                     'id' => $item->id,
                     'tanggal' => $tanggalFormatted,
                     'tindakan' => $item->tindakan->nama ?? '-',
@@ -290,20 +291,20 @@ class TindakanController extends Controller
                 $buttons = '';
                 
                 // Add document button if inform consent exists
-                if ($row['inform_consent']) {
-                    $url = Storage::url($row['inform_consent']->file_path);
+                if ($row->inform_consent) {
+                    $url = Storage::url($row->inform_consent->file_path);
                     $buttons .= '<a href="' . $url . '" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>';
                     
                     // Always add foto hasil button
                     $buttons .= '<button class="btn btn-primary btn-sm foto-hasil-btn mr-1" ' .
-                        'data-id="' . $row['inform_consent']->id . '" ' .
-                        'data-before="' . ($row['inform_consent']->before_image_path ?? '') . '" ' .
-                        'data-after="' . ($row['inform_consent']->after_image_path ?? '') . '">' .
+                        'data-id="' . $row->inform_consent->id . '" ' .
+                        'data-before="' . ($row->inform_consent->before_image_path ?? '') . '" ' .
+                        'data-after="' . ($row->inform_consent->after_image_path ?? '') . '">' .
                         'Foto Hasil</button>';
                     
                     // Add SPK button
                     $buttons .= '<button class="btn btn-warning btn-sm spk-btn" ' .
-                        'data-id="' . $row['inform_consent']->id . '">' .
+                        'data-id="' . $row->inform_consent->id . '">' .
                         'SPK</button>';
                 } else {
                     $buttons = '<span class="text-muted">Belum ada inform consent</span>';
@@ -312,7 +313,7 @@ class TindakanController extends Controller
                 return $buttons;
             })
             ->addColumn('status', function ($row) {
-                return $row['current'] ?
+                return $row->current ?
                     '<span class="badge badge-success">Kunjungan Saat Ini</span>' :
                     '<span class="badge badge-secondary">Kunjungan Sebelumnya</span>';
             })
@@ -534,8 +535,8 @@ class TindakanController extends Controller
         })->get(['id', 'name']);
 
         $sopList = $riwayat->tindakan && $riwayat->tindakan->sop 
-            ? $riwayat->tindakan->sop->sortBy('urutan') 
-            : collect();
+            ? $riwayat->tindakan->sop->sortBy('urutan')->values()->toArray()
+            : [];
 
         return response()->json([
             'success' => true,
