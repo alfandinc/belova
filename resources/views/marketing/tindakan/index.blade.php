@@ -129,6 +129,16 @@
                         </select>
                         <div class="invalid-feedback" id="spesialis_id-error"></div>
                     </div>
+                    <div class="form-group">
+                        <label>SOP List (Order with Up/Down, remove with X, add with text input)</label>
+                        <ul id="tindakanSopList" class="list-group mb-2"></ul>
+                        <div class="input-group">
+                            <input type="text" id="tindakanAddSopText" class="form-control" placeholder="Enter SOP name...">
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-success" id="tindakanAddSopBtn">Add</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
@@ -142,6 +152,86 @@
 
 @section('scripts')
 <script>
+
+        // Add SOP to tindakan list from text input
+        $('#tindakanAddSopBtn').click(function() {
+            var sopText = $('#tindakanAddSopText').val().trim();
+            if (!sopText) return;
+            // Prevent duplicate by name (case-insensitive)
+            var duplicate = false;
+            $('#tindakanSopList li').each(function() {
+                if ($(this).find('.sop-name').text().toLowerCase() === sopText.toLowerCase()) {
+                    duplicate = true;
+                }
+            });
+            if (duplicate) return;
+            var order = $('#tindakanSopList li').length + 1;
+            $('#tindakanSopList').append('<li class="list-group-item d-flex align-items-center" data-name="'+sopText.replace(/"/g, '&quot;')+'">'
+                +'<span class="sop-order badge badge-secondary mr-2">'+order+'</span>'
+                +'<span class="sop-name">'+sopText+'</span>'
+                +'<div class="ml-auto btn-group btn-group-sm" role="group">'
+                    +'<button type="button" class="btn btn-light tindakan-move-up" title="Up">&#8593;</button>'
+                    +'<button type="button" class="btn btn-light tindakan-move-down" title="Down">&#8595;</button>'
+                    +'<button type="button" class="btn btn-danger tindakan-remove-sop-btn">&times;</button>'
+                +'</div>'
+            +'</li>');
+            updateTindakanSopOrderNumbers();
+            $('#tindakanAddSopText').val('');
+        });
+
+        // Add SOP to tindakan list when selected
+        $('#tindakanAddSopSelect').on('select2:select', function(e) {
+            var sopId = e.params.data.id;
+            var sopText = e.params.data.text;
+            if (!sopId) return;
+            // Prevent duplicate
+            if ($('#tindakanSopList li[data-id="'+sopId+'"]')[0]) return;
+            var order = $('#tindakanSopList li').length + 1;
+            $('#tindakanSopList').append('<li class="list-group-item d-flex align-items-center" data-id="'+sopId+'">'
+                +'<span class="sop-order badge badge-secondary mr-2">'+order+'</span>'
+                +'<span>'+sopText+'</span>'
+                +'<div class="ml-auto btn-group btn-group-sm" role="group">'
+                    +'<button type="button" class="btn btn-light tindakan-move-up" title="Up">&#8593;</button>'
+                    +'<button type="button" class="btn btn-light tindakan-move-down" title="Down">&#8595;</button>'
+                    +'<button type="button" class="btn btn-danger tindakan-remove-sop-btn">&times;</button>'
+                +'</div>'
+            +'</li>');
+            updateTindakanSopOrderNumbers();
+            $('#tindakanAddSopSelect').val(null).trigger('change');
+        });
+
+        // Move SOP up in tindakan modal
+        $(document).on('click', '.tindakan-move-up', function() {
+            var li = $(this).closest('li');
+            var prev = li.prev('li');
+            if (prev.length) {
+                prev.before(li);
+                updateTindakanSopOrderNumbers();
+            }
+        });
+
+        // Move SOP down in tindakan modal
+        $(document).on('click', '.tindakan-move-down', function() {
+            var li = $(this).closest('li');
+            var next = li.next('li');
+            if (next.length) {
+                next.after(li);
+                updateTindakanSopOrderNumbers();
+            }
+        });
+
+        // Remove SOP from tindakan list
+        $(document).on('click', '.tindakan-remove-sop-btn', function() {
+            $(this).closest('li').remove();
+            updateTindakanSopOrderNumbers();
+        });
+
+        // Update order numbers for tindakan SOPs
+        function updateTindakanSopOrderNumbers() {
+            $('#tindakanSopList li').each(function(idx) {
+                $(this).find('.sop-order').text(idx+1);
+            });
+        }
     $(document).ready(function() {
         // Set up CSRF token for all AJAX requests
         $.ajaxSetup({
@@ -343,6 +433,7 @@
         $('.add-tindakan').click(function() {
             resetForm();
             $('#tindakanModalLabel').text('Add New Tindakan');
+            $('#tindakanSopList').empty(); // Clear SOP list when adding new tindakan
             $('#tindakanModal').modal('show');
         });
         
@@ -351,7 +442,8 @@
             resetForm();
             var id = $(this).data('id');
             $('#tindakanModalLabel').text('Edit Tindakan');
-            
+            // Clear SOP list first
+            $('#tindakanSopList').empty();
             $.ajax({
                 url: "/marketing/tindakan/" + id,
                 type: 'GET',
@@ -362,6 +454,25 @@
                     $('#deskripsi').val(data.deskripsi);
                     $('#harga').val(data.harga);
                     $('#spesialis_id').val(data.spesialis_id).trigger('change');
+                    // Populate SOPs if available (ordered by urutan if present)
+                    if (data.sop && Array.isArray(data.sop)) {
+                        data.sop.sort(function(a, b) {
+                            return (a.urutan || 0) - (b.urutan || 0);
+                        });
+                        data.sop.forEach(function(sop, idx) {
+                            var order = idx + 1;
+                            var sopName = sop.nama_sop || sop.nama || sop.name || '';
+                            $('#tindakanSopList').append('<li class="list-group-item d-flex align-items-center" data-name="'+sopName.replace(/"/g, '&quot;')+'">'
+                                +'<span class="sop-order badge badge-secondary mr-2">'+order+'</span>'
+                                +'<span class="sop-name">'+sopName+'</span>'
+                                +'<div class="ml-auto btn-group btn-group-sm" role="group">'
+                                    +'<button type="button" class="btn btn-light tindakan-move-up" title="Up">&#8593;</button>'
+                                    +'<button type="button" class="btn btn-light tindakan-move-down" title="Down">&#8595;</button>'
+                                    +'<button type="button" class="btn btn-danger tindakan-remove-sop-btn">&times;</button>'
+                                +'</div>'
+                            +'</li>');
+                        });
+                    }
                     $('#tindakanModal').modal('show');
                 },
                 error: function(xhr) {
@@ -412,9 +523,14 @@
         // Form submission
         $('#tindakanForm').submit(function(e) {
             e.preventDefault();
-            var formData = $(this).serialize();
+            var formData = $(this).serializeArray();
+            // Collect SOP names and their order
+            var sopNames = [];
+            $('#tindakanSopList li').each(function() {
+                sopNames.push($(this).find('.sop-name').text());
+            });
+            formData.push({name: 'sop_names', value: sopNames});
             var url = "{{ route('marketing.tindakan.store') }}";
-            
             $.ajax({
                 url: url,
                 type: 'POST',

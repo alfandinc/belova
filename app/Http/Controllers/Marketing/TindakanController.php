@@ -36,9 +36,7 @@ class TindakanController extends Controller
                     <button type="button" class="btn btn-primary btn-sm edit-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    <button type="button" class="btn btn-warning btn-sm edit-sop-tindakan" data-id="'.$row->id.'">
-                        <i class="fas fa-cogs"></i> Edit SOP Tindakan
-                    </button>
+                    
                     <button type="button" class="btn btn-danger btn-sm delete-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-trash"></i> Delete
                     </button>
@@ -94,13 +92,20 @@ class TindakanController extends Controller
         $toDelete = $currentSops->whereNotIn('id', $sopIds);
         $notDeleted = [];
         foreach ($toDelete as $sop) {
-            $isReferenced = \DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
+            $isReferenced = DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
             if ($isReferenced) {
                 $notDeleted[] = $sop->nama_sop;
+                // Do not delete or update, and keep it assigned to tindakan (do nothing)
+                if (!in_array($sop->id, $sopIds)) {
+                    $sopIds[] = $sop->id;
+                }
                 continue;
             }
+            // Only delete if not referenced
             $sop->delete();
         }
+        // Do NOT update tindakan_id to null for referenced SOPs, only for non-referenced ones
+        // So, no further detach/update here
         // Add new SOPs (clone from master SOP if not already present)
         $existingIds = $currentSops->pluck('id')->toArray();
         foreach ($sopIds as $idx => $sopId) {
@@ -158,7 +163,6 @@ class TindakanController extends Controller
 
         try {
             DB::beginTransaction();
-            
             $tindakan = Tindakan::updateOrCreate(
                 ['id' => $request->id],
                 [
@@ -168,6 +172,43 @@ class TindakanController extends Controller
                     'spesialis_id' => $request->spesialis_id,
                 ]
             );
+
+            // Handle SOPs if provided (from text input, as names)
+            $sopNames = $request->input('sop_names');
+            if ($sopNames) {
+                $sopNamesArr = is_array($sopNames) ? $sopNames : explode(',', $sopNames);
+                // Get current SOPs for tindakan
+                $currentSops = $tindakan->sop()->get();
+                $toDelete = $currentSops->filter(function($sop) use ($sopNamesArr) {
+                    return !in_array($sop->nama_sop, $sopNamesArr);
+                });
+                // Only delete SOPs not referenced in erm_spk_details
+                foreach ($toDelete as $sop) {
+                    $isReferenced = DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
+                    if (!$isReferenced) {
+                        $sop->delete();
+                    }
+                }
+                // Add or update SOPs
+                foreach ($sopNamesArr as $idx => $sopName) {
+                    $sopName = trim($sopName);
+                    if ($sopName === '') continue;
+                    $existing = $currentSops->firstWhere('nama_sop', $sopName);
+                    if ($existing) {
+                        // Update order if needed
+                        if ($existing->urutan != $idx + 1) {
+                            $existing->urutan = $idx + 1;
+                            $existing->save();
+                        }
+                    } else {
+                        $tindakan->sop()->create([
+                            'nama_sop' => $sopName,
+                            'deskripsi' => null,
+                            'urutan' => $idx + 1
+                        ]);
+                    }
+                }
+            }
 
             DB::commit();
 
@@ -190,8 +231,16 @@ class TindakanController extends Controller
      */
     public function getTindakan($id)
     {
-        $tindakan = Tindakan::with('spesialis')->findOrFail($id);
-        return response()->json($tindakan);
+        $tindakan = Tindakan::with(['spesialis', 'sop' => function($q) { $q->orderBy('urutan'); }])->findOrFail($id);
+        // Return SOPs as array for JS
+        $result = $tindakan->toArray();
+        $result['sop'] = $tindakan->sop->map(function($sop) {
+            return [
+                'nama_sop' => $sop->nama_sop,
+                'urutan' => $sop->urutan
+            ];
+        })->toArray();
+        return response()->json($result);
     }
 
     /**
