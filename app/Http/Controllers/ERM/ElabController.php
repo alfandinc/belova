@@ -318,8 +318,11 @@ class ElabController extends Controller
                     : 'Tidak ada dokter';
             })
             ->addColumn('action', function($row) {
-                return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-lis" data-id="'.$row->id.'">
-                            <i class="fas fa-eye"></i> Lihat Hasil
+                return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-lis" data-id="'.$row->id.'" title="Lihat Hasil">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary btn-add-hasil-lis ml-1" data-id="'.$row->id.'" title="Tambah Hasil">
+                            <i class="fas fa-plus"></i>
                         </button>';
             })
             ->rawColumns(['action'])
@@ -580,6 +583,56 @@ class ElabController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menambahkan hasil lab eksternal: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    public function storeHasilLis(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'kode_lis' => 'nullable|string|max:255',
+            'header' => 'nullable|string|max:255',
+            'sub_header' => 'nullable|string|max:255',
+            'nama_test' => 'required|string|max:255',
+            'hasil' => 'nullable|string|max:255',
+            'flag' => 'nullable|string|max:255',
+            'metode' => 'nullable|string|max:255',
+            'nilai_rujukan' => 'nullable|string|max:255',
+            'satuan' => 'nullable|string|max:255',
+        ]);
+        
+        try {
+            // Generate a unique code
+            $kode = 'LIS-' . uniqid();
+            
+            $hasilLis = HasilLis::create([
+                'kode' => $kode,
+                'visitation_id' => $request->visitation_id,
+                'kode_lis' => $request->kode_lis,
+                'header' => $request->header,
+                'sub_header' => $request->sub_header,
+                'nama_test' => $request->nama_test,
+                'hasil' => $request->hasil,
+                'flag' => $request->flag,
+                'metode' => $request->metode,
+                'nilai_rujukan' => $request->nilai_rujukan,
+                'satuan' => $request->satuan,
+            ]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Hasil LIS berhasil ditambahkan',
+                'data' => $hasilLis
+            ]);
+        } catch (\Exception $e) {
+            // Log the error
+            \Illuminate\Support\Facades\Log::error('Error adding LIS result: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error($e->getTraceAsString());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menambahkan hasil LIS: ' . $e->getMessage(),
             ], 500);
         }
     }

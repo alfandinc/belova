@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class HasilLis extends Model
 {
     protected $table = 'erm_hasil_lis';
+    public $timestamps = false;
     
     protected $fillable = [
         'visitation_id',

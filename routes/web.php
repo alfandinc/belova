@@ -226,6 +226,7 @@ Route::prefix('erm')->group(function () {
     Route::get('/elab/{visitation_id}/hasil-eksternal/data', [ElabController::class, 'getHasilEksternalData'])->name('erm.elab.hasil-eksternal.data');
     Route::get('/elab/hasil-eksternal/{id}', [ElabController::class, 'getHasilEksternalDetail'])->name('erm.elab.hasil-eksternal.detail');
     Route::post('/elab/hasil-eksternal/store', [ElabController::class, 'storeHasilEksternal'])->name('erm.elab.hasil-eksternal.store');
+    Route::post('/elab/hasil-lis/store', [ElabController::class, 'storeHasilLis'])->name('erm.elab.hasil-lis.store');
 
     //Tindakan & Inform Consent
     Route::get('/tindakan/{visitation_id}/create', [TindakanController::class, 'create'])->name('erm.tindakan.create');

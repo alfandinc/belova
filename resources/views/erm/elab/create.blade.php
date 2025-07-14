@@ -7,6 +7,7 @@
 
 @section('content')
 @include('erm.partials.modal-lis-hasil')
+@include('erm.partials.modal-lis-hasil-add')
 @include('erm.partials.modal-eksternal-hasil')
 @include('erm.partials.modal-eksternal-hasil-add')
 
@@ -104,6 +105,19 @@
     .bulk-status-btn {
         font-weight: bold;
         min-width: 90px;
+    }
+    
+    /* Action column styling */
+    #hasilLisTable .btn {
+        padding: 0.25rem 0.5rem;
+        margin: 0 2px;
+    }
+    
+    /* Set width for action column */
+    #hasilLisTable th:last-child,
+    #hasilLisTable td:last-child {
+        width: 100px;
+        text-align: center;
     }
     
     /* Custom checkboxes for rows */
@@ -961,10 +975,10 @@ $(document).ready(function () {
         lengthChange: false, // Hide length menu
         ajax: '/erm/elab/{{ $visitation->id }}/hasil-lis/data',
         columns: [
-            { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
-            { data: 'tanggal', name: 'tanggal_visitation' },
-            { data: 'dokter', name: 'dokter' },
-            { data: 'action', name: 'action', orderable: false, searchable: false }
+            { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false, width: '5%' },
+            { data: 'tanggal', name: 'tanggal_visitation', width: '20%' },
+            { data: 'dokter', name: 'dokter', width: '55%' },
+            { data: 'action', name: 'action', orderable: false, searchable: false, width: '20%', className: 'text-center' }
         ],
         order: [[1, 'desc']],
         language: {
@@ -1074,6 +1088,20 @@ $(document).ready(function () {
         
         // Show modal
         $('#hasilLisModal').modal('show');
+    });
+    
+    // Handle add HasilLis button click for specific visitation
+    $('#hasilLisTable').on('click', '.btn-add-hasil-lis', function() {
+        let visitationId = $(this).data('id');
+        
+        // Reset the form
+        $('#addLisHasilForm')[0].reset();
+        
+        // Set the visitation ID
+        $('#lis_visitation_id').val(visitationId);
+        
+        // Show the modal
+        $('#addLisHasilModal').modal('show');
     });
     
     // Initialize HasilEksternal DataTable
@@ -1339,6 +1367,60 @@ $(document).ready(function () {
         $('#tanggal_pemeriksaan').val(new Date().toISOString().split('T')[0]);
         // Show the modal
         $('#addEksternalHasilModal').modal('show');
+    });
+    
+    
+    // Handle saving LIS results
+    $('#saveLisHasil').on('click', function() {
+        // Get form data
+        let formData = $('#addLisHasilForm').serialize();
+        
+        // Validate required fields
+        if (!$('#nama_test').val()) {
+            alert('Nama Test harus diisi');
+            return;
+        }
+        
+        // Submit the data
+        $.ajax({
+            url: '{{ route("erm.elab.hasil-lis.store") }}',
+            method: 'POST',
+            data: formData,
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            beforeSend: function(xhr) {
+                console.log('CSRF Token:', $('meta[name="csrf-token"]').attr('content'));
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Close modal
+                    $('#addLisHasilModal').modal('hide');
+                    
+                    // Show success message
+                    alert(response.message || 'Hasil LIS berhasil ditambahkan');
+                    
+                    // Reload the LIS table
+                    hasilLisTable.ajax.reload();
+                } else {
+                    alert(response.message || 'Terjadi kesalahan');
+                }
+            },
+            error: function(xhr) {
+                // Handle errors
+                let errors = xhr.responseJSON?.errors;
+                if (errors) {
+                    let errorMessage = '';
+                    $.each(errors, function(key, value) {
+                        errorMessage += value + '\n';
+                    });
+                    alert(errorMessage || 'Terjadi kesalahan');
+                } else {
+                    alert('Terjadi kesalahan saat menyimpan data');
+                    console.error('Error saving LIS data:', xhr.responseText);
+                }
+            }
+        });
     });
     
     // Handle saving external lab results
