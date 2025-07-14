@@ -1,4 +1,8 @@
 @extends('layouts.hrd.app')
+@section('title', 'HRD | Pertanyaan Evaluasi')
+@section('navbar')
+    @include('layouts.hrd.navbar')
+@endsection
 
 @section('content')
 <div class="container">
