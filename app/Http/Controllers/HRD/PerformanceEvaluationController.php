@@ -463,14 +463,41 @@ class PerformanceEvaluationController extends Controller
 
     public function results()
     {
+        return view('hrd.performance.results.index');
+    }
+    
+    public function resultsData()
+    {
         $periods = PerformanceEvaluationPeriod::where('status', 'completed')->get();
-        return view('hrd.performance.results.index', compact('periods'));
+        
+        return \Yajra\DataTables\Facades\DataTables::of($periods)
+            ->addColumn('date_range', function ($period) {
+                return $period->start_date->format('d M Y') . ' - ' . $period->end_date->format('d M Y');
+            })
+            ->addColumn('evaluations', function ($period) {
+                $totalEvals = $period->evaluations->count();
+                $completedEvals = $period->evaluations->where('status', 'completed')->count();
+                $completionRate = $totalEvals > 0 ? round(($completedEvals / $totalEvals) * 100) : 0;
+                return $completedEvals . ' / ' . $totalEvals . ' (' . $completionRate . '% completed)';
+            })
+            ->addColumn('action', function ($period) {
+                return '<a href="' . route('hrd.performance.results.period', $period) . '" class="btn btn-info btn-sm">
+                            <i class="fa fa-chart-bar"></i> View Results
+                        </a>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
     }
 
     public function periodResults(PerformanceEvaluationPeriod $period)
     {
+        return view('hrd.performance.results.period', compact('period'));
+    }
+    
+    public function periodResultsData(PerformanceEvaluationPeriod $period)
+    {
         $employees = Employee::all();
-        $averageScores = [];
+        $averageScoresCollection = collect();
 
         foreach ($employees as $employee) {
             $evaluations = PerformanceEvaluation::with('scores.question.category')
@@ -503,15 +530,39 @@ class PerformanceEvaluationController extends Controller
                 // Only use score-type questions for the overall average
                 $overallAverage = $scoreTypeScores->isEmpty() ? 0 : round($scoreTypeScores->avg('score'), 2);
 
-                $averageScores[] = [
+                $averageScoresCollection->push([
                     'employee' => $employee,
                     'categoryAverages' => $categoryAverages,
                     'overallAverage' => $overallAverage
-                ];
+                ]);
             }
         }
 
-        return view('hrd.performance.results.period', compact('period', 'averageScores'));
+        return \Yajra\DataTables\Facades\DataTables::of($averageScoresCollection)
+            ->addColumn('name', function ($score) {
+                return $score['employee']->name ?? $score['employee']->nama;
+            })
+            ->addColumn('position', function ($score) {
+                return $score['employee']->position->name ?? 'N/A';
+            })
+            ->addColumn('division', function ($score) {
+                return $score['employee']->division->name ?? 'N/A';
+            })
+            ->addColumn('score', function ($score) {
+                $badgeClass = $score['overallAverage'] >= 4 ? 'success' : 
+                             ($score['overallAverage'] >= 3 ? 'info' : 
+                             ($score['overallAverage'] >= 2 ? 'warning' : 'danger'));
+                             
+                return '<span class="badge badge-' . $badgeClass . ' badge-pill">' . 
+                       number_format($score['overallAverage'], 2) . '</span>';
+            })
+            ->addColumn('action', function ($score) use ($period) {
+                return '<a href="' . route('hrd.performance.results.employee', ['period' => $period, 'employee' => $score['employee']]) . '" class="btn btn-info btn-sm">
+                            <i class="fa fa-eye"></i> View Details
+                        </a>';
+            })
+            ->rawColumns(['score', 'action'])
+            ->make(true);
     }
 
     public function employeeResults(PerformanceEvaluationPeriod $period, Employee $employee)

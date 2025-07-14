@@ -10,46 +10,52 @@
     
     <div class="card">
         <div class="card-body">
-            @if($periods->isEmpty())
-                <div class="alert alert-info">
-                    No completed evaluation periods found. Once periods are marked as completed, their results will appear here.
-                </div>
-            @else
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover">
-                        <thead>
-                            <tr>
-                                <th>Period Name</th>
-                                <th>Date Range</th>
-                                <th>Evaluations</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($periods as $period)
-                                <tr>
-                                    <td>{{ $period->name }}</td>
-                                    <td>{{ $period->start_date->format('d M Y') }} - {{ $period->end_date->format('d M Y') }}</td>
-                                    <td>
-                                        @php
-                                            $totalEvals = $period->evaluations->count();
-                                            $completedEvals = $period->evaluations->where('status', 'completed')->count();
-                                            $completionRate = $totalEvals > 0 ? round(($completedEvals / $totalEvals) * 100) : 0;
-                                        @endphp
-                                        {{ $completedEvals }} / {{ $totalEvals }} ({{ $completionRate }}% completed)
-                                    </td>
-                                    <td>
-                                        <a href="{{ route('hrd.performance.results.period', $period) }}" class="btn btn-info btn-sm">
-                                            <i class="fa fa-chart-bar"></i> View Results
-                                        </a>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
+            <div class="table-responsive">
+                <table id="periods-table" class="table table-bordered table-hover">
+                    <thead>
+                        <tr>
+                            <th>Period Name</th>
+                            <th>Date Range</th>
+                            <th>Evaluations</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data will be loaded via AJAX -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+    $(document).ready(function() {
+        $('#periods-table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: "{{ route('hrd.performance.results.data') }}",
+            columns: [
+                { data: 'name', name: 'name' },
+                { data: 'date_range', name: 'date_range', orderable: false, searchable: false },
+                { data: 'evaluations', name: 'evaluations', orderable: false, searchable: false },
+                { data: 'action', name: 'action', orderable: false, searchable: false }
+            ],
+            order: [[0, 'asc']],
+            responsive: true,
+            language: {
+                paginate: {
+                    previous: "<i class='mdi mdi-chevron-left'>",
+                    next: "<i class='mdi mdi-chevron-right'>"
+                },
+                emptyTable: "No completed evaluation periods found. Once periods are marked as completed, their results will appear here."
+            },
+            drawCallback: function() {
+                $('.dataTables_paginate > .pagination').addClass('pagination-rounded');
+            }
+        });
+    });
+</script>
+@endpush
 @endsection

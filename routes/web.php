@@ -491,7 +491,9 @@ Route::prefix('hrd')->group(
 
             // Results (HRD only)
             Route::get('/results', [PerformanceEvaluationController::class, 'results'])->name('results.index');
+            Route::get('/results/data', [PerformanceEvaluationController::class, 'resultsData'])->name('results.data');
             Route::get('/results/periods/{period}', [PerformanceEvaluationController::class, 'periodResults'])->name('results.period');
+            Route::get('/results/periods/{period}/data', [PerformanceEvaluationController::class, 'periodResultsData'])->name('results.period.data');
             Route::get('/results/periods/{period}/employees/{employee}', [PerformanceEvaluationController::class, 'employeeResults'])->name('results.employee');
         });
     }

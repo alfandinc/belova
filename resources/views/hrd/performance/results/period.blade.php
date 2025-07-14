@@ -25,46 +25,55 @@
             <h5>Employee Performance Results</h5>
         </div>
         <div class="card-body">
-            @if(count($averageScores) === 0)
-                <div class="alert alert-info">
-                    No completed evaluations found for this period.
-                </div>
-            @else
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover">
-                        <thead>
-                            <tr>
-                                <th>Employee Name</th>
-                                <th>Position</th>
-                                <th>Division</th>
-                                <th>Overall Score</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($averageScores as $score)
-                                <tr>
-                                    <td>{{ $score['employee']->name ?? $score['employee']->nama }}</td>
-                                    <td>{{ $score['employee']->position->name ?? 'N/A' }}</td>
-                                    <td>{{ $score['employee']->division->name ?? 'N/A' }}</td>
-                                    <td class="text-center">
-                                        <span class="badge badge-{{ $score['overallAverage'] >= 4 ? 'success' : ($score['overallAverage'] >= 3 ? 'info' : ($score['overallAverage'] >= 2 ? 'warning' : 'danger')) }} badge-pill">
-                                            {{ number_format($score['overallAverage'], 2) }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <a href="{{ route('hrd.performance.results.employee', ['period' => $period, 'employee' => $score['employee']]) }}" class="btn btn-info btn-sm">
-                                            <i class="fa fa-eye"></i> View Details
-                                        </a>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
+            <div class="table-responsive">
+                <table id="employee-scores-table" class="table table-bordered table-hover">
+                    <thead>
+                        <tr>
+                            <th>Employee Name</th>
+                            <th>Position</th>
+                            <th>Division</th>
+                            <th>Overall Score</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Data will be loaded via AJAX -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
+
+@push('scripts')
+<script>
+    $(document).ready(function() {
+        $('#employee-scores-table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: "{{ route('hrd.performance.results.period.data', $period) }}",
+            columns: [
+                { data: 'name', name: 'name' },
+                { data: 'position', name: 'position' },
+                { data: 'division', name: 'division' },
+                { data: 'score', name: 'score', orderable: false, searchable: false, className: 'text-center' },
+                { data: 'action', name: 'action', orderable: false, searchable: false }
+            ],
+            order: [[0, 'asc']],
+            responsive: true,
+            language: {
+                paginate: {
+                    previous: "<i class='mdi mdi-chevron-left'>",
+                    next: "<i class='mdi mdi-chevron-right'>"
+                },
+                emptyTable: "No completed evaluations found for this period."
+            },
+            drawCallback: function() {
+                $('.dataTables_paginate > .pagination').addClass('pagination-rounded');
+            }
+        });
+    });
+</script>
+@endpush
 
 </div>
 
