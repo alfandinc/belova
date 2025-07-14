@@ -335,7 +335,7 @@ class PerformanceEvaluationController extends Controller
             ->with('success', 'Evaluation period initiated successfully.');
     }
 
-    public function myEvaluations()
+    public function myEvaluations(Request $request)
     {
         $user = Auth::user();
         $employee = Employee::where('user_id', $user->id)->first();
@@ -344,17 +344,59 @@ class PerformanceEvaluationController extends Controller
             return redirect()->back()->with('error', 'No employee record found for your account.');
         }
 
-        $pendingEvaluations = PerformanceEvaluation::with(['evaluatee', 'period'])
-            ->where('evaluator_id', $employee->id)
-            ->where('status', 'pending')
-            ->get();
+        if ($request->ajax()) {
+            $type = $request->input('type', 'pending');
+            
+            // Use table alias to avoid ambiguous column names
+            $query = PerformanceEvaluation::select('performance_evaluations.*')
+                ->with(['evaluatee', 'evaluatee.position', 'evaluatee.division', 'period'])
+                ->where('performance_evaluations.evaluator_id', $employee->id)
+                ->where('performance_evaluations.status', $type);
 
-        $completedEvaluations = PerformanceEvaluation::with(['evaluatee', 'period'])
-            ->where('evaluator_id', $employee->id)
-            ->where('status', 'completed')
-            ->get();
+            // Only show evaluations from active periods for pending and completed evaluations
+            if (in_array($type, ['pending', 'completed'])) {
+                $query->whereHas('period', function ($q) {
+                    $q->where('performance_evaluation_periods.status', 'active');
+                });
+            }
 
-        return view('hrd.performance.my-evaluations', compact('pendingEvaluations', 'completedEvaluations'));
+            // Datatable server-side processing
+            return datatables()->of($query)
+                ->addColumn('period_name', function ($evaluation) {
+                    return $evaluation->period ? $evaluation->period->name : 'N/A';
+                })
+                ->addColumn('evaluatee_name', function ($evaluation) {
+                    return $evaluation->evaluatee ? $evaluation->evaluatee->nama : 'N/A';
+                })
+                ->addColumn('position', function ($evaluation) {
+                    if (!$evaluation->evaluatee) {
+                        return 'N/A';
+                    }
+                    $position = (is_object($evaluation->evaluatee->position) && isset($evaluation->evaluatee->position->name))
+                        ? $evaluation->evaluatee->position->name
+                        : 'N/A';
+                    $division = (is_object($evaluation->evaluatee->division) && isset($evaluation->evaluatee->division->name))
+                        ? $evaluation->evaluatee->division->name
+                        : 'N/A';
+                    return $position . '<span class="text-muted d-block small">' . $division . '</span>';
+                })
+                ->addColumn('completed_at', function ($evaluation) {
+                    return $evaluation->completed_at ? $evaluation->completed_at->format('d M Y') : 'N/A';
+                })
+                ->addColumn('action', function ($evaluation) {
+                    if ($evaluation->status === 'pending') {
+                        return '<a href="' . route('hrd.performance.evaluations.fill', $evaluation) . '" class="btn btn-primary btn-sm">
+                                    <i class="fa fa-edit"></i> Fill Evaluation
+                                </a>';
+                    }
+                    return '';
+                })
+                ->rawColumns(['position', 'action'])
+                ->make(true);
+        }
+
+        // Initial view load
+        return view('hrd.performance.my-evaluations');
     }
 
     public function fillEvaluation(PerformanceEvaluation $evaluation)
@@ -468,7 +510,6 @@ class PerformanceEvaluationController extends Controller
         $evaluations = PerformanceEvaluation::with(['scores.question.category', 'evaluator'])
             ->where('period_id', $period->id)
             ->where('evaluatee_id', $employee->id)
-            ->where('status', 'completed')
             ->get();
 
         if ($evaluations->isEmpty()) {
@@ -481,7 +522,7 @@ class PerformanceEvaluationController extends Controller
         }
 
         $categoryScores = $scores->groupBy(function ($score) {
-            return $score->question->category->name;
+            return optional(optional($score->question)->category)->name ?? 'Unknown';
         });
 
         $categoryResults = [];
