@@ -8,6 +8,7 @@ use App\Models\HRD\{
     PerformanceEvaluationPeriod,
     PerformanceEvaluation,
     PerformanceQuestion,
+    PerformanceScore,
     Employee,
     Division
 };
@@ -439,9 +440,11 @@ class PerformanceEvaluationController extends Controller
         $evaluator = $evaluation->evaluator;
         $evaluatee = $evaluation->evaluatee;
 
-        $isEvaluatorHRD = $evaluator->division instanceof Division && strtolower($evaluator->division->name) === 'human resources';
+
+        $hrdNames = ['human resources', 'hrd', 'human resource'];
+        $isEvaluatorHRD = $evaluator->division instanceof Division && in_array(strtolower($evaluator->division->name), $hrdNames);
         $isEvaluatorManager = $evaluator->isManager();
-        $isEvaluateeHRD = $evaluatee->division instanceof Division && strtolower($evaluatee->division->name) === 'human resources';
+        $isEvaluateeHRD = $evaluatee->division instanceof Division && in_array(strtolower($evaluatee->division->name), $hrdNames);
         $isEvaluateeManager = $evaluatee->isManager();
 
         if ($isEvaluatorHRD && $isEvaluateeManager) {
@@ -482,9 +485,14 @@ class PerformanceEvaluationController extends Controller
                 foreach ($evaluations as $evaluation) {
                     $scores = $scores->concat($evaluation->scores);
                 }
-
-                $categoryScores = $scores->groupBy(function ($score) {
-                    return $score->question->category->name;
+                
+                // Filter out text-type questions (which have score=0) for average calculation
+                $scoreTypeScores = $scores->filter(function ($score) {
+                    return $score->question && $score->question->question_type === 'score';
+                });
+                
+                $categoryScores = $scoreTypeScores->groupBy(function ($score) {
+                    return optional($score->question->category)->name ?? 'Unknown';
                 });
 
                 $categoryAverages = [];
@@ -492,7 +500,8 @@ class PerformanceEvaluationController extends Controller
                     $categoryAverages[$category] = round($catScores->avg('score'), 2);
                 }
 
-                $overallAverage = round($scores->avg('score'), 2);
+                // Only use score-type questions for the overall average
+                $overallAverage = $scoreTypeScores->isEmpty() ? 0 : round($scoreTypeScores->avg('score'), 2);
 
                 $averageScores[] = [
                     'employee' => $employee,
@@ -577,6 +586,22 @@ class PerformanceEvaluationController extends Controller
     // Handle evaluation form submission
     public function submitEvaluation(Request $request, PerformanceEvaluation $evaluation)
     {
+        // Debug information
+        \Illuminate\Support\Facades\Log::info('Submit Evaluation Request', [
+            'evaluation_id' => $evaluation->id,
+            'request_data' => $request->all(),
+            'scores' => $request->scores,
+            'text_answers' => $request->text_answers
+        ]);
+        
+        // Log DB connection status
+        try {
+            \Illuminate\Support\Facades\DB::connection()->getPdo();
+            \Illuminate\Support\Facades\Log::info("Database is connected");
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Database connection failed: " . $e->getMessage());
+        }
+        
         // Validate the request
         $request->validate([
             'scores.*' => 'nullable|integer|min:1|max:5',
@@ -628,29 +653,46 @@ class PerformanceEvaluationController extends Controller
             foreach ($questionIds as $questionId) {
                 $question = PerformanceQuestion::find($questionId);
                 if (!$question) continue;
-                
-                $score = null;
+                $score = 0; // Default to 0 instead of null to satisfy NOT NULL constraint
                 $textAnswer = null;
                 $comment = $request->comments[$questionId] ?? null;
-                
                 if ($question->question_type === 'score') {
-                    $score = $request->scores[$questionId] ?? null;
-                    if ($score === null) {
-                        throw new \Exception("Score is required for question ID {$questionId}");
-                    }
+                    // Use the score from the request, or default to 0 if missing
+                    $score = $request->scores[$questionId] ?? 0;
                 } else {
-                    $textAnswer = $request->text_answers[$questionId] ?? null;
-                    if ($textAnswer === null || trim($textAnswer) === '') {
-                        throw new \Exception("Text answer is required for question ID {$questionId}");
-                    }
+                    $textAnswer = $request->text_answers[$questionId] ?? '';
                 }
                 
-                $evaluation->scores()->create([
+                // Log each score being processed
+                \Illuminate\Support\Facades\Log::info("Processing question", [
                     'question_id' => $questionId,
                     'score' => $score,
                     'text_answer' => $textAnswer,
                     'comment' => $comment
                 ]);
+                
+                try {
+                    // Ensure the score is never null (0 for non-score questions or if missing)
+                    $finalScore = $question->question_type === 'score' ? ($score ?: 0) : 0;
+                    
+                    $evaluation->scores()->updateOrCreate(
+                        ['question_id' => $questionId],
+                        [
+                            'score' => $finalScore,
+                            'text_answer' => $textAnswer ?: '',
+                            'comment' => $comment
+                        ]
+                    );
+                    \Illuminate\Support\Facades\Log::info("Score saved successfully for question " . $questionId);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Error saving score: " . $e->getMessage(), [
+                        'question_id' => $questionId,
+                        'evaluation_id' => $evaluation->id,
+                        'final_score' => $finalScore ?? 0,
+                        'text_answer' => $textAnswer ?: ''
+                    ]);
+                    throw $e; // Re-throw to trigger the transaction rollback
+                }
             }
 
             // Mark evaluation as completed
@@ -659,7 +701,7 @@ class PerformanceEvaluationController extends Controller
             $evaluation->save();
 
             // Check if period is complete
-            $this->checkPeriodCompletion($evaluation->period);
+            $this->checkPeriodCompletion($evaluation->period);                // No need for fallback direct SQL now that we understand the issue
 
             DB::commit();
             

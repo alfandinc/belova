@@ -476,7 +476,7 @@
                 cancelButtonColor: '#d33',
                 confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
-                if (result.isConfirmed) {
+                if (result.value) {
                     $.ajax({
                         url: "{{ route('hrd.performance.categories.destroy', '') }}/" + categoryId,
                         method: 'DELETE',
@@ -644,7 +644,7 @@
                 cancelButtonColor: '#d33',
                 confirmButtonText: 'Yes, delete it!'
             }).then((result) => {
-                if (result.isConfirmed) {
+                if (result.value) {
                     $.ajax({
                         url: "{{ route('hrd.performance.questions.destroy', '') }}/" + questionId,
                         method: 'DELETE',

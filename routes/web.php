@@ -487,7 +487,7 @@ Route::prefix('hrd')->group(
             // My Evaluations
             Route::get('/my-evaluations', [PerformanceEvaluationController::class, 'myEvaluations'])->name('my-evaluations');
             Route::get('/evaluations/{evaluation}/fill', [PerformanceEvaluationController::class, 'fillEvaluation'])->name('evaluations.fill');
-            Route::post('/evaluations/{evaluation}/submit', [PerformanceScoreController::class, 'submitScores'])->name('evaluations.submit');
+            Route::post('/evaluations/{evaluation}/submit', [PerformanceEvaluationController::class, 'submitEvaluation'])->name('evaluations.submit');
 
             // Results (HRD only)
             Route::get('/results', [PerformanceEvaluationController::class, 'results'])->name('results.index');

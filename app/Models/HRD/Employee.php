@@ -120,7 +120,7 @@ class Employee extends Model
         $evaluations = $this->evaluationsAsEvaluatee()
             ->where('period_id', $periodId)
             ->where('status', 'completed')
-            ->with('scores')
+            ->with('scores.question') // Added question relation to check question_type
             ->get();
 
         if ($evaluations->isEmpty()) {
@@ -131,8 +131,18 @@ class Employee extends Model
         foreach ($evaluations as $evaluation) {
             $allScores = $allScores->concat($evaluation->scores);
         }
-
-        return $allScores->avg('score');
+        
+        // Filter scores to only include score-type questions (not text questions)
+        $scoreTypeScores = $allScores->filter(function ($score) {
+            return $score->question && $score->question->question_type === 'score';
+        });
+        
+        // Return 0 if no score-type questions, otherwise calculate average
+        if ($scoreTypeScores->isEmpty()) {
+            return 0;
+        }
+        
+        return round($scoreTypeScores->avg('score'), 2);
     }
 
     public function jatahLibur()

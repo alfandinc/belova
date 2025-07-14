@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class PerformanceScore extends Model
 {
+    protected $table = 'performance_scores';
     use HasFactory;
 
     protected $fillable = ['evaluation_id', 'question_id', 'score', 'text_answer', 'comment'];
