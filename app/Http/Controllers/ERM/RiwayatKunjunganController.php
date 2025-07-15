@@ -49,7 +49,7 @@ class RiwayatKunjunganController extends Controller
                     // $resumeUrl = route('resume.show', $row->id);   // Ubah sesuai kebutuhan
                     $resumeUrl = route('resume.medis', $row->id);
                     $dokumenUrl = route('erm.asesmendokter.create', ['visitation' => $row->id]);
-                    $diagnosisBtn = '<button class="btn btn-sm btn-info diagnosis-btn" data-id="' . $row->id . '">Surat Diagnosis</button>';
+                    $diagnosisBtn = '<button class="btn btn-sm btn-success diagnosis-btn" data-id="' . $row->id . '">Surat Diagnosis</button>';
 
                     return '
                         <a href="' . $resumeUrl . '" class="btn btn-sm btn-primary" target="_blank">Resume</a>
