@@ -8,6 +8,7 @@
 @section('content')
 
 @include('erm.partials.modal-alergipasien')
+@include('erm.partials.modal-suratdiagnosa')
 
 <div class="container-fluid">
     <div class="d-flex  align-items-center mb-0 mt-2">
@@ -60,6 +61,7 @@
 @endsection
 
 @section('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
 <script>
 $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
@@ -78,6 +80,113 @@ $(document).ready(function () {
             // { data: 'created_at', name: 'created_at' },
             { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
         ]
+    });
+
+    // Surat Diagnosis button click
+    $(document).on('click', '.diagnosis-btn', function() {
+        const visitationId = $(this).data('id');
+        $('#visitation_id').val(visitationId);
+        
+        // Get data from server
+        $.ajax({
+            url: '/erm/riwayatkunjungan/' + visitationId + '/get-data-diagnosis',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                // Set pasien data
+                $('#pasien_nama').text(response.pasien.nama);
+                $('#pasien_rm').text(response.pasien.id);
+                $('#pasien_lahir').text(moment(response.pasien.tanggal_lahir).format('DD-MM-YYYY'));
+                $('#pasien_gender').text(response.pasien.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan');
+                $('#pasien_alamat').text(response.pasien.alamat);
+                
+                // Set diagnoses
+                let diagnosisHtml = '';
+                if (response.diagnoses.length > 0) {
+                    diagnosisHtml += '<ul class="list-group">';
+                    response.diagnoses.forEach(function(diagnosis, index) {
+                        diagnosisHtml += '<li class="list-group-item">' + diagnosis + '</li>';
+                    });
+                    diagnosisHtml += '</ul>';
+                } else {
+                    diagnosisHtml = '<p class="text-muted">Tidak ada diagnosis yang ditemukan.</p>';
+                }
+                $('#diagnosis_list').html(diagnosisHtml);
+                
+                // Set keterangan if exists
+                if (response.suratDiagnosa) {
+                    $('#keterangan').val(response.suratDiagnosa.keterangan);
+                } else {
+                    $('#keterangan').val('');
+                }
+                
+                // Show modal
+                $('#diagnosisModal').modal('show');
+            },
+            error: function(error) {
+                console.error('Error fetching data:', error);
+                alert('Terjadi kesalahan saat mengambil data. Silakan coba lagi.');
+            }
+        });
+    });
+    
+    // Save Surat Diagnosis
+    $('#saveDiagnosis').on('click', function() {
+        const visitationId = $('#visitation_id').val();
+        const keterangan = $('#keterangan').val();
+        
+        $.ajax({
+            url: '/erm/riwayatkunjungan/store-surat-diagnosis',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                _token: '{{ csrf_token() }}',
+                visitation_id: visitationId,
+                keterangan: keterangan
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert('Surat diagnosis berhasil disimpan.');
+                } else {
+                    alert('Terjadi kesalahan. Silakan coba lagi.');
+                }
+            },
+            error: function(error) {
+                console.error('Error saving data:', error);
+                alert('Terjadi kesalahan saat menyimpan data. Silakan coba lagi.');
+            }
+        });
+    });
+    
+    // Print Surat Diagnosis
+    $('#printDiagnosis').on('click', function() {
+        const visitationId = $('#visitation_id').val();
+        
+        // First save the form data
+        const keterangan = $('#keterangan').val();
+        
+        $.ajax({
+            url: '/erm/riwayatkunjungan/store-surat-diagnosis',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                _token: '{{ csrf_token() }}',
+                visitation_id: visitationId,
+                keterangan: keterangan
+            },
+            success: function(response) {
+                if (response.success) {
+                    // If save is successful, open the PDF in a new window
+                    window.open('/erm/riwayatkunjungan/' + visitationId + '/print-surat-diagnosis', '_blank');
+                } else {
+                    alert('Terjadi kesalahan saat menyimpan. Silakan coba lagi.');
+                }
+            },
+            error: function(error) {
+                console.error('Error saving data:', error);
+                alert('Terjadi kesalahan saat menyimpan data. Silakan coba lagi.');
+            }
+        });
     });
 
     // Saat tombol modal alergi ditekan

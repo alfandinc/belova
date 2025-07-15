@@ -8,6 +8,7 @@ use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\ERM\Visitation;
+use App\Models\ERM\SuratDiagnosa;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -48,10 +49,12 @@ class RiwayatKunjunganController extends Controller
                     // $resumeUrl = route('resume.show', $row->id);   // Ubah sesuai kebutuhan
                     $resumeUrl = route('resume.medis', $row->id);
                     $dokumenUrl = route('erm.asesmendokter.create', ['visitation' => $row->id]);
+                    $diagnosisBtn = '<button class="btn btn-sm btn-info diagnosis-btn" data-id="' . $row->id . '">Surat Diagnosis</button>';
 
                     return '
                         <a href="' . $resumeUrl . '" class="btn btn-sm btn-primary" target="_blank">Resume</a>
                          <a href="' . $dokumenUrl . '" class="btn btn-sm btn-secondary" target="_blank">Dokumen</a>
+                         ' . $diagnosisBtn . '
                     ';
                 })
                 ->rawColumns(['aksi'])
@@ -217,6 +220,121 @@ class RiwayatKunjunganController extends Controller
             Log::error('Error generating resume PDF: ' . $e->getMessage());
             return response()->view('errors.custom', [
                 'message' => 'Terjadi kesalahan saat membuat resume medis. Silakan coba lagi atau hubungi admin.',
+                'exception' => $e
+            ], 500);
+        }
+    }
+    
+    public function getDataDiagnosis($visitationId)
+    {
+        $visitation = Visitation::with([
+            'dokter.user', 
+            'dokter.spesialisasi', 
+            'asesmenPenunjang'
+        ])->findOrFail($visitationId);
+        
+        $pasien = PasienHelperController::getDataPasien($visitationId);
+        
+        // Get diagnoses from asesmenPenunjang
+        $diagnosisList = array();
+        if ($visitation->asesmenPenunjang) {
+            $diagnosisList = array_filter([
+                $visitation->asesmenPenunjang->diagnosakerja_1 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_2 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_3 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_4 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_5 ?? '',
+            ]);
+        }
+        
+        // Get existing surat diagnosa if available
+        $suratDiagnosa = SuratDiagnosa::where('visitation_id', $visitationId)->first();
+        
+        return response()->json([
+            'visitation' => $visitation,
+            'pasien' => $pasien['pasien'],
+            'diagnoses' => $diagnosisList,
+            'suratDiagnosa' => $suratDiagnosa
+        ]);
+    }
+    
+    public function storeSuratDiagnosis(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required',
+            'keterangan' => 'nullable|string'
+        ]);
+        
+        // Create or update the surat diagnosa
+        SuratDiagnosa::updateOrCreate(
+            ['visitation_id' => $request->visitation_id],
+            ['keterangan' => $request->keterangan]
+        );
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Surat diagnosa berhasil disimpan'
+        ]);
+    }
+    
+    public function printSuratDiagnosis($visitationId)
+    {
+        $visitation = Visitation::with([
+            'dokter.user', 
+            'dokter.spesialisasi', 
+            'asesmenPenunjang'
+        ])->findOrFail($visitationId);
+        
+        $pasien = PasienHelperController::getDataPasien($visitationId);
+        $suratDiagnosa = SuratDiagnosa::where('visitation_id', $visitationId)->first();
+        
+        // Get diagnoses
+        $diagnosisList = array();
+        if ($visitation->asesmenPenunjang) {
+            $diagnosisList = array_filter([
+                $visitation->asesmenPenunjang->diagnosakerja_1 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_2 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_3 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_4 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_5 ?? '',
+            ]);
+        }
+        
+        // Handle TTD image path
+        $ttdFileName = $visitation->dokter->ttd ?? '';
+        $ttdImagePath = '';
+        
+        if (!empty($ttdFileName)) {
+            $ttdFilePath = public_path('img/qr/' . $ttdFileName);
+            
+            if (file_exists($ttdFilePath)) {
+                $ttdImagePath = 'data:image/png;base64,' . base64_encode(file_get_contents($ttdFilePath));
+            }
+        }
+        
+        // Get age from birthdate
+        $birthDate = \Carbon\Carbon::parse($pasien['pasien']->tanggal_lahir);
+        $age = $birthDate->age;
+        
+        $data = [
+            'visitation_id' => $visitation->id,
+            'tanggal_visit' => $visitation->tanggal_visitation,
+            'nama_dokter' => $visitation->dokter->user->name ?? 'Dokter',
+            'spesialisasi' => $visitation->dokter->spesialisasi->nama ?? '-',
+            'pasien' => $pasien['pasien'],
+            'diagnosis_list' => $diagnosisList,
+            'keterangan' => $suratDiagnosa->keterangan ?? '-',
+            'ttd_image_path' => $ttdImagePath,
+            'umur' => $age
+        ];
+        
+        try {
+            $pdf = PDF::loadView('erm.riwayatkunjungan.surat-diagnosis', $data);
+            return $pdf->stream('surat-diagnosis.pdf');
+        } catch (\Exception $e) {
+            Log::error('Error generating surat diagnosis PDF: ' . $e->getMessage());
+            return response()->view('errors.custom', [
+                'message' => 'Terjadi kesalahan saat membuat surat diagnosis. Silakan coba lagi atau hubungi admin.',
                 'exception' => $e
             ], 500);
         }

@@ -252,6 +252,9 @@ Route::prefix('erm')->group(function () {
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
 
     Route::get('/resume-medis/{visitation}', [RiwayatKunjunganController::class, 'resumeMedis'])->name('resume.medis');
+    Route::get('/riwayatkunjungan/{visitation}/get-data-diagnosis', [RiwayatKunjunganController::class, 'getDataDiagnosis']);
+    Route::post('/riwayatkunjungan/store-surat-diagnosis', [RiwayatKunjunganController::class, 'storeSuratDiagnosis']);
+    Route::get('/riwayatkunjungan/{visitation}/print-surat-diagnosis', [RiwayatKunjunganController::class, 'printSuratDiagnosis']);
 
     //Antrian
     Route::get('/listantrian', [ListAntrianController::class, 'index']);
