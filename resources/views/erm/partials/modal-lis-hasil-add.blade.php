@@ -12,32 +12,37 @@
                 <form id="addLisHasilForm">
                     <input type="hidden" id="lis_visitation_id" name="visitation_id" value="{{ $visitation->id }}">
                     
+                    <!-- Kode LIS is auto-generated, so it's hidden -->
+                    <input type="hidden" id="kode_lis" name="kode_lis">
+                    
                     <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="kode_lis">Kode LIS</label>
-                                <input type="text" class="form-control" id="kode_lis" name="kode_lis" placeholder="Kode LIS">
-                            </div>
-                        </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="header">Header</label>
                                 <input type="text" class="form-control" id="header" name="header" placeholder="Header">
+                                <small class="text-muted">Akan terisi otomatis berdasarkan kategori test</small>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label for="sub_header">Sub Header</label>
                                 <input type="text" class="form-control" id="sub_header" name="sub_header" placeholder="Sub Header">
                             </div>
                         </div>
-                        <div class="col-md-6">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-12">
                             <div class="form-group">
                                 <label for="nama_test">Nama Test <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="nama_test" name="nama_test" placeholder="Nama Test" required>
+                                <select class="form-control select2" id="nama_test" name="nama_test" required>
+                                    <option value="">Pilih Test</option>
+                                    @foreach($labTests as $test)
+                                        <option value="{{ $test->nama }}" data-kategori="{{ $test->labKategori->nama ?? '' }}" data-test-id="{{ $test->id }}">{{ $test->nama }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="invalid-feedback" id="nama_test_error">Nama test harus diisi</div>
+                                <small class="text-muted">Ketik untuk mencari atau menambah test baru</small>
                             </div>
                         </div>
                     </div>

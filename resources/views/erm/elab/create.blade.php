@@ -1090,15 +1090,62 @@ $(document).ready(function () {
         $('#hasilLisModal').modal('show');
     });
     
+    // Reset form and validation when modal is closed
+    $('#addLisHasilModal').on('hidden.bs.modal', function() {
+        $('#addLisHasilForm')[0].reset();
+        $('.is-invalid').removeClass('is-invalid');
+    });
+    
     // Handle add HasilLis button click for specific visitation
     $('#hasilLisTable').on('click', '.btn-add-hasil-lis', function() {
         let visitationId = $(this).data('id');
         
         // Reset the form
         $('#addLisHasilForm')[0].reset();
+        $('.is-invalid').removeClass('is-invalid');
         
         // Set the visitation ID
         $('#lis_visitation_id').val(visitationId);
+        
+        // Initialize or refresh Select2 
+        if ($('#nama_test').hasClass('select2-hidden-accessible')) {
+            $('#nama_test').select2('destroy');
+        }
+        
+        $('#nama_test').select2({
+            dropdownParent: $('#addLisHasilModal'),
+            placeholder: 'Pilih Test',
+            width: '100%',
+            tags: true, // Allow creating new tags
+            createTag: function (params) {
+                return {
+                    id: params.term,
+                    text: params.term,
+                    newTag: true
+                };
+            }
+        });
+        
+        // Handle change event for nama_test dropdown
+        $('#nama_test').on('change', function() {
+            // Clear validation errors when field changes
+            $(this).removeClass('is-invalid');
+            
+            // Get selected option
+            let selectedOption = $(this).find('option:selected');
+            
+            // If it's a valid selection and has kategori data
+            if (selectedOption.val() && selectedOption.data('kategori')) {
+                // Autofill header with lab kategori name
+                $('#header').val(selectedOption.data('kategori'));
+            } else if (selectedOption.val() && !selectedOption.data('kategori')) {
+                // For custom entries (new tags), default to "Lainnya" as header
+                // Only set if header is empty
+                if (!$('#header').val()) {
+                    $('#header').val('Lainnya');
+                }
+            }
+        });
         
         // Show the modal
         $('#addLisHasilModal').modal('show');
@@ -1375,11 +1422,31 @@ $(document).ready(function () {
         // Get form data
         let formData = $('#addLisHasilForm').serialize();
         
+        // Reset validation states
+        $('.is-invalid').removeClass('is-invalid');
+        
         // Validate required fields
+        let isValid = true;
+        
         if (!$('#nama_test').val()) {
-            alert('Nama Test harus diisi');
+            $('#nama_test').addClass('is-invalid');
+            $('#nama_test_error').show();
+            isValid = false;
+        }
+        
+        if (!isValid) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Validasi Gagal',
+                text: 'Mohon periksa kembali form isian',
+                confirmButtonText: 'OK'
+            });
             return;
         }
+        
+        // Show loading state
+        let saveBtn = $('#saveLisHasil');
+        saveBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Menyimpan...');
         
         // Submit the data
         $.ajax({
@@ -1393,30 +1460,56 @@ $(document).ready(function () {
                 console.log('CSRF Token:', $('meta[name="csrf-token"]').attr('content'));
             },
             success: function(response) {
+                // Reset button state
+                saveBtn.prop('disabled', false).html('Simpan');
+                
                 if (response.success) {
                     // Close modal
                     $('#addLisHasilModal').modal('hide');
                     
                     // Show success message
-                    alert(response.message || 'Hasil LIS berhasil ditambahkan');
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: response.message || 'Hasil LIS berhasil ditambahkan',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
                     
                     // Reload the LIS table
                     hasilLisTable.ajax.reload();
                 } else {
-                    alert(response.message || 'Terjadi kesalahan');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: response.message || 'Terjadi kesalahan'
+                    });
                 }
             },
             error: function(xhr) {
+                // Reset button state
+                saveBtn.prop('disabled', false).html('Simpan');
+                
                 // Handle errors
                 let errors = xhr.responseJSON?.errors;
                 if (errors) {
                     let errorMessage = '';
                     $.each(errors, function(key, value) {
-                        errorMessage += value + '\n';
+                        errorMessage += value + '<br>';
                     });
-                    alert(errorMessage || 'Terjadi kesalahan');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Validasi Gagal',
+                        html: errorMessage || 'Terjadi kesalahan',
+                        confirmButtonText: 'OK'
+                    });
                 } else {
-                    alert('Terjadi kesalahan saat menyimpan data');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Terjadi kesalahan saat menyimpan data',
+                        confirmButtonText: 'OK'
+                    });
                     console.error('Error saving LIS data:', xhr.responseText);
                 }
             }

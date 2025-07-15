@@ -72,6 +72,9 @@ class ElabController extends Controller
             $query->orderBy('nama');
         }])->orderBy('nama')->get();
         
+        // Get all lab tests with their kategori for Select2 dropdown
+        $labTests = LabTest::with('labKategori')->orderBy('nama')->get();
+        
         // Get existing lab requests for this visitation
         $existingLabRequests = LabPermintaan::where('visitation_id', $visitationId)
                                 ->with('labTest')
@@ -100,6 +103,7 @@ class ElabController extends Controller
         return view('erm.elab.create', array_merge([
             'visitation' => $visitation,
             'labCategories' => $labCategories,
+            'labTests' => $labTests,
             'totalHarga' => $totalHarga,
             'existingLabTestIds' => $existingLabTestIds,
             'existingLabTestStatuses' => $existingLabTestStatuses,
@@ -591,7 +595,7 @@ class ElabController extends Controller
     {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
-            'kode_lis' => 'nullable|string|max:255',
+            // kode_lis is now auto-generated
             'header' => 'nullable|string|max:255',
             'sub_header' => 'nullable|string|max:255',
             'nama_test' => 'required|string|max:255',
@@ -603,13 +607,16 @@ class ElabController extends Controller
         ]);
         
         try {
-            // Generate a unique code
+            // Generate a unique code for primary key
             $kode = 'LIS-' . uniqid();
+            
+            // Generate kode_lis if not provided
+            $kodeLis = $request->kode_lis ?: 'LISNO-' . date('YmdHis');
             
             $hasilLis = HasilLis::create([
                 'kode' => $kode,
                 'visitation_id' => $request->visitation_id,
-                'kode_lis' => $request->kode_lis,
+                'kode_lis' => $kodeLis,
                 'header' => $request->header,
                 'sub_header' => $request->sub_header,
                 'nama_test' => $request->nama_test,
