@@ -327,7 +327,10 @@ class ElabController extends Controller
                         </button>
                         <button type="button" class="btn btn-sm btn-primary btn-add-hasil-lis ml-1" data-id="'.$row->id.'" title="Tambah Hasil">
                             <i class="fas fa-plus"></i>
-                        </button>';
+                        </button>
+                        <a href="'.route('erm.elab.hasil-lis.pdf', $row->id).'" class="btn btn-sm btn-danger ml-1" title="Cetak PDF Hasil Lab" target="_blank">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>';
             })
             ->rawColumns(['action'])
             ->make(true);
@@ -640,6 +643,169 @@ class ElabController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menambahkan hasil LIS: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+    
+    // Helper function for date formatting
+    private function indoDate($date) 
+    {
+        if (!$date) return '-';
+        
+        $bulan = [
+            1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        $dt = strtotime($date);
+        $tgl = date('j', $dt);
+        $bln = $bulan[(int)date('n', $dt)];
+        $thn = date('Y', $dt);
+        return "$tgl $bln $thn";
+    }
+
+    // Helper function for age calculation
+    private function umurString($tanggal_lahir) 
+    {
+        $birth = new \DateTime($tanggal_lahir);
+        $today = new \DateTime();
+        $diff = $today->diff($birth);
+        $umur = $diff->y . ' th';
+        if ($diff->m > 0) $umur .= ' ' . $diff->m . ' bl';
+        if ($diff->d > 0) $umur .= ' ' . $diff->d . ' hr';
+        return $umur;
+    }
+    
+    public function generateHasilLisPdf($visitationId)
+    {
+        try {
+            // Get the visitation data with eager loading to avoid N+1 queries
+            $visitation = Visitation::with([
+                'pasien', 
+                'dokter.user', 
+                'dokter.spesialisasi'
+            ])->findOrFail($visitationId);
+
+            // Get all HasilLis entries for this visitation
+            $hasilLis = HasilLis::where('visitation_id', $visitationId)->get();
+
+            // Group data by header and sub_header - This is more efficient as one pass
+            $groupedData = [];
+            foreach ($hasilLis as $item) {
+                // Skip items with empty header
+                if (!$item->header) continue;
+
+                if (!isset($groupedData[$item->header])) {
+                    $groupedData[$item->header] = [];
+                }
+
+                // Default to empty string if sub_header is null
+                $subHeader = $item->sub_header ?: '';
+
+                if (!isset($groupedData[$item->header][$subHeader])) {
+                    $groupedData[$item->header][$subHeader] = [];
+                }
+
+                $groupedData[$item->header][$subHeader][] = $item;
+            }
+
+            // Pre-load and cache background image
+            $backgroundPath = public_path('img/overlay-lab.png');
+            $backgroundData = '';
+            if (file_exists($backgroundPath)) {
+                // Optimize the image before encoding
+                $backgroundData = 'data:image/png;base64,' . base64_encode(file_get_contents($backgroundPath));
+            }
+
+            // Get diagnosa kerja 1-5 from the latest asesmen penunjang for this patient
+            $latestPenunjang = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($visitation) {
+                $query->where('pasien_id', $visitation->pasien_id);
+            })
+            ->orderBy('created_at', 'desc')
+            ->first();
+            $diagnosaKerja = [];
+            if ($latestPenunjang) {
+                for ($i = 1; $i <= 5; $i++) {
+                    $val = $latestPenunjang->{'diagnosakerja_' . $i} ?? null;
+                    if ($val) $diagnosaKerja[] = $val;
+                }
+            }
+            
+            // Get lab doctor with specialization ID 7 (pre-fetch this data)
+            $dokterLab = \App\Models\ERM\Dokter::with('user', 'spesialisasi')
+                ->where('spesialisasi_id', 7)
+                ->first();
+                
+            // Pre-process QR code image to improve performance
+            $qrCodeData = null;
+            if ($dokterLab && $dokterLab->ttd) {
+                $qrPath = public_path('img/qr/' . $dokterLab->ttd);
+                if (file_exists($qrPath)) {
+                    // Convert to base64 to embed directly in the PDF
+                    $qrCodeData = 'data:image/png;base64,' . base64_encode(file_get_contents($qrPath));
+                }
+            }
+
+            // Format dates before passing to view
+            $tanggalVisitation = $this->indoDate($visitation->tanggal_visitation);
+            $tanggalLahir = $this->indoDate($visitation->pasien->tanggal_lahir);
+            $umurPasien = $this->umurString($visitation->pasien->tanggal_lahir);
+            $tanggalSekarang = $this->indoDate(date('Y-m-d'));
+            
+            // Create PDF with all pre-processed data
+            $pdf = PDF::loadView('erm.elab.pdf.hasil-lis', [
+                'visitation' => $visitation,
+                'hasilLis' => $hasilLis,
+                'groupedData' => $groupedData,
+                'tanggal' => date('d-m-Y', strtotime($visitation->tanggal_visitation)),
+                'backgroundData' => $backgroundData,
+                'diagnosaKerja' => $diagnosaKerja,
+                'dokterLab' => $dokterLab ? [
+                    'name' => $dokterLab->user->name ?? '-',
+                    'spesialisasi' => $dokterLab->spesialisasi->nama ?? ''
+                ] : null,
+                'qrCodeData' => $qrCodeData,
+                'tanggalVisitation' => $tanggalVisitation,
+                'tanggalLahir' => $tanggalLahir,
+                'umurPasien' => $umurPasien,
+                'tanggalSekarang' => $tanggalSekarang
+            ]);
+
+            // Set PDF options with optimized settings for faster performance
+            $pdf->setPaper('a4', 'portrait');
+            $pdf->setOption('enable-local-file-access', true);
+            // Disable JavaScript for faster rendering
+            $pdf->setOption('enable-javascript', false);
+            $pdf->setOption('javascript-delay', 0);
+            // Performance optimizations
+            $pdf->setOption('enable-smart-shrinking', true);
+            $pdf->setOption('no-stop-slow-scripts', false);
+            // Set cache options for better performance
+            $pdf->setOption('cache-dir', storage_path('framework/cache/pdf'));
+            $pdf->setOption('use-xserver', false);
+            // Set zero margins to avoid extra processing
+            $pdf->setOption('margin-top', 0);
+            $pdf->setOption('margin-right', 0);
+            $pdf->setOption('margin-bottom', 0);
+            $pdf->setOption('margin-left', 0);
+            // Additional performance optimizations
+            $pdf->setOption('image-dpi', 150);  // Lower DPI for faster rendering
+            $pdf->setOption('lowquality', false);
+            $pdf->setOption('image-quality', 70); // Lower quality for better performance
+            // Disable external links
+            $pdf->setOption('disable-external-links', true);
+            // Disable forms
+            $pdf->setOption('disable-forms', true);
+
+            // Generate filename
+            $filename = 'Hasil_Lab_' . $visitation->pasien->no_rekam_medis . '_' . date('dmY') . '.pdf';
+
+            // Return PDF for download
+            return $pdf->stream($filename);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error generating PDF: ' . $e->getMessage()
             ], 500);
         }
     }
