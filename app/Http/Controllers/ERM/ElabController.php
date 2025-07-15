@@ -809,4 +809,191 @@ class ElabController extends Controller
             ], 500);
         }
     }
+    
+    public function generateLembarMonitoringPdf($pasienId)
+    {
+        try {
+            // Get the patient data
+            $pasien = \App\Models\ERM\Pasien::findOrFail($pasienId);
+            
+            // Get the latest visitation for this patient
+            $latestVisit = Visitation::with(['dokter.user'])
+                ->where('pasien_id', $pasienId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            // Find visitations that have HasilLis entries for this patient
+            // Using join instead of orderBy('created_at') since HasilLis doesn't have timestamps
+            $visitationsWithLis = HasilLis::select('erm_hasil_lis.visitation_id')
+                ->join('erm_visitations', 'erm_hasil_lis.visitation_id', '=', 'erm_visitations.id')
+                ->where('erm_visitations.pasien_id', $pasienId)
+                ->groupBy('erm_hasil_lis.visitation_id')
+                ->orderBy('erm_visitations.tanggal_visitation', 'desc')
+                ->limit(5)
+                ->get()
+                ->pluck('visitation_id')
+                ->toArray();
+            
+            // Get those visitations
+            $visitations = Visitation::whereIn('id', $visitationsWithLis)
+                ->orderBy('tanggal_visitation', 'desc')
+                ->get();
+            
+            // If no visitations with LIS data found, return an error
+            if ($visitations->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak ada data laboratorium untuk pasien ini.'
+                ], 404);
+            }
+            
+            // Get all HasilLis entries for these visitations
+            $visitationIds = $visitations->pluck('id')->toArray();
+            $allHasilLis = HasilLis::whereIn('visitation_id', $visitationIds)
+                ->orderBy('header')
+                ->orderBy('sub_header')
+                ->orderBy('nama_test')
+                ->get();
+            
+            // Create an array of visitation dates in the format we want to display
+            // Always ensure we have 5 columns for display
+            $visitDates = [];
+            foreach ($visitations as $visit) {
+                $visitDates[] = $this->indoDate($visit->tanggal_visitation);
+            }
+            
+            // Pad with empty dates if we have fewer than 5 dates
+            while (count($visitDates) < 5) {
+                $visitDates[] = ""; // Empty date for blank columns
+            }
+            
+            // Group and organize data for the monitoring format
+            $monitoringData = [];
+            
+            foreach ($allHasilLis as $item) {
+                // Skip items with empty header or empty results
+                if (!$item->header || empty($item->hasil)) continue;
+                
+                // Create header if it doesn't exist
+                if (!isset($monitoringData[$item->header])) {
+                    $monitoringData[$item->header] = [];
+                }
+                
+                // Default to empty string if sub_header is null
+                $subHeader = $item->sub_header ?: '';
+                
+                // Create sub-header if it doesn't exist
+                if (!isset($monitoringData[$item->header][$subHeader])) {
+                    $monitoringData[$item->header][$subHeader] = [];
+                }
+                
+                // Find the corresponding visitation date
+                $visitation = $visitations->firstWhere('id', $item->visitation_id);
+                $visitationDate = $this->indoDate($visitation->tanggal_visitation);
+                
+                // If this test name is new, initialize it
+                if (!isset($monitoringData[$item->header][$subHeader][$item->nama_test])) {
+                    $monitoringData[$item->header][$subHeader][$item->nama_test] = [];
+                }
+                
+                // Add the result for this visit
+                $monitoringData[$item->header][$subHeader][$item->nama_test][$visitationDate] = [
+                    'hasil' => $item->hasil,
+                    'flag' => $item->flag
+                ];
+            }
+            
+            // Pre-load and cache background image
+            $backgroundPath = public_path('img/overlay-lab.png');
+            $backgroundData = '';
+            if (file_exists($backgroundPath)) {
+                // Optimize the image before encoding
+                $backgroundData = 'data:image/png;base64,' . base64_encode(file_get_contents($backgroundPath));
+            }
+            
+            // Get diagnosa kerja from the latest assessment
+            $latestPenunjang = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($pasienId) {
+                $query->where('pasien_id', $pasienId);
+            })
+            ->orderBy('created_at', 'desc')
+            ->first();
+            
+            $diagnosaKerja = [];
+            if ($latestPenunjang) {
+                for ($i = 1; $i <= 5; $i++) {
+                    $val = $latestPenunjang->{'diagnosakerja_' . $i} ?? null;
+                    if ($val) $diagnosaKerja[] = $val;
+                }
+            }
+            
+            // Get lab doctor with specialization ID 7 (pre-fetch this data)
+            $dokterLab = \App\Models\ERM\Dokter::with('user', 'spesialisasi')
+                ->where('spesialisasi_id', 7)
+                ->first();
+                
+            // Pre-process QR code image to improve performance
+            $qrCodeData = null;
+            if ($dokterLab && $dokterLab->ttd) {
+                $qrPath = public_path('img/qr/' . $dokterLab->ttd);
+                if (file_exists($qrPath)) {
+                    // Convert to base64 to embed directly in the PDF
+                    $qrCodeData = 'data:image/png;base64,' . base64_encode(file_get_contents($qrPath));
+                }
+            }
+            
+            // Format dates
+            $tanggalLahir = $this->indoDate($pasien->tanggal_lahir);
+            $umurPasien = $this->umurString($pasien->tanggal_lahir);
+            $tanggalSekarang = $this->indoDate(date('Y-m-d'));
+            
+            // Create PDF
+            $pdf = PDF::loadView('erm.elab.pdf.lembar-monitoring', [
+                'pasien' => $pasien,
+                'latestVisit' => $latestVisit,
+                'monitoringData' => $monitoringData,
+                'visitDates' => $visitDates,
+                'backgroundData' => $backgroundData,
+                'diagnosaKerja' => $diagnosaKerja,
+                'dokterLab' => $dokterLab ? [
+                    'name' => $dokterLab->user->name ?? '-',
+                    'spesialisasi' => $dokterLab->spesialisasi->nama ?? ''
+                ] : null,
+                'qrCodeData' => $qrCodeData,
+                'tanggalLahir' => $tanggalLahir,
+                'umurPasien' => $umurPasien,
+                'tanggalSekarang' => $tanggalSekarang
+            ]);
+            
+            // Set PDF options with optimized settings
+            $pdf->setPaper('a4', 'portrait');
+            $pdf->setOption('enable-local-file-access', true);
+            $pdf->setOption('enable-javascript', false);
+            $pdf->setOption('javascript-delay', 0);
+            $pdf->setOption('enable-smart-shrinking', true);
+            $pdf->setOption('no-stop-slow-scripts', false);
+            $pdf->setOption('cache-dir', storage_path('framework/cache/pdf'));
+            $pdf->setOption('use-xserver', false);
+            $pdf->setOption('margin-top', 0);
+            $pdf->setOption('margin-right', 0);
+            $pdf->setOption('margin-bottom', 0);
+            $pdf->setOption('margin-left', 0);
+            $pdf->setOption('image-dpi', 150);
+            $pdf->setOption('lowquality', false);
+            $pdf->setOption('image-quality', 70);
+            $pdf->setOption('disable-external-links', true);
+            $pdf->setOption('disable-forms', true);
+            
+            // Generate filename
+            $filename = 'Monitoring_Lab_' . $pasien->id . '_' . date('dmY') . '.pdf';
+            
+            // Return PDF for download
+            return $pdf->stream($filename);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error generating PDF: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

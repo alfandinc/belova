@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hasil Laboratorium</title>
+    <title>Lembar Monitoring Laboratorium</title>
     <style>
         .patient-info tr {
             height: auto;
@@ -86,10 +86,10 @@
         .lab-results th {
             background-color: white;
             color: black;
-            padding: 6px;
+            padding: 8px 6px;
             border: 1px solid #ddd;
             text-align: center;
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
             vertical-align: middle;
         }
@@ -146,13 +146,6 @@
             justify-content: space-between;
             margin-top: 30px;
         }
-        .signature {
-            text-align: center;
-            font-size: 10px;
-            margin-left: auto;
-            margin-right: 0;
-            width: 220px;
-        }
         .signature-date {
             text-align: left;
             font-size: 10px;
@@ -160,6 +153,9 @@
         .signature {
             text-align: center;
             font-size: 10px;
+            margin-left: auto;
+            margin-right: 0;
+            width: 220px;
         }
         .signature-line {
             margin-top: 40px;
@@ -176,13 +172,31 @@
             margin-top: 15px;
             font-size: 10px;
         }
+        /* Special styles for monitoring table */
+        .monitoring-results th {
+            background-color: #f0f5fa;
+            font-size: 9px;
+            padding: 4px;
+        }
+        .monitoring-results td {
+            font-size: 9px;
+            padding: 4px;
+        }
+        .notes-section {
+            margin-top: 15px;
+            font-size: 10px;
+            padding: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 5px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     
     <div class="content-wrapper">
         <div class="header">
-            <h2>HASIL PEMERIKSAAN LABORATORIUM</h2>
+            <h2>LEMBAR MONITORING LABORATORIUM</h2>
         </div>
     
     <table class="patient-info">
@@ -190,22 +204,22 @@
             <!-- LEFT SIDE -->
             <td style="white-space:nowrap;">Nama Pasien</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="white-space:nowrap;">{{ $visitation->pasien->nama }}</td>
+            <td style="white-space:nowrap;">{{ $pasien->nama }}</td>
             <!-- RIGHT SIDE -->
             <td style="white-space:nowrap;">No. Rekam Medis</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="white-space:nowrap;">{{ $visitation->pasien->id }}</td>
+            <td style="white-space:nowrap;">{{ $pasien->id }}</td>
         </tr>
         <tr>
             <!-- LEFT SIDE -->
             <td style="white-space:nowrap;">Jenis Kelamin</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="white-space:nowrap;">{{ $visitation->pasien->jenis_kelamin == 'L' ? 'Laki-laki' : 'Perempuan' }}</td>
+            <td style="white-space:nowrap;">{{ $pasien->jenis_kelamin == 'L' ? 'Laki-laki' : 'Perempuan' }}</td>
             <!-- RIGHT SIDE -->
-            <td style="white-space:nowrap;">Tanggal Pemeriksaan</td>
+            <td style="white-space:nowrap;">Tanggal Cetak</td>
             <td style="width:10px; text-align:center;">:</td>
             <td style="white-space:nowrap;">
-                {{ $tanggalVisitation }}
+                {{ $tanggalSekarang }}
             </td>
         </tr>
         <tr>
@@ -218,13 +232,13 @@
             <!-- RIGHT SIDE -->
             <td style="white-space:nowrap;">Dokter</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="word-break:break-word; white-space:normal; max-width: 220px;">{{ $visitation->dokter->user->name ?? 'Tidak ada dokter' }}</td>
+            <td style="word-break:break-word; white-space:normal; max-width: 220px;">{{ $latestVisit && $latestVisit->dokter ? $latestVisit->dokter->user->name : '-' }}</td>
         </tr>
         <tr>
             <!-- LEFT SIDE -->
             <td style="white-space:nowrap;">Alamat Pasien</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="white-space:normal;">{{ $visitation->pasien->alamat }}</td>
+            <td style="white-space:normal;">{{ $pasien->alamat }}</td>
             <!-- RIGHT SIDE -->
             <td style="white-space:nowrap;">Diagnosa</td>
             <td style="width:10px; text-align:center;">:</td>
@@ -232,61 +246,62 @@
         </tr>
     </table>
     
-    @if(count($hasilLis) > 0)
-        <table class="lab-results">
+    @if(count($monitoringData) > 0)
+        <table class="lab-results monitoring-results">
             <thead>
                 <tr>
-                    <th width="35%">Pemeriksaan</th>
-                    <th width="10%">Hasil</th>
-                    <th width="5%">Flag</th>
-                    <th width="25%">Nilai Rujukan</th>
-                    <th width="10%">Satuan</th>
-                    <th width="15%">Metode</th>
+                    <th width="40%">Pemeriksaan</th>
+                    @foreach($visitDates as $index => $visitDate)
+                        <th>{{ !empty($visitDate) ? $visitDate : '-' }}</th>
+                    @endforeach
                 </tr>
             </thead>
             <tbody>
-                
-                @foreach($groupedData as $header => $subHeaders)
+                @foreach($monitoringData as $header => $subHeaders)
                     <tr>
-                        <td colspan="6" class="lab-header">{{ $header }}</td>
+                        <td colspan="{{ 1 + count($visitDates) }}" class="lab-header">{{ $header }}</td>
                     </tr>
                     
                     @foreach($subHeaders as $subHeader => $items)
                         @if($subHeader)
                             <tr>
-                                <td colspan="6" class="lab-subheader">{{ $subHeader }}</td>
+                                <td colspan="{{ 1 + count($visitDates) }}" class="lab-subheader">{{ $subHeader }}</td>
                             </tr>
                         @endif
                         
-                        @foreach($items as $item)
+                        @foreach($items as $testName => $results)
                             <tr>
-                                <td>{{ $item->nama_test }}</td>
-                                <td class="result-center">{{ $item->hasil }}</td>
-                                <td class="flag-{{ $item->flag }}">{{ $item->flag }}</td>
-                                <td>{{ $item->nilai_rujukan }}</td>
-                                <td class="result-center">{{ $item->satuan }}</td>
-                                <td>{{ $item->metode }}</td>
+                                <td>{{ $testName }}</td>
+                                @foreach($visitDates as $visitDate)
+                                    <td class="result-center">
+                                        @if(isset($results[$visitDate]))
+                                            {{ $results[$visitDate]['hasil'] }}
+                                            @if(isset($results[$visitDate]['flag']) && $results[$visitDate]['flag'])
+                                                <span class="flag-{{ $results[$visitDate]['flag'] }}">{{ $results[$visitDate]['flag'] }}</span>
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                @endforeach
                             </tr>
                         @endforeach
                     @endforeach
                 @endforeach
-                
-                @if(count($groupedData) == 0)
-                    <tr>
-                        <td colspan="6" style="text-align: center;">Tidak ada data hasil laboratorium</td>
-                    </tr>
-                @endif
             </tbody>
         </table>
+        
+        <div class="notes-section">
+            <p><strong>Catatan:</strong> Laporan ini menampilkan riwayat maksimal 5 pemeriksaan laboratorium terakhir yang memiliki hasil.</p>
+        </div>
     @else
-        <p style="text-align: center;">Tidak ada data hasil laboratorium untuk kunjungan ini.</p>
+        <p style="text-align: center;">Tidak ada data monitoring laboratorium untuk pasien ini.</p>
     @endif
     
     <div class="signature-container">
         <div class="signature-date">
-            <p>* Dokumen ini dicetak pada {{ now()->format('d-m-Y H:i:s') }} dan merupakan hasil resmi laboratorium.</p>
-            <p>* Hasil yang telah diberikan tidak dapat diminta kembali (bila hilang) tanpa pemeriksaan ulang.</p>
-            <p>* Untuk riwayat pemeriksaan, lihat lembar monitoring laboratorium.</p>
+            <p>* Dokumen ini dicetak pada {{ now()->format('d-m-Y H:i:s') }} dan merupakan hasil monitoring laboratorium.</p>
+            <p>* Kolom tanggal menunjukkan hasil pemeriksaan pada tanggal tersebut (maksimal 5 kali pemeriksaan terakhir).</p>
         </div>
         <div class="signature">
             <p>Surakarta, {{ $tanggalSekarang }}</p>
@@ -304,9 +319,6 @@
             @endif
         </div>
     </div>
-    
-    {{-- <div class="footer-notes">
-    </div> --}}
     </div><!-- End content-wrapper -->
 </body>
 </html>

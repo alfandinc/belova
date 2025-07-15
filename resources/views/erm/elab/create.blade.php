@@ -247,6 +247,16 @@
                     <div class="tab-content mt-3" id="labResultsTabsContent">
                         <!-- Hasil LIS Tab -->
                         <div class="tab-pane fade show active" id="hasil-lis-content" role="tabpanel" aria-labelledby="hasil-lis-tab">
+                            <div class="d-flex justify-content-end mb-3">
+                                <a href="{{ route('erm.elab.lembar-monitoring.pdf', $visitation->pasien_id) }}" target="_blank" class="btn btn-sm btn-info mr-2">
+                                    <i class="fas fa-file-alt mr-1"></i> Cetak Lembar Monitoring
+                                </a>
+                                @if(count($existingLabTestIds) > 0)
+                                <a href="{{ route('erm.elab.hasil-lis.pdf', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-print mr-1"></i> Cetak Hasil Lab
+                                </a>
+                                @endif
+                            </div>
                             <div class="table-responsive">
                                 <table id="hasilLisTable" class="table table-bordered table-hover w-100">
                                     <thead class="thead-light">
