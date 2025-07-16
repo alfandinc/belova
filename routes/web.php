@@ -10,7 +10,8 @@ use App\Http\Controllers\{
     MarketingDashboardController,
     FinanceDashboardController,
     WorkdocDashboardController,
-    AkreditasiDashboardController
+    AkreditasiDashboardController,
+    CustSurveyController
 };
 use App\Http\Controllers\Admin\{
     UserController,
@@ -94,6 +95,9 @@ Route::fallback(function () {
         return redirect('/');
     }
 });
+
+Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');
+Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('customer.survey');
 
 // ERM Routes
 Route::prefix('erm')->group(function () {

@@ -327,7 +327,7 @@
                 </a>
                 
                 <!-- Cuatomer Tile -->
-                <a href="/customer/login" class="menu-tile tile-lab animate-item delay-7">
+                <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-7">
                     <div class="menu-icon">
                         <i class="fas fa-star-half-alt"></i>
                     </div>
