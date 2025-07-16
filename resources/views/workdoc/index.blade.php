@@ -383,11 +383,13 @@
                             <div class="col">                      
                                 <h4 class="card-title">Categories</h4>                      
                             </div><!--end col-->
+                            @if($isAdmin)
                             <div class="col-auto"> 
                                 <button class="btn btn-sm btn-outline-primary" id="create-category-btn" data-toggle="modal" data-target="#createFolderModal">
                                     <i class="mdi mdi-folder-plus mr-2"></i> Create Category
                                 </button>
                             </div><!--end col-->
+                            @endif
                         </div>  <!--end row-->                                  
                     </div><!--end card-header-->
                     <div class="card-body">
