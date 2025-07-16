@@ -8,7 +8,7 @@ class MarketingDashboardController extends Controller
 {
     public function index()
     {
-        if (!auth()->user()->hasAnyRole('Marketing')) {
+        if (!auth()->user()->hasAnyRole('Marketing','Admin')) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 

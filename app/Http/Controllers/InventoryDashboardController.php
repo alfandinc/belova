@@ -8,7 +8,7 @@ class InventoryDashboardController extends Controller
 {
     public function index()
     {
-        if (!auth()->user()->hasAnyRole('Inventaris')) {
+        if (!auth()->user()->hasAnyRole('Inventaris','Admin')) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 

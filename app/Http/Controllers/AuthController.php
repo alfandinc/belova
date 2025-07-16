@@ -56,11 +56,11 @@ class AuthController extends Controller
         $roleMapping = [
             'erm' => ['Dokter', 'Perawat', 'Pendaftaran', 'Admin', 'Farmasi','Beautician','Lab'],
             'hrd' => ['Hrd', 'Ceo', 'Manager', 'Employee'],
-            'finance' => ['Kasir'],
-            'inventory' => ['Inventaris'],
-            'marketing' => ['Marketing'],
-            'workdoc' => ['Hrd', 'Ceo', 'Manager', 'Employee'],
-            'akreditasi' => ['Hrd', 'Ceo', 'Manager', 'Employee'],
+            'finance' => ['Kasir','Admin'],
+            'inventory' => ['Inventaris','Admin'],
+            'marketing' => ['Marketing', 'Admin'],
+            'workdoc' => ['Hrd', 'Ceo', 'Manager', 'Employee','Admin'],
+            'akreditasi' => ['Hrd', 'Ceo', 'Manager', 'Employee','Admin'],
         ];
 
         // Check if the module is valid

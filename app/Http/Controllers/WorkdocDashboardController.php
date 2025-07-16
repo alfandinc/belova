@@ -8,7 +8,7 @@ class WorkdocDashboardController extends Controller
 {
     public function index()
     {
-        if (!auth()->user()->hasAnyRole('Hrd', 'Ceo', 'Manager', 'Employee')) {
+        if (!auth()->user()->hasAnyRole('Hrd', 'Ceo', 'Manager', 'Employee', 'Admin')) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 

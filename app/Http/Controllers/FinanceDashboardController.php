@@ -9,7 +9,7 @@ class FinanceDashboardController extends Controller
 {
     public function index()
     {
-        if (!auth()->user()->hasAnyRole(['Kasir'])) {
+        if (!auth()->user()->hasAnyRole(['Kasir','Admin'])) {
             return redirect('/')->with('error', 'Unauthorized access.');
         }
 
