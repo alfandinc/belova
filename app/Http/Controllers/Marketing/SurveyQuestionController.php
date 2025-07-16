@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Survey\SurveyQuestion;
 use Yajra\DataTables\DataTables;
+use Illuminate\Support\Facades\Validator;
 
 class SurveyQuestionController extends Controller
 {
@@ -27,7 +28,13 @@ class SurveyQuestionController extends Controller
         return DataTables::of($query)
             ->addColumn('average_score', function($row) {
                 if ($row->question_type === 'multiple_choice') {
-                    $options = is_array($row->options) ? $row->options : (json_decode($row->options, true) ?: []);
+                    $options = $row->options;
+                    if (is_string($options)) {
+                        $options = json_decode($options, true) ?: [];
+                    }
+                    if (!is_array($options)) {
+                        $options = [];
+                    }
                     $counts = [];
                     foreach ($options as $opt) {
                         $count = $row->answers()->where('answer', $opt)->count();
@@ -52,14 +59,28 @@ class SurveyQuestionController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        $input = $request->all();
+        if (isset($input['options']) && is_string($input['options'])) {
+            $decoded = json_decode($input['options'], true);
+            if (is_array($decoded)) {
+                $input['options'] = $decoded;
+            }
+        }
+        $data = Validator::make($input, [
             'question_text' => 'required|string',
             'question_type' => 'required|string',
             'options' => 'nullable|array',
             'order' => 'nullable|integer',
             'klinik_name' => 'nullable|string',
-        ]);
-        if(isset($data['options'])) {
+        ])->validate();
+        if (isset($data['options'])) {
+            // If options is a string, decode it first
+            if (is_string($data['options'])) {
+                $decoded = json_decode($data['options'], true);
+                if (is_array($decoded)) {
+                    $data['options'] = $decoded;
+                }
+            }
             $data['options'] = json_encode($data['options']);
         }
         $question = SurveyQuestion::create($data);
@@ -69,14 +90,28 @@ class SurveyQuestionController extends Controller
     public function update(Request $request, $id)
     {
         $question = SurveyQuestion::findOrFail($id);
-        $data = $request->validate([
+        $input = $request->all();
+        if (isset($input['options']) && is_string($input['options'])) {
+            $decoded = json_decode($input['options'], true);
+            if (is_array($decoded)) {
+                $input['options'] = $decoded;
+            }
+        }
+        $data = Validator::make($input, [
             'question_text' => 'required|string',
             'question_type' => 'required|string',
             'options' => 'nullable|array',
             'order' => 'nullable|integer',
             'klinik_name' => 'nullable|string',
-        ]);
-        if(isset($data['options'])) {
+        ])->validate();
+        if (isset($data['options'])) {
+            // If options is a string, decode it first
+            if (is_string($data['options'])) {
+                $decoded = json_decode($data['options'], true);
+                if (is_array($decoded)) {
+                    $data['options'] = $decoded;
+                }
+            }
             $data['options'] = json_encode($data['options']);
         }
         $question->update($data);

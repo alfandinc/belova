@@ -152,8 +152,14 @@ $(function() {
         var id = $('#question_id').val();
         var data = $(this).serializeArray();
         var options = $('[name=options]').val();
+        var typeVal = $('[name=question_type]').val();
         data = data.filter(f => f.name !== 'options');
-        if(options) data.push({name:'options', value: options.split(',').map(s=>s.trim())});
+        if(typeVal === 'multiple_choice' && options) {
+            // Send as JSON string array
+            data.push({name:'options', value: JSON.stringify(options.split(',').map(s=>s.trim()))});
+        } else if(options) {
+            data.push({name:'options', value: options});
+        }
         var url = 'survey-questions' + (id ? '/' + id : '');
         var type = id ? 'PUT' : 'POST';
         $.ajax({

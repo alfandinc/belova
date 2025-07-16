@@ -500,7 +500,10 @@
                                 </div>
                             @elseif($question->question_type === 'multiple_choice')
                                 <div class="source-survey">
-                                    @foreach($question->options as $opt)
+                                    @php
+                                        $options = is_array($question->options) ? $question->options : (json_decode($question->options, true) ?: []);
+                                    @endphp
+                                    @foreach($options as $opt)
                                         @php
                                             $icon = '';
                                             if ($opt === 'Tiktok') $icon = 'https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/tiktok.svg';
