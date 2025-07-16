@@ -22,7 +22,8 @@ class Document extends Model
         'folder_id',
         'created_by',
         'division_id',
-        'is_private'
+        'is_private',
+        'due_date'
     ];
 
     /**

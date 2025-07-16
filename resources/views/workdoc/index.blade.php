@@ -799,6 +799,10 @@
                             <small class="form-text text-muted">Maximum file size: 10MB</small>
                         </div>
                         <div class="form-group mt-3">
+                            <label for="due_date">Due Date</label>
+                            <input type="date" class="form-control" id="due_date" name="due_date">
+                        </div>
+                        <div class="form-group mt-3">
                             <label for="description">Description (Optional)</label>
                             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
                         </div>

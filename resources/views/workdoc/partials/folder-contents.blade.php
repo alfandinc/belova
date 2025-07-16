@@ -61,6 +61,7 @@
                                         <th class="border-top-0">Name</th>
                                         <th class="border-top-0">Owner</th>
                                         <th class="border-top-0">Last Modified</th>
+                                        <th class="border-top-0">Due Date</th>
                                         <th class="border-top-0">Size</th>
                                         <th class="border-top-0 text-right">Actions</th>
                                     </tr>
@@ -75,6 +76,7 @@
                                             </td>
                                             <td>{{ $subfolder->creator->name ?? 'Unknown' }}</td>
                                             <td>{{ $subfolder->updated_at->format('M d, Y') }}</td>
+                                            <td>--</td>
                                             <td>--</td>
                                             <td class="text-right">
                                                 <div class="btn-group" role="group">
@@ -94,7 +96,20 @@
                                     @endforeach
                                     
                                     @foreach($documents as $document)
-                                        <tr>
+                                        @php
+                                            $rowClass = '';
+                                            if ($document->due_date) {
+                                                $due = \Carbon\Carbon::parse($document->due_date);
+                                                $now = \Carbon\Carbon::now();
+                                                $diffDays = $now->diffInDays($due, false);
+                                                if ($diffDays <= 7 && $diffDays >= 0) {
+                                                    $rowClass = 'table-danger';
+                                                } elseif ($diffDays <= 31 && $diffDays > 7) {
+                                                    $rowClass = 'table-warning';
+                                                }
+                                            }
+                                        @endphp
+                                        <tr class="{{ $rowClass }}">
                                             <td>
                                                 <a href="{{ route('workdoc.documents.download', $document->id) }}" target="_blank">
                                                     <i class="fas {{ getFileIcon($document->file_path) }} mr-2"></i>{{ $document->name }}
@@ -102,6 +117,13 @@
                                             </td>
                                             <td>{{ $document->creator->name ?? 'Unknown' }}</td>
                                             <td>{{ $document->updated_at->format('M d, Y') }}</td>
+                                            <td>
+                                                @if($document->due_date)
+                                                    {{ \Carbon\Carbon::parse($document->due_date)->format('M d, Y') }}
+                                                @else
+                                                    <span class="text-muted">-</span>
+                                                @endif
+                                            </td>
                                             <td>{{ formatBytes($document->file_size) }}</td>
                                             <td class="text-right">
                                                 <div class="btn-group" role="group">

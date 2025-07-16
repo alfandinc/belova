@@ -99,6 +99,7 @@ class DocumentController extends Controller
             'division_id' => 'nullable|exists:hrd_division,id',
             'description' => 'nullable|string|max:255',
             'is_private' => 'sometimes|boolean',
+            'due_date' => 'nullable|date',
         ]);
         
         if ($validator->fails()) {
@@ -136,6 +137,7 @@ class DocumentController extends Controller
             'created_by' => Auth::id(),
             'division_id' => $request->division_id,
             'is_private' => $request->has('is_private') ? true : false,
+            'due_date' => $request->due_date,
         ]);
         
         return redirect()->back()->with('success', 'Document uploaded successfully.');
@@ -251,7 +253,12 @@ class DocumentController extends Controller
             });
         }
         
-        $documents = $documentsQuery->get();
+        // Order: due_date not null first, then by due_date ascending, then by updated_at desc
+        $documents = $documentsQuery
+            ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('due_date', 'asc')
+            ->orderBy('updated_at', 'desc')
+            ->get();
         
         // Get breadcrumbs
         $breadcrumbs = $this->getBreadcrumbs($folder);
