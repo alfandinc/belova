@@ -25,11 +25,28 @@ class SurveyQuestionController extends Controller
         }
         // No filter at all if 'All Klinik' (empty string)
         return DataTables::of($query)
+            ->addColumn('average_score', function($row) {
+                if ($row->question_type === 'multiple_choice') {
+                    $options = is_array($row->options) ? $row->options : (json_decode($row->options, true) ?: []);
+                    $counts = [];
+                    foreach ($options as $opt) {
+                        $count = $row->answers()->where('answer', $opt)->count();
+                        $counts[] = '<li style="font-size:1.1em;font-weight:bold;">'.e($opt).' = '.$count.'</li>';
+                    }
+                    return '<ul style="padding-left:18px;margin:0;">'.implode('', $counts).'</ul>';
+                } else {
+                    $avg = $row->averageScore();
+                    if (!$avg) return '<span>-</span>';
+                    $score = number_format($avg, 2);
+                    $color = ($avg > 3) ? 'success' : 'danger';
+                    return '<span class="badge badge-'.$color.'" style="font-size:1.6em;padding:10px 22px;font-weight:bold;">'.$score.'</span>';
+                }
+            })
             ->addColumn('action', function($row) {
                 return '<button class="btn btn-sm btn-primary edit-btn" data-id="'.$row->id.'">Edit</button> '
                     .'<button class="btn btn-sm btn-danger delete-btn" data-id="'.$row->id.'">Delete</button>';
             })
-            ->rawColumns(['action'])
+            ->rawColumns(['average_score', 'action'])
             ->make(true);
     }
 

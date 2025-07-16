@@ -29,7 +29,8 @@
                 <th>Options</th>
                 <th>Order</th>
                 <th>Klinik</th>
-                <th>Action</th>
+                <th style="width:180px;">Average Score</th>
+                <th style="width:140px;">Action</th>
             </tr>
         </thead>
     </table>
@@ -102,8 +103,18 @@ $(function() {
             { data: 'options' },
             { data: 'order' },
             { data: 'klinik_name' },
+            { data: 'average_score', searchable: false, orderable: false },
             { data: 'action', orderable: false, searchable: false }
-        ]
+        ],
+        rowCallback: function(row, data) {
+            if (data.klinik_name === 'Klinik Utama Premiere Belova') {
+                $(row).css('background-color', '#e3f2fd'); // light blue
+            } else if (data.klinik_name === 'Klinik Pratama Belova Skin') {
+                $(row).css('background-color', '#ffe3f3'); // light pink
+            } else {
+                $(row).css('background-color', '');
+            }
+        }
     });
     $('#filterKlinik').change(function() {
         table.ajax.reload();

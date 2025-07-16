@@ -23,4 +23,12 @@ class SurveyQuestion extends Model
     {
         return $this->hasMany(SurveyAnswer::class, 'question_id');
     }
+    /**
+     * Get the average score for this question (assumes numeric answers 1-5).
+     */
+    public function averageScore()
+    {
+        // If answers are stored as numeric (1-5), calculate average
+        return $this->answers()->avg('answer');
+    }
 }
