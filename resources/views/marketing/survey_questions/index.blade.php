@@ -6,34 +6,49 @@
     @include('layouts.marketing.navbar')
 @endsection
 @section('content')
-<div class="container mt-5">
-    <h2 class="mb-4">Manage Survey Questions</h2>
-    <div class="row mb-3">
-        <div class="col-md-4">
-            <select id="filterKlinik" class="form-control">
-                <option value="">All Klinik</option>
-                <option value="Klinik Pratama Belova Skin">Klinik Pratama Belova Skin</option>
-                <option value="Klinik Utama Premiere Belova">Klinik Utama Premiere Belova</option>
-            </select>
-        </div>
-        <div class="col-md-8 text-right">
-            <button class="btn btn-success" id="addBtn">Add Question</button>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h4 class="card-title">Manage Survey Questions</h4>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex">
+                                <select id="filterKlinik" class="form-control mr-2">
+                                    <option value="">All Klinik</option>
+                                    <option value="Klinik Pratama Belova Skin">Klinik Pratama Belova Skin</option>
+                                    <option value="Klinik Utama Premiere Belova">Klinik Utama Premiere Belova</option>
+                                </select>
+                                <button class="btn btn-success ml-2" id="addBtn">Add Question</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered dt-responsive nowrap" id="questionsTable" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Question</th>
+                                    <th>Type</th>
+                                    <th>Options</th>
+                                    <th>Order</th>
+                                    <th>Klinik</th>
+                                    <th style="width:180px;">Average Score</th>
+                                    <th style="width:140px;">Action</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <table class="table table-bordered" id="questionsTable">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Question</th>
-                <th>Type</th>
-                <th>Options</th>
-                <th>Order</th>
-                <th>Klinik</th>
-                <th style="width:180px;">Average Score</th>
-                <th style="width:140px;">Action</th>
-            </tr>
-        </thead>
-    </table>
 </div>
 
 <!-- Modal -->
@@ -70,7 +85,10 @@
             </div>
             <div class="form-group">
                 <label>Klinik</label>
-                <input type="text" class="form-control" name="klinik_name">
+                <select class="form-control" name="klinik_name" required>
+                    <option value="Klinik Utama Premiere Belova">Klinik Utama Premiere Belova</option>
+                    <option value="Klinik Pratama Belova Skin">Klinik Pratama Belova Skin</option>
+                </select>
             </div>
         </div>
         <div class="modal-footer">
