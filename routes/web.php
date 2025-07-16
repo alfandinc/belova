@@ -542,6 +542,17 @@ Route::prefix('marketing')->group(function () {
     Route::delete('/tindakan/paket/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'destroyPaket']);
 
     Route::get('/pasien-data', [App\Http\Controllers\Marketing\MarketingController::class, 'pasienData'])->name('marketing.pasien-data');
+
+    // Survey Question Management
+    Route::get('survey-questions', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'index']);
+    Route::get('survey-questions/datatable', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'datatable']);
+    Route::get('survey-questions/{id}', function($id) {
+        $q = \App\Models\Survey\SurveyQuestion::findOrFail($id);
+        return response()->json(['data' => $q]);
+    });
+    Route::post('survey-questions', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'store']);
+    Route::put('survey-questions/{id}', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'update']);
+    Route::delete('survey-questions/{id}', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'destroy']);
 });
 
 Route::prefix('admin')->group(

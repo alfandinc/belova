@@ -1,0 +1,160 @@
+@extends('layouts.marketing.app')
+
+@section('title', 'Pasien Data - Marketing')
+
+@section('navbar')
+    @include('layouts.marketing.navbar')
+@endsection
+@section('content')
+<div class="container mt-5">
+    <h2 class="mb-4">Manage Survey Questions</h2>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <select id="filterKlinik" class="form-control">
+                <option value="">All Klinik</option>
+                <option value="Klinik Pratama Belova Skin">Klinik Pratama Belova Skin</option>
+                <option value="Klinik Utama Premiere Belova">Klinik Utama Premiere Belova</option>
+            </select>
+        </div>
+        <div class="col-md-8 text-right">
+            <button class="btn btn-success" id="addBtn">Add Question</button>
+        </div>
+    </div>
+    <table class="table table-bordered" id="questionsTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Question</th>
+                <th>Type</th>
+                <th>Options</th>
+                <th>Order</th>
+                <th>Klinik</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="questionModal" tabindex="-1" role="dialog" aria-labelledby="modalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalLabel">Add/Edit Question</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="questionForm">
+        <div class="modal-body">
+            <input type="hidden" id="question_id" name="id">
+            <div class="form-group">
+                <label>Pertanyaan</label>
+                <input type="text" class="form-control" name="question_text" required>
+            </div>
+            <div class="form-group">
+                <label>Tipe</label>
+                <select class="form-control" name="question_type" required>
+                    <option value="emoji_scale">Emoji Scale</option>
+                    <option value="multiple_choice">Multiple Choice</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Options (comma separated, for multiple choice)</label>
+                <input type="text" class="form-control" name="options">
+            </div>
+            <div class="form-group">
+                <label>Order</label>
+                <input type="number" class="form-control" name="order">
+            </div>
+            <div class="form-group">
+                <label>Klinik</label>
+                <input type="text" class="form-control" name="klinik_name">
+            </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+@endsection
+@push('scripts')
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script>
+$(function() {
+    var table = $('#questionsTable').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{{ url('marketing/survey-questions/datatable') }}',
+            data: function(d) {
+                d.klinik = $('#filterKlinik').val();
+            }
+        },
+        columns: [
+            { data: 'id' },
+            { data: 'question_text' },
+            { data: 'question_type' },
+            { data: 'options' },
+            { data: 'order' },
+            { data: 'klinik_name' },
+            { data: 'action', orderable: false, searchable: false }
+        ]
+    });
+    $('#filterKlinik').change(function() {
+        table.ajax.reload();
+    });
+    $('#addBtn').click(function() {
+        $('#questionForm')[0].reset();
+        $('#question_id').val('');
+        $('#questionModal').modal('show');
+    });
+    $('#questionsTable').on('click', '.edit-btn', function() {
+        var id = $(this).data('id');
+        $.get('survey-questions/'+id, function(res) {
+            var q = res.data;
+            $('#question_id').val(q.id);
+            $('[name=question_text]').val(q.question_text);
+            $('[name=question_type]').val(q.question_type);
+            $('[name=options]').val(q.options ? JSON.parse(q.options).join(',') : '');
+            $('[name=order]').val(q.order);
+            $('[name=klinik_name]').val(q.klinik_name);
+            $('#questionModal').modal('show');
+        });
+    });
+    $('#questionsTable').on('click', '.delete-btn', function() {
+        if(confirm('Delete this question?')) {
+            var id = $(this).data('id');
+            $.ajax({
+                url: 'survey-questions/'+id,
+                type: 'DELETE',
+                success: function() { table.ajax.reload(); }
+            });
+        }
+    });
+    $('#questionForm').submit(function(e) {
+        e.preventDefault();
+        var id = $('#question_id').val();
+        var data = $(this).serializeArray();
+        var options = $('[name=options]').val();
+        data = data.filter(f => f.name !== 'options');
+        if(options) data.push({name:'options', value: options.split(',').map(s=>s.trim())});
+        var url = 'survey-questions' + (id ? '/' + id : '');
+        var type = id ? 'PUT' : 'POST';
+        $.ajax({
+            url: url,
+            type: type,
+            data: $.param(data),
+            success: function() {
+                $('#questionModal').modal('hide');
+                table.ajax.reload();
+            }
+        });
+    });
+});
+</script>
+@endpush
