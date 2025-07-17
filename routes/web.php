@@ -58,7 +58,7 @@ use App\Http\Controllers\HRD\{
     PerformanceQuestionController,
     PerformanceScoreController
 };
-
+use App\Http\Controllers\AkreditasiController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Marketing\MarketingController;
@@ -323,12 +323,32 @@ Route::prefix('workdoc')->name('workdoc.')->middleware(['auth'])->group(function
     // Optionally, add a preview route if you want to serve files securely
     // Route::get('/documents/{document}/preview', [App\Http\Controllers\Workdoc\DocumentController::class, 'preview'])->name('documents.preview');
 });
-Route::prefix('akreditasi')->group(
-    function () {
-        Route::get('/', [AkreditasiDashboardController::class, 'index'])->name('akreditasi.dashboard');
-        // Add more Akreditasi routes here as needed
-    }
-);
+
+
+Route::prefix('akreditasi')->middleware(['auth'])->group(function () {
+    // BAB CRUD
+    Route::get('/bab', [AkreditasiController::class, 'index'])->name('akreditasi.index');
+    Route::post('/bab', [AkreditasiController::class, 'storeBab'])->name('akreditasi.bab.store');
+    Route::put('/bab/{bab}', [AkreditasiController::class, 'updateBab'])->name('akreditasi.bab.update');
+    Route::delete('/bab/{bab}', [AkreditasiController::class, 'destroyBab'])->name('akreditasi.bab.destroy');
+
+    // Standar CRUD
+    Route::get('/bab/{bab}/standars', [AkreditasiController::class, 'standars'])->name('akreditasi.standars');
+    Route::post('/bab/{bab}/standar', [AkreditasiController::class, 'storeStandar'])->name('akreditasi.standar.store');
+    Route::put('/standar/{standar}', [AkreditasiController::class, 'updateStandar'])->name('akreditasi.standar.update');
+    Route::delete('/standar/{standar}', [AkreditasiController::class, 'destroyStandar'])->name('akreditasi.standar.destroy');
+
+    // EP CRUD
+    Route::get('/standar/{standar}/eps', [AkreditasiController::class, 'eps'])->name('akreditasi.eps');
+    Route::post('/standar/{standar}/ep', [AkreditasiController::class, 'storeEp'])->name('akreditasi.ep.store');
+    Route::put('/ep/{ep}', [AkreditasiController::class, 'updateEp'])->name('akreditasi.ep.update');
+    Route::delete('/ep/{ep}', [AkreditasiController::class, 'destroyEp'])->name('akreditasi.ep.destroy');
+
+    // EP Detail & Document CRUD
+    Route::get('/ep/{ep}', [AkreditasiController::class, 'showEp'])->name('akreditasi.ep');
+    Route::post('/ep/{ep}/document', [AkreditasiController::class, 'uploadDocument'])->name('akreditasi.ep.document.upload');
+    Route::delete('/document/{document}', [AkreditasiController::class, 'destroyDocument'])->name('akreditasi.document.destroy');
+});
 
 
 Route::prefix('finance')->group(
