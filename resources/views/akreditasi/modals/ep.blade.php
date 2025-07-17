@@ -26,7 +26,7 @@
           </div>
           <div class="form-group">
             <label for="skorMaksimal">Skor Maksimal</label>
-            <input type="number" class="form-control" name="skor_maksimal" id="skorMaksimal" required>
+            <input type="number" class="form-control" name="skor_maksimal" id="skorMaksimal" value="10" required>
           </div>
         </div>
         <div class="modal-footer">
