@@ -8,13 +8,17 @@
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
-      <form id="epForm">
+          <form id="epForm">
         <div class="modal-body">
           @csrf
           <input type="hidden" name="id" id="epId">
           <div class="form-group">
             <label for="epName">Name</label>
             <input type="text" class="form-control" name="name" id="epName" required>
+          </div>
+          <div class="form-group">
+            <label for="elemenPenilaian">Elemen Penilaian</label>
+            <input type="text" class="form-control" name="elemen_penilaian" id="elemenPenilaian" placeholder="Elemen Penilaian">
           </div>
           <div class="form-group">
             <label for="kelengkapanBukti">Kelengkapan Bukti</label>

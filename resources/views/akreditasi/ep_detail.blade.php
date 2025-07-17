@@ -6,6 +6,7 @@
 @section('content')
 <div class="container mt-4">
     <h2>EP Detail: {{ $ep->name }}</h2>
+    <p><strong>Elemen Penilaian:</strong> {{ $ep->elemen_penilaian }}</p>
     <p>Kelengkapan Bukti: {{ $ep->kelengkapan_bukti }}</p>
     <p>Skor Maksimal: {{ $ep->skor_maksimal }}</p>
     <hr>

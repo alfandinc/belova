@@ -86,12 +86,12 @@ class AkreditasiController extends Controller
     }
     public function storeEp(Request $request, Standar $standar)
     {
-        $ep = $standar->eps()->create($request->only(['name', 'kelengkapan_bukti', 'skor_maksimal']));
+        $ep = $standar->eps()->create($request->only(['name', 'elemen_penilaian', 'kelengkapan_bukti', 'skor_maksimal']));
         return response()->json(['success' => true, 'data' => $ep]);
     }
     public function updateEp(Request $request, Ep $ep)
     {
-        $ep->update($request->only(['name', 'kelengkapan_bukti', 'skor_maksimal']));
+        $ep->update($request->only(['name', 'elemen_penilaian', 'kelengkapan_bukti', 'skor_maksimal']));
         return response()->json(['success' => true, 'data' => $ep]);
     }
     public function destroyEp(Ep $ep)

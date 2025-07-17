@@ -8,7 +8,7 @@ class Ep extends Model
 {
     use HasFactory;
     protected $table = 'akreditasi_eps';
-    protected $fillable = ['standar_id', 'name', 'kelengkapan_bukti', 'skor_maksimal'];
+    protected $fillable = ['standar_id', 'name', 'elemen_penilaian', 'kelengkapan_bukti', 'skor_maksimal'];
     public function standar() {
         return $this->belongsTo(\App\Models\Akreditasi\Standar::class);
     }
