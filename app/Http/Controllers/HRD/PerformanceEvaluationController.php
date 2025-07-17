@@ -4,6 +4,7 @@ namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+// use Illuminate\Support\Facades\Log; (removed duplicate)
 use App\Models\HRD\{
     PerformanceEvaluationPeriod,
     PerformanceEvaluation,
@@ -14,6 +15,7 @@ use App\Models\HRD\{
 };
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class PerformanceEvaluationController extends Controller
@@ -62,10 +64,7 @@ class PerformanceEvaluationController extends Controller
                 
                 $data = [];
                 foreach ($periods as $period) {
-                    $actions = '<a href="' . route('hrd.performance.periods.show', $period) . '" class="btn btn-sm btn-info">
-                                    <i class="fa fa-eye"></i> Details
-                                </a>';
-                    
+                    $actions = '<a href="' . route('hrd.performance.periods.show', $period) . '" class="btn btn-sm btn-info"><i class="fa fa-eye"></i> Details</a>';
                     if ($period->status == 'pending') {
                         $actions .= ' <button type="button" class="btn btn-sm btn-primary edit-period" 
                                         data-id="' . $period->id . '"
@@ -83,11 +82,10 @@ class PerformanceEvaluationController extends Controller
                                         <i class="fa fa-trash"></i> Delete
                                     </button>';
                     }
-                    
-                    $status = '<span class="badge badge-' . ($period->status == 'pending' ? 'warning' : ($period->status == 'active' ? 'primary' : 'success')) . '">
-                                ' . ucfirst($period->status) . '
-                               </span>';
-                    
+                    if (empty($actions)) {
+                        $actions = '<span></span>';
+                    }
+                    $status = '<span class="badge badge-' . ($period->status == 'pending' ? 'warning' : ($period->status == 'active' ? 'primary' : 'success')) . '">' . ucfirst($period->status) . '</span>';
                     $data[] = [
                         $period->name,
                         $period->start_date->format('d M Y'),
@@ -96,6 +94,8 @@ class PerformanceEvaluationController extends Controller
                         $actions
                     ];
                 }
+                // Debug: log outgoing data array
+                Log::info('PerformanceEvaluation DataTables response', ['data' => $data]);
                 
                 return response()->json([
                     'draw' => intval($request->draw),
@@ -125,6 +125,7 @@ class PerformanceEvaluationController extends Controller
             'name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
+            'mode' => 'required|in:360,satu arah',
         ]);
 
         // Always set status to pending for new periods
@@ -146,7 +147,23 @@ class PerformanceEvaluationController extends Controller
 
     public function show(PerformanceEvaluationPeriod $period)
     {
-        $evaluations = PerformanceEvaluation::where('period_id', $period->id)->get();
+        $evaluations = PerformanceEvaluation::with(['evaluator.division', 'evaluatee.division', 'evaluator.user.roles', 'evaluatee.user.roles'])
+            ->where('period_id', $period->id)
+            ->get();
+
+        // Attach evaluation_type to each evaluation
+        foreach ($evaluations as $eval) {
+            $type = $this->determineEvaluationType($eval);
+            $labels = [
+                'hrd_to_manager' => 'HRD to Manager',
+                'manager_to_employee' => 'Manager to Employee',
+                'employee_to_manager' => 'Employee to Manager',
+                'manager_to_hrd' => 'Manager to HRD',
+                'employee_to_hrd' => 'Employee to HRD',
+            ];
+            $eval->evaluation_type = $labels[$type] ?? ucfirst(str_replace('_', ' ', $type));
+        }
+
         $pendingCount = $evaluations->where('status', 'pending')->count();
         $completedCount = $evaluations->where('status', 'completed')->count();
 
@@ -164,6 +181,7 @@ class PerformanceEvaluationController extends Controller
             'name' => 'required|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
+            'mode' => 'required|in:360,satu arah',
         ]);
 
         // For edit modal, maintain the existing status (don't reset to pending)
@@ -225,7 +243,6 @@ class PerformanceEvaluationController extends Controller
 
         // Get HRD employees
         $hrdEmployees = $employees->filter(function ($employee) {
-            // Now we can safely use division relationship
             return $employee->division && stripos($employee->division->name, 'Human Resource') !== false;
         });
 
@@ -241,85 +258,133 @@ class PerformanceEvaluationController extends Controller
                 stripos($employee->division->name, 'Human Resource') === false;
         });
 
-
-        // 1. HRD to Managers
-        foreach ($hrdEmployees as $hrd) {
-            foreach ($managers as $manager) {
-                PerformanceEvaluation::firstOrCreate(
-                    [
-                        'period_id' => $period->id,
-                        'evaluator_id' => $hrd->id,
-                        'evaluatee_id' => $manager->id
-                    ],
-                    [
-                        'status' => 'pending'
-                    ]
-                );
-            }
-        }
-
-        // 2. Managers to Employees in their division
-        foreach ($managers as $manager) {
-            // Safety check for manager's division
-            if (!$manager->division) continue;
-
-            // Find all employees in this manager's division
-            $divisionEmployees = $employees->filter(function ($employee) use ($manager) {
-                return $employee->division && $employee->division->id === $manager->division->id && $employee->id !== $manager->id;
-            });
-
-            foreach ($divisionEmployees as $employee) {
-                PerformanceEvaluation::firstOrCreate(
-                    [
-                        'period_id' => $period->id,
-                        'evaluator_id' => $manager->id,
-                        'evaluatee_id' => $employee->id
-                    ],
-                    [
-                        'status' => 'pending'
-                    ]
-                );
-            }
-        }
-
-        // 3. Employees to their Managers
-        foreach ($regularEmployees as $employee) {
-            // Safety check for employee's division
-            if (!$employee->division) continue;
-
-            // Find the manager of this division
-            $divisionManager = $managers->first(function ($manager) use ($employee) {
-                return $manager->division && $manager->division->id === $employee->division->id;
-            });
-
-            if ($divisionManager) {
-                PerformanceEvaluation::firstOrCreate(
-                    [
-                        'period_id' => $period->id,
-                        'evaluator_id' => $employee->id,
-                        'evaluatee_id' => $divisionManager->id
-                    ],
-                    [
-                        'status' => 'pending'
-                    ]
-                );
-            }
-        }
-
-        // 4. Managers to HRD
-        foreach ($managers as $manager) {
+        // Normalize mode value for comparison
+        $mode = strtolower(trim($period->mode));
+        // Initiate evaluations based on mode
+        if ($mode === '360') {
+            // 1. HRD to Managers
             foreach ($hrdEmployees as $hrd) {
-                PerformanceEvaluation::firstOrCreate(
-                    [
-                        'period_id' => $period->id,
-                        'evaluator_id' => $manager->id,
-                        'evaluatee_id' => $hrd->id
-                    ],
-                    [
-                        'status' => 'pending'
-                    ]
-                );
+                foreach ($managers as $manager) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $hrd->id,
+                            'evaluatee_id' => $manager->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
             }
+
+            // 2. Managers to Employees in their division
+            foreach ($managers as $manager) {
+                if (!$manager->division) continue;
+                $divisionEmployees = $employees->filter(function ($employee) use ($manager) {
+                    return $employee->division && $employee->division->id === $manager->division->id && $employee->id !== $manager->id;
+                });
+                foreach ($divisionEmployees as $employee) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $manager->id,
+                            'evaluatee_id' => $employee->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+
+            // 3. Employees to their Managers
+            foreach ($regularEmployees as $employee) {
+                if (!$employee->division) continue;
+                $divisionManager = $managers->first(function ($manager) use ($employee) {
+                    return $manager->division && $manager->division->id === $employee->division->id;
+                });
+                if ($divisionManager) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $employee->id,
+                            'evaluatee_id' => $divisionManager->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+
+            // 4. Managers to HRD
+            foreach ($managers as $manager) {
+                foreach ($hrdEmployees as $hrd) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $manager->id,
+                            'evaluatee_id' => $hrd->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+
+            // 5. Employee to HRD
+            foreach ($regularEmployees as $employee) {
+                foreach ($hrdEmployees as $hrd) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $employee->id,
+                            'evaluatee_id' => $hrd->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+        } else if ($mode === 'satu arah') {
+            // Only HRD to Managers and Managers to Employees
+            foreach ($hrdEmployees as $hrd) {
+                foreach ($managers as $manager) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $hrd->id,
+                            'evaluatee_id' => $manager->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+            foreach ($managers as $manager) {
+                if (!$manager->division) continue;
+                $divisionEmployees = $employees->filter(function ($employee) use ($manager) {
+                    // Only allow manager to employee, not employee to manager
+                    return $employee->division && $employee->division->id === $manager->division->id && $employee->id !== $manager->id && !$employee->isManager();
+                });
+                foreach ($divisionEmployees as $employee) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $manager->id,
+                            'evaluatee_id' => $employee->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+            // No Employee to Manager or Employee to HRD in satu arah mode
         }
 
         $period->status = 'active';
@@ -380,6 +445,17 @@ class PerformanceEvaluationController extends Controller
                         ? $evaluation->evaluatee->division->name
                         : 'N/A';
                     return $position . '<span class="text-muted d-block small">' . $division . '</span>';
+                })
+                ->addColumn('evaluation_type', function ($evaluation) {
+                    $type = (new \App\Http\Controllers\HRD\PerformanceEvaluationController)->determineEvaluationType($evaluation);
+                    $labels = [
+                        'hrd_to_manager' => 'HRD to Manager',
+                        'manager_to_employee' => 'Manager to Employee',
+                        'employee_to_manager' => 'Employee to Manager',
+                        'manager_to_hrd' => 'Manager to HRD',
+                        'employee_to_hrd' => 'Employee to HRD',
+                    ];
+                    return $labels[$type] ?? ucfirst(str_replace('_', ' ', $type));
                 })
                 ->addColumn('completed_at', function ($evaluation) {
                     return $evaluation->completed_at ? $evaluation->completed_at->format('d M Y') : 'N/A';
@@ -455,10 +531,12 @@ class PerformanceEvaluationController extends Controller
             return 'employee_to_manager';
         } elseif ($isEvaluatorManager && $isEvaluateeHRD) {
             return 'manager_to_hrd';
+        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && $isEvaluateeHRD) {
+            return 'employee_to_hrd';
         }
 
         // Default fallback
-        return 'manager_to_employee';
+        return 'other';
     }
 
     public function results()

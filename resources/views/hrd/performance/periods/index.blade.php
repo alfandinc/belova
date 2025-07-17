@@ -70,6 +70,13 @@
                         <label for="end_date">End Date</label>
                         <input type="date" class="form-control" id="end_date" name="end_date" required>
                     </div>
+                    <div class="form-group">
+                        <label for="mode">Evaluation Mode</label>
+                        <select class="form-control" id="mode" name="mode" required>
+                            <option value="360">360</option>
+                            <option value="satu arah">Satu Arah</option>
+                        </select>
+                    </div>
                     <input type="hidden" name="status" value="pending">
                 </div>
                 <div class="modal-footer">
@@ -128,7 +135,12 @@
         var periodsTable = $('#periodsTable').DataTable({
             processing: true,
             serverSide: true,
-            ajax: "{{ route('hrd.performance.periods.index') }}",
+            ajax: {
+                url: "{{ route('hrd.performance.periods.index') }}",
+                dataSrc: function(json) {
+                    return json.data;
+                }
+            },
             columns: [
                 { data: 0, name: 'name' },
                 { data: 1, name: 'start_date' },
@@ -136,8 +148,8 @@
                 { 
                     data: 3, 
                     name: 'status',
-                    render: function(data) {
-                        return data; // Status column already contains HTML from server
+                    render: function(data, type, row) {
+                        return type === 'display' ? data : '';
                     } 
                 },
                 { 
@@ -145,13 +157,13 @@
                     name: 'actions', 
                     orderable: false, 
                     searchable: false,
-                    render: function(data) {
-                        return data; // Action column contains HTML from server
+                    render: function(data, type, row) {
+                        return type === 'display' ? data : '';
                     }
                 }
             ],
             order: [[0, 'asc']],
-            responsive: true,
+            responsive: false, // Disable responsive mode to prevent hiding columns
             language: {
                 search: "Search:",
                 lengthMenu: "Show _MENU_ entries",

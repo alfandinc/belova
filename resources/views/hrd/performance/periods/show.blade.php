@@ -90,6 +90,7 @@
                             <input type="hidden" name="start_date" value="{{ $period->start_date->format('Y-m-d') }}">
                             <input type="hidden" name="end_date" value="{{ $period->end_date->format('Y-m-d') }}">
                             <input type="hidden" name="status" value="completed">
+                            <input type="hidden" name="mode" value="{{ $period->mode }}">
                             <button type="button" id="markCompleteBtn" class="btn btn-success btn-block mb-2">
                                 <i class="fa fa-check-circle"></i> Mark as Completed
                             </button>
@@ -123,28 +124,7 @@
                     <tr>
                         <td>{{ $eval->evaluator->nama }}</td>
                         <td>{{ $eval->evaluatee->nama }}</td>
-                        <td>
-                            @php
-                                $evaluatorDivision = $eval->evaluator->division->name ?? 'Unknown';
-                                $evaluateeDivision = $eval->evaluatee->division->name ?? 'Unknown';
-                                $isEvaluatorManager = $eval->evaluator->isManager();
-                                $isEvaluateeManager = $eval->evaluatee->isManager();
-                                $isEvaluatorHRD = strpos(strtolower($evaluatorDivision), 'hrd') !== false;
-                                $isEvaluateeHRD = strpos(strtolower($evaluateeDivision), 'hrd') !== false;
-                                
-                                if ($isEvaluatorHRD && $isEvaluateeManager) {
-                                    echo "HRD to Manager";
-                                } elseif ($isEvaluatorManager && !$isEvaluateeManager && !$isEvaluateeHRD) {
-                                    echo "Manager to Employee";
-                                } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && $isEvaluateeManager) {
-                                    echo "Employee to Manager";
-                                } elseif ($isEvaluatorManager && $isEvaluateeHRD) {
-                                    echo "Manager to HRD";
-                                } else {
-                                    echo "Other";
-                                }
-                            @endphp
-                        </td>
+                        <td>{{ $eval->evaluation_type ?? 'Unknown' }}</td>
                         <td>
                             <span class="badge badge-{{ $eval->status == 'pending' ? 'warning' : 'success' }}">
                                 {{ ucfirst($eval->status) }}

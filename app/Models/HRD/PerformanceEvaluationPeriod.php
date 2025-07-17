@@ -9,11 +9,12 @@ class PerformanceEvaluationPeriod extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'start_date', 'end_date', 'status'];
+    protected $fillable = ['name', 'start_date', 'end_date', 'status', 'mode'];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'mode' => 'string',
     ];
 
     public function evaluations()
