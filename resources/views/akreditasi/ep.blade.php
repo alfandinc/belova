@@ -11,6 +11,7 @@
             <tr>
                 <th>ID</th>
                 <th>Name</th>
+                <th>Elemen Penilaian</th>
                 <th>Kelengkapan Bukti</th>
                 <th>Skor Maksimal</th>
                 <th>Action</th>
@@ -31,6 +32,7 @@ $(function() {
         columns: [
             { data: 'id', name: 'id' },
             { data: 'name', name: 'name' },
+            { data: 'elemen_penilaian', name: 'elemen_penilaian' },
             { data: 'kelengkapan_bukti', name: 'kelengkapan_bukti' },
             { data: 'skor_maksimal', name: 'skor_maksimal' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
