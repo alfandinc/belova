@@ -14,7 +14,7 @@
           <input type="hidden" name="id" id="epId">
           <div class="form-group">
             <label for="epName">Name</label>
-            <input type="text" class="form-control" name="name" id="epName" required>
+            <input type="text" class="form-control" name="name" id="epName" value="EP" required>
           </div>
           <div class="form-group">
             <label for="elemenPenilaian">Elemen Penilaian</label>
