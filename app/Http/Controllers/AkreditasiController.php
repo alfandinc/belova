@@ -76,7 +76,12 @@ class AkreditasiController extends Controller
         if ($request->ajax()) {
             return datatables()->of($standar->eps())
                 ->addColumn('elemen_penilaian', function($row) {
-                    return $row->elemen_penilaian ?? '';
+                    $text = $row->elemen_penilaian ?? '';
+                    return strlen($text) > 40 ? substr($text, 0, 40) . '...' : $text;
+                })
+                ->addColumn('kelengkapan_bukti', function($row) {
+                    $text = $row->kelengkapan_bukti ?? '';
+                    return strlen($text) > 40 ? substr($text, 0, 40) . '...' : $text;
                 })
                 ->addColumn('action', function($row) {
                     return '<button class="btn btn-sm btn-warning edit-btn">Edit</button> '
