@@ -19,10 +19,11 @@
         @foreach($standar->eps as $ep)
         <div class="tab-pane fade @if($loop->first) show active @endif" id="ep-{{ $ep->id }}" role="tabpanel" aria-labelledby="ep-tab-{{ $ep->id }}">
             <div class="mt-3">
-                <h4>EP: {{ $ep->name }}</h4>
-                <p><strong>Elemen Penilaian:</strong> {{ $ep->elemen_penilaian }}</p>
-                <p>Kelengkapan Bukti: {{ $ep->kelengkapan_bukti }}</p>
-                <p>Skor Maksimal: {{ $ep->skor_maksimal }}</p>
+                <p>
+                    <strong>Elemen Penilaian:</strong> {{ $ep->elemen_penilaian}} <br>
+                    <strong>Kelengkapan Bukti:</strong> {{ $ep->kelengkapan_bukti }} <br>
+                    <strong>Skor Maksimal:</strong> {{ $ep->skor_maksimal }}
+                </p>
                 <hr>
                 <button data-ep-id="{{ $ep->id }}" class="btn btn-success mb-2 uploadDocBtn">Upload Document</button>
                 <div class="ep-documents" data-ep-id="{{ $ep->id }}">
