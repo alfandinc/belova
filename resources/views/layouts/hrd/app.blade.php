@@ -10,15 +10,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}" />
 
     <!-- App favicon -->
-    @php
-        $klinikId = auth()->user()->dokter->klinik_id ?? null; // Assuming 'dokter' is the relationship
-        $favicon = $klinikId == 1 
-            ? asset('img/favicon-premiere.png') 
-            : ($klinikId == 2 
-                ? asset('img/favicon-belovaskin.png') 
-                : asset('img/favicon-belovaskin.png'));
-    @endphp
-    <link rel="shortcut icon" href="{{ $favicon }}">
+    <link rel="shortcut icon" href="{{ asset('img/logo-favicon-belova.png') }}">
 
     <!-- ======= Early theme logic ======= -->
     <script>
@@ -64,11 +56,11 @@
     @yield('navbar')
 
     <div class="page-wrapper">
-        @include('layouts.erm.topbar')
+        @include('layouts.hrd.topbar')
 
         <div class="page-content">
             @yield('content')
-            @include('layouts.erm.footer')
+            @include('layouts.hrd.footer')
         </div>
     </div>
 
