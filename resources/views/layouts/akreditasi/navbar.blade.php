@@ -15,6 +15,7 @@
     <!--end logo-->
     <div class="menu-content h-100" data-simplebar>
         <ul class="metismenu left-sidenav-menu">
+            @role('Admin')
             <li>
                 <a href="javascript:void(0);"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Master</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
@@ -23,6 +24,7 @@
                     <li><a class="nav-link" href="{{ url('/akreditasi/standar/1/eps') }}"><i data-feather="file-text" class="align-self-center menu-icon"></i>Master EP</a></li>
                 </ul>
             </li>
+            @endrole
             <li>
                 <a href="javascript:void(0);"><i data-feather="grid" class="align-self-center menu-icon"></i><span>BAB 1</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
