@@ -20,7 +20,7 @@
     <div class="tab-content" id="epTabContent">
         @foreach($standar->eps as $ep)
         <div class="tab-pane fade @if($loop->first) show active @endif" id="ep-{{ $ep->id }}" role="tabpanel" aria-labelledby="ep-tab-{{ $ep->id }}">
-            <div class="mb-4 p-4" style=" border-radius: 0.5rem; border: 1px solid">
+            <div class="mb-4 p-4" >
                 <div class="row align-itms-center mb-3">
                     <div class="col-md-8">
                         <div class="mb-2">
