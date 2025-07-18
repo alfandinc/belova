@@ -200,7 +200,7 @@
             <!-- LEFT SIDE -->
             <td style="white-space:nowrap;">Jenis Kelamin</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="white-space:nowrap;">{{ $visitation->pasien->jenis_kelamin == 'L' ? 'Laki-laki' : 'Perempuan' }}</td>
+            <td style="white-space:nowrap;">{{ $visitation->pasien->gender }}</td>
             <!-- RIGHT SIDE -->
             <td style="white-space:nowrap;">Tanggal Pemeriksaan</td>
             <td style="width:10px; text-align:center;">:</td>

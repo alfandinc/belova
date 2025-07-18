@@ -214,7 +214,7 @@
             <!-- LEFT SIDE -->
             <td style="white-space:nowrap;">Jenis Kelamin</td>
             <td style="width:10px; text-align:center;">:</td>
-            <td style="white-space:nowrap;">{{ $pasien->jenis_kelamin == 'L' ? 'Laki-laki' : 'Perempuan' }}</td>
+            <td style="white-space:nowrap;">{{ $pasien->gender }}</td>
             <!-- RIGHT SIDE -->
             <td style="white-space:nowrap;">Tanggal Cetak</td>
             <td style="width:10px; text-align:center;">:</td>
