@@ -10,6 +10,13 @@ use Illuminate\Support\Facades\Storage;
 
 class AkreditasiController extends Controller
 {
+    // Standar detail page with all EPs as tabs
+    public function showStandar(Standar $standar)
+    {
+        // Eager load EPs for the Standar
+        $standar->load('eps');
+        return view('akreditasi.standar_detail', compact('standar'));
+    }
     // BAB CRUD
     public function index(Request $request)
     {
