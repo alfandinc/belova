@@ -4,9 +4,11 @@
     @include('layouts.akreditasi.navbar')
 @endsection  
 @section('content')
-<div class="container mt-4">
-    <h2>Standar: {{ $standar->name }}</h2>
-    <ul class="nav nav-tabs" id="epTab" role="tablist">
+<div class="container py-4">
+    <div class="mb-4">
+        <h2 class="font-weight-bold text-dark">Standar: <span class="text-primary">{{ $standar->name }}</span></h2>
+    </div>
+    <ul class="nav nav-pills mb-4" id="epTab" role="tablist" style="border-radius: 0.5rem; padding: 0.5rem;">
         @foreach($standar->eps as $ep)
             <li class="nav-item" role="presentation">
                 <a class="nav-link @if($loop->first) active @endif" id="ep-tab-{{ $ep->id }}" data-toggle="tab" href="#ep-{{ $ep->id }}" role="tab" aria-controls="ep-{{ $ep->id }}" aria-selected="{{ $loop->first ? 'true' : 'false' }}">
@@ -18,24 +20,40 @@
     <div class="tab-content" id="epTabContent">
         @foreach($standar->eps as $ep)
         <div class="tab-pane fade @if($loop->first) show active @endif" id="ep-{{ $ep->id }}" role="tabpanel" aria-labelledby="ep-tab-{{ $ep->id }}">
-            <div class="mt-3">
-                <p>
-                    <strong>Elemen Penilaian:</strong> {{ $ep->elemen_penilaian}} <br>
-                    <strong>Kelengkapan Bukti:</strong> {{ $ep->kelengkapan_bukti }} <br>
-                    <strong>Skor Maksimal:</strong> {{ $ep->skor_maksimal }}
-                </p>
-                <hr>
-                <button data-ep-id="{{ $ep->id }}" class="btn btn-success mb-2 uploadDocBtn">Upload Document</button>
+            <div class="mb-4 p-4" style=" border-radius: 0.5rem; border: 1px solid">
+                <div class="row align-itms-center mb-3">
+                    <div class="col-md-8">
+                        <div class="mb-2">
+                            <small class="text-uppercase text-secondary">Elemen Penilaian</small><br>
+                            <span class="text-dark">{{ $ep->elemen_penilaian}}</span>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-uppercase text-secondary">Kelengkapan Bukti</small><br>
+                            <span class="text-dark">{{ $ep->kelengkapan_bukti }}</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-right">
+                        <div class="mb-2">
+                            <small class="text-uppercase text-secondary">Skor Maksimal</small><br>
+                            <span class="display-4 text-success" style="font-size:2rem;">{{ $ep->skor_maksimal }}</span>
+                        </div>
+                        <div class="mb-2">
+                            <button data-ep-id="{{ $ep->id }}" class="btn btn-primary btn-md rounded-pill font-weight-bold shadow uploadDocBtn mt-2 px-4" style="letter-spacing:0.5px;">
+                                <span class="fa fa-cloud-upload-alt mr-2"></span> Upload Document
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div class="ep-documents" data-ep-id="{{ $ep->id }}">
-                    <table class="table table-bordered table-striped docTable" id="docTable-{{ $ep->id }}" data-ajax-url="{{ route('akreditasi.ep', $ep->id) }}">
-                        <thead>
+                    <table class="table table-sm table-hover docTable mb-0" id="docTable-{{ $ep->id }}" data-ajax-url="{{ route('akreditasi.ep', $ep->id) }}">
+                        <thead class="thead-light">
                             <tr>
-                                <th>No</th>
+                                <th style="width:40px;">No</th>
                                 <th>Filename</th>
                                 <th>Preview</th>
                                 <th>Created At</th>
                                 <th>Updated At</th>
-                                <th>Action</th>
+                                <th style="width:90px;">Action</th>
                             </tr>
                         </thead>
                     </table>
@@ -49,27 +67,27 @@
     <div class="modal fade" id="uploadDocModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Upload Document</h5>
+          <div class="modal-header border-0 pb-2">
+            <h5 class="modal-title text-primary"><span class="fa fa-upload mr-1"></span> Upload Document</h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
           </div>
           <form id="uploadDocForm" enctype="multipart/form-data">
-            <div class="modal-body">
+            <div class="modal-body pt-0">
               @csrf
               <input type="hidden" name="ep_id" id="modalEpId">
-              <div class="form-group">
-                <label for="customFilename">Custom Filename</label>
-                <input type="text" class="form-control" name="custom_filename" id="customFilename" placeholder="Enter filename (optional)">
+              <div class="form-group mb-2">
+                <label for="customFilename" class="small">Custom Filename</label>
+                <input type="text" class="form-control form-control-sm" name="custom_filename" id="customFilename" placeholder="Enter filename (optional)">
               </div>
-              <div class="form-group">
-                <label for="document">File (image, document, or video)</label>
-                <input type="file" name="document" id="document" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,video/*" required>
+              <div class="form-group mb-2">
+                <label for="document" class="small">File (image, document, or video)</label>
+                <input type="file" class="form-control-file" name="document" id="document" accept="image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,video/*" required>
               </div>
             </div>
-            <div class="modal-footer">
-              <button type="submit" class="btn btn-success">Upload</button>
+            <div class="modal-footer border-0 pt-0">
+              <button type="submit" class="btn btn-primary btn-sm"><span class="fa fa-upload mr-1"></span> Upload</button>
             </div>
           </form>
         </div>
