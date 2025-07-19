@@ -751,8 +751,8 @@ class ElabController extends Controller
             $umurPasien = $this->umurString($visitation->pasien->tanggal_lahir);
             $tanggalSekarang = $this->indoDate(date('Y-m-d'));
             
-            // Create PDF with all pre-processed data
-            $pdf = PDF::loadView('erm.elab.pdf.hasil-lis', [
+            // Render blade ke HTML
+            $html = view('erm.elab.pdf.hasil-lis', [
                 'visitation' => $visitation,
                 'hasilLis' => $hasilLis,
                 'groupedData' => $groupedData,
@@ -768,39 +768,34 @@ class ElabController extends Controller
                 'tanggalLahir' => $tanggalLahir,
                 'umurPasien' => $umurPasien,
                 'tanggalSekarang' => $tanggalSekarang
+            ])->render();
+            // === mPDF ===
+            $headerImg = public_path('img/lab_header.png');
+            $footerImg = public_path('img/lab_footer.png');
+            $mpdf = new \Mpdf\Mpdf([
+                'format' => 'A4',
+                'margin_top' => 40, // 40mm for header image
+                'margin_bottom' => 40, // 40mm for footer image
+                'margin_left' => 10, // margin konten
+                'margin_right' => 10, // margin konten
             ]);
-
-            // Set PDF options with optimized settings for faster performance
-            $pdf->setPaper('a4', 'portrait');
-            $pdf->setOption('enable-local-file-access', true);
-            // Disable JavaScript for faster rendering
-            $pdf->setOption('enable-javascript', false);
-            $pdf->setOption('javascript-delay', 0);
-            // Performance optimizations
-            $pdf->setOption('enable-smart-shrinking', true);
-            $pdf->setOption('no-stop-slow-scripts', false);
-            // Set cache options for better performance
-            $pdf->setOption('cache-dir', storage_path('framework/cache/pdf'));
-            $pdf->setOption('use-xserver', false);
-            // Set zero margins to avoid extra processing
-            $pdf->setOption('margin-top', 0);
-            $pdf->setOption('margin-right', 0);
-            $pdf->setOption('margin-bottom', 0);
-            $pdf->setOption('margin-left', 0);
-            // Additional performance optimizations
-            $pdf->setOption('image-dpi', 150);  // Lower DPI for faster rendering
-            $pdf->setOption('lowquality', false);
-            $pdf->setOption('image-quality', 70); // Lower quality for better performance
-            // Disable external links
-            $pdf->setOption('disable-external-links', true);
-            // Disable forms
-            $pdf->setOption('disable-forms', true);
-
-            // Generate filename
+            // Set header image benar-benar mepet tepi kertas
+            if (file_exists($headerImg)) {
+                $headerHtml = '<div style="position:absolute;left:0;top:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $headerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
+                $mpdf->SetHTMLHeader($headerHtml, 'O', true);
+                $mpdf->SetHTMLHeader($headerHtml, 'E', true);
+            }
+            // Set footer image benar-benar mepet tepi bawah, kanan, kiri (40mm height)
+            if (file_exists($footerImg)) {
+                $footerHtml = '<div style="position:absolute;left:0;bottom:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $footerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
+                $mpdf->SetHTMLFooter($footerHtml, 'O', true);
+                $mpdf->SetHTMLFooter($footerHtml, 'E', true);
+            }
+            $mpdf->WriteHTML($html);
             $filename = 'Hasil_Lab_' . $visitation->pasien->no_rekam_medis . '_' . date('dmY') . '.pdf';
-
-            // Return PDF for download
-            return $pdf->stream($filename);
+            return response($mpdf->Output($filename, 'S'))
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
 
         } catch (\Exception $e) {
             return response()->json([
