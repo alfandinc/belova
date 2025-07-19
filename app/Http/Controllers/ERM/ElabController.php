@@ -823,7 +823,6 @@ class ElabController extends Controller
                 ->first();
             
             // Find visitations that have HasilLis entries for this patient
-            // Using join instead of orderBy('created_at') since HasilLis doesn't have timestamps
             $visitationsWithLis = HasilLis::select('erm_hasil_lis.visitation_id')
                 ->join('erm_visitations', 'erm_hasil_lis.visitation_id', '=', 'erm_visitations.id')
                 ->where('erm_visitations.pasien_id', $pasienId)
@@ -861,63 +860,40 @@ class ElabController extends Controller
             foreach ($visitations as $visit) {
                 $visitDates[] = $this->indoDate($visit->tanggal_visitation);
             }
-            
-            // Pad with empty dates if we have fewer than 5 dates
             while (count($visitDates) < 5) {
-                $visitDates[] = ""; // Empty date for blank columns
+                $visitDates[] = "";
             }
-            
             // Group and organize data for the monitoring format
             $monitoringData = [];
-            
             foreach ($allHasilLis as $item) {
-                // Skip items with empty header or empty results
                 if (!$item->header || empty($item->hasil)) continue;
-                
-                // Create header if it doesn't exist
                 if (!isset($monitoringData[$item->header])) {
                     $monitoringData[$item->header] = [];
                 }
-                
-                // Default to empty string if sub_header is null
                 $subHeader = $item->sub_header ?: '';
-                
-                // Create sub-header if it doesn't exist
                 if (!isset($monitoringData[$item->header][$subHeader])) {
                     $monitoringData[$item->header][$subHeader] = [];
                 }
-                
-                // Find the corresponding visitation date
                 $visitation = $visitations->firstWhere('id', $item->visitation_id);
                 $visitationDate = $this->indoDate($visitation->tanggal_visitation);
-                
-                // If this test name is new, initialize it
                 if (!isset($monitoringData[$item->header][$subHeader][$item->nama_test])) {
                     $monitoringData[$item->header][$subHeader][$item->nama_test] = [];
                 }
-                
-                // Add the result for this visit
                 $monitoringData[$item->header][$subHeader][$item->nama_test][$visitationDate] = [
                     'hasil' => $item->hasil,
                     'flag' => $item->flag
                 ];
             }
-            
-            // Pre-load and cache background image
-            $backgroundPath = public_path('img/overlay-lab.png');
-            $backgroundData = '';
-            if (file_exists($backgroundPath)) {
-                // Optimize the image before encoding
-                $backgroundData = 'data:image/png;base64,' . base64_encode(file_get_contents($backgroundPath));
-            }
-            
-            // Get diagnosa kerja from the latest assessment
+            // Background image for blade (use header image for background)
+            $headerImg = public_path('img/lab_header.png');
+            $footerImg = public_path('img/lab_footer.png');
+            $backgroundData = file_exists($headerImg) ? 'data:image/png;base64,' . base64_encode(file_get_contents($headerImg)) : '';
+            // Diagnosa kerja dari asesmen penunjang terbaru
             $latestPenunjang = \App\Models\ERM\AsesmenPenunjang::whereHas('visitation', function($query) use ($pasienId) {
                 $query->where('pasien_id', $pasienId);
             })
             ->orderBy('created_at', 'desc')
             ->first();
-            
             $diagnosaKerja = [];
             if ($latestPenunjang) {
                 for ($i = 1; $i <= 5; $i++) {
@@ -925,29 +901,22 @@ class ElabController extends Controller
                     if ($val) $diagnosaKerja[] = $val;
                 }
             }
-            
-            // Get lab doctor with specialization ID 7 (pre-fetch this data)
+            // Dokter lab (spesialisasi_id 7)
             $dokterLab = \App\Models\ERM\Dokter::with('user', 'spesialisasi')
                 ->where('spesialisasi_id', 7)
                 ->first();
-                
-            // Pre-process QR code image to improve performance
             $qrCodeData = null;
             if ($dokterLab && $dokterLab->ttd) {
                 $qrPath = public_path('img/qr/' . $dokterLab->ttd);
                 if (file_exists($qrPath)) {
-                    // Convert to base64 to embed directly in the PDF
                     $qrCodeData = 'data:image/png;base64,' . base64_encode(file_get_contents($qrPath));
                 }
             }
-            
-            // Format dates
             $tanggalLahir = $this->indoDate($pasien->tanggal_lahir);
             $umurPasien = $this->umurString($pasien->tanggal_lahir);
             $tanggalSekarang = $this->indoDate(date('Y-m-d'));
-            
-            // Create PDF
-            $pdf = PDF::loadView('erm.elab.pdf.lembar-monitoring', [
+            // Render blade ke HTML
+            $html = view('erm.elab.pdf.lembar-monitoring', [
                 'pasien' => $pasien,
                 'latestVisit' => $latestVisit,
                 'monitoringData' => $monitoringData,
@@ -962,33 +931,32 @@ class ElabController extends Controller
                 'tanggalLahir' => $tanggalLahir,
                 'umurPasien' => $umurPasien,
                 'tanggalSekarang' => $tanggalSekarang
+            ])->render();
+            // === mPDF ===
+            $mpdf = new \Mpdf\Mpdf([
+                'format' => 'A4',
+                'margin_top' => 40, // 40mm for header image
+                'margin_bottom' => 20, // 20mm for footer image
+                'margin_left' => 10, // margin konten
+                'margin_right' => 10, // margin konten
             ]);
-            
-            // Set PDF options with optimized settings
-            $pdf->setPaper('a4', 'portrait');
-            $pdf->setOption('enable-local-file-access', true);
-            $pdf->setOption('enable-javascript', false);
-            $pdf->setOption('javascript-delay', 0);
-            $pdf->setOption('enable-smart-shrinking', true);
-            $pdf->setOption('no-stop-slow-scripts', false);
-            $pdf->setOption('cache-dir', storage_path('framework/cache/pdf'));
-            $pdf->setOption('use-xserver', false);
-            $pdf->setOption('margin-top', 0);
-            $pdf->setOption('margin-right', 0);
-            $pdf->setOption('margin-bottom', 0);
-            $pdf->setOption('margin-left', 0);
-            $pdf->setOption('image-dpi', 150);
-            $pdf->setOption('lowquality', false);
-            $pdf->setOption('image-quality', 70);
-            $pdf->setOption('disable-external-links', true);
-            $pdf->setOption('disable-forms', true);
-            
-            // Generate filename
+            // Set header image benar-benar mepet tepi kertas
+            if (file_exists($headerImg)) {
+                $headerHtml = '<div style="position:absolute;left:0;top:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $headerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
+                $mpdf->SetHTMLHeader($headerHtml, 'O', true);
+                $mpdf->SetHTMLHeader($headerHtml, 'E', true);
+            }
+            // Set footer image benar-benar mepet tepi bawah, kanan, kiri (40mm height)
+            if (file_exists($footerImg)) {
+                $footerHtml = '<div style="position:absolute;left:0;bottom:0;width:210mm;height:40mm;margin:0;padding:0;"><img src="' . $footerImg . '" style="width:210mm;height:40mm;object-fit:cover;display:block;margin:0;padding:0;"></div>';
+                $mpdf->SetHTMLFooter($footerHtml, 'O', true);
+                $mpdf->SetHTMLFooter($footerHtml, 'E', true);
+            }
+            $mpdf->WriteHTML($html);
             $filename = 'Monitoring_Lab_' . $pasien->id . '_' . date('dmY') . '.pdf';
-            
-            // Return PDF for download
-            return $pdf->stream($filename);
-            
+            return response($mpdf->Output($filename, 'S'))
+                ->header('Content-Type', 'application/pdf')
+                ->header('Content-Disposition', 'inline; filename="' . $filename . '"');
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

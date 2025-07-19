@@ -19,20 +19,17 @@
             font-family: Arial, sans-serif;
             font-size: 12px;
             color: #000;
-            background-image: url('{{ $backgroundData }}');
-            background-size: cover;
-            background-position: center center;
-            background-repeat: no-repeat;
+            /* background-image dihapus, gunakan header/footer mPDF saja */
         }
         .content-wrapper {
             position: relative;
             z-index: 10;
-            padding: 10px 40px;
+            padding: 5px 10px;
             min-height: 90%;
-            margin-top: 20px;
-            width: 85%;
-            margin-left: auto;
-            margin-right: auto;
+            margin-top: 10px;
+            width: 100%;
+            margin-left: 0;
+            margin-right: 0;
         }
         table {
             background-color: transparent;
@@ -49,9 +46,9 @@
         }
         .header {
             text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            padding-top: 120px; /* Make space for the letterhead in the background image */
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            /* padding-top dihapus agar tidak ada blank space dari header image mPDF */
         }
         .header h2 {
             margin: 0;
