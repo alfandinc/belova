@@ -61,6 +61,9 @@ class PasienHelperController
         $alergistatus = $firstAlergi?->status ?? null;
         $alergikatakunci = $firstAlergi?->katakunci ?? null;
 
+        // Pass the raw alergi rows for blade logic
+        $alergiList = $alergiPasien;
+
         return [
             'pasien' => $visitation->pasien,
             'usia' => $usia,
@@ -70,7 +73,7 @@ class PasienHelperController
             'alergistatus' => $alergistatus,
             'alergikatakunci' => $alergikatakunci,
             'lastVisitDate' => $lastVisitDate,
-            // 'alergiPasien' => $alergiPasien,
+            'alergiList' => $alergiList,
         ];
     }
 }

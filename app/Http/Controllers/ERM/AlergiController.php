@@ -26,6 +26,7 @@ class AlergiController extends Controller
         // Get the existing allergies for this patient
         $existingAlergi = Alergi::where('pasien_id', $pasien_id)->get();
 
+
         // Get the new allergy IDs that were selected
         $newAlergiIds = $request->zataktif_id ?? [];
 
@@ -36,27 +37,47 @@ class AlergiController extends Controller
         }
 
         // 2. Add new selected allergies or update existing ones
-        foreach ($newAlergiIds as $zatId) {
+        if (!empty($newAlergiIds)) {
+            foreach ($newAlergiIds as $zatId) {
+                Alergi::updateOrCreate(
+                    [
+                        'pasien_id' => $pasien_id,
+                        'zataktif_id' => $zatId,
+                    ],
+                    [
+                        'status' => $request->statusAlergi,
+                        'katakunci' => $request->katakunci,
+                        'verif_status' => $request->verifikasi ?? '1', // Default verification status
+                        'verifikator_id' => auth()->id(), // Logged-in user ID as verifier
+                    ]
+                );
+            }
+        } else if ($request->statusAlergi === 'ada' && !empty($request->katakunci)) {
+            // If no zat aktif selected but katakunci is filled, store a record with zataktif_id = null
             Alergi::updateOrCreate(
                 [
                     'pasien_id' => $pasien_id,
-                    'zataktif_id' => $zatId,
+                    'zataktif_id' => null,
                 ],
                 [
                     'status' => $request->statusAlergi,
                     'katakunci' => $request->katakunci,
-                    'verif_status' => $request->verifikasi ?? '1', // Default verification status
-                    'verifikator_id' => auth()->id(), // Logged-in user ID as verifier
+                    'verif_status' => $request->verifikasi ?? '1',
+                    'verifikator_id' => auth()->id(),
                 ]
             );
         }
 
         // Get updated allergy names for the response
         $alergiNames = [];
-        if ($request->statusAlergi === 'ada' && !empty($newAlergiIds)) {
-            $alergiNames = ZatAktif::whereIn('id', $newAlergiIds)
-                ->pluck('nama')
-                ->toArray();
+        if ($request->statusAlergi === 'ada') {
+            if (!empty($newAlergiIds)) {
+                $alergiNames = ZatAktif::whereIn('id', $newAlergiIds)
+                    ->pluck('nama')
+                    ->toArray();
+            } elseif (!empty($request->katakunci)) {
+                $alergiNames = [$request->katakunci];
+            }
         }
 
         // Return JSON response for Ajax

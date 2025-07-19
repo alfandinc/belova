@@ -156,27 +156,36 @@ $(document).ready(function() {
     
     // Function to update the allergy display in the patient card
     function updateAlergiDisplay(data) {
-    // Update kata kunci text
-    $('.alergi-label').text('Alergi : ' + (data.kataKunci || '-'));
-    
-    // Update allergy badges
-    var badgesHtml = '';
-    if (data.alergiNames && data.alergiNames.length > 0) {
-        data.alergiNames.forEach(function(name) {
-            badgesHtml += '<span class="badge badge-warning d-inline-flex align-items-center justify-content-center rounded mr-1" ' +
-                          'style="height: 25px; padding: 0 10px; color:black;">' +
-                          '<strong>' + name + '</strong></span>';
-        });
+        // Update kata kunci text
+        $('.alergi-label').text('Alergi : ' + (data.kataKunci || '-'));
+
+        // Update allergy badges
+        var badgesHtml = '';
+        if (data.alergiNames && data.alergiNames.length > 0) {
+            // If only katakunci is present and no zat aktif, show 'alergi belum diverifikasi' (yellow)
+            if (
+                data.alergiNames.length === 1 &&
+                data.kataKunci &&
+                data.alergiNames[0] === data.kataKunci
+            ) {
+                badgesHtml += '<span class="badge d-inline-flex align-items-center justify-content-center rounded mr-1" style="height: 25px; padding: 0 10px; color:black; background-color: #ffe066;"><strong>alergi belum diverifikasi</strong></span>';
+            } else {
+                data.alergiNames.forEach(function(name) {
+                    badgesHtml += '<span class="badge d-inline-flex align-items-center justify-content-center rounded mr-1" ' +
+                        'style="height: 25px; padding: 0 10px; color:white; background-color: #28a745;">' +
+                        '<strong>' + name + '</strong></span>';
+                });
+            }
+        }
+
+        // Add the Edit button to the badges HTML
+        badgesHtml += '<button type="button" class="btn btn-sm btn-primary d-flex align-items-center mr-2 mt-2 " ' +
+            'style="font-size: 12px;" data-toggle="modal" data-target="#modalAlergi">' +
+            '<i class="fas fa-edit mr-1"></i> Edit</button>';
+
+        // Update the badges container
+        $('.alergi-badges').html(badgesHtml);
     }
-    
-    // Add the Edit button to the badges HTML
-    badgesHtml += '<button type="button" class="btn btn-sm btn-primary d-flex align-items-center mr-2 mt-2 " ' + 
-                  'style="font-size: 12px;" data-toggle="modal" data-target="#modalAlergi">' +
-                  '<i class="fas fa-edit mr-1"></i> Edit</button>';
-    
-    // Update the badges container
-    $('.alergi-badges').html(badgesHtml);
-}
 
     
 });

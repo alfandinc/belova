@@ -175,12 +175,19 @@
     </div>
 
     <div class="text-end mt-2 alergi-badges">
-        @foreach($alergiNames as $alergiName)
-            <span class="badge badge-warning d-inline-flex align-items-center justify-content-center rounded mr-1" 
-                style="height: 25px; padding: 0 10px; color:black;">
-                <strong>{{ $alergiName }}</strong>
+        @if(isset($alergiList) && count($alergiList) === 1 && empty($alergiList[0]->zataktif_id))
+            <span class="badge d-inline-flex align-items-center justify-content-center rounded mr-1"
+                style="height: 25px; padding: 0 10px; color:black; background-color: #ffe066;">
+                <strong>alergi belum diverifikasi</strong>
             </span>
-        @endforeach
+        @elseif(isset($alergiNames) && count($alergiNames) > 0)
+            @foreach($alergiNames as $alergiName)
+                <span class="badge d-inline-flex align-items-center justify-content-center rounded mr-1"
+                    style="height: 25px; padding: 0 10px; color:white; background-color: #28a745;">
+                    <strong>{{ $alergiName }}</strong>
+                </span>
+            @endforeach
+        @endif
         <button type="button" class="btn btn-sm btn-primary d-flex align-items-center mr-2 mt-2 " style="font-size: 12px;" data-toggle="modal" data-target="#modalAlergi">
             <i class="fas fa-edit mr-1"></i> Edit
         </button>
