@@ -142,6 +142,8 @@
             display: flex;
             justify-content: space-between;
             margin-top: 30px;
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
         .signature {
             text-align: center;
