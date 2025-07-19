@@ -16,6 +16,8 @@ use App\Models\HRD\{
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\PerformanceScoreExport;
 use Carbon\Carbon;
 
 class PerformanceEvaluationController extends Controller
@@ -563,9 +565,65 @@ class PerformanceEvaluationController extends Controller
                             <i class="fa fa-chart-bar"></i> View Results
                         </a>';
             })
-            ->rawColumns(['action'])
+            ->addColumn('download', function($period) {
+                return '<button class="btn btn-sm btn-success btn-download-score" data-period-id="' . $period->id . '">Tarik Data</button>';
+            })
+            ->rawColumns(['action', 'download'])
             ->make(true);
     }
+
+    // Download score data for a period as Excel/CSV
+    public function downloadScore(PerformanceEvaluationPeriod $period)
+    {
+        Log::info('Export XLSX triggered', ['period_id' => $period->id]);
+        // Get all evaluations for this period with related data
+        $evaluations = \App\Models\HRD\PerformanceEvaluation::with(['evaluator.division', 'evaluatee.division', 'scores.question'])
+            ->where('period_id', $period->id)
+            ->get();
+
+        // Get all questions for this period (from all evaluations)
+        $questionIds = $evaluations->flatMap(function($eval) {
+            return $eval->scores->pluck('question_id');
+        })->unique()->values();
+        $questions = \App\Models\HRD\PerformanceQuestion::whereIn('id', $questionIds)->get();
+
+        // Prepare header
+        $headers = [
+            'nama_penilai', 'posisi_penilai', 'nama_dinilai', 'posisi_dinilai', 'divisi_dinilai'
+        ];
+        foreach ($questions as $q) {
+            $headers[] = $q->question_text;
+        }
+
+        $rows = [];
+        foreach ($evaluations as $eval) {
+            $evaluator = $eval->evaluator;
+            $evaluatee = $eval->evaluatee;
+            $nama_penilai = $evaluator ? ($evaluator->nama ?? $evaluator->name ?? $evaluator->nama_lengkap ?? '') : '';
+            $nama_dinilai = $evaluatee ? ($evaluatee->nama ?? $evaluatee->name ?? $evaluatee->nama_lengkap ?? '') : '';
+            $row = [
+                $nama_penilai,
+                optional(optional($eval->evaluator)->division)->name,
+                $nama_dinilai,
+                optional(optional($eval->evaluatee)->division)->name,
+                optional(optional($eval->evaluatee)->division)->name,
+            ];
+            // Map question_id => score for this evaluation
+            $scoreMap = $eval->scores->pluck('score', 'question_id');
+            foreach ($questions as $q) {
+                $row[] = $scoreMap[$q->id] ?? '';
+            }
+            $rows[] = $row;
+        }
+
+        $export = new PerformanceScoreExport($headers, $rows);
+        $periodName = $period->name ?? ('periode_' . $period->id);
+        $periodNameSlug = preg_replace('/[^A-Za-z0-9_\-]/', '_', str_replace(' ', '_', $periodName));
+        $filename = 'score_' . $periodNameSlug . '.xlsx';
+        return Excel::download($export, $filename);
+    }
+
+
 
     public function periodResults(PerformanceEvaluationPeriod $period)
     {

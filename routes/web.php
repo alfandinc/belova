@@ -528,6 +528,7 @@ Route::prefix('hrd')->group(
             Route::get('/results/periods/{period}', [PerformanceEvaluationController::class, 'periodResults'])->name('results.period');
             Route::get('/results/periods/{period}/data', [PerformanceEvaluationController::class, 'periodResultsData'])->name('results.period.data');
             Route::get('/results/periods/{period}/employees/{employee}', [PerformanceEvaluationController::class, 'employeeResults'])->name('results.employee');
+            Route::get('/results/periods/{period}/download-score', [PerformanceEvaluationController::class, 'downloadScore'])->name('results.download-score');
         });
     }
 );

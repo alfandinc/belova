@@ -18,6 +18,7 @@
                             <th>Date Range</th>
                             <th>Evaluations</th>
                             <th>Actions</th>
+                            <th>Download</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -40,7 +41,8 @@
                 { data: 'name', name: 'name' },
                 { data: 'date_range', name: 'date_range', orderable: false, searchable: false },
                 { data: 'evaluations', name: 'evaluations', orderable: false, searchable: false },
-                { data: 'action', name: 'action', orderable: false, searchable: false }
+                { data: 'action', name: 'action', orderable: false, searchable: false },
+                { data: 'download', name: 'download', orderable: false, searchable: false }
             ],
             order: [[0, 'asc']],
             responsive: true,
@@ -54,6 +56,11 @@
             drawCallback: function() {
                 $('.dataTables_paginate > .pagination').addClass('pagination-rounded');
             }
+        });
+        // Event delegation for download button
+        $('#periods-table').on('click', '.btn-download-score', function() {
+            var periodId = $(this).data('period-id');
+            window.location.href = '/hrd/performance/results/periods/' + periodId + '/download-score';
         });
     });
 </script>
