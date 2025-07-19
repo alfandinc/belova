@@ -579,6 +579,12 @@ Route::prefix('marketing')->group(function () {
     Route::delete('survey-questions/{id}', [\App\Http\Controllers\Marketing\SurveyQuestionController::class, 'destroy']);
 });
 
+// AJAX route for patient analytics charts
+Route::get('/marketing/patients-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'patientsAnalyticsData'])->name('marketing.patients.analytics.data');
+
+// AJAX route for services analytics charts
+Route::get('/marketing/services-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'servicesAnalyticsData'])->name('marketing.services.analytics.data');
+
 Route::prefix('admin')->group(
     function () {
         //User Management

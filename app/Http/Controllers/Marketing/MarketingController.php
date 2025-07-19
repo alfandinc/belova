@@ -345,7 +345,7 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getAgeDemographics($clinicId = null)
+    private function getAgeDemographics($clinicId = null, $year = null, $month = null)
     {
         $ageRanges = [
             'Under 18' => [0, 17],
@@ -362,8 +362,15 @@ class MarketingController extends Controller
                 ->whereRaw('TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) <= ?', [$range[1]]);
 
             if ($clinicId) {
-                $query->whereHas('visitation', function ($q) use ($clinicId) {
+                $query->whereHas('visitations', function ($q) use ($clinicId, $year, $month) {
                     $q->where('klinik_id', $clinicId);
+                    if ($year) $q->whereYear('tanggal_visitation', $year);
+                    if ($month) $q->whereMonth('tanggal_visitation', $month);
+                });
+            } elseif ($year || $month) {
+                $query->whereHas('visitations', function ($q) use ($year, $month) {
+                    if ($year) $q->whereYear('tanggal_visitation', $year);
+                    if ($month) $q->whereMonth('tanggal_visitation', $month);
                 });
             }
 
@@ -376,15 +383,17 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getGenderDemographics($clinicId = null)
+    private function getGenderDemographics($clinicId = null, $year = null, $month = null)
     {
         $query = Pasien::selectRaw('gender, count(*) as count')
             ->whereNotNull('gender')
             ->groupBy('gender');
 
-        if ($clinicId) {
-            $query->whereHas('visitation', function ($q) use ($clinicId) {
-                $q->where('klinik_id', $clinicId);
+        if ($clinicId || $year || $month) {
+            $query->whereHas('visitations', function ($q) use ($clinicId, $year, $month) {
+                if ($clinicId) $q->where('klinik_id', $clinicId);
+                if ($year) $q->whereYear('tanggal_visitation', $year);
+                if ($month) $q->whereMonth('tanggal_visitation', $month);
             });
         }
 
@@ -405,14 +414,12 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getPatientLoyalty($year, $clinicId = null)
+    private function getPatientLoyalty($year, $clinicId = null, $month = null)
     {
-        $query = Visitation::join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
-            ->whereYear('erm_visitations.tanggal_visitation', $year);
-
-        if ($clinicId) {
-            $query->where('erm_visitations.klinik_id', $clinicId);
-        }
+        $query = Visitation::join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id');
+        if ($year) $query->whereYear('erm_visitations.tanggal_visitation', $year);
+        if ($month) $query->whereMonth('erm_visitations.tanggal_visitation', $month);
+        if ($clinicId) $query->where('erm_visitations.klinik_id', $clinicId);
 
         $data = $query->select(
             'erm_pasiens.id as patient_id',
@@ -430,15 +437,17 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getGeographicDistribution($clinicId = null)
+    private function getGeographicDistribution($clinicId = null, $year = null, $month = null)
     {
         $query = Pasien::join('area_villages', 'erm_pasiens.village_id', '=', 'area_villages.id')
             ->join('area_districts', 'area_villages.district_id', '=', 'area_districts.id')
             ->join('area_regencies', 'area_districts.regency_id', '=', 'area_regencies.id');
 
-        if ($clinicId) {
-            $query->whereHas('visitation', function ($q) use ($clinicId) {
-                $q->where('klinik_id', $clinicId);
+        if ($clinicId || $year || $month) {
+            $query->whereHas('visitations', function ($q) use ($clinicId, $year, $month) {
+                if ($clinicId) $q->where('klinik_id', $clinicId);
+                if ($year) $q->whereYear('tanggal_visitation', $year);
+                if ($month) $q->whereMonth('tanggal_visitation', $month);
             });
         }
 
@@ -457,24 +466,30 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getPopularTreatments($period, $clinicId = null)
+    private function getPopularTreatments($period, $clinicId = null, $year = null, $month = null)
     {
-        // Calculate date range based on period
         $endDate = now();
         $startDate = $this->getStartDate($period);
-
         $query = InvoiceItem::whereHas('invoice', function ($q) use ($startDate, $endDate) {
             $q->whereBetween('payment_date', [$startDate, $endDate])
                 ->where('status', 'paid');
         })
-            ->where('billable_type', 'App\Models\ERM\Tindakan');
-
+            ->where('billable_type', 'App\\Models\\ERM\\Tindakan');
         if ($clinicId) {
             $query->whereHas('invoice.visitation', function ($q) use ($clinicId) {
                 $q->where('klinik_id', $clinicId);
             });
         }
-
+        if ($year) {
+            $query->whereHas('invoice.visitation', function ($q) use ($year) {
+                $q->whereYear('tanggal_visitation', $year);
+            });
+        }
+        if ($month) {
+            $query->whereHas('invoice.visitation', function ($q) use ($month) {
+                $q->whereMonth('tanggal_visitation', $month);
+            });
+        }
         $data = $query->select(
             'billable_id',
             DB::raw('COUNT(*) as count'),
@@ -485,7 +500,6 @@ class MarketingController extends Controller
             ->orderBy('count', 'desc')
             ->limit(10)
             ->get();
-
         return [
             'labels' => $data->map(function ($item) {
                 return $item->billable->nama ?? 'Unknown';
@@ -497,24 +511,30 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getPackagePerformance($period, $clinicId = null)
+    private function getPackagePerformance($period, $clinicId = null, $year = null, $month = null)
     {
-        // Calculate date range based on period
         $endDate = now();
         $startDate = $this->getStartDate($period);
-
         $query = InvoiceItem::whereHas('invoice', function ($q) use ($startDate, $endDate) {
             $q->whereBetween('payment_date', [$startDate, $endDate])
                 ->where('status', 'paid');
         })
-            ->where('billable_type', 'App\Models\ERM\PaketTindakan');
-
+            ->where('billable_type', 'App\\Models\\ERM\\PaketTindakan');
         if ($clinicId) {
             $query->whereHas('invoice.visitation', function ($q) use ($clinicId) {
                 $q->where('klinik_id', $clinicId);
             });
         }
-
+        if ($year) {
+            $query->whereHas('invoice.visitation', function ($q) use ($year) {
+                $q->whereYear('tanggal_visitation', $year);
+            });
+        }
+        if ($month) {
+            $query->whereHas('invoice.visitation', function ($q) use ($month) {
+                $q->whereMonth('tanggal_visitation', $month);
+            });
+        }
         $data = $query->select(
             'billable_id',
             DB::raw('COUNT(*) as count'),
@@ -525,7 +545,6 @@ class MarketingController extends Controller
             ->orderBy('revenue', 'desc')
             ->limit(10)
             ->get();
-
         return [
             'labels' => $data->map(function ($item) {
                 return $item->billable->nama ?? 'Unknown';
@@ -537,14 +556,12 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getVisitationTrends($year, $clinicId = null)
+    private function getVisitationTrends($year, $clinicId = null, $month = null)
     {
-        $query = Visitation::whereYear('tanggal_visitation', $year);
-
-        if ($clinicId) {
-            $query->where('klinik_id', $clinicId);
-        }
-
+        $query = Visitation::query();
+        if ($year) $query->whereYear('tanggal_visitation', $year);
+        if ($month) $query->whereMonth('tanggal_visitation', $month);
+        if ($clinicId) $query->where('klinik_id', $clinicId);
         $data = $query->select(
             DB::raw('MONTH(tanggal_visitation) as month'),
             DB::raw('COUNT(*) as visit_count')
@@ -552,14 +569,11 @@ class MarketingController extends Controller
             ->groupBy(DB::raw('MONTH(tanggal_visitation)'))
             ->orderBy('month')
             ->get();
-
         $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        $seriesData = array_fill(0, 12, 0); // Initialize with zeros
-
+        $seriesData = array_fill(0, 12, 0);
         foreach ($data as $item) {
             $seriesData[$item->month - 1] = $item->visit_count;
         }
-
         return [
             'labels' => $months,
             'series' => $seriesData
@@ -756,5 +770,58 @@ class MarketingController extends Controller
             default:
                 return now()->subMonth();
         }
+    }
+
+    // AJAX endpoint for patient analytics charts
+    public function patientsAnalyticsData(Request $request)
+    {
+        $year = $request->input('year', date('Y'));
+        $month = $request->input('month');
+        $clinicId = $request->input('clinic_id');
+
+        $ageDemographics = $this->getAgeDemographics($clinicId, $year, $month);
+        $genderDemographics = $this->getGenderDemographics($clinicId, $year, $month);
+        $patientLoyalty = $this->getPatientLoyalty($year, $clinicId, $month);
+        $geographicDistribution = $this->getGeographicDistribution($clinicId, $year, $month);
+        $addressStats = $this->getAddressStatistics($clinicId, $year, $month);
+
+        // Prepare addressStats for table rendering
+        $addressTable = [];
+        foreach ($addressStats as $area => $stats) {
+            $addressTable[] = [
+                'area' => $area,
+                'count' => $stats['count'],
+                'percentage' => $stats['percentage'],
+            ];
+        }
+
+        return response()->json([
+            'ageDemographics' => $ageDemographics,
+            'genderDemographics' => $genderDemographics,
+            'patientLoyalty' => $patientLoyalty,
+            'geographicDistribution' => $geographicDistribution,
+            'addressStats' => $addressStats,
+            'addressTable' => $addressTable,
+        ]);
+    }
+
+    // AJAX endpoint for services analytics charts
+    public function servicesAnalyticsData(Request $request)
+    {
+        $period = $request->input('period', 'year');
+        $year = $request->input('year', date('Y'));
+        $month = $request->input('month');
+        $clinicId = $request->input('clinic_id');
+
+        $popularTreatments = $this->getPopularTreatments($period, $clinicId, $year, $month);
+        $packagePerformance = $this->getPackagePerformance($period, $clinicId, $year, $month);
+        $visitationTrends = $this->getVisitationTrends($year, $clinicId, $month);
+
+        return response()->json([
+            'popularTreatments' => $popularTreatments,
+            'packagePerformance' => $packagePerformance,
+            'visitationTrends' => $visitationTrends,
+            'year' => $year,
+        ]);
     }
 }
