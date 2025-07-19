@@ -237,10 +237,10 @@
 
     <div class="totals-section">
         <table class="totals-table">
-            <tr>
+            {{-- <tr>
                 <td class="total-label">Subtotal</td>
                 <td class="total-amount">{{ number_format($invoice->subtotal, 0, ',', '.') }}</td>
-            </tr>
+            </tr> --}}
             @if($invoice->discount > 0)
             <tr>
                 <td class="total-label">Diskon</td>
