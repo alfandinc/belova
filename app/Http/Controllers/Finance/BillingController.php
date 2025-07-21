@@ -600,6 +600,25 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->addColumn('spesialisasi', function ($visitation) {
                 return $visitation->dokter && $visitation->dokter->spesialisasi ? $visitation->dokter->spesialisasi->nama : '-';
             })
+            ->addColumn('jenis_kunjungan', function ($visitation) {
+                // Map numeric values to labels
+                if (isset($visitation->jenis_kunjungan)) {
+                    switch ($visitation->jenis_kunjungan) {
+                        case 1:
+                        case '1':
+                            return 'Konsultasi Dokter';
+                        case 2:
+                        case '2':
+                            return 'Beli Produk';
+                        case 3:
+                        case '3':
+                            return 'Laboratorium';
+                        default:
+                            return $visitation->jenis_kunjungan;
+                    }
+                }
+                return '-';
+            })
             ->addColumn('tanggal_visit', function ($visitation) {
                 return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y');
             })

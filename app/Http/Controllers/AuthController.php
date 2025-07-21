@@ -101,6 +101,10 @@ class AuthController extends Controller
                 // Default fallback for ERM
                 return redirect()->route('erm.dashboard');
             }
+            // Redirect to finance billing if module is finance
+            if ($module === 'finance') {
+                return redirect()->route('finance.billing.index');
+            }
             return redirect()->route("$module.dashboard");
         }
 

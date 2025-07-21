@@ -41,6 +41,7 @@
                                 <th>Nama Pasien</th>
                                 <th>Dokter</th>
                                 <th>Spesialisasi</th>
+                                <th>Jenis Kunjungan</th>
                                 <th>Tanggal Visit</th>
                                 <th>Klinik</th>
                                 <th>Aksi</th>
@@ -136,6 +137,7 @@
                 { data: 'nama_pasien', name: 'nama_pasien' },
                 { data: 'dokter', name: 'dokter' },
                 { data: 'spesialisasi', name: 'spesialisasi' },
+                { data: 'jenis_kunjungan', name: 'jenis_kunjungan' },
                 { data: 'tanggal_visit', name: 'tanggal_visit' },
                 { data: 'nama_klinik', name: 'nama_klinik' },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
