@@ -455,6 +455,11 @@ Route::prefix('hrd')->group(
         Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
         Route::delete('/employee/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');
 
+        // Dokter Management (HRD access)
+        Route::get('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'index'])->name('hrd.dokters.index');
+        Route::get('/dokters/create', [\App\Http\Controllers\ERM\DokterController::class, 'create'])->name('hrd.dokters.create');
+        Route::post('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'store'])->name('hrd.dokters.store');
+
         // Employee Self Service Routes
 
         Route::get('/profile', [EmployeeSelfServiceController::class, 'profile'])->name('hrd.employee.profile');

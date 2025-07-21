@@ -80,6 +80,8 @@
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.create') }}"><i class="ti-control-record"></i>Tambah Pegawai Baru</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.index') }}"><i class="ti-control-record"></i>Data Pegawai</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.dokters.index') }}"><i class="ti-control-record"></i>Index Dokter</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.dokters.create') }}"><i class="ti-control-record"></i>Create Dokter</a></li>
                 </ul>
             </li>
             
