@@ -52,7 +52,7 @@ class BarangController extends Controller
                     return $row->maintenanceBarang && $row->maintenanceBarang->count() > 0 ? true : false;
                 })
                 ->addColumn('action', function($row){
-                    $actionBtn = '<a href="javascript:void(0)" data-id="'.$row->id.'" class="edit btn btn-success btn-sm">Edit</a> <a href="javascript:void(0)" data-id="'.$row->id.'" class="delete btn btn-danger btn-sm">Delete</a> <a href="javascript:void(0)" data-id="'.$row->id.'" class="editStok btn btn-info btn-sm">Stok</a>';
+                    $actionBtn = '<a href="javascript:void(0)" data-id="'.$row->id.'" class="edit btn btn-success btn-sm">Edit</a> <a href="javascript:void(0)" data-id="'.$row->id.'" class="delete btn btn-danger btn-sm">Delete</a>';
                     return $actionBtn;
                 })
                 ->rawColumns(['action'])
