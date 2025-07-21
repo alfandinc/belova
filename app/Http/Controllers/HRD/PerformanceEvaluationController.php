@@ -617,10 +617,11 @@ class PerformanceEvaluationController extends Controller
 
             // Calculate average per category for this evaluation (score-type questions only)
             foreach ($categories as $cat) {
+                // Only use scores for this evaluation and this category
                 $catScores = $eval->scores->filter(function($score) use ($cat) {
                     return $score->question && $score->question->category && $score->question->category->id === $cat->id && $score->question->question_type === 'score';
                 });
-                $avg = $catScores->isNotEmpty() ? round($catScores->avg('score'), 2) : '';
+                $avg = $catScores->count() > 0 ? round($catScores->avg('score'), 2) : '';
                 $row[] = $avg;
             }
 
