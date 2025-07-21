@@ -590,7 +590,7 @@ class PerformanceEvaluationController extends Controller
 
         // Prepare header (remove posisi_penilai and posisi_dinilai)
         $headers = [
-            'nama_penilai', 'nama_dinilai', 'divisi_dinilai'
+            'nama_penilai', 'nama_dinilai'
         ];
 
         // Get all categories for the questions in this period
@@ -612,7 +612,6 @@ class PerformanceEvaluationController extends Controller
             $row = [
                 $nama_penilai,
                 $nama_dinilai,
-                optional(optional($eval->evaluatee)->division)->name,
             ];
 
             // Calculate average per category for this evaluation (score-type questions only)
