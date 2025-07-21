@@ -1,0 +1,5 @@
+id (angka),Nama Tipe Barang (Contoh : Habis Pakai/Aset Tetap/Pinjaman dll. ),"Maintenance (isi 1 jika butuh, 0 jika tidak)"
+1,Habis pakai,0
+2,Aset tetap,1
+3,Pinjam,1
+4,Hibah,1

@@ -1,0 +1,35 @@
+id (angka),id Perusahaan (isi dengan id berdasarkan id di Sheet Perusahaan),Nama Ruangan,Deskripsi Ruangan (bisa diisi lantai ruangan atau fungsi ruangan )
+1,1,Ruang tunggu ,Ruang tunggu Lt1
+2,1,Ruang Gawat Darurat,Ruang tindakan Lt1
+3,1,Ruang konsultasi dokter,Ruang konsultasi Lt1
+4,1,Gudang dan penyimpanan Limbah B3,Gudang dan tempat limbah B3 Lt1
+5,1,Ruang tunggu dan ASI,Ruang tunggu dan ASI Lt2
+6,1,Poli 1,Ruang konsultasi 1 Lt2
+7,1,Poli 2,Ruang konsultasi 2 Lt2
+8,1,Poli 3,Ruang konsultasi 3 dan jln tembus klinik pratama Lt2
+9,1,Ruang Lab,Ruang Labolatorium Lt2
+10,1,Ruang CEO,Ruang direktur/CEO Lt2
+11,1,Office ,Ruang Office Lt2
+12,1,Ruang metting,Ruang metting Lt2
+13,1,Ruang metting besar,Ruang metting Lt3
+14,2,Kasir FO,Kasir dan Front liner
+15,2,Ruang tunggu lt 1,Ruang tunggu Lt1 skindcare
+16,2,Ruang konsultasi dokter,Ruang konsul skindcare
+17,2,Ruang dokter,Ruang istirahat dokter
+18,2,Ruang gigi,Dental care
+19,2,B3,Penampungan limbah B3
+20,2,Office Lt1,"Ruang HRD, Acct, GA"
+21,2,Gudang farmasi,Gudang farmasi
+22,2,RM,Ruang rekam medis
+23,2,Pantri,Pantri
+24,2,Apotek,Pelayanan farmasi
+25,2,SPA,Ruang SPA dan server
+26,2,Salon,Ruang salon
+27,2,Mushola dan ruang tunggu,Mushola dan ruang tunggu Lt2
+28,2,ASI,Ruang ASI
+29,2,Ruang sterilisasi,Ruang steril alat
+30,2,VIP,Ruang VIP barat
+31,2,VIP,Ruang VIP timur
+32,2,Perawatan besar,Ruang perawatan besar
+33,2,Gudang Lt2,Gudang Lt 2
+34,2,Gudang Lt3,Gudang Lt3
