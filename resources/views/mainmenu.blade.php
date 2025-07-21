@@ -341,12 +341,12 @@
                     </div>
                     <div class="menu-label">AKREDITASI</div>
                 </a>
-                <a href="/kos/login" class="menu-tile tile-kos animate-item delay-8">
+                {{-- <a href="/kos/login" class="menu-tile tile-kos animate-item delay-8">
                     <div class="menu-icon">
                         <i class="fas fa-building"></i>
                     </div>
                     <div class="menu-label">KOS BCL</div>
-                </a>
+                </a> --}}
             </div>
         </div>
 
