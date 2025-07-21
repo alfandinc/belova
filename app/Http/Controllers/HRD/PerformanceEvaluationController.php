@@ -588,28 +588,19 @@ class PerformanceEvaluationController extends Controller
         $questions = \App\Models\HRD\PerformanceQuestion::whereIn('id', $questionIds)->get();
 
 
-
         // Prepare header (remove posisi_penilai and posisi_dinilai)
         $headers = [
             'nama_penilai', 'nama_dinilai', 'divisi_dinilai'
         ];
-        foreach ($questions as $q) {
-            $headers[] = $q->question_text;
+
+        // Get all categories for the questions in this period
+        $categories = $questions->map(function($q) { return $q->category; })->filter()->unique('id')->values();
+        foreach ($categories as $cat) {
+            $headers[] = 'Rata-rata ' . ($cat->name ?? 'Kategori');
         }
 
-        // Calculate global average per category (score-type questions only)
-        $categories = $questions->pluck('category')->unique('id')->filter();
-        $categoryAverages = [];
-        foreach ($categories as $category) {
-            $categoryQuestionIds = $questions->where('category_id', $category->id)->where('question_type', 'score')->pluck('id');
-            $allScores = collect();
-            foreach ($evaluations as $eval) {
-                $scores = $eval->scores->whereIn('question_id', $categoryQuestionIds)->pluck('score');
-                $allScores = $allScores->concat($scores);
-            }
-            $avg = $allScores->count() > 0 ? round($allScores->avg(), 2) : null;
-            $categoryAverages[$category->id] = $avg;
-            $headers[] = 'Rata-rata ' . $category->name;
+        foreach ($questions as $q) {
+            $headers[] = $q->question_text;
         }
 
         $rows = [];
@@ -623,14 +614,20 @@ class PerformanceEvaluationController extends Controller
                 $nama_dinilai,
                 optional(optional($eval->evaluatee)->division)->name,
             ];
+
+            // Calculate average per category for this evaluation (score-type questions only)
+            foreach ($categories as $cat) {
+                $catScores = $eval->scores->filter(function($score) use ($cat) {
+                    return $score->question && $score->question->category && $score->question->category->id === $cat->id && $score->question->question_type === 'score';
+                });
+                $avg = $catScores->isNotEmpty() ? round($catScores->avg('score'), 2) : '';
+                $row[] = $avg;
+            }
+
             // Map question_id => score for this evaluation
             $scoreMap = $eval->scores->pluck('score', 'question_id');
             foreach ($questions as $q) {
                 $row[] = $scoreMap[$q->id] ?? '';
-            }
-            // Add global average per category
-            foreach ($categories as $category) {
-                $row[] = $categoryAverages[$category->id];
             }
             $rows[] = $row;
         }
