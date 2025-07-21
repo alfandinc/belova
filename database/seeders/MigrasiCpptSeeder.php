@@ -32,11 +32,6 @@ class MigrasiCpptSeeder extends Seeder
                 return strtoupper(trim($value)) === 'NULL' ? null : $value;
             }, $row);
 
-            // Validasi id dan visitation_id adalah angka
-            // if (!is_numeric($row[0])) {
-            //     logger('Skipped row (id bukan angka):', $row);
-            //     continue;
-            // }
             if (!DB::table('erm_visitations')->where('id', $row[1])->exists()) {
                 logger("Skipped: visitation_id {$row[1]} not found");
                 continue;
