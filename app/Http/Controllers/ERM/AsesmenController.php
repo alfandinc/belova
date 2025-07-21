@@ -18,7 +18,9 @@ use App\Models\ERM\AsesmenSaraf;
 use App\Models\Finance\Billing;
 use App\Models\ERM\JasaMedis;
 use App\Models\ERM\Konsultasi;
+
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 
 class AsesmenController extends Controller
@@ -446,17 +448,15 @@ class AsesmenController extends Controller
                 throw new \Exception('Base64 decode failed');
             }
 
-            $filename = 'lokalis_' . $request->visitation_id . '.' . $type;
-            $path = public_path("img/hasilasesmen/" . $filename);
+            $filename = 'lokalis_' . $request->visitation_id . '_' . time() . '.' . $type;
+            $storagePath = 'hasilasesmen/' . $filename;
 
-            if (!file_exists(dirname($path))) {
-                mkdir(dirname($path), 0755, true);
-            }
+            // Save to storage/app/public/hasilasesmen
+            Storage::disk('public')->put($storagePath, $data);
 
-            file_put_contents($path, $data);
-
+            // Store the public path (accessible via /storage/hasilasesmen/filename)
             $request->merge([
-                'status_lokalis' => "img/hasilasesmen/{$filename}"
+                'status_lokalis' => "storage/{$storagePath}"
             ]);
         }
     }
