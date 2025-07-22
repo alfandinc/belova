@@ -355,24 +355,47 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $changeAmount = $totals['changeAmount'] ?? 0;
             $paymentMethod = $totals['paymentMethod'] ?? 'cash';
 
-            // Create the invoice
-            $invoice = Invoice::create([
-                'visitation_id' => $request->visitation_id,
-                'invoice_number' => Invoice::generateInvoiceNumber(),
-                'subtotal' => $subtotal,
-                'discount' => $discountAmount,
-                'tax' => $taxAmount, // Changed from tax_amount to tax to match migration
-                'discount_type' => $totals['discountType'] ?? null,
-                'discount_value' => $totals['discountValue'] ?? 0,
-                'tax_percentage' => $totals['taxPercentage'] ?? 0,
-                'total_amount' => $grandTotal,
-                'amount_paid' => $amountPaid,
-                'change_amount' => $changeAmount,
-                'payment_method' => $paymentMethod,
-                'status' => 'issued',
-                'user_id' => Auth::id(), // Add the current authenticated user ID
-                'notes' => $request->notes ?? null, // Add notes if available
-            ]);
+            // Check if invoice exists for this visitation
+            $invoice = Invoice::where('visitation_id', $request->visitation_id)->first();
+            if ($invoice) {
+                // Update existing invoice
+                $invoice->update([
+                    'subtotal' => $subtotal,
+                    'discount' => $discountAmount,
+                    'tax' => $taxAmount,
+                    'discount_type' => $totals['discountType'] ?? null,
+                    'discount_value' => $totals['discountValue'] ?? 0,
+                    'tax_percentage' => $totals['taxPercentage'] ?? 0,
+                    'total_amount' => $grandTotal,
+                    'amount_paid' => $amountPaid,
+                    'change_amount' => $changeAmount,
+                    'payment_method' => $paymentMethod,
+                    'status' => 'issued',
+                    'user_id' => Auth::id(),
+                    'notes' => $request->notes ?? null,
+                ]);
+                // Remove old invoice items
+                $invoice->items()->delete();
+            } else {
+                // Create new invoice
+                $invoice = Invoice::create([
+                    'visitation_id' => $request->visitation_id,
+                    'invoice_number' => Invoice::generateInvoiceNumber(),
+                    'subtotal' => $subtotal,
+                    'discount' => $discountAmount,
+                    'tax' => $taxAmount,
+                    'discount_type' => $totals['discountType'] ?? null,
+                    'discount_value' => $totals['discountValue'] ?? 0,
+                    'tax_percentage' => $totals['taxPercentage'] ?? 0,
+                    'total_amount' => $grandTotal,
+                    'amount_paid' => $amountPaid,
+                    'change_amount' => $changeAmount,
+                    'payment_method' => $paymentMethod,
+                    'status' => 'issued',
+                    'user_id' => Auth::id(),
+                    'notes' => $request->notes ?? null,
+                ]);
+            }
 
             // Create invoice items
             foreach ($request->items as $item) {
@@ -556,13 +579,28 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         
         $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice'])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
-            ->where('status_kunjungan', 2); // Only show completed visits
-        
+            ->where('status_kunjungan', 2);
+
         if ($dokterId) {
             $visitations->where('dokter_id', $dokterId);
         }
         if ($klinikId) {
             $visitations->where('klinik_id', $klinikId);
+        }
+
+        // Status filter: 'belum' (default), 'sudah', or '' (all)
+        $statusFilter = $request->input('status_filter', 'belum');
+        if ($statusFilter === 'belum') {
+            $visitations->where(function($query) {
+                $query->whereDoesntHave('invoice')
+                      ->orWhereHas('invoice', function($q) {
+                          $q->where('amount_paid', 0);
+                      });
+            });
+        } elseif ($statusFilter === 'sudah') {
+            $visitations->whereHas('invoice', function($q) {
+                $q->where('amount_paid', '>', 0);
+            });
         }
         
         return DataTables::of($visitations)
@@ -625,6 +663,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->addColumn('nama_klinik', function ($visitation) {
                 return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
             })
+                ->addColumn('status', function ($visitation) {
+                    if ($visitation->invoice && $visitation->invoice->amount_paid > 0) {
+                        return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
+                    }
+                    return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                })
             ->addColumn('action', function ($visitation) {
                 $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
                 
@@ -635,7 +679,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 
                 return $action;
             })
-            ->rawColumns(['action'])
+            ->rawColumns(['action', 'status'])
             ->make(true);
     }
 

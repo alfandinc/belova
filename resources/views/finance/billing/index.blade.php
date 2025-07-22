@@ -7,47 +7,57 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
                     <h4 class="card-title mb-0">Daftar Billing</h4>
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="mr-2">
-                            <select id="filter-dokter" class="form-control">
+                    <div class="row g-2 flex-wrap">
+                        <div class="col-12 col-sm-6 col-md-3 mb-2">
+                            <select id="filter-dokter" class="form-control w-100">
                                 <option value="">Semua Dokter</option>
                                 {{-- Options will be loaded via AJAX or server-side rendering --}}
                             </select>
                         </div>
-                        <div class="mr-2">
-                            <select id="filter-klinik" class="form-control">
+                        <div class="col-12 col-sm-6 col-md-3 mb-2">
+                            <select id="filter-klinik" class="form-control w-100">
                                 <option value="">Semua Klinik</option>
                                 {{-- Options will be loaded via AJAX or server-side rendering --}}
                             </select>
                         </div>
-                        <div class="date-filter">
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="daterange" placeholder="Pilih Rentang Tanggal" readonly>
-                                <div class="input-group-append">
+                        <div class="col-12 col-sm-6 col-md-3 mb-2">
+                            <div class="date-filter w-100">
+                                <div class="input-group w-100">
+                                    <input type="text" class="form-control" id="daterange" placeholder="Pilih Rentang Tanggal" readonly>
                                     <span class="input-group-text"><i class="ti-calendar"></i></span>
                                 </div>
                             </div>
                         </div>
+                        <div class="col-12 col-sm-6 col-md-3 mb-2">
+                            <select id="filter-status" class="form-control w-100">
+                                <option value="belum">Belum Dibayar</option>
+                                <option value="sudah">Sudah Bayar</option>
+                                <option value="">Semua Status</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
-                    <table id="datatable-billing" class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
-                        <thead>
-                            <tr>
-                                <th>No. RM</th>
-                                <th>Nama Pasien</th>
-                                <th>Dokter</th>
-                                <th>Spesialisasi</th>
-                                <th>Jenis Kunjungan</th>
-                                <th>Tanggal Visit</th>
-                                <th>Klinik</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                    </table>
+                    <div class="table-responsive">
+                        <table id="datatable-billing" class="table table-bordered table-hover table-striped dt-responsive nowrap" style="width:100%;">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>No. RM</th>
+                                    <th>Nama Pasien</th>
+                                    <th>Dokter</th>
+                                    <th>Spesialisasi</th>
+                                    <th>Jenis Kunjungan</th>
+                                    <th>Tanggal Visit</th>
+                                    <th>Klinik</th>
+                                    <th>Aksi</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -64,6 +74,7 @@
         var endDate = today;
         var dokterId = '';
         var klinikId = '';
+       var statusFilter = 'belum';
         
         // Initialize date range picker
         $('#daterange').daterangepicker({
@@ -118,11 +129,17 @@
             klinikId = $('#filter-klinik').val();
             billingTable.ajax.reload();
         });
+
+       $('#filter-status').on('change', function() {
+           statusFilter = $(this).val();
+           billingTable.ajax.reload();
+       });
         
         // Initialize DataTable with date and filter
         var billingTable = $('#datatable-billing').DataTable({
             processing: true,
             serverSide: true,
+            // responsive: true,
             ajax: {
                 url: "{{ route('finance.billing.data') }}",
                 data: function(d) {
@@ -130,6 +147,7 @@
                     d.end_date = endDate;
                     d.dokter_id = dokterId;
                     d.klinik_id = klinikId;
+                    d.status_filter = statusFilter;
                 }
             },
             columns: [
@@ -140,7 +158,8 @@
                 { data: 'jenis_kunjungan', name: 'jenis_kunjungan' },
                 { data: 'tanggal_visit', name: 'tanggal_visit' },
                 { data: 'nama_klinik', name: 'nama_klinik' },
-                { data: 'action', name: 'action', orderable: false, searchable: false }
+                { data: 'action', name: 'action', orderable: false, searchable: false, responsivePriority: 1 },
+                { data: 'status', name: 'status', orderable: false, searchable: false, responsivePriority: 2 }
             ],
             language: {
                 search: "Cari:",
