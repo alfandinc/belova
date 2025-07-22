@@ -10,7 +10,7 @@
     <div class="card shadow">
         <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
             <h3 class="card-title m-0 font-weight-bold text-primary">Daftar Dokter</h3>
-            <a href="{{ route('erm.dokters.create') }}" class="btn btn-primary">
+            <a href="{{ route('hrd.dokters.create') }}" class="btn btn-primary">
                 <i class="fas fa-plus mr-1"></i> Tambah Dokter
             </a>
         </div>
@@ -35,7 +35,7 @@
 @section('scripts')
 <script>
 $(function () {
-    $('#dokter-table').DataTable({
+    var table = $('#dokter-table').DataTable({
         processing: true,
         serverSide: true,
         responsive: true,
@@ -53,13 +53,20 @@ $(function () {
             },
             emptyTable: 'Tidak ada data yang tersedia'
         },
-        ajax: "{{ route('erm.dokters.index') }}",
+        ajax: "{{ route('hrd.dokters.index') }}",
         columns: [
             { data: 'nama_dokter', name: 'user.name' },
             { data: 'spesialisasi', name: 'spesialisasi.nama' },
             { data: 'sip', name: 'sip' },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ]
+    });
+
+    // Handle edit button click
+    $('#dokter-table').on('click', '.btn-edit-dokter', function() {
+        var dokterId = $(this).data('id');
+        var editUrl = "{{ route('hrd.dokters.edit', ['id' => 'DOKTER_ID']) }}".replace('DOKTER_ID', dokterId);
+        window.location.href = editUrl;
     });
 });
 </script>

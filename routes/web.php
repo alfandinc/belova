@@ -113,13 +113,7 @@ Route::prefix('erm')->group(function () {
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 
-    // Dokter Management
-    Route::get('/dokters', [DokterController::class, 'index'])->name('erm.dokters.index');
-    Route::get('dokters/create', [DokterController::class, 'create'])->name('erm.dokters.create');
-    Route::post('dokters', [DokterController::class, 'store'])->name('erm.dokters.store');
-    Route::get('/dokters/{id}/edit', [DokterController::class, 'edit'])->name('erm.dokters.edit');
-    Route::put('/dokters/{id}', [DokterController::class, 'update'])->name('erm.dokters.update');
-    Route::delete('/dokters/{id}', [DokterController::class, 'destroy'])->name('erm.dokters.destroy');
+    // ...existing code...
 
     //Visitation
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
@@ -455,10 +449,13 @@ Route::prefix('hrd')->group(
         Route::put('/employee/{id}', [EmployeeController::class, 'update'])->name('hrd.employee.update');
         Route::delete('/employee/{id}', [EmployeeController::class, 'destroy'])->name('hrd.employee.destroy');
 
-        // Dokter Management (HRD access)
+        // Dokter Management (HRD access, full CRUD)
         Route::get('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'index'])->name('hrd.dokters.index');
         Route::get('/dokters/create', [\App\Http\Controllers\ERM\DokterController::class, 'create'])->name('hrd.dokters.create');
+        Route::get('/dokters/{id}/edit', [\App\Http\Controllers\ERM\DokterController::class, 'edit'])->name('hrd.dokters.edit');
         Route::post('/dokters', [\App\Http\Controllers\ERM\DokterController::class, 'store'])->name('hrd.dokters.store');
+        Route::put('/dokters/{id}', [\App\Http\Controllers\ERM\DokterController::class, 'update'])->name('hrd.dokters.update');
+        Route::delete('/dokters/{id}', [\App\Http\Controllers\ERM\DokterController::class, 'destroy'])->name('hrd.dokters.destroy');
 
         // Employee Self Service Routes
 

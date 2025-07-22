@@ -1,0 +1,9 @@
+Kebutuhan Finance :
+1. Rekap Pembelian Rinci(Export Excel)
+2. Manage Harga Jual (Harga HPP (Include all) x persentase input = Harga Jual)
+	- Hpp Perawatan = Mba Vale
+	- Hpp Obat dan Produk = Farmasi (Mba Sofia)
+3. Nilai Persediaan Stok Obat + Produk
+	qty x hpp
+4. Input Faktur obat per bulan
+	(Hpp = Hpp awal + hpp baru / 2)
