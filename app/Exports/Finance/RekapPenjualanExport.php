@@ -42,6 +42,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             'Harga',
             'Total Harga',
             'Diskon',
+            'Status',
         ];
     }
 
@@ -50,6 +51,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
         $invoice = $item->invoice;
         $visitation = $invoice->visitation;
         $pasien = $visitation ? $visitation->pasien : null;
+        $status = ($invoice && $invoice->amount_paid > 0) ? 'Sudah Dibayar' : 'Belum Dibayar';
         return [
             optional($visitation)->tanggal_visitation,
             optional($invoice)->updated_at,
@@ -60,6 +62,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             $item->unit_price,
             $item->quantity * $item->unit_price,
             $item->discount,
+            $status,
         ];
     }
 }
