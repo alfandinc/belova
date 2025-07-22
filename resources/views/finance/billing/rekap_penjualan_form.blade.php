@@ -65,93 +65,122 @@ $(function() {
 
 @section('content')
 
-<div class="container mt-4">
-    <h3 class="mb-3">Statistik Pendapatan Harian</h3>
-    <div class="row mb-3">
-        <div class="col-md-4">
-            <label for="stat_daterange" class="form-label">Tanggal</label>
-            <input type="text" id="stat_daterange" class="form-control" autocomplete="off" style="background:#fff;" />
-        </div>
-        <div class="col-md-4">
-            <label for="stat_klinik" class="form-label">Klinik</label>
-            <select name="klinik_id" id="stat_klinik" class="form-control select2">
-                <option value="">Semua Klinik</option>
-                @foreach($kliniks as $klinik)
-                    <option value="{{ $klinik->id }}" {{ $klinikId == $klinik->id ? 'selected' : '' }}>{{ $klinik->nama }}</option>
-                @endforeach
-            </select>
-        </div>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <div class="fw-bold text-muted mb-1">Pendapatan</div>
-                    <div class="h4" id="stat-pendapatan">Rp 0</div>
+<div class="container py-4">
+    <div class="mb-4">
+        <h2 class="fw-bold text-primary mb-3">Statistik Pendapatan Harian</h2>
+        <div class="card shadow rounded mb-4 p-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="stat_daterange" class="form-label">Tanggal</label>
+                    <input type="text" id="stat_daterange" class="form-control" autocomplete="off" style="background:#fff;" />
+                </div>
+                <div class="col-md-4">
+                    <label for="stat_klinik" class="form-label">Klinik</label>
+                    <select name="klinik_id" id="stat_klinik" class="form-control select2">
+                        <option value="">Semua Klinik</option>
+                        @foreach($kliniks as $klinik)
+                            <option value="{{ $klinik->id }}" {{ $klinikId == $klinik->id ? 'selected' : '' }}>{{ $klinik->nama }}</option>
+                        @endforeach
+                    </select>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <div class="fw-bold text-muted mb-1">Jumlah Nota</div>
-                    <div class="h4" id="stat-nota">0</div>
+        <div class="row mb-4 g-3">
+            <div class="col-md-3">
+                <div class="card shadow rounded h-100 stat-card">
+                    <div class="card-body text-center">
+                        <div class="fw-bold text-secondary mb-1">Pendapatan</div>
+                        <div class="h3 text-success" id="stat-pendapatan">Rp 0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow rounded h-100 stat-card">
+                    <div class="card-body text-center">
+                        <div class="fw-bold text-secondary mb-1">Jumlah Nota</div>
+                        <div class="h3" id="stat-nota">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow rounded h-100 stat-card">
+                    <div class="card-body text-center">
+                        <div class="fw-bold text-secondary mb-1">Jumlah Kunjungan</div>
+                        <div class="h3" id="stat-kunjungan">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card shadow rounded h-100 stat-card">
+                    <div class="card-body text-center">
+                        <div class="fw-bold text-secondary mb-1">Perubahan Pendapatan</div>
+                        <div class="h3" id="stat-persen">-</div>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <div class="fw-bold text-muted mb-1">Jumlah Kunjungan</div>
-                    <div class="h4" id="stat-kunjungan">0</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body text-center">
-                    <div class="fw-bold text-muted mb-1">Perubahan Pendapatan</div>
-                    <div class="h4" id="stat-persen">-</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col-md-12">
+        <div class="card shadow rounded mb-4 p-3">
             <div id="chart-pendapatan"></div>
         </div>
     </div>
 
-    <h3>Rekap Penjualan</h3>
-    <form method="GET" action="{{ route('finance.rekap-penjualan.download') }}" class="row g-3 align-items-end mb-4">
-        <div class="col-md-3">
-            <label for="start_date" class="form-label">Tanggal Mulai</label>
-            <input type="date" name="start_date" id="start_date" class="form-control" required value="{{ request('start_date') }}">
-        </div>
-        <div class="col-md-3">
-            <label for="end_date" class="form-label">Tanggal Selesai</label>
-            <input type="date" name="end_date" id="end_date" class="form-control" required value="{{ request('end_date') }}">
-        </div>
-        <div class="col-md-3">
-            <button type="submit" class="btn btn-success">Download Rekap Penjualan</button>
-        </div>
-    </form>
+    <div class="mb-5">
+        <h2 class="fw-bold text-primary mb-3">Rekap Penjualan</h2>
+        <form method="GET" action="{{ route('finance.rekap-penjualan.download') }}" class="row g-3 align-items-end mb-4">
+            <div class="col-md-3">
+                <label for="start_date" class="form-label">Tanggal Mulai</label>
+                <input type="date" name="start_date" id="start_date" class="form-control" required value="{{ request('start_date') }}">
+            </div>
+            <div class="col-md-3">
+                <label for="end_date" class="form-label">Tanggal Selesai</label>
+                <input type="date" name="end_date" id="end_date" class="form-control" required value="{{ request('end_date') }}">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-success w-100 shadow-sm rounded-pill py-2">Download Rekap Penjualan</button>
+            </div>
+        </form>
+    </div>
 
-    <h3>Export Invoice</h3>
-    <form method="GET" action="{{ route('finance.invoice.export.download') }}" class="row g-3 align-items-end">
-        <div class="col-md-3">
-            <label for="start_date" class="form-label">Tanggal Mulai</label>
-            <input type="date" name="start_date" id="invoice_start_date" class="form-control" required value="{{ request('start_date') }}">
-        </div>
-        <div class="col-md-3">
-            <label for="end_date" class="form-label">Tanggal Selesai</label>
-            <input type="date" name="end_date" id="invoice_end_date" class="form-control" required value="{{ request('end_date') }}">
-        </div>
-        <div class="col-md-3">
-            <button type="submit" class="btn btn-primary">Download Invoice Excel</button>
-        </div>
-    </form>
+    <div class="mb-5">
+        <h2 class="fw-bold text-primary mb-3">Export Invoice</h2>
+        <form method="GET" action="{{ route('finance.invoice.export.download') }}" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="start_date" class="form-label">Tanggal Mulai</label>
+                <input type="date" name="start_date" id="invoice_start_date" class="form-control" required value="{{ request('start_date') }}">
+            </div>
+            <div class="col-md-3">
+                <label for="end_date" class="form-label">Tanggal Selesai</label>
+                <input type="date" name="end_date" id="invoice_end_date" class="form-control" required value="{{ request('end_date') }}">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary w-100 shadow-sm rounded-pill py-2">Download Invoice Excel</button>
+            </div>
+        </form>
+    </div>
 </div>
+
+<style>
+    .stat-card {
+        transition: box-shadow 0.2s;
+    }
+    .stat-card:hover {
+        box-shadow: 0 0 0 0.2rem #28a74533;
+    }
+    .btn-success, .btn-primary {
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        transition: background 0.2s, box-shadow 0.2s;
+    }
+    .btn-success:hover {
+        background: #218838;
+        box-shadow: 0 2px 8px #28a74533;
+    }
+    .btn-primary:hover {
+        background: #0056b3;
+        box-shadow: 0 2px 8px #007bff33;
+    }
+    h2 {
+        font-size: 1.5rem;
+    }
+</style>
 @endsection
