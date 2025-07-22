@@ -349,6 +349,7 @@ Route::prefix('akreditasi')->middleware(['auth'])->group(function () {
 
 
 Route::prefix('finance')->group(
+    
     function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
@@ -372,7 +373,13 @@ Route::prefix('finance')->group(
         Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
         Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
         Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
-        
+        // Rekap Penjualan
+        Route::get('/rekap-penjualan', [BillingController::class, 'rekapPenjualanForm'])->name('finance.rekap-penjualan.form');
+        Route::get('/rekap-penjualan/download', [BillingController::class, 'downloadRekapPenjualanExcel'])->name('finance.rekap-penjualan.download');
+        // Invoice Excel Export
+        Route::get('/invoice-export', [InvoiceController::class, 'invoiceExportForm'])->name('finance.invoice.export.form');
+        Route::get('/invoice-export/download', [InvoiceController::class, 'downloadInvoiceExcel'])->name('finance.invoice.export.download');
+        Route::get('/rekap-penjualan/statistik', [BillingController::class, 'statistikPendapatanAjax'])->name('finance.rekap-penjualan.statistik');
     }
 );
 

@@ -30,6 +30,7 @@
                         </a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="/finance/billing"><i class="ti-control-record"></i>Billing</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ route('finance.rekap-penjualan.form') }}"><i class="ti-control-record"></i>Rekap Penjualan</a></li>
                         </ul>
                     </li>
                     {{-- <li>

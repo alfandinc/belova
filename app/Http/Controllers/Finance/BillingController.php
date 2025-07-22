@@ -15,6 +15,120 @@ use Illuminate\Support\Facades\Log;
 
 class BillingController extends Controller
 {
+    /**
+     * Endpoint statistik harian untuk AJAX
+     */
+    public function statistikPendapatanAjax(Request $request)
+    {
+        $startDate = $request->input('start_date') ?? date('Y-m-d');
+        $endDate = $request->input('end_date') ?? date('Y-m-d');
+        $klinikId = $request->input('klinik_id');
+
+        // Prepare array of dates in range
+        $dates = [];
+        $current = strtotime($startDate);
+        $end = strtotime($endDate);
+        while ($current <= $end) {
+            $dates[] = date('Y-m-d', $current);
+            $current = strtotime('+1 day', $current);
+        }
+
+        $dailyPendapatan = [];
+        foreach ($dates as $date) {
+            $query = Invoice::whereHas('visitation', function($q) use ($date, $klinikId) {
+                $q->whereDate('tanggal_visitation', $date);
+                if ($klinikId) $q->where('klinik_id', $klinikId);
+            });
+            $dailyPendapatan[] = [
+                'date' => $date,
+                'pendapatan' => $query->sum('amount_paid'),
+            ];
+        }
+
+        // Total pendapatan, nota, kunjungan
+        $invoiceQuery = Invoice::whereHas('visitation', function($q) use ($startDate, $endDate, $klinikId) {
+            $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+            if ($klinikId) $q->where('klinik_id', $klinikId);
+        });
+        $pendapatan = $invoiceQuery->sum('amount_paid');
+        $jumlahNota = $invoiceQuery->count();
+
+        $kunjunganQuery = \App\Models\ERM\Visitation::whereBetween('tanggal_visitation', [$startDate, $endDate]);
+        if ($klinikId) $kunjunganQuery->where('klinik_id', $klinikId);
+        $jumlahKunjungan = $kunjunganQuery->count();
+
+        // Perubahan pendapatan dibandingkan periode sebelumnya (periode sama sebelum startDate)
+        $prevStart = date('Y-m-d', strtotime($startDate . ' -' . (strtotime($endDate) - strtotime($startDate) + 86400) . ' seconds'));
+        $prevEnd = date('Y-m-d', strtotime($startDate . ' -1 day'));
+        $invoicePrevQuery = Invoice::whereHas('visitation', function($q) use ($prevStart, $prevEnd, $klinikId) {
+            $q->whereBetween('tanggal_visitation', [$prevStart, $prevEnd]);
+            if ($klinikId) $q->where('klinik_id', $klinikId);
+        });
+        $pendapatanPrev = $invoicePrevQuery->sum('amount_paid');
+        $persen = $pendapatanPrev > 0 ? (($pendapatan - $pendapatanPrev) / $pendapatanPrev) * 100 : null;
+
+        return response()->json([
+            'pendapatan' => $pendapatan,
+            'jumlahNota' => $jumlahNota,
+            'jumlahKunjungan' => $jumlahKunjungan,
+            'persen' => $persen,
+            'dailyPendapatan' => $dailyPendapatan,
+        ]);
+    }
+    /**
+     * Menampilkan form rekap penjualan dan tombol download
+     */
+    public function rekapPenjualanForm(Request $request)
+    {
+        // Ambil filter
+        $date = $request->input('date') ?? date('Y-m-d');
+        $klinikId = $request->input('klinik_id');
+
+        // Query invoice hari ini
+        $invoiceQuery = Invoice::whereHas('visitation', function($q) use ($date, $klinikId) {
+            $q->whereDate('tanggal_visitation', $date);
+            if ($klinikId) $q->where('klinik_id', $klinikId);
+        });
+        $pendapatan = $invoiceQuery->sum('amount_paid');
+        $jumlahNota = $invoiceQuery->count();
+
+        // Query kunjungan hari ini
+        $kunjunganQuery = \App\Models\ERM\Visitation::whereDate('tanggal_visitation', $date);
+        if ($klinikId) $kunjunganQuery->where('klinik_id', $klinikId);
+        $jumlahKunjungan = $kunjunganQuery->count();
+
+        // Query invoice kemarin
+        $yesterday = date('Y-m-d', strtotime($date . ' -1 day'));
+        $invoiceYesterdayQuery = Invoice::whereHas('visitation', function($q) use ($yesterday, $klinikId) {
+            $q->whereDate('tanggal_visitation', $yesterday);
+            if ($klinikId) $q->where('klinik_id', $klinikId);
+        });
+        $pendapatanKemarin = $invoiceYesterdayQuery->sum('amount_paid');
+
+        // Hitung persentase perubahan
+        $persen = $pendapatanKemarin > 0 ? (($pendapatan - $pendapatanKemarin) / $pendapatanKemarin) * 100 : null;
+
+        // Ambil daftar klinik
+        $kliniks = \App\Models\ERM\Klinik::select('id', 'nama')->orderBy('nama')->get();
+
+        return view('finance.billing.rekap_penjualan_form', compact(
+            'pendapatan', 'jumlahNota', 'jumlahKunjungan', 'persen', 'date', 'klinikId', 'kliniks'
+        ));
+    }
+
+    /**
+     * Mendownload file Excel rekap penjualan
+     */
+    public function downloadRekapPenjualanExcel(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date',
+        ]);
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        return (new \App\Exports\Finance\RekapPenjualanExport($startDate, $endDate))->download('rekap-penjualan.xlsx');
+    }
     public function index()
     {
         $visitations = Visitation::with(['pasien','klinik'])->get();
