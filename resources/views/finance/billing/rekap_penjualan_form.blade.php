@@ -1,9 +1,8 @@
 @extends('layouts.finance.app')
-
-@section('title', 'Rekap Penjualan')
-
+@section('title', 'Finance | Billing')
 @section('navbar')
     @include('layouts.finance.navbar')
+@endsection
 
 @section('scripts')
 <script>
