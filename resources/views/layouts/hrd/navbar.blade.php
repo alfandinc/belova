@@ -48,10 +48,10 @@
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.my-evaluations') }}"><i class="ti-control-record"></i>Evaluasi Saya</a></li>
                     
-                    <!-- For Managers: Team Evaluations -->
+                    {{-- <!-- For Managers: Team Evaluations -->
                     @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Admin'))
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.my-evaluations') }}"><i class="ti-control-record"></i>Evaluasi Tim</a></li>
-                    @endif
+                    @endif --}}
                     
                     <!-- For HRD and CEO: Full Performance Management -->
                     @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
