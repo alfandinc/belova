@@ -14,7 +14,8 @@ class DokterController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $dokters = Dokter::with('user', 'spesialisasi');
+            $dokters = Dokter::with('user', 'spesialisasi')
+                ->orderByRaw("CASE WHEN due_date_sip <= CURDATE() THEN 0 ELSE 1 END, due_date_sip DESC");
             return datatables()->of($dokters)
                 ->addColumn('nama_dokter', function ($d) {
                     return $d->user->name;
@@ -24,6 +25,9 @@ class DokterController extends Controller
                 })
                 ->addColumn('sip', function ($d) {
                     return $d->sip;
+                })
+                ->addColumn('due_date_sip', function ($d) {
+                    return $d->due_date_sip ? date('d-m-Y', strtotime($d->due_date_sip)) : '-';
                 })
                 ->addColumn('actions', function ($d) {
                     $deleteUrl = route('hrd.dokters.destroy', $d->id);

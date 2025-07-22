@@ -22,6 +22,7 @@
                             <th>Nama Dokter</th>
                             <th>Spesialisasi</th>
                             <th>SIP</th>
+                            <th>Due Date SIP</th>
                             <th>Aksi</th>
                         </tr>
                     </thead>
@@ -58,8 +59,26 @@ $(function () {
             { data: 'nama_dokter', name: 'user.name' },
             { data: 'spesialisasi', name: 'spesialisasi.nama' },
             { data: 'sip', name: 'sip' },
+            { data: 'due_date_sip', name: 'due_date_sip' },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
-        ]
+        ],
+        createdRow: function(row, data, dataIndex) {
+            // Highlight yellow if due_date_sip < 1 month from today, red if expired
+            if (data.due_date_sip && data.due_date_sip !== '-') {
+                var parts = data.due_date_sip.split('-'); // format: d-m-Y
+                var dueDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                var today = new Date();
+                today.setHours(0,0,0,0); // ignore time
+                var oneMonthLater = new Date();
+                oneMonthLater.setMonth(today.getMonth() + 1);
+                if (dueDate < today) {
+                    $(row).css('background-color', 'red');
+                    $(row).css('color', 'white');
+                } else if (dueDate <= oneMonthLater && dueDate >= today) {
+                    $(row).css('background-color', 'yellow');
+                }
+            }
+        }
     });
 
     // Handle edit button click
