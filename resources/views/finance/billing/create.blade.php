@@ -410,8 +410,6 @@
         // Fix: Use document delegation for delete button
         $(document).on('click', '.delete-btn', function() {
             const id = $(this).data('id');
-            const rowIndex = $(this).data('row-index');
-            
             Swal.fire({
                 title: 'Konfirmasi Hapus',
                 text: 'Apakah Anda yakin ingin menghapus item ini?',
@@ -424,25 +422,25 @@
             }).then((result) => {
                 if (result.value) {
                     try {
-                        console.log('Deleting row with index:', rowIndex, 'ID:', id);
-                        
-                        billingData[rowIndex].deleted = true;
-                        deletedItems.push(id);
-                        
-                        const tr = $(this).closest('tr');
-                        table.row(tr).remove().draw(false);
-                        
-                        calculateTotals();
-                        
-                        console.log('Item deleted successfully');
-                        
-                        Swal.fire({
-                            title: 'Berhasil!',
-                            text: 'Item berhasil dihapus.',
-                            icon: 'success',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
+                        console.log('Deleting item with id:', id);
+                        const idx = billingData.findIndex(item => item.id == id);
+                        if (idx !== -1) {
+                            billingData[idx].deleted = true;
+                            // Only push numeric IDs (real DB items)
+                            if (!isNaN(Number(billingData[idx].id))) {
+                                deletedItems.push(billingData[idx].id);
+                            }
+                            updateTable();
+                            calculateTotals();
+                            console.log('Item deleted successfully');
+                            Swal.fire({
+                                title: 'Berhasil!',
+                                text: 'Item berhasil dihapus.',
+                                icon: 'success',
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                        }
                     } catch(e) {
                         console.error('Error deleting row:', e);
                         Swal.fire({
@@ -460,32 +458,26 @@
             e.preventDefault();
             
             const id = $('#edit_id').val();
-            const rowIndex = $('#edit_row_index').val();
             const jumlah = parseFloat($('#jumlah').val());
             const diskon = $('#diskon').val() ? parseFloat($('#diskon').val()) : 0;
             const diskon_type = $('#diskon_type').val();
             
-            // Update local data
-            if (billingData[rowIndex]) {
-                // Store raw values for further editing
-                billingData[rowIndex].jumlah_raw = jumlah;
-                billingData[rowIndex].diskon_raw = diskon;
-                billingData[rowIndex].diskon_type = diskon_type;
-                
-                // Format for display
-                billingData[rowIndex].jumlah = 'Rp ' + formatCurrency(jumlah);
-                
+            // Update local data using id
+            const idx = billingData.findIndex(item => item.id == id);
+            if (idx !== -1) {
+                billingData[idx].jumlah_raw = jumlah;
+                billingData[idx].diskon_raw = diskon;
+                billingData[idx].diskon_type = diskon_type;
+                billingData[idx].jumlah = 'Rp ' + formatCurrency(jumlah);
                 if (diskon && diskon > 0) {
                     if (diskon_type === '%') {
-                        billingData[rowIndex].diskon = diskon + '%';
+                        billingData[idx].diskon = diskon + '%';
                     } else {
-                        billingData[rowIndex].diskon = 'Rp ' + formatCurrency(diskon);
+                        billingData[idx].diskon = 'Rp ' + formatCurrency(diskon);
                     }
                 } else {
-                    billingData[rowIndex].diskon = '-';
+                    billingData[idx].diskon = '-';
                 }
-                
-                // Calculate final price after discount
                 let finalJumlah = jumlah;
                 if (diskon && diskon > 0) {
                     if (diskon_type === '%') {
@@ -494,14 +486,10 @@
                         finalJumlah = jumlah - diskon;
                     }
                 }
-                
-                // Update harga_akhir - multiply by quantity
-                const qty = billingData[rowIndex].qty || 1;
-                billingData[rowIndex].harga_akhir_raw = finalJumlah * qty;
-                billingData[rowIndex].harga_akhir = 'Rp ' + formatCurrency(finalJumlah * qty);
-                
-                // Mark as edited
-                billingData[rowIndex].edited = true;
+                const qty = billingData[idx].qty || 1;
+                billingData[idx].harga_akhir_raw = finalJumlah * qty;
+                billingData[idx].harga_akhir = 'Rp ' + formatCurrency(finalJumlah * qty);
+                billingData[idx].edited = true;
             }
             
             $('#editModal').modal('hide');
