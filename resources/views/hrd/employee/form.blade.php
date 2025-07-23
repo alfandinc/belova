@@ -139,8 +139,8 @@
                                 </select>
                             </div>
                             <div class="form-group col-md-6">
-                                <label for="position">Posisi</label>
-                                <select name="position" id="position" class="form-control select2">
+                                <label for="position_id">Posisi</label>
+                                <select name="position_id" id="position_id" class="form-control select2">
                                     <option value="">-- Pilih Posisi --</option>
                                 </select>
                             </div>
@@ -222,7 +222,7 @@ var allPositions = [
             id: '{{ $position->id }}',
             name: '{{ $position->name }}',
             division_id: '{{ $position->division_id }}',
-            selected: '{{ old('position', $employee->position ?? '') }}' == '{{ $position->id }}'
+            selected: '{{ old('position_id', $employee->position_id ?? '') }}' == '{{ $position->id }}'
         },
     @endforeach
 ];
@@ -236,7 +236,7 @@ $(function() {
     // Populate positions based on division
     function populatePositions() {
         var selectedDivision = $('#division_id').val();
-        var $position = $('#position');
+        var $position = $('#position_id');
         var currentValue = $position.val();
         $position.empty();
         $position.append('<option value="">-- Pilih Posisi --</option>');
