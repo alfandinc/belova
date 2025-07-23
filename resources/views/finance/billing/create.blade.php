@@ -8,6 +8,19 @@
 @include('finance.partials.modal-billing-edititem')
 
 <div class="container-fluid">
+    <!-- Prefill billing fields with old invoice data if available -->
+    <script>
+        window.oldInvoice = {
+            global_discount: @json($invoice->discount_value ?? ''),
+            global_discount_type: @json($invoice->discount_type ?? ''),
+            tax_percentage: @json($invoice->tax_percentage ?? ''),
+            admin_fee: @json($invoice->items->where('name', 'Biaya Administrasi')->first()->unit_price ?? ''),
+            shipping_fee: @json($invoice->items->where('name', 'Biaya Ongkir')->first()->unit_price ?? ''),
+            amount_paid: @json($invoice->amount_paid ?? ''),
+            payment_method: @json($invoice->payment_method ?? ''),
+            change_amount: @json($invoice->change_amount ?? '')
+        };
+    </script>
     <div class="row mb-4">
         <div class="col">
             <div class="card shadow-sm mt-4">
@@ -219,6 +232,17 @@
 @section('scripts')
 <script>
     $(document).ready(function() {
+        // Prefill billing fields if old invoice exists
+        if (window.oldInvoice) {
+            if (window.oldInvoice.global_discount !== '') $('#global_discount').val(window.oldInvoice.global_discount);
+            if (window.oldInvoice.global_discount_type !== '') $('#global_discount_type').val(window.oldInvoice.global_discount_type);
+            if (window.oldInvoice.tax_percentage !== '') $('#tax_percentage').val(window.oldInvoice.tax_percentage);
+            if (window.oldInvoice.admin_fee !== '') $('#admin_fee').val(window.oldInvoice.admin_fee);
+            if (window.oldInvoice.shipping_fee !== '') $('#shipping_fee').val(window.oldInvoice.shipping_fee);
+            if (window.oldInvoice.amount_paid !== '') $('#amount_paid').val(window.oldInvoice.amount_paid);
+            if (window.oldInvoice.payment_method !== '') $('#payment_method').val(window.oldInvoice.payment_method);
+            if (window.oldInvoice.change_amount !== '') $('#change_amount').text('Rp ' + formatCurrency(window.oldInvoice.change_amount));
+        }
         $('.select2').select2({ width: '100%' });
         // Store all billing data (with changes) here
         let billingData = [];

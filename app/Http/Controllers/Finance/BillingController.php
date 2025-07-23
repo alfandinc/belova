@@ -407,7 +407,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     }
 
     $visitation = Visitation::with('pasien')->findOrFail($visitation_id);
-    return view('finance.billing.create', compact('visitation'));
+    // Fetch latest invoice for this visitation (if exists)
+    $invoice = \App\Models\Finance\Invoice::where('visitation_id', $visitation_id)->latest()->first();
+    return view('finance.billing.create', compact('visitation', 'invoice'));
 }
 
     public function createInvoice(Request $request)
