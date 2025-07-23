@@ -69,6 +69,10 @@
                         <label>Alamat</label>
                         <input type="text" name="alamat" class="form-control" value="{{ old('alamat', $employee->alamat) }}">
                     </div>
+                    <div class="form-group col-md-12">
+                        <label>No Darurat</label>
+                        <input type="text" name="no_darurat" class="form-control" value="{{ old('no_darurat', $employee->no_darurat) }}" placeholder="Nomor darurat (Emergency Contact)">
+                    </div>
                    
                 </div>
                 

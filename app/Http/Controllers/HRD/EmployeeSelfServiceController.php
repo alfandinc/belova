@@ -77,6 +77,7 @@ public function updateProfile(Request $request)
         'alamat' => 'nullable|string',
         'village_id' => 'nullable|exists:area_villages,id',
         'no_hp' => 'nullable|string',
+        'no_darurat' => 'nullable|string|max:50', // Emergency contact number
         'nik' => 'nullable|string',
         'tanggal_masuk' => 'nullable|date',
         'photo' => 'nullable|image',
@@ -104,7 +105,12 @@ public function updateProfile(Request $request)
     }
 }
 
-    $employee->update($data);
+    // Map no_darurat to the correct field for Employee model
+    $employeeData = $data;
+    if (isset($data['no_darurat'])) {
+        $employeeData['no_darurat'] = $data['no_darurat'];
+    }
+    $employee->update($employeeData);
 
     // SYNC THE USER NAME with EMPLOYEE NAME
     if (isset($data['nama']) && $employee->user) {

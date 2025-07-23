@@ -17,6 +17,7 @@ class Employee extends Model
         'tanggal_lahir',
         'nik',
         'no_induk',
+        'no_darurat', // Emergency contact number
         'alamat',
         'village_id',
         'position',       // Changed from 'posisi' to match migration

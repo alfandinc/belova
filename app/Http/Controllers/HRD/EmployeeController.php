@@ -100,6 +100,7 @@ class EmployeeController extends Controller
             'tanggal_lahir' => 'nullable|date',
             'nik' => 'nullable|string|unique:hrd_employee',
             'no_induk' => 'nullable|string|unique:hrd_employee,no_induk',
+            'no_darurat' => 'nullable|string|max:50', // Emergency contact number
             'alamat' => 'nullable|string',
             'village_id' => 'nullable|exists:area_villages,id',
             'position_id' => 'nullable|exists:hrd_position,id',
@@ -144,7 +145,12 @@ class EmployeeController extends Controller
             session()->flash('generated_password', $password);
         }
 
-        $employee = Employee::create($data);
+        // Map no_darurat to the correct field for Employee model
+        $employeeData = $data;
+        if (isset($data['no_darurat'])) {
+            $employeeData['no_darurat'] = $data['no_darurat'];
+        }
+        $employee = Employee::create($employeeData);
 
         if ($request->ajax()) {
             return response()->json([
@@ -188,6 +194,7 @@ class EmployeeController extends Controller
             'tanggal_lahir' => 'nullable|date',
             'nik' => 'nullable|string|unique:hrd_employee,nik,' . $employee->id,
             'no_induk' => 'nullable|string|unique:hrd_employee,no_induk,' . $employee->id,
+            'no_darurat' => 'nullable|string|max:50', // Emergency contact number
             'alamat' => 'nullable|string',
             'position_id' => 'nullable|exists:hrd_position,id',
             'division_id' => 'nullable|exists:hrd_division,id',
@@ -215,7 +222,12 @@ class EmployeeController extends Controller
             }
         }
 
-        $employee->update($data);
+        // Map no_darurat to the correct field for Employee model
+        $employeeData = $data;
+        if (isset($data['no_darurat'])) {
+            $employeeData['no_darurat'] = $data['no_darurat'];
+        }
+        $employee->update($employeeData);
 
         if ($request->ajax()) {
             return response()->json([

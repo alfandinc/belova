@@ -100,6 +100,15 @@
                                 </div>
                             </div>
                             <div class="form-group col-md-6">
+                                <label for="no_darurat">No Darurat</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text"><i class="fas fa-phone-alt"></i></span>
+                                    </div>
+                                    <input type="text" id="no_darurat" name="no_darurat" class="form-control" value="{{ old('no_darurat', $employee->no_darurat ?? '') }}" placeholder="Nomor darurat (Emergency Contact)">
+                                </div>
+                            </div>
+                            <div class="form-group col-md-6">
                                 <label for="pendidikan">Pendidikan</label>
                                 <div class="input-group">
                                     <div class="input-group-prepend">
