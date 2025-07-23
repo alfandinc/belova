@@ -254,7 +254,7 @@ $(function() {
             {data: 'nik', name: 'nik', defaultContent: '-'},
             {data: 'no_induk', name: 'no_induk', defaultContent: '-'},
             {data: 'nama', name: 'nama', defaultContent: '-'},
-            {data: 'position_name', name: 'position', defaultContent: '-'},
+            {data: 'position.name', name: 'position.name', defaultContent: '-'},
             {data: 'division.name', name: 'division.name', defaultContent: '-'},
             {
                 data: 'status', 

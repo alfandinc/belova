@@ -21,15 +21,15 @@ class EmployeeController extends Controller
     public function index(Request $request)
 {
     if ($request->ajax()) {
-        $employees = Employee::with(['division', 'user'])
+        $employees = Employee::with(['division', 'user','position'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
         $dataTable = DataTables::of($employees)
-            ->addColumn('position_name', function ($employee) {
-                // Get position name from the Position model
-                $position = Position::find($employee->position);
-                return $position ? $position->name : '-';
-            })
+            // ->addColumn('position_name', function ($employee) {
+            //     // Get position name from the Position model
+            //     $position = Position::find($employee->position);
+            //     return $position ? $position->name : '-';
+            // })
             // No longer need to add status_label column, handling it client-side
             ->addColumn('action', function ($employee) {
                 $viewBtn = '<a href="' . route('hrd.employee.show', $employee->id) . '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>';
@@ -38,7 +38,7 @@ class EmployeeController extends Controller
 
                 return $viewBtn . $editBtn . $deleteBtn;
             })
-            ->rawColumns(['position_name', 'action']);
+            ->rawColumns(['action']);
             
         // Add custom sorting for kontrak_berakhir column    
         $dataTable->order(function ($query) use ($request) {
