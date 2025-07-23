@@ -80,10 +80,10 @@ public function updateProfile(Request $request)
         'nik' => 'nullable|string',
         'tanggal_masuk' => 'nullable|date',
         'photo' => 'nullable|image',
-        'doc_cv' => 'nullable|file|max:2048',
-        'doc_ktp' => 'nullable|file|max:2048',
-        'doc_kontrak' => 'nullable|file|max:2048',
-        'doc_pendukung' => 'nullable|file|max:2048',
+        'doc_cv' => 'nullable|file|max:10240',
+        'doc_ktp' => 'nullable|file|max:10240',
+        'doc_kontrak' => 'nullable|file|max:10240',
+        'doc_pendukung' => 'nullable|file|max:10240',
     ]);
 
     // Handle photo upload
