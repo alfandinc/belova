@@ -57,13 +57,15 @@
                             <p><strong>Pendidikan:</strong> {{ $employee->pendidikan }}</p>
                             <p><strong>Divisi:</strong> {{ $employee->division->name ?? '-' }}</p>
                             <p><strong>Jabatan:</strong> {{ $employee->position->name ?? '-' }}</p>
+                            {{-- Debug position relationship --}}
+                            {{-- {{ dd($employee->position) }} --}}
                         </div>
                         <div class="col-md-6">
                             <p><strong>Tanggal Masuk:</strong> {{ $employee->tanggal_masuk ? \Carbon\Carbon::parse($employee->tanggal_masuk)->format('d-m-Y') : '-' }}</p>
                             <p><strong>Status:</strong> {{ ucfirst($employee->status) }}</p>
                             <p><strong>No. HP:</strong> {{ $employee->no_hp }}</p>
                             <p><strong>Alamat:</strong> {{ $employee->alamat }}</p>
-                            <p><strong>Desa:</strong> {{ $employee->village->name ?? '-' }}</p>
+                            {{-- <p><strong>Desa:</strong> {{ $employee->village->name ?? '-' }}</p> --}}
                         </div>
                     </div>
 
@@ -89,7 +91,7 @@
                 </div>
                 <div class="card-body">
                     <div class="list-group">
-                        @foreach(['doc_cv' => 'CV', 'doc_ktp' => 'KTP', 'doc_kontrak' => 'Kontrak', 'doc_pendukung' => 'Dokumen Pendukung'] as $doc => $label)
+                        @foreach(['doc_cv' => 'CV', 'doc_ktp' => 'KTP', 'doc_pendukung' => 'Dokumen Pendukung'] as $doc => $label)
                             @if($employee->$doc)
                             <a href="{{ asset('storage/'.$employee->$doc) }}" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                 <span><i class="fas fa-file-pdf mr-2"></i> {{ $label }}</span>

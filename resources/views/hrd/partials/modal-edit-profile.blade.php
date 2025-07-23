@@ -103,16 +103,7 @@
                 </div>
                 
                 <div class="form-group">
-                    <label>Kontrak</label>
-                    <div class="custom-file">
-                        <input type="file" class="custom-file-input" id="doc_kontrak" name="doc_kontrak">
-                        <label class="custom-file-label" for="doc_kontrak">Pilih file...</label>
-                    </div>
-                    @if($employee->doc_kontrak)
-                        <a href="{{ asset('storage/'.$employee->doc_kontrak) }}" target="_blank" class="d-block mt-1">
-                            <i class="fas fa-file-pdf"></i> Lihat Kontrak
-                        </a>
-                    @endif
+                    <!-- Kontrak upload removed -->
                 </div>
                 
                 <div class="form-group">

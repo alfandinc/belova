@@ -45,7 +45,7 @@ class Employee extends Model
     public function position()
     {
         // Make sure this points to the correct foreign key
-        return $this->belongsTo(Position::class, 'position', 'id');
+        return $this->belongsTo(Position::class, 'position_id');
     }
 
     public function division()
