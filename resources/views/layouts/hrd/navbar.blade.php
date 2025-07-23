@@ -74,7 +74,7 @@
             @endif
             
             <!-- For HRD and CEO: Employee Management -->
-            @if(Auth::check() && (Auth::user()->hasRole('Hrd') || Auth::user()->hasRole('Ceo')))
+            @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
             <li>
                 <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Kepegawaian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
