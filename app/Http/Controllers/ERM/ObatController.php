@@ -112,7 +112,7 @@ class ObatController extends Controller
             'kode_obat' => 'nullable|string',
             'dosis' => 'nullable|string',
             'satuan' => 'nullable|string',
-            'zataktif_id' => 'nullable|array',
+            // zataktif_id is optional, no validation required
             'kategori' => 'nullable|string',
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
