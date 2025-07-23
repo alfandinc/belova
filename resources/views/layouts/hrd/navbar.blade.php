@@ -29,17 +29,23 @@
                 <a href="javascript: void(0);"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Pengajuan Cuti/Libur</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Pengajuan Saya</a></li>
-                    
                     <!-- For Managers: Approval cuti team -->
                     @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Admin'))
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=team"><i class="ti-control-record"></i>Persetujuan Tim</a></li>
                     @endif
-                    
                     <!-- For HRD: Full leave management -->
                     @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=approval"><i class="ti-control-record"></i>Persetujuan HRD</a></li>
                     @endif
                 </ul>
+            </li>
+
+            <!-- Pengajuan Tidak Masuk (Sakit/Izin) - Visible to all authenticated users -->
+            <li>
+                <a href="{{ route('hrd.tidakmasuk.index') }}">
+                    <i data-feather="user-x" class="align-self-center menu-icon"></i>
+                    <span>Tidak Masuk (Sakit/Izin)</span>
+                </a>
             </li>
             
             <!-- Performance Evaluations - Visible to all authenticated users -->

@@ -414,6 +414,14 @@ Route::prefix('inventory')->group(
 
 Route::prefix('hrd')->group(
     function () {
+        // Pengajuan Tidak Masuk (Sakit/Izin)
+        Route::get('tidakmasuk', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'index'])->name('hrd.tidakmasuk.index');
+        Route::get('tidakmasuk/create', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'create'])->name('hrd.tidakmasuk.create');
+        Route::post('tidakmasuk', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'store'])->name('hrd.tidakmasuk.store');
+        Route::get('tidakmasuk/{id}', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'show'])->name('hrd.tidakmasuk.show');
+        Route::get('tidakmasuk/{id}/approval-status', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'getApprovalStatus']);
+        Route::put('tidakmasuk/{id}/manager', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'persetujuanManager']);
+        Route::put('tidakmasuk/{id}/hrd', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'persetujuanHRD']);
         // Master Data Routes
         // Division Management
         Route::prefix('master/division')->name('hrd.master.division.')->group(function () {
