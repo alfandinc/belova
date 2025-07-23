@@ -32,6 +32,18 @@ class VisitationController extends Controller
             'klinik_id' => 'required', // Add validation for klinik_id
         ]);
 
+        // Cek apakah pasien sudah didaftarkan di hari yang sama dan dokter yang sama
+        $exists = Visitation::where('pasien_id', $request->pasien_id)
+            ->whereDate('tanggal_visitation', $request->tanggal_visitation)
+            ->where('dokter_id', $request->dokter_id)
+            ->exists();
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pasien sudah didaftarkan dikunjungan hari ini pada dokter yang sama.'
+            ], 422);
+        }
+
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
 

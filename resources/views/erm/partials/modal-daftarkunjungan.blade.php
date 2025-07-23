@@ -117,21 +117,25 @@ $(document).ready(function () {
                 $('#modalKunjungan').modal('hide');
                 $('#form-kunjungan')[0].reset();
                 Swal.fire({
-                icon: 'success',
-                title: 'Berhasil',
-                text: res.message,
-                confirmButtonText: 'OK'
-            }).then(() => {
-                location.reload();
-            });
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: res.message,
+                    confirmButtonText: 'OK'
+                }).then(() => {
+                    location.reload();
+                });
             },
             error: function (xhr) {
+                let msg = 'Terjadi kesalahan. Pastikan semua data valid.';
+                if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
                 Swal.fire({
-                icon: 'error',
-                title: 'Gagal',
-                text: 'Terjadi kesalahan. Pastikan semua data valid.',
-                confirmButtonText: 'OK'
-            });
+                    icon: 'error',
+                    title: 'Gagal',
+                    text: msg,
+                    confirmButtonText: 'OK'
+                });
             }
         });
     });
