@@ -14,8 +14,8 @@
             global_discount: @json($invoice->discount_value ?? ''),
             global_discount_type: @json($invoice->discount_type ?? ''),
             tax_percentage: @json($invoice->tax_percentage ?? ''),
-            admin_fee: @json($invoice->items->where('name', 'Biaya Administrasi')->first()->unit_price ?? ''),
-            shipping_fee: @json($invoice->items->where('name', 'Biaya Ongkir')->first()->unit_price ?? ''),
+            admin_fee: @json($invoice?->items?->where('name', 'Biaya Administrasi')->first()?->unit_price ?? ''),
+            shipping_fee: @json($invoice?->items?->where('name', 'Biaya Ongkir')->first()?->unit_price ?? ''),
             amount_paid: @json($invoice->amount_paid ?? ''),
             payment_method: @json($invoice->payment_method ?? ''),
             change_amount: @json($invoice->change_amount ?? '')
