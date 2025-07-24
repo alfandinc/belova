@@ -10,7 +10,7 @@ class AsesmenGigi extends Model
 {
     use HasFactory;
 
-    protected $table = 'erm_asesmen_umum';
+    protected $table = 'erm_asesmen_gigi';
 
     protected $fillable = [
         'visitation_id',

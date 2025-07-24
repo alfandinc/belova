@@ -47,6 +47,9 @@
             <li>
                 <a href="/marketing/survey-questions"> <i data-feather="edit-3" class="align-self-center menu-icon"></i><span>Survey Questions</span></a>
             </li>
+            <li>
+                <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span></a>
+            </li>
         </ul>              
     </div>
 </div>
