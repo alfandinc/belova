@@ -53,6 +53,13 @@
                     <span>Tidak Masuk (Sakit/Izin)</span>
                 </a>
             </li>
+            <!-- Pengajuan Lembur - Visible to all authenticated users -->
+            <li>
+                <a href="{{ route('hrd.lembur.index') }}">
+                    <i data-feather="clock" class="align-self-center menu-icon"></i>
+                    <span>Pengajuan Lembur</span>
+                </a>
+            </li>
             
             <!-- Performance Evaluations - Visible to all authenticated users -->
             <li>

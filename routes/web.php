@@ -414,6 +414,14 @@ Route::prefix('inventory')->group(
 
 Route::prefix('hrd')->group(
     function () {
+        // Pengajuan Lembur (Overtime)
+        Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
+        Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');
+        Route::post('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'store'])->name('hrd.lembur.store');
+        Route::get('lembur/{id}', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'show'])->name('hrd.lembur.show');
+        Route::get('lembur/{id}/approval-status', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'getApprovalStatus']);
+        Route::post('lembur/{id}/persetujuan-manager', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'persetujuanManager'])->name('hrd.lembur.persetujuan-manager');
+        Route::post('lembur/{id}/persetujuan-hrd', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'persetujuanHRD'])->name('hrd.lembur.persetujuan-hrd');
         // Catatan Dosa routes
         Route::get('catatan-dosa', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'index'])->name('hrd.catatan-dosa.index');
         Route::get('catatan-dosa/{id}', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'show'])->name('hrd.catatan-dosa.show');
