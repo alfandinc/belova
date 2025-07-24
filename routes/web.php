@@ -414,6 +414,12 @@ Route::prefix('inventory')->group(
 
 Route::prefix('hrd')->group(
     function () {
+        // Catatan Dosa routes
+        Route::get('catatan-dosa', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'index'])->name('hrd.catatan-dosa.index');
+        Route::get('catatan-dosa/{id}', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'show'])->name('hrd.catatan-dosa.show');
+        Route::post('catatan-dosa', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'store'])->name('hrd.catatan-dosa.store');
+        Route::post('catatan-dosa/{id}', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'update'])->name('hrd.catatan-dosa.update');
+        Route::delete('catatan-dosa/{id}', [\App\Http\Controllers\HRD\CatatanDosaController::class, 'destroy'])->name('hrd.catatan-dosa.destroy');
         // Pengajuan Tidak Masuk (Sakit/Izin)
         Route::get('tidakmasuk', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'index'])->name('hrd.tidakmasuk.index');
         Route::get('tidakmasuk/create', [\App\Http\Controllers\HRD\PengajuanTidakMasukController::class, 'create'])->name('hrd.tidakmasuk.create');

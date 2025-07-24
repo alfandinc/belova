@@ -22,9 +22,15 @@
                     <li class="nav-item"><a class="nav-link" href="/hrd"><i class="ti-control-record"></i>Analytics</a></li>
                 </ul>
             </li>
-    
-            
-            <!-- Pengajuan Cuti - Visible to all authenticated users -->
+            <!-- Catatan Dosa - New Feature -->
+            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
+            <li>
+                <a href="{{ route('hrd.catatan-dosa.index') }}">
+                    <i data-feather="alert-circle" class="align-self-center menu-icon"></i>
+                    <span>Catatan Dosa</span>
+                </a>
+            </li>
+            @endif
             <li>
                 <a href="javascript: void(0);"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Pengajuan Cuti/Libur</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
