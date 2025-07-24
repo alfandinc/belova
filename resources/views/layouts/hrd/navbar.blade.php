@@ -27,7 +27,7 @@
             <li>
                 <a href="{{ route('hrd.catatan-dosa.index') }}">
                     <i data-feather="alert-circle" class="align-self-center menu-icon"></i>
-                    <span>Catatan Dosa</span>
+                    <span>Catatan Pelanggaran</span>
                 </a>
             </li>
             @endif

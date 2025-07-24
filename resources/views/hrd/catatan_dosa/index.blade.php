@@ -1,5 +1,5 @@
 @extends('layouts.hrd.app')
-@section('title', 'Catatan Dosa')
+@section('title', 'Catatan Pelanggaran')
 @section('navbar')
     @include('layouts.hrd.navbar')
 @endsection
@@ -9,7 +9,7 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="card-title">Catatan Dosa</h4>
+                    <h4 class="card-title">Catatan Pelanggaran</h4>
                     <button class="btn btn-primary" id="btnAddCatatan">Tambah Catatan</button>
                 </div>
                 <div class="card-body">
@@ -39,7 +39,7 @@
     <form id="catatanForm" enctype="multipart/form-data">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="catatanModalLabel">Tambah Catatan Dosa</h5>
+          <h5 class="modal-title" id="catatanModalLabel">Tambah Catatan Pelanggaran</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
             <span aria-hidden="true">&times;</span>
           </button>
