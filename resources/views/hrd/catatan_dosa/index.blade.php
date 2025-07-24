@@ -146,7 +146,13 @@ $(document).ready(function() {
             }, orderable: false },
             { data: 'employee.nama', defaultContent: '-' },
             { data: 'jenis_pelanggaran' },
-            { data: 'kategori' },
+            { data: 'kategori', render: function(data) {
+                let color = 'secondary';
+                if (data === 'Ringan') color = 'success';
+                else if (data === 'Sedang') color = 'warning';
+                else if (data === 'Berat') color = 'danger';
+                return `<span class="badge badge-${color}">${data}</span>`;
+            } },
             { data: 'status_tindaklanjut', render: function(data) {
                 let color = 'secondary';
                 if (data === 'sudah dibina' || data === 'sudah ditindak') color = 'success';
