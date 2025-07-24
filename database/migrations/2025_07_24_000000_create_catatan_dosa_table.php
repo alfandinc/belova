@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up()
     {
-        Schema::create('catatan_dosa', function (Blueprint $table) {
+        Schema::create('hrd_catatan_dosa', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('employee_id');
             $table->string('jenis_pelanggaran')->nullable();
@@ -18,7 +18,7 @@ return new class extends Migration {
             $table->timestamp('timestamp')->useCurrent();
             $table->timestamps();
 
-            $table->foreign('employee_id')->references('id')->on('employees')->onDelete('cascade');
+            $table->foreign('employee_id')->references('id')->on('hrd_employee')->onDelete('cascade');
         });
     }
 

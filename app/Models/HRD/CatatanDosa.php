@@ -8,7 +8,7 @@ class CatatanDosa extends Model
 {
     use HasFactory;
 
-    protected $table = 'catatan_dosa';
+    protected $table = 'hrd_catatan_dosa';
 
     protected $fillable = [
         'employee_id',
