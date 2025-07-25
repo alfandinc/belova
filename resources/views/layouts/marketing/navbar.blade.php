@@ -33,9 +33,14 @@
             <li>
                 <a href="/marketing/products"> <i data-feather="package" class="align-self-center menu-icon"></i><span>Product Analytics</span></a>
             </li>
-            <li>
+            {{-- <li>
                 <a href="/marketing/clinic-comparison"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Clinic Performance</span></a>
+            </li> --}}
+            <li class="menu-label">MARKETING TOOLS</li>
+            <li>
+                <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span></a>
             </li>
+
             
             <li class="menu-label">MASTER DATA</li>
             <li>
@@ -47,9 +52,7 @@
             <li>
                 <a href="/marketing/survey-questions"> <i data-feather="edit-3" class="align-self-center menu-icon"></i><span>Survey Questions</span></a>
             </li>
-            <li>
-                <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span></a>
-            </li>
+            
         </ul>              
     </div>
 </div>
