@@ -62,11 +62,10 @@
                         <th>No</th>
                         <th>Perusahaan</th>
                         <th>Pasien</th>
-                        <th>No RM</th>
-                        <th>No HP</th>
                         <th>Tanggal Kunjungan</th>
                         <th>Unit</th>
                         <th>Kategori</th>
+                        <th>Keluhan</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -110,6 +109,21 @@
                   </select>
                 </div>
               </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>No RM</label>
+                        <input type="text" id="noRmField" class="form-control" readonly>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label>No HP</label>
+                        <input type="text" id="noHpField" class="form-control" readonly>
+                    </div>
+                </div>
+
             </div>
             <div class="row">
               
@@ -275,11 +289,10 @@ $(function() {
             { data: null, name: 'no', orderable: false, searchable: false },
             { data: 'perusahaan', name: 'perusahaan' },
             { data: 'pasien_nama', name: 'pasien_nama' },
-            { data: 'no_rm', name: 'no_rm' },
-            { data: 'no_hp', name: 'no_hp' },
             { data: 'visit_date', name: 'visit_date' },
             { data: 'unit', name: 'unit' },
             { data: 'kategori', name: 'kategori' },
+            { data: 'keluhan', name: 'keluhan' },
             { data: 'status', name: 'status' },
             { data: 'action', name: 'action', orderable: false, searchable: false },
         ],
@@ -360,6 +373,10 @@ $(function() {
         $('#unitSelect').val(null).trigger('change');
         $('#kategoriSelect').val(null).trigger('change');
         $('#statusSelect').val('Diproses').trigger('change');
+        $('#noRmField').val('');
+        $('#noHpField').val('');
+        $('#noRmField').closest('.form-group').hide();
+        $('#noHpField').closest('.form-group').hide();
         $('#keluhanModal').modal('show');
     });
 
@@ -445,8 +462,17 @@ $(function() {
                     $('#pasienSelect').append(option);
                 }
                 $('#pasienSelect').val(data.pasien_id).trigger('change');
+                // Set No RM and No HP fields
+                $('#noRmField').val(data.pasien.id || '');
+                $('#noHpField').val(data.pasien.no_hp || '');
+                $('#noRmField').closest('.form-group').show();
+                $('#noHpField').closest('.form-group').show();
             } else {
                 $('#pasienSelect').val(null).trigger('change');
+                $('#noRmField').val('');
+                $('#noHpField').val('');
+                $('#noRmField').closest('.form-group').hide();
+                $('#noHpField').closest('.form-group').hide();
             }
             // Show bukti preview
             if(data.bukti) {
