@@ -529,6 +529,12 @@ $(function() {
             }
         });
     });
+
+    // Print
+    $('#catatanTable').on('click', '.printBtn', function() {
+        var id = $(this).data('id');
+        window.open('/marketing/catatan-keluhan/' + id + '/print', '_blank');
+    });
 });
 </script>
 @endpush

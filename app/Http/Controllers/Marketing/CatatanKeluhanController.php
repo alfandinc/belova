@@ -43,12 +43,13 @@ class CatatanKeluhanController extends Controller
                 ->addColumn('no_hp', function($row){
                     return $row->pasien ? $row->pasien->no_hp : '-';
                 })
-                ->addColumn('action', function($row){
-                    return '<button class="btn btn-sm btn-primary editBtn" data-id="'.$row->id.'" title="Lihat/Edit"><i class="fa fa-eye"></i></button> '
-                        . '<button class="btn btn-sm btn-danger deleteBtn" data-id="'.$row->id.'" title="Hapus"><i class="fa fa-trash"></i></button>';
-                })
                 ->addColumn('pasien_nama', function($row){
                     return $row->pasien ? $row->pasien->nama : '-';
+                })
+                ->addColumn('action', function($row){
+                    return '<button class="btn btn-sm btn-primary editBtn" data-id="'.$row->id.'" title="Lihat/Edit"><i class="fa fa-eye"></i></button> '
+                        . '<button class="btn btn-sm btn-danger deleteBtn" data-id="'.$row->id.'" title="Hapus"><i class="fa fa-trash"></i></button> '
+                        . '<button class="btn btn-sm btn-info printBtn" data-id="'.$row->id.'" title="Print"><i class="fa fa-print"></i></button>';
                 })
                 ->editColumn('visit_date', function($row){
                     if (!$row->visit_date) return '-';
@@ -69,11 +70,54 @@ class CatatanKeluhanController extends Controller
                     elseif ($row->status === 'Ditolak') $color = 'danger';
                     return '<span class="badge badge-' . $color . '">' . e($row->status) . '</span>';
                 })
+
                 ->rawColumns(['action', 'status', 'visit_date'])
                 ->make(true);
         }
         $pasiens = Pasien::all();
         return view('marketing.catatan_keluhan.index', compact('pasiens'));
+    }
+
+    // Print PDF laporan catatan keluhan
+    public function print($id)
+    {
+        $catatan = CatatanKeluhan::with('pasien')->findOrFail($id);
+        // Determine header/footer images
+        $headerImg = '';
+        $footerImg = '';
+        if (stripos($catatan->perusahaan, 'Pratama') !== false) {
+            $headerImg = public_path('img/belova-header.png');
+            $footerImg = public_path('img/belova-footer.png');
+        } elseif (stripos($catatan->perusahaan, 'Premire') !== false || stripos($catatan->perusahaan, 'Premiere') !== false) {
+            $headerImg = public_path('img/premiere-header.png');
+            $footerImg = public_path('img/premiere-footer.png');
+        }
+
+        $mainContent = view('marketing.catatan_keluhan.print', compact('catatan'))->render();
+        $mpdf = new \Mpdf\Mpdf([
+            'format' => 'A4',
+            'orientation' => 'P',
+            'margin_top' => 0,
+            'margin_bottom' => 0,
+            'margin_left' => 0,
+            'margin_right' => 0,
+            'margin_header' => 0,
+            'margin_footer' => 0,
+        ]);
+
+        // Absolutely position header/footer images to be flush with page edges
+        if ($headerImg) {
+            $mpdf->SetHTMLHeader('<div style="position:absolute;top:0;left:0;width:100%;height:40mm;z-index:10;"><img src="' . $headerImg . '" style="width:100%;height:40mm;object-fit:cover;display:block;"></div>', 'O');
+        }
+        if ($footerImg) {
+            $mpdf->SetHTMLFooter('<div style="position:absolute;bottom:0;left:0;width:100%;height:40mm;z-index:10;"><img src="' . $footerImg . '" style="width:100%;height:40mm;object-fit:cover;display:block;"></div>', 'O');
+        }
+
+        // Add left/right margin to content, keep header/footer edge-to-edge
+        $mpdf->WriteHTML('<div style="padding-top:40mm;padding-bottom:40mm;padding-left:15mm;padding-right:15mm;">' . $mainContent . '</div>');
+        return response($mpdf->Output('', 'S'))
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'inline; filename="catatan-keluhan-' . $catatan->id . '.pdf"');
     }
 
     public function store(Request $request)
