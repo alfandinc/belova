@@ -22,6 +22,7 @@ class ContentPlan extends Model
         'link_asset',
         'link_publikasi',
         'catatan',
+        'gambar_referensi', // Gambar referensi
     ];
 
     protected $casts = [

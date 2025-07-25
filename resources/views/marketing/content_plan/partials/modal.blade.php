@@ -9,7 +9,8 @@
           </button>
         </div>
         <div class="modal-body">
-          <div class="row">
+          <div class="row" style="max-height:65vh; overflow-y:auto;">
+            
             <div class="col-md-6 mb-2">
               <label for="judul" class="form-label">Judul</label>
               <input type="text" class="form-control" id="judul" name="judul" required>
@@ -36,10 +37,10 @@
             <div class="col-md-6 mb-2">
               <label for="jenis_konten" class="form-label">Jenis Konten</label>
               <select class="form-control select2" id="jenis_konten" name="jenis_konten[]" multiple required>
-                <option value="Edu">Edu</option>
-                <option value="Promo">Promo</option>
-                <option value="Testimoni">Testimoni</option>
-                <option value="Event">Event</option>
+                <option value="Feed">Feed</option>
+                <option value="Story">Story</option>
+                <option value="Reels">Reels</option>
+                <option value="Artikel">Artikel</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -68,6 +69,16 @@
               <label for="catatan" class="form-label">Catatan</label>
               <textarea class="form-control" id="catatan" name="catatan"></textarea>
             </div>
+            <!-- Gambar Referensi (Upload) -->
+            <div class="col-md-12 mb-2">
+              <label for="gambar_referensi" class="form-label">Gambar Referensi</label>
+              <div id="gambarReferensiPreviewWrapper" style="display:none; margin-bottom:8px;">
+                <img id="gambarReferensiPreview" src="" alt="Preview Gambar Referensi" style="max-width: 100%; max-height: 200px; border:1px solid #ddd; border-radius:4px;">
+              </div>
+              <input type="file" class="form-control-file" id="gambar_referensi" name="gambar_referensi" accept="image/*">
+            </div>
+
+</script>
           </div>
         </div>
         <div class="modal-footer">

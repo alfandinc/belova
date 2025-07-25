@@ -45,9 +45,17 @@ class ContentPlanController extends Controller
             'link_asset' => 'nullable|string',
             'link_publikasi' => 'nullable|string',
             'catatan' => 'nullable|string',
+            'gambar_referensi' => 'nullable|file|image|max:5120',
         ]);
         $data['platform'] = array_values($data['platform']);
         $data['jenis_konten'] = array_values($data['jenis_konten']);
+        if ($request->hasFile('gambar_referensi')) {
+            $file = $request->file('gambar_referensi');
+            $path = $file->store('uploads/gambar_referensi', 'public');
+            $data['gambar_referensi'] = $path;
+        } else {
+            unset($data['gambar_referensi']);
+        }
         $plan = ContentPlan::create($data);
         return response()->json(['success' => true, 'data' => $plan]);
     }
@@ -72,9 +80,17 @@ class ContentPlanController extends Controller
             'link_asset' => 'nullable|string',
             'link_publikasi' => 'nullable|string',
             'catatan' => 'nullable|string',
+            'gambar_referensi' => 'nullable|file|image|max:5120',
         ]);
         $data['platform'] = array_values($data['platform']);
         $data['jenis_konten'] = array_values($data['jenis_konten']);
+        if ($request->hasFile('gambar_referensi')) {
+            $file = $request->file('gambar_referensi');
+            $path = $file->store('uploads/gambar_referensi', 'public');
+            $data['gambar_referensi'] = $path;
+        } else {
+            unset($data['gambar_referensi']);
+        }
         $plan->update($data);
         return response()->json(['success' => true, 'data' => $plan]);
     }
