@@ -16,9 +16,11 @@
         <div class="card-body">
     <div class="row mb-3">
         <div class="col-md-3 mb-2">
+            <label for="dateRange">Filter Tanggal Publish</label>
             <input type="text" id="dateRange" class="form-control" placeholder="Filter Tanggal Kunjungan" autocomplete="off" readonly>
         </div>
         <div class="col-md-3 mb-2">
+            <label for="filterPerusahaan">Filter Brand</label>
             <select id="filterPerusahaan" class="form-control filter-select" style="width:100%">
                 <option value="">Semua Perusahaan</option>
                 <option value="Klinik Utama Premire Belova">Klinik Utama Premire Belova</option>
@@ -27,6 +29,7 @@
             </select>
         </div>
         <div class="col-md-2 mb-2">
+            <label for="filterUnit">Filter Unit</label>
             <select id="filterUnit" class="form-control filter-select" style="width:100%">
                 <option value="">Semua Unit</option>
                 <option value="Human Resource">Human Resource</option>
@@ -37,6 +40,7 @@
             </select>
         </div>
         <div class="col-md-2 mb-2">
+            <label for="filterKategori">Filter Kategori</label>
             <select id="filterKategori" class="form-control filter-select" style="width:100%">
                 <option value="">Semua Kategori</option>
                 <option value="Pelayanan">Pelayanan</option>
@@ -48,6 +52,7 @@
             </select>
         </div>
         <div class="col-md-2 mb-2">
+            <label for="filterStatus">Filter Status</label>
             <select id="filterStatus" class="form-control filter-select" style="width:100%">
                 <option value="">Semua Status</option>
                 <option value="Diproses">Diproses</option>
