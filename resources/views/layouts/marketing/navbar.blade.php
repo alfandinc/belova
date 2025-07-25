@@ -40,6 +40,9 @@
             <li>
                 <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span></a>
             </li>
+            <li>
+                <a href="/marketing/catatan-keluhan"> <i data-feather="alert-circle" class="align-self-center menu-icon"></i><span>Catatan Keluhan Customer</span></a>
+            </li>
 
             
             <li class="menu-label">MASTER DATA</li>
@@ -52,9 +55,7 @@
             <li>
                 <a href="/marketing/survey-questions"> <i data-feather="edit-3" class="align-self-center menu-icon"></i><span>Survey Questions</span></a>
             </li>
-            <li>
-                <a href="/marketing/catatan-keluhan"> <i data-feather="alert-circle" class="align-self-center menu-icon"></i><span>Catatan Keluhan Customer</span></a>
-            </li>
+            
             
         </ul>              
     </div>
