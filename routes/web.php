@@ -615,6 +615,15 @@ Route::prefix('marketing')->group(function () {
     Route::post('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'store'])->name('marketing.content-plan.store');
     Route::put('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'update'])->name('marketing.content-plan.update');
     Route::delete('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'destroy'])->name('marketing.content-plan.destroy');
+
+    // Catatan Keluhan Customer
+    Route::get('catatan-keluhan', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'index'])->name('marketing.catatan-keluhan.index');
+    Route::post('catatan-keluhan', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'store'])->name('marketing.catatan-keluhan.store');
+    Route::get('catatan-keluhan/{id}', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'show'])->name('marketing.catatan-keluhan.show');
+    Route::put('catatan-keluhan/{id}', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'update'])->name('marketing.catatan-keluhan.update');
+    Route::delete('catatan-keluhan/{id}', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'destroy'])->name('marketing.catatan-keluhan.destroy');
+    // AJAX pasien search for select2
+    Route::get('catatan-keluhan-pasien-search', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'pasienSearch'])->name('marketing.catatan-keluhan.pasien-search');
 });
 
 // AJAX route for patient analytics charts
