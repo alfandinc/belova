@@ -513,7 +513,7 @@ $(function() {
             showCancelButton: true,
             confirmButtonText: 'Ya, hapus!'
         }).then((result) => {
-            if(result.isConfirmed) {
+            if(result.value) {
                 $.ajax({
                     url: '/marketing/catatan-keluhan/' + id,
                     type: 'DELETE',
