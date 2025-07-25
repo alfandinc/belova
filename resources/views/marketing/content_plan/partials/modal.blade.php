@@ -9,7 +9,16 @@
           </button>
         </div>
         <div class="modal-body">
+          
           <div class="row" style="max-height:65vh; overflow-y:auto;">
+            <div class="col-md-12 mb-2">
+            <label for="brand" class="form-label">Brand</label>
+            <select class="form-control select2" id="brand" name="brand[]" multiple required>
+              <option value="Premiere Belova">Premiere Belova</option>
+              <option value="Belova Skin">Belova Skin</option>
+              <option value="BCL">BCL</option>
+            </select>
+          </div>
             
             <div class="col-md-6 mb-2">
               <label for="judul" class="form-label">Judul</label>

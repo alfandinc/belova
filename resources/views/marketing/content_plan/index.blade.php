@@ -14,10 +14,35 @@
             <button class="btn btn-primary" id="btnAddContentPlan">Tambah Content Plan</button>
         </div>
         <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <label for="filterDateRange">Filter Tanggal Publish</label>
+                    <input type="text" id="filterDateRange" class="form-control" autocomplete="off" placeholder="Pilih rentang tanggal">
+                </div>
+                <div class="col-md-3">
+                    <label for="filterBrand">Filter Brand</label>
+                    <select id="filterBrand" class="form-control select2" multiple>
+                        <option value="Premiere Belova">Premiere Belova</option>
+                        <option value="Belova Skin">Belova Skin</option>
+                        <option value="BCL">BCL</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterStatus">Filter Status</label>
+                    <select id="filterStatus" class="form-control select2">
+                        <option value="">Semua Status</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Scheduled">Scheduled</option>
+                        <option value="Published">Published</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
             <table class="table table-bordered" id="contentPlanTable">
                 <thead>
                     <tr>
                         <th>No</th>
+                        <th>Brand</th>
                         <th>Judul</th>
                         <th>Tanggal Publish</th>
                         <th>Platform</th>
@@ -39,6 +64,42 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(function() {
+    // Status filter select2
+    $('#filterStatus').select2({
+        width: '100%',
+        placeholder: 'Pilih Status',
+        allowClear: true,
+        dropdownParent: $('#filterStatus').parent()
+    });
+    $('#filterStatus').on('change', function() {
+        table.ajax.reload();
+    });
+    // Brand filter select2
+    $('#filterBrand').select2({
+        width: '100%',
+        placeholder: 'Pilih Brand',
+        allowClear: true,
+        dropdownParent: $('#filterBrand').parent()
+    });
+    $('#filterBrand').on('change', function() {
+        table.ajax.reload();
+    });
+    // Date Range Picker for filter
+    $('#filterDateRange').daterangepicker({
+        autoUpdateInput: false,
+        locale: {
+            cancelLabel: 'Clear',
+            format: 'DD/MM/YYYY'
+        }
+    });
+    $('#filterDateRange').on('apply.daterangepicker', function(ev, picker) {
+        $(this).val(picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+        table.ajax.reload();
+    });
+    $('#filterDateRange').on('cancel.daterangepicker', function(ev, picker) {
+        $(this).val('');
+        table.ajax.reload();
+    });
     // Gambar Referensi Preview Logic (moved from modal partial)
     function updateGambarPreview() {
         var gambar = $('#gambar_referensi').data('current');
@@ -64,9 +125,30 @@ $(function() {
     let table = $('#contentPlanTable').DataTable({
         processing: true,
         serverSide: true,
-        ajax: '{{ route('marketing.content-plan.index') }}',
+        ajax: {
+            url: '{{ route('marketing.content-plan.index') }}',
+            data: function(d) {
+                let range = $('#filterDateRange').val();
+                if (range) {
+                    let parts = range.split(' - ');
+                    if (parts.length === 2) {
+                        d.date_start = parts[0];
+                        d.date_end = parts[1];
+                    }
+                }
+                let brands = $('#filterBrand').val();
+                if (brands && brands.length > 0) {
+                    d.filter_brand = brands;
+                }
+                let status = $('#filterStatus').val();
+                if (status) {
+                    d.filter_status = status;
+                }
+            }
+        },
         columns: [
             { data: null, name: 'no', orderable: false, searchable: false },
+            { data: 'brand', name: 'brand' },
             { data: 'judul', name: 'judul' },
             { data: 'tanggal_publish', name: 'tanggal_publish', render: function(data) {
                 if (data) {
@@ -136,6 +218,7 @@ $(function() {
         $('#contentPlanForm').attr('data-action', 'store');
         $('#contentPlanForm').attr('data-id', '');
         $('.select2').val(null).trigger('change');
+        $('#brand').val(null).trigger('change');
     });
 
     // Store/Update Content Plan
@@ -190,6 +273,13 @@ $(function() {
             $('#contentPlanForm').attr('data-action', 'update');
             $('#contentPlanForm').attr('data-id', id);
             $('#judul').val(data.judul);
+            if (Array.isArray(data.brand)) {
+                $('#brand').val(data.brand).trigger('change');
+            } else if (data.brand) {
+                $('#brand').val([data.brand]).trigger('change');
+            } else {
+                $('#brand').val(null).trigger('change');
+            }
             $('#deskripsi').val(data.deskripsi);
             // Format tanggal_publish to 'YYYY-MM-DDTHH:MM' for datetime-local input
             let tgl = data.tanggal_publish ? data.tanggal_publish.replace(' ', 'T').slice(0,16) : '';
@@ -237,8 +327,26 @@ $(function() {
         });
     });
 
-    // Select2
-    $('.select2').select2({
+    // Initialize modal select2s once for smoother rendering
+    $('#brand').select2({
+        dropdownParent: $('#contentPlanModal'),
+        width: '100%',
+        multiple: true,
+        placeholder: 'Pilih Brand'
+    });
+    $('#platform').select2({
+        dropdownParent: $('#contentPlanModal'),
+        width: '100%',
+        multiple: true,
+        placeholder: 'Pilih Platform'
+    });
+    $('#jenis_konten').select2({
+        dropdownParent: $('#contentPlanModal'),
+        width: '100%',
+        multiple: true,
+        placeholder: 'Pilih Jenis Konten'
+    });
+    $('#status').select2({
         dropdownParent: $('#contentPlanModal'),
         width: '100%'
     });

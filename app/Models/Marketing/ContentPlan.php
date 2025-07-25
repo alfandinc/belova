@@ -13,6 +13,7 @@ class ContentPlan extends Model
 
     protected $fillable = [
         'judul',
+        'brand',
         'deskripsi',
         'tanggal_publish',
         'platform',
@@ -28,6 +29,7 @@ class ContentPlan extends Model
     protected $casts = [
         'platform' => 'array',
         'jenis_konten' => 'array',
+        'brand' => 'array',
         'tanggal_publish' => 'datetime',
     ];
 }
