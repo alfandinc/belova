@@ -28,6 +28,7 @@ class ResepFarmasi extends Model
 
         'dokter_id',
         'created_at',
+        'user_id'
     ];
 
     // Relasi ke Obat

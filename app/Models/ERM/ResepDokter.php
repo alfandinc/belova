@@ -23,6 +23,7 @@ class ResepDokter extends Model
         'wadah_id',
 
         'created_at',
+        'user_id'
     ];
 
     // Relasi ke Obat

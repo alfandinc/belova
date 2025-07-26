@@ -217,6 +217,7 @@ class EresepController extends Controller
             'obat_id' => $validated['obat_id'],
             'jumlah' => $validated['jumlah'],
             'aturan_pakai' => $validated['aturan_pakai'],
+            'user_id' => Auth::id(),
         ]);
 
         $resep->load('obat'); // ✅ load the obat relation here
@@ -256,8 +257,8 @@ class EresepController extends Controller
                 'wadah_id' => $validated['wadah'],
                 'bungkus' => $validated['bungkus'],
                 'dosis' => $obat['dosis'],
-
                 'created_at' => now(),
+                'user_id' => Auth::id(),
             ]);
         }
 
@@ -466,10 +467,9 @@ class EresepController extends Controller
             'obat_id' => $validated['obat_id'],
             'jumlah' => $validated['jumlah'],
             'aturan_pakai' => $validated['aturan_pakai'],
-
             'diskon' => $validated['diskon'],
             'harga' => $validated['harga'],
-
+            'user_id' => Auth::id(),
         ]);
 
         // Load relasi obat agar bisa diakses dari JS
@@ -534,6 +534,7 @@ class EresepController extends Controller
             'dosis' => $obat['dosis'],
             'harga' => $harga, // Store the calculated proportional price
             'created_at' => now(),
+            'user_id' => Auth::id(),
         ]);
     }
 
@@ -1005,6 +1006,7 @@ class EresepController extends Controller
                 'diskon' => 0, // Default value
                 'total' => $harga * ($resep->jumlah ?? 1),
                 'created_at' => now(),
+                'user_id' => Auth::id(),
             ]);
         }
 
@@ -1073,6 +1075,7 @@ class EresepController extends Controller
                 'diskon' => 0, // Default value
                 'total' => $harga * ($resep->jumlah ?? 1),
                 'created_at' => now(),
+                'user_id' => Auth::id(),
             ]);
         }
 
