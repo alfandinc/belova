@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('pasien_id'); // foreign key to erm_pasiens
             $table->string('kategori');
-            $table->foreignId('sales_id')->constrained('hrd_employee')->onDelete('set null')->nullable();
+            $table->foreignId('sales_id')->constrained('hrd_employee');
             $table->string('status_respon');
             $table->string('bukti_respon')->nullable(); // path to image
             $table->text('rencana_tindak_lanjut')->nullable();
