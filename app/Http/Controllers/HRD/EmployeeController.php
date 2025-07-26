@@ -131,7 +131,8 @@ class EmployeeController extends Controller
             'doc_kontrak' => 'nullable|file|max:2048',
             'doc_pendukung' => 'nullable|file|max:2048',
             'create_account' => 'nullable|boolean',
-            'email' => 'nullable|unique:users,email',
+            'email' => 'nullable|email|max:255|unique:hrd_employee,email',
+            'instagram' => 'nullable|string|max:100',
             'role' => 'nullable',
         ]);
 
@@ -223,6 +224,8 @@ class EmployeeController extends Controller
             'doc_kontrak' => 'nullable|file|max:2048',
             'doc_pendukung' => 'nullable|file|max:2048',
             'durasi_kontrak' => 'nullable|integer|min:1',
+            'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
+            'instagram' => 'nullable|string|max:100',
         ]);
 
         // Handle file uploads

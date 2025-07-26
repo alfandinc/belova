@@ -85,6 +85,8 @@ public function updateProfile(Request $request)
         'doc_ktp' => 'nullable|file|max:10240',
         'doc_kontrak' => 'nullable|file|max:10240',
         'doc_pendukung' => 'nullable|file|max:10240',
+        'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
+        'instagram' => 'nullable|string|max:100',
     ]);
 
     // Handle photo upload

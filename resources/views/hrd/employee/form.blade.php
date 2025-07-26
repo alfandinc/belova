@@ -117,6 +117,24 @@
                                     <input type="text" id="pendidikan" name="pendidikan" class="form-control" value="{{ old('pendidikan', $employee->pendidikan ?? '') }}">
                                 </div>
                             </div>
+                            <div class="form-group col-md-6">
+                                <label for="email">Email</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                    </div>
+                                    <input type="email" id="email" name="email" class="form-control" value="{{ old('email', $employee->email ?? '') }}" placeholder="Email">
+                                </div>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="instagram">Instagram</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text"><i class="fab fa-instagram"></i></span>
+                                    </div>
+                                    <input type="text" id="instagram" name="instagram" class="form-control" value="{{ old('instagram', $employee->instagram ?? '') }}" placeholder="Instagram username">
+                                </div>
+                            </div>
                             <div class="form-group col-md-12">
                                 <label for="alamat">Alamat</label>
                                 <textarea id="alamat" name="alamat" class="form-control" rows="3">{{ old('alamat', $employee->alamat ?? '') }}</textarea>

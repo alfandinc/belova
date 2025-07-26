@@ -73,6 +73,14 @@
                         <label>No Darurat</label>
                         <input type="text" name="no_darurat" class="form-control" value="{{ old('no_darurat', $employee->no_darurat) }}" placeholder="Nomor darurat (Emergency Contact)">
                     </div>
+                    <div class="form-group col-md-12">
+                        <label>Email</label>
+                        <input type="email" name="email" class="form-control" value="{{ old('email', $employee->email) }}" placeholder="Email">
+                    </div>
+                    <div class="form-group col-md-12">
+                        <label>Instagram</label>
+                        <input type="text" name="instagram" class="form-control" value="{{ old('instagram', $employee->instagram) }}" placeholder="Instagram username">
+                    </div>
                    
                 </div>
                 

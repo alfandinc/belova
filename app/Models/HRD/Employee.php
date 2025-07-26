@@ -33,7 +33,9 @@ class Employee extends Model
         'doc_kontrak',
         'doc_pendukung',
         'user_id',
-        'photo' 
+        'photo',
+        'email',
+        'instagram'
     ];
 
     protected $casts = [
