@@ -79,7 +79,6 @@
               <div class="form-group">
                 <label for="pasienSelect">Pasien</label>
                 <select id="pasienSelect" name="pasien_id" class="form-control" style="width:100%"></select>
-                // ...existing code...
               </div>
             </div>
             <div class="col-md-6">
