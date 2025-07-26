@@ -1,14 +1,16 @@
 @foreach ($reseps as $visitationId => $group)
     @php
-        $tanggalRaw = $group->first()->visitation->tanggal_visitation ?? null;
+        $visitation = $group->first()->visitation ?? null;
+        $tanggalRaw = $visitation->tanggal_visitation ?? null;
         $tanggal = $tanggalRaw ? \Carbon\Carbon::parse($tanggalRaw)->translatedFormat('d F Y') : '-';
+        $dokterName = $visitation && $visitation->dokter && $visitation->dokter->user ? $visitation->dokter->user->name : '-';
         $nonRacikans = $group->whereNull('racikan_ke');
         $racikans = $group->whereNotNull('racikan_ke')->groupBy('racikan_ke');
     @endphp
 
     <div class="mb-4">
         <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-3">🗓️ Tanggal Kunjungan: {{ $tanggal }}</h5>
+            <h5 class="mb-3">🗓️ Tanggal Kunjungan: {{ $tanggal }} <span class="ml-2">👨‍⚕️ Dokter: <strong>{{ $dokterName }}</strong></span></h5>
             <button class="btn btn-primary btn-sm btn-copy-resep" data-visitation-id="{{ $visitationId }}" data-source="farmasi">
                 <i class="fas fa-copy"></i> Salin Resep
             </button>
@@ -65,4 +67,5 @@
             </table>
         @endforeach
     </div>
+    <hr class="my-4" style="border-top: 1px solid;">
 @endforeach
