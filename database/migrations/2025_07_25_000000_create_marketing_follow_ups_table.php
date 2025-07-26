@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('marketing_follow_ups', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('pasien_id')->constrained('erm_pasiens')->onDelete('cascade');
+            $table->string('pasien_id'); // foreign key to erm_pasiens
             $table->string('kategori');
             $table->foreignId('sales_id')->constrained('hrd_employee')->onDelete('set null')->nullable();
             $table->string('status_respon');
@@ -18,6 +18,8 @@ return new class extends Migration
             $table->text('rencana_tindak_lanjut')->nullable();
             $table->string('status_booking')->nullable();
             $table->text('catatan')->nullable();
+
+            $table->foreign('pasien_id')->references('id')->on('erm_pasiens')->onDelete('cascade');
             $table->timestamps();
         });
     }
