@@ -15,6 +15,34 @@ class FollowUpController extends Controller
     {
         if ($request->ajax()) {
             $data = FollowUp::with(['pasien', 'sales']);
+            // Filter by date range if provided
+            if ($request->filled('start_date') && $request->filled('end_date')) {
+                $data->whereBetween('created_at', [
+                    $request->input('start_date'),
+                    $request->input('end_date')
+                ]);
+            }
+            // Filter by kategori if provided
+            if ($request->filled('kategori')) {
+                $kategori = $request->input('kategori');
+                if (is_array($kategori)) {
+                    $data->where(function($q) use ($kategori) {
+                        foreach ($kategori as $kat) {
+                            $q->orWhereJsonContains('kategori', $kat);
+                        }
+                    });
+                } else {
+                    $data->whereJsonContains('kategori', $kategori);
+                }
+            }
+            // Filter by status_respon if provided
+            if ($request->filled('status_respon')) {
+                $data->where('status_respon', $request->input('status_respon'));
+            }
+            // Filter by status_booking if provided
+            if ($request->filled('status_booking')) {
+                $data->where('status_booking', $request->input('status_booking'));
+            }
             return DataTables::of($data)
                 ->addColumn('pasien_nama', function($row){
                     return $row->pasien ? $row->pasien->nama : '-';

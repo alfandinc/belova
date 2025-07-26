@@ -14,6 +14,33 @@
             <button class="btn btn-success" id="addFollowUpBtn">Tambah Follow Up</button>
         </div>
         <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3" style="max-width:300px;">
+                    <label for="dateRange" class="form-label">Filter Tanggal:</label>
+                    <input type="text" id="dateRange" class="form-control" autocomplete="off" placeholder="Pilih rentang tanggal">
+                </div>
+                <div class="col-md-3" style="max-width:300px;">
+                    <label for="kategoriFilter" class="form-label">Filter Kategori:</label>
+                    <select id="kategoriFilter" class="form-control" multiple="multiple" style="width:100%"></select>
+                </div>
+                <div class="col-md-3" style="max-width:200px;">
+                    <label for="statusResponFilter" class="form-label">Filter Status Respon:</label>
+                    <select id="statusResponFilter" class="form-control" style="width:100%">
+                        <option value="" selected>Semua</option>
+                        <option value="Direspon">Direspon</option>
+                        <option value="Tidak Direspon">Tidak Direspon</option>
+                    </select>
+                </div>
+                <div class="col-md-3" style="max-width:200px;">
+                    <label for="statusBookingFilter" class="form-label">Filter Status Booking:</label>
+                    <select id="statusBookingFilter" class="form-control" style="width:100%">
+                        <option value="" selected>Semua</option>
+                        <option value="Sukses">Sukses</option>
+                        <option value="Menunggu">Menunggu</option>
+                        <option value="Batal">Batal</option>
+                    </select>
+                </div>
+            </div>
             <table class="table table-bordered" id="followupTable">
                 <thead>
                     <tr>
@@ -38,6 +65,7 @@
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <form id="followupForm">
+
         <div class="modal-header">
           <h5 class="modal-title" id="followupModalLabel">Tambah Follow Up</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -51,6 +79,7 @@
               <div class="form-group">
                 <label for="pasienSelect">Pasien</label>
                 <select id="pasienSelect" name="pasien_id" class="form-control" style="width:100%"></select>
+                // ...existing code...
               </div>
             </div>
             <div class="col-md-6">
@@ -130,12 +159,54 @@
 
 @push('scripts')
 <script>
-$(function() {
+// Ensure select2 CSS is loaded
+if (!$('link[href*="select2.min.css"]').length) {
+    $('head').append('<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />');
+}
+
+$(document).ready(function() {
+    // Initialize date range picker
+    $('#dateRange').daterangepicker({
+        autoUpdateInput: false,
+        locale: {
+            cancelLabel: 'Clear',
+            format: 'YYYY-MM-DD'
+        }
+    });
+    $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
+        $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
+        table.ajax.reload();
+    });
+    $('#dateRange').on('cancel.daterangepicker', function(ev, picker) {
+        $(this).val('');
+        table.ajax.reload();
+    });
+
     var table = $('#followupTable').DataTable({
         processing: true,
         serverSide: true,
         ajax: {
             url: "{{ route('marketing.followup.index') }}",
+            data: function(d) {
+                var dr = $('#dateRange').val();
+                if(dr) {
+                    var dates = dr.split(' - ');
+                    d.start_date = dates[0];
+                    d.end_date = dates[1];
+                }
+                var kategori = $('#kategoriFilter').val();
+                if(kategori && kategori.length > 0) {
+                    d.kategori = kategori;
+                }
+                var statusRespon = $('#statusResponFilter').val();
+                if(statusRespon) {
+                    d.status_respon = statusRespon;
+                }
+                var statusBooking = $('#statusBookingFilter').val();
+                if(statusBooking) {
+                    d.status_booking = statusBooking;
+                }
+            }
         },
         columns: [
             { data: null, name: 'no', orderable: false, searchable: false },
@@ -191,6 +262,48 @@ $(function() {
                 cell.innerHTML = api.page.info().start + i + 1;
             });
         }
+    });
+
+    // Kategori options for filter
+    var kategoriOptions = [
+        {id: 'Produk', text: 'Produk'},
+        {id: 'Perawatan', text: 'Perawatan'},
+        {id: 'Reseller', text: 'Reseller'},
+        {id: 'Slimming', text: 'Slimming'}
+    ];
+    $('#kategoriFilter').empty();
+    kategoriOptions.forEach(function(opt) {
+        $('#kategoriFilter').append('<option value="'+opt.id+'">'+opt.text+'</option>');
+    });
+    $('#kategoriFilter').select2({
+        placeholder: 'Pilih Kategori',
+        allowClear: true,
+        width: 'resolve'
+    });
+    $('#kategoriFilter').select2({
+        placeholder: 'Pilih Kategori',
+        allowClear: true,
+        width: 'resolve'
+    });
+    $('#statusResponFilter').select2({
+        minimumResultsForSearch: -1,
+        width: 'resolve',
+        dropdownAutoWidth: true
+    });
+    $('#statusBookingFilter').select2({
+        minimumResultsForSearch: -1,
+        width: 'resolve',
+        dropdownAutoWidth: true
+    });
+    // Reset to 'Semua' when cleared
+    $('#statusResponFilter').on('select2:clear', function() {
+        $(this).val('').trigger('change');
+    });
+    $('#statusBookingFilter').on('select2:clear', function() {
+        $(this).val('').trigger('change');
+    });
+    $('#kategoriFilter, #statusResponFilter, #statusBookingFilter').on('change', function() {
+        table.ajax.reload();
     });
 
     // Select2 for pasien
