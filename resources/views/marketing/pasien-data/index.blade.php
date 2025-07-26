@@ -35,17 +35,27 @@
                             <h4 class="card-title">Daftar Pasien</h4>
                         </div>
                         <div class="col-md-4">
-                            <select id="area-filter" class="form-control">
-                                <option value="all">Semua Wilayah</option>
-                                <option value="Laweyan">Laweyan</option>
-                                <option value="Banjarsari">Banjarsari</option>
-                                <option value="Serengan">Serengan</option>
-                                <option value="Pasar Kliwon">Pasar Kliwon</option>
-                                <option value="Jebres">Jebres</option>
-                                <option value="Sukoharjo">Sukoharjo</option>
-                                <option value="Wonogiri">Wonogiri</option>
-                                <option value="Karanganyar">Karanganyar</option>
-                            </select>
+                            <div class="row">
+                                <!-- Wilayah filter removed -->
+                                <div class="col-6">
+                                    <select id="last-visit-filter" class="form-control" style="min-width:180px;">
+                                        <option value="all">Semua Kunjungan Terakhir</option>
+                                        <option value="gt1w">Lebih dari 1 Minggu</option>
+                                        <option value="gt1m">Lebih dari 1 Bulan</option>
+                                        <option value="gt3m">Lebih dari 3 Bulan</option>
+                                        <option value="gt6m">Lebih dari 6 Bulan</option>
+                                        <option value="gt1y">Lebih dari 1 Tahun</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <select id="last-visit-klinik-filter" class="form-control" style="min-width:180px;">
+                                        <option value="all">Semua Klinik Terakhir</option>
+                                        @foreach(\App\Models\ERM\Klinik::all() as $klinik)
+                                            <option value="{{ $klinik->id }}">{{ $klinik->nama }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div><!--end card-header-->
@@ -56,9 +66,10 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Nama</th>
-                                    <th>Umur</th>
+                                    <th>Tanggal Lahir</th>
+                                    <th>No HP</th>
+                                    <th>Kunjungan Terakhir</th>
                                     <th>Gender</th>
-                                    <th>Wilayah</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -82,20 +93,22 @@
             ajax: {
                 url: "{{ route('marketing.pasien-data') }}",
                 data: function (d) {
-                    d.area = $('#area-filter').val();
+                    d.last_visit = $('#last-visit-filter').val();
+                    d.last_visit_klinik = $('#last-visit-klinik-filter').val();
                 }
             },
             columns: [
                 { data: 'id', name: 'id' },
                 { data: 'nama', name: 'nama' },
-                { data: 'umur', name: 'umur' },
-                { data: 'gender_text', name: 'gender_text' },
-                { data: 'area', name: 'area' }
+                { data: 'tanggal_lahir', name: 'tanggal_lahir' },
+                { data: 'no_hp', name: 'no_hp' },
+                { data: 'kunjungan_terakhir', name: 'kunjungan_terakhir' },
+                { data: 'gender_text', name: 'gender_text' }
             ]
         });
         
-        // Reload table when area filter changes
-        $('#area-filter').change(function() {
+        // Reload table when any filter changes
+        $('#last-visit-filter, #last-visit-klinik-filter').change(function() {
             table.draw();
         });
     });

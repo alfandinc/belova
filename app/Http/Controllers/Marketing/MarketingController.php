@@ -29,32 +29,99 @@ class MarketingController extends Controller
     public function pasienData(Request $request)
     {
         if ($request->ajax()) {
-            $data = Pasien::select('id', 'nama', 'tanggal_lahir', 'gender', 'alamat');
+            $data = Pasien::select('id', 'nama', 'tanggal_lahir', 'gender', 'alamat', 'no_hp')
+                ->addSelect([
+                    'last_visitation_date' => Visitation::select('tanggal_visitation')
+                        ->whereColumn('pasien_id', 'erm_pasiens.id')
+                        ->orderByDesc('tanggal_visitation')
+                        ->limit(1)
+                ])
+                ->orderByRaw('ISNULL(last_visitation_date), last_visitation_date DESC');
             
             // Apply area filter if provided
             if ($request->has('area') && $request->area != 'all') {
                 $area = $request->area;
                 $data = $data->where('alamat', 'like', "%$area%");
             }
+
+            // Filter by last visit range if provided
+            if ($request->has('last_visit') && $request->last_visit != 'all') {
+                $now = Carbon::now();
+                switch ($request->last_visit) {
+                    case 'gt1w':
+                        $data = $data->whereHas('visitations', function($q) use ($now) {
+                            $q->where('tanggal_visitation', '<', $now->copy()->subWeek());
+                        });
+                        break;
+                    case 'gt1m':
+                        $data = $data->whereHas('visitations', function($q) use ($now) {
+                            $q->where('tanggal_visitation', '<', $now->copy()->subMonth());
+                        });
+                        break;
+                    case 'gt3m':
+                        $data = $data->whereHas('visitations', function($q) use ($now) {
+                            $q->where('tanggal_visitation', '<', $now->copy()->subMonths(3));
+                        });
+                        break;
+                    case 'gt6m':
+                        $data = $data->whereHas('visitations', function($q) use ($now) {
+                            $q->where('tanggal_visitation', '<', $now->copy()->subMonths(6));
+                        });
+                        break;
+                    case 'gt1y':
+                        $data = $data->whereHas('visitations', function($q) use ($now) {
+                            $q->where('tanggal_visitation', '<', $now->copy()->subYear());
+                        });
+                        break;
+                }
+            }
             
+            // Apply last_visit_klinik filter after all Eloquent filters
+            if ($request->has('last_visit_klinik') && $request->last_visit_klinik != 'all') {
+                $klinikId = $request->last_visit_klinik;
+                $data = $data->whereHas('visitations', function($q) use ($klinikId) {
+                    $q->where('klinik_id', $klinikId);
+                });
+            }
             return datatables()
                 ->of($data)
-                ->addColumn('umur', function($row) {
-                    return Carbon::parse($row->tanggal_lahir)->age . ' tahun';
-                })
                 ->addColumn('gender_text', function($row) {
-                    return $row->gender == 'L' ? 'Laki-laki' : 'Perempuan';
+                    return $row->gender == 'Laki-laki' ? 'Laki-laki' : ($row->gender == 'Perempuan' ? 'Perempuan' : '-');
                 })
-                ->addColumn('area', function($row) {
-                    $areas = ['Laweyan', 'Banjarsari', 'Serengan', 'Pasar Kliwon', 'Jebres', 'Sukoharjo', 'Wonogiri', 'Karanganyar'];
-                    foreach($areas as $area) {
-                        if (stripos($row->alamat, $area) !== false) {
-                            return $area;
-                        }
+                ->addColumn('tanggal_lahir', function($row) {
+                    if (!$row->tanggal_lahir) return '-';
+                    $carbon = Carbon::parse($row->tanggal_lahir);
+                    $bulan = [1=>'Januari',2=>'Februari',3=>'Maret',4=>'April',5=>'Mei',6=>'Juni',7=>'Juli',8=>'Agustus',9=>'September',10=>'Oktober',11=>'November',12=>'Desember'];
+                    $day = $carbon->day;
+                    $month = $bulan[$carbon->month];
+                    $year = $carbon->year;
+                    $age = $carbon->age;
+                    return "$day $month $year (<b>{$age} th</b>)";
+                })
+                ->addColumn('no_hp', function($row) {
+                    return $row->no_hp ?: '-';
+                })
+                ->addColumn('kunjungan_terakhir', function($row) {
+                    $lastVisit = $row->visitations()->orderByDesc('tanggal_visitation')->first();
+                    if ($lastVisit && $lastVisit->tanggal_visitation) {
+                        $carbon = Carbon::parse($lastVisit->tanggal_visitation);
+                        $bulan = [1=>'Januari',2=>'Februari',3=>'Maret',4=>'April',5=>'Mei',6=>'Juni',7=>'Juli',8=>'Agustus',9=>'September',10=>'Oktober',11=>'November',12=>'Desember'];
+                        $day = $carbon->day;
+                        $month = $bulan[$carbon->month];
+                        $year = $carbon->year;
+                        $dateStr = "$day $month $year";
+                        $now = Carbon::now();
+                        $diff = $carbon->diff($now);
+                        $diffStr = [];
+                        if ($diff->y > 0) $diffStr[] = $diff->y . ' th';
+                        if ($diff->m > 0) $diffStr[] = $diff->m . ' bln';
+                        if ($diff->d > 0) $diffStr[] = $diff->d . ' hr';
+                        $diffText = $diffStr ? ' (<b>' . implode(' ', $diffStr) . '</b>)' : '';
+                        return $dateStr . $diffText;
                     }
-                    return 'Lainnya';
+                    return '-';
                 })
-                ->rawColumns(['umur', 'gender_text', 'area'])
+                ->rawColumns(['gender_text', 'area', 'tanggal_lahir', 'no_hp', 'kunjungan_terakhir'])
                 ->make(true);
         }
         
@@ -145,13 +212,16 @@ class MarketingController extends Controller
         $ageDemographics = $this->getAgeDemographics($clinicId);
 
         // 2. Gender Demographics
-        $genderDemographics = $this->getGenderDemographics($clinicId);
-
-        // 3. Patient Loyalty (visit frequency)
-        $patientLoyalty = $this->getPatientLoyalty($year, $clinicId);
-
-        // 4. Geographic Distribution
-        $geographicDistribution = $this->getGeographicDistribution($clinicId);
+            // Filter by last visit's clinic if provided
+            if ($request->has('last_visit_klinik') && $request->last_visit_klinik != 'all') {
+                $klinikId = $request->last_visit_klinik;
+                $allPasien = $data->get();
+                $filtered = $allPasien->filter(function($pasien) use ($klinikId) {
+                    $lastVisit = $pasien->visitations()->orderByDesc('tanggal_visitation')->first();
+                    return $lastVisit && $lastVisit->klinik_id == $klinikId;
+                });
+                $data = collect($filtered); // Ensure it's a collection for datatables
+            }
         
         // 5. Address Distribution
         $addressStats = $this->getAddressStatistics($clinicId);
