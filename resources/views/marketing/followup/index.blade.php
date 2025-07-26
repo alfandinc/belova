@@ -8,6 +8,60 @@
 
 @section('content')
 <div class="container-fluid mt-4">
+    <div class="row mb-3 align-items-stretch">
+        <div class="col-md-3">
+            <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#e3f0ff 0%,#f8f9fa 100%);">
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:1.2rem 0.5rem;">
+                    <div class="mb-1" style="font-weight:700; font-size:1.3em; color:#007bff; letter-spacing:1px;">Follow Up Hari Ini</div>
+                    <div id="followUpCount" style="font-size:2.2em; font-weight:900; color:#007bff; text-shadow:0 2px 8px rgba(0,123,255,0.15);">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#f8f9fa 0%,#e3f0ff 100%);">
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:1.2rem 0.5rem;">
+                    <div class="mb-1 text-center" style="font-weight:700; font-size:1.3em; color:#6c757d; letter-spacing:1px;">Status Respon Hari Ini</div>
+                    <div class="w-100 mt-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span style="font-weight:700; color:#28a745; font-size:1.1em;">Direspon</span>
+                            <span>
+                                <span id="followUpDirespon" style="font-size:1.5em; font-weight:900; color:#28a745;">0</span>
+                                <span id="followUpDiresponPercent" style="font-size:0.9em; color:#28a745; font-weight:700; margin-left:8px;">(0%)</span>
+                            </span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span style="font-weight:700; color:#dc3545; font-size:1.1em;">Tidak Direspon</span>
+                            <span>
+                                <span id="followUpTidakDirespon" style="font-size:1.5em; font-weight:900; color:#dc3545;">0</span>
+                                <span id="followUpTidakDiresponPercent" style="font-size:0.9em; color:#dc3545; font-weight:700; margin-left:8px;">(0%)</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#f8f9fa 0%,#e3f0ff 100%);">
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:1.2rem 0.5rem;">
+                    <div class="mb-1 text-center" style="font-weight:700; font-size:1.3em; color:#6c757d; letter-spacing:1px;">Status Booking Hari Ini</div>
+                    <div class="w-100 mt-2">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span style="font-weight:700; color:#dc3545; font-size:1.1em;">Batal</span>
+                            <span id="bookingBatal" style="font-size:1.5em; font-weight:900; color:#dc3545;">0</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span style="font-weight:700; color:#ffc107; font-size:1.1em;">Menunggu</span>
+                            <span id="bookingMenunggu" style="font-size:1.5em; font-weight:900; color:#ffc107;">0</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span style="font-weight:700; color:#28a745; font-size:1.1em;">Sukses</span>
+                            <span id="bookingSukses" style="font-size:1.5em; font-weight:900; color:#28a745;">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4 class="mb-0">Follow Up Customer</h4>
@@ -181,6 +235,19 @@ $(document).ready(function() {
         table.ajax.reload();
     });
 
+    // Function to update today's follow up count
+    function updateFollowUpCount() {
+        $.get("{{ route('marketing.followup.count-today') }}", function(res) {
+            $('#followUpCount').text(res.count);
+            $('#followUpDirespon').text(res.direspon);
+            $('#followUpTidakDirespon').text(res.tidak_direspon);
+            $('#followUpDiresponPercent').text('(' + res.percent_direspon + '%)');
+            $('#followUpTidakDiresponPercent').text('(' + res.percent_tidak_direspon + '%)');
+            $('#bookingBatal').text(res.batal ?? 0);
+            $('#bookingMenunggu').text(res.menunggu ?? 0);
+            $('#bookingSukses').text(res.sukses ?? 0);
+        });
+    }
     var table = $('#followupTable').DataTable({
         processing: true,
         serverSide: true,
@@ -260,6 +327,7 @@ $(document).ready(function() {
             api.column(0, {search:'applied', order:'applied'}).nodes().each(function(cell, i) {
                 cell.innerHTML = api.page.info().start + i + 1;
             });
+            updateFollowUpCount();
         }
     });
 

@@ -136,4 +136,34 @@ class FollowUpController extends Controller
         $results = $query->orderBy('nama')->limit(20)->get(['id', 'nama']);
         return response()->json($results);
     }
+    
+    // Get total follow up for today
+    public function countToday()
+    {
+        $query = FollowUp::whereDate('created_at', now()->toDateString());
+        $count = $query->count();
+        $countDirespon = $query->where('status_respon', 'Direspon')->count();
+        $countTidakDirespon = FollowUp::whereDate('created_at', now()->toDateString())
+            ->where('status_respon', 'Tidak Direspon')->count();
+        $percentDirespon = $count > 0 ? round($countDirespon / $count * 100, 1) : 0;
+        $percentTidakDirespon = $count > 0 ? round($countTidakDirespon / $count * 100, 1) : 0;
+
+        $countBatal = FollowUp::whereDate('created_at', now()->toDateString())
+            ->where('status_booking', 'Batal')->count();
+        $countMenunggu = FollowUp::whereDate('created_at', now()->toDateString())
+            ->where('status_booking', 'Menunggu')->count();
+        $countSukses = FollowUp::whereDate('created_at', now()->toDateString())
+            ->where('status_booking', 'Sukses')->count();
+
+        return response()->json([
+            'count' => $count,
+            'direspon' => $countDirespon,
+            'tidak_direspon' => $countTidakDirespon,
+            'percent_direspon' => $percentDirespon,
+            'percent_tidak_direspon' => $percentTidakDirespon,
+            'batal' => $countBatal,
+            'menunggu' => $countMenunggu,
+            'sukses' => $countSukses
+        ]);
+    }
 }
