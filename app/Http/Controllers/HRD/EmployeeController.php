@@ -5,6 +5,7 @@ namespace App\Http\Controllers\HRD;
 use App\Http\Controllers\Controller;
 use App\Models\Area\Village;
 use App\Models\HRD\Employee;
+
 use App\Models\HRD\Position;
 use App\Models\HRD\Division;
 use App\Models\User;
@@ -18,6 +19,19 @@ use Spatie\Permission\Models\Role;
 
 class EmployeeController extends Controller
 {
+    /**
+     * Search employees for select2 (sales field)
+     */
+    public function searchForSelect2(Request $request)
+    {
+        $search = $request->input('search');
+        $query = Employee::query();
+        if ($search) {
+            $query->where('nama', 'like', "%$search%");
+        }
+        $results = $query->orderBy('nama')->limit(20)->get(['id', 'nama']);
+        return response()->json($results);
+    }
     public function index(Request $request)
 {
     if ($request->ajax()) {
