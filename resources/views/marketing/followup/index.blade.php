@@ -8,32 +8,36 @@
 
 @section('content')
 <div class="container-fluid mt-4">
-    <div class="row mb-3 align-items-stretch">
-        <div class="col-md-3">
+    <div class="row mb-4 align-items-stretch" style="gap:0.5rem;">
+        <div class="col-md-2">
             <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#e3f0ff 0%,#f8f9fa 100%);">
-                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:1.2rem 0.5rem;">
-                    <div class="mb-1" style="font-weight:700; font-size:1.3em; color:#007bff; letter-spacing:1px;">Follow Up Hari Ini</div>
-                    <div id="followUpCount" style="font-size:2.2em; font-weight:900; color:#007bff; text-shadow:0 2px 8px rgba(0,123,255,0.15);">0</div>
+                <div class="card-header text-center py-2" style="background:transparent; border-bottom:none;">
+                    <span style="font-weight:700; font-size:1.5em; color:#007bff; letter-spacing:1px;">Follow Up</span>
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:0.7rem 1.7rem;">
+                    <div id="followUpCount" style="font-size:3.7em; font-weight:900; color:#007bff; text-shadow:0 2px 8px rgba(0,123,255,0.15); line-height:1;">0</div>
                 </div>
             </div>
         </div>
         <div class="col-md-2">
             <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#f8f9fa 0%,#e3f0ff 100%);">
-                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:1.2rem 0.5rem;">
-                    <div class="mb-1 text-center" style="font-weight:700; font-size:1.3em; color:#6c757d; letter-spacing:1px;">Status Respon Hari Ini</div>
-                    <div class="w-100 mt-2">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span style="font-weight:700; color:#28a745; font-size:1.1em;">Direspon</span>
+                <div class="card-header text-center py-2" style="background:transparent; border-bottom:none;">
+                    <span style="font-weight:700; font-size:1.5em; color:#6c757d; letter-spacing:1px;">Status Respon</span>
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:0.7rem 1.7rem;">
+                    <div class="w-100 mt-1">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span style="font-weight:700; color:#28a745; font-size:1.2em;">Direspon</span>
                             <span>
-                                <span id="followUpDirespon" style="font-size:1.5em; font-weight:900; color:#28a745;">0</span>
-                                <span id="followUpDiresponPercent" style="font-size:0.9em; color:#28a745; font-weight:700; margin-left:8px;">(0%)</span>
+                                <span id="followUpDirespon" style="font-size:1.8em; font-weight:900; color:#28a745; line-height:1;">0</span>
+                                <span id="followUpDiresponPercent" style="font-size:1em; color:#28a745; font-weight:700; margin-left:6px;">(0%)</span>
                             </span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
-                            <span style="font-weight:700; color:#dc3545; font-size:1.1em;">Tidak Direspon</span>
+                            <span style="font-weight:700; color:#dc3545; font-size:1.2em;">Tidak Direspon</span>
                             <span>
-                                <span id="followUpTidakDirespon" style="font-size:1.5em; font-weight:900; color:#dc3545;">0</span>
-                                <span id="followUpTidakDiresponPercent" style="font-size:0.9em; color:#dc3545; font-weight:700; margin-left:8px;">(0%)</span>
+                                <span id="followUpTidakDirespon" style="font-size:1.8em; font-weight:900; color:#dc3545; line-height:1;">0</span>
+                                <span id="followUpTidakDiresponPercent" style="font-size:1em; color:#dc3545; font-weight:700; margin-left:6px;">(0%)</span>
                             </span>
                         </div>
                     </div>
@@ -42,22 +46,63 @@
         </div>
         <div class="col-md-2">
             <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#f8f9fa 0%,#e3f0ff 100%);">
-                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:1.2rem 0.5rem;">
-                    <div class="mb-1 text-center" style="font-weight:700; font-size:1.3em; color:#6c757d; letter-spacing:1px;">Status Booking Hari Ini</div>
-                    <div class="w-100 mt-2">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span style="font-weight:700; color:#dc3545; font-size:1.1em;">Batal</span>
-                            <span id="bookingBatal" style="font-size:1.5em; font-weight:900; color:#dc3545;">0</span>
+                <div class="card-header text-center py-2" style="background:transparent; border-bottom:none;">
+                    <span style="font-weight:700; font-size:1.5em; color:#6c757d; letter-spacing:1px;">Status Booking</span>
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:0.7rem 1.7rem;">
+                    <div class="w-100 mt-1">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span style="font-weight:700; color:#dc3545; font-size:1.2em;">Batal</span>
+                            <span id="bookingBatal" style="font-size:1.8em; font-weight:900; color:#dc3545; line-height:1;">0</span>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span style="font-weight:700; color:#ffc107; font-size:1.1em;">Menunggu</span>
-                            <span id="bookingMenunggu" style="font-size:1.5em; font-weight:900; color:#ffc107;">0</span>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span style="font-weight:700; color:#ffc107; font-size:1.2em;">Menunggu</span>
+                            <span id="bookingMenunggu" style="font-size:1.8em; font-weight:900; color:#ffc107; line-height:1;">0</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
-                            <span style="font-weight:700; color:#28a745; font-size:1.1em;">Sukses</span>
-                            <span id="bookingSukses" style="font-size:1.5em; font-weight:900; color:#28a745;">0</span>
+                            <span style="font-weight:700; color:#28a745; font-size:1.2em;">Sukses</span>
+                            <span id="bookingSukses" style="font-size:1.8em; font-weight:900; color:#28a745; line-height:1;">0</span>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#e3f0ff 0%,#f8f9fa 100%);">
+                <div class="card-header text-center py-2" style="background:transparent; border-bottom:none;">
+                    <span style="font-weight:700; font-size:1.5em; color:#6c757d; letter-spacing:1px;">Kategori Jumlah</span>
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:0.7rem 1.7rem;">
+                    <div class="w-100 mt-1">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span style="font-weight:700; color:#007bff; font-size:1.1em;">Produk</span>
+                            <span id="kategoriProduk" style="font-size:1.5em; font-weight:900; color:#007bff; line-height:1;">0</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span style="font-weight:700; color:#e83e8c; font-size:1.1em;">Perawatan</span>
+                            <span id="kategoriPerawatan" style="font-size:1.5em; font-weight:900; color:#e83e8c; line-height:1;">0</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span style="font-weight:700; color:#ffc107; font-size:1.1em;">Reseller</span>
+                            <span id="kategoriReseller" style="font-size:1.5em; font-weight:900; color:#ffc107; line-height:1;">0</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span style="font-weight:700; color:#6f42c1; font-size:1.1em;">Slimming</span>
+                            <span id="kategoriSlimming" style="font-size:1.5em; font-weight:900; color:#6f42c1; line-height:1;">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100 shadow-sm border-0" style="background:linear-gradient(135deg,#f8f9fa 0%,#e3f0ff 100%);">
+                <div class="card-header text-center py-2" style="background:transparent; border-bottom:none;">
+                    <span style="font-weight:700; font-size:1.5em; color:#6c757d; letter-spacing:1px;">Top Sales</span>
+                </div>
+                <div class="card-body d-flex flex-column align-items-center justify-content-center" style="padding:0.7rem 1.7rem; width:100%;">
+                    <ul id="topSalesList" class="list-unstyled w-100 mb-0" style="font-size:1.1em;">
+                        <!-- Top sales will be injected here -->
+                    </ul>
                 </div>
             </div>
         </div>
@@ -218,6 +263,7 @@ if (!$('link[href*="select2.min.css"]').length) {
 }
 
 $(document).ready(function() {
+    updateFollowUpCount();
     // Initialize date range picker
     $('#dateRange').daterangepicker({
         autoUpdateInput: false,
@@ -229,15 +275,28 @@ $(document).ready(function() {
     $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
         table.ajax.reload();
+        updateFollowUpCount();
     });
     $('#dateRange').on('cancel.daterangepicker', function(ev, picker) {
         $(this).val('');
         table.ajax.reload();
+        updateFollowUpCount();
+    });
+    $('#kategoriFilter, #statusResponFilter, #statusBookingFilter').on('change', function() {
+        updateFollowUpCount();
     });
 
     // Function to update today's follow up count
     function updateFollowUpCount() {
-        $.get("{{ route('marketing.followup.count-today') }}", function(res) {
+        // This function fetches and updates the stat cards based on the current date range and filters
+        var dr = $('#dateRange').val();
+        var params = {};
+        if(dr) {
+            var dates = dr.split(' - ');
+            params.start_date = dates[0];
+            params.end_date = dates[1];
+        }
+        $.get("{{ route('marketing.followup.count-today') }}", params, function(res) {
             $('#followUpCount').text(res.count);
             $('#followUpDirespon').text(res.direspon);
             $('#followUpTidakDirespon').text(res.tidak_direspon);
@@ -246,8 +305,26 @@ $(document).ready(function() {
             $('#bookingBatal').text(res.batal ?? 0);
             $('#bookingMenunggu').text(res.menunggu ?? 0);
             $('#bookingSukses').text(res.sukses ?? 0);
+            $('#kategoriProduk').text(res.kategori_produk ?? 0);
+            $('#kategoriPerawatan').text(res.kategori_perawatan ?? 0);
+            $('#kategoriReseller').text(res.kategori_reseller ?? 0);
+            $('#kategoriSlimming').text(res.kategori_slimming ?? 0);
+            // Render Top Sales
+            var $list = $('#topSalesList');
+            $list.empty();
+            if(res.top_sales && res.top_sales.length > 0) {
+                res.top_sales.forEach(function(sale, idx) {
+                    $list.append('<li class="d-flex justify-content-between align-items-center mb-1"><span style="font-weight:600; color:#343a40;">' + (idx+1) + '. ' + sale.nama + '</span><span style="font-weight:700; color:#fd7e14; font-size:1.2em;">' + sale.jumlah + '</span></li>');
+                });
+            } else {
+                $list.append('<li class="text-muted">Tidak ada data</li>');
+            }
         });
     }
+    // Set dateRange to today by default
+    var today = moment().format('YYYY-MM-DD');
+    $('#dateRange').val(today + ' - ' + today);
+
     var table = $('#followupTable').DataTable({
         processing: true,
         serverSide: true,
@@ -259,6 +336,10 @@ $(document).ready(function() {
                     var dates = dr.split(' - ');
                     d.start_date = dates[0];
                     d.end_date = dates[1];
+                } else {
+                    // If no date selected, default to today
+                    d.start_date = today;
+                    d.end_date = today;
                 }
                 var kategori = $('#kategoriFilter').val();
                 if(kategori && kategori.length > 0) {

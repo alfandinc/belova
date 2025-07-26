@@ -38,6 +38,9 @@
             </li> --}}
             <li class="menu-label">MARKETING TOOLS</li>
             <li>
+                <a href="/marketing/followup"> <i data-feather="check-square" class="align-self-center menu-icon"></i><span>Follow Up</span></a>
+            </li>
+            <li>
                 <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span></a>
             </li>
             <li>
@@ -47,7 +50,7 @@
             
             <li class="menu-label">MASTER DATA</li>
             <li>
-                <a href="/marketing/pasien-data"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Pasien Data</span></a>
+                <a href="/marketing/pasien-data"> <i data-feather="user" class="align-self-center menu-icon"></i><span>Pasien Data</span></a>
             </li>
             <li>
                 <a href="/marketing/tindakan"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Tindakan</span></a>

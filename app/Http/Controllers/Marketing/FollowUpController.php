@@ -17,10 +17,13 @@ class FollowUpController extends Controller
             $data = FollowUp::with(['pasien', 'sales']);
             // Filter by date range if provided
             if ($request->filled('start_date') && $request->filled('end_date')) {
-                $data->whereBetween('created_at', [
-                    $request->input('start_date'),
-                    $request->input('end_date')
-                ]);
+                $start = $request->input('start_date');
+                $end = $request->input('end_date');
+                if ($start === $end) {
+                    $data->whereDate('created_at', $start);
+                } else {
+                    $data->whereBetween('created_at', [$start, $end]);
+                }
             }
             // Filter by kategori if provided
             if ($request->filled('kategori')) {
@@ -140,20 +143,49 @@ class FollowUpController extends Controller
     // Get total follow up for today
     public function countToday()
     {
-        $query = FollowUp::whereDate('created_at', now()->toDateString());
+        $start = request('start_date') ?? now()->toDateString();
+        $end = request('end_date') ?? now()->toDateString();
+        // If start and end are the same, use whereDate for exact match
+        if ($start === $end) {
+            $query = FollowUp::whereDate('created_at', $start);
+        } else {
+            $query = FollowUp::whereBetween('created_at', [$start, $end]);
+        }
         $count = $query->count();
-        $countDirespon = $query->where('status_respon', 'Direspon')->count();
-        $countTidakDirespon = FollowUp::whereDate('created_at', now()->toDateString())
-            ->where('status_respon', 'Tidak Direspon')->count();
+        $baseQuery = $query;
+        $countDirespon = (clone $baseQuery)->where('status_respon', 'Direspon')->count();
+        $countTidakDirespon = (clone $baseQuery)->where('status_respon', 'Tidak Direspon')->count();
         $percentDirespon = $count > 0 ? round($countDirespon / $count * 100, 1) : 0;
         $percentTidakDirespon = $count > 0 ? round($countTidakDirespon / $count * 100, 1) : 0;
+        
+        $countBatal = (clone $baseQuery)->where('status_booking', 'Batal')->count();
+        $countMenunggu = (clone $baseQuery)->where('status_booking', 'Menunggu')->count();
+        $countSukses = (clone $baseQuery)->where('status_booking', 'Sukses')->count();
+        
+        // Kategori counts (JSON field)
+        $kategoriProduk = (clone $baseQuery)->whereJsonContains('kategori', 'Produk')->count();
+        $kategoriPerawatan = (clone $baseQuery)->whereJsonContains('kategori', 'Perawatan')->count();
+        $kategoriReseller = (clone $baseQuery)->whereJsonContains('kategori', 'Reseller')->count();
+        $kategoriSlimming = (clone $baseQuery)->whereJsonContains('kategori', 'Slimming')->count();
 
-        $countBatal = FollowUp::whereDate('created_at', now()->toDateString())
-            ->where('status_booking', 'Batal')->count();
-        $countMenunggu = FollowUp::whereDate('created_at', now()->toDateString())
-            ->where('status_booking', 'Menunggu')->count();
-        $countSukses = FollowUp::whereDate('created_at', now()->toDateString())
-            ->where('status_booking', 'Sukses')->count();
+        // Top 5 sales by count
+        $topSales = (clone $baseQuery)
+            ->selectRaw('sales_id, COUNT(*) as jumlah')
+            ->whereNotNull('sales_id')
+            ->groupBy('sales_id')
+            ->orderByDesc('jumlah')
+            ->limit(5)
+            ->get();
+
+        // Get sales names
+        $salesList = [];
+        foreach ($topSales as $row) {
+            $sales = \App\Models\HRD\Employee::find($row->sales_id);
+            $salesList[] = [
+                'nama' => $sales ? $sales->nama : '-',
+                'jumlah' => $row->jumlah
+            ];
+        }
 
         return response()->json([
             'count' => $count,
@@ -163,7 +195,12 @@ class FollowUpController extends Controller
             'percent_tidak_direspon' => $percentTidakDirespon,
             'batal' => $countBatal,
             'menunggu' => $countMenunggu,
-            'sukses' => $countSukses
+            'sukses' => $countSukses,
+            'kategori_produk' => $kategoriProduk,
+            'kategori_perawatan' => $kategoriPerawatan,
+            'kategori_reseller' => $kategoriReseller,
+            'kategori_slimming' => $kategoriSlimming,
+            'top_sales' => $salesList
         ]);
     }
 }
