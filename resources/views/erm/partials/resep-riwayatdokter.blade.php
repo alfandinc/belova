@@ -31,7 +31,16 @@
                 <tbody>
                     @foreach ($nonRacikans as $item)
                         <tr>
-                            <td>{{ $item->obat->nama ?? '-' }}</td>
+                            <td>
+                                @if ($item->obat)
+                                    {{ $item->obat->nama }}
+                                    @if (isset($item->obat->status_aktif) && $item->obat->status_aktif == 0)
+                                        <span class="badge badge-warning">Non Aktif</span>
+                                    @endif
+                                @else
+                                    <span class="text-danger">Obat dihapus</span>
+                                @endif
+                            </td>
                             <td>{{ $item->jumlah }}</td>
                             <td>{{ $item->aturan_pakai }}</td>
                             <td>{{ $item->created_at ? \Carbon\Carbon::parse($item->created_at)->translatedFormat('d/m/Y H:i') : '-' }}</td>
@@ -58,7 +67,16 @@
                 <tbody>
                     @foreach ($items as $racik)
                         <tr>
-                            <td>{{ $racik->obat->nama ?? '-' }}</td>
+                            <td>
+                                @if ($racik->obat)
+                                    {{ $racik->obat->nama }}
+                                    @if (isset($racik->obat->status_aktif) && $racik->obat->status_aktif == 0)
+                                        <span class="badge badge-warning">Non Aktif</span>
+                                    @endif
+                                @else
+                                    <span class="text-danger">Obat dihapus</span>
+                                @endif
+                            </td>
                             <td>{{ $racik->dosis ?? '-' }}</td>
                             <td>{{ $racik->created_at ? \Carbon\Carbon::parse($racik->created_at)->translatedFormat('d/m/Y H:i') : '-' }}</td>
                         </tr>
