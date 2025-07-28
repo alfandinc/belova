@@ -681,7 +681,10 @@ class EresepController extends Controller
 
     public function getRiwayatDokter($pasienId)
     {
-        $reseps = ResepDokter::with(['obat', 'visitation'])
+        $reseps = ResepDokter::with([
+            'obat' => function($q) { $q->withInactive(); },
+            'visitation'
+        ])
             ->whereHas('visitation', fn($q) => $q->where('pasien_id', $pasienId))
             ->orderByDesc(
                 \App\Models\ERM\Visitation::select('tanggal_visitation')
