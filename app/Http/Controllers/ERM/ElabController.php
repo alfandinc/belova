@@ -314,7 +314,13 @@ class ElabController extends Controller
         return DataTables::of($query)
             ->addIndexColumn()
             ->addColumn('tanggal', function($row) {
-                return date('d-m-Y', strtotime($row->tanggal_visitation));
+                // Use indoDate helper for Indonesian format
+                return $this->indoDate($row->tanggal_visitation);
+            })
+            // New column: Pemeriksaan
+            ->addColumn('pemeriksaan', function($row) {
+                $hasilLis = \App\Models\ERM\HasilLis::where('visitation_id', $row->id)->pluck('nama_test')->toArray();
+                return implode(', ', $hasilLis);
             })
             ->addColumn('dokter', function($row) {
                 return $row->dokter && $row->dokter->user 
@@ -518,11 +524,16 @@ class ElabController extends Controller
             ->addColumn('asal_lab', function($row) {
                 return $row->asal_lab;
             })
+            // New column: Nama Pemeriksaan
+            ->addColumn('nama_pemeriksaan', function($row) {
+                return $row->nama_pemeriksaan;
+            })
             ->addColumn('dokter', function($row) {
                 return $row->dokter;
             })
             ->addColumn('tanggal_pemeriksaan', function($row) {
-                return date('d-m-Y', strtotime($row->tanggal_pemeriksaan));
+                // Use indoDate helper for Indonesian format
+                return $this->indoDate($row->tanggal_pemeriksaan);
             })
             ->addColumn('action', function($row) {
                 return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-eksternal" data-id="'.$row->id.'">

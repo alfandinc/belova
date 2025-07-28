@@ -264,7 +264,8 @@
                                         <tr>
                                             <th style="width: 5%">No</th>
                                             <th style="width: 20%">Tanggal Kunjungan</th>
-                                            <th style="width: 55%">Dokter</th>
+                                            <th style="width: 35%">Pemeriksaan</th>
+                                            <th style="width: 20%">Dokter</th>
                                             <th style="width: 20%">Aksi</th>
                                         </tr>
                                     </thead>
@@ -288,7 +289,8 @@
                                         <tr>
                                             <th style="width: 5%">No</th>
                                             <th style="width: 20%">Asal Lab</th>
-                                            <th style="width: 20%">Nama Dokter</th>
+                                            <th style="width: 20%">Nama Pemeriksaan</th>
+                                            <th style="width: 15%">Nama Dokter</th>
                                             <th style="width: 20%">Tanggal Periksa</th>
                                             <th style="width: 20%">Aksi</th>
                                         </tr>
@@ -992,7 +994,8 @@ $(document).ready(function () {
         columns: [
             { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false, width: '5%' },
             { data: 'tanggal', name: 'tanggal_visitation', width: '20%' },
-            { data: 'dokter', name: 'dokter', width: '55%' },
+            { data: 'pemeriksaan', name: 'pemeriksaan', width: '35%' },
+            { data: 'dokter', name: 'dokter', width: '20%' },
             { data: 'action', name: 'action', orderable: false, searchable: false, width: '20%', className: 'text-center' }
         ],
         order: [[1, 'desc']],
@@ -1176,6 +1179,7 @@ $(document).ready(function () {
         columns: [
             { data: 'DT_RowIndex', name: 'DT_RowIndex', searchable: false },
             { data: 'asal_lab', name: 'asal_lab' },
+            { data: 'nama_pemeriksaan', name: 'nama_pemeriksaan' },
             { data: 'dokter', name: 'dokter' },
             { data: 'tanggal_pemeriksaan', name: 'tanggal_pemeriksaan' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
