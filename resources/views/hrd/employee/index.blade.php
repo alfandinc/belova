@@ -49,7 +49,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <div class="text-center mb-3">
                     <div class="spinner-border text-primary" role="status">
                         <span class="sr-only">Loading...</span>
@@ -89,6 +89,22 @@
                                 <div class="col-md-6 mb-3">
                                     <strong><i class="fas fa-phone mr-1"></i>No HP:</strong>
                                     <p class="text-muted" id="employee-no_hp">-</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-tint mr-1"></i>Gol. Darah:</strong>
+                                    <p class="text-muted" id="employee-gol_darah">-</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-user-shield mr-1"></i>No Darurat:</strong>
+                                    <p class="text-muted" id="employee-no_darurat">-</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-envelope mr-1"></i>Email:</strong>
+                                    <p class="text-muted" id="employee-email">-</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fab fa-instagram mr-1"></i>Instagram:</strong>
+                                    <p class="text-muted" id="employee-instagram">-</p>
                                 </div>
                                 
                                 <div class="col-md-6 mb-3">
@@ -492,6 +508,10 @@ $(function() {
                     $('#employee-ttl').text(ttl);
                     
                     $('#employee-no_hp').text(employee.no_hp || '-');
+                    $('#employee-gol_darah').text(employee.gol_darah || '-');
+                    $('#employee-no_darurat').text(employee.no_darurat || '-');
+                    $('#employee-email').text(employee.email || '-');
+                    $('#employee-instagram').text(employee.instagram ? '@' + employee.instagram : '-');
                     $('#employee-alamat').text(employee.alamat || '-');
                     $('#employee-pendidikan').text(employee.pendidikan || '-');
                     

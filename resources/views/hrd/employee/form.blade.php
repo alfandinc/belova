@@ -118,6 +118,16 @@
                                 </div>
                             </div>
                             <div class="form-group col-md-6">
+                                <label for="gol_darah">Golongan Darah</label>
+                                <select name="gol_darah" id="gol_darah" class="form-control">
+                                    <option value="">- Pilih Golongan Darah -</option>
+                                    <option value="A" {{ old('gol_darah', $employee->gol_darah ?? '') == 'A' ? 'selected' : '' }}>A</option>
+                                    <option value="B" {{ old('gol_darah', $employee->gol_darah ?? '') == 'B' ? 'selected' : '' }}>B</option>
+                                    <option value="AB" {{ old('gol_darah', $employee->gol_darah ?? '') == 'AB' ? 'selected' : '' }}>AB</option>
+                                    <option value="O" {{ old('gol_darah', $employee->gol_darah ?? '') == 'O' ? 'selected' : '' }}>O</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
                                 <label for="email">Email</label>
                                 <div class="input-group">
                                     <div class="input-group-prepend">

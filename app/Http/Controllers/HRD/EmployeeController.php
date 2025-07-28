@@ -116,6 +116,7 @@ class EmployeeController extends Controller
             'no_induk' => 'nullable|string|unique:hrd_employee,no_induk',
             'no_darurat' => 'nullable|string|max:50', // Emergency contact number
             'alamat' => 'nullable|string',
+            'gol_darah' => 'nullable|string|max:5',
             'village_id' => 'nullable|exists:area_villages,id',
             'position_id' => 'nullable|exists:hrd_position,id',
             'division_id' => 'nullable|exists:hrd_division,id',
@@ -211,6 +212,7 @@ class EmployeeController extends Controller
             'no_induk' => 'nullable|string|unique:hrd_employee,no_induk,' . $employee->id,
             'no_darurat' => 'nullable|string|max:50', // Emergency contact number
             'alamat' => 'nullable|string',
+            'gol_darah' => 'nullable|string|max:5',
             'position_id' => 'nullable|exists:hrd_position,id',
             'division_id' => 'nullable|exists:hrd_division,id',
             'pendidikan' => 'nullable|string',

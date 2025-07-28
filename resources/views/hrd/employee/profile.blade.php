@@ -55,10 +55,11 @@
                             <p><strong>NIK:</strong> {{ $employee->nik }}</p>
                             <p><strong>Tempat, Tanggal Lahir:</strong> {{ $employee->tempat_lahir }}, {{ $employee->tanggal_lahir ? \Carbon\Carbon::parse($employee->tanggal_lahir)->format('d-m-Y') : '-' }}</p>
                             <p><strong>Pendidikan:</strong> {{ $employee->pendidikan }}</p>
+                            <p><strong>Gol. Darah:</strong> {{ $employee->gol_darah ?? '-' }}</p>
                             <p><strong>Divisi:</strong> {{ $employee->division->name ?? '-' }}</p>
                             <p><strong>Jabatan:</strong> {{ $employee->position->name ?? '-' }}</p>
-                            {{-- Debug position relationship --}}
-                            {{-- {{ dd($employee->position) }} --}}
+                            <p><strong>Email:</strong> {{ $employee->email ?? '-' }}</p>
+                            <p><strong>Instagram:</strong> {{ $employee->instagram ? '@'.$employee->instagram : '-' }}</p>
                         </div>
                         <div class="col-md-6">
                             <p><strong>Tanggal Masuk:</strong> {{ $employee->tanggal_masuk ? \Carbon\Carbon::parse($employee->tanggal_masuk)->format('d-m-Y') : '-' }}</p>

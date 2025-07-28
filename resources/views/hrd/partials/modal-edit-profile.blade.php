@@ -55,13 +55,23 @@
                     </div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group col-md-6">
+                    <div class="form-group col-md-4">
                         <label>Pendidikan</label>
                         <input type="text" name="pendidikan" class="form-control" value="{{ old('pendidikan', $employee->pendidikan) }}">
                     </div>
-                    <div class="form-group col-md-6">
+                    <div class="form-group col-md-4">
                         <label>No. HP</label>
                         <input type="text" name="no_hp" class="form-control" value="{{ old('no_hp', $employee->no_hp) }}">
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label>Golongan Darah</label>
+                        <select name="gol_darah" class="form-control">
+                            <option value="">- Pilih Golongan Darah -</option>
+                            <option value="A" {{ old('gol_darah', $employee->gol_darah) == 'A' ? 'selected' : '' }}>A</option>
+                            <option value="B" {{ old('gol_darah', $employee->gol_darah) == 'B' ? 'selected' : '' }}>B</option>
+                            <option value="AB" {{ old('gol_darah', $employee->gol_darah) == 'AB' ? 'selected' : '' }}>AB</option>
+                            <option value="O" {{ old('gol_darah', $employee->gol_darah) == 'O' ? 'selected' : '' }}>O</option>
+                        </select>
                     </div>
                 </div>
                 <div class="form-row">

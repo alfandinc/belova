@@ -19,6 +19,7 @@ class Employee extends Model
         'no_induk',
         'no_darurat', // Emergency contact number
         'alamat',
+        'gol_darah', // Blood type
         'village_id',
         'position',       // Changed from 'posisi' to match migration
         'division_id',       // Changed from 'divisi' to match migration

@@ -75,6 +75,7 @@ public function updateProfile(Request $request)
         'tanggal_lahir' => 'nullable|date',
         'pendidikan' => 'nullable|string',
         'alamat' => 'nullable|string',
+        'gol_darah' => 'nullable|string|max:5',
         'village_id' => 'nullable|exists:area_villages,id',
         'no_hp' => 'nullable|string',
         'no_darurat' => 'nullable|string|max:50', // Emergency contact number
