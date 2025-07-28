@@ -1,4 +1,4 @@
-<div class="card">
+<div class="card" style="border: 2.5px solid #0d6efd; border-radius: 18px; box-shadow: 0 8px 40px 0 rgba(13,110,253,0.22); margin-bottom: 24px; padding: 4px 18px 4px 18px;">
         <div class="card-body">  
                   
             <div class="row mt-0">
