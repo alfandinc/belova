@@ -140,7 +140,13 @@
                         </div>
                         <div class="col-md-4">
                             <label>Aturan Pakai</label>
-                            <input type="text" id="aturan_pakai" class="form-control">
+                            <div class="input-group mb-1">
+                                <input type="number" min="1" id="frekuensi" class="form-control" placeholder="Frekuensi (misal: 1)">
+                                <span class="input-group-text">x sehari</span>
+                                <input type="number" min="1" id="dosis" class="form-control" placeholder="Dosis (misal: 1)">
+                                <input type="text" id="keterangan_waktu" class="form-control" placeholder="Keterangan waktu (misal: sebelum makan)">
+                            </div>
+                            <input hidden type="text" id="aturan_pakai" class="form-control" placeholder="Aturan Pakai" readonly>
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <button id="tambah-resep" class="btn btn-primary btn-block">Tambah</button>
@@ -1062,14 +1068,18 @@
         
         updateTotalPrice(); // 
 
-        // AUTO-FILL ATURAN PAKAI ON TAB (NON RACIKAN)
-        $('#aturan_pakai').on('keydown', function(e) {
-            if (e.key === 'Tab' && !$(this).val()) {
-                e.preventDefault();
-                $(this).val('1 X Sehari 1');
-                this.select();
+        // AUTO-GENERATE ATURAN PAKAI TEMPLATE (NON RACIKAN)
+        function updateAturanPakaiTemplate() {
+            const frekuensi = $('#frekuensi').val();
+            const dosis = $('#dosis').val();
+            const keterangan = $('#keterangan_waktu').val();
+            let aturan = '';
+            if (frekuensi && dosis) {
+                aturan = `${frekuensi} x sehari ${dosis}${keterangan ? ' ' + keterangan : ''}`;
             }
-        });
+            $('#aturan_pakai').val(aturan);
+        }
+        $('#frekuensi, #dosis, #keterangan_waktu').on('input', updateAturanPakaiTemplate);
         // AUTO-FILL ATURAN PAKAI ON TAB (RACIKAN, DYNAMIC)
         $(document).on('keydown', '.aturan_pakai', function(e) {
             if (e.key === 'Tab' && !$(this).val()) {
