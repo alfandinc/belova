@@ -172,8 +172,8 @@
 
     <!-- Diagnosa Kerja Card -->
     <div class="card mb-3">
-        <div class="card-header bg-primary">
-            <h5 class="text-white mb-0">Diagnosa Kerja (Asesmen Terakhir)</h5>
+        <div class="card-header">
+            <h5 class="mb-0"><strong>Diagnosa Pasien</strong></h5>
         </div>
         <div class="card-body">
             <div class="row">
@@ -223,10 +223,13 @@
     <!-- Two column layout for Lab Management -->
     <div class="row">
         <!-- Left Column - Permintaan Lab -->
-        <div class="col-md-6">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-flask mr-2"></i> <strong>HASIL LAB</strong></h5>
+                    <a href="{{ route('erm.elab.lembar-monitoring.pdf', $visitation->pasien_id) }}" target="_blank" class="btn btn-sm btn-success mr-2">
+                                    <i class="fas fa-file-alt mr-1"></i> Cetak Lembar Monitoring
+                                </a>
                 </div>
                 <div class="card-body">
                     <!-- Tabs navigation for lab results -->
@@ -248,9 +251,7 @@
                         <!-- Hasil LIS Tab -->
                         <div class="tab-pane fade show active" id="hasil-lis-content" role="tabpanel" aria-labelledby="hasil-lis-tab">
                             <div class="d-flex justify-content-end mb-3">
-                                <a href="{{ route('erm.elab.lembar-monitoring.pdf', $visitation->pasien_id) }}" target="_blank" class="btn btn-sm btn-info mr-2">
-                                    <i class="fas fa-file-alt mr-1"></i> Cetak Lembar Monitoring
-                                </a>
+                                
                                 {{-- @if(count($existingLabTestIds) > 0)
                                 <a href="{{ route('erm.elab.hasil-lis.pdf', $visitation->id) }}" target="_blank" class="btn btn-sm btn-primary">
                                     <i class="fas fa-print mr-1"></i> Cetak Hasil Lab
@@ -302,8 +303,11 @@
                 </div>
             </div>
         </div>
+        
+    </div>
+    <div class="row">
         <!-- Merged Card: Estimasi Harga & Permintaan Terpilih with Tabs -->
-        <div class="col-md-6">
+        <div class="col-md-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-center" style="flex:1;">
@@ -397,6 +401,7 @@
                 </div>
             </div>
         </div>
+
     </div>
     <!-- Estimasi Harga moved here between the two cards above and the form card below -->
     <div class="row">

@@ -1,4 +1,4 @@
-<div class="card" style="border: 2.5px solid #0d6efd; border-radius: 18px; box-shadow: 0 8px 40px 0 rgba(13,110,253,0.22); margin-bottom: 24px; padding: 4px 18px 4px 18px;">
+<div class="card" style="border: 2.5px solid #0d6efd; border-radius: 18px; box-shadow: 0 8px 40px 0 rgba(13,110,253,0.22); margin-bottom: 24px; padding: 18px 18px 18px 18px;">
         <div class="card-body">  
                   
             <div class="row mt-0">
@@ -77,7 +77,7 @@
                               
                         </div>
                     </div>
-                    <div class="row mb-1 align-items-center">
+                    <div class="row mb-1 mt-4 align-items-center">
     <div class="col-12 text-end">
         <span style="padding: 6px 20px; border: 2px solid #0d6efd; border-radius: 8px; font-weight: bold; background: #f8f9fa; color: #0d6efd; box-shadow: 0 2px 8px 0 rgba(13,110,253,0.10);">
             Kunjungan Terakhir: {{ $lastVisitDate }}
