@@ -139,7 +139,7 @@
                     data-dokter="{{ $visitation->dokter_id ?? '' }}"
                     data-metodebayar="{{ $visitation->metode_bayar_id ?? '' }}">
                         <i data-feather="calendar" class="align-self-center menu-icon"></i>
-                        <span>Daftar Kunjungan</span>
+                        <span>Reservasi Kunjungan</span>
                     </a>
                 </li>
                 {{-- <li>
