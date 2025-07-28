@@ -44,34 +44,29 @@ class MarketingController extends Controller
                 $data = $data->where('alamat', 'like', "%$area%");
             }
 
-            // Filter by last visit range if provided
+            // Filter by last visit range if provided (use last_visitation_date, not any visitation)
             if ($request->has('last_visit') && $request->last_visit != 'all') {
                 $now = Carbon::now();
                 switch ($request->last_visit) {
                     case 'gt1w':
-                        $data = $data->whereHas('visitations', function($q) use ($now) {
-                            $q->where('tanggal_visitation', '<', $now->copy()->subWeek());
-                        });
+                        $date = $now->copy()->subWeek();
+                        $data = $data->having('last_visitation_date', '<', $date);
                         break;
                     case 'gt1m':
-                        $data = $data->whereHas('visitations', function($q) use ($now) {
-                            $q->where('tanggal_visitation', '<', $now->copy()->subMonth());
-                        });
+                        $date = $now->copy()->subMonth();
+                        $data = $data->having('last_visitation_date', '<', $date);
                         break;
                     case 'gt3m':
-                        $data = $data->whereHas('visitations', function($q) use ($now) {
-                            $q->where('tanggal_visitation', '<', $now->copy()->subMonths(3));
-                        });
+                        $date = $now->copy()->subMonths(3);
+                        $data = $data->having('last_visitation_date', '<', $date);
                         break;
                     case 'gt6m':
-                        $data = $data->whereHas('visitations', function($q) use ($now) {
-                            $q->where('tanggal_visitation', '<', $now->copy()->subMonths(6));
-                        });
+                        $date = $now->copy()->subMonths(6);
+                        $data = $data->having('last_visitation_date', '<', $date);
                         break;
                     case 'gt1y':
-                        $data = $data->whereHas('visitations', function($q) use ($now) {
-                            $q->where('tanggal_visitation', '<', $now->copy()->subYear());
-                        });
+                        $date = $now->copy()->subYear();
+                        $data = $data->having('last_visitation_date', '<', $date);
                         break;
                 }
             }
