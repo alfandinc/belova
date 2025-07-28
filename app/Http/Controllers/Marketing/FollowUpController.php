@@ -66,6 +66,25 @@ class FollowUpController extends Controller
         return view('marketing.followup.index');
     }
 
+        // Add pasien to follow up list from pasien data
+    public function addFromPasien(Request $request)
+    {
+        $request->validate([
+            'pasien_id' => 'required|exists:erm_pasiens,id',
+        ]);
+        $followup = new \App\Models\Marketing\FollowUp();
+        $followup->pasien_id = $request->pasien_id;
+        $followup->kategori = null;
+        $followup->sales_id = null;
+        $followup->status_respon = null;
+        $followup->bukti_respon = null;
+        $followup->rencana_tindak_lanjut = null;
+        $followup->status_booking = null;
+        $followup->catatan = null;
+        $followup->save();
+        return response()->json(['success' => true]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([

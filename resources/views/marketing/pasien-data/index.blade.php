@@ -70,6 +70,7 @@
                                     <th>No HP</th>
                                     <th>Kunjungan Terakhir</th>
                                     <th>Gender</th>
+                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -81,6 +82,44 @@
         </div> <!-- end col -->
     </div> <!-- end row -->
 </div><!-- container -->
+<!-- Modal for View Pasien Data -->
+<div class="modal fade" id="viewPasienModal" tabindex="-1" role="dialog" aria-labelledby="viewPasienModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewPasienModalLabel">Detail Pasien</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-bordered">
+          <tbody>
+            <tr><th>ID</th><td id="modal-pasien-id"></td></tr>
+            <tr><th>Nama</th><td id="modal-pasien-nama"></td></tr>
+            <tr><th>NIK</th><td id="modal-pasien-nik"></td></tr>
+            <tr><th>Tanggal Lahir</th><td id="modal-pasien-tanggal_lahir"></td></tr>
+            <tr><th>Gender</th><td id="modal-pasien-gender"></td></tr>
+            <tr><th>Agama</th><td id="modal-pasien-agama"></td></tr>
+            <tr><th>Marital Status</th><td id="modal-pasien-marital_status"></td></tr>
+            <tr><th>Pendidikan</th><td id="modal-pasien-pendidikan"></td></tr>
+            <tr><th>Pekerjaan</th><td id="modal-pasien-pekerjaan"></td></tr>
+            <tr><th>Golongan Darah</th><td id="modal-pasien-gol_darah"></td></tr>
+            <tr><th>Notes</th><td id="modal-pasien-notes"></td></tr>
+            <tr><th>Alamat</th><td id="modal-pasien-alamat"></td></tr>
+            <tr><th>No HP</th><td id="modal-pasien-no_hp"></td></tr>
+            <tr><th>No HP 2</th><td id="modal-pasien-no_hp2"></td></tr>
+            <tr><th>Email</th><td id="modal-pasien-email"></td></tr>
+            <tr><th>Instagram</th><td id="modal-pasien-instagram"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -103,14 +142,71 @@
                 { data: 'tanggal_lahir', name: 'tanggal_lahir' },
                 { data: 'no_hp', name: 'no_hp' },
                 { data: 'kunjungan_terakhir', name: 'kunjungan_terakhir' },
-                { data: 'gender_text', name: 'gender_text' }
+                { data: 'gender_text', name: 'gender_text' },
+                {
+                    data: null,
+                    name: 'aksi',
+                    orderable: false,
+                    searchable: false,
+                    render: function(data, type, row) {
+                        return `
+                            <button class=\"btn btn-primary btn-sm view-pasien-btn\" data-pasien='${JSON.stringify(row)}'>View</button>
+                            <button class=\"btn btn-success btn-sm add-followup-btn\" data-id='${row.id}'>Add to Follow Up List</button>
+                        `;
+                    }
+                }
+
             ]
+    });
+        // Add to Follow Up List button handler
+    $(document).on('click', '.add-followup-btn', function() {
+        var pasienId = $(this).data('id');
+        if (!pasienId) return;
+        if (!confirm('Tambahkan pasien ini ke Follow Up List?')) return;
+        $.ajax({
+            url: '/marketing/followup/add-from-pasien',
+            method: 'POST',
+            data: {
+                pasien_id: pasienId,
+                _token: '{{ csrf_token() }}'
+            },
+            success: function(res) {
+                alert('Berhasil ditambahkan ke Follow Up List!');
+            },
+            error: function(xhr) {
+                alert('Gagal menambahkan ke Follow Up List!');
+            }
         });
-        
-        // Reload table when any filter changes
-        $('#last-visit-filter, #last-visit-klinik-filter').change(function() {
-            table.draw();
-        });
+    });
+
+    // Reload table when any filter changes
+    $('#last-visit-filter, #last-visit-klinik-filter').change(function() {
+        table.draw();
+    });
+
+    // Modal for view pasien
+    $(document).on('click', '.view-pasien-btn', function() {
+        var pasien = $(this).data('pasien');
+        // Fill modal fields
+        $('#modal-pasien-id').text(pasien.id || '-');
+        $('#modal-pasien-nama').text(pasien.nama || '-');
+        $('#modal-pasien-nik').text(pasien.nik || '-');
+        $('#modal-pasien-tanggal_lahir').text(pasien.tanggal_lahir || '-');
+        $('#modal-pasien-gender').text(pasien.gender || '-');
+        $('#modal-pasien-agama').text(pasien.agama || '-');
+        $('#modal-pasien-marital_status').text(pasien.marital_status || '-');
+        $('#modal-pasien-pendidikan').text(pasien.pendidikan || '-');
+        $('#modal-pasien-pekerjaan').text(pasien.pekerjaan || '-');
+        $('#modal-pasien-gol_darah').text(pasien.gol_darah || '-');
+        $('#modal-pasien-notes').text(pasien.notes || '-');
+        $('#modal-pasien-alamat').text(pasien.alamat || '-');
+        $('#modal-pasien-no_hp').text(pasien.no_hp || '-');
+        $('#modal-pasien-no_hp2').text(pasien.no_hp2 || '-');
+        $('#modal-pasien-email').text(pasien.email || '-');
+        $('#modal-pasien-instagram').text(pasien.instagram || '-');
+        $('#viewPasienModal').modal('show');
+    });
+
     });
 </script>
 @endpush

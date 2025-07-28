@@ -29,7 +29,7 @@ class MarketingController extends Controller
     public function pasienData(Request $request)
     {
         if ($request->ajax()) {
-            $data = Pasien::select('id', 'nama', 'tanggal_lahir', 'gender', 'alamat', 'no_hp')
+            $data = Pasien::select('id', 'nama', 'nik', 'tanggal_lahir', 'gender', 'agama', 'marital_status', 'pendidikan', 'pekerjaan', 'gol_darah', 'notes', 'alamat', 'no_hp', 'no_hp2', 'email', 'instagram')
                 ->addSelect([
                     'last_visitation_date' => Visitation::select('tanggal_visitation')
                         ->whereColumn('pasien_id', 'erm_pasiens.id')

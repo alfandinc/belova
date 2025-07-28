@@ -564,6 +564,8 @@ Route::prefix('hrd')->group(
 );
 
 Route::prefix('marketing')->group(function () {
+    // Add pasien to follow up from pasien data
+    Route::post('/followup/add-from-pasien', [\App\Http\Controllers\Marketing\FollowUpController::class, 'addFromPasien'])->name('marketing.followup.add-from-pasien');
     // AJAX search for SOPs
     Route::get('/sop/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchSop']);
 
