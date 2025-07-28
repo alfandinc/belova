@@ -120,6 +120,26 @@
     </div>
   </div>
 </div>
+
+<!-- Modal for Riwayat RM -->
+<div class="modal fade" id="riwayatRMModal" tabindex="-1" role="dialog" aria-labelledby="riwayatRMModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="riwayatRMModalLabel">Riwayat RM</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="riwayatRMModalBody">
+        <!-- Content loaded by JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -152,6 +172,7 @@
                         return `
                             <button class=\"btn btn-primary btn-sm view-pasien-btn\" data-pasien='${JSON.stringify(row)}'>View</button>
                             <button class=\"btn btn-success btn-sm add-followup-btn\" data-id='${row.id}'>Add to Follow Up List</button>
+                            <button class=\"btn btn-info btn-sm riwayat-rm-btn\" data-id='${row.id}'>Riwayat RM</button>
                         `;
                     }
                 }
@@ -206,6 +227,68 @@
         $('#modal-pasien-instagram').text(pasien.instagram || '-');
         $('#viewPasienModal').modal('show');
     });
+
+    // Modal for Riwayat RM
+    $(document).on('click', '.riwayat-rm-btn', function() {
+        var pasienId = $(this).data('id');
+        if (!pasienId) return;
+        // Clear modal content
+        $('#riwayatRMModalBody').html('<div class="text-center">Loading...</div>');
+        $('#riwayatRMModal').modal('show');
+        // Fetch data
+        $.get('/marketing/pasien/' + pasienId + '/riwayat-rm', function(res) {
+            // Helper: format date to 1 Januari 2025
+            function formatIndoDate(dateStr) {
+                if (!dateStr || dateStr === '-') return '-';
+                var months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                var d = new Date(dateStr);
+                if (isNaN(d)) return dateStr;
+                var day = d.getDate();
+                var month = months[d.getMonth()];
+                var year = d.getFullYear();
+                return day + ' ' + month + ' ' + year;
+            }
+            // Render grouped by visitation
+            var html = '';
+            if (res && res.length > 0) {
+                res.forEach(function(visit) {
+                    var visitDate = formatIndoDate(visit.visitation_info);
+                    var dokterNama = visit.dokter_nama ? visit.dokter_nama : '-';
+                    html += '<div class="card mb-3">';
+                    html += '<div class="card-header"><b>Visitation: ' + (visitDate || '-') + ' <span class="text-muted">| Dokter: ' + dokterNama + '</span></b></div>';
+                    html += '<div class="card-body">';
+                    html += '<h6>Riwayat Resep Dokter</h6>';
+                    if (visit.resep_dokter && visit.resep_dokter.length > 0) {
+                        html += '<ul>';
+                        visit.resep_dokter.forEach(function(r) {
+                            html += '<li>' + (r.obat_nama || '-') + ' | Jumlah: ' + (r.jumlah || '-') + '</li>';
+                        });
+                        html += '</ul>';
+                    } else {
+                        html += '<div class="text-muted">Tidak ada resep dokter</div>';
+                    }
+                    html += '<h6 class="mt-2">Riwayat Tindakan</h6>';
+                    if (visit.riwayat_tindakan && visit.riwayat_tindakan.length > 0) {
+                        html += '<ul>';
+                        visit.riwayat_tindakan.forEach(function(t) {
+                            html += '<li>' + (t.tindakan_nama || '-') + '</li>';
+                        });
+                        html += '</ul>';
+                    } else {
+                        html += '<div class="text-muted">Tidak ada tindakan</div>';
+                    }
+                    html += '</div></div>';
+                });
+            } else {
+                html = '<div class="text-center text-muted">Tidak ada data riwayat.</div>';
+            }
+            $('#riwayatRMModalBody').html(html);
+        }).fail(function() {
+            $('#riwayatRMModalBody').html('<div class="text-danger">Gagal memuat data.</div>');
+        });
+    });
+
+
 
     });
 </script>

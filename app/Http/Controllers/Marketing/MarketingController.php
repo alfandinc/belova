@@ -198,6 +198,51 @@ class MarketingController extends Controller
         ));
     }
 
+        /**
+     * AJAX: Get riwayat resep dokter & tindakan grouped by visitation for a pasien
+     */
+    public function riwayatRM($pasienId)
+    {
+        // Get all visitations for this pasien, newest first
+        $visitations = \App\Models\ERM\Visitation::where('pasien_id', $pasienId)
+            ->orderByDesc('tanggal_visitation')
+            ->get();
+
+        $result = [];
+        foreach ($visitations as $visit) {
+            // Resep dokter for this visitation
+            $resep = $visit->resepDokter()->with('obat')->get()->map(function($r) {
+                return [
+                    'obat_nama' => $r->obat ? $r->obat->nama : '-',
+                    'jumlah' => $r->jumlah,
+                    'dosis' => $r->dosis,
+                ];
+            });
+            // Riwayat tindakan for this visitation
+            $tindakan = \App\Models\ERM\RiwayatTindakan::where('visitation_id', $visit->id)
+                ->with('tindakan')
+                ->get()
+                ->map(function($t) {
+                    return [
+                        'tindakan_nama' => $t->tindakan ? $t->tindakan->nama : '-',
+                        'tanggal_tindakan' => $t->tanggal_tindakan ? $t->tanggal_tindakan->format('Y-m-d') : '-',
+                    ];
+                });
+            // Get dokter name (from user if available)
+            $dokterName = '-';
+            if ($visit->dokter) {
+                $dokterName = $visit->dokter->user ? $visit->dokter->user->name : ($visit->dokter->nama ?? '-');
+            }
+            $result[] = [
+                'visitation_info' => ($visit->tanggal_visitation ? $visit->tanggal_visitation : $visit->id),
+                'dokter_nama' => $dokterName,
+                'resep_dokter' => $resep,
+                'riwayat_tindakan' => $tindakan,
+            ];
+        }
+        return response()->json($result);
+    }
+
     public function patients(Request $request)
     {
         $year = $request->input('year', date('Y'));
