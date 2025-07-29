@@ -212,19 +212,7 @@
                         
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h5 style=""><strong>Racikan {{ $ke }}
-                                <span style="color: #00ff99; font-size: 1rem; font-weight: normal;">
-                                    @php
-                                        $bungkus = (float)($items->first()->bungkus ?? 1);
-                                        $totalHargaAkhir = $items->sum(function($resep) {
-                                            $dosisObat = (float)($resep->obat->dosis ?? 0);
-                                            $dosisRacik = (float)($resep->dosis ?? 0);
-                                            $hargaSatuan = (float)($resep->obat->harga_nonfornas ?? 0);
-                                            return ($dosisObat > 0) ? ($dosisRacik / $dosisObat) * $hargaSatuan : 0;
-                                        });
-                                        $hargaRacikan = $totalHargaAkhir * $bungkus;
-                                    @endphp
-                                    (Rp. {{ number_format($hargaRacikan, 0, ',', '.') }})
-                                </span>
+                                <span class="racikan-harga-detail" style="color: #ffc107; font-size: 1rem; font-weight: normal; margin-left: 10px;"></span>
                             </strong></h5>
                             <div>
                                 <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
@@ -575,15 +563,13 @@
                 $(this).find('.resep-table-body tr').each(function () {
                     // skip no-data rows
                     if ($(this).hasClass('no-data')) return;
-                    let dosisObat = parseFloat($(this).find('td').eq(1).text()) || 0;
-                    let dosisRacik = parseFloat($(this).find('td').eq(2).text()) || 0;
-                    let hargaSatuan = parseFloat($(this).find('td').eq(3).text()) || 0;
-                    let hargaAkhir = 0;
-                    if (dosisObat > 0) {
-                        hargaAkhir = (dosisRacik / dosisObat) * hargaSatuan;
-                    }
+                    let hargaAkhir = parseFloat($(this).find('td').eq(4).text()) || 0;
                     racikanTotal += hargaAkhir;
                 });
+                // Update racikan-harga display to match racikan-harga-detail format
+                $(this).find('.racikan-harga').text(`(${new Intl.NumberFormat('id-ID').format(racikanTotal)} x ${bungkus} = ${new Intl.NumberFormat('id-ID').format(racikanTotal * bungkus)})`);
+                // Update racikan-harga-detail display (formula beside racikan ke)
+                $(this).find('.racikan-harga-detail').text(`(${new Intl.NumberFormat('id-ID').format(racikanTotal)} x ${bungkus} = ${new Intl.NumberFormat('id-ID').format(racikanTotal * bungkus)})`);
                 total += racikanTotal * bungkus;
             });
             $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
@@ -596,7 +582,10 @@
             const racikanCard = `
                 <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanCount}">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 style="color: yellow;"><strong>Racikan ${racikanCount}</strong></h5>
+                        <h5 style=""><strong>Racikan ${racikanCount}
+                                                        <span class="racikan-harga" style="color: #ffc107; font-weight: normal; margin-left: 10px;">Rp. 0</span>
+
+                        </strong></h5>
                         <div>
                             <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
                             <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
@@ -792,8 +781,8 @@
             const obats = [];
             card.find('.resep-table-body tr').each(function () {
                 if (!$(this).hasClass('no-data')) {
-                    const obatId = $(this).find('td').eq(0).data('id'); // sesuaikan jika perlu
-                    const dosis = $(this).find('td').eq(1).text();
+                    const obatId = $(this).find('td').eq(0).data('id');
+                    const dosis = $(this).find('td').eq(2).text(); // FIX: use td:eq(2) for input dosis
                     if (obatId) {
                         obats.push({ obat_id: obatId, dosis: dosis });
                     }

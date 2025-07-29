@@ -22,6 +22,7 @@ use App\Models\ERM\WadahObat;
 use App\Models\User;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Log;
 use App\Models\ERM\ResepDetail;
 use App\Models\ERM\PaketRacikan;
 use App\Models\ERM\PaketRacikanDetail;
@@ -243,6 +244,15 @@ class EresepController extends Controller
         ]);
 
         foreach ($validated['obats'] as $obat) {
+            $obatModel = Obat::findOrFail($obat['obat_id']);
+            // Debug: Log input and database dosis
+            Log::info('storeRacikan debug', [
+                'input_dosis' => $obat['dosis'],
+                'obat_db_dosis' => $obatModel->dosis,
+                'obat_id' => $obat['obat_id'],
+                'other_data' => $obat
+            ]);
+
             do {
                 $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
             } while (ResepDokter::where('id', $customId)->exists());
