@@ -5,7 +5,14 @@
 @endsection
 
 @section('content')
-<div class="container">
+
+<style>
+    .dataTables_wrapper td {
+        vertical-align: middle;
+    }
+</style>
+
+<div class="container-fluid">
     <div class="row">
         <div class="col-sm-12">
             <div class="page-title-box">
@@ -21,9 +28,8 @@
             </div>
         </div>
     </div>
-
     <div class="row mb-3">
-        <div class="col-lg-3">
+        <div class="col-md-3">
             <label for="filterGedung">Filter by Gedung</label>
             <select id="filterGedung" class="form-control select2">
                 <option value="">All Gedung</option>
@@ -32,13 +38,13 @@
                 @endforeach
             </select>
         </div>
-        <div class="col-lg-3">
+        <div class="col-md-3">
             <label for="filterRuangan">Filter by Ruangan</label>
             <select id="filterRuangan" class="form-control select2" disabled>
                 <option value="">All Ruangan</option>
             </select>
         </div>
-        <div class="col-lg-3">
+        <div class="col-md-3">
             <label for="filterTipeBarang">Filter by Tipe Barang</label>
             <select id="filterTipeBarang" class="form-control select2">
                 <option value="">All Tipe Barang</option>
@@ -48,9 +54,8 @@
             </select>
         </div>
     </div>
-
     <div class="row mb-2">
-        <div class="col-lg-12">
+        <div class="col-12">
             <div class="mb-2">
                 <strong>Keterangan Warna:</strong>
                 <span style="display:inline-block;width:20px;height:20px;background:#f8d7da;border:1px solid #ccc;margin-right:5px;vertical-align:middle;"></span>
@@ -60,35 +65,28 @@
             </div>
         </div>
     </div>
-
-    <div class="row">
-        <div class="col-lg-12">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="card-title">Data Barang</h4>
-                    <button type="button" class="btn btn-primary" id="createNewBarang">Add New Barang</button>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered dt-responsive nowrap data-table" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th width="5%">No</th>
-                                    <th>Kode</th>
-                                    <th>Name</th>
-                                    <th>Tipe Barang</th>
-                                    <th>Ruangan</th>
-                                    <th>Stok</th>
-                                    <th>Satuan</th>
-                                    <th width="15%">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    <div class="card">
+        <div class="card-header bg-primary">
+            <h4 class="card-title text-white">Data Barang</h4>
+            <button type="button" class="btn btn-light float-right" id="createNewBarang">Add New Barang</button>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered w-100 data-table">
+                <thead>
+                    <tr>
+                        <th width="5%">No</th>
+                        <th>Kode</th>
+                        <th>Name</th>
+                        <th>Tipe Barang</th>
+                        <th>Ruangan</th>
+                        <th>Stok</th>
+                        <th>Satuan</th>
+                        <th width="15%">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

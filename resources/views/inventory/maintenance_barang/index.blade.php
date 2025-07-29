@@ -5,7 +5,23 @@
 @endsection
 
 @section('content')
-<div class="container">
+
+<style>
+    /* Match Rawatjalan DataTable and Card styles */
+    .dataTables_wrapper .status-pasien-icon,
+    .dataTables_wrapper .status-akses-icon {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        vertical-align: middle;
+        margin-right: 8px;
+    }
+    .dataTables_wrapper td {
+        vertical-align: middle;
+    }
+</style>
+
+<div class="container-fluid">
     <div class="row">
         <div class="col-sm-12">
             <div class="page-title-box">
@@ -21,43 +37,36 @@
             </div>
         </div>
     </div>
-
-    <div class="row">
-        <div class="col-lg-12">
-            <div class="card">
-                <div class="card-header">
-                    <h4 class="card-title">Data Maintenance Barang</h4>
-                    <button type="button" class="btn btn-primary" id="createNewMaintenance">Add New Maintenance</button>
-                </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-lg-4">
-                            <label for="filterTanggal">Filter Tanggal Maintenance</label>
-                            <input type="text" id="filterTanggal" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
-                        </div>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-bordered dt-responsive nowrap data-table" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th width="5%">No</th>
-                                    <th>Barang</th>
-                                    <th>Tanggal Maintenance</th>
-                                    <th>Biaya Maintenance</th>
-                                    <th>Nama Vendor</th>
-                                    <th>No Faktur</th>
-                                    <th>Tanggal Next Maintenance</th>
-                                    <th>Status</th>
-                                    <th>Keterangan</th>
-                                    <th width="15%">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            </tbody>
-                        </table>
-                    </div>
+    <div class="card">
+        <div class="card-header bg-primary">
+            <h4 class="card-title text-white">Data Maintenance Barang</h4>
+            <button type="button" class="btn btn-light float-right" id="createNewMaintenance">Add New Maintenance</button>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="filterTanggal">Filter Tanggal Maintenance</label>
+                    <input type="text" id="filterTanggal" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
                 </div>
             </div>
+            <table class="table table-bordered w-100 data-table">
+                <thead>
+                    <tr>
+                        <th width="5%">No</th>
+                        <th>Barang</th>
+                        <th>Tanggal Maintenance</th>
+                        <th>Biaya Maintenance</th>
+                        <th>Nama Vendor</th>
+                        <th>No Faktur</th>
+                        <th>Tanggal Next Maintenance</th>
+                        <th>Status</th>
+                        <th>Keterangan</th>
+                        <th width="15%">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
