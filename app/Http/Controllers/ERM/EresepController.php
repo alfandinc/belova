@@ -1002,7 +1002,25 @@ class EresepController extends Controller
 
             // Get obat information if needed
             $obat = Obat::find($resep->obat_id);
-            $harga = $obat ? $obat->harga_nonfornas : 0;
+            $baseHarga = $obat ? $obat->harga_nonfornas : 0;
+            // Extract numeric value from dosis strings
+            preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis, $inputMatches);
+            preg_match('/(\d+(?:[.,]\d+)?)/', $obat->dosis ?? '', $baseMatches);
+            $inputDosis = isset($inputMatches[1]) ? floatval(str_replace(',', '.', $inputMatches[1])) : 0;
+            $baseDosis = isset($baseMatches[1]) ? floatval(str_replace(',', '.', $baseMatches[1])) : 0;
+            $dosisRatio = ($baseDosis > 0 && $inputDosis > 0) ? ($inputDosis / $baseDosis) : 1;
+            $harga = $baseHarga * $dosisRatio;
+            Log::info('COPY FROM HISTORY DEBUG', [
+                'resep_id' => $resep->id ?? null,
+                'obat_id' => $resep->obat_id ?? null,
+                'base_harga' => $baseHarga,
+                'input_dosis' => $inputDosis,
+                'base_dosis' => $baseDosis,
+                'dosis_ratio' => $dosisRatio,
+                'harga' => $harga,
+                'jumlah' => $resep->jumlah ?? null,
+                'total' => $harga * ($resep->jumlah ?? 1),
+            ]);
 
             // Create new ResepFarmasi record
             ResepDokter::create([
@@ -1068,7 +1086,25 @@ class EresepController extends Controller
 
             // Get obat information if needed
             $obat = Obat::find($resep->obat_id);
-            $harga = $obat ? $obat->harga_nonfornas : 0;
+            $baseHarga = $obat ? $obat->harga_nonfornas : 0;
+            // Extract numeric value from dosis strings
+            preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis, $inputMatches);
+            preg_match('/(\d+(?:[.,]\d+)?)/', $obat->dosis ?? '', $baseMatches);
+            $inputDosis = isset($inputMatches[1]) ? floatval(str_replace(',', '.', $inputMatches[1])) : 0;
+            $baseDosis = isset($baseMatches[1]) ? floatval(str_replace(',', '.', $baseMatches[1])) : 0;
+            $dosisRatio = ($baseDosis > 0 && $inputDosis > 0) ? ($inputDosis / $baseDosis) : 1;
+            $harga = $baseHarga * $dosisRatio;
+            Log::info('COPY FROM HISTORY FARMASI DEBUG', [
+                'resep_id' => $resep->id ?? null,
+                'obat_id' => $resep->obat_id ?? null,
+                'base_harga' => $baseHarga,
+                'input_dosis' => $inputDosis,
+                'base_dosis' => $baseDosis,
+                'dosis_ratio' => $dosisRatio,
+                'harga' => $harga,
+                'jumlah' => $resep->jumlah ?? null,
+                'total' => $harga * ($resep->jumlah ?? 1),
+            ]);
 
             // Get obat for satuan information
             $obat = Obat::find($resep->obat_id);
