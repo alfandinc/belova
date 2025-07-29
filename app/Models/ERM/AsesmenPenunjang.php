@@ -27,6 +27,7 @@ class AsesmenPenunjang extends Model
         'diagnosakerja_3',
         'diagnosakerja_4',
         'diagnosakerja_5',
+        'diagnosakerja_6',
         'diagnosa_banding',
         'masalah_medis',
         'masalah_keperawatan',

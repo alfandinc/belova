@@ -411,6 +411,7 @@ class AsesmenController extends Controller
                 'diagnosakerja_3' => $request->diagnosakerja_3,
                 'diagnosakerja_4' => $request->diagnosakerja_4,
                 'diagnosakerja_5' => $request->diagnosakerja_5,
+                'diagnosakerja_6' => $request->diagnosakerja_6,
                 'diagnosa_banding' => $request->diagnosa_banding,
                 'masalah_medis' => $request->masalah_medis,
                 'masalah_keperawatan' => $request->masalah_keperawatan,

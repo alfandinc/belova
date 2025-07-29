@@ -104,6 +104,13 @@
                                             </select>
                                         </div>
                                     @endforeach
+                                    <div class="col-md-4">
+                                        {{-- <label for="diagnosakerja_6" class="form-label">Diagnosa Kerja 6 (Text)</label> --}}
+                                        <input type="text" class="form-control" name="diagnosakerja_6" id="diagnosakerja_6" value="{{ old('diagnosakerja_6', $asesmenPenunjang->diagnosakerja_6 ?? '') }}" placeholder="Input diagnosa non ICD-10">
+                                    </div>
+                                </div>
+                                <div class="row g-2">
+                                    
                                 </div>
                             </div>
 
