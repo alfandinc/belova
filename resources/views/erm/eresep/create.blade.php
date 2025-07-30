@@ -531,8 +531,7 @@
                                 <td>
                                     <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
                                     <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
-    // Disable hapus-obat buttons in racikan by default on page load
-    $('#racikan-container .hapus-obat').prop('disabled', true).addClass('disabled');
+
                                 </td>
                             </tr>
                         `);
@@ -1106,7 +1105,7 @@
                     // Show save button, hide update button
                     card.find('.tambah-resepracikan').removeClass('d-none');
                     card.find('.update-resepracikan').addClass('d-none');
-                    // Disable hapus-obat buttons again after update
+
             card.find('.edit-obat, .hapus-obat').prop('disabled', true).addClass('disabled');
                     // Update total price
                     updateTotalPrice();
