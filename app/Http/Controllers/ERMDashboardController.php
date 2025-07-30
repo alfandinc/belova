@@ -81,13 +81,18 @@ class ERMDashboardController extends Controller
             $pasienBaruCount = \App\Models\ERM\Pasien::whereBetween('created_at', [$startDate, $endDate])->count();
         }
 
-        // Monthly visit count for current year
+        // Monthly visit count for current year, filtered by dokter if selected
         $monthlyVisitCounts = [];
         $year = date('Y');
         for ($m = 1; $m <= 12; $m++) {
             $monthStart = Carbon::create($year, $m, 1)->startOfMonth()->format('Y-m-d');
             $monthEnd = Carbon::create($year, $m, 1)->endOfMonth()->format('Y-m-d');
-            $monthlyVisitCounts[] = \App\Models\ERM\Visitation::whereBetween('tanggal_visitation', [$monthStart, $monthEnd])->count();
+            $monthlyQuery = \App\Models\ERM\Visitation::query();
+            if ($dokterId) {
+                $monthlyQuery->where('dokter_id', $dokterId);
+            }
+            $monthlyQuery->whereBetween('tanggal_visitation', [$monthStart, $monthEnd]);
+            $monthlyVisitCounts[] = $monthlyQuery->count();
         }
 
         // Metode Bayar counts (1=Umum, 2=InHealth)
