@@ -519,7 +519,7 @@
                         const rowClass = existsInFarmasi ? 'text-success row-in-farmasi' : '';
                         
                         // Append the new row to the table
-                        $('#resep-table-body').append(`
+                        $('#resep-table-body').prepend(`
                             <tr data-id="${res.data.id}" data-obat-id="${res.data.obat_id}" class="${rowClass}">
                                 <td>${res.data.obat.nama}</td>
                                 <td>${res.data.obat.harga_nonfornas || 0}</td>
@@ -826,7 +826,7 @@
             checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
                 const rowClass = existsInFarmasi ? 'text-success row-in-farmasi' : '';
                 // Append the new row to the table
-                tbody.append(`
+                tbody .prepend(`
                     <tr data-obat-id="${obatId}" class="${rowClass}">
                         <td data-id="" data-obat-id="${obatId}">${obatText}</td>
                         <td>${selectedOption.dosis || '-'}</td>
