@@ -678,6 +678,12 @@ Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\Visitati
 
 // AJAX route for most frequent patient
 Route::get('/erm/dashboard/most-frequent-patient', [\App\Http\Controllers\ERMDashboardAjaxController::class, 'mostFrequentPatient'])->name('erm.dashboard.most-frequent-patient');
+
+// AJAX route for visitation count (dashboard box)
+Route::get('/erm/dashboard/visitation-count', [App\Http\Controllers\ERMDashboardController::class, 'visitationCount'])->name('erm.dashboard.visitation-count');
+
+// AJAX route for visitation detail modal
+Route::get('/erm/dashboard/visitation-detail', [App\Http\Controllers\ERMDashboardController::class, 'visitationDetail'])->name('erm.dashboard.visitation-detail');
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
 
