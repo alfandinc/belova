@@ -333,6 +333,9 @@
     }
 
     $(document).ready(function () {
+        // Always disable hapus-obat buttons in racikan on page load
+        $('#racikan-container .hapus-obat').prop('disabled', true).addClass('disabled');
+
         $('.select2').select2({ width: '100%' });
         $('.select2-obat').select2({
             placeholder: 'Search obat...',
@@ -451,6 +454,8 @@
                                 <td>
                                     <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
                                     <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
+    // Disable hapus-obat buttons in racikan by default on page load
+    $('#racikan-container .hapus-obat').prop('disabled', true).addClass('disabled');
                                 </td>
                             </tr>
                         `);
@@ -744,7 +749,6 @@
             // Check if this medication exists in farmasi racikan prescriptions
             checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
                 const rowClass = existsInFarmasi ? 'text-success row-in-farmasi' : '';
-                
                 // Append the new row to the table
                 tbody.append(`
                     <tr data-obat-id="${obatId}" class="${rowClass}">
@@ -754,10 +758,9 @@
                         <td>${hargaNonfornas}</td>
                         <td>${hargaAkhir}</td>
                         <td style="color: ${(stok < 10) ? 'red' : (stok < 100 ? 'yellow' : 'green')}">${stok}</td>
-                        <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                        <td><button class="btn btn-danger btn-sm hapus-obat disabled" disabled>Hapus</button></td>
                     </tr>
                 `);
-                
                 // Clear the form inputs
                 card.find('.select2-obat-racikan').val(null).trigger('change');
                 card.find('.dosis_input').val('');
@@ -821,9 +824,15 @@
 
         // DELETE OBAT
         $('#racikan-container').on('click', '.hapus-obat', function () {
-            $(this).closest('tr').remove();
+            // Prevent action if button is disabled
+            if ($(this).is(':disabled') || $(this).hasClass('disabled')) {
+                return;
+            }
+            // Mark row for deletion and hide it
+            const row = $(this).closest('tr');
+            row.addClass('obat-deleted').hide();
             const card = $(this).closest('.racikan-card');
-            if (card.find('.resep-table-body tr').length === 0) {
+            if (card.find('.resep-table-body tr:not(.obat-deleted)').length === 0) {
                 card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="4" class="text-center text-muted">Belum ada data</td></tr>`);
             }
             updateTotalPrice(); // Update total harga setelah obat dihapus dari racikan
@@ -948,11 +957,21 @@
             const wadah = card.find('.wadah').val();
             const bungkus = card.find('.bungkus').val() || card.find('.jumlah_bungkus').val();
             const aturanPakai = card.find('.aturan_pakai').val();
-            
-            console.log('Update racikan - racikanKe:', racikanKe);
-            console.log('Update racikan - bungkus:', bungkus);
-            console.log('Update racikan - aturanPakai:', aturanPakai);
-            
+
+            // Collect remaining obat rows (not deleted)
+            const obatRows = card.find('.resep-table-body tr[data-obat-id]').not('.obat-deleted');
+            let obats = [];
+            obatRows.each(function() {
+                const obatId = $(this).data('obat-id');
+                const dosis = $(this).find('.dosis').val();
+                const jumlah = $(this).find('.jumlah').val();
+                obats.push({
+                    obat_id: obatId,
+                    dosis: dosis,
+                    jumlah: jumlah
+                });
+            });
+
             // Validate required fields
             if (!bungkus || !aturanPakai) {
                 Swal.fire({
@@ -963,7 +982,7 @@
                 });
                 return;
             }
-            
+
             // Send AJAX request to update the racikan
             $.ajax({
                 url: "{{ route('resep.racikan.update', '') }}/" + racikanKe,
@@ -973,7 +992,8 @@
                     visitation_id: visitationId,
                     wadah: wadah,
                     bungkus: bungkus,
-                    aturan_pakai: aturanPakai
+                    aturan_pakai: aturanPakai,
+                    obats: obats
                 },
                 success: function (res) {
                     Swal.fire({
@@ -987,6 +1007,8 @@
                     // Show save button, hide update button
                     card.find('.tambah-resepracikan').removeClass('d-none');
                     card.find('.update-resepracikan').addClass('d-none');
+                    // Disable hapus-obat buttons again after update
+                    card.find('.hapus-obat').prop('disabled', true).addClass('disabled');
                     // Update total price
                     updateTotalPrice();
                 },
@@ -1425,7 +1447,7 @@
                         <td>${hargaSatuan}</td>
                         <td>${hargaAkhir.toFixed(2)}</td>
                         <td style="color: ${stockColor};">${stok}</td>
-                        <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                        <td><button class="btn btn-danger btn-sm hapus-obat disabled" disabled>Hapus</button></td>
                     </tr>
                 `;
             });
@@ -1436,7 +1458,7 @@
                 let dosisObat = parseFloat(detail.obat.dosis) || 0;
                 let dosisRacik = parseFloat(detail.dosis) || 0;
                 let hargaSatuan = parseFloat(detail.obat.harga_nonfornas) || 0;
-                totalHargaAkhir += (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
+                totalHargaAkhir += (dosisObat > 0) ? (dosisRacik / dosisObat) * $hargaSatuan : 0;
             });
             let hargaRacikan = totalHargaAkhir * paket.bungkus_default;
 
@@ -1652,7 +1674,10 @@
         card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
         card.find('.tambah-resepracikan').addClass('d-none');
         card.find('.update-resepracikan').removeClass('d-none');
-        console.log('Edit racikan clicked - fields enabled');
+        // Enable hapus-obat buttons only in this racikan card
+        card.find('.hapus-obat').prop('disabled', false).removeClass('disabled');
+        // Disable hapus-obat in other racikan cards
+        $('#racikan-container .racikan-card').not(card).find('.hapus-obat').prop('disabled', true).addClass('disabled');
     });
 
     // Pasien Keluar button handler

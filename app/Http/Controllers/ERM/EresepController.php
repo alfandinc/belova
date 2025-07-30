@@ -324,28 +324,41 @@ class EresepController extends Controller
                 'wadah' => 'required',
                 'bungkus' => 'required|integer|min:1',
                 'aturan_pakai' => 'required|string',
+                'obats' => 'required|array',
             ]);
 
-            // Update all records with matching racikan_ke and visitation_id
-            $updated = ResepDokter::where('racikan_ke', $racikanKe)
+            // Delete all old obat in this racikan
+            ResepDokter::where('racikan_ke', $racikanKe)
                 ->where('visitation_id', $validated['visitation_id'])
-                ->update([
-                    'wadah_id' => $validated['wadah'],
-                    'bungkus' => $validated['bungkus'],
-                    'aturan_pakai' => $validated['aturan_pakai'],
-                ]);
+                ->delete();
 
-            if ($updated) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Racikan berhasil diupdate'
-                ]);
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Racikan tidak ditemukan'
-                ], 404);
+            // Insert new obat list for this racikan
+            foreach ($validated['obats'] as $obat) {
+                if (!empty($obat['obat_id'])) {
+                    // Generate unique custom ID
+                    do {
+                        $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
+                    } while (ResepDokter::where('id', $customId)->exists());
+                    ResepDokter::create([
+                        'id' => $customId,
+                        'visitation_id' => $validated['visitation_id'],
+                        'obat_id' => $obat['obat_id'],
+                        'dosis' => $obat['dosis'] ?? '',
+                        'jumlah' => $obat['jumlah'] ?? 1,
+                        'racikan_ke' => $racikanKe,
+                        'wadah_id' => $validated['wadah'],
+                        'bungkus' => $validated['bungkus'],
+                        'aturan_pakai' => $validated['aturan_pakai'],
+                        'user_id' => Auth::id(),
+                        'created_at' => now(),
+                    ]);
+                }
             }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Racikan berhasil diupdate'
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
