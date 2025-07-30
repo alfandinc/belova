@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Visitation extends Model
 {
+    
     protected $table = 'erm_visitations';
     public $incrementing = false; // non auto-increment
     protected $keyType = 'string'; // jika ID-nya string (bukan integer)
@@ -90,6 +91,16 @@ class Visitation extends Model
     public function cppt()
     {
         return $this->hasOne(Cppt::class, 'visitation_id');
+    }
+
+    public function labPermintaan()
+    {
+        return $this->hasMany(LabPermintaan::class, 'visitation_id');
+    }
+
+    public function riwayatTindakan()
+    {
+        return $this->hasMany(RiwayatTindakan::class, 'visitation_id');
     }
 
     public function invoice()

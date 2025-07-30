@@ -233,7 +233,7 @@ var userRole = "{{ $role }}";
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
-            { targets: 0, width: "5%" }, // Antrian
+            { targets: 0, width: "8%" }, // Antrian
             { targets: 6, width: "15%" }, // Dokumen
             { targets: 9, width: "15%" }, // Dokumen
         ],
