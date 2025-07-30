@@ -143,7 +143,7 @@
                             <div class="input-group mb-1">
                                 <input type="number" min="1" id="frekuensi" class="form-control" placeholder="Frekuensi (misal: 1)">
                                 <span class="input-group-text">x sehari</span>
-                                <input type="number" min="1" id="dosis" class="form-control" placeholder="Dosis (misal: 1)">
+                                <input type="text" min="1" id="dosis" class="form-control" placeholder="Dosis (misal: 1)">
                                 <input type="text" id="keterangan_waktu" class="form-control" placeholder="Keterangan waktu (misal: sebelum makan)">
                             </div>
                             <input hidden type="text" id="aturan_pakai" class="form-control" placeholder="Aturan Pakai" readonly>
@@ -547,6 +547,10 @@
                     $('#obat_id').val(null).trigger('change');
                     $('#jumlah').val('');
                     $('#aturan_pakai').val('');
+                    // Set focus to Nama Obat input after adding
+                    setTimeout(function() {
+                        $('#obat_id').select2('open');
+                    }, 200);
                 },
                 error: function (xhr) {
                     alert('Gagal menambahkan resep: ' + xhr.responseJSON.message);
