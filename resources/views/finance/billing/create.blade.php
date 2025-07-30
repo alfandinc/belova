@@ -351,9 +351,20 @@
                 { data: 'harga_akhir', name: 'harga_akhir', width: "10%",
                   render: function(data, type, row) {
                       // Always calculate as harga (unit price) * qty
-                      const harga = (typeof row.harga_akhir_raw !== 'undefined' && !isNaN(row.harga_akhir_raw)) ? Number(row.harga_akhir_raw) : 0;
+                      // Use jumlah_raw as the true unit price, and qty
+                      const harga = (typeof row.jumlah_raw !== 'undefined' && !isNaN(row.jumlah_raw)) ? Number(row.jumlah_raw) : 0;
                       const qty = row.qty ? Number(row.qty) : 1;
-                      return 'Rp ' + formatCurrency(harga * qty);
+                      // If diskon applies, calculate finalJumlah
+                      let finalJumlah = harga;
+                      if (row.diskon_raw && row.diskon_raw > 0) {
+                          if (row.diskon_type === '%') {
+                              finalJumlah = harga - (harga * (row.diskon_raw / 100));
+                          } else {
+                              finalJumlah = harga - row.diskon_raw;
+                          }
+                      }
+                      const total = finalJumlah * qty;
+                      return 'Rp ' + formatCurrency(total);
                   }
                 },
                 { 
@@ -431,6 +442,8 @@
             $('#diskon').val(diskon);
             $('#diskon_type').val(diskon_type);
             
+            // Debug: Show harga before edit
+            console.log('[DEBUG] Harga before edit:', jumlah);
             $('#editModal').modal('show');
         });
         
@@ -514,14 +527,27 @@
                     }
                 }
                 const qty = billingData[idx].qty || 1;
-                billingData[idx].harga_akhir_raw = finalJumlah * qty;
+                // Store only the final unit price, not multiplied by qty
+                billingData[idx].harga_akhir_raw = finalJumlah;
                 billingData[idx].harga_akhir = 'Rp ' + formatCurrency(finalJumlah * qty);
                 billingData[idx].edited = true;
             }
             
             $('#editModal').modal('hide');
+            // Debug: Show harga after edit
+            console.log('[DEBUG] Harga after edit:', jumlah);
             updateTable();
             calculateTotals();
+
+            // Debug: Show total for this item in DataTable
+            setTimeout(function() {
+                const item = billingData.find(item => item.id == id);
+                if (item) {
+                    const qty = item.qty || 1;
+                    const total = item.harga_akhir_raw * qty;
+                    console.log('[DEBUG] Total in DataTable for item', id, ':', total);
+                }
+            }, 200);
         });
         
         // Function to update the table with all billingData (for add/edit/delete)
