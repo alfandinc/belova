@@ -159,7 +159,7 @@
 
                 <!-- Monthly Visit Bar Chart -->
                 <div class="row mb-4">
-                    <div class="col-12">
+                    <div class="col-6">
                         <div class="card mt-4">
                             <div class="card-header bg-primary text-white" style="font-weight:bold;font-size:1.2em;">Grafik Kunjungan per Bulan ({{ date('Y') }})</div>
                             <div class="card-body">
