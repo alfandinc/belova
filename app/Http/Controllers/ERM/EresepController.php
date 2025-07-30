@@ -327,28 +327,57 @@ class EresepController extends Controller
                 'obats' => 'required|array',
             ]);
 
-            // Delete all old obat in this racikan
-            ResepDokter::where('racikan_ke', $racikanKe)
-                ->where('visitation_id', $validated['visitation_id'])
-                ->delete();
+            $visitationId = $validated['visitation_id'];
+            $wadahId = $validated['wadah'];
+            $bungkus = $validated['bungkus'];
+            $aturanPakai = $validated['aturan_pakai'];
+            $obats = $validated['obats'];
 
-            // Insert new obat list for this racikan
-            foreach ($validated['obats'] as $obat) {
-                if (!empty($obat['obat_id'])) {
-                    // Generate unique custom ID
+            // Get all resep rows for this racikan_ke and visitation
+            $existingReseps = \App\Models\ERM\ResepDokter::where('visitation_id', $visitationId)
+                ->where('racikan_ke', $racikanKe)
+                ->get();
+
+            // Collect incoming IDs if present
+            $incomingIds = collect($obats)->pluck('id')->filter()->toArray();
+
+            // Delete resep rows that are not present in the incoming obats
+            foreach ($existingReseps as $resep) {
+                if (!in_array($resep->id, $incomingIds)) {
+                    $resep->delete();
+                }
+            }
+
+            // Update or create resep rows for each obat
+            foreach ($obats as $obatData) {
+                if (!empty($obatData['id'])) {
+                    // Update existing
+                    $resep = \App\Models\ERM\ResepDokter::find($obatData['id']);
+                    if ($resep) {
+                        $resep->update([
+                            'obat_id' => $obatData['obat_id'],
+                            'dosis' => $obatData['dosis'] ?? '',
+                            'jumlah' => $obatData['jumlah'] ?? 1,
+                            'wadah_id' => $wadahId,
+                            'bungkus' => $bungkus,
+                            'aturan_pakai' => $aturanPakai,
+                        ]);
+                    }
+                } else if (!empty($obatData['obat_id'])) {
+                    // Create new
                     do {
                         $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
-                    } while (ResepDokter::where('id', $customId)->exists());
-                    ResepDokter::create([
+                    } while (\App\Models\ERM\ResepDokter::where('id', $customId)->exists());
+                    \App\Models\ERM\ResepDokter::create([
                         'id' => $customId,
-                        'visitation_id' => $validated['visitation_id'],
-                        'obat_id' => $obat['obat_id'],
-                        'dosis' => $obat['dosis'] ?? '',
-                        'jumlah' => $obat['jumlah'] ?? 1,
+                        'visitation_id' => $visitationId,
+                        'obat_id' => $obatData['obat_id'],
+                        'dosis' => $obatData['dosis'] ?? '',
+                        'jumlah' => $obatData['jumlah'] ?? 1,
                         'racikan_ke' => $racikanKe,
-                        'wadah_id' => $validated['wadah'],
-                        'bungkus' => $validated['bungkus'],
-                        'aturan_pakai' => $validated['aturan_pakai'],
+                        'wadah_id' => $wadahId,
+                        'bungkus' => $bungkus,
+                        'aturan_pakai' => $aturanPakai,
                         'user_id' => Auth::id(),
                         'created_at' => now(),
                     ]);

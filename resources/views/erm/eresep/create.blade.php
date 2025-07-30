@@ -235,10 +235,14 @@
                             <tbody class="resep-table-body">
                                 @foreach ($items as $resep)
                                     <tr data-obat-id="{{ $resep->obat_id }}" class="{{ in_array($resep->obat_id, $farmasiRacikanObatIds) ? 'text-success row-in-farmasi' : '' }}">
-                                       
                                         <td data-id="{{ $resep->id }}">{{ $resep->obat->nama ?? '-' }}</td>
                                         <td>{{ $resep->obat->dosis ?? '-' }}</td>
-                                        <td>{{ $resep->dosis }}</td>
+                                        <td>
+                                            {{ $resep->dosis }}
+                                            @if(empty($resep->dosis))
+                                                <span style="color:red;font-weight:bold;">[DEBUG: dosis kosong]</span>
+                                            @endif
+                                        </td>
                                         <td>{{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                         <td>
                                             @php
@@ -252,7 +256,10 @@
                                         <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 100 ? 'yellow' : 'green') }};">
                                             {{ $resep->obat->stok ?? 0 }}
                                         </td>
-                                        <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                                        <td>
+                                            <button class="btn btn-success btn-sm edit-obat disabled" disabled>Edit</button>
+                                            <button class="btn btn-danger btn-sm hapus-obat disabled" disabled>Hapus</button>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -294,6 +301,76 @@
 
 @section('scripts')
 <script>
+        // MODAL HTML for editing dosis
+        const editObatModalHtml = `
+        <div class="modal fade" id="editObatModal" tabindex="-1" role="dialog" aria-labelledby="editObatModalLabel" aria-hidden="true">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="editObatModalLabel">Edit Dosis Racik</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+              <div class="modal-body">
+                <form id="editObatForm">
+                  <div class="form-group">
+                    <label for="editDosisRacik">Dosis Racik</label>
+                    <input type="text" class="form-control" id="editDosisRacik" name="dosis_racik" required>
+                  </div>
+                  <input type="hidden" id="editObatRowId">
+                </form>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveEditObatBtn">Simpan</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        `;
+        // Append modal to body if not exists
+        if ($('#editObatModal').length === 0) {
+            $('body').append(editObatModalHtml);
+        }
+
+        // Handle Edit button click in racikan table
+        $('#racikan-container').on('click', '.edit-obat', function () {
+            const row = $(this).closest('tr');
+            const dosisRacik = row.find('td').eq(2).text().trim();
+            const dbId = row.find('td[data-id]').data('id');
+            // Store both row reference and db id for later
+            $('#editDosisRacik').val(dosisRacik);
+            $('#editObatRowId').val(row.index());
+            $('#editObatModal').data('db-id', dbId || null);
+            $('#editObatModal').modal('show');
+        });
+
+        // Save edited dosis racik
+        $('#saveEditObatBtn').on('click', function () {
+            const newDosis = $('#editDosisRacik').val().trim();
+            const rowIdx = $('#editObatRowId').val();
+            const dbId = $('#editObatModal').data('db-id');
+            // Find the correct row in all racikan tables
+            let found = false;
+            $('#racikan-container .resep-table-body').each(function() {
+                const rows = $(this).find('tr');
+                if (rows.length > rowIdx) {
+                    const row = rows.eq(rowIdx);
+                    // Update Dosis Racik column (td:eq(2))
+                    row.find('td').eq(2).text(newDosis);
+                    // Ensure the td[data-id] still has the correct db id
+                    if (dbId) {
+                        row.find('td[data-id]').attr('data-id', dbId);
+                    }
+                    found = true;
+                    return false;
+                }
+            });
+            if (found) {
+                $('#editObatModal').modal('hide');
+            }
+        });
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
     let farmasiObatIds = @json($farmasiObatIds ?? []);
     let farmasiRacikanObatIds = @json($farmasiRacikanObatIds ?? []);
@@ -752,13 +829,16 @@
                 // Append the new row to the table
                 tbody.append(`
                     <tr data-obat-id="${obatId}" class="${rowClass}">
-                        <td data-id="${obatId}">${obatText}</td>
+                        <td data-id="" data-obat-id="${obatId}">${obatText}</td>
                         <td>${selectedOption.dosis || '-'}</td>
                         <td>${dosisAkhir} ${satuan}</td>
                         <td>${hargaNonfornas}</td>
                         <td>${hargaAkhir}</td>
                         <td style="color: ${(stok < 10) ? 'red' : (stok < 100 ? 'yellow' : 'green')}">${stok}</td>
-                        <td><button class="btn btn-danger btn-sm hapus-obat disabled" disabled>Hapus</button></td>
+                        <td>
+                            <button class="btn btn-success btn-sm edit-obat disabled" disabled>Edit</button>
+                            <button class="btn btn-danger btn-sm hapus-obat disabled" disabled>Hapus</button>
+                        </td>
                     </tr>
                 `);
                 // Clear the form inputs
@@ -784,10 +864,18 @@
             const obats = [];
             card.find('.resep-table-body tr').each(function () {
                 if (!$(this).hasClass('no-data')) {
-                    const obatId = $(this).find('td').eq(0).data('id');
+                    // Get database id from td[data-id] (if exists)
+                    const td = $(this).find('td[data-id]');
+                    let dbId = null;
+                    if (td.length) {
+                        dbId = td.attr('data-id');
+                        // If dbId is empty or just obatId, treat as new
+                        if (!dbId || dbId === $(this).data('obat-id').toString()) dbId = null;
+                    }
+                    const obatId = $(this).data('obat-id');
                     const dosis = $(this).find('td').eq(2).text(); // FIX: use td:eq(2) for input dosis
                     if (obatId) {
-                        obats.push({ obat_id: obatId, dosis: dosis });
+                        obats.push({ id: dbId || null, obat_id: obatId, dosis: dosis });
                     }
                 }
             });
@@ -944,6 +1032,8 @@
             const card = $(this).closest('.racikan-card');
             // Enable fields for editing
             card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
+            // Enable edit and hapus buttons in this racikan only
+            card.find('.edit-obat, .hapus-obat').prop('disabled', false).removeClass('disabled');
             // Hide the save button, show the update button
             card.find('.tambah-resepracikan').addClass('d-none');
             card.find('.update-resepracikan').removeClass('d-none');
@@ -963,12 +1053,21 @@
             let obats = [];
             obatRows.each(function() {
                 const obatId = $(this).data('obat-id');
-                const dosis = $(this).find('.dosis').val();
-                const jumlah = $(this).find('.jumlah').val();
+                // Get database id from td[data-id] (if exists)
+                let dbId = null;
+                // Find td[data-id] and ensure it is not empty or just obatId
+                const td = $(this).find('td[data-id]');
+                if (td.length) {
+                    dbId = td.attr('data-id');
+                    // If dbId is empty or just obatId, treat as new
+                    if (!dbId || dbId === obatId.toString()) dbId = null;
+                }
+                // Get dosis racik from Dosis Racik column (td:eq(2))
+                const dosisRacik = $(this).find('td').eq(2).text().trim();
                 obats.push({
+                    id: dbId || null, // null if new row
                     obat_id: obatId,
-                    dosis: dosis,
-                    jumlah: jumlah
+                    dosis: dosisRacik
                 });
             });
 
@@ -1008,7 +1107,7 @@
                     card.find('.tambah-resepracikan').removeClass('d-none');
                     card.find('.update-resepracikan').addClass('d-none');
                     // Disable hapus-obat buttons again after update
-                    card.find('.hapus-obat').prop('disabled', true).addClass('disabled');
+            card.find('.edit-obat, .hapus-obat').prop('disabled', true).addClass('disabled');
                     // Update total price
                     updateTotalPrice();
                 },
