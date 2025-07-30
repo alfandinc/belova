@@ -18,6 +18,7 @@ class PengajuanTidakMasuk extends Model
         'tanggal_selesai',
         'total_hari',
         'alasan',
+        'bukti', // path to image/pdf
         'status_manager',
         'notes_manager',
         'tanggal_persetujuan_manager',

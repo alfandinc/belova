@@ -92,7 +92,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form id="formCreateTidakMasuk">
+            <form id="formCreateTidakMasuk" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="jenis">Jenis</label>
@@ -113,6 +113,11 @@
                     <div class="form-group">
                         <label for="alasan">Alasan</label>
                         <textarea name="alasan" id="alasan" class="form-control" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="bukti">Bukti (Gambar/PDF)</label>
+                        <input type="file" name="bukti" id="bukti" class="form-control" accept=".jpg,.jpeg,.png,.pdf">
+                        <small class="form-text text-muted">File maksimal 2MB. Format: JPG, PNG, PDF.</small>
                     </div>
                     <div class="alert alert-info mt-2">Jumlah hari dihitung secara inklusif (termasuk tanggal mulai dan selesai).</div>
                 </div>
@@ -302,24 +307,45 @@ $(document).ready(function() {
         $('#modalCreateTidakMasuk').modal('show');
     });
 
-    // Submit create form
+    // Submit create form (with file upload)
     $('#formCreateTidakMasuk').submit(function(e) {
         e.preventDefault();
-        var formData = $(this).serialize();
+        var form = $(this)[0];
+        var formData = new FormData(form);
         $.ajax({
             url: "{{ route('hrd.tidakmasuk.store') }}",
             type: "POST",
             data: formData,
+            processData: false,
+            contentType: false,
             beforeSend: function() {
                 $('#btnSubmitTidakMasuk').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
             },
             success: function(response) {
                 $('#modalCreateTidakMasuk').modal('hide');
-                table.ajax.reload();
+                // Refresh correct DataTable
+                if(typeof tablePersonal !== 'undefined') {
+                    tablePersonal.ajax.reload();
+                } else if(typeof tableTeam !== 'undefined') {
+                    tableTeam.ajax.reload();
+                } else if(typeof tableApproval !== 'undefined') {
+                    tableApproval.ajax.reload();
+                }
                 $('#btnSubmitTidakMasuk').attr('disabled', false).html('Ajukan');
+                if(window.Swal) {
+                    Swal.fire('Berhasil!', 'Pengajuan tidak masuk berhasil diajukan.', 'success');
+                }
             },
             error: function(xhr) {
-                alert('Terjadi kesalahan.');
+                let msg = 'Terjadi kesalahan.';
+                if(xhr.responseJSON && xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
+                if(window.Swal) {
+                    Swal.fire('Gagal!', msg, 'error');
+                } else {
+                    alert(msg);
+                }
                 $('#btnSubmitTidakMasuk').attr('disabled', false).html('Ajukan');
             }
         });

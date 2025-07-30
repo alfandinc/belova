@@ -165,6 +165,7 @@ class PengajuanTidakMasukController extends Controller
             'tanggal_mulai' => 'required|date',
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'alasan' => 'required|string',
+            'bukti' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ]);
 
         $tanggalMulai = Carbon::parse($request->tanggal_mulai)->startOfDay();
@@ -178,6 +179,11 @@ class PengajuanTidakMasukController extends Controller
         }
 
         $employee = Auth::user()->employee;
+        $buktiPath = null;
+        if ($request->hasFile('bukti')) {
+            $file = $request->file('bukti');
+            $buktiPath = $file->store('bukti_tidak_masuk', 'public');
+        }
         $pengajuan = PengajuanTidakMasuk::create([
             'employee_id' => $employee->id,
             'jenis' => $request->jenis,
@@ -185,6 +191,7 @@ class PengajuanTidakMasukController extends Controller
             'tanggal_selesai' => $request->tanggal_selesai,
             'total_hari' => $totalHari,
             'alasan' => $request->alasan,
+            'bukti' => $buktiPath,
         ]);
 
         if ($request->ajax()) {

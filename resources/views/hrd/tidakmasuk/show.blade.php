@@ -29,5 +29,27 @@
             <th>Status HRD</th>
             <td>{{ $pengajuan->status_hrd ?? '-' }}</td>
         </tr>
+        <tr>
+            <th>Bukti</th>
+            <td>
+                @if($pengajuan->bukti)
+                    @php
+                        $ext = strtolower(pathinfo($pengajuan->bukti, PATHINFO_EXTENSION));
+                        $url = asset('storage/' . $pengajuan->bukti);
+                    @endphp
+                    @if(in_array($ext, ['jpg','jpeg','png']))
+                        <a href="{{ $url }}" target="_blank">
+                            <img src="{{ $url }}" alt="Bukti" style="max-width:200px;max-height:200px;" class="img-thumbnail">
+                        </a>
+                    @elseif($ext === 'pdf')
+                        <a href="{{ $url }}" target="_blank" class="btn btn-sm btn-info">Lihat PDF</a>
+                    @else
+                        <a href="{{ $url }}" target="_blank">Download Bukti</a>
+                    @endif
+                @else
+                    <span class="text-muted">Tidak ada bukti</span>
+                @endif
+            </td>
+        </tr>
     </table>
 </div>
