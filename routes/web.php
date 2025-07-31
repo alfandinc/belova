@@ -317,22 +317,22 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 });
 
 Route::prefix('workdoc')->middleware('role:HRD|Manager|Employee|Admin')->group(function () {
-    Route::get('/', [WorkdocDashboardController::class, 'index'])->name('dashboard');
-    Route::get('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'index'])->name('documents.index');
+    Route::get('/', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
+    Route::get('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'index'])->name('workdoc.documents.index');
     
     // AJAX route for folder contents
     Route::get('/documents/folder/{folder_id}/contents', [App\Http\Controllers\Workdoc\DocumentController::class, 'getFolderContents'])->name('documents.folder.contents');
     
     // File operations
-    Route::post('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'store'])->name('documents.store');
-    Route::get('/documents/{document}/download', [App\Http\Controllers\Workdoc\DocumentController::class, 'download'])->name('documents.download');
-    Route::delete('/documents/{document}', [App\Http\Controllers\Workdoc\DocumentController::class, 'destroy'])->name('documents.destroy');
+    Route::post('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'store'])->name('workdoc.documents.store');
+    Route::get('/documents/{document}/download', [App\Http\Controllers\Workdoc\DocumentController::class, 'download'])->name('workdoc.documents.download');
+    Route::delete('/documents/{document}', [App\Http\Controllers\Workdoc\DocumentController::class, 'destroy'])->name('workdoc.documents.destroy');
     
     // Folder operations
-    Route::post('/folders', [App\Http\Controllers\Workdoc\FolderController::class, 'store'])->name('folders.store');
+    Route::post('/folders', [App\Http\Controllers\Workdoc\FolderController::class, 'store'])->name('workdoc.folders.store');
     Route::put('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'update'])->name('folders.update');
-    Route::delete('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'destroy'])->name('folders.destroy');
-    Route::put('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'rename'])->name('folders.rename');
+    Route::delete('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'destroy'])->name('workdoc.folders.destroy');
+    Route::put('/folders/{folder}', [App\Http\Controllers\Workdoc\FolderController::class, 'rename'])->name('workdoc.folders.rename');
     Route::put('/documents/{document}', [App\Http\Controllers\Workdoc\DocumentController::class, 'rename'])->name('documents.rename');
     // Optionally, add a preview route if you want to serve files securely
     // Route::get('/documents/{document}/preview', [App\Http\Controllers\Workdoc\DocumentController::class, 'preview'])->name('documents.preview');

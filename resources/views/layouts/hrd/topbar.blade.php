@@ -120,6 +120,13 @@
                             </div>
                         </li>
 
+                        <!-- Back to Main Menu Button -->
+                        <li class="nav-item mt-2 mb-2 mr-2 ml-2">
+                            <a href="/" class="btn btn-outline-primary" title="Kembali ke Main Menu" style="font-weight:600; font-size:14px; padding:4px 14px; border-radius:20px;">
+                                <i data-feather="log-out" class="align-self-center topbar-icon"></i> Main Menu
+                            </a>
+                        </li>
+
                         
                     </ul><!--end topbar-nav-->
         

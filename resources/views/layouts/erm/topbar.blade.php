@@ -11,8 +11,9 @@
                     </ul>
                     <!-- Center: Date Time -->
                     <div class="date-time-display mx-auto" id="erm-date-time-display" style="font-size:15px; min-width:260px; text-align:center; font-weight:600;"></div>
-                    <!-- Right: dark mode, notifications, user -->
+                    <!-- Right: dark mode, notifications, back to main menu, user -->
                     <ul class="list-unstyled topbar-nav float-right mb-0 d-flex align-items-center" style="margin-left:auto;">
+                        
                         <!-- Dark Mode Toggle -->
                         <li class="nav-item mt-3 mr-2">
                             <div class="dark-mode-toggle">
@@ -126,6 +127,13 @@
                                     <i data-feather="power" class="align-self-center icon-xs icon-dual mr-1"></i> Logout
                                 </a>
                             </div>
+                        </li>
+
+                        <!-- Back to Main Menu Button -->
+                        <li class="nav-item mt-2 mb-2 mr-2 ml-2">
+                            <a href="/" class="btn btn-outline-primary" title="Kembali ke Main Menu" style="font-weight:600; font-size:14px; padding:4px 14px; border-radius:20px;">
+                                <i data-feather="log-out" class="align-self-center topbar-icon"></i> Main Menu
+                            </a>
                         </li>
 
                         
