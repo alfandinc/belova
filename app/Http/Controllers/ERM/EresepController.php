@@ -21,6 +21,7 @@ use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\WadahObat;
 use App\Models\User;
 use Illuminate\Support\Str;
+// use Illuminate\Support\Facades\Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use App\Models\ERM\ResepDetail;
@@ -547,35 +548,26 @@ class EresepController extends Controller
         'obats.*.dosis' => 'required|string',
     ]);
 
+    $createdObats = [];
     foreach ($validated['obats'] as $obat) {
         do {
             $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
         } while (ResepFarmasi::where('id', $customId)->exists());
 
-        // Get the obat details to calculate proportional price
         $obatModel = Obat::findOrFail($obat['obat_id']);
         $basePrice = $obatModel->harga_nonfornas ?? 0;
-        
-        // Extract numeric values from dosis strings
         $prescribedDosisStr = $obat['dosis'];
         $baseDosisStr = $obatModel->dosis ?? '';
-        
-        // Extract numeric part using regex
         preg_match('/(\d+(\.\d+)?)/', $prescribedDosisStr, $prescribedMatches);
         preg_match('/(\d+(\.\d+)?)/', $baseDosisStr, $baseMatches);
-        
         $prescribedDosis = !empty($prescribedMatches[1]) ? (float)$prescribedMatches[1] : 0;
         $baseDosis = !empty($baseMatches[1]) ? (float)$baseMatches[1] : 0;
-        
-        // Calculate proportional price
         $harga = $basePrice;
         if ($baseDosis > 0 && $prescribedDosis > 0) {
             $dosisRatio = $prescribedDosis / $baseDosis;
             $harga = $basePrice * $dosisRatio;
-            
         }
-
-        ResepFarmasi::create([
+        $created = ResepFarmasi::create([
             'id' => $customId,
             'visitation_id' => $validated['visitation_id'],
             'obat_id' => $obat['obat_id'],
@@ -584,13 +576,22 @@ class EresepController extends Controller
             'wadah_id' => $validated['wadah'],
             'bungkus' => $validated['bungkus'],
             'dosis' => $obat['dosis'],
-            'harga' => $harga, // Store the calculated proportional price
+            'harga' => $harga,
             'created_at' => now(),
             'user_id' => Auth::id(),
         ]);
+        $createdObats[] = [
+            'id' => $created->id,
+            'obat_id' => $created->obat_id,
+            'dosis' => $created->dosis,
+            'jumlah' => $created->jumlah ?? 1
+        ];
     }
-
-    return response()->json(['success' => true, 'message' => 'Racikan berhasil disimpan.']);
+    return response()->json([
+        'success' => true,
+        'message' => 'Racikan berhasil disimpan.',
+        'obats' => $createdObats
+    ]);
 }
 
     public function farmasidestroyNonRacikan($id)
@@ -649,29 +650,73 @@ class EresepController extends Controller
         try {
             $validated = $request->validate([
                 'visitation_id' => 'required',
+                'wadah' => 'nullable',
                 'bungkus' => 'required|integer',
                 'aturan_pakai' => 'required|string',
+                'obats' => 'required|array',
             ]);
 
-            $updated = \App\Models\ERM\ResepFarmasi::where('visitation_id', $validated['visitation_id'])
-                ->where('racikan_ke', $racikanKe)
-                ->update([
-                    'bungkus' => $validated['bungkus'],
-                    'aturan_pakai' => $validated['aturan_pakai'],
-                ]);
+            $visitationId = $validated['visitation_id'];
+            $wadahId = $validated['wadah'] ?? null;
+            $bungkus = $validated['bungkus'];
+            $aturanPakai = $validated['aturan_pakai'];
+            $obats = $validated['obats'];
 
-            if ($updated) {
-                return response()->json(['success' => true, 'message' => 'Racikan berhasil diupdate.']);
-            } else {
-                // Log the query information for debugging
-                \Illuminate\Support\Facades\Log::info('Racikan update failed', [
-                    'visitation_id' => $validated['visitation_id'],
-                    'racikan_ke' => $racikanKe,
-                    'bungkus' => $validated['bungkus'],
-                    'aturan_pakai' => $validated['aturan_pakai']
-                ]);
-                return response()->json(['success' => false, 'message' => 'Tidak ada data yang diupdate.'], 404);
+            // Get all resep rows for this racikan_ke and visitation
+            $existingReseps = \App\Models\ERM\ResepFarmasi::where('visitation_id', $visitationId)
+                ->where('racikan_ke', $racikanKe)
+                ->get();
+
+            // Collect incoming IDs if present
+            $incomingIds = collect($obats)->pluck('id')->filter()->toArray();
+
+            // Delete resep rows that are not present in the incoming obats
+            foreach ($existingReseps as $resep) {
+                if (!in_array($resep->id, $incomingIds)) {
+                    $resep->delete();
+                }
             }
+
+            // Update or create resep rows for each obat
+            foreach ($obats as $obatData) {
+                if (!empty($obatData['id'])) {
+                    // Update existing
+                    $resep = \App\Models\ERM\ResepFarmasi::find($obatData['id']);
+                    if ($resep) {
+                        $resep->update([
+                            'obat_id' => $obatData['obat_id'],
+                            'dosis' => $obatData['dosis'] ?? '',
+                            'jumlah' => $obatData['jumlah'] ?? 1,
+                            'wadah_id' => $wadahId,
+                            'bungkus' => $bungkus,
+                            'aturan_pakai' => $aturanPakai,
+                        ]);
+                    }
+                } else if (!empty($obatData['obat_id'])) {
+                    // Create new
+                    do {
+                        $customId = now()->format('YmdHis') . strtoupper(\Illuminate\Support\Str::random(7));
+                    } while (\App\Models\ERM\ResepFarmasi::where('id', $customId)->exists());
+                    \App\Models\ERM\ResepFarmasi::create([
+                        'id' => $customId,
+                        'visitation_id' => $visitationId,
+                        'obat_id' => $obatData['obat_id'],
+                        'dosis' => $obatData['dosis'] ?? '',
+                        'jumlah' => $obatData['jumlah'] ?? 1,
+                        'racikan_ke' => $racikanKe,
+                        'wadah_id' => $wadahId,
+                        'bungkus' => $bungkus,
+                        'aturan_pakai' => $aturanPakai,
+                        'user_id' => Auth::id(),
+                        'created_at' => now(),
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Racikan berhasil diupdate'
+            ]);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Error updating racikan: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);

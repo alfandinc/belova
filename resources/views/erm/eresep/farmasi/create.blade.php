@@ -10,6 +10,33 @@
 @include('erm.partials.modal-resepedukasi')
 
 @include('erm.partials.modal-editnonracikan-farmasi')
+
+<!-- Modal Edit Dosis Racikan Obat -->
+<div class="modal fade" id="editDosisModal" tabindex="-1" role="dialog" aria-labelledby="editDosisModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editDosisModalLabel">Edit Dosis Obat Racikan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="edit-dosis-form">
+          <input type="hidden" id="edit-dosis-row-id">
+          <div class="form-group">
+            <label for="edit-dosis-value">Dosis</label>
+            <input type="text" class="form-control" id="edit-dosis-value" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary" id="save-dosis-btn">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">E-Resep Farmasi Pasien</h3>
@@ -156,11 +183,14 @@
                             </thead>
                             <tbody class="resep-table-body">
                                 @foreach ($items as $resep)
-                                    <tr>
-                                        <td data-id="{{ $resep->id }}">{{ $resep->obat->nama ?? '-' }}</td>
+                                    <tr data-id="{{ $resep->id }}" data-obat-id="{{ $resep->obat_id }}" data-dosis="{{ $resep->dosis }}" data-jumlah="{{ $resep->jumlah }}">
+                                        <td>{{ $resep->obat->nama ?? '-' }}</td>
                                         <td>{{ $resep->dosis }}</td>
                                         <td>{{ $resep->obat->stok ?? 0 }}</td>
-                                        <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                                        <td>
+                                            <button class="btn btn-warning btn-sm edit-obat" disabled>Edit</button>
+                                            <button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button>
+                                        </td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -540,31 +570,47 @@
                 return;
             }
             
+            // Collect all obat rows in this racikan
+            const obats = [];
+            card.find('.resep-table-body tr').each(function () {
+                const row = $(this);
+                if (!row.hasClass('no-data')) {
+                    // Try to get id from data-id attribute, fallback to td data-id if needed
+                    let id = row.data('id');
+                    if (!id) {
+                        id = row.find('td').eq(0).data('id');
+                    }
+                    obats.push({
+                        id: id,
+                        obat_id: row.data('obat-id') || row.find('td').eq(0).data('id'),
+                        dosis: row.data('dosis') || row.find('td').eq(1).text(),
+                        jumlah: row.data('jumlah') || 1
+                    });
+                }
+            });
+
             // Send AJAX request to update the racikan
             $.ajax({
-                url: `/erm/resepfarmasi/racikan/${originalRacikanKe}`, // Add 'erm' prefix to match route definition
-                type: 'POST', // Change to POST and use _method to emulate PUT
+                url: `/erm/resepfarmasi/racikan/${originalRacikanKe}`,
+                type: 'POST',
                 data: {
-                    _method: 'PUT', // Laravel will treat this as a PUT request
+                    _method: 'PUT',
                     visitation_id: visitationId,
-                    bungkus: bungkus, // This should match the field name expected by the controller
+                    wadah: wadah,
+                    bungkus: bungkus,
                     aturan_pakai: aturanPakai,
+                    obats: obats,
                     _token: '{{ csrf_token() }}'
                 },
                 success: function(response) {
                     if (response.success) {
                         Swal.fire('Sukses', response.message, 'success');
-                        
-                        // Disable all possible field classes to handle different naming conventions
                         card.find('.wadah, .bungkus, .jumlah_bungkus, .aturan_pakai').prop('disabled', true);
                         card.find('.update-resepracikan').addClass('d-none');
                         card.find('.tambah-resepracikan').removeClass('d-none');
-                        
-                        // Update the local data without doing a full refresh
+                        card.find('.hapus-obat').prop('disabled', true);
                         card.find('.jumlah_bungkus, .bungkus').val(bungkus);
                         card.find('.aturan_pakai').val(aturanPakai);
-                        
-                        // Make sure data-racikan-ke attribute is preserved
                         card.attr('data-racikan-ke', originalRacikanKe);
                     } else {
                         Swal.fire('Error', 'Terjadi kesalahan: ' + response.message, 'error');
@@ -606,11 +652,11 @@
 
             // Append the new row to the table
             tbody.append(`
-                <tr>
+                <tr data-id="" data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-jumlah="1">
                     <td data-id="${obatId}">${obatText}</td>
                     <td>${dosisAkhir} ${satuan}</td>
                     <td>${stok}</td>
-                    <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+                    <td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
                 </tr>
             `);
         });
@@ -660,9 +706,50 @@
                 success: function (res) {
                     Swal.fire('Sukses', res.message, 'success');
                     card.find('.tambah-resepracikan').prop('disabled', true).text('Disimpan');
+                    // Ensure Update button is present but hidden
+                    if (card.find('.update-resepracikan').length === 0) {
+                        card.append('<button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update</button>');
+                    } else {
+                        card.find('.update-resepracikan').addClass('d-none');
+                    }
+                    // PATCH: Update each obat row with the correct data-id from backend
+                    if (res.obats && Array.isArray(res.obats)) {
+                        let rows = card.find('.resep-table-body tr');
+                        res.obats.forEach(function(obat, idx) {
+                            let row = rows.eq(idx);
+                            row.attr('data-id', obat.id);
+                            row.attr('data-obat-id', obat.obat_id);
+                            row.attr('data-dosis', obat.dosis);
+                            row.attr('data-jumlah', obat.jumlah || 1);
+                        });
+                    }
                 }
             });
             });
+
+        // EDIT OBAT RACIKAN (open modal)
+        $('#racikan-container').on('click', '.edit-obat', function () {
+            const row = $(this).closest('tr');
+            const dosis = row.data('dosis');
+            $('#edit-dosis-row-id').val(row.index()); // use row index for identification
+            $('#edit-dosis-value').val(dosis);
+            $('#editDosisModal').modal('show');
+        });
+
+        // SAVE DOSIS FROM MODAL
+        $('#save-dosis-btn').on('click', function () {
+            const rowIndex = $('#edit-dosis-row-id').val();
+            const newDosis = $('#edit-dosis-value').val();
+            if (!newDosis) {
+                Swal.fire('Peringatan', 'Dosis tidak boleh kosong!', 'warning');
+                return;
+            }
+            // Find the row by index and update data + cell
+            const row = $('.racikan-card .resep-table-body tr').eq(rowIndex);
+            row.data('dosis', newDosis);
+            row.find('td').eq(1).text(newDosis); // update cell display
+            $('#editDosisModal').modal('hide');
+        });
 
         // DELETE OBAT DARI RACIKAN
         $('#racikan-container').on('click', '.hapus-obat', function () {
@@ -972,7 +1059,7 @@
                         <td data-id="${item.id}">${item.obat?.nama ?? '-'}</td>
                         <td>${dosis}</td>
                         <td>${item.obat?.stok ?? 0}</td>
-                        <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
+<td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
                     </tr>`;
             }).join('');
 
@@ -1035,8 +1122,11 @@ $(document).on('click', '.edit-racikan', function () {
     // Enable all possible field classes to handle different naming conventions in the HTML
     card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
     card.find('.tambah-resepracikan').addClass('d-none');
-    card.find('.update-resepracikan').removeClass('d-none');
-    console.log('Edit racikan clicked - fields enabled');
+    // Always show and enable Update button
+    card.find('.update-resepracikan').removeClass('d-none').prop('disabled', false);
+    // Enable all Hapus and Edit buttons in this racikan card
+    card.find('.hapus-obat, .edit-obat').prop('disabled', false);
+    console.log('Edit racikan clicked - fields enabled, hapus-obat and edit-obat enabled');
 });
 
 // Notification polling for farmasi create page
