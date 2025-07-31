@@ -695,9 +695,11 @@ class EresepController extends Controller
         ], 200);
     }
 
-    // If force, delete all billing for this visitation
+    // If force, delete only billing items for Obat
     if ($force) {
-        Billing::where('visitation_id', $visitationId)->delete();
+        Billing::where('visitation_id', $visitationId)
+            ->where('billable_type', 'App\Models\ERM\ResepFarmasi')
+            ->delete();
     }
 
     // Fetch all related prescriptions

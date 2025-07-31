@@ -381,7 +381,8 @@
                                     data-row-index="${meta.row}"
                                     data-jumlah="${row.is_racikan ? row.racikan_total_price : row.jumlah_raw}" 
                                     data-diskon="${row.diskon_raw || ''}" 
-                                    data-diskon_type="${row.diskon_type || ''}">
+                                    data-diskon_type="${row.diskon_type || ''}"
+                                    data-qty="${row.qty || 1}">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <button class="btn btn-sm btn-outline-danger delete-btn"
@@ -435,13 +436,15 @@
             const jumlah = $(this).data('jumlah');
             const diskon = $(this).data('diskon');
             const diskon_type = $(this).data('diskon_type');
-            
+            const qty = $(this).data('qty');
+
             $('#edit_id').val(id);
             $('#edit_row_index').val(rowIndex);
             $('#jumlah').val(jumlah);
             $('#diskon').val(diskon);
             $('#diskon_type').val(diskon_type);
-            
+            $('#edit_qty').val(qty);
+
             // Debug: Show harga before edit
             // console.log('[DEBUG] Harga before edit:', jumlah);
             $('#editModal').modal('show');
@@ -496,18 +499,18 @@
         // Save changes button in modal
         $('#saveChangesBtn').on('click', function(e) {
             e.preventDefault();
-            
             const id = $('#edit_id').val();
             const jumlah = parseFloat($('#jumlah').val());
             const diskon = $('#diskon').val() ? parseFloat($('#diskon').val()) : 0;
             const diskon_type = $('#diskon_type').val();
-            
+            const qty = parseInt($('#edit_qty').val()) || 1;
             // Update local data using id
             const idx = billingData.findIndex(item => item.id == id);
             if (idx !== -1) {
                 billingData[idx].jumlah_raw = jumlah;
                 billingData[idx].diskon_raw = diskon;
                 billingData[idx].diskon_type = diskon_type;
+                billingData[idx].qty = qty;
                 billingData[idx].jumlah = 'Rp ' + formatCurrency(jumlah);
                 if (diskon && diskon > 0) {
                     if (diskon_type === '%') {
@@ -526,7 +529,6 @@
                         finalJumlah = jumlah - diskon;
                     }
                 }
-                const qty = billingData[idx].qty || 1;
                 // Store only the final unit price, not multiplied by qty
                 billingData[idx].harga_akhir_raw = finalJumlah;
                 billingData[idx].harga_akhir = 'Rp ' + formatCurrency(finalJumlah * qty);
@@ -538,7 +540,6 @@
                     billingData[idx].racikan_total_price = jumlah;
                 }
             }
-            
             $('#editModal').modal('hide');
             // Debug: Show harga after edit
             // console.log('[DEBUG] Harga after edit:', jumlah);

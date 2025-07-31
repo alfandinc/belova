@@ -13,6 +13,10 @@
                     <input type="hidden" id="edit_id">
                     <input type="hidden" id="edit_row_index">
                     <div class="form-group">
+                        <label for="edit_qty">Qty</label>
+                        <input type="number" class="form-control" id="edit_qty" name="edit_qty" min="1" required>
+                    </div>
+                    <div class="form-group">
                         <label for="jumlah">Harga (Rp)</label>
                         <input type="number" class="form-control" id="jumlah" name="jumlah" required>
                     </div>

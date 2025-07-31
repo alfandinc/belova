@@ -11,7 +11,7 @@ class Billing extends Model
     use HasFactory;
 
     protected $table = 'finance_billing';
-    protected $fillable = ['visitation_id', 'billable_id', 'billable_type', 'jumlah', 'keterangan'];
+    protected $fillable = ['visitation_id', 'billable_id', 'billable_type', 'jumlah', 'qty', 'keterangan'];
 
     public function billable()
     {

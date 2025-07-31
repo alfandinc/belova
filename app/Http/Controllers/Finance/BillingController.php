@@ -329,9 +329,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
 
                 // Get quantity
-                $qty = $row->billable_type == 'App\Models\ERM\ResepFarmasi'
-                    ? ($row->billable->jumlah ?? 1)
-                    : ($row->billable->qty ?? 1);
+                $qty = isset($row->qty) ? $row->qty : (
+                    $row->billable_type == 'App\Models\ERM\ResepFarmasi'
+                        ? ($row->billable->jumlah ?? 1)
+                        : ($row->billable->qty ?? 1)
+                );
 
                 // Final calculation: unit_price_after_discount * qty
                 $finalPrice = $unitPrice * $qty;
@@ -343,6 +345,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     return $row->racikan_bungkus;
                 } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
                     return 1; // Pharmacy fees are counted as single group
+                } else if (isset($row->qty)) {
+                    return $row->qty;
                 } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
                     return $row->billable->jumlah ?? 1;
                 }
@@ -695,7 +699,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $billing->jumlah = $item['jumlah_raw'] ?? $billing->jumlah;
                         $billing->diskon = $item['diskon_raw'] ?? null;
                         $billing->diskon_type = $item['diskon_type'] ?? null;
-                        $billing->save();
+                        if (isset($item['qty'])) {
+        $billing->qty = $item['qty'];
+    }
+    $billing->save();
                     }
                 }
             }
