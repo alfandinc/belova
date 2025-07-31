@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
+
 class BillingController extends Controller
 {
     /**
@@ -595,10 +596,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
     public function saveBilling(Request $request)
     {
-        Log::info('=== SAVE BILLING REQUEST START ===');
-        Log::info('Request data: ' . json_encode($request->all()));
-        Log::info('New items: ' . json_encode($request->input('new_items', [])));
-        Log::info('=== SAVE BILLING REQUEST END ===');
+        // Log::info('=== SAVE BILLING REQUEST START ===');
+        // Log::info('Request data: ' . json_encode($request->all()));
+        // Log::info('New items: ' . json_encode($request->input('new_items', [])));
+        // Log::info('=== SAVE BILLING REQUEST END ===');
 
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
@@ -612,19 +613,82 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         try {
             // Process deleted items
             if (!empty($request->deleted_items)) {
-                Log::info('Processing deleted items: ' . json_encode($request->deleted_items));
+                // Log::info('Processing deleted items: ' . json_encode($request->deleted_items));
                 Billing::whereIn('id', $request->deleted_items)->delete();
             }
 
             // Process edited items
             if (!empty($request->edited_items)) {
-                Log::info('Processing edited items: ' . json_encode($request->edited_items));
+                // Log::info('Processing edited items: ' . json_encode($request->edited_items));
                 foreach ($request->edited_items as $item) {
                     // Skip deleted items that may have been edited before deletion
                     if (in_array($item['id'], $request->deleted_items ?? [])) {
                         continue;
                     }
 
+                    // Racikan group edit: update all racikan items proportionally
+                    if (isset($item['is_racikan']) && $item['is_racikan'] && isset($item['racikan_total_price'])) {
+                        $visitationId = $request->visitation_id;
+                        // Use racikan_ke from the edited item (frontend should send this)
+                        $racikanKe = $item['racikan_ke'] ?? null;
+                        if ($racikanKe !== null) {
+                            // Get all resep IDs for this racikan_ke
+                            $resepfarmasiIds = DB::table('erm_resepfarmasi')
+                                ->where('visitation_id', $visitationId)
+                                ->where('racikan_ke', $racikanKe)
+                                ->pluck('id')->toArray();
+                            // Log::info('Racikan update: racikan_ke='.$racikanKe.' visitation_id='.$visitationId.' resepfarmasiIds='.json_encode($resepfarmasiIds));
+                            $racikanBillings = Billing::where('visitation_id', $visitationId)
+                                ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+                                ->whereIn('billable_id', $resepfarmasiIds)
+                                ->get();
+                            // Log::info('Racikan update: Billing IDs='.json_encode($racikanBillings->pluck('id')));
+                        } else {
+                            // fallback: get all racikan for visitation
+                            $racikanBillings = Billing::where('visitation_id', $visitationId)
+                                ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+                                ->get();
+                            // Log::info('Racikan update: fallback Billing IDs='.json_encode($racikanBillings->pluck('id')));
+                        }
+                        $originalTotal = $racikanBillings->sum(function($b){ return (float)$b->jumlah; });
+                        $newTotal = (float)$item['racikan_total_price'];
+                        $count = $racikanBillings->count();
+                        if ($originalTotal > 0 && $count > 0) {
+                            $ratio = $newTotal / $originalTotal;
+                            $sumSoFar = 0;
+                            foreach ($racikanBillings as $i => $racikanBilling) {
+                                $oldHarga = (float)$racikanBilling->jumlah;
+                                if ($i < $count - 1) {
+                                    $newHarga = round($oldHarga * $ratio, 2);
+                                    $racikanBilling->jumlah = $newHarga > 0 ? $newHarga : 0;
+                                    $racikanBilling->save();
+                                    $sumSoFar += $racikanBilling->jumlah;
+                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' newHarga='.$racikanBilling->jumlah);
+                                } else {
+                                    $lastHarga = round($newTotal - $sumSoFar, 2);
+                                    $racikanBilling->jumlah = $lastHarga > 0 ? $lastHarga : 0;
+                                    $racikanBilling->save();
+                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' lastHarga='.$racikanBilling->jumlah);
+                                }
+                            }
+                        } else if ($count > 0) {
+                            // If original total is zero, set all to zero except last gets total
+                            foreach ($racikanBillings as $i => $racikanBilling) {
+                                if ($i < $count - 1) {
+                                    $racikanBilling->jumlah = 0;
+                                    $racikanBilling->save();
+                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' set to 0');
+                                } else {
+                                    $racikanBilling->jumlah = $newTotal;
+                                    $racikanBilling->save();
+                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' set to newTotal='.$racikanBilling->jumlah);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Normal edit for non-racikan items
                     $billing = Billing::find($item['id']);
                     if ($billing) {
                         // Update only specific fields that can be edited
@@ -638,13 +702,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             // Process new items (added through dropdowns)
             if (!empty($request->new_items)) {
-                Log::info('Processing new items: ' . json_encode($request->new_items));
+                // Log::info('Processing new items: ' . json_encode($request->new_items));
                 foreach ($request->new_items as $item) {
-                    Log::info('Processing new item: ' . json_encode($item));
+                    // Log::info('Processing new item: ' . json_encode($item));
                     
                     // Skip if this item was marked as deleted (check for both boolean and string)
                     if ((isset($item['deleted']) && ($item['deleted'] === true || $item['deleted'] === 'true'))) {
-                        Log::info('Skipping deleted new item: ' . $item['id']);
+                        // Log::info('Skipping deleted new item: ' . $item['id']);
                         continue;
                     }
 
@@ -661,19 +725,19 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         'keterangan' => $item['deskripsi'] ?? null,
                     ]);
                     
-                    Log::info('Created new billing: ' . json_encode($newBilling->toArray()));
+                    // Log::info('Created new billing: ' . json_encode($newBilling->toArray()));
                 }
             } else {
-                Log::info('No new items to process');
+                // Log::info('No new items to process');
             }
 
             DB::commit();
-            Log::info('Save billing completed successfully');
+            // Log::info('Save billing completed successfully');
             return response()->json(['success' => true, 'message' => 'Data billing berhasil disimpan']);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Save billing failed: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
+            // Log::error('Save billing failed: ' . $e->getMessage());
+            // Log::error('Stack trace: ' . $e->getTraceAsString());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }

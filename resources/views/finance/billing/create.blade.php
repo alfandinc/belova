@@ -443,7 +443,7 @@
             $('#diskon_type').val(diskon_type);
             
             // Debug: Show harga before edit
-            console.log('[DEBUG] Harga before edit:', jumlah);
+            // console.log('[DEBUG] Harga before edit:', jumlah);
             $('#editModal').modal('show');
         });
         
@@ -462,7 +462,7 @@
             }).then((result) => {
                 if (result.value) {
                     try {
-                        console.log('Deleting item with id:', id);
+                        // console.log('Deleting item with id:', id);
                         const idx = billingData.findIndex(item => item.id == id);
                         if (idx !== -1) {
                             billingData[idx].deleted = true;
@@ -472,7 +472,7 @@
                             }
                             updateTable();
                             calculateTotals();
-                            console.log('Item deleted successfully');
+                            // console.log('Item deleted successfully');
                             Swal.fire({
                                 title: 'Berhasil!',
                                 text: 'Item berhasil dihapus.',
@@ -531,11 +531,17 @@
                 billingData[idx].harga_akhir_raw = finalJumlah;
                 billingData[idx].harga_akhir = 'Rp ' + formatCurrency(finalJumlah * qty);
                 billingData[idx].edited = true;
+                // Ensure racikan_ke is included for racikan items
+                if (billingData[idx].is_racikan && billingData[idx].billable && billingData[idx].billable.racikan_ke) {
+                    billingData[idx].racikan_ke = billingData[idx].billable.racikan_ke;
+                    // Set racikan_total_price to the edited value
+                    billingData[idx].racikan_total_price = jumlah;
+                }
             }
             
             $('#editModal').modal('hide');
             // Debug: Show harga after edit
-            console.log('[DEBUG] Harga after edit:', jumlah);
+            // console.log('[DEBUG] Harga after edit:', jumlah);
             updateTable();
             calculateTotals();
 
@@ -545,7 +551,7 @@
                 if (item) {
                     const qty = item.qty || 1;
                     const total = item.harga_akhir_raw * qty;
-                    console.log('[DEBUG] Total in DataTable for item', id, ':', total);
+                    // console.log('[DEBUG] Total in DataTable for item', id, ':', total);
                 }
             }, 200);
         });
@@ -585,10 +591,10 @@
         
         // Helper to parse harga string with comma/dot
         function parseHarga(hargaStr) {
-            console.log('parseHarga input:', hargaStr, 'type:', typeof hargaStr);
+            // console.log('parseHarga input:', hargaStr, 'type:', typeof hargaStr);
             
             if (typeof hargaStr === 'number') {
-                console.log('parseHarga returning number:', hargaStr);
+                // console.log('parseHarga returning number:', hargaStr);
                 return hargaStr;
             }
             
@@ -604,7 +610,7 @@
                 // Check if it's in format like "150000.00" (decimal with dot, no thousand separators)
                 if (/^\d+\.\d{1,2}$/.test(cleaned)) {
                     const result = parseFloat(cleaned);
-                    console.log('parseHarga decimal format:', hargaStr, '->', result);
+                    // console.log('parseHarga decimal format:', hargaStr, '->', result);
                     return result;
                 }
                 
@@ -612,7 +618,7 @@
                 if (/^\d{1,3}(\.\d{3})*,\d{1,2}$/.test(cleaned)) {
                     cleaned = cleaned.replace(/\./g, '').replace(',', '.');
                     const result = parseFloat(cleaned);
-                    console.log('parseHarga European format:', hargaStr, '->', cleaned, '->', result);
+                    // console.log('parseHarga European format:', hargaStr, '->', cleaned, '->', result);
                     return result;
                 }
                 
@@ -620,14 +626,14 @@
                 if (/^\d{1,3}(,\d{3})*\.\d{1,2}$/.test(cleaned)) {
                     cleaned = cleaned.replace(/,/g, '');
                     const result = parseFloat(cleaned);
-                    console.log('parseHarga US format:', hargaStr, '->', cleaned, '->', result);
+                    // console.log('parseHarga US format:', hargaStr, '->', cleaned, '->', result);
                     return result;
                 }
                 
                 // Handle plain numbers (no decimal)
                 if (/^\d+$/.test(cleaned)) {
                     const result = parseInt(cleaned);
-                    console.log('parseHarga plain number:', hargaStr, '->', result);
+                    // console.log('parseHarga plain number:', hargaStr, '->', result);
                     return result;
                 }
                 
@@ -635,17 +641,17 @@
                 if (/^\d{1,3}(\.\d{3})*$/.test(cleaned)) {
                     cleaned = cleaned.replace(/\./g, '');
                     const result = parseInt(cleaned);
-                    console.log('parseHarga Indonesian thousands:', hargaStr, '->', cleaned, '->', result);
+                    // console.log('parseHarga Indonesian thousands:', hargaStr, '->', cleaned, '->', result);
                     return result;
                 }
                 
                 // Fallback: try to parse as float
                 const result = parseFloat(cleaned);
-                console.log('parseHarga fallback:', hargaStr, '->', result);
+                // console.log('parseHarga fallback:', hargaStr, '->', result);
                 return isNaN(result) ? 0 : result;
             }
             
-            console.log('parseHarga returning 0 for:', hargaStr);
+            // console.log('parseHarga returning 0 for:', hargaStr);
             return 0;
         }
 
@@ -675,7 +681,7 @@
         
         // Calculate totals for the bottom section
         function calculateTotals() {
-            console.log('Current billingData for totals:', billingData);
+            // console.log('Current billingData for totals:', billingData);
             let subtotal = 0;
             // Sum up all harga_akhir_raw * qty values from non-deleted items
             billingData.forEach(function(item) {
@@ -756,10 +762,10 @@ $('#saveAllChangesBtn').on('click', function() {
             // Force the visitation ID to be treated as a string
             const correctVisitationId = "{{ $visitation->id }}";
             
-            console.log('=== SAVE BILLING DEBUG START ===');
-            console.log('All billingData:', billingData);
-            console.log('Visitation ID being sent:', correctVisitationId);
-            console.log('Type of visitation ID:', typeof correctVisitationId);
+            // console.log('=== SAVE BILLING DEBUG START ===');
+            // console.log('All billingData:', billingData);
+            // console.log('Visitation ID being sent:', correctVisitationId);
+            // console.log('Type of visitation ID:', typeof correctVisitationId);
             
             // Categorize items
             const editedItems = billingData.filter(item => item.edited && !item.deleted);
@@ -773,10 +779,10 @@ $('#saveAllChangesBtn').on('click', function() {
                  item.id.toString().startsWith('racikan-'))
             );
             
-            console.log('Edited items:', editedItems);
-            console.log('New items:', newItems);
-            console.log('Deleted items:', deletedItems);
-            console.log('=== SAVE BILLING DEBUG END ===');
+            // console.log('Edited items:', editedItems);
+            // console.log('New items:', newItems);
+            // console.log('Deleted items:', deletedItems);
+            // console.log('=== SAVE BILLING DEBUG END ===');
             
             const requestData = {
                 _token: "{{ csrf_token() }}",
@@ -787,7 +793,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 totals: window.billingTotals
             };
             
-            console.log('Request data being sent:', requestData);
+            // console.log('Request data being sent:', requestData);
             
             // Show loading
             Swal.fire({
@@ -806,7 +812,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 type: "POST",
                 data: requestData,
                 success: function(response) {
-                    console.log('Save response:', response);
+                    // console.log('Save response:', response);
                     Swal.fire({
                         title: 'Berhasil!',
                         text: 'Data billing berhasil disimpan',
@@ -1026,9 +1032,9 @@ $('#saveAllChangesBtn').on('click', function() {
         // Add selected Tindakan to billingData
         $('#select-tindakan').on('select2:select', function(e) {
             const data = e.params.data;
-            console.log('Tindakan selected data:', data);
+            // console.log('Tindakan selected data:', data);
             const harga = parseHarga(data.harga);
-            console.log('Tindakan parsed harga:', harga);
+            // console.log('Tindakan parsed harga:', harga);
             
             billingData.push({
                 id: 'tindakan-' + data.id,
