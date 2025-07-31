@@ -253,9 +253,12 @@
 <body>
     <div class="page-wrapper">
         <!-- Top Bar -->
-        <div class="topbar">
+        <div class="topbar" style="position:relative;">
             <div class="logo">
                 <img src="{{ asset('img/logo-belovacorp-bw.png')}}" alt="Belova Logo" id="logo-image">
+            </div>
+            <div class="topbar-center" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:16px; font-weight:600; color:var(--text-color); white-space:nowrap;">
+                Hello, {{ Auth::user()->name ?? '' }}
             </div>
             <div class="topbar-right">
                 <div class="date-display" id="date-time-display">
@@ -267,6 +270,12 @@
                 <button class="theme-toggle" id="info-update-btn" title="Informasi Update">
                     <i class="fas fa-info-circle"></i>
                 </button>
+                <form method="POST" action="{{ route('logout') }}" style="display:inline; margin-left:10px;">
+                    @csrf
+                    <button type="submit" class="theme-toggle" title="Logout">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -278,54 +287,69 @@
             </div>
             
             <div class="menu-grid">
+                @php
+                    $userRoles = Auth::user()->roles->pluck('name')->toArray();
+                @endphp
                 <!-- ERM Tile -->
-                <a href="/erm/login" class="menu-tile tile-erm animate-item delay-1">
+                <a href="/erm" class="menu-tile tile-erm animate-item delay-1"
+                   @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin','Farmasi','Beautician','Lab']))
+                       onclick="showRoleWarning(event, 'ERM')"
+                   @endif>
                     <div class="menu-icon">
                         <i class="fas fa-heartbeat"></i>
                     </div>
                     <div class="menu-label">ERM</div>
                 </a>
-                
                 <!-- HRD Tile -->
-                <a href="/hrd/login" class="menu-tile tile-hrd animate-item delay-2">
+                <a href="/hrd" class="menu-tile tile-hrd animate-item delay-2"
+                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee']))
+                       onclick="showRoleWarning(event, 'HRD')"
+                   @endif>
                     <div class="menu-icon">
                         <i class="fas fa-user-friends"></i>
                     </div>
                     <div class="menu-label">HRD</div>
                 </a>
-                
                 <!-- Inventory Tile -->
-                <a href="/inventory/login" class="menu-tile tile-inventory animate-item delay-3">
+                <a href="/inventory" class="menu-tile tile-inventory animate-item delay-3"
+                   @if(!array_intersect($userRoles, ['Inventaris','Admin']))
+                       onclick="showRoleWarning(event, 'Inventory')"
+                   @endif>
                     <div class="menu-icon">
                         <i class="fas fa-box"></i>
                     </div>
                     <div class="menu-label">INVENTORY</div>
                 </a>
-                
                 <!-- Marketing Tile -->
-                <a href="/marketing/login" class="menu-tile tile-marketing animate-item delay-4">
+                <a href="/marketing" class="menu-tile tile-marketing animate-item delay-4"
+                   @if(!array_intersect($userRoles, ['Marketing','Admin']))
+                       onclick="showRoleWarning(event, 'Marketing')"
+                   @endif>
                     <div class="menu-icon">
                         <i class="fas fa-chart-line"></i>
                     </div>
                     <div class="menu-label">MARKETING</div>
                 </a>
-                
                 <!-- Finance Tile -->
-                <a href="/finance/login" class="menu-tile tile-finance animate-item delay-5">
+                <a href="/finance" class="menu-tile tile-finance animate-item delay-5"
+                   @if(!array_intersect($userRoles, ['Kasir','Admin']))
+                       onclick="showRoleWarning(event, 'Finance')"
+                   @endif>
                     <div class="menu-icon">
                         <i class="fas fa-coins"></i>
                     </div>
                     <div class="menu-label">FINANCE</div>
                 </a>
-                
                 <!-- Dokumen Kerja Tile -->
-                <a href="/workdoc/login" class="menu-tile tile-dokumen animate-item delay-6">
+                <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-6"
+                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
+                       onclick="showRoleWarning(event, 'Dokumen Kerja')"
+                   @endif>
                     <div class="menu-icon">
                         <i class="fas fa-folder-open"></i>
                     </div>
                     <div class="menu-label">DOKUMEN KERJA</div>
                 </a>
-                
                 <!-- Cuatomer Tile -->
                 <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-7">
                     <div class="menu-icon">
@@ -333,9 +357,11 @@
                     </div>
                     <div class="menu-label">PENILAIAN PELANGGAN</div>
                 </a>
-                
                 <!-- Akreditasi Tile -->
-                <a href="/akreditasi/login" class="menu-tile tile-akreditasi animate-item delay-8">
+                <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-8"
+                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
+                       onclick="showRoleWarning(event, 'Akreditasi')"
+                   @endif>
                     <div class="menu-icon">
                         <i class="fas fa-medal"></i>
                     </div>
@@ -361,6 +387,18 @@
     <!-- jQuery and core JS -->
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js')}}"></script>
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js')}}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+    function showRoleWarning(e, modul) {
+        e.preventDefault();
+        Swal.fire({
+            icon: 'warning',
+            title: 'Akses Ditolak',
+            text: 'Anda tidak memiliki akses ke ' + modul + '.',
+            confirmButtonText: 'OK'
+        });
+    }
+    </script>
     <!-- Theme Toggle Script -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {

@@ -42,6 +42,7 @@ class AuthController extends Controller
     }
 
     // Handle login request
+
     public function login(Request $request)
     {
         $request->validate([
@@ -49,63 +50,18 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        // Get module from the login form
-        $module = $request->input('module');
-
-        // Define valid roles for each module
-        $roleMapping = [
-            'erm' => ['Dokter', 'Perawat', 'Pendaftaran', 'Admin', 'Farmasi','Beautician','Lab'],
-            'hrd' => ['Hrd', 'Ceo', 'Manager', 'Employee'],
-            'finance' => ['Kasir','Admin'],
-            'inventory' => ['Inventaris','Admin'],
-            'marketing' => ['Marketing', 'Admin'],
-            'workdoc' => ['Hrd', 'Ceo', 'Manager', 'Employee','Admin'],
-            'akreditasi' => ['Hrd', 'Ceo', 'Manager', 'Employee','Admin'],
-        ];
-
-        // Check if the module is valid
-        if (!isset($roleMapping[$module])) {
-            return back()->withErrors(['email' => 'Invalid login module.'])->withInput();
-        }
-
         // Find user with given email
         $user = User::where('email', $request->email)->first();
 
-        // Check if user exists and has the correct role
-        if (
-    !$user ||
-    !$user->hasAnyRole($roleMapping[$module])
-) {
-    return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();
-}
+        // Check if user exists
+        if (!$user) {
+            return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();
+        }
 
         // Attempt to login
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
-            // Redirect to the correct dashboard or kunjungan rajal page for ERM
-            if ($module === 'erm') {
-                // Check for Farmasi role
-                if ($user->hasRole('Farmasi')) {
-                    return redirect()->route('erm.eresepfarmasi.index'); // E-Resep Farmasi menu route
-                }
-                // Check for Lab role
-                if ($user->hasRole('Lab')) {
-                    return redirect()->route('erm.elab.index'); // E-Lab index route
-                }
-                // For Dokter, Pendaftaran, Perawat
-                if ($user->hasAnyRole(['Dokter', 'Pendaftaran', 'Perawat'])) {
-                    return redirect()->route('erm.rawatjalans.index');
-                }
-                if ($user->hasRole('Beautician')) {
-                    return redirect()->route('erm.spk.index'); // E-SPK index route
-                }
-                // Default fallback for ERM
-                return redirect()->route('erm.dashboard');
-            }
-            // Redirect to finance billing if module is finance
-            if ($module === 'finance') {
-                return redirect()->route('finance.billing.index');
-            }
-            return redirect()->route("$module.dashboard");
+            // Redirect ke main menu
+            return redirect('/');
         }
 
         return back()->withErrors(['email' => 'Email or password is incorrect.'])->withInput();

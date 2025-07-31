@@ -1,6 +1,5 @@
 <?php
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\{
     AuthController,
     ERMDashboardController,
@@ -62,44 +61,66 @@ use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Marketing\MarketingController;
 
+
+use Illuminate\Support\Facades\Auth;
 Route::get('/', function () {
+    if (!Auth::check()) {
+        return view('auth.main_login');
+    }
     return view('mainmenu');
 });
 
 // Different login pages (GET requests only)
-Route::get('/erm/login', [AuthController::class, 'showERMLoginForm'])->name('erm.login');
-Route::get('/finance/login', [AuthController::class, 'showFinanceLoginForm'])->name('finance.login');
-Route::get('/hrd/login', [AuthController::class, 'showHRDLoginForm'])->name('hrd.login');
-Route::get('/inventory/login', [AuthController::class, 'showInventoryLoginForm'])->name('inventory.login');
-Route::get('/marketing/login', [AuthController::class, 'showMarketingLoginForm'])->name('marketing.login');
-Route::get('/workdoc/login', [AuthController::class, 'showWorkdocLoginForm'])->name('workdoc.login');
-Route::get('/akreditasi/login', [AuthController::class, 'showAkreditasiLoginForm'])->name('akreditasi.login');
+
+// Hilangkan login per modul, login hanya di halaman utama
 
 // Single POST route for login processing (all forms submit here)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-
-Route::middleware(['auth'])->group(function () {
-    Route::get('/erm', [ERMDashboardController::class, 'index'])->name('erm.dashboard');
-    Route::get('/finance', [FinanceDashboardController::class, 'index'])->name('finance.dashboard');
-    Route::get('/hrd', [HRDDashboardController::class, 'index'])->name('hrd.dashboard');
-    Route::get('/inventory', [InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
-    Route::get('/marketing', [MarketingDashboardController::class, 'index'])->name('marketing.dashboard');
-    Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
-    Route::get('/akreditasi', [AkreditasiDashboardController::class, 'index'])->name('akreditasi.dashboard');
-});
-
 Route::fallback(function () {
     if (!Auth::check()) {
         return redirect('/');
     }
 });
 
+Route::middleware(['auth'])->group(function () {
+    // Hanya user dengan role ERM yang bisa akses modul ERM
+    Route::get('/erm', [ERMDashboardController::class, 'index'])
+        ->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')
+        ->name('erm.dashboard');
+
+    Route::get('/finance', [FinanceDashboardController::class, 'index'])
+        ->middleware('role:Kasir|Admin')
+        ->name('finance.dashboard');
+
+    Route::get('/hrd', [HRDDashboardController::class, 'index'])
+        ->middleware('role:HRD|Manager|Employee|Admin')
+        ->name('hrd.dashboard');
+
+    Route::get('/inventory', [InventoryDashboardController::class, 'index'])
+        ->middleware('role:Admin|Inventaris')   
+        ->name('inventory.dashboard');
+
+    Route::get('/marketing', [MarketingDashboardController::class, 'index'])
+        ->middleware('role:Marketing|Admin')
+        ->name('marketing.dashboard');
+
+    Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])
+        ->middleware('role:HRD|Manager|Employee|Admin')
+        ->name('workdoc.dashboard');
+
+    Route::get('/akreditasi', [AkreditasiDashboardController::class, 'index'])
+        ->middleware('role:HRD|Manager|Employee|Admin')
+        ->name('akreditasi.dashboard');
+});
+
+
+
 Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');
 Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('customer.survey');
 
 // ERM Routes
-Route::prefix('erm')->group(function () {
+Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
     // Pasien Management
     // Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::get('/pasiens/create', [PasienController::class, 'create'])->name('erm.pasiens.create');
@@ -291,11 +312,11 @@ Route::prefix('erm')->group(function () {
     // Batalkan (delete) riwayat tindakan
     Route::delete('/tindakan/riwayat/{id}', [TindakanController::class, 'destroyRiwayatTindakan'])->name('erm.tindakan.riwayat.destroy');
     
-// SOP route
-Route::get('/tindakan/{id}/sop-list', [TindakanController::class, 'getSopList']);
+    // SOP route
+    Route::get('/tindakan/{id}/sop-list', [TindakanController::class, 'getSopList']);
 });
 
-Route::prefix('workdoc')->name('workdoc.')->middleware(['auth'])->group(function () {
+Route::prefix('workdoc')->middleware('role:HRD|Manager|Employee|Admin')->group(function () {
     Route::get('/', [WorkdocDashboardController::class, 'index'])->name('dashboard');
     Route::get('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'index'])->name('documents.index');
     
@@ -318,7 +339,7 @@ Route::prefix('workdoc')->name('workdoc.')->middleware(['auth'])->group(function
 });
 
 
-Route::prefix('akreditasi')->middleware(['auth'])->group(function () {
+Route::prefix('akreditasi')->middleware('role:HRD|Manager|Employee|Admin')->group(function () {
     // BAB CRUD
     Route::get('/bab', [AkreditasiController::class, 'index'])->name('akreditasi.index');
     Route::post('/bab', [AkreditasiController::class, 'storeBab'])->name('akreditasi.bab.store');
@@ -347,9 +368,7 @@ Route::prefix('akreditasi')->middleware(['auth'])->group(function () {
 });
 
 
-Route::prefix('finance')->group(
-    
-    function () {
+Route::prefix('finance')->middleware('role:Kasir|Admin')->group(function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
@@ -382,8 +401,7 @@ Route::prefix('finance')->group(
     }
 );
 
-Route::prefix('inventory')->group(
-    function () {
+Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function () {
         Route::get('/', [App\Http\Controllers\InventoryDashboardController::class, 'index'])->name('inventory.dashboard');
         
         // Existing Item routes
@@ -411,8 +429,7 @@ Route::prefix('inventory')->group(
     }
 );
 
-Route::prefix('hrd')->group(
-    function () {
+Route::prefix('hrd')->middleware('role:HRD|Manager|Employee|Admin')->group(function () {
         // Pengajuan Lembur (Overtime)
         Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
         Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');
@@ -563,7 +580,7 @@ Route::prefix('hrd')->group(
     }
 );
 
-Route::prefix('marketing')->group(function () {
+Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function () {
     // Add pasien to follow up from pasien data
     Route::post('/followup/add-from-pasien', [\App\Http\Controllers\Marketing\FollowUpController::class, 'addFromPasien'])->name('marketing.followup.add-from-pasien');
     // AJAX search for SOPs
