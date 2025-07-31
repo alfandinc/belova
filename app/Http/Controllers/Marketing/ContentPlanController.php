@@ -51,6 +51,9 @@ class ContentPlanController extends Controller
                                 $color = 'purple'; break;
                             case 'bcl':
                                 $color = 'pink'; break;
+                            case 'dr fika':
+                                $color = 'orange'; break;
+                                
                         }
                         $class = 'badge badge-' . $color;
                         $style = '';

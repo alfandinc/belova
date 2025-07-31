@@ -25,6 +25,7 @@
                         <option value="Premiere Belova">Premiere Belova</option>
                         <option value="Belova Skin">Belova Skin</option>
                         <option value="BCL">BCL</option>
+                        <option value="dr Fika">dr Fika</option>
                     </select>
                 </div>
                 <div class="col-md-3">
