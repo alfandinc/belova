@@ -156,6 +156,15 @@
                     <div class="tab-pane fade" id="kepegawaian" role="tabpanel" aria-labelledby="kepegawaian-tab">
                         <div class="form-row">
                             <div class="form-group col-md-6">
+                                <label for="perusahaan">Perusahaan</label>
+                                <select id="perusahaan" name="perusahaan" class="form-control select2">
+                                    <option value="">-- Pilih Perusahaan --</option>
+                                    <option value="Klinik Utama Premiere Belova" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Klinik Utama Premiere Belova' ? 'selected' : '' }}>Klinik Utama Premiere Belova</option>
+                                    <option value="Klinik Pratama Belova" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Klinik Pratama Belova' ? 'selected' : '' }}>Klinik Pratama Belova</option>
+                                    <option value="Belova Center Living" {{ old('perusahaan', $employee->perusahaan ?? '') == 'Belova Center Living' ? 'selected' : '' }}>Belova Center Living</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
                                 <label for="no_induk">No Induk</label>
                                 <div class="input-group">
                                     <div class="input-group-prepend">

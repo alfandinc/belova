@@ -38,13 +38,16 @@ class EmployeeController extends Controller
         $employees = Employee::with(['division', 'user','position'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
+        // Filter by division if provided
+        if ($request->filled('division_id')) {
+            $employees->where('division_id', $request->input('division_id'));
+        }
+        // Filter by perusahaan if provided
+        if ($request->filled('perusahaan')) {
+            $employees->where('perusahaan', $request->input('perusahaan'));
+        }
+
         $dataTable = DataTables::of($employees)
-            // ->addColumn('position_name', function ($employee) {
-            //     // Get position name from the Position model
-            //     $position = Position::find($employee->position);
-            //     return $position ? $position->name : '-';
-            // })
-            // No longer need to add status_label column, handling it client-side
             ->addColumn('action', function ($employee) {
                 $viewBtn = '<a href="' . route('hrd.employee.show', $employee->id) . '" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>';
                 $editBtn = '<a href="' . route('hrd.employee.edit', $employee->id) . '" class="btn btn-sm btn-primary ml-1"><i class="fas fa-edit"></i></a>';
@@ -53,16 +56,12 @@ class EmployeeController extends Controller
                 return $viewBtn . $editBtn . $deleteBtn;
             })
             ->rawColumns(['action']);
-            
+
         // Add custom sorting for kontrak_berakhir column    
         $dataTable->order(function ($query) use ($request) {
             if ($request->has('order') && $request->input('order.0.column') == 6) { // Sisa Kontrak column
                 $direction = $request->input('order.0.dir');
-                // For ascending order: show employees with the least time left first
-                // For descending order: show employees with the most time left first
                 if ($direction == 'asc') {
-                    // Show contract employees first, ordered by nearest end date
-                    // Then show non-contract employees
                     $query->orderByRaw("
                         CASE 
                             WHEN status = 'kontrak' THEN 0 
@@ -73,8 +72,6 @@ class EmployeeController extends Controller
                             ELSE NULL
                         END " . $direction);
                 } else {
-                    // For descending order: employees with longest contract time first,
-                    // then permanent employees, then inactive employees
                     $query->orderByRaw("
                         CASE 
                             WHEN status = 'kontrak' THEN 0
@@ -88,11 +85,13 @@ class EmployeeController extends Controller
                 }
             }
         });
-        
+
         return $dataTable->make(true);
     }
 
-    return view('hrd.employee.index');
+    // Pass divisions to view for filter dropdown
+    $divisions = Division::all();
+    return view('hrd.employee.index', compact('divisions'));
 }
 
     public function create()
@@ -135,6 +134,7 @@ class EmployeeController extends Controller
             'email' => 'nullable|email|max:255|unique:hrd_employee,email',
             'instagram' => 'nullable|string|max:100',
             'role' => 'nullable',
+            'perusahaan' => 'nullable|string|max:255',
         ]);
 
         // Handle file uploads
@@ -228,6 +228,7 @@ class EmployeeController extends Controller
             'durasi_kontrak' => 'nullable|integer|min:1',
             'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
             'instagram' => 'nullable|string|max:100',
+            'perusahaan' => 'nullable|string|max:255',
         ]);
 
         // Handle file uploads

@@ -14,6 +14,26 @@
             </a>
         </div>
         <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="filter-division">Filter Divisi:</label>
+                    <select id="filter-division" class="form-control select2">
+                        <option value="all">-- Semua Divisi --</option>
+                        @foreach($divisions as $division)
+                            <option value="{{ $division->id }}">{{ $division->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="filter-perusahaan">Filter Perusahaan:</label>
+                    <select id="filter-perusahaan" class="form-control select2">
+                        <option value="all">-- Semua Perusahaan --</option>
+                        <option value="Klinik Utama Premiere Belova">Klinik Utama Premiere Belova</option>
+                        <option value="Klinik Pratama Belova">Klinik Pratama Belova</option>
+                        <option value="Belova Center Living">Belova Center Living</option>
+                    </select>
+                </div>
+            </div>
             <div class="table-responsive">
                 <table id="employees-table" class="table table-bordered table-hover table-striped">
                     <thead class="thead-light">
@@ -33,7 +53,6 @@
                     </tbody>
                 </table>
             </div>
-            
             <!-- DataTables will handle pagination and info display automatically -->
         </div>
     </div>
@@ -229,6 +248,17 @@
 @section('scripts')
 <script>
 $(function() {
+    // Initialize select2 for division and perusahaan filter
+    $('#filter-division').select2({
+        width: '100%',
+        placeholder: '-- Semua Divisi --',
+        allowClear: true
+    });
+    $('#filter-perusahaan').select2({
+        width: '100%',
+        placeholder: '-- Semua Perusahaan --',
+        allowClear: true
+    });
     // Initialize tooltips
     $('body').tooltip({
         selector: '[data-toggle="tooltip"]',
@@ -256,6 +286,12 @@ $(function() {
         },
         ajax: {
             url: "{{ route('hrd.employee.index') }}",
+            data: function(d) {
+                var divVal = $('#filter-division').val();
+                d.division_id = (divVal === 'all' ? '' : divVal);
+                var perVal = $('#filter-perusahaan').val();
+                d.perusahaan = (perVal === 'all' ? '' : perVal);
+            },
             error: function (xhr, error, thrown) {
                 console.error('DataTables error:', error, thrown);
                 console.log('Response:', xhr.responseText);
@@ -401,6 +437,10 @@ $(function() {
             // Reinitialize tooltips after each table draw
             $('[data-toggle="tooltip"]').tooltip();
         }
+    });
+    // Filter by division and perusahaan
+    $('#filter-division, #filter-perusahaan').on('change', function() {
+        table.ajax.reload();
     });
     
     // DataTables built-in search and pagination are now used
