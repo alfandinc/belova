@@ -77,6 +77,9 @@ Route::get('/', function () {
 // Single POST route for login processing (all forms submit here)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+// Clinic choice session route
+Route::post('/set-clinic-choice', [AuthController::class, 'setClinicChoice'])->name('set.clinic.choice');
 Route::fallback(function () {
     if (!Auth::check()) {
         return redirect('/');

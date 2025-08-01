@@ -255,7 +255,19 @@
         <!-- Top Bar -->
         <div class="topbar" style="position:relative;">
             <div class="logo">
-                <img src="{{ asset('img/logo-belovacorp-bw.png')}}" alt="Belova Logo" id="logo-image">
+                @php
+                    $clinicChoice = session('clinic_choice');
+                    $logoDark = 'img/logo-belovacorp-bw.png';
+                    $logoLight = 'img/logo-belovacorp-bw.png';
+                    if ($clinicChoice === 'premiere') {
+                        $logoDark = 'img/logo-premiere-bw.png';
+                        $logoLight = 'img/logo-premiere.png'; // Make sure this file exists
+                    } elseif ($clinicChoice === 'skin') {
+                        $logoDark = 'img/logo-belovaskin-bw.png';
+                        $logoLight = 'img/logo-belovaskin.png'; // Make sure this file exists
+                    }
+                @endphp
+                <img src="{{ asset($logoDark) }}" data-logo-dark="{{ asset($logoDark) }}" data-logo-light="{{ asset($logoLight) }}" alt="Belova Logo" id="logo-image">
             </div>
             <div class="topbar-center" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:16px; font-weight:600; color:var(--text-color); white-space:nowrap;">
                 Hello, {{ Auth::user()->name ?? '' }}
@@ -282,7 +294,16 @@
         <!-- Main Content -->
         <div class="content-wrapper">
             <div class="welcome-banner">
-                <h2><span class="welcome-prefix">Welcome to</span> <span class="sim-name">SIM Klinik Belova</span></h2>
+                @php
+                    $clinicChoice = session('clinic_choice');
+                    $simName = 'SIM Klinik Belova';
+                    if ($clinicChoice === 'premiere') {
+                        $simName = 'SIM Klinik Premiere Belova';
+                    } elseif ($clinicChoice === 'skin') {
+                        $simName = 'SIM Klinik Belova Skin';
+                    }
+                @endphp
+                <h2><span class="welcome-prefix">Welcome to</span> <span class="sim-name">{{ $simName }}</span></h2>
                 <p>Sistem Informasi Manajemen Terintegrasi</p>
             </div>
             
@@ -423,19 +444,19 @@
             
             function applyTheme(theme) {
                 htmlElement.setAttribute('data-theme', theme);
-                
                 // Update icon
                 if (theme === 'dark') {
                     themeIcon.className = 'fas fa-sun';
                     bootstrapStyle.href = "{{ asset('dastone/default/assets/css/bootstrap-dark.min.css') }}";
                     appStyle.href = "{{ asset('dastone/default/assets/css/app-dark.min.css') }}";
-                    logoImage.src = "{{ asset('img/logo-belovacorp-bw.png') }}";
+                    // Change logo to dark version
+                    if (logoImage) logoImage.src = logoImage.getAttribute('data-logo-dark');
                 } else {
                     themeIcon.className = 'fas fa-moon';
                     bootstrapStyle.href = "{{ asset('dastone/default/assets/css/bootstrap.min.css') }}";
                     appStyle.href = "{{ asset('dastone/default/assets/css/app.min.css') }}";
-                    // If you have a light version of the logo, you can set it here
-                    logoImage.src = "{{ asset('img/logo-belovacorp-bw.png') }}";
+                    // Change logo to light version
+                    if (logoImage) logoImage.src = logoImage.getAttribute('data-logo-light');
                 }
             }
             
@@ -460,6 +481,7 @@
     </script>
     <script>
     $(document).ready(function() {
+        // System update modal
         if (!localStorage.getItem('systemUpdateModalShown')) {
             $('#systemUpdateModal').modal('show');
             localStorage.setItem('systemUpdateModalShown', '1');
@@ -467,6 +489,7 @@
         $('#info-update-btn').on('click', function() {
             $('#systemUpdateModal').modal('show');
         });
+
     });
     </script>
 </body>

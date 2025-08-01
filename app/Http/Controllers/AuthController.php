@@ -9,6 +9,16 @@ use App\Models\User;
 class AuthController extends Controller
 {
     // Show different login forms based on the module
+
+    // Set clinic choice in session
+    public function setClinicChoice(Request $request)
+    {
+        $request->validate([
+            'clinic_choice' => 'required|in:skin,premiere',
+        ]);
+        session(['clinic_choice' => $request->clinic_choice]);
+        return response()->json(['status' => 'ok']);
+    }
     public function showERMLoginForm()
     {
         return view('auth.erm_login'); // ERM Login Page
@@ -60,6 +70,10 @@ class AuthController extends Controller
 
         // Attempt to login
         if (Auth::attempt(['email' => $request->email, 'password' => $request->password])) {
+            // Save clinic_choice to session if present
+            if ($request->has('clinic_choice')) {
+                session(['clinic_choice' => $request->clinic_choice]);
+            }
             // Redirect ke main menu
             return redirect('/');
         }

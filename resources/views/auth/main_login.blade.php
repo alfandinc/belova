@@ -24,6 +24,13 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.3);
             width: 100%;
             max-width: 400px;
+            transition: background 0.3s;
+        }
+        .login-container.skin {
+            background: linear-gradient(135deg,#b8004c,#e83e8c);
+        }
+        .login-container.premiere {
+            background: linear-gradient(135deg,#003366,#007bff);
         }
         .login-title {
             text-align: center;
@@ -55,17 +62,17 @@
     </style>
 </head>
 <body>
-    <div class="login-container">
+    <div class="login-container" id="login-container">
         <div class="logo">
-            <img src="{{ asset('img/logo-belovacorp-bw.png') }}" alt="Belova Logo">
+            <img id="login-logo" src="{{ asset('img/logo-belovacorp-bw.png') }}" alt="Belova Logo">
         </div>
-        <h2 class="login-title">Login SIM Klinik Belova</h2>
+        <h2 class="login-title" id="login-title">Login SIM Klinik Belova</h2>
         @if ($errors->any())
             <div class="error-message">
                 {{ $errors->first() }}
             </div>
         @endif
-        <form method="POST" action="{{ route('login') }}">
+        <form method="POST" action="{{ route('login') }}" id="login-form">
             @csrf
             <div class="form-group mb-3">
                 <label for="email">Email</label>
@@ -75,8 +82,69 @@
                 <label for="password">Password</label>
                 <input type="password" class="form-control" id="password" name="password" required>
             </div>
-            <button type="submit" class="btn btn-login">Login</button>
+            <input type="hidden" name="clinic_choice" id="clinic_choice_input">
+            <button type="submit" class="btn btn-login" id="login-btn" disabled>Login</button>
         </form>
     </div>
+
+    <!-- Clinic Choice Modal -->
+    <div class="modal fade" id="clinicChoiceModal" tabindex="-1" aria-labelledby="clinicChoiceModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="background:#232a36; color:#fff; border-radius:20px;">
+          {{-- <div class="modal-header border-0">
+            <h4 class="modal-title w-100 text-center" id="clinicChoiceModalLabel" style="font-weight:700;">Pilih Klinik</h4>
+          </div> --}}
+          <div class="modal-body text-center" style="padding:50px 20px;">
+            <div class="d-flex flex-row align-items-center justify-content-center gap-3">
+              <button class="btn btn-lg btn-block d-flex flex-column align-items-center justify-content-center mx-2 p-0" id="choose-skin" style="width:340px; height:340px; border-radius:20px; border-width:4px; background:linear-gradient(135deg,#b8004c,#e83e8c); color:#232a36; border:4px solid #e83e8c; overflow:hidden;">
+                <img src="{{ asset('img/logo-belovaskin-bw.png') }}" alt="Belova Skin" style="width:100%; height:100%; object-fit:contain; padding:32px; display:block;">
+              </button>
+              <button class="btn btn-lg btn-block d-flex flex-column align-items-center justify-content-center mx-2 p-0" id="choose-premiere" style="width:340px; height:340px; border-radius:20px; border-width:4px; background:linear-gradient(135deg,#003366,#007bff); color:#232a36; border:4px solid #007bff; overflow:hidden;">
+                <img src="{{ asset('img/logo-premiere-bw.png') }}" alt="Premiere Belova" style="width:100%; height:100%; object-fit:contain; padding:32px; display:block;">
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    $(document).ready(function() {
+        // Show modal on page load
+        $('#clinicChoiceModal').modal({backdrop: 'static', keyboard: false});
+        $('#clinicChoiceModal').modal('show');
+
+        // Disable login until choice is made
+        $('#login-btn').prop('disabled', true);
+
+        $('#choose-skin').on('click', function() {
+            setClinicChoice('skin');
+        });
+        $('#choose-premiere').on('click', function() {
+            setClinicChoice('premiere');
+        });
+
+        function setClinicChoice(choice) {
+            // Set hidden input for form submit
+            $('#clinic_choice_input').val(choice);
+            // Change logo
+            if (choice === 'skin') {
+                $('#login-logo').attr('src', '{{ asset('img/logo-belovaskin-bw.png') }}');
+                $('#login-title').text('Login SIM Klinik Belova Skin');
+                $('#login-container').removeClass('premiere').addClass('skin');
+            } else if (choice === 'premiere') {
+                $('#login-logo').attr('src', '{{ asset('img/logo-premiere-bw.png') }}');
+                $('#login-title').text('Login SIM Klinik Premiere Belova');
+                $('#login-container').removeClass('skin').addClass('premiere');
+            }
+            // Enable login button
+            $('#login-btn').prop('disabled', false);
+            // Hide modal
+            $('#clinicChoiceModal').modal('hide');
+        }
+    });
+    </script>
 </body>
 </html>
