@@ -25,29 +25,33 @@ class BirthdayImageService
             $height = $img->height();
             
             // Text font settings via callable functions
+            // Move text more to the left (subtract 200px from center)
+            $x = $width / 2 - 200;
+            // Move text further down by increasing Y values
+            $nameY = $height / 2 - 15;
+            $ageY = $height / 2 + 55;
+            $dateY = $height - 45;
             // Name text
-            $img->text($displayName, $width / 2, $height / 2 - 50, function ($font) {
+            $img->text($displayName, $x, $nameY, function ($font) {
                 $font->filename(public_path('fonts/Poppins-Bold.ttf'));
                 $font->size(60);
-                $font->color('#ffffff');
+                $font->color('#6c3483'); // dark purple
                 $font->align('center');
                 $font->valign('middle');
             });
-            
             // Age text
-            $img->text("$age tahun", $width / 2, $height / 2 + 30, function ($font) {
+            $img->text("$age tahun", $x, $ageY, function ($font) {
                 $font->filename(public_path('fonts/Poppins-Regular.ttf'));
                 $font->size(40);
-                $font->color('#ffffff');
+                $font->color('#6c3483'); // dark purple
                 $font->align('center');
                 $font->valign('middle');
             });
-            
             // Date text
-            $img->text(now()->format('d F Y'), $width / 2, $height - 50, function ($font) {
+            $img->text(now()->format('d F Y'), $x, $dateY, function ($font) {
                 $font->filename(public_path('fonts/Poppins-Italic.ttf'));
                 $font->size(20);
-                $font->color('#ffffff');
+                $font->color('#6c3483'); // dark purple
                 $font->align('center');
                 $font->valign('bottom');
             });
