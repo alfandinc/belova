@@ -2,23 +2,20 @@
         <div class="left-sidenav ">
             <!-- LOGO -->
             @php
-                // Fetch the klinik_id associated with the logged-in user
-                $klinikId = Auth::user()->dokter->klinik_id ?? null;
-
-                // Define logo paths based on klinik_id
-                if ($klinikId === 1) {
+                // Use session clinic_choice to determine logo
+                $clinicChoice = session('clinic_choice');
+                if ($clinicChoice === 'premiere') {
                     $lightLogo = asset('img/logo-premiere-bw.png');
                     $darkLogo = asset('img/logo-premiere.png');
-                    $logoHeight = '50px'; // Height for klinik_id = 1
-                } elseif ($klinikId === 2) {
+                    $logoHeight = '50px';
+                } elseif ($clinicChoice === 'skin') {
                     $lightLogo = asset('img/logo-belovaskin-bw.png');
                     $darkLogo = asset('img/logo-belovaskin.png');
-                    $logoHeight = '50px'; // Height for klinik_id = 2
+                    $logoHeight = '50px';
                 } else {
-                    // Default logos if klinik_id is not 1 or 2
                     $lightLogo = asset('img/logo-belova-klinik-bw.png');
                     $darkLogo = asset('img/logo-belova-klinik.png');
-                    $logoHeight = '70px'; // Default height
+                    $logoHeight = '70px';
                 }
             @endphp
             

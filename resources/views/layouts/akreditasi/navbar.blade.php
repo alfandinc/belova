@@ -1,14 +1,30 @@
 <!-- Left Sidenav -->
 <div class="left-sidenav">
     <!-- LOGO -->
+    @php
+        $clinicChoice = session('clinic_choice');
+        if ($clinicChoice === 'premiere') {
+            $lightLogo = asset('img/logo-premiere-bw.png');
+            $darkLogo = asset('img/logo-premiere.png');
+            $logoHeight = '50px';
+        } elseif ($clinicChoice === 'skin') {
+            $lightLogo = asset('img/logo-belovaskin-bw.png');
+            $darkLogo = asset('img/logo-belovaskin.png');
+            $logoHeight = '50px';
+        } else {
+            $lightLogo = asset('img/logo-belovacorp-bw.png');
+            $darkLogo = asset('img/logo-belovacorp.png');
+            $logoHeight = '50px';
+        }
+    @endphp
     <div class="brand mt-3">
         <a href="/akreditasi" class="logo">
             <span>
                 <!-- Light-theme logo (for dark background) -->
-                <img src="{{ asset('img/logo-belovacorp-bw.png')}}" alt="logo" class="logo-light" style="width: auto; height: 50px;">
+                <img src="{{ $lightLogo }}" alt="logo" class="logo-light" style="width: auto; height: {{ $logoHeight }};">
 
                 <!-- Dark-theme logo (for light background) -->
-                <img src="{{ asset('img/logo-belovacorp.png')}}" alt="logo" class="logo-dark" style="width: auto; height: 50px;">
+                <img src="{{ $darkLogo }}" alt="logo" class="logo-dark" style="width: auto; height: {{ $logoHeight }};">
             </span>
         </a>
     </div>

@@ -282,9 +282,9 @@
                 <button class="theme-toggle" id="info-update-btn" title="Informasi Update">
                     <i class="fas fa-info-circle"></i>
                 </button>
-                <form method="POST" action="{{ route('logout') }}" style="display:inline; margin-left:10px;">
+                <form method="POST" action="{{ route('logout') }}" style="display:inline; margin-left:10px;" id="logout-form">
                     @csrf
-                    <button type="submit" class="theme-toggle" title="Logout">
+                    <button type="submit" class="theme-toggle" title="Logout" id="logout-btn">
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
                 </form>
@@ -419,6 +419,30 @@
             confirmButtonText: 'OK'
         });
     }
+    </script>
+    <script>
+    // Logout confirmation
+    document.addEventListener('DOMContentLoaded', function() {
+        const logoutBtn = document.getElementById('logout-btn');
+        const logoutForm = document.getElementById('logout-form');
+        if (logoutBtn && logoutForm) {
+            logoutBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                Swal.fire({
+                    title: 'Konfirmasi Logout',
+                    text: 'Apakah Anda yakin ingin logout?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, Logout',
+                    cancelButtonText: 'Batal',
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        logoutForm.submit();
+                    }
+                });
+            });
+        }
+    });
     </script>
     <!-- Theme Toggle Script -->
     <script>
