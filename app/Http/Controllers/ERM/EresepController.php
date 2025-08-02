@@ -754,6 +754,7 @@ class EresepController extends Controller
 
     // Bill for each medication
     foreach ($reseps as $resep) {
+        $qty = $resep->racikan_ke ? ($resep->bungkus ?? 1) : ($resep->jumlah ?? 1);
         Billing::updateOrCreate(
             [
                 'billable_id' => $resep->id,
@@ -761,6 +762,7 @@ class EresepController extends Controller
             ],
             [
                 'visitation_id' => $resep->visitation_id,
+                'qty' => $qty,
                 'jumlah' => $resep->harga ?? 0,
                 'keterangan' => 'Obat: ' . ($resep->obat->nama ?? 'Tanpa Nama') . 
                                 ($resep->racikan_ke ? ' (Racikan #' . $resep->racikan_ke . ')' : ''),
