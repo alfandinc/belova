@@ -105,6 +105,12 @@
                                 <a href="/erm/statistic"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
                             </li>
                             <li>
+                                <a href="/erm/fakturpembelian"><i data-feather="file" class="align-self-center menu-icon"></i><span>Faktur Pembelian</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Tambah Faktur Pembelian</span></a>
+                            </li>
+                            <li>
                                 <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Stok Obat</span></a>
                             </li>
                             <li>
