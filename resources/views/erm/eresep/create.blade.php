@@ -1560,7 +1560,7 @@
                 let dosisObat = parseFloat(detail.obat.dosis) || 0;
                 let dosisRacik = parseFloat(detail.dosis) || 0;
                 let hargaSatuan = parseFloat(detail.obat.harga_nonfornas) || 0;
-                totalHargaAkhir += (dosisObat > 0) ? (dosisRacik / dosisObat) * $hargaSatuan : 0;
+                totalHargaAkhir += (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
             });
             let hargaRacikan = totalHargaAkhir * paket.bungkus_default;
 
