@@ -85,6 +85,25 @@
             {{ $lastVisitDate }}
         </span>
     </div>
+    <div class="col-12 text-end mt-2">
+        <span style="padding: 6px 6px; border: 2px solid #198754; border-radius: 8px; font-weight: bold; background: #f8f9fa; color: #198754; box-shadow: 0 2px 8px 0 rgba(25,135,84,0.10);">
+            Last Lab:
+            @if(isset($lastLab) && $lastLab->created_at)
+                @php
+                    $labDate = \Carbon\Carbon::parse($lastLab->created_at);
+                    $now = \Carbon\Carbon::now();
+                    $diffMonths = $labDate->diffInMonths($now);
+                @endphp
+                @if($diffMonths >= 1)
+                    {{ $lastLab->labTest->nama ?? '-' }} - {{ $diffMonths }} month{{ $diffMonths > 1 ? 's' : '' }} ago
+                @else
+                    -
+                @endif
+            @else
+                -
+            @endif
+        </span>
+    </div>
 </div>
                 </div>
                 <!-- Kolom Kiri -->

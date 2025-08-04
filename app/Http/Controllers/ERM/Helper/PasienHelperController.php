@@ -39,14 +39,24 @@ class PasienHelperController
             $usia = "$years tahun $months bulan $days hari";
         }
 
+
         // Find last visit date (excluding current visit) with status_kunjungan = 2
         $lastVisit = Visitation::where('pasien_id', $pasien->id)
             ->where('id', '!=', $visitationId)
             ->where('status_kunjungan', 2)
             ->latest('tanggal_visitation')
             ->first();
-        
         $lastVisitDate = $lastVisit ? Carbon::parse($lastVisit->tanggal_visitation)->translatedFormat('d F Y') : '-';
+
+        // Find last lab for this patient (from all visitations)
+        $lastLab = null;
+        $allVisitationIds = $pasien->visitations()->pluck('id');
+        if ($allVisitationIds->count() > 0) {
+            $lastLab = \App\Models\ERM\LabPermintaan::whereIn('visitation_id', $allVisitationIds)
+                ->latest('created_at')
+                ->with('labTest')
+                ->first();
+        }
 
         $zatAktif = ZatAktif::all();
         $alergiPasien = Alergi::where('pasien_id', $pasien->id)
@@ -74,6 +84,7 @@ class PasienHelperController
             'alergikatakunci' => $alergikatakunci,
             'lastVisitDate' => $lastVisitDate,
             'alergiList' => $alergiList,
+            'lastLab' => $lastLab,
         ];
     }
 }

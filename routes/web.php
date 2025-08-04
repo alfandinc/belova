@@ -97,7 +97,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('finance.dashboard');
 
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
-        ->middleware('role:HRD|Manager|Employee|Admin')
+        ->middleware('role:Hrd|Manager|Employee|Admin')
         ->name('hrd.dashboard');
 
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])
@@ -109,16 +109,16 @@ Route::middleware(['auth'])->group(function () {
         ->name('marketing.dashboard');
 
     Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])
-        ->middleware('role:HRD|Manager|Employee|Admin')
+        ->middleware('role:Hrd|Manager|Employee|Admin')
         ->name('workdoc.dashboard');
 
     Route::get('/akreditasi', [AkreditasiDashboardController::class, 'index'])
-        ->middleware('role:HRD|Manager|Employee|Admin')
+        ->middleware('role:Hrd|Manager|Employee|Admin')
         ->name('akreditasi.dashboard');
 
-    // Insiden menu (Admin & HRD roles)
+    // Insiden menu (Admin & Hrd roles)
     Route::get('/insiden', [\App\Http\Controllers\InsidenDashboardController::class, 'index'])
-        ->middleware('role:Admin|HRD|Manager|Employee')
+        ->middleware('role:Admin|Hrd|Manager|Employee')
         ->name('insiden.dashboard');
 });
 
