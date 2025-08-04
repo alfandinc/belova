@@ -215,6 +215,7 @@
         .tile-lab { background-color: #E74C3C; }
         .tile-akreditasi { background-color: #1ABC9C; }
         .tile-kos { background-color: #d41886; }
+        .tile-insiden { background-color: #800000; }
 
         .footer {
             text-align: center;
@@ -388,12 +389,19 @@
                     </div>
                     <div class="menu-label">AKREDITASI</div>
                 </a>
-                {{-- <a href="/kos/login" class="menu-tile tile-kos animate-item delay-8">
+                <!-- Insiden Tile -->
+                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-9">
+                    <div class="menu-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="menu-label">LAPORAN INSIDEN</div>
+                </a>
+                <a href="/kos/login" class="menu-tile tile-kos animate-item delay-8">
                     <div class="menu-icon">
                         <i class="fas fa-building"></i>
                     </div>
                     <div class="menu-label">KOS BCL</div>
-                </a> --}}
+                </a>
             </div>
         </div>
 

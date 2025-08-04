@@ -115,6 +115,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/akreditasi', [AkreditasiDashboardController::class, 'index'])
         ->middleware('role:HRD|Manager|Employee|Admin')
         ->name('akreditasi.dashboard');
+
+    // Insiden menu (Admin & HRD roles)
+    Route::get('/insiden', [\App\Http\Controllers\InsidenDashboardController::class, 'index'])
+        ->middleware('role:Admin|HRD|Manager|Employee')
+        ->name('insiden.dashboard');
 });
 
 
