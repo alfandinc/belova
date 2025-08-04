@@ -324,7 +324,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/tindakan/{id}/sop-list', [TindakanController::class, 'getSopList']);
 });
 
-Route::prefix('workdoc')->middleware('role:HRD|Manager|Employee|Admin')->group(function () {
+Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
     Route::get('/', [WorkdocDashboardController::class, 'index'])->name('workdoc.dashboard');
     Route::get('/documents', [App\Http\Controllers\Workdoc\DocumentController::class, 'index'])->name('workdoc.documents.index');
     
@@ -347,7 +347,7 @@ Route::prefix('workdoc')->middleware('role:HRD|Manager|Employee|Admin')->group(f
 });
 
 
-Route::prefix('akreditasi')->middleware('role:HRD|Manager|Employee|Admin')->group(function () {
+Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
     // BAB CRUD
     Route::get('/bab', [AkreditasiController::class, 'index'])->name('akreditasi.index');
     Route::post('/bab', [AkreditasiController::class, 'storeBab'])->name('akreditasi.bab.store');
@@ -437,7 +437,7 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
     }
 );
 
-Route::prefix('hrd')->middleware('role:HRD|Manager|Employee|Admin')->group(function () {
+Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
         // Pengajuan Lembur (Overtime)
         Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
         Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');

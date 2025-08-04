@@ -95,7 +95,7 @@
                     $diffMonths = $labDate->diffInMonths($now);
                 @endphp
                 @if($diffMonths >= 1)
-                    {{ $lastLab->labTest->nama ?? '-' }} - {{ $diffMonths }} month{{ $diffMonths > 1 ? 's' : '' }} ago
+                    {{ $lastLab->labTest->nama ?? '-' }} - {{ (int)$diffMonths }} month{{ $diffMonths > 1 ? 's' : '' }} ago
                 @else
                     -
                 @endif
