@@ -248,6 +248,8 @@
         .delay-6 { animation-delay: 0.6s; }
         .delay-7 { animation-delay: 0.7s; }
         .delay-8 { animation-delay: 0.8s; }
+        .delay-9 { animation-delay: 0.9s; }
+        .delay-10 { animation-delay: 1.0s; }
     </style>
 </head>
 
@@ -396,7 +398,7 @@
                     </div>
                     <div class="menu-label">LAPORAN INSIDEN</div>
                 </a>
-                <a href="/kos/login" class="menu-tile tile-kos animate-item delay-8">
+                <a href="/kos/login" class="menu-tile tile-kos animate-item delay-10">
                     <div class="menu-icon">
                         <i class="fas fa-building"></i>
                     </div>
