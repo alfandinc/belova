@@ -33,12 +33,11 @@
                         </span>                    </li>
             
             @php
-                $userRole = Auth::user()->getRoleNames()->first();
+                $user = Auth::user();
                 $statusDokumen = $visitation->status_dokumen; // adjust if the status comes from somewhere else
-                // dd($userRole, $statusDokumen);
             @endphp
             
-            @if($userRole !== 'Lab')
+            @if(!$user->hasRole('Lab'))
                 <li>
                     <a href="{{ route('erm.rawatjalans.index', $visitation->id) }}">
                         <i data-feather="clipboard" class="align-self-center menu-icon"></i>
@@ -46,7 +45,7 @@
                     </a>
                 </li>
             
-                @if($userRole === 'Dokter')
+                @if($user->hasRole('Dokter'))
                     @if($statusDokumen === 'asesmen')
                         <li>
                             <a href="{{ route('erm.asesmendokter.create', $visitation->id) }}" target="_blank">
@@ -62,7 +61,7 @@
                             </a>
                         </li>
                     @endif
-                @elseif($userRole === 'Perawat')
+                @elseif($user->hasRole('Perawat'))
                     {{-- Show both buttons for perawat --}}
                     <li>
                         <a href="{{ route('erm.asesmenperawat.create', $visitation->id) }}" target="_blank">
@@ -78,7 +77,7 @@
                     </li>
                 @endif
 
-                @if($userRole !== 'Perawat')
+                @if(!$user->hasRole('Perawat'))
                     <li>
                         <a href="{{ route('erm.eresep.create', $visitation->id) }}" target="_blank">
                             <i data-feather="package" class="align-self-center menu-icon"></i>
@@ -95,7 +94,7 @@
                 </a>
             </li>
 
-            @if($userRole !== 'Lab')
+            @if(!$user->hasRole('Lab'))
                 <li>
                     <a href="{{ route('erm.eradiologi.create', $visitation->id) }}" target="_blank">
                         <i data-feather="image" class="align-self-center menu-icon"></i>

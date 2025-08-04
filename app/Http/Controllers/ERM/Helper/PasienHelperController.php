@@ -50,12 +50,23 @@ class PasienHelperController
 
         // Find last lab for this patient (from all visitations)
         $lastLab = null;
+        $lastLabVisitDate = null;
+        $lastLabPermintaanList = [];
         $allVisitationIds = $pasien->visitations()->pluck('id');
         if ($allVisitationIds->count() > 0) {
             $lastLab = \App\Models\ERM\LabPermintaan::whereIn('visitation_id', $allVisitationIds)
                 ->latest('created_at')
                 ->with('labTest')
                 ->first();
+            if ($lastLab) {
+                // Get the visitation related to this lab permintaan
+                $labVisitation = \App\Models\ERM\Visitation::find($lastLab->visitation_id);
+                $lastLabVisitDate = $labVisitation ? $labVisitation->tanggal_visitation : null;
+                // Get all permintaan lab for that visit
+                if ($labVisitation) {
+                    $lastLabPermintaanList = $labVisitation->labPermintaan()->with('labTest')->get();
+                }
+            }
         }
 
         $zatAktif = ZatAktif::all();
@@ -85,6 +96,8 @@ class PasienHelperController
             'lastVisitDate' => $lastVisitDate,
             'alergiList' => $alergiList,
             'lastLab' => $lastLab,
+            'lastLabVisitDate' => $lastLabVisitDate,
+            'lastLabPermintaanList' => $lastLabPermintaanList,
         ];
     }
 }

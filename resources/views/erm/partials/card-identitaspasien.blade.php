@@ -85,17 +85,17 @@
             {{ $lastVisitDate }}
         </span>
     </div>
-    <div class="col-12 text-end mt-2">
-        <span style="padding: 6px 6px; border: 2px solid #198754; border-radius: 8px; font-weight: bold; background: #f8f9fa; color: #198754; box-shadow: 0 2px 8px 0 rgba(25,135,84,0.10);">
+    <div class="col-12 text-end mt-3">
+        <span id="lastLabSpan" style="padding: 6px 6px; border: 2px solid #198754; border-radius: 8px; font-weight: bold; background: #f8f9fa; color: #198754; box-shadow: 0 2px 8px 0 rgba(25,135,84,0.10); cursor:pointer;" data-toggle="modal" data-target="#modalLastLabPermintaan">
             Last Lab:
-            @if(isset($lastLab) && $lastLab->created_at)
+            @if(isset($lastLabVisitDate) && $lastLabVisitDate)
                 @php
-                    $labDate = \Carbon\Carbon::parse($lastLab->created_at);
+                    $labDate = \Carbon\Carbon::parse($lastLabVisitDate);
                     $now = \Carbon\Carbon::now();
                     $diffMonths = $labDate->diffInMonths($now);
                 @endphp
                 @if($diffMonths >= 1)
-                    {{ $lastLab->labTest->nama ?? '-' }} - {{ (int)$diffMonths }} month{{ $diffMonths > 1 ? 's' : '' }} ago
+                    {{ (int)$diffMonths }} month{{ $diffMonths > 1 ? 's' : '' }} ago
                 @else
                     -
                 @endif
@@ -103,6 +103,7 @@
                 -
             @endif
         </span>
+
     </div>
 </div>
                 </div>
@@ -262,6 +263,37 @@
         </div>
     </div>
 </div>
+
+        <!-- Modal for Last Lab Permintaan -->
+        <div class="modal fade" id="modalLastLabPermintaan" tabindex="-1" role="dialog" aria-labelledby="modalLastLabPermintaanLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalLastLabPermintaanLabel">Permintaan Lab pada Kunjungan Terkait</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        @if(isset($lastLabPermintaanList) && count($lastLabPermintaanList) > 0)
+                            <ul class="list-group">
+                                @foreach($lastLabPermintaanList as $permintaan)
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        {{ $permintaan->labTest->nama ?? '-' }}
+                                        <span class="badge badge-primary badge-pill">{{ $permintaan->status }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <div class="text-center">Tidak ada permintaan lab pada kunjungan ini.</div>
+                        @endif
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
 @push('scripts')
 <script>
