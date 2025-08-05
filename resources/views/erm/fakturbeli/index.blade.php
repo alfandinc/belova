@@ -14,12 +14,13 @@
             <table class="table table-bordered" id="fakturbeli-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>No</th>
                         <th>No Faktur</th>
+                        <th>Nama Obat</th>
                         <th>Pemasok</th>
                         <th>Tanggal Terima</th>
-                        <th>Tanggal Kirim</th>
-                        <th>Catatan</th>
+                        <th>Jatuh Tempo</th>
+                        <th>Total Harga</th>
                         <th>Bukti</th>
                         <th>Aksi</th>
                     </tr>
@@ -37,12 +38,17 @@ $(function() {
         serverSide: true,
         ajax: '{{ route('erm.fakturbeli.index') }}',
         columns: [
-            { data: 'id', name: 'id' },
+            { data: null, name: 'no', orderable: false, searchable: false, render: function (data, type, row, meta) {
+                return meta.row + meta.settings._iDisplayStart + 1;
+            }},
             { data: 'no_faktur', name: 'no_faktur' },
+            { data: 'nama_obat', name: 'nama_obat', orderable: false, searchable: false },
             { data: 'pemasok', name: 'pemasok' },
             { data: 'received_date', name: 'received_date' },
-            { data: 'ship_date', name: 'ship_date' },
-            { data: 'notes', name: 'notes' },
+            { data: 'due_date', name: 'due_date' },
+            { data: 'total', name: 'total', render: function(data) {
+                return data ? parseFloat(data).toLocaleString('id-ID', {style:'currency', currency:'IDR'}) : '-';
+            }},
             { data: 'bukti', name: 'bukti', render: function(data) {
                 return data ? `<a href='/storage/${data}' target='_blank'>Lihat</a>` : '-';
             }},

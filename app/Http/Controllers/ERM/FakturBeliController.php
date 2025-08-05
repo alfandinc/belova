@@ -18,10 +18,23 @@ class FakturBeliController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $data = FakturBeli::with('pemasok')->select('erm_fakturbeli.*');
+            $data = FakturBeli::with(['pemasok', 'items.obat'])->select('erm_fakturbeli.*');
             return DataTables::of($data)
                 ->addColumn('pemasok', function($row) {
                     return $row->pemasok ? $row->pemasok->nama : '-';
+                })
+                ->addColumn('nama_obat', function($row) {
+                    if (!$row->relationLoaded('items')) return '-';
+                    $list = $row->items->map(function($item) {
+                        return $item->obat ? $item->obat->nama : '';
+                    })->filter()->toArray();
+                    return implode(', ', $list) ?: '-';
+                })
+                ->addColumn('due_date', function($row) {
+                    return $row->due_date ?? '-';
+                })
+                ->addColumn('total', function($row) {
+                    return $row->total ?? 0;
                 })
                 ->addColumn('action', function($row) {
                     return '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Edit</a> '
