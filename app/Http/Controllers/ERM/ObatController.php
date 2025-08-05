@@ -111,7 +111,7 @@ class ObatController extends Controller
                                 'sisa' => $item->sisa
                             ];
                         });
-                        return '<button class="btn btn-sm btn-secondary batch-info-btn" data-batchinfo="' . htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8') . '"><i class="fas fa-list"></i> Batch</button>';
+                        return '<button class="btn btn-sm btn-primary batch-info-btn" data-batchinfo="' . htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8') . '"><i class="fas fa-list"></i> Batch</button>';
                     })
                     ->addColumn('status_aktif', function ($obat) {
                         return $obat->status_aktif;
