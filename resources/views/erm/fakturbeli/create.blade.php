@@ -357,19 +357,21 @@ $('#debug-hpp').on('click', function() {
         totalItemSubtotal += subtotal;
     });
     let hppList = [];
-    if (globalDiskon === 0 && globalPajak === 0) {
-        // HPP is just harga item
-        hppList = items.map((item, i) => `Item ${i+1}: HPP = ${item.harga}`);
+    if (globalPajak === 0) {
+        // HPP is harga item + (item tax per qty)
+        hppList = items.map((item, i) => {
+            let taxPerQty = item.qty > 0 ? item.tax / item.qty : 0;
+            let hpp = item.harga + taxPerQty;
+            return `Item ${i+1}: HPP = ${hpp.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)})`;
+        });
     } else {
-        // Distribute global diskon and pajak proportionally
+        // Distribute only global pajak proportionally, add item tax per qty
         items.forEach(function(item, i) {
             let prop = totalItemSubtotal > 0 ? item.subtotal / totalItemSubtotal : 0;
-            let hpp = item.harga;
-            // Apply proportional global diskon and pajak to this item's subtotal
-            let globalDiskonItem = globalDiskon * prop;
             let globalPajakItem = globalPajak * prop;
-            let hppFinal = (item.subtotal - globalDiskonItem + globalPajakItem) / (item.qty || 1);
-            hppList.push(`Item ${i+1}: HPP = ${hppFinal.toFixed(2)} (harga: ${item.harga}, subtotal: ${item.subtotal.toFixed(2)}, prop: ${prop.toFixed(4)})`);
+            let hppFinal = (item.subtotal + globalPajakItem) / (item.qty || 1);
+            let taxPerQty = item.qty > 0 ? item.tax / item.qty : 0;
+            hppList.push(`Item ${i+1}: HPP = ${hppFinal.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)}, subtotal: ${item.subtotal.toFixed(2)}, prop: ${prop.toFixed(4)})`);
         });
     }
     alert(hppList.join('\n'));
