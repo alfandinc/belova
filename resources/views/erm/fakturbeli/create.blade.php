@@ -19,16 +19,30 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label>Pemasok</label>
+                                <label>Pemasok <span class="text-danger">*</span></label>
                             <select name="pemasok_id" id="pemasok_id" class="form-control" required style="width:100%">
                                 @if(isset($faktur) && isset($faktur->pemasok))
                                     <option value="{{ $faktur->pemasok->id }}" selected>{{ $faktur->pemasok->nama }}</option>
                                 @endif
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>Tanggal Terima</label>
-                            <input type="date" name="received_date" class="form-control" required value="{{ isset($faktur) ? $faktur->received_date : '' }}">
+                        <div class="form-row">
+                            <div class="form-group col-md-3">
+                                <label>Tanggal Permintaan</label>
+                                <input type="date" name="requested_date" class="form-control" value="{{ isset($faktur) ? $faktur->requested_date : '' }}">
+                            </div>
+                            <div class="form-group col-md-3">
+                                <label>Tanggal Kirim</label>
+                                <input type="date" name="ship_date" class="form-control" value="{{ isset($faktur) ? $faktur->ship_date : '' }}">
+                            </div>
+                            <div class="form-group col-md-3">
+                                <label>Tanggal Terima <span class="text-danger">*</span></label>
+                                <input type="date" name="received_date" class="form-control" required value="{{ isset($faktur) ? $faktur->received_date : '' }}">
+                            </div>
+                            <div class="form-group col-md-3">
+                                <label>Jatuh Tempo</label>
+                                <input type="date" name="due_date" class="form-control" value="{{ isset($faktur) ? $faktur->due_date : '' }}">
+                            </div>
                         </div>
                         <div class="form-group">
                             <label>Catatan</label>
@@ -37,13 +51,10 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label>No Faktur</label>
-                            <input type="text" name="no_faktur" class="form-control" required value="{{ $faktur->no_faktur ?? '' }}">
+                                <label>No Faktur <span class="text-danger">*</span></label>
+                                <input type="text" name="no_faktur" class="form-control" required value="{{ $faktur->no_faktur ?? '' }}">
                         </div>
-                        <div class="form-group">
-                            <label>Tanggal Kirim</label>
-                            <input type="date" name="ship_date" class="form-control" value="{{ isset($faktur) ? $faktur->ship_date : '' }}">
-                        </div>
+                        <!-- Tanggal Kirim now moved to the row above -->
                         <div class="form-group">
                             <label>Bukti (Foto)</label>
                             <input type="file" name="bukti" class="form-control">
@@ -120,7 +131,13 @@
                                             <label class="mb-0 font-weight-bold">Global Diskon</label>
                                         </div>
                                         <div class="col-7">
-                                            <input type="number" id="global-diskon" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_diskon !== null ? $faktur->global_diskon : 0 }}" step="0.01" min="0">
+                                            <div class="input-group">
+                                                <input type="number" id="global-diskon" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_diskon !== null ? $faktur->global_diskon : 0 }}" step="0.01" min="0">
+                                                <select id="global-diskon-type" class="form-control form-control-sm" style="max-width:60px">
+                                                    <option value="nominal">Rp</option>
+                                                    <option value="persen">%</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="form-row align-items-center mb-2">
@@ -128,7 +145,13 @@
                                             <label class="mb-0 font-weight-bold">Global Pajak</label>
                                         </div>
                                         <div class="col-7">
-                                            <input type="number" id="global-tax" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_pajak !== null ? $faktur->global_pajak : 0 }}" step="0.01" min="0">
+                                            <div class="input-group">
+                                                <input type="number" id="global-tax" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_pajak !== null ? $faktur->global_pajak : 0 }}" step="0.01" min="0">
+                                                <select id="global-tax-type" class="form-control form-control-sm" style="max-width:60px">
+                                                    <option value="nominal">Rp</option>
+                                                    <option value="persen">%</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="form-row align-items-center mt-3">
@@ -144,6 +167,7 @@
                         </div>
                     </div>
                 </div>
+                <!-- Removed duplicate global diskon and pajak input row -->
                 <div class="d-flex justify-content-end mt-3">
                     <button type="submit" class="btn btn-primary">{{ isset($faktur) ? 'Update' : 'Simpan' }}</button>
                 </div>
@@ -183,12 +207,28 @@ $(document).ready(function() {
 
 function itemRow(idx) {
     return `<tr>
-        <td><select name="items[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select></td>
-        <td><input type="number" name="items[${idx}][qty]" class="form-control" min="1" required></td>
-        <td><input type="number" name="items[${idx}][harga]" class="form-control" step="0.01" required></td>
-        <td><input type="number" name="items[${idx}][diskon]" class="form-control" step="0.01"></td>
-        <td><input type="number" name="items[${idx}][tax]" class="form-control" step="0.01"></td>
-        <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"></select></td>
+        <td><select name="items[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select><span class="text-danger">*</span></td>
+        <td><input type="number" name="items[${idx}][qty]" class="form-control" min="1" required><span class="text-danger">*</span></td>
+        <td><input type="number" name="items[${idx}][harga]" class="form-control" step="0.01" required><span class="text-danger">*</span></td>
+        <td>
+            <div class="input-group">
+                <input type="number" name="items[${idx}][diskon]" class="form-control" step="0.01">
+                <select name="items[${idx}][diskon_type]" class="form-control" style="max-width:60px">
+                    <option value="nominal">Rp</option>
+                    <option value="persen">%</option>
+                </select>
+            </div>
+        </td>
+        <td>
+            <div class="input-group">
+                <input type="number" name="items[${idx}][tax]" class="form-control" step="0.01">
+                <select name="items[${idx}][tax_type]" class="form-control" style="max-width:60px">
+                    <option value="nominal">Rp</option>
+                    <option value="persen">%</option>
+                </select>
+            </div>
+        </td>
+        <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"></select><span class="text-danger">*</span></td>
         <td><input type="text" name="items[${idx}][batch]" class="form-control"></td>
         <td><input type="date" name="items[${idx}][expiration_date]" class="form-control"></td>
         <td><button type="button" class="btn btn-danger btn-sm remove-item">Hapus</button></td>
@@ -260,20 +300,29 @@ function calculateTotalHarga() {
         let qty = parseFloat($(this).find('input[name*="[qty]"]').val()) || 0;
         let harga = parseFloat($(this).find('input[name*="[harga]"]').val()) || 0;
         let diskon = parseFloat($(this).find('input[name*="[diskon]"]').val()) || 0;
+        let diskonType = $(this).find('select[name*="[diskon_type]"]').val() || 'nominal';
         let tax = parseFloat($(this).find('input[name*="[tax]"]').val()) || 0;
-        let itemSubtotal = (qty * harga) - diskon + tax;
+        let taxType = $(this).find('select[name*="[tax_type]"]').val() || 'nominal';
+        let base = qty * harga;
+        let diskonValue = diskonType === 'persen' ? (base * diskon / 100) : diskon;
+        let taxValue = taxType === 'persen' ? (base * tax / 100) : tax;
+        let itemSubtotal = base - diskonValue + taxValue;
         subtotal += itemSubtotal;
     });
     $('#subtotal-harga').text(subtotal.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
     let globalDiskon = parseFloat($('#global-diskon').val()) || 0;
+    let globalDiskonType = $('#global-diskon-type').val() || 'nominal';
     let globalTax = parseFloat($('#global-tax').val()) || 0;
-    let grandTotal = subtotal - globalDiskon + globalTax;
+    let globalTaxType = $('#global-tax-type').val() || 'nominal';
+    let globalDiskonValue = globalDiskonType === 'persen' ? (subtotal * globalDiskon / 100) : globalDiskon;
+    let globalTaxValue = globalTaxType === 'persen' ? (subtotal * globalTax / 100) : globalTax;
+    let grandTotal = subtotal - globalDiskonValue + globalTaxValue;
     if (grandTotal < 0) grandTotal = 0;
     $('#total-harga').text(grandTotal.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
     // Update hidden inputs for backend
     $('#input-subtotal').val(subtotal.toFixed(2));
-    $('#input-global-diskon').val(globalDiskon.toFixed(2));
-    $('#input-global-pajak').val(globalTax.toFixed(2));
+    $('#input-global-diskon').val(globalDiskonValue.toFixed(2));
+    $('#input-global-pajak').val(globalTaxValue.toFixed(2));
     $('#input-total').val(grandTotal.toFixed(2));
 }
 
@@ -292,7 +341,7 @@ $(document).on('click', '.remove-item', function() {
 });
 
 // Recalculate total when qty, harga, diskon, tax, or global discount/tax changes
-$(document).on('input', 'input[name*="[qty]"], input[name*="[harga]"], input[name*="[diskon]"], input[name*="[tax]"], #global-diskon, #global-tax', function() {
+$(document).on('input change', 'input[name*="[qty]"], input[name*="[harga]"], input[name*="[diskon]"], input[name*="[tax]"], select[name*="[diskon_type]"], select[name*="[tax_type]"], #global-diskon, #global-tax, #global-diskon-type, #global-tax-type', function() {
     calculateTotalHarga();
 });
 
@@ -343,35 +392,45 @@ $('#fakturbeli-form').on('submit', function(e) {
 // Debug HPP calculation for each item
 $('#debug-hpp').on('click', function() {
     let globalDiskon = parseFloat($('#global-diskon').val()) || 0;
+    let globalDiskonType = $('#global-diskon-type').val() || 'nominal';
     let globalPajak = parseFloat($('#global-tax').val()) || 0;
+    let globalPajakType = $('#global-tax-type').val() || 'nominal';
     let items = [];
     let totalItemSubtotal = 0;
-    // First, collect all item subtotals
+    // First, collect all item subtotals (with per-item diskon/pajak type)
     $('#items-table tbody tr').each(function(idx) {
         let qty = parseFloat($(this).find('input[name*="[qty]"]').val()) || 0;
         let harga = parseFloat($(this).find('input[name*="[harga]"]').val()) || 0;
         let diskon = parseFloat($(this).find('input[name*="[diskon]"]').val()) || 0;
+        let diskonType = $(this).find('select[name*="[diskon_type]"]').val() || 'nominal';
         let tax = parseFloat($(this).find('input[name*="[tax]"]').val()) || 0;
-        let subtotal = (qty * harga) - diskon + tax;
-        items.push({ idx, qty, harga, diskon, tax, subtotal });
+        let taxType = $(this).find('select[name*="[tax_type]"]').val() || 'nominal';
+        let base = qty * harga;
+        let diskonValue = diskonType === 'persen' ? (base * diskon / 100) : diskon;
+        let taxValue = taxType === 'persen' ? (base * tax / 100) : tax;
+        let subtotal = base - diskonValue + taxValue;
+        items.push({ idx, qty, harga, diskon, diskonType, tax, taxType, base, diskonValue, taxValue, subtotal });
         totalItemSubtotal += subtotal;
     });
+    // Calculate global diskon/pajak value
+    let globalDiskonValue = globalDiskonType === 'persen' ? (totalItemSubtotal * globalDiskon / 100) : globalDiskon;
+    let globalPajakValue = globalPajakType === 'persen' ? (totalItemSubtotal * globalPajak / 100) : globalPajak;
     let hppList = [];
-    if (globalPajak === 0) {
+    if (globalPajakValue === 0) {
         // HPP is harga item + (item tax per qty)
         hppList = items.map((item, i) => {
-            let taxPerQty = item.qty > 0 ? item.tax / item.qty : 0;
+            let taxPerQty = item.qty > 0 ? item.taxValue / item.qty : 0;
             let hpp = item.harga + taxPerQty;
-            return `Item ${i+1}: HPP = ${hpp.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)})`;
+            return `Item ${i+1}: HPP = ${hpp.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)}, diskon: ${item.diskonValue.toFixed(2)})`;
         });
     } else {
         // Distribute only global pajak proportionally, add item tax per qty
         items.forEach(function(item, i) {
             let prop = totalItemSubtotal > 0 ? item.subtotal / totalItemSubtotal : 0;
-            let globalPajakItem = globalPajak * prop;
+            let globalPajakItem = globalPajakValue * prop;
             let hppFinal = (item.subtotal + globalPajakItem) / (item.qty || 1);
-            let taxPerQty = item.qty > 0 ? item.tax / item.qty : 0;
-            hppList.push(`Item ${i+1}: HPP = ${hppFinal.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)}, subtotal: ${item.subtotal.toFixed(2)}, prop: ${prop.toFixed(4)})`);
+            let taxPerQty = item.qty > 0 ? item.taxValue / item.qty : 0;
+            hppList.push(`Item ${i+1}: HPP = ${hppFinal.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)}, subtotal: ${item.subtotal.toFixed(2)}, prop: ${prop.toFixed(4)}, global pajak: ${globalPajakItem.toFixed(2)})`);
         });
     }
     alert(hppList.join('\n'));

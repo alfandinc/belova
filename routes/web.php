@@ -43,7 +43,8 @@ use App\Http\Controllers\ERM\{
     SuratIstirahatController,
     SuratMondokController,
     ResepCatatanController,
-    NotificationController
+    NotificationController,
+    ObatKeluarController
 };
 
 use App\Http\Controllers\HRD\{
@@ -144,9 +145,9 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // ...existing code...
 
     // Obat Keluar
-    Route::get('/obat-keluar', [\App\Http\Controllers\ERM\ObatKeluarController::class, 'index'])->name('erm.obatkeluar.index');
-    Route::get('/obat-keluar/data', [\App\Http\Controllers\ERM\ObatKeluarController::class, 'data'])->name('erm.obatkeluar.data');
-    Route::get('/obat-keluar/detail', [\App\Http\Controllers\ERM\ObatKeluarController::class, 'detail'])->name('erm.obatkeluar.detail');
+    Route::get('/obat-keluar', [ObatKeluarController::class, 'index'])->name('erm.obatkeluar.index');
+    Route::get('/obat-keluar/data', [ObatKeluarController::class, 'data'])->name('erm.obatkeluar.data');
+    Route::get('/obat-keluar/detail', [ObatKeluarController::class, 'detail'])->name('erm.obatkeluar.detail');
 
     //Visitation
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');

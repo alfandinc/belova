@@ -47,6 +47,8 @@ class FakturBeliController extends Controller
             'pemasok_id' => 'required|exists:erm_pemasok,id',
             'no_faktur' => 'required|string',
             'received_date' => 'required|date',
+            'requested_date' => 'nullable|date',
+            'due_date' => 'nullable|date',
             'ship_date' => 'nullable|date',
             'notes' => 'nullable|string',
             'bukti' => 'nullable|image|max:2048',
@@ -55,13 +57,17 @@ class FakturBeliController extends Controller
             'items.*.qty' => 'required|integer|min:1',
             'items.*.harga' => 'required|numeric',
             'items.*.diskon' => 'nullable|numeric',
+            'items.*.diskon_type' => 'nullable|string',
             'items.*.tax' => 'nullable|numeric',
+            'items.*.tax_type' => 'nullable|string',
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
             'items.*.batch' => 'nullable|string',
             'items.*.expiration_date' => 'nullable|date',
             'subtotal' => 'nullable|numeric',
             'global_diskon' => 'nullable|numeric',
+            'global_diskon_type' => 'nullable|string',
             'global_pajak' => 'nullable|numeric',
+            'global_pajak_type' => 'nullable|string',
             'total' => 'nullable|numeric',
         ]);
 
@@ -74,6 +80,8 @@ class FakturBeliController extends Controller
             'pemasok_id' => $validated['pemasok_id'],
             'no_faktur' => $validated['no_faktur'],
             'received_date' => $validated['received_date'],
+            'requested_date' => $validated['requested_date'] ?? null,
+            'due_date' => $validated['due_date'] ?? null,
             'ship_date' => $validated['ship_date'],
             'notes' => $validated['notes'],
             'bukti' => $buktiPath,
@@ -83,32 +91,64 @@ class FakturBeliController extends Controller
             'total' => $validated['total'] ?? null,
         ]);
 
+        // Calculate subtotal for all items (for global diskon/pajak percentage)
+        $itemSubtotals = [];
         foreach ($validated['items'] as $item) {
+            $qty = $item['qty'] ?? 0;
+            $harga = $item['harga'] ?? 0;
+            $diskon = $item['diskon'] ?? 0;
+            $diskonType = $item['diskon_type'] ?? 'nominal';
+            $tax = $item['tax'] ?? 0;
+            $taxType = $item['tax_type'] ?? 'nominal';
+            $base = $qty * $harga;
+            $diskonValue = $diskonType === 'persen' ? ($base * $diskon / 100) : $diskon;
+            $taxValue = $taxType === 'persen' ? ($base * $tax / 100) : $tax;
+            $itemSubtotal = $base - $diskonValue + $taxValue;
+            $itemSubtotals[] = $itemSubtotal;
+        }
+        $totalItemSubtotal = array_sum($itemSubtotals);
+        $globalDiskon = $validated['global_diskon'] ?? 0;
+        $globalDiskonType = $validated['global_diskon_type'] ?? 'nominal';
+        $globalDiskonValue = $globalDiskonType === 'persen' ? ($totalItemSubtotal * $globalDiskon / 100) : $globalDiskon;
+        $globalPajak = $validated['global_pajak'] ?? 0;
+        $globalPajakType = $validated['global_pajak_type'] ?? 'nominal';
+        $globalPajakValue = $globalPajakType === 'persen' ? ($totalItemSubtotal * $globalPajak / 100) : $globalPajak;
+
+        foreach ($validated['items'] as $idx => $item) {
+            $qty = $item['qty'] ?? 0;
+            $harga = $item['harga'] ?? 0;
+            $diskon = $item['diskon'] ?? 0;
+            $diskonType = $item['diskon_type'] ?? 'nominal';
+            $tax = $item['tax'] ?? 0;
+            $taxType = $item['tax_type'] ?? 'nominal';
+            $base = $qty * $harga;
+            $diskonValue = $diskonType === 'persen' ? ($base * $diskon / 100) : $diskon;
+            $taxValue = $taxType === 'persen' ? ($base * $tax / 100) : $tax;
+            $itemSubtotal = $base - $diskonValue + $taxValue;
+            // Distribute global pajak proportionally
+            $prop = $totalItemSubtotal > 0 ? $itemSubtotal / $totalItemSubtotal : 0;
+            $globalPajakItem = $globalPajakValue * $prop;
+            // HPP calculation: (itemSubtotal + globalPajakItem) / qty
+            $hpp = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;
+
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
-                'qty' => $item['qty'],
-                'sisa' => $item['qty'],
-                'harga' => $item['harga'],
-                'diskon' => $item['diskon'] ?? 0,
-                'tax' => $item['tax'] ?? 0,
+                'qty' => $qty,
+                'sisa' => $qty,
+                'harga' => $harga,
+                'diskon' => $diskon,
+                'tax' => $tax,
                 'gudang_id' => $item['gudang_id'],
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
+                // Optionally store diskon_type/tax_type if you add columns
             ]);
             // Update HPP and stok for Obat
             $obat = \App\Models\ERM\Obat::withInactive()->find($item['obat_id']);
             if ($obat) {
                 $oldHpp = $obat->hpp ?? 0;
-                $qty = $item['qty'] ?? 1;
-                $tax = $item['tax'] ?? 0;
-                $newHpp = $qty > 0 ? ($item['harga'] + ($tax / $qty)) : $item['harga'];
-                if ($oldHpp > 0) {
-                    $finalHpp = ($oldHpp + $newHpp) / 2;
-                } else {
-                    $finalHpp = $newHpp;
-                }
+                $finalHpp = $oldHpp > 0 ? ($oldHpp + $hpp) / 2 : $hpp;
                 $obat->hpp = $finalHpp;
-                // Add qty to stok
                 $obat->stok = ($obat->stok ?? 0) + $qty;
                 $obat->save();
             }
@@ -132,6 +172,8 @@ class FakturBeliController extends Controller
             'pemasok_id' => 'required|exists:erm_pemasok,id',
             'no_faktur' => 'required|string',
             'received_date' => 'required|date',
+            'requested_date' => 'nullable|date',
+            'due_date' => 'nullable|date',
             'ship_date' => 'nullable|date',
             'notes' => 'nullable|string',
             'bukti' => 'nullable|image|max:2048',
@@ -161,6 +203,8 @@ class FakturBeliController extends Controller
             'pemasok_id' => $validated['pemasok_id'],
             'no_faktur' => $validated['no_faktur'],
             'received_date' => $validated['received_date'],
+            'requested_date' => $validated['requested_date'] ?? null,
+            'due_date' => $validated['due_date'] ?? null,
             'ship_date' => $validated['ship_date'],
             'notes' => $validated['notes'],
             'bukti' => $buktiPath,
