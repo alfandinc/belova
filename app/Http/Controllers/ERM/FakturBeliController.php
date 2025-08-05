@@ -87,6 +87,7 @@ class FakturBeliController extends Controller
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
                 'qty' => $item['qty'],
+                'sisa' => $item['qty'],
                 'harga' => $item['harga'],
                 'diskon' => $item['diskon'] ?? 0,
                 'tax' => $item['tax'] ?? 0,
@@ -94,7 +95,7 @@ class FakturBeliController extends Controller
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
             ]);
-            // Update HPP for Obat
+            // Update HPP and stok for Obat
             $obat = \App\Models\ERM\Obat::withInactive()->find($item['obat_id']);
             if ($obat) {
                 $oldHpp = $obat->hpp ?? 0;
@@ -107,6 +108,8 @@ class FakturBeliController extends Controller
                     $finalHpp = $newHpp;
                 }
                 $obat->hpp = $finalHpp;
+                // Add qty to stok
+                $obat->stok = ($obat->stok ?? 0) + $qty;
                 $obat->save();
             }
         }
@@ -173,6 +176,7 @@ class FakturBeliController extends Controller
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
                 'qty' => $item['qty'],
+                'sisa' => $item['qty'],
                 'harga' => $item['harga'],
                 'diskon' => $item['diskon'] ?? 0,
                 'tax' => $item['tax'] ?? 0,
@@ -180,7 +184,7 @@ class FakturBeliController extends Controller
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
             ]);
-            // Update HPP for Obat
+            // Update HPP and stok for Obat
             $obat = \App\Models\ERM\Obat::withInactive()->find($item['obat_id']);
             if ($obat) {
                 $oldHpp = $obat->hpp ?? 0;
@@ -193,6 +197,8 @@ class FakturBeliController extends Controller
                     $finalHpp = $newHpp;
                 }
                 $obat->hpp = $finalHpp;
+                // Add qty to stok
+                $obat->stok = ($obat->stok ?? 0) + $qty;
                 $obat->save();
             }
         }

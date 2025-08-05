@@ -752,9 +752,33 @@ class EresepController extends Controller
     // Update resepdetail status to 1
     \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->update(['status' => 1]);
 
-    // Bill for each medication
+    // Bill for each medication and update stok/sisa
     foreach ($reseps as $resep) {
         $qty = $resep->racikan_ke ? ($resep->bungkus ?? 1) : ($resep->jumlah ?? 1);
+        // Reduce stok in obat
+        $obat = $resep->obat;
+        if ($obat && $qty > 0) {
+            $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
+            $obat->save();
+        }
+
+        // Reduce sisa in faktur beli items (nearest expiration first)
+        if ($obat && $qty > 0) {
+            $remaining = $qty;
+            $fakturItems = \App\Models\ERM\FakturBeliItem::where('obat_id', $obat->id)
+                ->where('sisa', '>', 0)
+                ->whereNotNull('expiration_date')
+                ->orderBy('expiration_date', 'asc')
+                ->get();
+            foreach ($fakturItems as $item) {
+                if ($remaining <= 0) break;
+                $take = min($item->sisa, $remaining);
+                $item->sisa -= $take;
+                $item->save();
+                $remaining -= $take;
+            }
+        }
+
         Billing::updateOrCreate(
             [
                 'billable_id' => $resep->id,
