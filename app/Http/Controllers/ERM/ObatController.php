@@ -43,42 +43,86 @@ class ObatController extends Controller
             // When no status filter is applied or empty string is passed, 
             // we want to show all medications (both active and inactive)
 
-            // Handle ordering
-            if ($request->has('order') && !empty($request->order)) {
-                foreach ($request->order as $order) {
-                    $columnIndex = $order['column'];
-                    $direction = $order['dir'];
+                // Always use a subquery to provide min_exp_date for ordering and counting
+                $obatTable = (new \App\Models\ERM\Obat)->getTable();
+                $sub = \App\Models\ERM\Obat::withoutGlobalScope('active')
+                    ->leftJoin('erm_fakturbeli_items as fbi', $obatTable.'.id', '=', 'fbi.obat_id')
+                    ->select($obatTable.'.*', DB::raw('MIN(fbi.expiration_date) as min_exp_date'))
+                    ->groupBy($obatTable.'.id');
 
-                    // Map column index to actual column name
-                    $columnName = $request->columns[$columnIndex]['name'];
+                $query = DB::query()->fromSub($sub, $obatTable);
 
-                    if (!empty($columnName)) {
-                        $query->orderBy($columnName, $direction);
-                    }
+                // Apply filters if provided
+                if ($request->has('kategori') && !empty($request->kategori)) {
+                    $query->where('kategori', $request->kategori);
                 }
-            } else {
-                // Default ordering by stok ascending
-                $query->orderBy('stok', 'asc');
-            }
+                if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
+                    $query->where('metode_bayar_id', $request->metode_bayar_id);
+                }
+                if ($request->filled('status_aktif')) {
+                    $query->where('status_aktif', $request->status_aktif);
+                }
 
-            return DataTables::of($query)
-                ->addColumn('zat_aktif', function ($obat) {
-                    $zats = [];
-                    foreach ($obat->zatAktifs as $zat) {
-                        $zats[] = '<span class="badge bg-secondary">' . $zat->nama . '</span>';
+                // Handle ordering
+                if ($request->has('order') && !empty($request->order)) {
+                    foreach ($request->order as $order) {
+                        $columnIndex = $order['column'];
+                        $direction = $order['dir'];
+                        $columnName = $request->columns[$columnIndex]['name'];
+                        if ($columnName === 'min_exp_date') {
+                            // NULLs last for ascending, NULLs first for descending
+                            if (strtolower($direction) === 'asc') {
+                                $query->orderByRaw('min_exp_date IS NULL, min_exp_date ASC');
+                            } else {
+                                $query->orderByRaw('min_exp_date IS NOT NULL, min_exp_date DESC');
+                            }
+                        } else if (!empty($columnName)) {
+                            $query->orderBy($columnName, $direction);
+                        }
                     }
-                    return implode(' ', $zats);
-                })
-                ->addColumn('status_aktif', function ($obat) {
-                    return $obat->status_aktif;
-                })
-                ->addColumn('action', function ($obat) {
-                    $editBtn = '<a href="' . route('erm.obat.edit', $obat->id) . '" class="btn btn-sm btn-info"><i class="fas fa-edit"></i></a>';
-                    $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
-                    return $editBtn . ' ' . $deleteBtn;
-                })
-                ->rawColumns(['zat_aktif', 'action'])
-                ->make(true);
+                } else {
+                    // Default: NULLs last
+                    $query->orderByRaw('min_exp_date IS NULL, min_exp_date ASC');
+                }
+
+                // Eager load relationships after subquery
+                $obatIds = $query->pluck('id');
+                $obatModels = \App\Models\ERM\Obat::with(['zatAktifs', 'metodeBayar'])->whereIn('id', $obatIds)->get()->keyBy('id');
+
+                return DataTables::of($query)
+                    ->addColumn('zat_aktif', function ($obat) use ($obatModels) {
+                        $model = $obatModels[$obat->id] ?? null;
+                        $zats = [];
+                        if ($model) {
+                            foreach ($model->zatAktifs as $zat) {
+                                $zats[] = '<span class="badge bg-secondary">' . $zat->nama . '</span>';
+                            }
+                        }
+                        return implode(' ', $zats);
+                    })
+                    ->addColumn('batch_info', function ($obat) {
+                        $items = \App\Models\ERM\FakturBeliItem::where('obat_id', $obat->id)
+                            ->orderBy('expiration_date', 'asc')
+                            ->get(['batch', 'expiration_date', 'sisa']);
+                        $data = $items->map(function($item) {
+                            return [
+                                'batch' => $item->batch,
+                                'expiration_date' => $item->expiration_date,
+                                'sisa' => $item->sisa
+                            ];
+                        });
+                        return '<button class="btn btn-sm btn-secondary batch-info-btn" data-batchinfo="' . htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8') . '"><i class="fas fa-list"></i> Batch</button>';
+                    })
+                    ->addColumn('status_aktif', function ($obat) {
+                        return $obat->status_aktif;
+                    })
+                    ->addColumn('action', function ($obat) {
+                        $editBtn = '<a href="' . route('erm.obat.edit', $obat->id) . '" class="btn btn-sm btn-info"><i class="fas fa-edit"></i></a>';
+                        $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
+                        return $editBtn . ' ' . $deleteBtn;
+                    })
+                    ->rawColumns(['zat_aktif', 'action', 'batch_info'])
+                    ->make(true);
         }
 
         $kategoris = Obat::select('kategori')->distinct()->pluck('kategori');

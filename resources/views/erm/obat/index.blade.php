@@ -87,6 +87,7 @@
                         <th>Kategori</th>
                         <th>Zat Aktif</th>
                         <th class="text-right">Stok</th>
+                        <th>Batch/Sisa</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -96,6 +97,33 @@
         </div>
     </div>
 </div>
+    <!-- Batch Info Modal -->
+    <div class="modal fade" id="batchInfoModal" tabindex="-1" role="dialog" aria-labelledby="batchInfoModalLabel" aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="batchInfoModalLabel">Batch, Exp Date & Sisa</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>Batch</th>
+                  <th>Exp Date</th>
+                  <th>Sisa</th>
+                </tr>
+              </thead>
+              <tbody id="batchInfoTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    
 @endsection
 
 @section('scripts')
@@ -177,6 +205,38 @@
                     className: 'text-right'
                 },
                 { 
+                    data: 'batch_info',
+                    name: 'min_exp_date', // must match the backend alias for ordering
+                    orderable: true,
+                    searchable: false,
+                    render: function(data, type, row) {
+                        // Parse batch info from button data attribute
+                        var match = data.match(/data-batchinfo=\"([^\"]*)\"/);
+                        var batchJson = match ? match[1] : null;
+                        var showWarning = false;
+                        if (batchJson) {
+                            try {
+                                var batchArr = JSON.parse(batchJson.replace(/&quot;/g, '"'));
+                                var now = new Date();
+                                var threeMonths = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+                                batchArr.forEach(function(item) {
+                                    if (item.expiration_date) {
+                                        var exp = new Date(item.expiration_date);
+                                        if (exp < threeMonths) {
+                                            showWarning = true;
+                                        }
+                                    }
+                                });
+                            } catch (e) {}
+                        }
+                        var html = data;
+                        if (showWarning) {
+                            html += ' <span title="Ada batch exp < 3 bulan" style="color:#e67e22;font-size:18px;vertical-align:middle;"><i class="fas fa-exclamation-triangle"></i></span>';
+                        }
+                        return html;
+                    }
+                },
+                { 
                     data: 'status_aktif', 
                     name: 'status_aktif',
                     render: function(data) {
@@ -189,7 +249,7 @@
                 },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
             ],
-            order: [[ 5, 'asc' ]], // Default ordering by stok ascending (now at column 5)
+            order: [[ 6, 'asc' ]], // Default ordering by batch/exp date ascending
             rowCallback: function(row, data) {
                 // Add a class to rows with inactive medications
                 if (data.status_aktif === 0) {
@@ -197,6 +257,30 @@
                 }
             }
         });
+
+        // Handle batch info button click
+    $(document).on('click', '.batch-info-btn', function() {
+        var batchData = $(this).data('batchinfo');
+        var tbody = '';
+        var now = new Date();
+        var threeMonths = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+        if (Array.isArray(batchData) && batchData.length > 0) {
+            batchData.forEach(function(item) {
+                var expDate = item.expiration_date ? new Date(item.expiration_date) : null;
+                var isExpSoon = expDate && expDate < threeMonths;
+                var rowClass = isExpSoon ? ' style="background-color:#f8d7da;color:#721c24;"' : '';
+                tbody += '<tr'+rowClass+'>' +
+                    '<td>' + (item.batch || '-') + '</td>' +
+                    '<td>' + (item.expiration_date || '-') + '</td>' +
+                    '<td>' + (item.sisa !== null ? item.sisa : '-') + '</td>' +
+                    '</tr>';
+            });
+        } else {
+            tbody = '<tr><td colspan="3">Tidak ada data batch</td></tr>';
+        }
+        $('#batchInfoTableBody').html(tbody);
+        $('#batchInfoModal').modal('show');
+    });
 
         // Apply filter when select changes (no button needed)
         $('#filter_kategori, #filter_metode_bayar, #filter_status').on('change', function() {
