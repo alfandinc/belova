@@ -97,6 +97,18 @@
             </table>
         </div>
     </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+                <span class="font-weight-bold">Total Nilai Stok (HPP × Stok):</span>
+                <span id="total-hpp-stok" style="font-size:1.5rem;font-weight:bold;color:#155724;">Rp 0</span>
+            </div>
+            <div class="mt-2 text-right" style="font-style:italic;color:#444;">
+                <span id="terbilang-hpp-stok">-</span>
+            </div>
+        </div>
+    </div>
 </div>
     <!-- Batch Info Modal -->
     <div class="modal fade" id="batchInfoModal" tabindex="-1" role="dialog" aria-labelledby="batchInfoModalLabel" aria-hidden="true">
@@ -273,6 +285,43 @@
                 if (data.status_aktif === 0) {
                     $(row).addClass('inactive-medication');
                 }
+            },
+            drawCallback: function(settings) {
+                // Calculate total nilai stok (HPP x Stok) for all rows (filtered)
+                let api = this.api();
+                let total = 0;
+                api.rows({ filter: 'applied' }).every(function() {
+                    let data = this.data();
+                    let hpp = parseFloat(data.hpp) || 0;
+                    let stok = parseFloat(data.stok) || 0;
+                    total += hpp * stok;
+                });
+                // Format as perfect Rupiah
+                function formatRupiah(angka) {
+                    if (!angka || isNaN(angka)) return '-';
+                    return 'Rp ' + angka.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ".") + ',-';
+                }
+                // Terbilang (spell out in Indonesian)
+                function terbilang(n) {
+                    var satuan = ['', 'satu', 'dua', 'tiga', 'empat', 'lima', 'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'];
+                    n = Math.floor(n);
+                    if (n < 12) return satuan[n];
+                    if (n < 20) return terbilang(n - 10) + ' belas';
+                    if (n < 100) return terbilang(Math.floor(n / 10)) + ' puluh' + (n % 10 !== 0 ? ' ' + terbilang(n % 10) : '');
+                    if (n < 200) return 'seratus' + (n - 100 !== 0 ? ' ' + terbilang(n - 100) : '');
+                    if (n < 1000) return terbilang(Math.floor(n / 100)) + ' ratus' + (n % 100 !== 0 ? ' ' + terbilang(n % 100) : '');
+                    if (n < 2000) return 'seribu' + (n - 1000 !== 0 ? ' ' + terbilang(n - 1000) : '');
+                    if (n < 1000000) return terbilang(Math.floor(n / 1000)) + ' ribu' + (n % 1000 !== 0 ? ' ' + terbilang(n % 1000) : '');
+                    if (n < 1000000000) return terbilang(Math.floor(n / 1000000)) + ' juta' + (n % 1000000 !== 0 ? ' ' + terbilang(n % 1000000) : '');
+                    if (n < 1000000000000) return terbilang(Math.floor(n / 1000000000)) + ' miliar' + (n % 1000000000 !== 0 ? ' ' + terbilang(n % 1000000000) : '');
+                    if (n < 1000000000000000) return terbilang(Math.floor(n / 1000000000000)) + ' triliun' + (n % 1000000000000 !== 0 ? ' ' + terbilang(n % 1000000000000) : '');
+                    return '';
+                }
+                let formatted = total > 0 ? formatRupiah(total) : '-';
+                $('#total-hpp-stok').html(formatted);
+                // Show terbilang
+                let terbilangText = total > 0 ? (terbilang(total) + ' rupiah').replace(/ +/g, ' ').replace(/^\s+|\s+$/g, '') : '-';
+                $('#terbilang-hpp-stok').text(terbilangText.charAt(0).toUpperCase() + terbilangText.slice(1));
             }
         });
 
