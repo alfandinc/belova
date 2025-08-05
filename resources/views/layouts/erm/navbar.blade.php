@@ -108,13 +108,13 @@
                                 <a href="/erm/fakturpembelian"><i data-feather="file" class="align-self-center menu-icon"></i><span>Faktur Pembelian</span></a>
                             </li>
                             <li>
-                                <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Tambah Faktur Pembelian</span></a>
+                                <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
                             </li>
                             <li>
                                 <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Stok Obat</span></a>
                             </li>
                             <li>
-                                <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Tambah Obat</span></a>
+                                <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
                             </li>
                         </ul>
                     </li>
