@@ -217,7 +217,7 @@ class MarketingController extends Controller
                 ->map(function($r) {
                     return [
                         'id' => $r->id,
-                        'obat' => $r->obat ? $r->obat->nama : null,
+                        'obat_nama' => $r->obat ? $r->obat->nama : '-',
                         'jumlah' => $r->jumlah,
                         'dosis' => $r->dosis,
                         'bungkus' => $r->bungkus,
