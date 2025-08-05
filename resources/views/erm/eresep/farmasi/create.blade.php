@@ -66,7 +66,7 @@
             <div class="container">                    <div class="d-flex justify-content-between align-items-center mb-3">
                     <div style="display: flex; align-items: center;">
                         <h4 style="margin: 0;">Total Harga: <strong>Rp.</strong></h4>
-                        <h4 id="total-harga" style="margin: 0; color: white;"><strong>0</strong></h4>
+                        <h4 id="total-harga" style="margin: 0; "><strong>0</strong></h4>
                         
                     </div>
                    
@@ -88,7 +88,7 @@
 
                 <div class="mb-3">
                     <h5>Catatan Dokter :</h5>
-                    <textarea readonly class="form-control" rows="3">{{ $catatan_resep ?? '' }}</textarea>
+                    <textarea readonly class="form-control" rows="3" style="font-size: 1.5rem; font-weight: bold; color: red;">{{ $catatan_resep ?? '' }}</textarea>
                 </div>
                  @if (!$nonRacikans->count() && !$racikans->count())
                     <div class="alert alert-info" id="empty-resep-message">
@@ -97,7 +97,7 @@
                 @endif
 <div id="resep-wrapper">
                 <!-- NON RACIKAN -->
-                <h5 style="color: yellow;"><strong>Resep Non Racikan</strong></h5>
+                <h5 style="color: blue;"><strong>Resep Non Racikan</strong></h5>
                 <div class="racikan-card mb-4 p-3 border rounded">
                     <div class="row mb-3">
                         <div class="col-md-4">
@@ -123,7 +123,7 @@
                         </div>
                     </div>
 
-                    <table class="table table-bordered" style="color: white;">
+                    <table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
@@ -160,19 +160,19 @@
                 </div>
 
                 <!-- RACIKAN -->
-                <h5 style="color: yellow;"><strong>Resep Racikan</strong></h5>
+                <h5 style="color: blue;"><strong>Resep Racikan</strong></h5>
                 
                 <div id="racikan-container">
                     @foreach ($racikans as $ke => $items)
                     <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="{{ $ke }}">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 style="color: yellow;"><strong>Racikan {{ $ke }}</strong></h5>
+                            <h5 style="color: blue;"><strong>Racikan {{ $ke }}</strong></h5>
                             <div>
                                 <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
                                 <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
                             </div>
                         </div>
-                        <table class="table table-bordered text-white">
+                        <table class="table table-bordered">
                             <thead>
                                 <tr>
                                     <th>Nama Obat</th>
@@ -446,7 +446,7 @@
                         </div>
                     </div>
 
-                    <table class="table table-bordered text-white">
+                    <table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
@@ -1073,7 +1073,7 @@
                         </div>
                     </div>
 
-                    <table class="table table-bordered text-white">
+                    <table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>

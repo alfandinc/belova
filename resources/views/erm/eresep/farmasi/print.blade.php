@@ -233,7 +233,8 @@
                         <td width="45%">
                             <strong>RACIKAN {{ $racikanKe }}</strong><br>
                             @foreach($items as $item)
-                                - {{ $item->obat->nama ?? 'UNKNOWN' }}<br>
+                                - {{ $item->obat->nama ?? 'UNKNOWN' }}
+                                @if(!empty($item->dosis))<span style="color:#007;"> ({{ $item->dosis }})</span>@endif<br>
                             @endforeach
                         </td>
                         <td width="20%">{{ $items->first()->bungkus ?? 0 }} {{ $items->first()->wadah->nama ?? 'BUNGKUS' }}</td>
