@@ -83,6 +83,7 @@
                     <tr>
                         <th>Kode Obat</th>
                         <th>Nama Obat</th>
+                        <th class="text-right">HPP</th>
                         <th class="text-right">Harga Non-Fornas</th>
                         <th>Kategori</th>
                         <th>Zat Aktif</th>
@@ -130,7 +131,8 @@
 <style>
     /* Right align for price and stock columns */
     #obat-table td:nth-child(3), 
-    #obat-table td:nth-child(6) {
+    #obat-table td:nth-child(6), 
+    #obat-table td:nth-child(8) {
         text-align: right;
     }
     
@@ -153,6 +155,14 @@
     .status-inactive {
         background-color: #f8d7da;
         color: #721c24;
+    }
+
+    .blinking-warning {
+        animation: blink-warning 1s linear infinite;
+    }
+    @keyframes blink-warning {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
     }
 </style>
 <script>
@@ -189,6 +199,14 @@
             columns: [
                 { data: 'kode_obat', name: 'kode_obat' },
                 { data: 'nama', name: 'nama' },
+                { 
+                    data: 'hpp',
+                    name: 'hpp',
+                    className: 'text-right',
+                    render: function(data) {
+                        return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
+                    }
+                },
                 { 
                     data: 'harga_nonfornas', 
                     name: 'harga_nonfornas',
@@ -231,7 +249,7 @@
                         }
                         var html = data;
                         if (showWarning) {
-                            html += ' <span title="Ada batch exp < 3 bulan" style="color:#e67e22;font-size:18px;vertical-align:middle;"><i class="fas fa-exclamation-triangle"></i></span>';
+                            html += ' <span class="blinking-warning" title="Ada batch exp < 3 bulan" style="color:#e67e22;font-size:18px;vertical-align:middle;"><i class="fas fa-exclamation-triangle"></i></span>';
                         }
                         return html;
                     }
@@ -249,7 +267,7 @@
                 },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
             ],
-            order: [[ 6, 'asc' ]], // Default ordering by batch/exp date ascending
+            order: [[ 7, 'asc' ]], // Default ordering by batch/exp date ascending
             rowCallback: function(row, data) {
                 // Add a class to rows with inactive medications
                 if (data.status_aktif === 0) {
