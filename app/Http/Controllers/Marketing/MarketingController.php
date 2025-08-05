@@ -210,14 +210,22 @@ class MarketingController extends Controller
 
         $result = [];
         foreach ($visitations as $visit) {
-            // Resep dokter for this visitation
-            $resep = $visit->resepDokter()->with('obat')->get()->map(function($r) {
-                return [
-                    'obat_nama' => $r->obat ? $r->obat->nama : '-',
-                    'jumlah' => $r->jumlah,
-                    'dosis' => $r->dosis,
-                ];
-            });
+            // Resep farmasi for this visitation
+            $resep = \App\Models\ERM\ResepFarmasi::where('visitation_id', $visit->id)
+                ->with('obat')
+                ->get()
+                ->map(function($r) {
+                    return [
+                        'id' => $r->id,
+                        'obat' => $r->obat ? $r->obat->nama : null,
+                        'jumlah' => $r->jumlah,
+                        'dosis' => $r->dosis,
+                        'bungkus' => $r->bungkus,
+                        'racikan_ke' => $r->racikan_ke,
+                        'aturan_pakai' => $r->aturan_pakai,
+                        'wadah' => $r->wadah ? $r->wadah->nama : null,
+                    ];
+                });
             // Riwayat tindakan for this visitation
             $tindakan = \App\Models\ERM\RiwayatTindakan::where('visitation_id', $visit->id)
                 ->with('tindakan')

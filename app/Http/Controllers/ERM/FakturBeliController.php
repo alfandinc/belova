@@ -94,6 +94,21 @@ class FakturBeliController extends Controller
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
             ]);
+            // Update HPP for Obat
+            $obat = \App\Models\ERM\Obat::withInactive()->find($item['obat_id']);
+            if ($obat) {
+                $oldHpp = $obat->hpp ?? 0;
+                $qty = $item['qty'] ?? 1;
+                $tax = $item['tax'] ?? 0;
+                $newHpp = $qty > 0 ? ($item['harga'] + ($tax / $qty)) : $item['harga'];
+                if ($oldHpp > 0) {
+                    $finalHpp = ($oldHpp + $newHpp) / 2;
+                } else {
+                    $finalHpp = $newHpp;
+                }
+                $obat->hpp = $finalHpp;
+                $obat->save();
+            }
         }
 
         return response()->json(['success' => true, 'message' => 'Faktur berhasil disimpan']);
@@ -165,6 +180,21 @@ class FakturBeliController extends Controller
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
             ]);
+            // Update HPP for Obat
+            $obat = \App\Models\ERM\Obat::withInactive()->find($item['obat_id']);
+            if ($obat) {
+                $oldHpp = $obat->hpp ?? 0;
+                $qty = $item['qty'] ?? 1;
+                $tax = $item['tax'] ?? 0;
+                $newHpp = $qty > 0 ? ($item['harga'] + ($tax / $qty)) : $item['harga'];
+                if ($oldHpp > 0) {
+                    $finalHpp = ($oldHpp + $newHpp) / 2;
+                } else {
+                    $finalHpp = $newHpp;
+                }
+                $obat->hpp = $finalHpp;
+                $obat->save();
+            }
         }
 
         return response()->json(['success' => true, 'message' => 'Faktur berhasil diupdate']);
