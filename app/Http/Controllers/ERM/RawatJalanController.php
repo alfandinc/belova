@@ -65,10 +65,10 @@ class RawatJalanController extends Controller
                     $antrianHtml = '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
                     // Check if visitation has labpermintaan
                     if ($v->labPermintaan && $v->labPermintaan->count() > 0) {
-                        $antrianHtml .= ' <span class="lab-icon d-inline-flex align-items-center justify-content-center" title="Ada Permintaan Lab" style="width: 20px; height: 20px; background-color: #17a2b8; border-radius: 3px; margin-left: 12px; color: #fff;"><i class="fas fa-flask" style="font-size: 11px;"></i></span>';
+                        $antrianHtml .= ' <span class="lab-icon blinking d-inline-flex align-items-center justify-content-center" title="Ada Permintaan Lab" style="width: 20px; height: 20px; background-color: #17a2b8; border-radius: 3px; margin-left: 12px; color: #fff;"><i class="fas fa-flask" style="font-size: 11px;"></i></span>';
                     }
                     if ($v->riwayatTindakan && $v->riwayatTindakan->count() > 0) {
-                        $antrianHtml .= ' <span class="tindakan-icon d-inline-flex align-items-center justify-content-center" title="Ada Tindakan" style="width: 20px; height: 20px; background-color: #28a745; border-radius: 3px; margin-left: 12px; color: #fff;"><i class="fas fa-stethoscope" style="font-size: 11px;"></i></span>';
+                        $antrianHtml .= ' <span class="tindakan-icon blinking d-inline-flex align-items-center justify-content-center" title="Ada Tindakan" style="width: 20px; height: 20px; background-color: #28a745; border-radius: 3px; margin-left: 12px; color: #fff;"><i class="fas fa-stethoscope" style="font-size: 11px;"></i></span>';
                     }
                     return $antrianHtml;
                 })

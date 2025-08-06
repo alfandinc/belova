@@ -20,6 +20,19 @@
 .dataTables_wrapper td {
     vertical-align: middle;
 }
+
+/* Smooth blinking animation for lab and tindakan icons */
+.blinking {
+    animation: blinking-animation 1s linear infinite;
+}
+@keyframes blinking-animation {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.2;
+    }
+}
 </style>
 
 @include('erm.partials.modal-reschedule')
@@ -246,6 +259,12 @@ var userRole = "{{ $role }}";
     // No color change for status_kunjungan == 1 and userRole === 'Dokter'
 }
     });
+
+
+    // Auto-refresh DataTable every 10 seconds
+    setInterval(function() {
+        table.ajax.reload(null, false); // false to keep current page
+    }, 10000);
 
     $('#filter_dokter, #filter_klinik').on('change', function () {
         table.ajax.reload();
