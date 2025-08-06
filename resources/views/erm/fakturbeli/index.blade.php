@@ -37,6 +37,7 @@ $(function() {
         processing: true,
         serverSide: true,
         ajax: '{{ route('erm.fakturbeli.index') }}',
+        order: [[4, 'desc']], // received_date column (index 4)
         columns: [
             { data: null, name: 'no', orderable: false, searchable: false, render: function (data, type, row, meta) {
                 return meta.row + meta.settings._iDisplayStart + 1;

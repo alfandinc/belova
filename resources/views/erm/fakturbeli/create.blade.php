@@ -380,10 +380,14 @@ $('#fakturbeli-form').on('submit', function(e) {
             }
         },
         error: function(xhr) {
+            let msg = 'Gagal menyimpan faktur!';
+            if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors && xhr.responseJSON.errors.no_faktur) {
+                msg = xhr.responseJSON.errors.no_faktur[0];
+            }
             Swal.fire({
-                icon: 'error',
-                title: 'Gagal',
-                text: 'Gagal menyimpan faktur!'
+                icon: 'warning',
+                title: 'Peringatan',
+                text: msg
             });
         }
     });

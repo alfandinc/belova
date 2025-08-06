@@ -56,9 +56,10 @@ class FakturBeliController extends Controller
 
     public function store(Request $request)
     {
+
         $validated = $request->validate([
             'pemasok_id' => 'required|exists:erm_pemasok,id',
-            'no_faktur' => 'required|string',
+            'no_faktur' => 'required|string|unique:erm_fakturbeli,no_faktur',
             'received_date' => 'required|date',
             'requested_date' => 'nullable|date',
             'due_date' => 'nullable|date',
