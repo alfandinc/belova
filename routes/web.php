@@ -337,6 +337,24 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/fakturpembelian/{id}/edit', [\App\Http\Controllers\ERM\FakturBeliController::class, 'edit'])->name('erm.fakturbeli.edit');
     Route::post('/fakturpembelian/{id}/update', [\App\Http\Controllers\ERM\FakturBeliController::class, 'update'])->name('erm.fakturbeli.update');
     Route::delete('/fakturpembelian/{id}', [\App\Http\Controllers\ERM\FakturBeliController::class, 'destroy'])->name('erm.fakturbeli.destroy');
+
+    // Stok Opname Routes
+    Route::prefix('/stokopname')->middleware('auth')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ERM\StokOpnameController::class, 'index'])->name('erm.stokopname.index');
+        Route::post('/', [\App\Http\Controllers\ERM\StokOpnameController::class, 'store'])->name('erm.stokopname.store');
+        Route::get('/{id}/create', [\App\Http\Controllers\ERM\StokOpnameController::class, 'create'])->name('erm.stokopname.create');
+        Route::get('/{id}/download-excel', [\App\Http\Controllers\ERM\StokOpnameController::class, 'downloadExcel'])->name('erm.stokopname.downloadExcel');
+        Route::post('/{id}/upload-excel', [\App\Http\Controllers\ERM\StokOpnameController::class, 'uploadExcel'])->name('erm.stokopname.uploadExcel');
+        // Stok Opname Items DataTable AJAX
+        Route::get('/{id}/items-data', [\App\Http\Controllers\ERM\StokOpnameController::class, 'itemsData'])->name('erm.stokopname.itemsData');
+        // Update catatan/notes for stok opname item
+        Route::post('/item/{itemId}/update-notes', [\App\Http\Controllers\ERM\StokOpnameController::class, 'updateItemNotes'])->name('erm.stokopname.item.updateNotes');
+        // Update status for stok opname (AJAX)
+        Route::post('/{id}/update-status', [\App\Http\Controllers\ERM\StokOpnameController::class, 'updateStatus'])->name('erm.stokopname.updateStatus');
+        // Save stok fisik to stok obat
+        Route::post('/{id}/save-stok-fisik', [\App\Http\Controllers\ERM\StokOpnameController::class, 'saveStokFisik'])->name('erm.stokopname.saveStokFisik');
+    });
+    
 });
 
 Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {

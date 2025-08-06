@@ -119,6 +119,9 @@
                             <li>
                                 <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
                             </li>
+                            <li>
+                                <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
+                            </li>
                         </ul>
                     </li>
                     @endhasrole
