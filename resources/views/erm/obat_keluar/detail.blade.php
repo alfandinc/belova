@@ -18,7 +18,7 @@
                     $total = $items->sum('jumlah');
                 @endphp
                 <tr>
-                    <td>{{ $visitationId ?? '-' }}</td>
+                    <td>{{ $first->resepDetail && $first->resepDetail->no_resep ? $first->resepDetail->no_resep : '-' }}</td>
                     <td>{{ $first->visitation && $first->visitation->pasien ? $first->visitation->pasien->nama : '-' }}</td>
                     <td>{{ $first->visitation ? ($first->visitation->tanggal_visitation ?? '-') : '-' }}</td>
                     <td>{{ $total }}</td>

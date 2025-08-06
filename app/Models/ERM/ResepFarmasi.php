@@ -52,4 +52,10 @@ class ResepFarmasi extends Model
     {
         return $this->morphOne(Billing::class, 'billable');
     }
+
+    // Relasi ke ResepDetail (untuk mendapatkan no_resep)
+    public function resepDetail()
+    {
+        return $this->belongsTo(ResepDetail::class, 'visitation_id', 'visitation_id');
+    }
 }
