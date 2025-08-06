@@ -4,8 +4,10 @@ namespace App\Http\Controllers\ERM;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+
 use App\Models\ERM\ResepFarmasi;
 use Yajra\DataTables\DataTables;
+use Illuminate\Support\Facades\DB;
 
 class ObatKeluarController extends Controller
 {
@@ -22,18 +24,22 @@ class ObatKeluarController extends Controller
             $start = $end = now()->toDateString();
         }
 
-        $query = ResepFarmasi::with('obat')
-            ->whereDate('created_at', '>=', $start)
-            ->whereDate('created_at', '<=', $end)
-            ->selectRaw('obat_id, SUM(jumlah) as jumlah')
-            ->groupBy('obat_id');
+        $query = DB::table('erm_resepfarmasi as rf')
+            ->join('erm_obat as o', 'rf.obat_id', '=', 'o.id')
+            ->select(
+                'rf.obat_id',
+                'o.nama as nama_obat',
+                DB::raw('SUM(rf.jumlah) as jumlah')
+            )
+            ->whereDate('rf.created_at', '>=', $start)
+            ->whereDate('rf.created_at', '<=', $end)
+            ->groupBy('rf.obat_id', 'o.nama');
 
         return DataTables::of($query)
-            ->addColumn('nama_obat', function($row) {
-                return $row->obat ? $row->obat->nama : '-';
-            })
-            ->editColumn('jumlah', function($row) {
-                return $row->jumlah;
+            ->filter(function ($query) use ($request) {
+                if ($search = $request->get('search')['value']) {
+                    $query->where('o.nama', 'like', "%$search%");
+                }
             })
             ->addColumn('detail', function($row) {
                 return '<button class="btn btn-sm btn-info btn-detail" data-obat-id="' . $row->obat_id . '">Detail</button>';

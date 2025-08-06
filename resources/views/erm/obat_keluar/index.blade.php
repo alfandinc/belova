@@ -73,6 +73,8 @@ $(function() {
     var table = $('#obatKeluarTable').DataTable({
         processing: true,
         serverSide: true,
+        pageLength: -1, // Show all by default
+        lengthMenu: [[-1, 10, 25, 50, 100], ["All", 10, 25, 50, 100]],
         ajax: {
             url: '{{ url('/erm/obat-keluar/data') }}',
             data: function(d) {
