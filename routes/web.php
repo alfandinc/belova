@@ -61,6 +61,7 @@ use App\Http\Controllers\AkreditasiController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Marketing\MarketingController;
+use App\Http\Controllers\Insiden\LaporanInsidenController;
 
 
 use Illuminate\Support\Facades\Auth;
@@ -698,6 +699,19 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function (
     Route::get('pasien/{pasien}/riwayat-rm', [\App\Http\Controllers\Marketing\MarketingController::class, 'riwayatRM']);
 });
 
+
+Route::prefix('insiden')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+
+    Route::get('laporan_insiden/division-select2', [LaporanInsidenController::class, 'divisionSelect2'])->name('insiden.laporan_insiden.division-select2');
+    Route::get('laporan_insiden', [LaporanInsidenController::class, 'index'])->name('insiden.laporan_insiden.index');
+    Route::get('laporan_insiden/data', [LaporanInsidenController::class, 'data'])->name('insiden.laporan_insiden.data');
+    Route::get('laporan_insiden/create', [LaporanInsidenController::class, 'create'])->name('insiden.laporan_insiden.create');
+    Route::post('laporan_insiden', [LaporanInsidenController::class, 'upsert'])->name('insiden.laporan_insiden.store');
+    Route::get('laporan_insiden/{id}/edit', [LaporanInsidenController::class, 'edit'])->name('insiden.laporan_insiden.edit');
+    Route::put('laporan_insiden/{id}', [LaporanInsidenController::class, 'upsert'])->name('insiden.laporan_insiden.update');
+    // AJAX pasien search for Select2
+    Route::get('laporan_insiden/pasien-search', [LaporanInsidenController::class, 'searchPasien'])->name('insiden.laporan_insiden.pasien-search');
+});
 // AJAX route for patient analytics charts
 Route::get('/marketing/patients-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'patientsAnalyticsData'])->name('marketing.patients.analytics.data');
 
@@ -757,3 +771,6 @@ Route::get('/get-pemasok-select2', [\App\Http\Controllers\ERM\FakturBeliControll
 Route::get('/get-obat-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getObatSelect2']);
 // Select2 AJAX for gudang
 Route::get('/get-gudang-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getGudangSelect2']);
+    // AJAX spesialisasi select2
+    Route::get('/erm/spesialisasi-select2', [\App\Http\Controllers\Insiden\LaporanInsidenController::class, 'spesialisasiSelect2'])->name('erm.spesialisasi.select2');
+    // AJAX division select2 (unit penyebab)

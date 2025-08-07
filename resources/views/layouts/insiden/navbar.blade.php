@@ -38,8 +38,14 @@
                     <li class="nav-item"><a class="nav-link" href="/insiden"><i class="ti-control-record"></i>Analytics</a></li>
                 </ul>
             </li>
+            <li>
+                <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Laporan Insiden</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                <ul class="nav-second-level" aria-expanded="false">
+                    <li class="nav-item"><a class="nav-link" href="{{ route('insiden.laporan_insiden.index') }}"><i class="ti-control-record"></i>Data Laporan Insiden</a></li>
 
-        </ul>              
+                </ul>
+            </li>
+        </ul>
     </div>
 </div>
 <!-- end left-sidenav-->
