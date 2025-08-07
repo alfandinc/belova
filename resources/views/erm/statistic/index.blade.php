@@ -40,10 +40,7 @@
                 <div class="row">
                     <div class="col">
                         <h4 class="page-title">Statistik Farmasi</h4>
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="/erm">Dashboard</a></li>
-                            <li class="breadcrumb-item active">Statistik Farmasi</li>
-                        </ol>
+                            
                     </div><!--end col-->
                 </div><!--end row-->
             </div><!--end page-title-box-->
@@ -55,40 +52,24 @@
             <div class="card">
                 <div class="card-body">
                     <h4 class="card-title">Filter Statistik</h4>
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label>Filter Periode:</label>
-                            <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
-                                <label class="btn btn-primary active">
-                                    <input type="radio" name="period" id="daily" value="daily" checked> Harian
-                                </label>
-                                <label class="btn btn-primary">
-                                    <input type="radio" name="period" id="weekly" value="weekly"> Mingguan
-                                </label>
-                                <label class="btn btn-primary">
-                                    <input type="radio" name="period" id="monthly" value="monthly"> Bulanan
-                                </label>
-                                <label class="btn btn-primary">
-                                    <input type="radio" name="period" id="yearly" value="yearly"> Tahunan
-                                </label>
-                                <label class="btn btn-primary">
-                                    <input type="radio" name="period" id="all" value="all"> Semua
-                                </label>
+                    <div class="row align-items-end">
+                        <div class="col-md-4">
+                            <div class="form-group mb-2">
+                                <label for="filter_tanggal" class="font-weight-bold">Filter Tanggal:</label>
+                                <input type="text" id="filter_tanggal" class="form-control" autocomplete="off" />
                             </div>
                         </div>
-                        
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="filter_klinik">Filter Klinik:</label>
+                        <div class="col-md-4">
+                            <div class="form-group mb-2">
+                                <label for="filter_klinik" class="font-weight-bold">Filter Klinik:</label>
                                 <select id="filter_klinik" class="form-control select2">
                                     <option value="">Semua Klinik</option>
                                 </select>
                             </div>
                         </div>
-                        
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="filter_dokter">Filter Dokter:</label>
+                        <div class="col-md-4">
+                            <div class="form-group mb-2">
+                                <label for="filter_dokter" class="font-weight-bold">Filter Dokter:</label>
                                 <select id="filter_dokter" class="form-control select2">
                                     <option value="">Semua Dokter</option>
                                 </select>
@@ -201,24 +182,46 @@
         @endforeach
         @endif
         
+        // Initialize daterangepicker for filter_tanggal
+        $('#filter_tanggal').daterangepicker({
+            locale: { format: 'YYYY-MM-DD' },
+            autoUpdateInput: true,
+            startDate: moment().format('YYYY-MM-DD'),
+            endDate: moment().format('YYYY-MM-DD'),
+            opens: 'left',
+            singleDatePicker: false,
+            showDropdowns: true
+        }, function(start, end) {
+            $('#filter_tanggal').val(start.format('YYYY-MM-DD') + ' - ' + end.format('YYYY-MM-DD'));
+            loadStatisticsData();
+        });
+        // Set default value to today
+        $('#filter_tanggal').val(moment().format('YYYY-MM-DD') + ' - ' + moment().format('YYYY-MM-DD'));
+
         // Function to load statistics data
         function loadStatisticsData() {
-            const period = $('input[name="period"]:checked').val();
-            const klinikId = $('#filter_klinik').val();
-            const dokterId = $('#filter_dokter').val();
-            
+            let klinikId = $('#filter_klinik').val();
+            let dokterId = $('#filter_dokter').val();
+            let tanggal = $('#filter_tanggal').val();
+            let startDate = '', endDate = '';
+            if (tanggal) {
+                const parts = tanggal.split(' - ');
+                startDate = parts[0];
+                endDate = parts[1] || parts[0];
+            }
             $.ajax({
                 url: '/erm/statistic/data',
                 method: 'GET',
                 data: { 
-                    period: period,
+                    start_date: startDate,
+                    end_date: endDate,
                     klinik_id: klinikId,
                     dokter_id: dokterId
                 },
                 success: function(response) {
                     // Calculate totals
-                    const totalTerlayani = response.terlayani.reduce((a, b) => a + b, 0);
-                    const totalTidakTerlayani = response.tidak_terlayani.reduce((a, b) => a + b, 0);
+                    const totalTerlayani = response.terlayani.reduce((a, b) => Number(a) + Number(b), 0);
+                    const totalTidakTerlayani = response.tidak_terlayani.reduce((a, b) => Number(a) + Number(b), 0);
                     const totalResep = totalTerlayani + totalTidakTerlayani;
                     
                     // Update big number displays and percentages
