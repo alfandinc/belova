@@ -80,7 +80,11 @@ class LaporanInsidenController extends Controller
             })
             ->addColumn('action', function($row) {
                 $url = route('insiden.laporan_insiden.edit', $row->id);
-                return '<a href="'.$url.'" class="btn btn-sm btn-info">Edit</a>';
+                $deleteUrl = route('insiden.laporan_insiden.destroy', $row->id);
+                $btn = '<a href="'.$url.'" class="btn btn-sm btn-info" title="Lihat"><i class="fa fa-eye"></i></a> ';
+                $btn .= '<button type="button" class="btn btn-sm btn-danger btn-delete-laporan" data-id="'.$row->id.'" title="Hapus"><i class="fa fa-trash"></i></button> ';
+                $btn .= '<button type="button" class="btn btn-sm btn-success btn-diterima-laporan" data-id="'.$row->id.'" title="Diterima"><i class="fa fa-check"></i> Diterima</button>';
+                return $btn;
             })
             ->rawColumns(['action'])
             ->make(true);
@@ -152,6 +156,7 @@ class LaporanInsidenController extends Controller
             'tanggal_lapor' => 'nullable|date',
             'tanggal_diterima' => 'nullable|date',
             'grading_resiko' => 'nullable|string',
+            'status' => 'nullable|string',
         ]);
         $validated['pembuat_laporan'] = auth()->id();
         $laporan = LaporanInsiden::updateOrCreate(
@@ -164,6 +169,26 @@ class LaporanInsidenController extends Controller
     {
         $laporan = LaporanInsiden::findOrFail($id);
         return view('insiden.laporan_insiden.create', compact('laporan'));
+    }
+
+        // Delete laporan insiden
+    public function destroy($id)
+    {
+        $laporan = LaporanInsiden::findOrFail($id);
+        $laporan->delete();
+        return response()->json(['success' => true]);
+    }
+
+        // Set laporan insiden as Diterima
+    public function diterima(Request $request, $id)
+    {
+        $laporan = LaporanInsiden::findOrFail($id);
+        $laporan->status = 'Diterima';
+        $laporan->penerima_laporan = auth()->user() ? auth()->user()->id : null;
+        $laporan->tanggal_diterima = now();
+        $laporan->grading_resiko = $request->input('grading_resiko');
+        $laporan->save();
+        return response()->json(['success' => true]);
     }
 
 }

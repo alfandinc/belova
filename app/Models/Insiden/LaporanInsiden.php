@@ -7,6 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class LaporanInsiden extends Model
 {
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array
+     */
+    protected $attributes = [
+        'status' => 'Dibuat',
+    ];
     use HasFactory;
 
     protected $table = 'laporan_insiden';
@@ -36,6 +44,7 @@ class LaporanInsiden extends Model
         'tanggal_lapor',
         'tanggal_diterima',
         'grading_resiko',
+        'status',
     ];
 
     // Relationships

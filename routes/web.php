@@ -711,6 +711,8 @@ Route::prefix('insiden')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::put('laporan_insiden/{id}', [LaporanInsidenController::class, 'upsert'])->name('insiden.laporan_insiden.update');
     // AJAX pasien search for Select2
     Route::get('laporan_insiden/pasien-search', [LaporanInsidenController::class, 'searchPasien'])->name('insiden.laporan_insiden.pasien-search');
+    Route::delete('laporan_insiden/{id}', [LaporanInsidenController::class, 'destroy'])->name('insiden.laporan_insiden.destroy');
+    Route::post('laporan_insiden/{id}/diterima', [LaporanInsidenController::class, 'diterima'])->name('insiden.laporan_insiden.diterima');
 });
 // AJAX route for patient analytics charts
 Route::get('/marketing/patients-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'patientsAnalyticsData'])->name('marketing.patients.analytics.data');
