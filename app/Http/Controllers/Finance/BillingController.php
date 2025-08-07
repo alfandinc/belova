@@ -859,9 +859,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->addColumn('action', function ($visitation) {
                 $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
                 
-                // Add "Cetak Nota" button if invoice exists
+                // Add "Cetak Nota" buttons if invoice exists
                 if ($visitation->invoice) {
                     $action .= ' <a href="'.route('finance.invoice.print-nota', $visitation->invoice->id).'" class="btn btn-sm btn-success ml-1" target="_blank">Cetak Nota</a>';
+                    $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
                 }
                 
                 return $action;

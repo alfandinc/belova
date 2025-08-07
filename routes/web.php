@@ -433,6 +433,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin')->group(function () {
         Route::put('/invoice/{id}/status', [InvoiceController::class, 'updateStatus'])->name('finance.invoice.updateStatus');
         Route::get('/invoice/{id}/print', [InvoiceController::class, 'printInvoice'])->name('finance.invoice.print');
         Route::get('/invoice/{id}/print-nota', [InvoiceController::class, 'printNota'])->name('finance.invoice.print-nota');
+        Route::get('/invoice/{id}/print-nota-v2', [InvoiceController::class, 'printNotaV2'])->name('finance.invoice.print-nota-v2');
         // Rekap Penjualan
         Route::get('/rekap-penjualan', [BillingController::class, 'rekapPenjualanForm'])->name('finance.rekap-penjualan.form');
         Route::get('/rekap-penjualan/download', [BillingController::class, 'downloadRekapPenjualanExcel'])->name('finance.rekap-penjualan.download');

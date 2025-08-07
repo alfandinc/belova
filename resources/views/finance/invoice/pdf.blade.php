@@ -25,22 +25,22 @@
         .header-table {
             width: 100%;
             border-bottom: 1px solid #3498db;
-            margin-bottom: 8px;
+            margin-bottom: 15px;
         }
         .header-table td {
             vertical-align: middle;
             padding: 0;
         }
         .logo-cell {
-            width: 40%;
+            width: 50%;
             text-align: left;
         }
         .title-cell {
-            width: 60%;
+            width: 50%;
             text-align: right;
         }
         .invoice-title {
-            font-size: 22pt;
+            font-size: 28pt;
             font-weight: bold;
             color: #3498db;
             margin: 0;
@@ -174,17 +174,6 @@
             left: 0;
             right: 0;
         }
-        .payment-info {
-            position: relative;  /* Changed from absolute to relative */
-            margin-top: 20px;    /* Add margin instead of absolute positioning */
-            width: 60%;
-            padding: 4px 6px;
-            background-color: #f8f9fa;
-            border-left: 2px solid #3498db;
-            font-size: 8pt;
-            border-radius: 3px;
-            line-height: 1.3;
-        }
         .signature-row {
             position: relative;  /* Changed from absolute to relative */
             margin-top: 15px;    /* Add margin for spacing */
@@ -255,7 +244,31 @@
         <table class="header-table">
             <tr>
                 <td class="logo-cell">
-                    <img src="{{ public_path('img/logo.png') }}" alt="Belova Logo" height="35">
+                    @php
+                        $logoPath = '';
+                        if ($invoice->visitation->klinik_id == 1) {
+                            $logoPath = public_path('img/header-premiere.png');
+                            $altText = 'Premiere Logo';
+                        } elseif ($invoice->visitation->klinik_id == 2) {
+                            $logoPath = public_path('img/header-belova.png');
+                            $altText = 'Belova Logo';
+                        } else {
+                            $logoPath = public_path('img/logo.png');
+                            $altText = 'Default Logo';
+                        }
+                        
+                        $logoBase64 = '';
+                        if (file_exists($logoPath)) {
+                            $logoData = file_get_contents($logoPath);
+                            $logoBase64 = 'data:image/png;base64,' . base64_encode($logoData);
+                        }
+                    @endphp
+                    
+                    @if($logoBase64)
+                        <img src="{{ $logoBase64 }}" alt="{{ $altText }}" height="80" style="max-width: 240px;">
+                    @else
+                        <div style="font-weight: bold; color: #3498db; font-size: 18px;">{{ $altText }}</div>
+                    @endif
                 </td>
                 <td class="title-cell">
                     <div class="invoice-title">INVOICE</div>
@@ -372,12 +385,6 @@
         
         <!-- Fixed Footer Elements -->
         <div class="footer-container">
-            <div class="payment-info">
-                <strong>Payment Information:</strong><br>
-                Please make payment to: <strong>BCA</strong> | <strong>Account Name:</strong> Belova Clinic<br>
-                <strong>Account Number:</strong> 123-456-7890
-            </div>
-            
             <div class="signature-row">
                 <div class="signature-right">
                     <p>Surakarta, {{ \Carbon\Carbon::now()->format('d F Y') }}</p>

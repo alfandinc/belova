@@ -65,8 +65,9 @@ class InvoiceController extends Controller
                 ->addColumn('action', function ($invoice) {
                     $viewBtn = '<a href="' . route('finance.invoice.show', $invoice->id) . '" class="btn btn-sm btn-info mr-1">Lihat Detail</a>';
                     $printBtn = '<a href="' . route('finance.invoice.print', $invoice->id) . '" class="btn btn-sm btn-secondary mr-1" target="_blank">Cetak Invoice</a>';
-                    $notaBtn = '<a href="' . route('finance.invoice.print-nota', $invoice->id) . '" class="btn btn-sm btn-primary" target="_blank">Cetak Nota</a>';
-                    return $viewBtn . $printBtn . $notaBtn;
+                    $notaBtn = '<a href="' . route('finance.invoice.print-nota', $invoice->id) . '" class="btn btn-sm btn-primary mr-1" target="_blank">Cetak Nota</a>';
+                    $notaV2Btn = '<a href="' . route('finance.invoice.print-nota-v2', $invoice->id) . '" class="btn btn-sm btn-warning" target="_blank">Cetak Nota v2</a>';
+                    return $viewBtn . $printBtn . $notaBtn . $notaV2Btn;
                 })
                 ->rawColumns(['status_badge', 'action'])
                 ->make(true);
@@ -179,5 +180,41 @@ class InvoiceController extends Controller
             ]);
 
         return $pdf->stream('Nota-' . $invoice->invoice_number . '.pdf');
+    }
+    
+    /**
+     * Generate PDF nota version 2
+     */
+    public function printNotaV2($id)
+    {
+        $invoice = Invoice::with([
+            'visitation.pasien',
+            'visitation.klinik',
+            'items'
+        ])->findOrFail($id);
+        
+        // Prepare logo paths for the PDF
+        $premiereLogo = public_path('img/header-premiere.png');
+        $belovaLogo = public_path('img/header-belova.png');
+        $defaultLogo = public_path('img/logo.png');
+        
+        $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'))
+            ->setPaper('a5', 'landscape')
+            ->setOptions([
+                'defaultFont' => 'helvetica',
+                'isRemoteEnabled' => true,
+                'isHtml5ParserEnabled' => true,
+                'isFontSubsettingEnabled' => true,
+                'dpi' => 150,
+                'defaultMediaType' => 'screen',
+                'enable_javascript' => true,
+                'no_background' => false,
+                'margin_top' => 2,
+                'margin_right' => 2,
+                'margin_bottom' => 2,
+                'margin_left' => 2
+            ]);
+
+        return $pdf->stream('Nota-V2-' . $invoice->invoice_number . '.pdf');
     }
 }
