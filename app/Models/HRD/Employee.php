@@ -98,6 +98,12 @@ class Employee extends Model
         // Make case-insensitive for safety
         return $this->user && $this->user->hasRole(['manager', 'Manager']);
     }
+    
+    public function isCEO()
+    {
+        // Check if user has CEO role
+        return $this->user && $this->user->hasRole(['ceo', 'Ceo', 'CEO']);
+    }
 
     // Add these new relationships
     public function evaluationsAsEvaluator()

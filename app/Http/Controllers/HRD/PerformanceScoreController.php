@@ -87,19 +87,25 @@ class PerformanceScoreController extends Controller
         $evaluator = $evaluation->evaluator;
         $evaluatee = $evaluation->evaluatee;
 
-        $isEvaluatorHRD = $evaluator->division->name == 'HRD';
+        $hrdNames = ['human resources', 'hrd', 'human resource'];
+        $isEvaluatorHRD = $evaluator->division && in_array(strtolower($evaluator->division->name), $hrdNames);
         $isEvaluatorManager = $evaluator->isManager();
-        $isEvaluateeHRD = $evaluatee->division->name == 'HRD';
+        $isEvaluatorCEO = $evaluator->isCEO();
+        $isEvaluateeHRD = $evaluatee->division && in_array(strtolower($evaluatee->division->name), $hrdNames);
         $isEvaluateeManager = $evaluatee->isManager();
 
-        if ($isEvaluatorHRD && $isEvaluateeManager) {
+        if ($isEvaluatorCEO && $isEvaluateeHRD) {
+            return 'ceo_to_hrd';
+        } elseif ($isEvaluatorHRD && $isEvaluateeManager) {
             return 'hrd_to_manager';
         } elseif ($isEvaluatorManager && !$isEvaluateeManager && !$isEvaluateeHRD) {
             return 'manager_to_employee';
-        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && $isEvaluateeManager) {
+        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && !$isEvaluatorCEO && $isEvaluateeManager) {
             return 'employee_to_manager';
         } elseif ($isEvaluatorManager && $isEvaluateeHRD) {
             return 'manager_to_hrd';
+        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && !$isEvaluatorCEO && $isEvaluateeHRD) {
+            return 'employee_to_hrd';
         }
 
         // Default fallback

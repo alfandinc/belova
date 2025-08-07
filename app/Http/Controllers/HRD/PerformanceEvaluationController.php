@@ -252,6 +252,11 @@ class PerformanceEvaluationController extends Controller
         $managers = $employees->filter(function ($employee) {
             return $employee->isManager();
         });
+        
+        // Get CEOs
+        $ceos = $employees->filter(function ($employee) {
+            return $employee->isCEO();
+        });
 
         // Get regular employees (non-managers and non-HRD)
         $regularEmployees = $employees->filter(function ($employee) {
@@ -343,6 +348,22 @@ class PerformanceEvaluationController extends Controller
                         [
                             'period_id' => $period->id,
                             'evaluator_id' => $employee->id,
+                            'evaluatee_id' => $hrd->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+            
+            // 6. CEO to HRD
+            foreach ($ceos as $ceo) {
+                foreach ($hrdEmployees as $hrd) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $ceo->id,
                             'evaluatee_id' => $hrd->id
                         ],
                         [
@@ -522,18 +543,21 @@ class PerformanceEvaluationController extends Controller
         $hrdNames = ['human resources', 'hrd', 'human resource'];
         $isEvaluatorHRD = $evaluator->division instanceof Division && in_array(strtolower($evaluator->division->name), $hrdNames);
         $isEvaluatorManager = $evaluator->isManager();
+        $isEvaluatorCEO = $evaluator->isCEO();
         $isEvaluateeHRD = $evaluatee->division instanceof Division && in_array(strtolower($evaluatee->division->name), $hrdNames);
         $isEvaluateeManager = $evaluatee->isManager();
 
-        if ($isEvaluatorHRD && $isEvaluateeManager) {
+        if ($isEvaluatorCEO && $isEvaluateeHRD) {
+            return 'ceo_to_hrd';
+        } elseif ($isEvaluatorHRD && $isEvaluateeManager) {
             return 'hrd_to_manager';
         } elseif ($isEvaluatorManager && !$isEvaluateeManager && !$isEvaluateeHRD) {
             return 'manager_to_employee';
-        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && $isEvaluateeManager) {
+        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && !$isEvaluatorCEO && $isEvaluateeManager) {
             return 'employee_to_manager';
         } elseif ($isEvaluatorManager && $isEvaluateeHRD) {
             return 'manager_to_hrd';
-        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && $isEvaluateeHRD) {
+        } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && !$isEvaluatorCEO && $isEvaluateeHRD) {
             return 'employee_to_hrd';
         }
 
