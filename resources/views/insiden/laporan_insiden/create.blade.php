@@ -11,7 +11,8 @@
             <form id="formLaporanInsiden" method="POST" action="{{ isset($laporan) ? route('insiden.laporan_insiden.update', $laporan->id) : route('insiden.laporan_insiden.store') }}">
                 @csrf
 
-                <h5 class="mb-3">Data Pasien & Insiden</h5>
+                <!-- 1. Data Pasien -->
+                <h5 class="mb-3"><strong>1. Data Pasien</strong></h5>
                 <div class="form-row">
                     <div class="form-group col-md-4">
                         <label for="pasien_id">Pasien</label>
@@ -33,7 +34,7 @@
                         <label for="jenis_kelamin">Jenis Kelamin</label>
                         <input type="text" name="jenis_kelamin" id="jenis_kelamin" class="form-control" readonly>
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="form-group col-md-6">
                         <label for="penanggung_biaya">Penanggung Biaya</label>
                         <select name="penanggung_biaya" id="penanggung_biaya" class="form-control select2-penanggung" style="width: 100%">
                             <option value="">Pilih Penanggung Biaya</option>
@@ -45,145 +46,157 @@
                             <option value="Jaminan Kesehatan Daerah" {{ (isset($laporan) && $laporan->penanggung_biaya == 'Jaminan Kesehatan Daerah') ? 'selected' : '' }}>Jaminan Kesehatan Daerah</option>
                         </select>
                     </div>
-                    <div class="form-group col-md-4">
+                    <div class="form-group col-md-6">
                         <label for="tanggal_masuk">Tanggal Masuk</label>
                         <input type="date" name="tanggal_masuk" id="tanggal_masuk" class="form-control" value="{{ $laporan->tanggal_masuk ?? '' }}">
                     </div>
                 </div>
 
+                <div class="row">
+                    <div class="col-md-6">
+                        <!-- 2. Tanggal & Waktu Insiden -->
+                        <h5 class="mb-3 mt-4"><strong>2. Tanggal & Waktu Insiden</strong></h5>
+                        <div class="form-group">
+                            <input type="datetime-local" name="tanggal_insiden" id="tanggal_insiden" class="form-control" value="{{ isset($laporan->tanggal_insiden) ? date('Y-m-d\TH:i', strtotime($laporan->tanggal_insiden)) : '' }}">
+                        </div>
+                        
+                        <!-- 3. Insiden -->
+                        <h5 class="mb-3 mt-4"><strong>3. Insiden</strong></h5>
+                        <div class="form-group">
+                            <input type="text" name="insiden" id="insiden" class="form-control" value="{{ $laporan->insiden ?? '' }}">
+                        </div>
 
-                <h5 class="mb-3 mt-4">Detail Insiden</h5>
-                <div class="form-row">
-                    <div class="form-group col-md-6">
-                        <label for="tanggal_insiden">Tanggal & Waktu Insiden</label>
-                        <input type="datetime-local" name="tanggal_insiden" id="tanggal_insiden" class="form-control" value="{{ isset($laporan->tanggal_insiden) ? date('Y-m-d\TH:i', strtotime($laporan->tanggal_insiden)) : '' }}">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group col-md-6">
-                        <label for="insiden">Insiden</label>
-                        <input type="text" name="insiden" id="insiden" class="form-control" value="{{ $laporan->insiden ?? '' }}">
-                        <label for="jenis_insiden">Jenis Insiden</label>
-                        <select name="jenis_insiden" id="jenis_insiden" class="form-control select2-jenis-insiden" style="width: 100%">
-                            <option value="">Pilih Jenis Insiden</option>
-                            <option value="Kejadian Nyaris Cedera / KNC (Near Miss)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian Nyaris Cedera / KNC (Near Miss)') ? 'selected' : '' }}>Kejadian Nyaris Cedera / KNC (Near Miss)</option>
-                            <option value="Kejadian Tidak Cedera / KTC (No Harm)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian Tidak Cedera / KTC (No Harm)') ? 'selected' : '' }}>Kejadian Tidak Cedera / KTC (No Harm)</option>
-                            <option value="Kejadian tidak Diharapkan /  KTD (Adverse Event)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian tidak Diharapkan /  KTD (Adverse Event)') ? 'selected' : '' }}>Kejadian tidak Diharapkan /  KTD (Adverse Event)</option>
-                            <option value="Kejadian Sentinel (Sentinel Event)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian Sentinel (Sentinel Event)') ? 'selected' : '' }}>Kejadian Sentinel (Sentinel Event)</option>
-                        </select>
-                    </div>
-                    <div class="form-group col-md-6">
-                        <label for="kronologi_insiden">Kronologi Insiden</label>
-                        <textarea name="kronologi_insiden" id="kronologi_insiden" class="form-control" rows="4">{{ $laporan->kronologi_insiden ?? '' }}</textarea>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group col-md-4">
-                        <label for="pertama_lapor">Pertama Lapor</label>
-                        <select name="pertama_lapor" id="pertama_lapor" class="form-control select2-pertama-lapor" style="width: 100%">
-                            <option value="">Pilih Pertama Lapor</option>
-                            <option value="dokter" {{ (isset($laporan) && $laporan->pertama_lapor == 'dokter') ? 'selected' : '' }}>Dokter</option>
-                            <option value="perawat" {{ (isset($laporan) && $laporan->pertama_lapor == 'perawat') ? 'selected' : '' }}>Perawat</option>
-                            <option value="staf" {{ (isset($laporan) && $laporan->pertama_lapor == 'staf') ? 'selected' : '' }}>Staf</option>
-                            <option value="pasien" {{ (isset($laporan) && $laporan->pertama_lapor == 'pasien') ? 'selected' : '' }}>Pasien</option>
-                            <option value="keluarga/pendamping pasien" {{ (isset($laporan) && $laporan->pertama_lapor == 'keluarga/pendamping pasien') ? 'selected' : '' }}>Keluarga/Pendamping Pasien</option>
-                            <option value="pengunjung" {{ (isset($laporan) && $laporan->pertama_lapor == 'pengunjung') ? 'selected' : '' }}>Pengunjung</option>
-                        </select>
+                        <!-- 4. Kronologi Insiden -->
+                        <h5 class="mb-3 mt-4"><strong>4. Kronologi Insiden</strong></h5>
+                        <div class="form-group">
+                            <textarea name="kronologi_insiden" id="kronologi_insiden" class="form-control" rows="4">{{ $laporan->kronologi_insiden ?? '' }}</textarea>
+                        </div>
 
-                    </div>
-                    <div class="form-group col-md-4">
-                        <label for="insiden_pada">Insiden Pada</label>
-                        <select name="insiden_pada" id="insiden_pada" class="form-control select2-insiden-pada" style="width: 100%">
-                            <option value="">Pilih Insiden Pada</option>
-                            <option value="pasien" {{ (isset($laporan) && $laporan->insiden_pada == 'pasien') ? 'selected' : '' }}>Pasien</option>
-                            <option value="lain-lain" {{ (isset($laporan) && $laporan->insiden_pada == 'lain-lain') ? 'selected' : '' }}>Lain-lain</option>
-                        </select>
+                        <!-- 5. Jenis Insiden -->
+                        <h5 class="mb-3 mt-4"><strong>5. Jenis Insiden</strong></h5>
+                        <div class="form-group">
+                            <select name="jenis_insiden" id="jenis_insiden" class="form-control select2-jenis-insiden" style="width: 100%">
+                                <option value="">Pilih Jenis Insiden</option>
+                                <option value="Kejadian Nyaris Cedera / KNC (Near Miss)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian Nyaris Cedera / KNC (Near Miss)') ? 'selected' : '' }}>Kejadian Nyaris Cedera / KNC (Near Miss)</option>
+                                <option value="Kejadian Tidak Cedera / KTC (No Harm)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian Tidak Cedera / KTC (No Harm)') ? 'selected' : '' }}>Kejadian Tidak Cedera / KTC (No Harm)</option>
+                                <option value="Kejadian tidak Diharapkan /  KTD (Adverse Event)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian tidak Diharapkan /  KTD (Adverse Event)') ? 'selected' : '' }}>Kejadian tidak Diharapkan /  KTD (Adverse Event)</option>
+                                <option value="Kejadian Sentinel (Sentinel Event)" {{ (isset($laporan) && $laporan->jenis_insiden == 'Kejadian Sentinel (Sentinel Event)') ? 'selected' : '' }}>Kejadian Sentinel (Sentinel Event)</option>
+                            </select>
+                        </div>
 
-                    </div>
-                    <div class="form-group col-md-4">
-                        <label for="jenis_pasien">Jenis Pasien</label>
-                        <select name="jenis_pasien" id="jenis_pasien" class="form-control select2-jenis-pasien" style="width: 100%">
-                            <option value="">Pilih Jenis Pasien</option>
-                            <option value="Pasien Rawat Jalan" {{ (isset($laporan) && $laporan->jenis_pasien == 'Pasien Rawat Jalan') ? 'selected' : '' }}>Pasien Rawat Jalan</option>
-                            <option value="Pasien Rawat Inap" {{ (isset($laporan) && $laporan->jenis_pasien == 'Pasien Rawat Inap') ? 'selected' : '' }}>Pasien Rawat Inap</option>
-                            <option value="Pasien UGD" {{ (isset($laporan) && $laporan->jenis_pasien == 'Pasien UGD') ? 'selected' : '' }}>Pasien UGD</option>
-                            <option value="Lain-Lain" {{ (isset($laporan) && $laporan->jenis_pasien == 'Lain-Lain') ? 'selected' : '' }}>Lain-Lain</option>
-                        </select>
+                        <!-- 6. Orang Yang Pertama Melapor -->
+                        <h5 class="mb-3 mt-4"><strong>6. Orang Yang Pertama Melapor</strong></h5>
+                        <div class="form-group">
+                            <select name="pertama_lapor" id="pertama_lapor" class="form-control select2-pertama-lapor" style="width: 100%">
+                                <option value="">Pilih Pertama Lapor</option>
+                                <option value="dokter" {{ (isset($laporan) && $laporan->pertama_lapor == 'dokter') ? 'selected' : '' }}>Dokter</option>
+                                <option value="perawat" {{ (isset($laporan) && $laporan->pertama_lapor == 'perawat') ? 'selected' : '' }}>Perawat</option>
+                                <option value="staf" {{ (isset($laporan) && $laporan->pertama_lapor == 'staf') ? 'selected' : '' }}>Staf</option>
+                                <option value="pasien" {{ (isset($laporan) && $laporan->pertama_lapor == 'pasien') ? 'selected' : '' }}>Pasien</option>
+                                <option value="keluarga/pendamping pasien" {{ (isset($laporan) && $laporan->pertama_lapor == 'keluarga/pendamping pasien') ? 'selected' : '' }}>Keluarga/Pendamping Pasien</option>
+                                <option value="pengunjung" {{ (isset($laporan) && $laporan->pertama_lapor == 'pengunjung') ? 'selected' : '' }}>Pengunjung</option>
+                            </select>
+                        </div>
 
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group col-md-4">
-                        <label for="lokasi_insiden">Lokasi Insiden</label>
-                        <input type="text" name="lokasi_insiden" id="lokasi_insiden" class="form-control" value="{{ $laporan->lokasi_insiden ?? '' }}">
-                    </div>
-                    <div class="form-group col-md-4">
-                        <label for="spesialisasi_id">Spesialisasi</label>
-                        <select name="spesialisasi_id" id="spesialisasi_id" class="form-control select2-spesialisasi" style="width: 100%">
-                            @if(isset($laporan) && $laporan->spesialisasi)
-                                <option value="{{ $laporan->spesialisasi->id }}" selected>{{ $laporan->spesialisasi->nama }}</option>
-                            @endif
-                        </select>
+                        <!-- 7. Insiden Terjadi Pada -->
+                        <h5 class="mb-3 mt-4"><strong>7. Insiden Terjadi Pada</strong></h5>
+                        <div class="form-group">
+                            <select name="insiden_pada" id="insiden_pada" class="form-control select2-insiden-pada" style="width: 100%">
+                                <option value="">Pilih Insiden Pada</option>
+                                <option value="pasien" {{ (isset($laporan) && $laporan->insiden_pada == 'pasien') ? 'selected' : '' }}>Pasien</option>
+                                <option value="lain-lain" {{ (isset($laporan) && $laporan->insiden_pada == 'lain-lain') ? 'selected' : '' }}>Lain-lain</option>
+                            </select>
+                        </div>
 
-                    </div>
-                    <div class="form-group col-md-4">
-                        <label for="unit_penyebab">Unit Penyebab</label>
-                        <select name="unit_penyebab" id="unit_penyebab" class="form-control select2-unit-penyebab" style="width: 100%">
-                            @if(isset($laporan) && $laporan->unitPenyebab)
-                                <option value="{{ $laporan->unitPenyebab->id }}" selected>{{ $laporan->unitPenyebab->name }}</option>
-                            @endif
-                        </select>
-
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group col-md-4">
-                        <label for="akibat_insiden">Akibat Insiden</label>
-                        <select name="akibat_insiden" id="akibat_insiden" class="form-control select2-akibat-insiden" style="width: 100%">
-                            <option value="">Pilih Akibat Insiden</option>
-                            <option value="Kematian" {{ (isset($laporan) && $laporan->akibat_insiden == 'Kematian') ? 'selected' : '' }}>Kematian</option>
-                            <option value="Cedera Irreversibel/Cedera Berat" {{ (isset($laporan) && $laporan->akibat_insiden == 'Cedera Irreversibel/Cedera Berat') ? 'selected' : '' }}>Cedera Irreversibel/Cedera Berat</option>
-                            <option value="Cedera Reversibel/Cedera Sedang" {{ (isset($laporan) && $laporan->akibat_insiden == 'Cedera Reversibel/Cedera Sedang') ? 'selected' : '' }}>Cedera Reversibel/Cedera Sedang</option>
-                            <option value="Cedera Ringan" {{ (isset($laporan) && $laporan->akibat_insiden == 'Cedera Ringan') ? 'selected' : '' }}>Cedera Ringan</option>
-                            <option value="Tidak Ada Cedera" {{ (isset($laporan) && $laporan->akibat_insiden == 'Tidak Ada Cedera') ? 'selected' : '' }}>Tidak Ada Cedera</option>
-                        </select>
-                    </div>
-                    <div class="form-group col-md-4">
-                        <label for="tindakan_dilakukan">Tindakan Dilakukan</label>
-                        <textarea name="tindakan_dilakukan" id="tindakan_dilakukan" class="form-control" rows="3">{{ $laporan->tindakan_dilakukan ?? '' }}</textarea>
-                    </div>
-                    <div class="form-group col-md-4">
-                        <label for="tindakan_oleh">Tindakan Oleh</label>
-                        <select name="tindakan_oleh" id="tindakan_oleh" class="form-control select2-tindakan-oleh" style="width: 100%">
-                            <option value="">Pilih Tindakan Oleh</option>
-                            <option value="Dokter" {{ (isset($laporan) && $laporan->tindakan_oleh == 'Dokter') ? 'selected' : '' }}>Dokter</option>
-                            <option value="Perawat" {{ (isset($laporan) && $laporan->tindakan_oleh == 'Perawat') ? 'selected' : '' }}>Perawat</option>
-                            <option value="Staf" {{ (isset($laporan) && $laporan->tindakan_oleh == 'Staf') ? 'selected' : '' }}>Staf</option>
-                        </select>
-                    </div>
-                </div>
-
-                <h5 class="mb-3 mt-4">Jika Tindakan Pernah Terjadi</h5>
-                <div class="form-row">
-                    <div class="form-group col-md-4">
-                        <label>Pernah Terjadi</label>
-                        <div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="pernah_terjadi" id="pernah_terjadi_ya" value="1" {{ (isset($laporan) && $laporan->pernah_terjadi == 1) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="pernah_terjadi_ya">Ya</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="radio" name="pernah_terjadi" id="pernah_terjadi_tidak" value="0" {{ (!isset($laporan) || (isset($laporan) && $laporan->pernah_terjadi == 0)) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="pernah_terjadi_tidak">Tidak</label>
-                            </div>
+                        <!-- 8. Jenis Pasien -->
+                        <h5 class="mb-3 mt-4"><strong>8. Jenis Pasien</strong></h5>
+                        <div class="form-group">
+                            <select name="jenis_pasien" id="jenis_pasien" class="form-control select2-jenis-pasien" style="width: 100%">
+                                <option value="">Pilih Jenis Pasien</option>
+                                <option value="Pasien Rawat Jalan" {{ (isset($laporan) && $laporan->jenis_pasien == 'Pasien Rawat Jalan') ? 'selected' : '' }}>Pasien Rawat Jalan</option>
+                                <option value="Pasien Rawat Inap" {{ (isset($laporan) && $laporan->jenis_pasien == 'Pasien Rawat Inap') ? 'selected' : '' }}>Pasien Rawat Inap</option>
+                                <option value="Pasien UGD" {{ (isset($laporan) && $laporan->jenis_pasien == 'Pasien UGD') ? 'selected' : '' }}>Pasien UGD</option>
+                                <option value="Lain-Lain" {{ (isset($laporan) && $laporan->jenis_pasien == 'Lain-Lain') ? 'selected' : '' }}>Lain-Lain</option>
+                            </select>
                         </div>
                     </div>
-                    <div class="form-group col-md-8">
-                        <div id="langkahPencegahanGroup" style="display: none;">
-                            <label for="langkah_diambil">Langkah Diambil</label>
-                            <textarea name="langkah_diambil" id="langkah_diambil" class="form-control" rows="3">{{ $laporan->langkah_diambil ?? '' }}</textarea>
-                            <label for="pencegahan" class="mt-2">Pencegahan</label>
-                            <textarea name="pencegahan" id="pencegahan" class="form-control" rows="3">{{ $laporan->pencegahan ?? '' }}</textarea>
+                    
+                    <div class="col-md-6">
+                        <!-- 9. Tempat Terjadinya Insiden -->
+                        <h5 class="mb-3 mt-4"><strong>9. Tempat Terjadinya Insiden</strong></h5>
+                        <div class="form-group">
+                            <input type="text" name="lokasi_insiden" id="lokasi_insiden" class="form-control" value="{{ $laporan->lokasi_insiden ?? '' }}">
+                        </div>
+
+                        <!-- 10. Spesialisasi -->
+                        <h5 class="mb-3 mt-4"><strong>10. Spesialisasi</strong></h5>
+                        <div class="form-group">
+                            <select name="spesialisasi_id" id="spesialisasi_id" class="form-control select2-spesialisasi" style="width: 100%">
+                                @if(isset($laporan) && $laporan->spesialisasi)
+                                    <option value="{{ $laporan->spesialisasi->id }}" selected>{{ $laporan->spesialisasi->nama }}</option>
+                                @endif
+                            </select>
+                        </div>
+
+                        <!-- 11. Unit Terkait Yang Menyebabkan Insiden -->
+                        <h5 class="mb-3 mt-4"><strong>11. Unit Terkait Yang Menyebabkan Insiden</strong></h5>
+                        <div class="form-group">
+                            <select name="unit_penyebab" id="unit_penyebab" class="form-control select2-unit-penyebab" style="width: 100%">
+                                @if(isset($laporan) && $laporan->unitPenyebab)
+                                    <option value="{{ $laporan->unitPenyebab->id }}" selected>{{ $laporan->unitPenyebab->name }}</option>
+                                @endif
+                            </select>
+                        </div>
+
+                        <!-- 12. Akibat Insiden Terhadap Pasien -->
+                        <h5 class="mb-3 mt-4"><strong>12. Akibat Insiden Terhadap Pasien</strong></h5>
+                        <div class="form-group">
+                            <select name="akibat_insiden" id="akibat_insiden" class="form-control select2-akibat-insiden" style="width: 100%">
+                                <option value="">Pilih Akibat Insiden</option>
+                                <option value="Kematian" {{ (isset($laporan) && $laporan->akibat_insiden == 'Kematian') ? 'selected' : '' }}>Kematian</option>
+                                <option value="Cedera Irreversibel/Cedera Berat" {{ (isset($laporan) && $laporan->akibat_insiden == 'Cedera Irreversibel/Cedera Berat') ? 'selected' : '' }}>Cedera Irreversibel/Cedera Berat</option>
+                                <option value="Cedera Reversibel/Cedera Sedang" {{ (isset($laporan) && $laporan->akibat_insiden == 'Cedera Reversibel/Cedera Sedang') ? 'selected' : '' }}>Cedera Reversibel/Cedera Sedang</option>
+                                <option value="Cedera Ringan" {{ (isset($laporan) && $laporan->akibat_insiden == 'Cedera Ringan') ? 'selected' : '' }}>Cedera Ringan</option>
+                                <option value="Tidak Ada Cedera" {{ (isset($laporan) && $laporan->akibat_insiden == 'Tidak Ada Cedera') ? 'selected' : '' }}>Tidak Ada Cedera</option>
+                            </select>
+                        </div>
+
+                        <!-- 13. Tindakan Yang Dilakukan Setelah Kejadian -->
+                        <h5 class="mb-3 mt-4"><strong>13. Tindakan Yang Dilakukan Setelah Kejadian</strong></h5>
+                        <div class="form-group">
+                            <textarea name="tindakan_dilakukan" id="tindakan_dilakukan" class="form-control" rows="3">{{ $laporan->tindakan_dilakukan ?? '' }}</textarea>
+                        </div>
+
+                        <!-- 14. Tindakan Dilakukan Oleh -->
+                        <h5 class="mb-3 mt-4"><strong>14. Tindakan Dilakukan Oleh</strong></h5>
+                        <div class="form-group">
+                            <select name="tindakan_oleh" id="tindakan_oleh" class="form-control select2-tindakan-oleh" style="width: 100%">
+                                <option value="">Pilih Tindakan Oleh</option>
+                                <option value="Dokter" {{ (isset($laporan) && $laporan->tindakan_oleh == 'Dokter') ? 'selected' : '' }}>Dokter</option>
+                                <option value="Perawat" {{ (isset($laporan) && $laporan->tindakan_oleh == 'Perawat') ? 'selected' : '' }}>Perawat</option>
+                                <option value="Staf" {{ (isset($laporan) && $laporan->tindakan_oleh == 'Staf') ? 'selected' : '' }}>Staf</option>
+                            </select>
+                        </div>
+
+                        <!-- 15. Kejadian Pernah Terjadi, Langkah & Pencegahan -->
+                        <h5 class="mb-3 mt-4"><strong>15. Apakah Kejadian Pernah Terjadi?</strong></h5>
+                        <div class="form-group">
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="pernah_terjadi" id="pernah_terjadi_ya" value="1" {{ (isset($laporan) && $laporan->pernah_terjadi == 1) ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="pernah_terjadi_ya">Ya</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="pernah_terjadi" id="pernah_terjadi_tidak" value="0" {{ (!isset($laporan) || (isset($laporan) && $laporan->pernah_terjadi == 0)) ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="pernah_terjadi_tidak">Tidak</label>
+                                </div>
+                            </div>
+                            <div id="langkahPencegahanGroup" style="display: none;">
+                                <h6 class="mt-3">Apa Langkah Yang Diambil?</h6>
+                                <textarea name="langkah_diambil" id="langkah_diambil" class="form-control" rows="2">{{ $laporan->langkah_diambil ?? '' }}</textarea>
+                                <h6 class="mt-3">Apa Pencegahan Agar Tidak Terulang?</h6>
+                                <textarea name="pencegahan" id="pencegahan" class="form-control" rows="2">{{ $laporan->pencegahan ?? '' }}</textarea>
+                            </div>
                         </div>
                     </div>
                 </div>

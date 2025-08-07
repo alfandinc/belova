@@ -398,7 +398,7 @@
                     </div>
                     <div class="menu-label">LAPORAN INSIDEN</div>
                 </a>
-                <a href="/kos/login" class="menu-tile tile-kos animate-item delay-10">
+                <a href="https://bcl.belova.id/login" class="menu-tile tile-kos animate-item delay-10" target="_blank">
                     <div class="menu-icon">
                         <i class="fas fa-building"></i>
                     </div>
