@@ -11,7 +11,7 @@ class FakturBeli extends Model
     protected $table = 'erm_fakturbeli';
     protected $fillable = [
         'pemasok_id', 'no_faktur', 'received_date', 'requested_date', 'due_date', 'ship_date', 'notes', 'bukti',
-        'subtotal', 'global_diskon', 'global_pajak', 'total'
+        'subtotal', 'global_diskon', 'global_pajak', 'total', 'status'
     ];
 
     public function pemasok()

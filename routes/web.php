@@ -131,6 +131,9 @@ Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('cu
 
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
+    // AJAX endpoints for select2 (controller)
+    Route::get('ajax/obat', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxObat']);
+    Route::get('ajax/pemasok', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPemasok']);
     // Pasien Management
     // Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::get('/pasiens/create', [PasienController::class, 'create'])->name('erm.pasiens.create');
@@ -144,6 +147,14 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 
     // ...existing code...
+    Route::get('permintaan/master-faktur', [App\Http\Controllers\ERM\PermintaanController::class, 'getMasterFaktur'])->name('erm.permintaan.masterfaktur');
+    Route::resource('permintaan', App\Http\Controllers\ERM\PermintaanController::class)->names('erm.permintaan');
+    Route::post('permintaan/{id}/approve', [App\Http\Controllers\ERM\PermintaanController::class, 'approve'])->name('erm.permintaan.approve');
+    Route::resource('masterfaktur', App\Http\Controllers\ERM\MasterFakturController::class)->names('erm.masterfaktur');
+    Route::get('masterfaktur-data', [App\Http\Controllers\ERM\MasterFakturController::class, 'data'])->name('erm.masterfaktur.data');
+
+    // AJAX form for create/edit modal
+    Route::get('masterfaktur/form/{id?}', [App\Http\Controllers\ERM\MasterFakturController::class, 'form'])->name('erm.masterfaktur.form');
 
     // Obat Keluar
     Route::get('/obat-keluar', [ObatKeluarController::class, 'index'])->name('erm.obatkeluar.index');
@@ -338,6 +349,15 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/fakturpembelian/{id}/edit', [\App\Http\Controllers\ERM\FakturBeliController::class, 'edit'])->name('erm.fakturbeli.edit');
     Route::post('/fakturpembelian/{id}/update', [\App\Http\Controllers\ERM\FakturBeliController::class, 'update'])->name('erm.fakturbeli.update');
     Route::delete('/fakturpembelian/{id}', [\App\Http\Controllers\ERM\FakturBeliController::class, 'destroy'])->name('erm.fakturbeli.destroy');
+    
+    // Permintaan Pembelian (New routes)
+    Route::get('/fakturpembelian/permintaan/create', [\App\Http\Controllers\ERM\FakturBeliController::class, 'createPermintaan'])->name('erm.fakturbeli.createPermintaan');
+    Route::post('/fakturpembelian/permintaan', [\App\Http\Controllers\ERM\FakturBeliController::class, 'storePermintaan'])->name('erm.fakturbeli.storePermintaan');
+    Route::get('/fakturpembelian/permintaan/{id}/edit', [\App\Http\Controllers\ERM\FakturBeliController::class, 'editPermintaan'])->name('erm.fakturbeli.editPermintaan');
+    Route::post('/fakturpembelian/permintaan/{id}/update', [\App\Http\Controllers\ERM\FakturBeliController::class, 'updatePermintaan'])->name('erm.fakturbeli.updatePermintaan');
+    Route::get('/fakturpembelian/{id}/complete', [\App\Http\Controllers\ERM\FakturBeliController::class, 'completeFaktur'])->name('erm.fakturbeli.completeFaktur');
+    Route::post('/fakturpembelian/{id}/approve', [\App\Http\Controllers\ERM\FakturBeliController::class, 'approveFaktur'])->name('erm.fakturbeli.approveFaktur');
+    Route::get('/fakturpembelian/{id}/debug-hpp', [\App\Http\Controllers\ERM\FakturBeliController::class, 'debugHpp'])->name('erm.fakturbeli.debugHpp');
 
     // Stok Opname Routes
     Route::prefix('/stokopname')->middleware('auth')->group(function () {
@@ -768,12 +788,13 @@ Route::get('/inventory/ruangan/by-gedung/{gedungId}', [App\Http\Controllers\Inve
 Route::get('/api/hrd/employees', [App\Http\Controllers\HRD\EmployeeController::class, 'searchForSelect2']);
 
 // Select2 AJAX for pemasok
-Route::get('/get-pemasok-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getPemasokSelect2']);
 
+// Select2 AJAX for pemasok
+Route::get('/get-pemasok-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getPemasokSelect2'])->name('get-pemasok-select2');
 // Select2 AJAX for obat
-Route::get('/get-obat-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getObatSelect2']);
+Route::get('/get-obat-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getObatSelect2'])->name('get-obat-select2');
 // Select2 AJAX for gudang
-Route::get('/get-gudang-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getGudangSelect2']);
+Route::get('/get-gudang-select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'getGudangSelect2'])->name('get-gudang-select2');
     // AJAX spesialisasi select2
     Route::get('/erm/spesialisasi-select2', [\App\Http\Controllers\Insiden\LaporanInsidenController::class, 'spesialisasiSelect2'])->name('erm.spesialisasi.select2');
     // AJAX division select2 (unit penyebab)

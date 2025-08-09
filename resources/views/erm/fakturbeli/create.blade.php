@@ -1,8 +1,8 @@
 @extends('layouts.erm.app')
 @section('title', 'ERM | Input Faktur Pembelian')
 @section('navbar')
-    @include('layouts.erm.navbar')
-@endsection  
+@include('layouts.erm.navbar')
+@endsection
 @section('content')
 <div class="container-fluid">
     <div class="card">
@@ -71,8 +71,10 @@
                         <thead>
                             <tr>
                                 <th>Obat</th>
+                                <th>Diminta</th>
                                 <th>Qty</th>
                                 <th>Harga</th>
+                                <th>Total Amount</th>
                                 <th>Diskon</th>
                                 <th>Tax</th>
                                 <th>Gudang</th>
@@ -84,18 +86,41 @@
                         <tbody>
                             @if(isset($faktur))
                                 @foreach($faktur->items as $i => $item)
-                                <tr>
+                                <tr data-item-index="{{ $i }}">
                                     <td>
-                                        <select name="items[{{ $i }}][obat_id]" class="form-control obat-select" required style="width:100%">
+                                        <select name="items[{{ $i }}][obat_id]" class="form-control obat-select" required style="width:100%" @if(isset($faktur)) disabled @endif>
                                             @if($item->obat)
                                                 <option value="{{ $item->obat->id }}" selected>{{ $item->obat->nama }}</option>
                                             @endif
                                         </select>
+                                        @if(isset($faktur))
+                                            <input type="hidden" name="items[{{ $i }}][obat_id]" value="{{ $item->obat->id }}">
+                                        @endif
                                     </td>
-                                    <td><input type="number" name="items[{{ $i }}][qty]" class="form-control" min="1" required value="{{ $item->qty }}"></td>
-                                    <td><input type="number" name="items[{{ $i }}][harga]" class="form-control" step="0.01" required value="{{ $item->harga }}"></td>
-                                    <td><input type="number" name="items[{{ $i }}][diskon]" class="form-control" step="0.01" value="{{ $item->diskon }}"></td>
-                                    <td><input type="number" name="items[{{ $i }}][tax]" class="form-control" step="0.01" value="{{ $item->tax }}"></td>
+                                    <td>
+                                        <input type="number" name="items[{{ $i }}][diminta]" class="form-control diminta-field" readonly value="{{ $item->diminta }}" {{ isset($faktur) && $faktur->status == 'diminta' ? 'readonly' : '' }}>
+                                    </td>
+                                    <td><input type="number" name="items[{{ $i }}][qty]" class="form-control item-qty" min="1" required value="{{ $item->qty }}"></td>
+                                    <td><input type="number" name="items[{{ $i }}][harga]" class="form-control item-harga" step="0.01" required value="{{ $item->harga }}" placeholder="Fill"></td>
+                                    <td><input type="number" name="items[{{ $i }}][total]" class="form-control item-total" step="0.01" placeholder="Fill" value="{{ $item->qty * $item->harga }}"></td>
+                                    <td>
+                                        <div class="input-group">
+                                            <input type="number" name="items[{{ $i }}][diskon]" class="form-control" step="0.01" value="{{ $item->diskon }}">
+                                            <select name="items[{{ $i }}][diskon_type]" class="form-control" style="max-width:60px">
+                                                <option value="nominal" {{ isset($item->diskon_type) && $item->diskon_type == 'nominal' ? 'selected' : '' }}>Rp</option>
+                                                <option value="persen" {{ isset($item->diskon_type) && $item->diskon_type == 'persen' ? 'selected' : '' }}>%</option>
+                                            </select>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="input-group">
+                                            <input type="number" name="items[{{ $i }}][tax]" class="form-control" step="0.01" value="{{ $item->tax }}">
+                                            <select name="items[{{ $i }}][tax_type]" class="form-control" style="max-width:60px">
+                                                <option value="nominal" {{ isset($item->tax_type) && $item->tax_type == 'nominal' ? 'selected' : '' }}>Rp</option>
+                                                <option value="persen" {{ isset($item->tax_type) && $item->tax_type == 'persen' ? 'selected' : '' }}>%</option>
+                                            </select>
+                                        </div>
+                                    </td>
                                     <td>
                                         <select name="items[{{ $i }}][gudang_id]" class="form-control gudang-select" required style="width:100%">
                                             @if($item->gudang)
@@ -111,7 +136,9 @@
                             @endif
                         </tbody>
                     </table>
+                    @if(!isset($faktur))
                     <button type="button" class="btn btn-sm btn-info" id="add-item">Tambah Item</button>
+                    @endif
                     <button type="button" class="btn btn-sm btn-warning ml-2" id="debug-hpp">Debug HPP</button>
 
                     <div class="row justify-content-end mt-3">
@@ -206,10 +233,12 @@ $(document).ready(function() {
 });
 
 function itemRow(idx) {
-    return `<tr>
+    return `<tr data-item-index="${idx}">
         <td><select name="items[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select><span class="text-danger">*</span></td>
-        <td><input type="number" name="items[${idx}][qty]" class="form-control" min="1" required><span class="text-danger">*</span></td>
-        <td><input type="number" name="items[${idx}][harga]" class="form-control" step="0.01" required><span class="text-danger">*</span></td>
+        <td><input type="number" name="items[${idx}][diminta]" class="form-control diminta-field" readonly value="0"></td>
+        <td><input type="number" name="items[${idx}][qty]" class="form-control item-qty" min="1" required><span class="text-danger">*</span></td>
+        <td><input type="number" name="items[${idx}][harga]" class="form-control item-harga" step="0.01" required placeholder="Fill"><span class="text-danger">*</span></td>
+        <td><input type="number" name="items[${idx}][total]" class="form-control item-total" step="0.01" placeholder="Fill"></td>
         <td>
             <div class="input-group">
                 <input type="number" name="items[${idx}][diskon]" class="form-control" step="0.01">
@@ -237,6 +266,9 @@ function itemRow(idx) {
 
 function refreshItemRows() {
     $('#items-table tbody tr').each(function(i, tr) {
+        // Update the data-item-index attribute
+        $(tr).attr('data-item-index', i);
+        // Update input names
         $(tr).find('select, input').each(function() {
             let name = $(this).attr('name');
             if (name) {
@@ -295,19 +327,11 @@ function initObatSelect2(context) {
 }
 
 function calculateTotalHarga() {
+    // Sum all total amount fields for subtotal
     let subtotal = 0;
     $('#items-table tbody tr').each(function() {
-        let qty = parseFloat($(this).find('input[name*="[qty]"]').val()) || 0;
-        let harga = parseFloat($(this).find('input[name*="[harga]"]').val()) || 0;
-        let diskon = parseFloat($(this).find('input[name*="[diskon]"]').val()) || 0;
-        let diskonType = $(this).find('select[name*="[diskon_type]"]').val() || 'nominal';
-        let tax = parseFloat($(this).find('input[name*="[tax]"]').val()) || 0;
-        let taxType = $(this).find('select[name*="[tax_type]"]').val() || 'nominal';
-        let base = qty * harga;
-        let diskonValue = diskonType === 'persen' ? (base * diskon / 100) : diskon;
-        let taxValue = taxType === 'persen' ? (base * tax / 100) : tax;
-        let itemSubtotal = base - diskonValue + taxValue;
-        subtotal += itemSubtotal;
+        let totalAmount = parseFloat($(this).find('input[name*="[total]"]').val()) || 0;
+        subtotal += totalAmount;
     });
     $('#subtotal-harga').text(subtotal.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
     let globalDiskon = parseFloat($('#global-diskon').val()) || 0;
@@ -330,6 +354,10 @@ $('#add-item').on('click', function() {
     let idx = $('#items-table tbody tr').length;
     let $row = $(itemRow(idx));
     $('#items-table tbody').append($row);
+    
+    // Add calculation button to the new row using the shared function
+    // ...existing code...
+    
     initObatSelect2($row);
     calculateTotalHarga();
 });
@@ -345,6 +373,44 @@ $(document).on('input change', 'input[name*="[qty]"], input[name*="[harga]"], in
     calculateTotalHarga();
 });
 
+// Recalculate subtotal and total when Total Amount changes
+$(document).on('input change', 'input[name*="[total]"]', function() {
+    calculateTotalHarga();
+});
+
+// --- Enhanced automatic harga calculation for all relevant fields (handles all persen/nominal combinations) ---
+function recalculateHargaForRow(row) {
+    var qty = parseFloat(row.find('input[name*="[qty]"]').val()) || 0;
+    var total = parseFloat(row.find('input[name*="[total]"]').val()) || 0;
+    var diskon = parseFloat(row.find('input[name*="[diskon]"]').val()) || 0;
+    var diskonType = row.find('select[name*="[diskon_type]"]').val();
+    var tax = parseFloat(row.find('input[name*="[tax]"]').val()) || 0;
+    var taxType = row.find('select[name*="[tax_type]"]').val();
+    if (qty > 0 && total > 0) {
+        var unitPrice = total / qty;
+        // Apply percentage/nominal logic for diskon and tax
+        if (diskonType === 'persen') {
+            unitPrice = unitPrice / ((100 - diskon) / 100);
+        } else if (diskonType === 'nominal') {
+            unitPrice = unitPrice + (diskon / qty);
+        }
+        if (taxType === 'persen') {
+            unitPrice = unitPrice / ((100 + tax) / 100);
+        } else if (taxType === 'nominal') {
+            unitPrice = unitPrice - (tax / qty);
+        }
+        row.find('input[name*="[harga]"]').val(unitPrice.toFixed(2));
+    } else {
+        row.find('input[name*="[harga]"]').val('');
+    }
+}
+
+$(document).on('input change', 'input[name*="[qty]"], input[name*="[total]"], input[name*="[diskon]"], input[name*="[tax]"], select[name*="[diskon_type]"], select[name*="[tax_type]"]', function() {
+    var row = $(this).closest('tr');
+    recalculateHargaForRow(row);
+});
+// --- End enhanced automatic harga calculation ---
+
 // Initialize select2 for existing rows on edit
 $(document).ready(function() {
     $('#items-table tbody tr').each(function() {
@@ -355,6 +421,13 @@ $(document).ready(function() {
 
 $('#fakturbeli-form').on('submit', function(e) {
     e.preventDefault();
+    
+    // Make sure harga fields are not readonly during submission
+    $('.item-harga').prop('readonly', false);
+    
+    // Remove all calculate buttons before submitting
+    $('.calculate-harga').remove();
+    
     refreshItemRows();
     let formData = new FormData(this);
     let isEdit = {{ isset($faktur) ? 'true' : 'false' }};
@@ -401,6 +474,7 @@ $('#debug-hpp').on('click', function() {
     let globalPajakType = $('#global-tax-type').val() || 'nominal';
     let items = [];
     let totalItemSubtotal = 0;
+    
     // First, collect all item subtotals (with per-item diskon/pajak type)
     $('#items-table tbody tr').each(function(idx) {
         let qty = parseFloat($(this).find('input[name*="[qty]"]').val()) || 0;
@@ -416,28 +490,70 @@ $('#debug-hpp').on('click', function() {
         items.push({ idx, qty, harga, diskon, diskonType, tax, taxType, base, diskonValue, taxValue, subtotal });
         totalItemSubtotal += subtotal;
     });
+    
     // Calculate global diskon/pajak value
     let globalDiskonValue = globalDiskonType === 'persen' ? (totalItemSubtotal * globalDiskon / 100) : globalDiskon;
     let globalPajakValue = globalPajakType === 'persen' ? (totalItemSubtotal * globalPajak / 100) : globalPajak;
+    
+    // For global tax distribution
     let hppList = [];
-    if (globalPajakValue === 0) {
-        // HPP is harga item + (item tax per qty)
-        hppList = items.map((item, i) => {
-            let taxPerQty = item.qty > 0 ? item.taxValue / item.qty : 0;
-            let hpp = item.harga + taxPerQty;
-            return `Item ${i+1}: HPP = ${hpp.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)}, diskon: ${item.diskonValue.toFixed(2)})`;
-        });
-    } else {
-        // Distribute only global pajak proportionally, add item tax per qty
-        items.forEach(function(item, i) {
-            let prop = totalItemSubtotal > 0 ? item.subtotal / totalItemSubtotal : 0;
-            let globalPajakItem = globalPajakValue * prop;
-            let hppFinal = (item.subtotal + globalPajakItem) / (item.qty || 1);
-            let taxPerQty = item.qty > 0 ? item.taxValue / item.qty : 0;
-            hppList.push(`Item ${i+1}: HPP = ${hppFinal.toFixed(2)} (harga: ${item.harga}, tax/qty: ${taxPerQty.toFixed(2)}, subtotal: ${item.subtotal.toFixed(2)}, prop: ${prop.toFixed(4)}, global pajak: ${globalPajakItem.toFixed(2)})`);
-        });
-    }
-    alert(hppList.join('\n'));
+    items.forEach(function(item, i) {
+        // Calculate item's proportional share of global tax
+        let prop = totalItemSubtotal > 0 ? item.subtotal / totalItemSubtotal : 0;
+        let globalPajakItem = globalPajakValue * prop;
+
+        // Get assumed old HPP (just for simulation)
+        let assumedOldHpp = 0; // We don't know the real old HPP here, just simulating
+
+        // Add proportional global pajak to harga for HPP calculation
+        let hargaWithGlobalPajak = item.harga + (item.qty > 0 ? globalPajakItem / item.qty : 0);
+        let newHpp = (hargaWithGlobalPajak + assumedOldHpp) / 2;
+        hppList.push(`Item ${i+1}: HPP = ${newHpp.toFixed(2)}\n  - Harga (incl. per-item tax): ${item.harga}\n  - Global pajak per unit: ${(item.qty > 0 ? (globalPajakItem / item.qty).toFixed(2) : '0.00')}\n  - Harga + global pajak: ${hargaWithGlobalPajak.toFixed(2)}\n  - Old HPP: ${assumedOldHpp} (simulated)\n  - New HPP = (${hargaWithGlobalPajak.toFixed(2)} + ${assumedOldHpp}) / 2 = ${newHpp.toFixed(2)}`);
+    });
+    
+    // Create a modal to display the HPP calculations
+    let debugContent = '<div class="p-3">';
+    debugContent += '<h4>HPP Calculation Preview</h4>';
+    debugContent += '<p class="text-muted">This simulates how HPP will be calculated when this invoice is approved.</p>';
+    debugContent += '<div class="alert alert-info">Note: Old HPP is simulated as 0 for preview purposes. The actual calculation will use the current HPP value from the database.</div>';
+    
+    hppList.forEach(calcInfo => {
+        debugContent += `<div class="card mb-3">
+            <div class="card-body">
+                <pre style="white-space: pre-wrap; font-family: monospace;">${calcInfo}</pre>
+            </div>
+        </div>`;
+    });
+    
+    debugContent += '</div>';
+    
+    // Create Bootstrap modal
+    let modal = $(`
+        <div class="modal fade" id="hppDebugModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">HPP Calculation Debug</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        ${debugContent}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `);
+    
+    $('body').append(modal);
+    modal.modal('show');
+    modal.on('hidden.bs.modal', function() {
+        $(this).remove();
+    });
 });
 </script>
 @endpush

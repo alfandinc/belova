@@ -99,6 +99,9 @@
                         <ul class="nav-second-level" aria-expanded="false">
                             
                             <li>
+                                <a href="/erm/masterfaktur"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Faktur</span></a>
+                            </li>
+                            <li>
                                 <a href="/erm/eresepfarmasi"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep Farmasi</span></a>
                             </li>
                             <li>

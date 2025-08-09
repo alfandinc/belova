@@ -12,6 +12,7 @@ use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class FakturBeliController extends Controller
 {
@@ -37,8 +38,27 @@ class FakturBeliController extends Controller
                     return $row->total ?? 0;
                 })
                 ->addColumn('action', function($row) {
-                    return '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Edit</a> '
-                        . '<button class="btn btn-sm btn-danger btn-delete-faktur" data-id="' . $row->id . '">Delete</button>';
+                    $actionBtn = '';
+                    
+                    // Edit button with contextual label based on status
+                    if ($row->status === 'diminta') {
+                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Input Faktur</a> ';
+                    } else {
+                        $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Edit</a> ';
+                    }
+                    
+                    // Approve button - only show for diterima status (not diminta or diapprove yet)
+                    if ($row->status === 'diterima') {
+                        $actionBtn .= '<button class="btn btn-sm btn-success btn-approve-faktur" data-id="' . $row->id . '">Approve</button> ';
+                        $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp" data-id="' . $row->id . '">Debug HPP</button> ';
+                    }
+                    
+                    // Removed redundant Lengkapi button since we now have the Input Faktur button for diminta status
+                    
+                    // Delete button
+                    $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur" data-id="' . $row->id . '">Delete</button>';
+                    
+                    return $actionBtn;
                 })
                 ->rawColumns(['action'])
                 ->make(true);
@@ -69,11 +89,12 @@ class FakturBeliController extends Controller
             'items' => 'required|array',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.qty' => 'required|integer|min:1',
+            'items.*.diminta' => 'nullable|integer|min:1',
             'items.*.harga' => 'required|numeric',
             'items.*.diskon' => 'nullable|numeric',
-            'items.*.diskon_type' => 'nullable|string',
+            'items.*.diskon_type' => 'nullable|string|in:nominal,persen',
             'items.*.tax' => 'nullable|numeric',
-            'items.*.tax_type' => 'nullable|string',
+            'items.*.tax_type' => 'nullable|string|in:nominal,persen',
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
             'items.*.batch' => 'nullable|string',
             'items.*.expiration_date' => 'nullable|date',
@@ -103,6 +124,7 @@ class FakturBeliController extends Controller
             'global_diskon' => $validated['global_diskon'] ?? null,
             'global_pajak' => $validated['global_pajak'] ?? null,
             'total' => $validated['total'] ?? null,
+            'status' => 'diterima', // When creating a full faktur, mark as received
         ]);
 
         // Calculate subtotal for all items (for global diskon/pajak percentage)
@@ -148,24 +170,17 @@ class FakturBeliController extends Controller
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
                 'qty' => $qty,
+                'diminta' => $item['diminta'] ?? $qty, // Default to qty if diminta not provided
                 'sisa' => $qty,
                 'harga' => $harga,
                 'diskon' => $diskon,
+                'diskon_type' => $diskonType,
                 'tax' => $tax,
+                'tax_type' => $taxType,
                 'gudang_id' => $item['gudang_id'],
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
-                // Optionally store diskon_type/tax_type if you add columns
             ]);
-            // Update HPP and stok for Obat
-            $obat = \App\Models\ERM\Obat::withInactive()->find($item['obat_id']);
-            if ($obat) {
-                $oldHpp = $obat->hpp ?? 0;
-                $finalHpp = $oldHpp > 0 ? ($oldHpp + $hpp) / 2 : $hpp;
-                $obat->hpp = $finalHpp;
-                $obat->stok = ($obat->stok ?? 0) + $qty;
-                $obat->save();
-            }
         }
 
         return response()->json(['success' => true, 'message' => 'Faktur berhasil disimpan']);
@@ -180,7 +195,7 @@ class FakturBeliController extends Controller
         return view('erm.fakturbeli.create', compact('faktur', 'pemasoks', 'gudangs', 'obats'));
     }
 
-    public function update(Request $request, $id)
+        public function update(Request $request, $id)
     {
         $validated = $request->validate([
             'pemasok_id' => 'required|exists:erm_pemasok,id',
@@ -194,9 +209,12 @@ class FakturBeliController extends Controller
             'items' => 'required|array',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.qty' => 'required|integer|min:1',
+            'items.*.diminta' => 'nullable|integer|min:1',
             'items.*.harga' => 'required|numeric',
             'items.*.diskon' => 'nullable|numeric',
+            'items.*.diskon_type' => 'nullable|string|in:nominal,persen',
             'items.*.tax' => 'nullable|numeric',
+            'items.*.tax_type' => 'nullable|string|in:nominal,persen',
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
             'items.*.batch' => 'nullable|string',
             'items.*.expiration_date' => 'nullable|date',
@@ -204,9 +222,7 @@ class FakturBeliController extends Controller
             'global_diskon' => 'nullable|numeric',
             'global_pajak' => 'nullable|numeric',
             'total' => 'nullable|numeric',
-        ]);
-
-        $faktur = FakturBeli::findOrFail($id);
+        ]);        $faktur = FakturBeli::findOrFail($id);
 
         $buktiPath = $faktur->bukti;
         if ($request->hasFile('bukti')) {
@@ -226,39 +242,31 @@ class FakturBeliController extends Controller
             'global_diskon' => $validated['global_diskon'] ?? null,
             'global_pajak' => $validated['global_pajak'] ?? null,
             'total' => $validated['total'] ?? null,
+            'status' => 'diterima', // Update status when editing
         ]);
 
         // Remove old items and re-add
         $faktur->items()->delete();
         foreach ($validated['items'] as $item) {
+            $qty = $item['qty'] ?? 0;
+            $diminta = $item['diminta'] ?? $qty;
+            $diskonType = $item['diskon_type'] ?? 'nominal';
+            $taxType = $item['tax_type'] ?? 'nominal';
+            
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
-                'qty' => $item['qty'],
-                'sisa' => $item['qty'],
+                'qty' => $qty,
+                'diminta' => $diminta,
+                'sisa' => $qty,
                 'harga' => $item['harga'],
                 'diskon' => $item['diskon'] ?? 0,
+                'diskon_type' => $diskonType,
                 'tax' => $item['tax'] ?? 0,
+                'tax_type' => $taxType,
                 'gudang_id' => $item['gudang_id'],
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
             ]);
-            // Update HPP and stok for Obat
-            $obat = \App\Models\ERM\Obat::withInactive()->find($item['obat_id']);
-            if ($obat) {
-                $oldHpp = $obat->hpp ?? 0;
-                $qty = $item['qty'] ?? 1;
-                $tax = $item['tax'] ?? 0;
-                $newHpp = $qty > 0 ? ($item['harga'] + ($tax / $qty)) : $item['harga'];
-                if ($oldHpp > 0) {
-                    $finalHpp = ($oldHpp + $newHpp) / 2;
-                } else {
-                    $finalHpp = $newHpp;
-                }
-                $obat->hpp = $finalHpp;
-                // Add qty to stok
-                $obat->stok = ($obat->stok ?? 0) + $qty;
-                $obat->save();
-            }
         }
 
         return response()->json(['success' => true, 'message' => 'Faktur berhasil diupdate']);
@@ -299,5 +307,243 @@ class FakturBeliController extends Controller
             ->limit(20)
             ->get();
         return response()->json($data);
+    }
+    
+    /**
+     * Debug HPP calculation without actually updating anything
+     */
+    public function debugHpp($id)
+    {
+        $faktur = FakturBeli::with('items.obat')->findOrFail($id);
+        
+        if ($faktur->status !== 'diterima') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Faktur tidak dalam status diterima'
+            ]);
+        }
+        
+        // Calculate subtotal for proper global tax distribution
+        $invoiceSubtotal = 0;
+        foreach ($faktur->items as $invoiceItem) {
+            $invoiceSubtotal += ($invoiceItem->harga ?? 0) * ($invoiceItem->qty ?? 0);
+        }
+        
+        $debugInfo = [];
+        
+        foreach ($faktur->items as $item) {
+            if ($item->obat) {
+                $qty = $item->qty ?? 0;
+                $harga = $item->harga ?? 0;
+                $itemTax = $item->tax ?? 0;
+                $diskon = $item->diskon ?? 0;
+                // Calculate proportional global tax for this item
+                $itemValue = $harga * $qty;
+                $globalTaxPortion = $invoiceSubtotal > 0 ? 
+                    (($itemValue / $invoiceSubtotal) * ($faktur->global_pajak ?? 0)) : 0;
+                // Calculate total purchase cost for this item (harga already includes per-item tax, add global tax portion)
+                $purchaseCost = $itemValue + $globalTaxPortion;
+                $obat = $item->obat;
+                $oldHpp = $obat->hpp ?? 0;
+                $oldStok = $obat->stok ?? 0;
+                $newStok = $oldStok + $qty;
+                // Moving Average Method
+                $newHpp = ($oldHpp * $oldStok + $purchaseCost) / ($oldStok + $qty > 0 ? $oldStok + $qty : 1);
+                $debugInfo[] = [
+                    'obat_id' => $item->obat_id,
+                    'obat_nama' => $obat->nama ?? 'Unknown',
+                    'qty' => $qty,
+                    'harga' => $harga,
+                    'itemValue' => $itemValue,
+                    'itemTax' => $itemTax,
+                    'globalTaxPortion' => $globalTaxPortion,
+                    'oldHpp' => $oldHpp,
+                    'oldStok' => $oldStok,
+                    'purchaseCost' => $purchaseCost,
+                    'newStok' => $newStok,
+                    'newHpp' => $newHpp,
+                    'hasTax' => ($itemTax > 0 || $globalTaxPortion > 0),
+                ];
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'faktur' => [
+                'id' => $faktur->id,
+                'no_faktur' => $faktur->no_faktur,
+                'subtotal' => $faktur->subtotal,
+                'global_diskon' => $faktur->global_diskon,
+                'global_pajak' => $faktur->global_pajak,
+                'total' => $faktur->total,
+                'invoiceSubtotalCalculated' => $invoiceSubtotal,
+            ],
+            'items' => $debugInfo
+        ]);
+    }
+
+    /**
+     * Approve faktur and update stock
+     */
+    public function approveFaktur($id)
+    {
+        $faktur = FakturBeli::with('items.obat')->findOrFail($id);
+        
+        if ($faktur->status !== 'diterima') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Faktur tidak dalam status diterima'
+            ]);
+        }
+        
+        // Begin transaction
+        DB::beginTransaction();
+        
+        try {
+            // Update faktur status
+            $faktur->update([
+                'status' => 'diapprove'
+            ]);
+            
+            // Calculate subtotal for proper global tax distribution
+            $invoiceSubtotal = 0;
+            foreach ($faktur->items as $invoiceItem) {
+                $invoiceSubtotal += ($invoiceItem->harga ?? 0) * ($invoiceItem->qty ?? 0);
+            }
+
+            // Update stock for each obat
+            foreach ($faktur->items as $item) {
+                if ($item->obat) {
+                    // Moving Average HPP Calculation (match debug logic)
+                    $qty = $item->qty ?? 0;
+                    $harga = $item->harga ?? 0;
+                    $itemTax = $item->tax ?? 0;
+                    $diskon = $item->diskon ?? 0;
+                    // Calculate proportional global tax for this item
+                    $itemValue = $harga * $qty;
+                    $globalTaxPortion = $invoiceSubtotal > 0 ? 
+                        (($itemValue / $invoiceSubtotal) * ($faktur->global_pajak ?? 0)) : 0;
+                    // Purchase cost = harga*qty + global pajak portion
+                    $purchaseCost = $itemValue + $globalTaxPortion;
+                    $obat = $item->obat;
+                    $oldHpp = $obat->hpp ?? 0;
+                    $oldStok = $obat->stok ?? 0;
+                    $newStok = $oldStok + $qty;
+                    // Moving Average Method
+                    $newHpp = ($oldHpp * $oldStok + $purchaseCost) / (($oldStok + $qty) > 0 ? ($oldStok + $qty) : 1);
+                    // Update the obat record
+                    $obat->update([
+                        'stok' => $newStok,
+                        'hpp' => $newHpp
+                    ]);
+                }
+            }
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Faktur berhasil diapprove dan stok obat diperbarui'
+            ]);
+        } catch (\Exception $e) {
+            DB::rollback();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal approve faktur: ' . $e->getMessage()
+            ]);
+        }
+    }
+    
+    // New methods for purchase request functionality
+    public function createPermintaan()
+    {
+        $pemasoks = Pemasok::all();
+        return view('erm.fakturbeli.permintaan', compact('pemasoks'));
+    }
+
+    public function storePermintaan(Request $request)
+    {
+        $validated = $request->validate([
+            'pemasok_id' => 'required|exists:erm_pemasok,id',
+            'requested_date' => 'required|date',
+            'notes' => 'nullable|string',
+            'items' => 'required|array',
+            'items.*.obat_id' => 'required|exists:erm_obat,id',
+            'items.*.diminta' => 'required|integer|min:1',
+        ]);
+
+        $faktur = FakturBeli::create([
+            'pemasok_id' => $validated['pemasok_id'],
+            'requested_date' => $validated['requested_date'],
+            'notes' => $validated['notes'] ?? null,
+            'status' => 'diminta',
+        ]);
+
+        foreach ($validated['items'] as $item) {
+            $faktur->items()->create([
+                'obat_id' => $item['obat_id'],
+                'diminta' => $item['diminta'],
+                'qty' => 0, // Initially, no items received yet
+                'sisa' => 0,
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Permintaan pembelian berhasil disimpan']);
+    }
+
+    public function editPermintaan($id)
+    {
+        $faktur = FakturBeli::with('items')->findOrFail($id);
+        $pemasoks = Pemasok::all();
+        return view('erm.fakturbeli.permintaan', compact('faktur', 'pemasoks'));
+    }
+
+    public function updatePermintaan(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'pemasok_id' => 'required|exists:erm_pemasok,id',
+            'requested_date' => 'required|date',
+            'notes' => 'nullable|string',
+            'items' => 'required|array',
+            'items.*.obat_id' => 'required|exists:erm_obat,id',
+            'items.*.diminta' => 'required|integer|min:1',
+        ]);
+
+        $faktur = FakturBeli::findOrFail($id);
+
+        $faktur->update([
+            'pemasok_id' => $validated['pemasok_id'],
+            'requested_date' => $validated['requested_date'],
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        // Remove old items and re-add
+        $faktur->items()->delete();
+        
+        foreach ($validated['items'] as $item) {
+            $faktur->items()->create([
+                'obat_id' => $item['obat_id'],
+                'diminta' => $item['diminta'],
+                'qty' => 0, // Initially, no items received yet
+                'sisa' => 0,
+            ]);
+        }
+
+        return response()->json(['success' => true, 'message' => 'Permintaan pembelian berhasil diupdate']);
+    }
+
+    public function completeFaktur($id)
+    {
+        $faktur = FakturBeli::with(['items.obat', 'pemasok'])->findOrFail($id);
+        if ($faktur->status !== 'diminta') {
+            return redirect()->route('erm.fakturbeli.index')->with('error', 'Faktur ini tidak dalam status permintaan');
+        }
+        
+        $pemasoks = Pemasok::all();
+        $gudangs = Gudang::all();
+        
+        // Pass the faktur to the create view with a flag indicating it's for completion
+        return view('erm.fakturbeli.create', compact('faktur', 'pemasoks', 'gudangs'));
     }
 }
