@@ -147,7 +147,9 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 
     // ...existing code...
+    Route::get('permintaan/data', [App\Http\Controllers\ERM\PermintaanController::class, 'data'])->name('erm.permintaan.data');
     Route::get('permintaan/master-faktur', [App\Http\Controllers\ERM\PermintaanController::class, 'getMasterFaktur'])->name('erm.permintaan.masterfaktur');
+    Route::get('permintaan/{id}/print', [App\Http\Controllers\ERM\PermintaanController::class, 'printSuratPermintaan'])->name('erm.permintaan.print');
     Route::resource('permintaan', App\Http\Controllers\ERM\PermintaanController::class)->names('erm.permintaan');
     Route::post('permintaan/{id}/approve', [App\Http\Controllers\ERM\PermintaanController::class, 'approve'])->name('erm.permintaan.approve');
     Route::resource('masterfaktur', App\Http\Controllers\ERM\MasterFakturController::class)->names('erm.masterfaktur');

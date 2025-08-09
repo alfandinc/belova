@@ -97,22 +97,26 @@
                     <li>
                         <a href="javascript: void(0);"><i data-feather="shopping-bag" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            
-                            <li>
-                                <a href="/erm/masterfaktur"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Faktur</span></a>
-                            </li>
                             <li>
                                 <a href="/erm/eresepfarmasi"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep Farmasi</span></a>
                             </li>
                             <li>
-                                <a href="/erm/statistic"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
+                                <a href="/erm/masterfaktur"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Pembelian</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/permintaan"><i data-feather="inbox" class="align-self-center menu-icon"></i><span>Permintaan Pembelian</span></a>
                             </li>
                             <li>
                                 <a href="/erm/fakturpembelian"><i data-feather="file" class="align-self-center menu-icon"></i><span>Faktur Pembelian</span></a>
                             </li>
+                           
                             <li>
-                                <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
+                                <a href="/erm/statistic"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
                             </li>
+                            
+                            {{-- <li>
+                                <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
+                            </li> --}}
                             <li>
                                 <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Log Obat Keluar</span></a>
                             </li>

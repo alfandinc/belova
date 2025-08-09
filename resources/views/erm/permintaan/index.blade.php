@@ -1,4 +1,8 @@
 @extends('layouts.erm.app')
+@section('title', 'ERM | Master Faktur Pembelian')
+@section('navbar')
+    @include('layouts.erm.navbar')
+@endsection  
 
 @section('content')
 <div class="container">
@@ -7,37 +11,62 @@
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
-    <table class="table table-bordered">
+    <table class="table table-bordered" id="permintaan-table">
         <thead>
             <tr>
-                <th>ID</th>
+                <th>No</th>
+                <th>No Permintaan</th>
+                <th>Pemasok</th>
+                <th>Obats</th>
                 <th>Tanggal Permintaan</th>
                 <th>Status</th>
                 <th>Jumlah Item</th>
                 <th>Aksi</th>
             </tr>
         </thead>
-        <tbody>
-            @foreach($permintaans as $p)
-            <tr>
-                <td>{{ $p->id }}</td>
-                <td>{{ $p->request_date }}</td>
-                <td>{{ $p->status }}</td>
-                <td>{{ $p->items->count() }}</td>
-                <td>
-                    @if($p->status === 'waiting_approval')
-                    <form action="{{ route('erm.permintaan.approve', $p->id) }}" method="POST" style="display:inline-block;">
-                        @csrf
-                        <button type="submit" class="btn btn-success btn-sm" onclick="return confirm('Approve permintaan ini?')">Approve</button>
-                    </form>
-                    @else
-                    <span class="text-success">Approved</span>
-                    @endif
-                </td>
-            </tr>
-            @endforeach
-        </tbody>
     </table>
-    {{ $permintaans->links() }}
 </div>
 @endsection
+
+@section('scripts')
+<script>
+$(document).ready(function() {
+    var table = $('#permintaan-table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: '{{ route('erm.permintaan.data') }}',
+        columns: [
+            { data: 'no', name: 'no' },
+            { data: 'no_permintaan', name: 'no_permintaan' },
+            { data: 'pemasok', name: 'pemasok' },
+            { data: 'obats', name: 'obats', orderable: false, searchable: false },
+            { data: 'request_date', name: 'request_date' },
+            { data: 'status', name: 'status' },
+            { data: 'jumlah_item', name: 'jumlah_item', orderable: false, searchable: false },
+            { data: 'aksi', name: 'aksi', orderable: false, searchable: false },
+        ]
+    });
+
+    // Approve button AJAX
+    $('#permintaan-table').on('click', '.btn-approve', function() {
+        var id = $(this).data('id');
+        if(confirm('Approve permintaan ini?')) {
+            $.ajax({
+                url: '/erm/permintaan/' + id + '/approve',
+                type: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(res) {
+                    table.ajax.reload();
+                },
+                error: function(xhr) {
+                    alert('Gagal approve permintaan!');
+                }
+            });
+        }
+    });
+});
+</script>
+@endsection
+

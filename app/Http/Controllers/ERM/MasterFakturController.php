@@ -85,7 +85,8 @@ class MasterFakturController extends Controller
                 'qty_per_box' => $mf->qty_per_box,
                 'diskon' => $mf->diskon,
                 'diskon_type' => $mf->diskon_type,
-                'action' => view('erm.masterfaktur.partials.action', compact('mf'))->render(),
+                'action' => '<button class="btn btn-sm btn-info btn-edit-mf" data-id="'.$mf->id.'">Edit</button> '
+                    .'<button class="btn btn-sm btn-danger deleteMasterFaktur" data-id="'.$mf->id.'">Delete</button>',
             ];
         });
         return response()->json([

@@ -12,10 +12,99 @@ use Illuminate\Support\Facades\DB;
 
 class PermintaanController extends Controller
 {
+    public function edit($id)
+    {
+        $permintaan = Permintaan::with('items')->findOrFail($id);
+        $obats = Obat::all();
+        $pemasoks = Pemasok::all();
+        return view('erm.permintaan.create', compact('permintaan', 'obats', 'pemasoks'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'request_date' => 'required|date',
+            'items' => 'required|array|min:1',
+            'items.*.obat_id' => 'required|exists:erm_obat,id',
+            'items.*.pemasok_id' => 'required|exists:erm_pemasok,id',
+            'items.*.jumlah_box' => 'required|integer|min:1',
+            'items.*.qty_total' => 'required|integer|min:1',
+        ]);
+        DB::transaction(function () use ($request, $id) {
+            $permintaan = Permintaan::findOrFail($id);
+            $permintaan->update([
+                'request_date' => $request->request_date,
+            ]);
+            // Delete old items
+            PermintaanItem::where('permintaan_id', $permintaan->id)->delete();
+            // Insert new items
+            foreach ($request->items as $item) {
+                PermintaanItem::create([
+                    'permintaan_id' => $permintaan->id,
+                    'obat_id' => $item['obat_id'],
+                    'pemasok_id' => $item['pemasok_id'],
+                    'jumlah_box' => $item['jumlah_box'],
+                    'qty_total' => $item['qty_total'],
+                ]);
+            }
+        });
+        return response()->json(['success' => true, 'message' => 'Permintaan updated!']);
+    }
     public function index()
     {
-        $permintaans = Permintaan::with('items')->orderBy('created_at', 'desc')->paginate(20);
-        return view('erm.permintaan.index', compact('permintaans'));
+        // Just return the view, DataTables will fetch data via AJAX
+        return view('erm.permintaan.index');
+    }
+
+    // DataTables AJAX endpoint
+    public function data(Request $request)
+    {
+        $query = Permintaan::with('items')->orderBy('created_at', 'desc');
+        $total = $query->count();
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        $search = $request->input('search.value');
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('id', 'like', "%$search%")
+                  ->orWhere('status', 'like', "%$search%")
+                  ->orWhere('request_date', 'like', "%$search%");
+            });
+        }
+        $filtered = $query->count();
+        $data = $query->skip($start)->take($length)->get()->values()->map(function($p, $i) use ($start) {
+            $aksi = '';
+            // Get comma-separated list of obat names
+            $obatList = $p->items->map(function($item) {
+                return optional($item->obat)->nama;
+            })->filter()->unique()->implode(', ');
+            // Get pemasok name (should be the same for all items in this permintaan)
+            $pemasokName = optional($p->items->first() ? $p->items->first()->pemasok : null)->nama ?? '-';
+            if ($p->status === 'approved') {
+                $aksi .= '<a href="/erm/permintaan/'.$p->id.'/print" target="_blank" class="btn btn-secondary btn-sm mr-1"><i class="fa fa-print"></i> Print</a>';
+            }
+            if ($p->status === 'waiting_approval') {
+                $aksi .= '<a href="/erm/permintaan/'.$p->id.'/edit" class="btn btn-info btn-sm mr-1">Edit</a>';
+                $aksi .= '<button class="btn btn-success btn-sm btn-approve" data-id="'.$p->id.'">Approve</button>';
+            }
+            return [
+                'no' => $start + $i + 1,
+                'no_permintaan' => $p->no_permintaan,
+                'pemasok' => $pemasokName,
+                'obats' => $obatList,
+                'request_date' => $p->request_date,
+                'status' => $p->status,
+                'jumlah_item' => $p->items->count(),
+                'aksi' => $aksi,
+            ];
+        });
+
+        return response()->json([
+            'draw' => intval($request->input('draw')),
+            'recordsTotal' => $total,
+            'recordsFiltered' => $filtered,
+            'data' => $data,
+        ]);
     }
 
     public function create()
@@ -36,22 +125,69 @@ class PermintaanController extends Controller
             'items.*.qty_total' => 'required|integer|min:1',
         ]);
 
+
         DB::transaction(function () use ($request) {
-            $permintaan = Permintaan::create([
-                'request_date' => $request->request_date,
-                'status' => 'waiting_approval',
-            ]);
-            foreach ($request->items as $item) {
-                PermintaanItem::create([
-                    'permintaan_id' => $permintaan->id,
-                    'obat_id' => $item['obat_id'],
-                    'pemasok_id' => $item['pemasok_id'],
-                    'jumlah_box' => $item['jumlah_box'],
-                    'qty_total' => $item['qty_total'],
+            if ($request->has('id') && $request->id) {
+                // Update existing (keep as is)
+                $permintaan = Permintaan::findOrFail($request->id);
+                $permintaan->update([
+                    'request_date' => $request->request_date,
                 ]);
+                PermintaanItem::where('permintaan_id', $permintaan->id)->delete();
+                foreach ($request->items as $item) {
+                    PermintaanItem::create([
+                        'permintaan_id' => $permintaan->id,
+                        'obat_id' => $item['obat_id'],
+                        'pemasok_id' => $item['pemasok_id'],
+                        'jumlah_box' => $item['jumlah_box'],
+                        'qty_total' => $item['qty_total'],
+                    ]);
+                }
+            } else {
+                // Group items by pemasok_id
+                $grouped = collect($request->items)->groupBy('pemasok_id');
+                foreach ($grouped as $pemasok_id => $items) {
+                    $no_permintaan = $this->generateNoPermintaan();
+                    $permintaan = Permintaan::create([
+                        'no_permintaan' => $no_permintaan,
+                        'request_date' => $request->request_date,
+                        'status' => 'waiting_approval',
+                    ]);
+                    foreach ($items as $item) {
+                        PermintaanItem::create([
+                            'permintaan_id' => $permintaan->id,
+                            'obat_id' => $item['obat_id'],
+                            'pemasok_id' => $item['pemasok_id'],
+                            'jumlah_box' => $item['jumlah_box'],
+                            'qty_total' => $item['qty_total'],
+                        ]);
+                    }
+                }
             }
         });
-        return redirect()->route('erm.permintaan.index')->with('success', 'Permintaan created!');
+
+        return response()->json(['success' => true, 'message' => 'Permintaan saved & grouped by pemasok!']);
+
+    }
+
+    /**
+     * Generate unique no_permintaan in format: PRYYYYMMDD-XXX
+     * Example: PR20230809-001
+     */
+    protected function generateNoPermintaan()
+    {
+        $date = date('Ymd');
+        $prefix = 'PR' . $date . '-';
+        $last = \App\Models\ERM\Permintaan::where('no_permintaan', 'like', $prefix . '%')
+            ->orderByDesc('no_permintaan')
+            ->first();
+        if ($last && preg_match('/-(\d{3})$/', $last->no_permintaan, $m)) {
+            $num = intval($m[1]) + 1;
+        } else {
+            $num = 1;
+        }
+
+        return $prefix . str_pad($num, 3, '0', STR_PAD_LEFT);
     }
 
         public function getMasterFaktur(Request $request)
@@ -119,5 +255,23 @@ class PermintaanController extends Controller
             ]);
         });
         return redirect()->route('erm.permintaan.index')->with('success', 'Permintaan disetujui dan faktur berhasil dibuat!');
+    }
+
+    
+// ...existing code...
+
+    /**
+     * Print Surat Permintaan as PDF using mPDF
+     */
+    public function printSuratPermintaan($id)
+    {
+        $permintaan = \App\Models\ERM\Permintaan::with(['items', 'items.obat', 'items.pemasok'])->findOrFail($id);
+        $mpdf = new \Mpdf\Mpdf(['format' => 'A4']);
+        $html = view('erm.permintaan.print', compact('permintaan'))->render();
+        $mpdf->WriteHTML($html);
+        return response($mpdf->Output('', 'S'), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="SuratPermintaan-'.$permintaan->no_permintaan.'.pdf"'
+        ]);
     }
 }

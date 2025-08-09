@@ -12,6 +12,7 @@ class Permintaan extends Model
     protected $table = 'erm_permintaan';
 
     protected $fillable = [
+        'no_permintaan',
         'request_date',
         'approved_by',
         'approved_date',

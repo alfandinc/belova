@@ -8,9 +8,6 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4 class="mb-0">Daftar Faktur Pembelian</h4>
-            <div>
-                <a href="{{ route('erm.fakturbeli.createPermintaan') }}" class="btn btn-warning">Buat Permintaan</a>
-            </div>
         </div>
         <div class="card-body">
             <table class="table table-bordered" id="fakturbeli-table">
