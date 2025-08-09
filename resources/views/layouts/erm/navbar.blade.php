@@ -118,7 +118,7 @@
                                 <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
                             </li> --}}
                             <li>
-                                <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Log Obat Keluar</span></a>
+                                <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Mutasi Obat Keluar</span></a>
                             </li>
                             <li>
                                 <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Stok Obat</span></a>
