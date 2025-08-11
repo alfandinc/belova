@@ -104,7 +104,7 @@
                                 <a href="/erm/eresepfarmasi"><i data-feather="file" class="align-self-center menu-icon"></i><span>Daftar Resep Rajal</span></a>
                             </li>                           
                             <li>
-                                <a href="/erm/statistic"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
+                                <a href="/erm/statistic"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Statistik Resep</span></a>
                             </li>
                         </ul>
                     </li>
