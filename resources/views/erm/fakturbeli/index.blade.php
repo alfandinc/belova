@@ -127,15 +127,21 @@ $(function() {
             { data: 'total', name: 'total', render: function(data) {
                 return data ? parseFloat(data).toLocaleString('id-ID', {style:'currency', currency:'IDR'}) : '-';
             }},
-            { data: 'status', name: 'status', render: function(data) {
+            { data: 'status', name: 'status', render: function(data, type, row) {
                 let badgeClass = '';
+                let approvedBy = '';
                 switch(data) {
                     case 'diminta': badgeClass = 'badge-warning'; break;
                     case 'diterima': badgeClass = 'badge-info'; break;
-                    case 'diapprove': badgeClass = 'badge-success'; break;
+                    case 'diapprove': badgeClass = 'badge-success';
+                        // Try to get approved_by_user_name from row if available
+                        if (row.approved_by_user_name) {
+                            approvedBy = `<br><small class='text-success'>Approved by: ${row.approved_by_user_name}</small>`;
+                        }
+                        break;
                     default: badgeClass = 'badge-secondary'; break;
                 }
-                return `<span class="badge ${badgeClass}">${data}</span>`;
+                return `<span class="badge ${badgeClass}">${data}</span>${approvedBy}`;
             }},
             { data: 'bukti', name: 'bukti', render: function(data) {
                 return data ? `<a href='/storage/${data}' target='_blank'>Lihat</a>` : '-';
@@ -171,27 +177,36 @@ $(function() {
     
     // Approve handler
     $('#fakturbeli-table').on('click', '.btn-approve-faktur', function() {
-        if(confirm('Yakin ingin menyetujui faktur ini? Stok obat akan diperbarui.')) {
-            let id = $(this).data('id');
-            $.ajax({
-                url: '{{ url("/erm/fakturpembelian") }}/' + id + '/approve',
-                type: 'POST',
-                data: {
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(res) {
-                    if(res.success) {
-                        alert(res.message);
-                        $('#fakturbeli-table').DataTable().ajax.reload();
-                    } else {
-                        alert(res.message || 'Terjadi kesalahan');
+        let id = $(this).data('id');
+        Swal.fire({
+            title: 'Konfirmasi',
+            text: 'Yakin ingin menyetujui faktur ini? Stok obat akan diperbarui.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Setujui',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.value) {
+                $.ajax({
+                    url: '{{ url("/erm/fakturpembelian") }}/' + id + '/approve',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(res) {
+                        if(res.success) {
+                            Swal.fire('Berhasil', res.message, 'success');
+                            $('#fakturbeli-table').DataTable().ajax.reload();
+                        } else {
+                            Swal.fire('Gagal', res.message || 'Terjadi kesalahan', 'error');
+                        }
+                    },
+                    error: function(xhr) {
+                        Swal.fire('Gagal', 'Gagal menyetujui faktur: ' + (xhr.responseJSON?.message || 'Terjadi kesalahan'), 'error');
                     }
-                },
-                error: function(xhr) {
-                    alert('Gagal menyetujui faktur: ' + (xhr.responseJSON?.message || 'Terjadi kesalahan'));
-                }
-            });
-        }
+                });
+            }
+        });
     });
     
     // Debug HPP handler

@@ -37,6 +37,13 @@ class FakturBeliController extends Controller
                 ->addColumn('total', function($row) {
                     return $row->total ?? 0;
                 })
+                ->addColumn('approved_by_user_name', function($row) {
+                    if (isset($row->approved_by) && $row->approved_by) {
+                        $user = \App\Models\User::find($row->approved_by);
+                        return $user ? $user->name : null;
+                    }
+                    return null;
+                })
                 ->addColumn('action', function($row) {
                     $actionBtn = '';
                     // Edit button with contextual label based on status
@@ -406,13 +413,13 @@ class FakturBeliController extends Controller
         
         // Begin transaction
         DB::beginTransaction();
-        
         try {
-            // Update faktur status
+            // Update faktur status and approved_by
             $faktur->update([
-                'status' => 'diapprove'
+                'status' => 'diapprove',
+                'approved_by' => \Illuminate\Support\Facades\Auth::id()
             ]);
-            
+
             // Calculate subtotal for proper global tax distribution
             $invoiceSubtotal = 0;
             foreach ($faktur->items as $invoiceItem) {
@@ -446,16 +453,16 @@ class FakturBeliController extends Controller
                     ]);
                 }
             }
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Faktur berhasil diapprove dan stok obat diperbarui'
             ]);
         } catch (\Exception $e) {
             DB::rollback();
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal approve faktur: ' . $e->getMessage()

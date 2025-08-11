@@ -127,13 +127,13 @@
                         <a href="javascript: void(0);"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Obat</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li>
-                                <a href="/erm/obat-masuk"><i data-feather="log-in" class="align-self-center menu-icon"></i><span>Mutasi Obat Masuk</span></a>
+                                <a href="/erm/obat-masuk"><i data-feather="log-in" class="align-self-center menu-icon"></i><span>Obat Masuk</span></a>
                             </li>
                             {{-- <li>
                                 <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
                             </li> --}}
                             <li>
-                                <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Mutasi Obat Keluar</span></a>
+                                <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Obat Keluar</span></a>
                             </li>
 
                         </ul>
