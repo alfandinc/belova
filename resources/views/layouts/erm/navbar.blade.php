@@ -113,6 +113,10 @@
                             <li>
                                 <a href="/erm/statistic"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
                             </li>
+
+                            <li>
+                                <a href="/erm/monitor-profit"><i data-feather="percent" class="align-self-center menu-icon"></i><span>Monitor Profit</span></a>
+                            </li>
                             
                             {{-- <li>
                                 <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>

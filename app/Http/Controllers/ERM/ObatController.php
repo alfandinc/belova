@@ -14,6 +14,60 @@ use Yajra\DataTables\Facades\DataTables;
 
 class ObatController extends Controller
 {
+    /**
+     * Update harga_nonfornas (harga jual) via AJAX.
+     */
+    public function updateHargaJual(Request $request, $id)
+    {
+        $request->validate([
+            'harga_nonfornas' => 'required|numeric|min:0',
+        ]);
+        try {
+            $obat = Obat::withInactive()->findOrFail($id);
+            $obat->harga_nonfornas = $request->harga_nonfornas;
+            $obat->save();
+            return response()->json(['success' => true, 'message' => 'Harga jual berhasil diperbarui']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal memperbarui harga jual: ' . $e->getMessage()], 500);
+        }
+    }
+    /**
+     * Display the Monitor Profit page with DataTable.
+     */
+    public function monitorProfit(Request $request)
+    {
+        if ($request->ajax()) {
+            $obats = Obat::withInactive()
+                ->select(['id', 'kode_obat', 'nama', 'hpp', 'harga_nonfornas'])
+                ->selectRaw('(CASE WHEN hpp > 0 THEN ((harga_nonfornas - hpp) / hpp) * 100 ELSE NULL END) as profit_percent_value');
+            return DataTables::of($obats)
+                ->addColumn('profit_percent', function ($obat) {
+                    if (isset($obat->profit_percent_value)) {
+                        $percent = $obat->profit_percent_value;
+                        $text = number_format($percent, 2) . '%';
+                        if ($percent < 30) {
+                            $text .= ' <span class="text-warning blink-warning" title="Profit di bawah 30%"><i class="fas fa-exclamation-triangle"></i></span>';
+                        }
+                        return $text;
+                    }
+                    return '-';
+                })
+                ->orderColumn('profit_percent', 'profit_percent_value $1')
+                ->editColumn('hpp', function ($obat) {
+                    return number_format($obat->hpp, 0);
+                })
+                ->editColumn('harga_nonfornas', function ($obat) {
+                    return number_format($obat->harga_nonfornas, 0);
+                })
+                ->addColumn('aksi', function ($obat) {
+                    $btn = '<button type="button" class="btn btn-sm btn-warning btn-edit-harga" data-id="'.$obat->id.'" data-nama="'.e($obat->nama).'" data-harga="'.$obat->harga_nonfornas.'"><i class="fas fa-edit"></i> Edit</button>';
+                    return $btn;
+                })
+                ->rawColumns(['aksi', 'profit_percent'])
+                ->make(true);
+        }
+        return view('erm.obat.monitor_profit');
+    }
     public function index(Request $request)
     {
         if ($request->ajax()) {
