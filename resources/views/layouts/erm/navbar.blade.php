@@ -121,11 +121,11 @@
                                 <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Mutasi Obat Keluar</span></a>
                             </li>
                             <li>
-                                <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Stok Obat</span></a>
+                                <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat</span></a>
                             </li>
-                            <li>
+                            {{-- <li>
                                 <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
-                            </li>
+                            </li> --}}
                             <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
                             </li>

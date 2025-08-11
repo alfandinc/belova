@@ -100,6 +100,14 @@ class ObatController extends Controller
                         }
                         return implode(' ', $zats);
                     })
+                    // Add warning icon if dosis or satuan is null
+                    ->editColumn('nama', function ($obat) {
+                        $warning = '';
+                        if (empty($obat->dosis) || empty($obat->satuan)) {
+                            $warning = '<span class="text-warning" style="margin-left:5px;" title="Dosis atau satuan belum diisi"><i class="fas fa-exclamation-triangle" style="color:orange;"></i></span>';
+                        }
+                        return e($obat->nama) . $warning;
+                    })
                     ->addColumn('batch_info', function ($obat) {
                         $items = \App\Models\ERM\FakturBeliItem::where('obat_id', $obat->id)
                             ->orderBy('expiration_date', 'asc')
@@ -121,7 +129,7 @@ class ObatController extends Controller
                         $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
                         return $editBtn . ' ' . $deleteBtn;
                     })
-                    ->rawColumns(['zat_aktif', 'action', 'batch_info'])
+                    ->rawColumns(['zat_aktif', 'action', 'batch_info', 'nama'])
                     ->make(true);
         }
 
