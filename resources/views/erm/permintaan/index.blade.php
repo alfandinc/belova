@@ -5,9 +5,34 @@
 @endsection  
 
 @section('content')
-<div class="container">
-    <h1>Daftar Permintaan Pembelian</h1>
-    <a href="{{ route('erm.permintaan.create') }}" class="btn btn-primary mb-3">Buat Permintaan</a>
+<div class="container-fluid">
+        <!-- Page-Title -->
+    <!-- Title and Button Row -->
+    <div class="row mb-3 mt-3 align-items-center">
+        <div class="col-md-6">
+            <h2 class="mb-0">Daftar Permintaan Pembelian</h2>
+        </div>
+        <div class="col-md-6 text-right">
+            <a href="{{ route('erm.permintaan.create') }}" class="btn btn-primary">Buat Permintaan</a>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="page-title-box">
+                <div class="row">
+                    <div class="col">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
+                            <li class="breadcrumb-item active">Farmasi</li>
+                            <li class="breadcrumb-item">E-Resep</li>
+                        </ol>
+                    </div><!--end col-->
+                </div><!--end row-->                                                              
+            </div><!--end page-title-box-->
+        </div><!--end col-->
+    </div><!--end row-->
+    <!-- end page title end breadcrumb -->
+    
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
