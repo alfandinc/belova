@@ -114,6 +114,19 @@ class MasterFakturController extends Controller
             'diskon' => 'required|numeric',
             'diskon_type' => 'required|in:percent,nominal',
         ]);
+
+        // Check for duplicate combination
+        $exists = MasterFaktur::where('obat_id', $request->obat_id)
+            ->where('pemasok_id', $request->pemasok_id)
+            ->exists();
+        if ($exists) {
+            $msg = 'Kombinasi Obat dan Pemasok sudah ada.';
+            if ($request->ajax()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return redirect()->back()->withErrors(['obat_id' => $msg])->withInput();
+        }
+
         $mf = MasterFaktur::create($request->all());
         if ($request->ajax()) {
             return response()->json(['success' => true, 'id' => $mf->id]);
@@ -151,6 +164,9 @@ class MasterFakturController extends Controller
     {
         $masterFaktur = MasterFaktur::findOrFail($id);
         $masterFaktur->delete();
+        if (request()->ajax()) {
+            return response()->json(['success' => true]);
+        }
         return redirect()->route('erm.masterfaktur.index')->with('success', 'Master Faktur deleted!');
     }
 }

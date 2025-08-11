@@ -43,7 +43,6 @@
                 <th>Harga</th>
                 <th>Qty/Box</th>
                 <th>Diskon</th>
-                <th>Diskon Type</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -79,15 +78,15 @@
                     <input type="number" name="qty_per_box" class="form-control" id="mf_qty_per_box" required>
                 </div>
                 <div class="mb-3">
-                    <label>Diskon</label>
-                    <input type="number" step="0.01" name="diskon" class="form-control" id="mf_diskon" required>
-                </div>
                 <div class="mb-3">
-                    <label>Diskon Type</label>
-                    <select name="diskon_type" class="form-control" id="mf_diskon_type" required>
-                        <option value="nominal">Nominal</option>
-                        <option value="percent">Percent</option>
-                    </select>
+                    <label>Diskon &amp; Tipe Diskon</label>
+                    <div class="input-group">
+                        <input type="number" step="0.01" name="diskon" class="form-control" id="mf_diskon" required placeholder="Diskon">
+                        <select name="diskon_type" class="form-control" id="mf_diskon_type" required style="max-width: 120px;">
+                            <option value="nominal">Nominal</option>
+                            <option value="percent" selected>%</option>
+                        </select>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary">Simpan</button>
             </form>
@@ -101,6 +100,41 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
+    // Delete handler with Swal
+    $('#master-faktur-table').on('click', '.deleteMasterFaktur', function() {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Konfirmasi',
+            text: 'Yakin ingin menghapus data ini?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Ya, hapus!',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.value) {
+                $.ajax({
+                    url: '/erm/masterfaktur/' + id,
+                    type: 'DELETE',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(res) {
+                        if(res.success) {
+                            Swal.fire('Berhasil!', 'Data berhasil dihapus!', 'success');
+                            table.ajax.reload();
+                        } else {
+                            Swal.fire('Gagal!', 'Gagal menghapus data!', 'error');
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Gagal!', 'Gagal menghapus data!', 'error');
+                    }
+                });
+            }
+        });
+    });
     var table = $('#master-faktur-table').DataTable({
         processing: true,
         serverSide: true,
@@ -111,8 +145,17 @@ $(document).ready(function() {
             { data: 'pemasok', name: 'pemasok' },
             { data: 'harga', name: 'harga' },
             { data: 'qty_per_box', name: 'qty_per_box' },
-            { data: 'diskon', name: 'diskon' },
-            { data: 'diskon_type', name: 'diskon_type' },
+            {
+                data: null,
+                name: 'diskon',
+                render: function(data, type, row) {
+                    if (row.diskon_type === 'percent') {
+                        return row.diskon + ' %';
+                    } else {
+                        return 'Rp ' + parseFloat(row.diskon).toLocaleString('id-ID', {minimumFractionDigits: 0});
+                    }
+                }
+            },
             { data: 'action', name: 'action', orderable: false, searchable: false },
         ]
     });
@@ -199,9 +242,14 @@ $(document).ready(function() {
                 $('#masterFakturModal').modal('hide');
                 table.ajax.reload();
                 form[0].reset();
+                Swal.fire('Berhasil!', 'Data berhasil disimpan!', 'success');
             },
             error: function(xhr) {
-                alert('Gagal menyimpan data!');
+                let msg = 'Gagal menyimpan data!';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
+                Swal.fire('Gagal!', msg, 'error');
             }
         });
     });
