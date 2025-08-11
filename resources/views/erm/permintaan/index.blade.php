@@ -34,7 +34,17 @@
     <!-- end page title end breadcrumb -->
     
     @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            Swal.fire({
+                icon: 'success',
+                title: 'Sukses',
+                text: @json(session('success')),
+                timer: 2000,
+                showConfirmButton: false
+            });
+        });
+        </script>
     @endif
     <table class="table table-bordered" id="permintaan-table">
         <thead>
@@ -66,7 +76,19 @@ $(document).ready(function() {
             { data: 'pemasok', name: 'pemasok' },
             { data: 'obats', name: 'obats', orderable: false, searchable: false },
             { data: 'request_date', name: 'request_date' },
-            { data: 'status', name: 'status' },
+            { 
+                data: 'status', 
+                name: 'status',
+                render: function(data, type, row) {
+                    if (data === 'waiting_approval' || data === 'waiting' || data === 'menunggu') {
+                        return '<span class="badge badge-warning text-dark">Waiting Approval</span>';
+                    } else if (data === 'approved' || data === 'disetujui') {
+                        return '<span class="badge badge-success">Approved</span>';
+                    } else {
+                        return '<span class="badge badge-secondary">'+data+'</span>';
+                    }
+                }
+            },
             { data: 'jumlah_item', name: 'jumlah_item', orderable: false, searchable: false },
             { data: 'aksi', name: 'aksi', orderable: false, searchable: false },
         ]
@@ -75,21 +97,44 @@ $(document).ready(function() {
     // Approve button AJAX
     $('#permintaan-table').on('click', '.btn-approve', function() {
         var id = $(this).data('id');
-        if(confirm('Approve permintaan ini?')) {
-            $.ajax({
-                url: '/erm/permintaan/' + id + '/approve',
-                type: 'POST',
-                data: {
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(res) {
-                    table.ajax.reload();
-                },
-                error: function(xhr) {
-                    alert('Gagal approve permintaan!');
-                }
-            });
-        }
+        Swal.fire({
+            title: 'Approve permintaan ini?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Approve',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (result.value) {
+                $.ajax({
+                    url: '/erm/permintaan/' + id + '/approve',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(res) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: 'Permintaan berhasil diapprove!',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+                        table.ajax.reload();
+                    },
+                    error: function(xhr) {
+                        let msg = 'Gagal approve permintaan!';
+                        if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal',
+                            text: msg,
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
+                });
+            }
+        });
     });
 });
 </script>

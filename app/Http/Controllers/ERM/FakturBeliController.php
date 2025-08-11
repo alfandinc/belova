@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers\ERM;
 
 use App\Http\Controllers\Controller;
@@ -16,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 class FakturBeliController extends Controller
 {
+
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -39,31 +39,39 @@ class FakturBeliController extends Controller
                 })
                 ->addColumn('action', function($row) {
                     $actionBtn = '';
-                    
                     // Edit button with contextual label based on status
                     if ($row->status === 'diminta') {
                         $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Input Faktur</a> ';
                     } else {
                         $actionBtn .= '<a href="/erm/fakturpembelian/' . $row->id . '/edit" class="btn btn-sm btn-primary">Edit</a> ';
                     }
-                    
                     // Approve button - only show for diterima status (not diminta or diapprove yet)
                     if ($row->status === 'diterima') {
                         $actionBtn .= '<button class="btn btn-sm btn-success btn-approve-faktur" data-id="' . $row->id . '">Approve</button> ';
                         $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp" data-id="' . $row->id . '">Debug HPP</button> ';
                     }
-                    
-                    // Removed redundant Lengkapi button since we now have the Input Faktur button for diminta status
-                    
                     // Delete button
                     $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur" data-id="' . $row->id . '">Delete</button>';
-                    
                     return $actionBtn;
                 })
                 ->rawColumns(['action'])
                 ->make(true);
         }
         return view('erm.fakturbeli.index');
+    }
+
+    /**
+     * Cari faktur beli berdasarkan no_permintaan, return faktur id jika ditemukan
+     */
+    public function cariByNoPermintaan(Request $request)
+    {
+        $no = $request->input('no_permintaan');
+        $faktur = \App\Models\ERM\FakturBeli::where('no_permintaan', $no)->first();
+        if ($faktur) {
+            return response()->json(['success' => true, 'faktur_id' => $faktur->id]);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Faktur tidak ditemukan']);
+        }
     }
 
     public function create()

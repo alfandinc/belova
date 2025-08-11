@@ -346,6 +346,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     
     // Faktur Pembelian
     Route::get('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'index'])->name('erm.fakturbeli.index');
+    Route::get('/fakturpembelian/cari-by-no-permintaan', [\App\Http\Controllers\ERM\FakturBeliController::class, 'cariByNoPermintaan']);
     Route::get('/fakturpembelian/create', [\App\Http\Controllers\ERM\FakturBeliController::class, 'create'])->name('erm.fakturbeli.create');
     Route::post('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'store'])->name('erm.fakturbeli.store');
     Route::get('/fakturpembelian/{id}/edit', [\App\Http\Controllers\ERM\FakturBeliController::class, 'edit'])->name('erm.fakturbeli.edit');

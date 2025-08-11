@@ -5,8 +5,31 @@
 @endsection  
 
 @section('content')
-<div class="container">
-    <h1>{{ isset($permintaan) ? 'Edit' : 'Buat' }} Permintaan Pembelian</h1>
+<div class="container-fluid">
+        <!-- Page-Title -->
+    <!-- Title and Button Row -->
+    <div class="row mt-3 align-items-center">
+        <div class="col-md-6">
+            <h2 class="mb-0">Buat Permintaan Pembelian</h2>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="page-title-box">
+                <div class="row">
+                    <div class="col">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
+                            <li class="breadcrumb-item">Farmasi</li>
+                            <li class="breadcrumb-item ">Permintaan Pembelian</li>
+                            <li class="breadcrumb-item active">Create</li>
+                        </ol>
+                    </div><!--end col-->
+                </div><!--end row-->                                                              
+            </div><!--end page-title-box-->
+        </div><!--end col-->
+    </div><!--end row-->
+    <!-- end page title end breadcrumb -->
     <form id="permintaanForm">
         @csrf
         @if(isset($permintaan))
@@ -14,30 +37,43 @@
         @endif
         <div class="mb-3">
             <label>Tanggal Permintaan</label>
-            <input type="date" name="request_date" class="form-control" required value="{{ isset($permintaan) ? $permintaan->request_date : '' }}">
+            <input type="date" name="request_date" id="request_date" class="form-control" required value="{{ isset($permintaan) ? $permintaan->request_date : '' }}">
         </div>
         <hr>
         <h5>Item Permintaan</h5>
         <table class="table table-bordered" id="items-table">
+            <colgroup>
+                <col style="width: 22%;">
+                <col style="width: 22%;">
+                <col style="width: 8%;">
+                <col style="width: 8%;">
+                <col style="width: 10%;">
+                <col style="width: 10%;">
+                <col style="width: 8%;">
+                <col style="width: 8%;">
+                <col style="width: 4%;">
+            </colgroup>
             <thead>
                 <tr>
                     <th>Obat</th>
                     <th>Pemasok</th>
                     <th>Jumlah Box</th>
                     <th>Qty Total</th>
-                    <th>Harga (Master)</th>
-                    <th>Qty/Box (Master)</th>
-                    <th>Diskon (Master)</th>
-                    <th>Diskon Type (Master)</th>
+                    <th>Harga</th>
+                    <th>Qty/Box</th>
+                    <th>Diskon</th>
+                    <th>Diskon Type</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
             <tbody></tbody>
         </table>
-        <button type="button" class="btn btn-secondary mb-3" id="add-row">Tambah Item</button>
+    <button type="button" class="btn btn-success btn-sm mb-3" id="add-row">Tambah Item</button>
         <br>
-        <button type="submit" class="btn btn-primary">Simpan Permintaan</button>
-        <a href="{{ route('erm.permintaan.index') }}" class="btn btn-secondary">Kembali</a>
+        <div class="text-right">
+            <button type="submit" class="btn btn-primary">Simpan Permintaan</button>
+            <a href="{{ route('erm.permintaan.index') }}" class="btn btn-secondary">Kembali</a>
+        </div>
     </form>
     <div id="formAlert" style="display:none;" class="alert mt-3"></div>
 @endsection
@@ -59,8 +95,8 @@
 @endphp
 
 @section('scripts')
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+{{-- <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> --}}
 <script>
 let rowIdx = 0;
 let oldItems = @json($oldItems);
@@ -68,8 +104,8 @@ let oldItems = @json($oldItems);
 function addPermintaanRow(item = null) {
     rowIdx++;
     let row = `<tr>
-        <td><select name="items[${rowIdx}][obat_id]" class="form-control obat-select" required style="width:100%"></select></td>
-        <td><select name="items[${rowIdx}][pemasok_id]" class="form-control pemasok-select" required style="width:100%"></select></td>
+        <td><select name="items[${rowIdx}][obat_id]" class="form-control obat-select" required style="min-width:400px; width:100%"></select></td>
+        <td><select name="items[${rowIdx}][pemasok_id]" class="form-control pemasok-select" required style="min-width:400px; width:100%"></select></td>
         <td><input type="number" name="items[${rowIdx}][jumlah_box]" class="form-control jumlah-box" min="1" required value="${item ? item.jumlah_box : ''}"></td>
         <td><input type="number" name="items[${rowIdx}][qty_total]" class="form-control qty-total" min="1" required value="${item ? item.qty_total : ''}"></td>
         <td><input type="text" class="form-control harga-master" readonly></td>
@@ -97,9 +133,13 @@ function initSelect2($el, url, selected = null) {
             processResults: function(data) { return { results: data }; },
             cache: true
         },
-        width: 'resolve',
+        width: '100%',
         allowClear: true
     });
+    $el.next('.select2-container').css('width', '100%');
+    setTimeout(function() {
+        $el.next('.select2-container').css('width', '100%');
+    }, 0);
     if (selected) {
         // Set initial value for edit
         let option = new Option(selected.text, selected.id, true, true);
@@ -108,6 +148,15 @@ function initSelect2($el, url, selected = null) {
 }
 
 $(document).ready(function() {
+    // Set default date to today if not editing
+    if (!$("input[name='id']").length) {
+        let today = new Date();
+        let yyyy = today.getFullYear();
+        let mm = String(today.getMonth() + 1).padStart(2, '0');
+        let dd = String(today.getDate()).padStart(2, '0');
+        let formatted = yyyy + '-' + mm + '-' + dd;
+        $('#request_date').val(formatted);
+    }
     if (oldItems.length > 0) {
         oldItems.forEach(function(item) { addPermintaanRow(item); });
         // Autofill master faktur fields for each row
@@ -181,13 +230,25 @@ $(document).ready(function() {
             type: method,
             data: data,
             success: function(res) {
-                $('#formAlert').removeClass('alert-danger').addClass('alert-success').text('Permintaan berhasil disimpan!').show();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil',
+                    text: 'Permintaan berhasil disimpan!',
+                    timer: 1200,
+                    showConfirmButton: false
+                });
                 setTimeout(function(){ window.location = '{{ route('erm.permintaan.index') }}'; }, 1200);
             },
             error: function(xhr) {
                 let msg = 'Gagal menyimpan permintaan!';
                 if(xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                $('#formAlert').removeClass('alert-success').addClass('alert-danger').text(msg).show();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal',
+                    text: msg,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
             }
         });
     });

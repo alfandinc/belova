@@ -20,16 +20,19 @@
                     <div class="col-md-6">
                         <div class="form-group">
                                 <label>Pemasok <span class="text-danger">*</span></label>
-                            <select name="pemasok_id" id="pemasok_id" class="form-control" required style="width:100%">
+                            <select name="pemasok_id" id="pemasok_id" class="form-control" required style="width:100%" @if(isset($faktur)) disabled @endif>
                                 @if(isset($faktur) && isset($faktur->pemasok))
                                     <option value="{{ $faktur->pemasok->id }}" selected>{{ $faktur->pemasok->nama }}</option>
                                 @endif
                             </select>
+                            @if(isset($faktur))
+                                <input type="hidden" name="pemasok_id" value="{{ $faktur->pemasok->id }}">
+                            @endif
                         </div>
                         <div class="form-row">
                             <div class="form-group col-md-3">
                                 <label>Tanggal Permintaan</label>
-                                <input type="date" name="requested_date" class="form-control" value="{{ isset($faktur) ? $faktur->requested_date : '' }}">
+                                <input type="date" name="requested_date" class="form-control" value="{{ isset($faktur) ? $faktur->requested_date : '' }}" readonly>
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Tanggal Kirim</label>
@@ -37,7 +40,7 @@
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Tanggal Terima <span class="text-danger">*</span></label>
-                                <input type="date" name="received_date" class="form-control" required value="{{ isset($faktur) ? $faktur->received_date : '' }}">
+                                <input type="date" name="received_date" class="form-control" required value="{{ old('received_date', isset($faktur) && $faktur->received_date ? $faktur->received_date : date('Y-m-d')) }}">
                             </div>
                             <div class="form-group col-md-3">
                                 <label>Jatuh Tempo</label>
@@ -125,6 +128,8 @@
                                         <select name="items[{{ $i }}][gudang_id]" class="form-control gudang-select" required style="width:100%">
                                             @if($item->gudang)
                                                 <option value="{{ $item->gudang->id }}" selected>{{ $item->gudang->nama }}</option>
+                                            @else
+                                                <option value="1" selected>Gudang Utama</option>
                                             @endif
                                         </select>
                                     </td>
@@ -257,7 +262,7 @@ function itemRow(idx) {
                 </select>
             </div>
         </td>
-        <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"></select><span class="text-danger">*</span></td>
+    <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"><option value="1" selected>Gudang Utama</option></select><span class="text-danger">*</span></td>
         <td><input type="text" name="items[${idx}][batch]" class="form-control"></td>
         <td><input type="date" name="items[${idx}][expiration_date]" class="form-control"></td>
         <td><button type="button" class="btn btn-danger btn-sm remove-item">Hapus</button></td>
@@ -300,6 +305,13 @@ function initObatSelect2(context) {
                 };
             },
             cache: true
+        }
+    });
+    $(context).find('.gudang-select').each(function() {
+        var select = $(this);
+        // If no value is set, set to 1 and trigger change for select2
+        if (!select.val()) {
+            select.val('1').trigger('change');
         }
     });
     $(context).find('.gudang-select').select2({

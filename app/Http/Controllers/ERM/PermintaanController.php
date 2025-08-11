@@ -225,6 +225,7 @@ class PermintaanController extends Controller
                 $faktur = \App\Models\ERM\FakturBeli::create([
                     'pemasok_id' => $pemasokId,
                     'no_faktur' => null,
+                    'no_permintaan' => $permintaan->no_permintaan,
                     'requested_date' => $permintaan->request_date,
                     'status' => 'diminta',
                 ]);

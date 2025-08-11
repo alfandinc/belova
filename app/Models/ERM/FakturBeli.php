@@ -10,7 +10,7 @@ class FakturBeli extends Model
     use HasFactory;
     protected $table = 'erm_fakturbeli';
     protected $fillable = [
-        'pemasok_id', 'no_faktur', 'received_date', 'requested_date', 'due_date', 'ship_date', 'notes', 'bukti',
+        'pemasok_id', 'no_faktur', 'no_permintaan', 'received_date', 'requested_date', 'due_date', 'ship_date', 'notes', 'bukti',
         'subtotal', 'global_diskon', 'global_pajak', 'total', 'status'
     ];
 

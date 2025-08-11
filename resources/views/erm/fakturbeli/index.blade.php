@@ -27,8 +27,36 @@
             </div><!--end page-title-box-->
         </div><!--end col-->
     </div><!--end row-->
-    <!-- end page title end breadcrumb -->
-            <table class="table table-bordered" id="fakturbeli-table">
+        <!-- end page title end breadcrumb -->
+        <div class="mb-3">
+                <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalCariPermintaan"><i class="fa fa-search"></i> Cari Faktur Berdasarkan No Permintaan</button>
+        </div>
+        <!-- Modal Cari Permintaan -->
+        <div class="modal fade" id="modalCariPermintaan" tabindex="-1" role="dialog" aria-labelledby="modalCariPermintaanLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalCariPermintaanLabel">Cari Faktur Berdasarkan No Permintaan</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="formCariPermintaan">
+                            <div class="form-group">
+                                <label for="inputNoPermintaan">No Permintaan</label>
+                                <input type="text" class="form-control" id="inputNoPermintaan" name="no_permintaan" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        <button type="button" class="btn btn-primary" id="btnCariPermintaan">Cari</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <table class="table table-bordered" id="fakturbeli-table">
                 <thead>
                     <tr>
                         <th>No</th>
@@ -50,6 +78,31 @@
 @push('scripts')
 <script>
 $(function() {
+    // Handler for cari permintaan
+    $('#btnCariPermintaan').on('click', function() {
+        var noPermintaan = $('#inputNoPermintaan').val().trim();
+        if (!noPermintaan) {
+            Swal.fire('Error', 'No Permintaan harus diisi', 'error');
+            return;
+        }
+        // Cari faktur dengan no_permintaan
+        $.ajax({
+            url: '/erm/fakturpembelian/cari-by-no-permintaan',
+            type: 'GET',
+            data: { no_permintaan: noPermintaan },
+            success: function(res) {
+                if (res.success && res.faktur_id) {
+                    // Redirect to edit page
+                    window.location.href = '/erm/fakturpembelian/' + res.faktur_id + '/edit';
+                } else {
+                    Swal.fire('Tidak ditemukan', res.message || 'Faktur dengan no permintaan tersebut tidak ditemukan', 'warning');
+                }
+            },
+            error: function() {
+                Swal.fire('Error', 'Terjadi kesalahan saat mencari faktur', 'error');
+            }
+        });
+    });
     $('#fakturbeli-table').DataTable({
         processing: true,
         serverSide: true,
