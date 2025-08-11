@@ -18,7 +18,7 @@ class ObatMasukController extends Controller
         $start = request('start');
         $end = request('end');
 
-        $query = FakturBeliItem::with(['obat', 'fakturbeli'])
+        $query = FakturBeliItem::selectRaw('obat_id, SUM(qty) as total_masuk')
             ->where('qty', '>', 0)
             ->whereHas('fakturbeli', function($q) use ($start, $end) {
                 $q->where('status', 'diapprove');
@@ -26,35 +26,51 @@ class ObatMasukController extends Controller
                     $q->whereBetween('received_date', [$start, $end]);
                 }
             })
-            ->orderByDesc('erm_fakturbeli_items.id');
+            ->groupBy('obat_id')
+            ->with('obat');
 
         return datatables()->of($query)
             ->addIndexColumn()
             ->addColumn('nama_obat', function ($item) {
                 return $item->obat->nama ?? '-';
             })
-            ->addColumn('no_faktur', function ($item) {
-                return $item->fakturbeli->no_faktur ?? '-';
+            ->addColumn('qty', function ($item) {
+                return $item->total_masuk;
             })
-            ->filterColumn('nama_obat', function($query, $keyword) {
-                $query->whereHas('obat', function($q) use ($keyword) {
-                    $q->where('nama', 'like', "%$keyword%");
-                });
+            ->addColumn('detail', function ($item) {
+                return '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$item->obat_id.'">Detail</button>';
             })
-            ->filterColumn('no_faktur', function($query, $keyword) {
-                $query->whereHas('fakturbeli', function($q) use ($keyword) {
-                    $q->where('no_faktur', 'like', "%$keyword%");
-                });
-            })
-            ->orderColumn('nama_obat', function ($query, $order) {
-                $query->join('erm_obat', 'erm_fakturbeli_items.obat_id', '=', 'erm_obat.id')
-                      ->orderBy('erm_obat.nama', $order);
-            })
-            ->orderColumn('no_faktur', function ($query, $order) {
-                $query->join('erm_fakturbeli', 'erm_fakturbeli_items.fakturbeli_id', '=', 'erm_fakturbeli.id')
-                      ->orderBy('erm_fakturbeli.no_faktur', $order);
-            })
-            ->rawColumns(['nama_obat', 'qty', 'no_faktur'])
+            ->rawColumns(['nama_obat', 'qty', 'detail'])
             ->make(true);
+
+    }
+
+    public function detail(Request $request)
+    {
+        $obatId = $request->input('obat_id');
+        $start = $request->input('start');
+        $end = $request->input('end');
+
+        $items = FakturBeliItem::with('fakturbeli')
+            ->where('obat_id', $obatId)
+            ->where('qty', '>', 0)
+            ->whereHas('fakturbeli', function($q) use ($start, $end) {
+                $q->where('status', 'diapprove');
+                if ($start && $end) {
+                    $q->whereBetween('received_date', [$start, $end]);
+                }
+            })
+            ->get();
+
+        $html = '<div class="table-responsive"><table class="table table-bordered table-striped">';
+        $html .= '<thead><tr><th>Faktur No</th><th>Jumlah Masuk</th></tr></thead><tbody>';
+        foreach ($items as $item) {
+            $html .= '<tr>';
+            $html .= '<td>' . ($item->fakturbeli->no_faktur ?? '-') . '</td>';
+            $html .= '<td>' . $item->qty . '</td>';
+            $html .= '</tr>';
+        }
+        $html .= '</tbody></table></div>';
+        return $html;
     }
 }

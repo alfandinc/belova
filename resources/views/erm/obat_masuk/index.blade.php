@@ -9,25 +9,44 @@
 
 @section('content')
 <div class="container-fluid mt-4">
-    <div class="card">
-        <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
-            <h4>Obat Masuk</h4>
-            <div>
-                <input type="text" id="dateRange" class="form-control" style="min-width:220px;display:inline-block;" readonly />
-            </div>
+        <div class="card">
+                <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
+                        <h4>Obat Masuk</h4>
+                        <div>
+                                <input type="text" id="dateRange" class="form-control" style="min-width:220px;display:inline-block;" readonly />
+                        </div>
+                </div>
+                <div class="card-body">
+                        <table class="table table-bordered" id="obatMasukTable">
+                                <thead>
+                                        <tr>
+                                                <th>Nama Obat</th>
+                                                <th>Jumlah Masuk</th>
+                                                <th>Detail</th>
+                                        </tr>
+                                </thead>
+                        </table>
+
+                        <!-- Modal -->
+                        <div class="modal fade" id="detailModal" tabindex="-1" role="dialog" aria-labelledby="detailModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="detailModalLabel">Detail Obat Masuk</h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div id="detailModalContent">
+                                                <div class="text-center"><span class="spinner-border"></span> Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                </div>
         </div>
-        <div class="card-body">
-            <table class="table table-bordered" id="obatMasukTable">
-                <thead>
-                    <tr>
-                        <th>Nama Obat</th>
-                        <th>Jumlah Masuk</th>
-                        <th>Faktur No</th>
-                    </tr>
-                </thead>
-            </table>
-        </div>
-    </div>
 </div>
 @endsection
 
@@ -67,12 +86,28 @@ $(function() {
         columns: [
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'qty', name: 'qty' },
-            { data: 'no_faktur', name: 'no_faktur' }
+            { data: 'detail', name: 'detail', orderable: false, searchable: false }
         ]
     });
 
     $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
         table.ajax.reload();
+    });
+
+    // Handle detail button click
+    $('#obatMasukTable').on('click', '.btn-detail', function() {
+        var obatId = $(this).data('obat-id');
+        var start = $('#dateRange').data('daterangepicker').startDate.format('YYYY-MM-DD');
+        var end = $('#dateRange').data('daterangepicker').endDate.format('YYYY-MM-DD');
+        $('#detailModal').modal('show');
+        $('#detailModalContent').html('<div class="text-center"><span class="spinner-border"></span> Loading...</div>');
+        $.get(
+            '{{ url('/erm/obat-masuk/detail') }}',
+            { obat_id: obatId, start: start, end: end },
+            function(res) {
+                $('#detailModalContent').html(res);
+            }
+        );
     });
 });
 </script>
