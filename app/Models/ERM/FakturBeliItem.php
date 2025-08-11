@@ -22,4 +22,9 @@ class FakturBeliItem extends Model
     {
         return $this->belongsTo(\App\Models\ERM\Gudang::class, 'gudang_id');
     }
+
+    public function fakturbeli()
+    {
+        return $this->belongsTo(\App\Models\ERM\FakturBeli::class, 'fakturbeli_id');
+    }
 }

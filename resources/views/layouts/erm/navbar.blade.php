@@ -118,6 +118,9 @@
                                 <a href="/erm/monitor-profit"><i data-feather="percent" class="align-self-center menu-icon"></i><span>Monitor Profit</span></a>
                             </li>
                             
+                            <li>
+                                <a href="/erm/obat-masuk"><i data-feather="log-in" class="align-self-center menu-icon"></i><span>Mutasi Obat Masuk</span></a>
+                            </li>
                             {{-- <li>
                                 <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
                             </li> --}}

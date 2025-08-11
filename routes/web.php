@@ -131,6 +131,10 @@ Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('cu
 
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
+    // DataTables AJAX for Mutasi Obat Masuk
+    Route::get('/obat-masuk/data', [App\Http\Controllers\ERM\ObatMasukController::class, 'data'])->name('erm.obatmasuk.data');
+    // Mutasi Obat Masuk
+    Route::get('/obat-masuk', [App\Http\Controllers\ERM\ObatMasukController::class, 'index'])->name('erm.obatmasuk.index');
     // Update harga jual (nonfornas) via AJAX
     Route::post('/obat/{id}/update-harga', [App\Http\Controllers\ERM\ObatController::class, 'updateHargaJual'])->name('erm.obat.update-harga');
     // Monitor Profit
