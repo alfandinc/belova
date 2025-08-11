@@ -24,11 +24,38 @@ class DokterController extends Controller
                     return $d->spesialisasi->nama;
                 })
                 ->addColumn('sip', function ($d) {
-                    return $d->sip;
+                    $sip = $d->sip ?: '-';
+                    $due = $d->due_date_sip ? date('d-m-Y', strtotime($d->due_date_sip)) : '-';
+                    $icon = '';
+                    if ($d->due_date_sip) {
+                        $dueDate = strtotime($d->due_date_sip);
+                        $today = strtotime(date('Y-m-d'));
+                        $oneMonthLater = strtotime('+1 month', $today);
+                        if ($dueDate < $today) {
+                            $icon = ' <i class="fas fa-exclamation-triangle text-danger blink-warning" title="SIP expired"></i>';
+                        } elseif ($dueDate <= $oneMonthLater) {
+                            $icon = ' <i class="fas fa-exclamation-triangle text-warning blink-warning" title="SIP almost expired"></i>';
+                        }
+                    }
+                    return $sip . $icon . ' <br><small class="text-muted">' . $due . '</small>';
                 })
-                ->addColumn('due_date_sip', function ($d) {
-                    return $d->due_date_sip ? date('d-m-Y', strtotime($d->due_date_sip)) : '-';
+                ->addColumn('str', function ($d) {
+                    $str = $d->str ?: '-';
+                    $due = $d->due_date_str ? date('d-m-Y', strtotime($d->due_date_str)) : '-';
+                    $icon = '';
+                    if ($d->due_date_str) {
+                        $dueDate = strtotime($d->due_date_str);
+                        $today = strtotime(date('Y-m-d'));
+                        $oneMonthLater = strtotime('+1 month', $today);
+                        if ($dueDate < $today) {
+                            $icon = ' <i class="fas fa-exclamation-triangle text-danger blink-warning" title="STR expired"></i>';
+                        } elseif ($dueDate <= $oneMonthLater) {
+                            $icon = ' <i class="fas fa-exclamation-triangle text-warning blink-warning" title="STR almost expired"></i>';
+                        }
+                    }
+                    return $str . $icon . ' <br><small class="text-muted">' . $due . '</small>';
                 })
+                // removed due_date_sip column, now merged with sip
                 ->addColumn('actions', function ($d) {
                     $deleteUrl = route('hrd.dokters.destroy', $d->id);
                     // Use dokter id for edit
@@ -39,7 +66,7 @@ class DokterController extends Controller
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'Hapus dokter ini?\')">Hapus</button>
                     </form>';
                 })
-                ->rawColumns(['actions'])
+                ->rawColumns(['actions', 'str', 'sip'])
                 ->make(true);
         }
 
@@ -85,6 +112,8 @@ class DokterController extends Controller
             'alamat' => 'nullable|string',
             'no_hp' => 'nullable|string|max:20',
             'status' => 'nullable|string|max:20',
+            'str' => 'nullable|string|max:255',
+            'due_date_str' => 'nullable|date',
         ]);
 
         $data = $request->only([
@@ -97,6 +126,8 @@ class DokterController extends Controller
             'alamat',
             'no_hp',
             'status',
+            'str',
+            'due_date_str',
         ]);
 
         // Handle file upload for photo

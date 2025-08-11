@@ -114,6 +114,24 @@
                                         <input type="date" name="due_date_sip" class="form-control" value="{{ isset($dokter) && $dokter->due_date_sip ? $dokter->due_date_sip : '' }}">
                                     </div>
                                 </div>
+                                <div class="form-group mb-3">
+                                    <label for="str"><i class="fas fa-certificate mr-1"></i>Nomor STR</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text"><i class="fas fa-certificate"></i></span>
+                                        </div>
+                                        <input type="text" name="str" class="form-control" value="{{ $dokter->str ?? '' }}">
+                                    </div>
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label for="due_date_str"><i class="fas fa-calendar-check mr-1"></i>Due Date STR</label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text"><i class="fas fa-calendar-check"></i></span>
+                                        </div>
+                                        <input type="date" name="due_date_str" class="form-control" value="{{ isset($dokter) && $dokter->due_date_str ? $dokter->due_date_str : '' }}">
+                                    </div>
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group mb-3">
@@ -137,7 +155,6 @@
                                 <div class="form-group mb-3">
                                     <label for="status"><i class="fas fa-toggle-on mr-1"></i>Status</label>
                                     <div class="input-group">
-                                        
                                         <select name="status" class="form-control select2" required>
                                             <option value="">-- Pilih Status --</option>
                                             <option value="Kontrak" {{ (isset($dokter) && $dokter->status == 'Kontrak') ? 'selected' : '' }}>Kontrak</option>

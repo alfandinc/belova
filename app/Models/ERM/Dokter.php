@@ -20,6 +20,8 @@ class Dokter extends Model
         'alamat',
         'no_hp',
         'status',
+        'str',
+        'due_date_str',
     ];
 
     public function user()
