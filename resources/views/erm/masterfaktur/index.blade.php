@@ -4,12 +4,36 @@
     @include('layouts.erm.navbar')
 @endsection  
 @section('content')
-<div class="container">
-    <h1>Master Faktur List</h1>
-    <button id="addMasterFakturBtn" class="btn btn-primary mb-3">Tambah Master Faktur</button>
+<div class="container-fluid">
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
+        <!-- Title and Button Row -->
+    <div class="row mt-3 align-items-center">
+        <div class="col-md-6">
+            <h2 class="mb-0">Master Pembelian</h2>
+        </div>
+        <div class="col-md-6 text-right">
+            <button id="addMasterFakturBtn" class="btn btn-primary">Tambah Master Faktur</button>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="page-title-box">
+                <div class="row">
+                    <div class="col">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
+                            <li class="breadcrumb-item">Farmasi</li>
+                            <li class="breadcrumb-item active">Master Pembelian</li>
+                        </ol>
+                    </div><!--end col-->
+                </div><!--end row-->
+                                                                              
+            </div><!--end page-title-box-->
+        </div><!--end col-->
+    </div><!--end row-->
+    <!-- end page title end breadcrumb -->
     <table class="table table-bordered" id="master-faktur-table">
         <thead>
             <tr>

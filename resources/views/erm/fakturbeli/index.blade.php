@@ -5,11 +5,29 @@
 @endsection  
 @section('content')
 <div class="container-fluid">
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">Daftar Faktur Pembelian</h4>
+            <!-- Page-Title -->
+    <!-- Title and Button Row -->
+    <div class="row mt-3 align-items-center">
+        <div class="col-md-6">
+            <h2 class="mb-0">Input Faktur Pembelian</h2>
         </div>
-        <div class="card-body">
+    </div>
+    <div class="row">
+        <div class="col-sm-12">
+            <div class="page-title-box">
+                <div class="row">
+                    <div class="col">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
+                            <li class="breadcrumb-item">Farmasi</li>
+                            <li class="breadcrumb-item active">Input Faktur Pembelian</li>
+                        </ol>
+                    </div><!--end col-->
+                </div><!--end row-->                                                              
+            </div><!--end page-title-box-->
+        </div><!--end col-->
+    </div><!--end row-->
+    <!-- end page title end breadcrumb -->
             <table class="table table-bordered" id="fakturbeli-table">
                 <thead>
                     <tr>
@@ -27,8 +45,6 @@
                     </tr>
                 </thead>
             </table>
-        </div>
-    </div>
 </div>
 @endsection
 @push('scripts')

@@ -8,7 +8,7 @@
 <div class="container-fluid">
         <!-- Page-Title -->
     <!-- Title and Button Row -->
-    <div class="row mb-3 mt-3 align-items-center">
+    <div class="row mt-3 align-items-center">
         <div class="col-md-6">
             <h2 class="mb-0">Daftar Permintaan Pembelian</h2>
         </div>
@@ -23,8 +23,8 @@
                     <div class="col">
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">ERM</a></li>
-                            <li class="breadcrumb-item active">Farmasi</li>
-                            <li class="breadcrumb-item">E-Resep</li>
+                            <li class="breadcrumb-item">Farmasi</li>
+                            <li class="breadcrumb-item active">Permintaan Pembelian</li>
                         </ol>
                     </div><!--end col-->
                 </div><!--end row-->                                                              
