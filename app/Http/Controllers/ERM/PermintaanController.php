@@ -80,6 +80,12 @@ class PermintaanController extends Controller
             })->filter()->unique()->implode(', ');
             // Get pemasok name (should be the same for all items in this permintaan)
             $pemasokName = optional($p->items->first() ? $p->items->first()->pemasok : null)->nama ?? '-';
+            // Get approved_by user name if approved
+            $approved_by_name = null;
+            if ($p->status === 'approved' && $p->approved_by) {
+                $user = \App\Models\User::find($p->approved_by);
+                $approved_by_name = $user ? $user->name : null;
+            }
             if ($p->status === 'approved') {
                 $aksi .= '<a href="/erm/permintaan/'.$p->id.'/print" target="_blank" class="btn btn-secondary btn-sm mr-1"><i class="fa fa-print"></i> Print</a>';
             }
@@ -94,6 +100,7 @@ class PermintaanController extends Controller
                 'obats' => $obatList,
                 'request_date' => $p->request_date,
                 'status' => $p->status,
+                'approved_by_name' => $approved_by_name,
                 'jumlah_item' => $p->items->count(),
                 'aksi' => $aksi,
             ];

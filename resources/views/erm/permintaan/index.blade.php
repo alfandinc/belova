@@ -83,7 +83,11 @@ $(document).ready(function() {
                     if (data === 'waiting_approval' || data === 'waiting' || data === 'menunggu') {
                         return '<span class="badge badge-warning text-dark">Waiting Approval</span>';
                     } else if (data === 'approved' || data === 'disetujui') {
-                        return '<span class="badge badge-success">Approved</span>';
+                        let html = '<span class="badge badge-success">Approved</span>';
+                        if (row.approved_by_name) {
+                            html += '<br><small class="text-muted">Approved by: ' + row.approved_by_name + '</small>';
+                        }
+                        return html;
                     } else {
                         return '<span class="badge badge-secondary">'+data+'</span>';
                     }
