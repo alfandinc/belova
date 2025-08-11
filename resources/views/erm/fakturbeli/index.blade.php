@@ -69,7 +69,7 @@
                         <th>Total Harga</th>
                         <th>Status</th>
                         <th>Bukti</th>
-                        <th>Aksi</th>
+                        <th style="width: 280px; min-width: 260px; max-width: 320px;">Aksi</th>
                     </tr>
                 </thead>
             </table>
@@ -141,6 +141,9 @@ $(function() {
                 return data ? `<a href='/storage/${data}' target='_blank'>Lihat</a>` : '-';
             }},
             { data: 'action', name: 'action', orderable: false, searchable: false },
+        ],
+        columnDefs: [
+            { targets: -1, width: '280px' }
         ]
     });
     // Delete handler

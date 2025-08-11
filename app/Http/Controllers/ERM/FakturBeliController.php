@@ -48,7 +48,7 @@ class FakturBeliController extends Controller
                     // Approve button - only show for diterima status (not diminta or diapprove yet)
                     if ($row->status === 'diterima') {
                         $actionBtn .= '<button class="btn btn-sm btn-success btn-approve-faktur" data-id="' . $row->id . '">Approve</button> ';
-                        $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp" data-id="' . $row->id . '">Debug HPP</button> ';
+                        $actionBtn .= '<button class="btn btn-sm btn-info btn-debug-hpp" data-id="' . $row->id . '">Cek HPP</button> ';
                     }
                     // Delete button
                     $actionBtn .= '<button class="btn btn-sm btn-danger btn-delete-faktur" data-id="' . $row->id . '">Delete</button>';

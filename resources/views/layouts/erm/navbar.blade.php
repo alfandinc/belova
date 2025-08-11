@@ -95,11 +95,22 @@
                     <!-- Farmasi Section -->
                     @hasrole('Farmasi|Admin')
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="shopping-bag" class="align-self-center menu-icon"></i><span>Farmasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                                <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat</span></a>
+                            </li>
+                    <li>
+                        <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li>
-                                <a href="/erm/eresepfarmasi"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep Farmasi</span></a>
+                                <a href="/erm/eresepfarmasi"><i data-feather="file" class="align-self-center menu-icon"></i><span>Daftar Resep Rajal</span></a>
+                            </li>                           
+                            <li>
+                                <a href="/erm/statistic"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
                             </li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="javascript: void(0);"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Pembelian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <ul class="nav-second-level" aria-expanded="false">
                             <li>
                                 <a href="/erm/masterfaktur"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Pembelian</span></a>
                             </li>
@@ -109,15 +120,12 @@
                             <li>
                                 <a href="/erm/fakturpembelian"><i data-feather="file" class="align-self-center menu-icon"></i><span>Faktur Pembelian</span></a>
                             </li>
-                           
-                            <li>
-                                <a href="/erm/statistic"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Statistik Farmasi</span></a>
-                            </li>
-
-                            <li>
-                                <a href="/erm/monitor-profit"><i data-feather="percent" class="align-self-center menu-icon"></i><span>Monitor Profit</span></a>
-                            </li>
-                            
+                        </ul>
+                    </li>
+                    
+                    <li>
+                        <a href="javascript: void(0);"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Obat</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <ul class="nav-second-level" aria-expanded="false">
                             <li>
                                 <a href="/erm/obat-masuk"><i data-feather="log-in" class="align-self-center menu-icon"></i><span>Mutasi Obat Masuk</span></a>
                             </li>
@@ -127,18 +135,25 @@
                             <li>
                                 <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Mutasi Obat Keluar</span></a>
                             </li>
+
+                        </ul>
+                    </li>
+                                             
                             <li>
-                                <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat</span></a>
+                                <a href="/erm/monitor-profit"><i data-feather="percent" class="align-self-center menu-icon"></i><span>Monitor Profit</span></a>
                             </li>
+                            
+
+                            
                             {{-- <li>
                                 <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
                             </li> --}}
                             <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
                             </li>
-                        </ul>
-                    </li>
+                  
                     @endhasrole
+
 
                     <!-- SPK / Riwayat Tindakan Section -->
                     @hasanyrole('Lab|Perawat|Admin')
