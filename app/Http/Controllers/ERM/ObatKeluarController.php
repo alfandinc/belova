@@ -29,11 +29,17 @@ class ObatKeluarController extends Controller
             ->select(
                 'rf.obat_id',
                 'o.nama as nama_obat',
+                'o.hpp as hpp',
                 DB::raw('SUM(rf.jumlah) as jumlah')
             )
             ->whereDate('rf.created_at', '>=', $start)
             ->whereDate('rf.created_at', '<=', $end)
-            ->groupBy('rf.obat_id', 'o.nama');
+            ->groupBy('rf.obat_id', 'o.nama', 'o.hpp');
+
+        // Calculate total HPP for filtered data
+        $totalHpp = collect($query->get())->sum(function($item) {
+            return ($item->jumlah ?? 0) * ($item->hpp ?? 0);
+        });
 
         return DataTables::of($query)
             ->filter(function ($query) use ($request) {
@@ -45,6 +51,7 @@ class ObatKeluarController extends Controller
                 return '<button class="btn btn-sm btn-info btn-detail" data-obat-id="' . $row->obat_id . '">Detail</button>';
             })
             ->rawColumns(['detail'])
+            ->with('total_hpp', $totalHpp)
             ->make(true);
     }
 

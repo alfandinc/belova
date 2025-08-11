@@ -29,6 +29,11 @@ class ObatMasukController extends Controller
             ->groupBy('obat_id')
             ->with('obat');
 
+        // Calculate total HPP for filtered data
+        $totalHpp = $query->get()->sum(function($item) {
+            return ($item->total_masuk ?? 0) * ($item->obat->hpp ?? 0);
+        });
+
         return datatables()->of($query)
             ->addIndexColumn()
             ->addColumn('nama_obat', function ($item) {
@@ -41,6 +46,7 @@ class ObatMasukController extends Controller
                 return '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$item->obat_id.'">Detail</button>';
             })
             ->rawColumns(['nama_obat', 'qty', 'detail'])
+            ->with('total_hpp', $totalHpp)
             ->make(true);
 
     }

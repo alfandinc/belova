@@ -17,15 +17,20 @@
                         </div>
                 </div>
                 <div class="card-body">
-                        <table class="table table-bordered" id="obatMasukTable">
-                                <thead>
-                                        <tr>
-                                                <th>Nama Obat</th>
-                                                <th>Jumlah Masuk</th>
-                                                <th>Detail</th>
-                                        </tr>
-                                </thead>
-                        </table>
+            <table class="table table-bordered" id="obatMasukTable">
+                <thead>
+                    <tr>
+                        <th>Nama Obat</th>
+                        <th>Jumlah Masuk</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+            </table>
+                        <div class="card mt-4">
+                            <div class="card-body text-center">
+                                <span id="nilaiObatMasukSection" class="font-weight-bold"></span>
+                            </div>
+                        </div>
 
                         <!-- Modal -->
                         <div class="modal fade" id="detailModal" tabindex="-1" role="dialog" aria-labelledby="detailModalLabel" aria-hidden="true">
@@ -87,7 +92,12 @@ $(function() {
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'qty', name: 'qty' },
             { data: 'detail', name: 'detail', orderable: false, searchable: false }
-        ]
+        ],
+        drawCallback: function(settings) {
+            var response = settings.json || {};
+            var totalHpp = response.total_hpp || 0;
+            $('#nilaiObatMasukSection').html('<strong>Nilai Obat Masuk: </strong>Rp' + parseFloat(totalHpp).toLocaleString('id-ID'));
+        }
     });
 
     $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
