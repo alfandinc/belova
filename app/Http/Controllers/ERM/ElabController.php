@@ -30,7 +30,11 @@ class ElabController extends Controller
         if ($request->ajax()) {
             $visitations = Visitation::with(['pasien', 'metodeBayar'])->select('erm_visitations.*');
 
-            if ($request->tanggal) {
+            // Support date range filter
+            if ($request->filled('tanggal_start') && $request->filled('tanggal_end')) {
+                $visitations->whereDate('tanggal_visitation', '>=', $request->tanggal_start)
+                    ->whereDate('tanggal_visitation', '<=', $request->tanggal_end);
+            } elseif ($request->filled('tanggal')) {
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }
 
@@ -569,7 +573,7 @@ class ElabController extends Controller
             'tanggal_pemeriksaan' => 'required|date',
             'dokter' => 'required|string|max:255',
             'catatan' => 'nullable|string',
-            'file_hasil' => 'required|file|mimes:pdf|max:5120', // Max 5MB
+            'file_hasil' => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120', // Max 5MB
         ]);
         
         try {

@@ -39,9 +39,10 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="file_hasil">File Hasil (PDF) <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control-file" id="file_hasil" name="file_hasil" accept=".pdf" required>
-                        <small class="text-muted">File harus dalam format PDF, maksimal 5MB</small>
+                        <label for="file_hasil">File Hasil (PDF/Gambar) <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control-file" id="file_hasil" name="file_hasil" accept=".pdf,image/jpeg,image/png,image/jpg" required>
+                        <small class="text-muted">File harus dalam format PDF, JPG, JPEG, atau PNG, maksimal 5MB</small>
+                        <div id="eksternalHasilFilePreview" class="mt-2"></div>
                     </div>
                 </form>
             </div>

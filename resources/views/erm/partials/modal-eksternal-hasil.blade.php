@@ -21,9 +21,9 @@
                     </div>
                 </div>
                 
-                <!-- PDF viewer for lab results -->
-                <div id="pdfViewerContainer">
-                    <iframe id="pdfViewer" style="width: 100%; height: 500px; border: 1px solid #ddd;" frameborder="0"></iframe>
+                <!-- File viewer for lab results (image or PDF) -->
+                <div id="fileViewerContainer">
+                    <div id="fileViewerContent"></div>
                 </div>
             </div>
             <div class="modal-footer">

@@ -1221,13 +1221,24 @@ $(document).ready(function () {
                 $('#hasilEksternalDokter').text(response.data.dokter);
                 $('#hasilEksternalCatatan').text(response.data.catatan || '-');
                 
-                // Set PDF viewer if file exists
+                // Set file viewer (image or PDF) if file exists
                 if (response.fileUrl) {
-                    $('#pdfViewer').attr('src', response.fileUrl);
-                    $('#downloadPdfLink').attr('href', response.fileUrl);
-                    $('#pdfViewerContainer').show();
+                    let ext = response.fileUrl.split('.').pop().toLowerCase();
+                    let viewerHtml = '';
+                    if (['jpg','jpeg','png'].includes(ext)) {
+                        viewerHtml = '<img src="' + response.fileUrl + '" style="max-width:100%;max-height:500px;display:block;margin:auto;border:1px solid #ddd;">';
+                    } else if (ext === 'pdf') {
+                        viewerHtml = '<iframe src="' + response.fileUrl + '" style="width:100%;height:500px;border:1px solid #ddd;" frameborder="0"></iframe>';
+                    } else {
+                        viewerHtml = '<div class="text-danger">File tidak didukung untuk preview.</div>';
+                    }
+                    $('#fileViewerContent').html(viewerHtml);
+                    $('#fileViewerContainer').show();
+                    $('#downloadPdfLink').attr('href', response.fileUrl).show();
                 } else {
-                    $('#pdfViewerContainer').hide();
+                    $('#fileViewerContent').empty();
+                    $('#fileViewerContainer').hide();
+                    $('#downloadPdfLink').hide();
                 }
                 
                 // Show the modal
@@ -1552,7 +1563,6 @@ $(document).ready(function () {
                 $('#saveEksternalHasil').prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Menyimpan...');
             },
             success: function(response) {
-                // Show success message
                 Swal.fire({
                     icon: 'success',
                     title: 'Berhasil',
@@ -1560,23 +1570,16 @@ $(document).ready(function () {
                     timer: 1500,
                     showConfirmButton: false
                 });
-                
-                // Refresh the data table
                 hasilEksternalTable.ajax.reload();
-                
-                // Close the modal
                 $('#addEksternalHasilModal').modal('hide');
             },
             error: function(xhr) {
-                // Show error message
                 let message = 'Terjadi kesalahan saat menyimpan hasil lab eksternal';
-                
                 if (xhr.responseJSON && xhr.responseJSON.errors) {
                     message = Object.values(xhr.responseJSON.errors).flat().join('<br>');
                 } else if (xhr.responseJSON && xhr.responseJSON.message) {
                     message = xhr.responseJSON.message;
                 }
-                
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
@@ -1584,10 +1587,33 @@ $(document).ready(function () {
                 });
             },
             complete: function() {
-                // Re-enable the save button
                 $('#saveEksternalHasil').prop('disabled', false).html('Simpan');
             }
         });
+    });
+
+    // Preview file (image or PDF) in modal when viewing eksternal hasil
+    $(document).on('click', '.btn-view-hasil-eksternal', function() {
+        // ...existing code...
+        // (This is handled in the AJAX success for eksternal detail)
+    });
+
+    // File input preview for eksternal hasil (show image or PDF preview)
+    $('#addEksternalHasilForm input[type="file"]').on('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const previewContainer = $('#eksternalHasilFilePreview');
+        previewContainer.empty();
+        const fileType = file.type;
+        if (fileType.startsWith('image/')) {
+            const img = $('<img>').attr('src', URL.createObjectURL(file)).css({maxWidth: '100%', maxHeight: '300px', margin: '10px auto', display: 'block'});
+            previewContainer.append(img);
+        } else if (fileType === 'application/pdf') {
+            const iframe = $('<iframe>').attr('src', URL.createObjectURL(file)).css({width: '100%', height: '300px', border: 'none'});
+            previewContainer.append(iframe);
+        } else {
+            previewContainer.text('File tidak didukung.');
+        }
     });
 });
 </script>   

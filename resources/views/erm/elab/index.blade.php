@@ -31,9 +31,9 @@
         </div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="filter_tanggal">Filter Tanggal Kunjungan</label>
-                    <input type="date" id="filter_tanggal" class="form-control">
+                <div class="col-md-5">
+                    <label for="filter_tanggal_range">Filter Rentang Tanggal Kunjungan</label>
+                    <input type="text" id="filter_tanggal_range" class="form-control" autocomplete="off" placeholder="Pilih rentang tanggal">
                 </div>
             </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
@@ -55,9 +55,25 @@
 @section('scripts')
 <script>
 $(document).ready(function () {
-    // Set default value tanggal ke hari ini
-    var today = new Date().toISOString().substr(0, 10);
-    $('#filter_tanggal').val(today);
+    // Date range picker for filter
+    $('#filter_tanggal_range').daterangepicker({
+        autoUpdateInput: true,
+        locale: {
+            format: 'YYYY-MM-DD',
+            cancelLabel: 'Clear',
+            applyLabel: 'Terapkan',
+            fromLabel: 'Dari',
+            toLabel: 'Sampai',
+            customRangeLabel: 'Custom',
+            daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+            monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+            firstDay: 1
+        },
+        opens: 'left',
+        startDate: moment().startOf('day'),
+        endDate: moment().startOf('day'),
+        maxDate: moment(),
+    });
 
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
@@ -66,7 +82,12 @@ $(document).ready(function () {
         ajax: {
             url: '{{ route("erm.elab.index") }}',
             data: function(d) {
-                d.tanggal = $('#filter_tanggal').val();
+                let range = $('#filter_tanggal_range').val();
+                if (range) {
+                    let dates = range.split(' - ');
+                    d.tanggal_start = dates[0];
+                    d.tanggal_end = dates[1] ? dates[1] : dates[0];
+                }
             }
         },
         columns: [
@@ -84,8 +105,8 @@ $(document).ready(function () {
         }
     });
 
-    // Event ganti tanggal
-    $('#filter_tanggal').on('change', function () {
+    // Event ganti rentang tanggal
+    $('#filter_tanggal_range').on('apply.daterangepicker cancel.daterangepicker', function(ev, picker) {
         table.ajax.reload();
     });
 });
