@@ -21,7 +21,7 @@ class Employee extends Model
         'alamat',
         'gol_darah', // Blood type
         'village_id',
-        'position',       // Changed from 'posisi' to match migration
+        'position_id',       // Changed from 'posisi' to match migration
         'division_id',       // Changed from 'divisi' to match migration
         'pendidikan',
         'no_hp',

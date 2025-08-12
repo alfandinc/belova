@@ -240,12 +240,12 @@ class PerformanceEvaluationController extends Controller
 
     public function initiate(PerformanceEvaluationPeriod $period)
     {
-        // Get all employees with their divisions eager loaded
+        // Get all employees with their divisions and user roles eager loaded
         $employees = Employee::with(['division', 'user.roles'])->get();
 
-        // Get HRD employees
+        // Get HRD employees by user role 'Hrd' (case-insensitive)
         $hrdEmployees = $employees->filter(function ($employee) {
-            return $employee->division && stripos($employee->division->name, 'Human Resource') !== false;
+            return $employee->user && $employee->user->hasRole(['hrd', 'Hrd', 'HRD']);
         });
 
         // Get managers
