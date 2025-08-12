@@ -531,10 +531,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     continue;
                 }
 
-                // Handle billable_id - only use if it's numeric, otherwise set to null
+                // Handle billable_id - allow string or numeric (for ResepFarmasi, etc)
                 $billableId = null;
-                if (isset($item['billable_id']) && is_numeric($item['billable_id'])) {
-                    $billableId = intval($item['billable_id']);
+                if (isset($item['billable_id']) && $item['billable_id'] !== '' && $item['billable_id'] !== null) {
+                    $billableId = $item['billable_id'];
                 }
 
                 InvoiceItem::create([
