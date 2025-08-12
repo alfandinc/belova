@@ -216,7 +216,7 @@
         .tile-akreditasi { background-color: #1ABC9C; }
         .tile-kos { background-color: #d41886; }
         .tile-insiden { background-color: #800000; }
-
+        .tile-laporan { background-color: #5309c9; }
         .footer {
             text-align: center;
             padding: 20px;
@@ -250,6 +250,7 @@
         .delay-8 { animation-delay: 0.8s; }
         .delay-9 { animation-delay: 0.9s; }
         .delay-10 { animation-delay: 1.0s; }
+        .delay-11 { animation-delay: 1.1s; }
     </style>
 </head>
 
@@ -403,6 +404,13 @@
                         <i class="fas fa-building"></i>
                     </div>
                     <div class="menu-label">KOS BCL</div>
+                </a>
+                <!-- Laporan Tile -->
+                <a href="/laporan" class="menu-tile tile-laporan animate-item delay-11">
+                    <div class="menu-icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <div class="menu-label">LAPORAN</div>
                 </a>
             </div>
         </div>

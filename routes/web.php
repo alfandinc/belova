@@ -62,6 +62,7 @@ use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Insiden\LaporanInsidenController;
+use App\Http\Controllers\LaporanDashboardController;
 
 
 use Illuminate\Support\Facades\Auth;
@@ -122,6 +123,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/insiden', [\App\Http\Controllers\InsidenDashboardController::class, 'index'])
         ->middleware('role:Admin|Hrd|Manager|Employee')
         ->name('insiden.dashboard');
+
+    Route::get('/laporan', [LaporanDashboardController::class, 'index'])
+    ->middleware('role:Hrd|Manager|Employee|Admin')
+    ->name('laporan.dashboard');
 });
 
 
