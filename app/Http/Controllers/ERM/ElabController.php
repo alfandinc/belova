@@ -333,13 +333,13 @@ class ElabController extends Controller
             })
             ->addColumn('action', function($row) {
                 return '<button type="button" class="btn btn-sm btn-info btn-view-hasil-lis" data-id="'.$row->id.'" title="Lihat Hasil">
-                            <i class="fas fa-eye"></i>
+                            <i class="fas fa-eye"></i> Lihat
                         </button>
                         <button type="button" class="btn btn-sm btn-primary btn-add-hasil-lis ml-1" data-id="'.$row->id.'" title="Tambah Hasil">
-                            <i class="fas fa-plus"></i>
+                            <i class="fas fa-plus"></i> Tambah
                         </button>
                         <a href="'.route('erm.elab.hasil-lis.pdf', $row->id).'" class="btn btn-sm btn-danger ml-1" title="Cetak PDF Hasil Lab" target="_blank">
-                            <i class="fas fa-file-pdf"></i>
+                            <i class="fas fa-file-pdf"></i> PDF
                         </a>';
             })
             ->rawColumns(['action'])

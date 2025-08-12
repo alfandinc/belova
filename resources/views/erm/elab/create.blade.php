@@ -996,7 +996,27 @@ $(document).ready(function () {
             { data: 'tanggal', name: 'tanggal_visitation', width: '20%' },
             { data: 'pemeriksaan', name: 'pemeriksaan', width: '35%' },
             { data: 'dokter', name: 'dokter', width: '20%' },
-            { data: 'action', name: 'action', orderable: false, searchable: false, width: '20%', className: 'text-center' }
+            { 
+                data: 'action', 
+                name: 'action', 
+                orderable: false, 
+                searchable: false, 
+                width: '20%', 
+                className: 'text-center',
+                render: function(data, type, row) {
+                    // If already contains button text, just return
+                    if (data && (data.includes('Lihat') || data.includes('Edit') || data.includes('Hapus') || data.includes('Tambah'))) return data;
+                    // Otherwise, try to replace icon-only buttons with icon+label
+                    let html = data;
+                    if (html) {
+                        html = html.replace(/<i class="fas fa-eye[^"]*"><\/i>/g, '<i class="fas fa-eye"></i> Lihat');
+                        html = html.replace(/<i class="fas fa-edit[^"]*"><\/i>/g, '<i class="fas fa-edit"></i> Edit');
+                        html = html.replace(/<i class="fas fa-trash[^"]*"><\/i>/g, '<i class="fas fa-trash"></i> Hapus');
+                        html = html.replace(/<i class="fas fa-plus[^"]*"><\/i>/g, '<i class="fas fa-plus"></i> Tambah');
+                    }
+                    return html;
+                }
+            }
         ],
         order: [[1, 'desc']],
         language: {
