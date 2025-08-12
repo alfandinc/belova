@@ -168,7 +168,7 @@
                     @endhasanyrole
 
                     <!-- SPK / Riwayat Tindakan Section -->
-                    @hasanyrole('Beautician|Perawat|Admin')
+                    @hasanyrole('Beautician|Perawat|Admin|Dokter')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>SPK Tindakan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">

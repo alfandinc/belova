@@ -124,15 +124,25 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:Admin|Hrd|Manager|Employee')
         ->name('insiden.dashboard');
 
-    Route::get('/laporan', [LaporanDashboardController::class, 'index'])
-    ->middleware('role:Hrd|Manager|Employee|Admin')
-    ->name('laporan.dashboard');
+
+
 });
 
 
 
 Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');
 Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('customer.survey');
+
+//LAPORAN Routes
+Route::prefix('laporan')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+    Route::get('/farmasi/penjualan-obat/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanExcel'])->name('laporan.farmasi.penjualan-obat.excel');
+    Route::get('/farmasi/penjualan-obat/pdf', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanPdf'])->name('laporan.farmasi.penjualan-obat.pdf');
+    Route::get('/farmasi/penjualan-obat', [\App\Http\Controllers\Laporan\FarmasiController::class, 'penjualanObat'])->name('laporan.farmasi.penjualan-obat');
+    Route::get('/', [LaporanDashboardController::class, 'index'])->name('laporan.dashboard');
+    Route::get('/farmasi', [\App\Http\Controllers\Laporan\FarmasiController::class, 'index'])->name('laporan.farmasi');
+    Route::get('/farmasi/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportExcel'])->name('laporan.farmasi.excel');
+    Route::get('/farmasi/pdf', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPdf'])->name('laporan.farmasi.pdf');
+});
 
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
