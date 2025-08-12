@@ -285,6 +285,22 @@ class PerformanceEvaluationController extends Controller
                 }
             }
 
+            // CEO to Managers (using evaluation type ceo_to_hrd)
+            foreach ($ceos as $ceo) {
+                foreach ($managers as $manager) {
+                    PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $ceo->id,
+                            'evaluatee_id' => $manager->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                }
+            }
+
             // 2. Managers to Employees in their division
             foreach ($managers as $manager) {
                 if (!$manager->division) continue;
