@@ -519,7 +519,7 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
     }
 );
 
-Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(function () {
         // Pengajuan Lembur (Overtime)
         Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
         Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');
