@@ -344,4 +344,12 @@ class ObatController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal menghapus obat: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Export Obat data to Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\ObatExport($request), 'data_obat.xlsx');
+    }
 }

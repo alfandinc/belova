@@ -154,6 +154,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat-masuk', [App\Http\Controllers\ERM\ObatMasukController::class, 'index'])->name('erm.obatmasuk.index');
     // Update harga jual (nonfornas) via AJAX
     Route::post('/obat/{id}/update-harga', [App\Http\Controllers\ERM\ObatController::class, 'updateHargaJual'])->name('erm.obat.update-harga');
+    // Export Obat data to Excel
+    Route::get('/obat/export-excel', [App\Http\Controllers\ERM\ObatController::class, 'exportExcel'])->name('erm.obat.export-excel');
     // Monitor Profit
     Route::get('/monitor-profit', [App\Http\Controllers\ERM\ObatController::class, 'monitorProfit'])->name('erm.monitor-profit');
     // AJAX endpoints for select2 (controller)

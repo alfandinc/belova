@@ -25,7 +25,11 @@
             </div><!--end page-title-box-->
         </div><!--end col-->
     </div><!--end row-->  
+
     <a href="{{ route('erm.obat.create') }}" class="btn btn-primary mb-3">+ Tambah Obat</a>
+    <a href="{{ route('erm.obat.export-excel', request()->all()) }}" class="btn btn-success mb-3" target="_blank">
+        <i class="fas fa-file-excel"></i> Export Excel
+    </a>
 
     <div class="row mb-3">
         <div class="col-md-12">
