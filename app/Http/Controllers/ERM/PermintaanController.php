@@ -241,19 +241,19 @@ class PermintaanController extends Controller
                     $master = \App\Models\ERM\MasterFaktur::where('obat_id', $item->obat_id)
                         ->where('pemasok_id', $item->pemasok_id)
                         ->first();
-                    $harga = $master ? $master->harga : 0;
-                    $diskon = $master ? $master->diskon : 0;
-                    $diskon_type = $master ? $master->diskon_type : 'nominal';
-                    \App\Models\ERM\FakturBeliItem::create([
-                        'fakturbeli_id' => $faktur->id,
-                        'obat_id' => $item->obat_id,
-                        'qty' => $item->qty_total,
-                        'sisa' => $item->qty_total,
-                        'harga' => $harga,
-                        'diskon' => $diskon,
-                        'diskon_type' => $diskon_type,
-                        'diminta' => $item->qty_total,
-                    ]);
+                        $harga = $master ? $master->harga : 0;
+                        $diskon = $master ? $master->diskon : 0;
+                        $diskon_type = $master ? ($master->diskon_type == 'percent' ? 'persen' : $master->diskon_type) : 'nominal';
+                        \App\Models\ERM\FakturBeliItem::create([
+                            'fakturbeli_id' => $faktur->id,
+                            'obat_id' => $item->obat_id,
+                            'qty' => $item->qty_total,
+                            'sisa' => $item->qty_total,
+                            'harga' => $harga,
+                            'diskon' => $diskon,
+                            'diskon_type' => $diskon_type,
+                            'diminta' => $item->qty_total,
+                        ]);
                 }
             }
             $permintaan->update([

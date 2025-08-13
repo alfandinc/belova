@@ -73,17 +73,17 @@
                     <table class="table table-bordered" id="items-table">
                         <thead>
                             <tr>
-                                <th>Obat</th>
-                                <th>Diminta</th>
-                                <th>Qty</th>
-                                <th>Harga</th>
-                                <th>Total Amount</th>
-                                <th>Diskon</th>
-                                <th>Tax</th>
-                                <th>Gudang</th>
-                                <th>Batch</th>
-                                <th>Exp. Date</th>
-                                <th></th>
+                                <th class="align-top">Obat<br><small class="text-muted">Nama Produk/Obat</small></th>
+                                <th class="align-top">Diminta<br><small class="text-muted">Qty Barang yang Diminta</small></th>
+                                <th class="align-top">Diterima<br><small class="text-muted">Qty Barang yang Diterima</small></th>
+                                <th class="align-top">Amount<br><small class="text-muted">Harga Satuan Sebelum Diskon/Pajak</small></th>
+                                <th class="align-top">Diskon<br><small class="text-muted">Potongan Harga per Item</small></th>
+                                <th class="align-top">Tax<br><small class="text-muted">Pajak per Item</small></th>
+                                <th class="align-top">Total Amount<br><small class="text-muted">Harga Setelah Diskon & Pajak</small></th>
+                                <th class="align-top">Gudang<br><small class="text-muted">Lokasi Penyimpanan</small></th>
+                                <th class="align-top">Batch<br><small class="text-muted">Kode Batch Produk</small></th>
+                                <th class="align-top">Exp. Date<br><small class="text-muted">Tanggal Kadaluarsa</small></th>
+                                <th class="align-top"><small class="text-muted">Aksi</small></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -105,13 +105,12 @@
                                     </td>
                                     <td><input type="number" name="items[{{ $i }}][qty]" class="form-control item-qty" min="1" required value="{{ $item->qty }}"></td>
                                     <td><input type="number" name="items[{{ $i }}][harga]" class="form-control item-harga" step="0.01" required value="{{ $item->harga }}" placeholder="Fill"></td>
-                                    <td><input type="number" name="items[{{ $i }}][total]" class="form-control item-total" step="0.01" placeholder="Fill" value="{{ $item->qty * $item->harga }}"></td>
                                     <td>
                                         <div class="input-group">
                                             <input type="number" name="items[{{ $i }}][diskon]" class="form-control" step="0.01" value="{{ $item->diskon }}">
                                             <select name="items[{{ $i }}][diskon_type]" class="form-control" style="max-width:60px">
                                                 <option value="nominal" {{ isset($item->diskon_type) && $item->diskon_type == 'nominal' ? 'selected' : '' }}>Rp</option>
-                                                <option value="persen" {{ isset($item->diskon_type) && $item->diskon_type == 'persen' ? 'selected' : '' }}>%</option>
+                                                <option value="percent" {{ isset($item->diskon_type) && $item->diskon_type == 'percent' ? 'selected' : '' }}>%</option>
                                             </select>
                                         </div>
                                     </td>
@@ -120,10 +119,11 @@
                                             <input type="number" name="items[{{ $i }}][tax]" class="form-control" step="0.01" value="{{ $item->tax }}">
                                             <select name="items[{{ $i }}][tax_type]" class="form-control" style="max-width:60px">
                                                 <option value="nominal" {{ isset($item->tax_type) && $item->tax_type == 'nominal' ? 'selected' : '' }}>Rp</option>
-                                                <option value="persen" {{ isset($item->tax_type) && $item->tax_type == 'persen' ? 'selected' : '' }}>%</option>
+                                                <option value="percent" {{ isset($item->tax_type) && $item->tax_type == 'percent' ? 'selected' : '' }}>%</option>
                                             </select>
                                         </div>
                                     </td>
+                                    <td><input type="number" name="items[{{ $i }}][total]" class="form-control item-total" step="0.01" placeholder="Fill" value="{{ $item->qty * $item->harga }}"></td>
                                     <td>
                                         <select name="items[{{ $i }}][gudang_id]" class="form-control gudang-select" required style="width:100%">
                                             @if($item->gudang)
@@ -167,7 +167,7 @@
                                                 <input type="number" id="global-diskon" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_diskon !== null ? $faktur->global_diskon : 0 }}" step="0.01" min="0">
                                                 <select id="global-diskon-type" class="form-control form-control-sm" style="max-width:60px">
                                                     <option value="nominal">Rp</option>
-                                                    <option value="persen">%</option>
+                                                    <option value="percent">%</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -181,7 +181,7 @@
                                                 <input type="number" id="global-tax" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_pajak !== null ? $faktur->global_pajak : 11 }}" step="0.01" min="0">
                                                 <select id="global-tax-type" class="form-control form-control-sm" style="max-width:60px">
                                                     <option value="nominal" {{ (isset($faktur) && isset($faktur->global_pajak_type) && $faktur->global_pajak_type == 'nominal') ? 'selected' : '' }}>Rp</option>
-                                                    <option value="persen" {{ (!isset($faktur) || (isset($faktur->global_pajak_type) && $faktur->global_pajak_type == 'persen') || !isset($faktur->global_pajak_type)) ? 'selected' : '' }}>%</option>
+                                                    <option value="percent" {{ (!isset($faktur) || (isset($faktur->global_pajak_type) && $faktur->global_pajak_type == 'percent') || !isset($faktur->global_pajak_type)) ? 'selected' : '' }}>%</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -243,13 +243,12 @@ function itemRow(idx) {
         <td><input type="number" name="items[${idx}][diminta]" class="form-control diminta-field" readonly value="0"></td>
         <td><input type="number" name="items[${idx}][qty]" class="form-control item-qty" min="1" required><span class="text-danger">*</span></td>
         <td><input type="number" name="items[${idx}][harga]" class="form-control item-harga" step="0.01" required placeholder="Fill"><span class="text-danger">*</span></td>
-        <td><input type="number" name="items[${idx}][total]" class="form-control item-total" step="0.01" placeholder="Fill"></td>
         <td>
             <div class="input-group">
                 <input type="number" name="items[${idx}][diskon]" class="form-control" step="0.01">
                 <select name="items[${idx}][diskon_type]" class="form-control" style="max-width:60px">
                     <option value="nominal">Rp</option>
-                    <option value="persen">%</option>
+                    <option value="percent" selected>%</option>
                 </select>
             </div>
         </td>
@@ -258,11 +257,12 @@ function itemRow(idx) {
                 <input type="number" name="items[${idx}][tax]" class="form-control" step="0.01">
                 <select name="items[${idx}][tax_type]" class="form-control" style="max-width:60px">
                     <option value="nominal">Rp</option>
-                    <option value="persen">%</option>
+                    <option value="percent">%</option>
                 </select>
             </div>
         </td>
-    <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"><option value="1" selected>Gudang Utama</option></select><span class="text-danger">*</span></td>
+        <td><input type="number" name="items[${idx}][total]" class="form-control item-total" step="0.01" placeholder="Fill"></td>
+        <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"><option value="1" selected>Gudang Utama</option></select><span class="text-danger">*</span></td>
         <td><input type="text" name="items[${idx}][batch]" class="form-control"></td>
         <td><input type="date" name="items[${idx}][expiration_date]" class="form-control"></td>
         <td><button type="button" class="btn btn-danger btn-sm remove-item">Hapus</button></td>
@@ -350,8 +350,8 @@ function calculateTotalHarga() {
     let globalDiskonType = $('#global-diskon-type').val() || 'nominal';
     let globalTax = parseFloat($('#global-tax').val()) || 0;
     let globalTaxType = $('#global-tax-type').val() || 'nominal';
-    let globalDiskonValue = globalDiskonType === 'persen' ? (subtotal * globalDiskon / 100) : globalDiskon;
-    let globalTaxValue = globalTaxType === 'persen' ? (subtotal * globalTax / 100) : globalTax;
+    let globalDiskonValue = globalDiskonType === 'percent' ? (subtotal * globalDiskon / 100) : globalDiskon;
+    let globalTaxValue = globalTaxType === 'percent' ? (subtotal * globalTax / 100) : globalTax;
     let grandTotal = subtotal - globalDiskonValue + globalTaxValue;
     if (grandTotal < 0) grandTotal = 0;
     $('#total-harga').text(grandTotal.toLocaleString('id-ID', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
@@ -390,43 +390,49 @@ $(document).on('input change', 'input[name*="[total]"]', function() {
     calculateTotalHarga();
 });
 
-// --- Enhanced automatic harga calculation for all relevant fields (handles all persen/nominal combinations) ---
-function recalculateHargaForRow(row) {
+// --- Enhanced automatic harga and total calculation for all relevant fields (handles all percent/nominal combinations) ---
+function recalculateHargaAndTotalForRow(row) {
     var qty = parseFloat(row.find('input[name*="[qty]"]').val()) || 0;
-    var total = parseFloat(row.find('input[name*="[total]"]').val()) || 0;
+    var harga = parseFloat(row.find('input[name*="[harga]"]').val()) || 0;
     var diskon = parseFloat(row.find('input[name*="[diskon]"]').val()) || 0;
     var diskonType = row.find('select[name*="[diskon_type]"]').val();
     var tax = parseFloat(row.find('input[name*="[tax]"]').val()) || 0;
     var taxType = row.find('select[name*="[tax_type]"]').val();
-    if (qty > 0 && total > 0) {
-        var unitPrice = total / qty;
-        // Apply percentage/nominal logic for diskon and tax
-        if (diskonType === 'persen') {
-            unitPrice = unitPrice / ((100 - diskon) / 100);
-        } else if (diskonType === 'nominal') {
-            unitPrice = unitPrice + (diskon / qty);
-        }
-        if (taxType === 'persen') {
-            unitPrice = unitPrice / ((100 + tax) / 100);
-        } else if (taxType === 'nominal') {
-            unitPrice = unitPrice - (tax / qty);
-        }
-        row.find('input[name*="[harga]"]').val(unitPrice.toFixed(2));
+
+    // Calculate total amount from qty and harga, then apply diskon and tax
+    var baseTotal = qty * harga;
+    var diskonValue = 0;
+    if (diskonType === 'percent') {
+        diskonValue = baseTotal * diskon / 100;
     } else {
-        row.find('input[name*="[harga]"]').val('');
+        diskonValue = diskon;
     }
+    var taxValue = 0;
+    if (taxType === 'percent') {
+        taxValue = baseTotal * tax / 100;
+    } else {
+        taxValue = tax;
+    }
+    var totalAmount = baseTotal - diskonValue + taxValue;
+    if (totalAmount < 0) totalAmount = 0;
+    row.find('input[name*="[total]"]').val(totalAmount.toFixed(2));
+
+    // Optionally, recalculate harga if needed (for reverse calculation)
+    // If you want harga to update when total changes, keep your old logic here
 }
 
-$(document).on('input change', 'input[name*="[qty]"], input[name*="[total]"], input[name*="[diskon]"], input[name*="[tax]"], select[name*="[diskon_type]"], select[name*="[tax_type]"]', function() {
+$(document).on('input change', 'input[name*="[qty]"], input[name*="[harga]"], input[name*="[diskon]"], input[name*="[tax]"], select[name*="[diskon_type]"], select[name*="[tax_type]"]', function() {
     var row = $(this).closest('tr');
-    recalculateHargaForRow(row);
+    recalculateHargaAndTotalForRow(row);
 });
-// --- End enhanced automatic harga calculation ---
+// --- End enhanced automatic harga and total calculation ---
 
 // Initialize select2 for existing rows on edit
 $(document).ready(function() {
     $('#items-table tbody tr').each(function() {
         initObatSelect2(this);
+        // Recalculate total amount for each row to include diskon and tax
+        recalculateHargaAndTotalForRow($(this));
     });
     calculateTotalHarga();
 });
@@ -496,17 +502,17 @@ $('#debug-hpp').on('click', function() {
         let tax = parseFloat($(this).find('input[name*="[tax]"]').val()) || 0;
         let taxType = $(this).find('select[name*="[tax_type]"]').val() || 'nominal';
         let base = qty * harga;
-        let diskonValue = diskonType === 'persen' ? (base * diskon / 100) : diskon;
-        let taxValue = taxType === 'persen' ? (base * tax / 100) : tax;
+        let diskonValue = diskonType === 'percent' ? (base * diskon / 100) : diskon;
+        let taxValue = taxType === 'percent' ? (base * tax / 100) : tax;
         let subtotal = base - diskonValue + taxValue;
         items.push({ idx, qty, harga, diskon, diskonType, tax, taxType, base, diskonValue, taxValue, subtotal });
         totalItemSubtotal += subtotal;
     });
     
     // Calculate global diskon/pajak value
-    let globalDiskonValue = globalDiskonType === 'persen' ? (totalItemSubtotal * globalDiskon / 100) : globalDiskon;
-    let globalPajakValue = globalPajakType === 'persen' ? (totalItemSubtotal * globalPajak / 100) : globalPajak;
-    
+    let globalDiskonValue = globalDiskonType === 'percent' ? (totalItemSubtotal * globalDiskon / 100) : globalDiskon;
+    let globalPajakValue = globalPajakType === 'percent' ? (totalItemSubtotal * globalPajak / 100) : globalPajak;
+
     // For global tax distribution
     let hppList = [];
     items.forEach(function(item, i) {

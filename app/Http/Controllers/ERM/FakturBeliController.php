@@ -45,6 +45,9 @@ class FakturBeliController extends Controller
                     return null;
                 })
                 ->addColumn('action', function($row) {
+                    if ($row->status === 'diapprove') {
+                        return '<a href="/erm/fakturpembelian/' . $row->id . '/print" target="_blank" class="btn btn-secondary btn-sm"><i class="fa fa-print"></i> Print</a>';
+                    }
                     $actionBtn = '';
                     // Edit button with contextual label based on status
                     if ($row->status === 'diminta') {
@@ -107,9 +110,9 @@ class FakturBeliController extends Controller
             'items.*.diminta' => 'nullable|integer|min:1',
             'items.*.harga' => 'required|numeric',
             'items.*.diskon' => 'nullable|numeric',
-            'items.*.diskon_type' => 'nullable|string|in:nominal,persen',
+            'items.*.diskon_type' => 'nullable|string|in:nominal,percent',
             'items.*.tax' => 'nullable|numeric',
-            'items.*.tax_type' => 'nullable|string|in:nominal,persen',
+            'items.*.tax_type' => 'nullable|string|in:nominal,percent',
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
             'items.*.batch' => 'nullable|string',
             'items.*.expiration_date' => 'nullable|date',
@@ -227,9 +230,9 @@ class FakturBeliController extends Controller
             'items.*.diminta' => 'nullable|integer|min:1',
             'items.*.harga' => 'required|numeric',
             'items.*.diskon' => 'nullable|numeric',
-            'items.*.diskon_type' => 'nullable|string|in:nominal,persen',
+            'items.*.diskon_type' => 'nullable|string|in:nominal,percent',
             'items.*.tax' => 'nullable|numeric',
-            'items.*.tax_type' => 'nullable|string|in:nominal,persen',
+            'items.*.tax_type' => 'nullable|string|in:nominal,percent',
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
             'items.*.batch' => 'nullable|string',
             'items.*.expiration_date' => 'nullable|date',
@@ -560,5 +563,20 @@ class FakturBeliController extends Controller
         
         // Pass the faktur to the create view with a flag indicating it's for completion
         return view('erm.fakturbeli.create', compact('faktur', 'pemasoks', 'gudangs'));
+    }
+
+        /**
+     * Print Faktur Pembelian as PDF using mPDF
+     */
+    public function printFaktur($id)
+    {
+        $faktur = \App\Models\ERM\FakturBeli::with(['items.obat', 'items.gudang', 'pemasok'])->findOrFail($id);
+        $mpdf = new \Mpdf\Mpdf(['format' => 'A4']);
+        $html = view('erm.fakturbeli.print', compact('faktur'))->render();
+        $mpdf->WriteHTML($html);
+        return response($mpdf->Output('', 'S'), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="FakturPembelian-' . $faktur->no_faktur . '.pdf"'
+        ]);
     }
 }
