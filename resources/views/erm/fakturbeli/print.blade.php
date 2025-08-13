@@ -46,7 +46,7 @@
                 <td class="right">{{ number_format($item->harga, 2, ',', '.') }}</td>
                 <td class="right">{{ $item->diskon }} {{ $item->diskon_type == 'percent' ? '%' : 'Rp' }}</td>
                 <td class="right">{{ $item->tax }} {{ $item->tax_type == 'percent' ? '%' : 'Rp' }}</td>
-                <td class="right">{{ number_format($item->qty * $item->harga, 2, ',', '.') }}</td>
+                <td class="right">{{ number_format($item->total_amount, 2, ',', '.') }}</td>
                 <td>{{ $item->gudang->nama ?? '-' }}</td>
                 <td>{{ $item->batch }}</td>
                 <td>{{ $item->expiration_date }}</td>

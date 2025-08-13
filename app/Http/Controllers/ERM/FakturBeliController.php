@@ -155,18 +155,18 @@ class FakturBeliController extends Controller
             $tax = $item['tax'] ?? 0;
             $taxType = $item['tax_type'] ?? 'nominal';
             $base = $qty * $harga;
-            $diskonValue = $diskonType === 'persen' ? ($base * $diskon / 100) : $diskon;
-            $taxValue = $taxType === 'persen' ? ($base * $tax / 100) : $tax;
+            $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
+            $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
             $itemSubtotal = $base - $diskonValue + $taxValue;
             $itemSubtotals[] = $itemSubtotal;
         }
         $totalItemSubtotal = array_sum($itemSubtotals);
         $globalDiskon = $validated['global_diskon'] ?? 0;
         $globalDiskonType = $validated['global_diskon_type'] ?? 'nominal';
-        $globalDiskonValue = $globalDiskonType === 'persen' ? ($totalItemSubtotal * $globalDiskon / 100) : $globalDiskon;
+        $globalDiskonValue = $globalDiskonType === 'percent' ? ($totalItemSubtotal * $globalDiskon / 100) : $globalDiskon;
         $globalPajak = $validated['global_pajak'] ?? 0;
         $globalPajakType = $validated['global_pajak_type'] ?? 'nominal';
-        $globalPajakValue = $globalPajakType === 'persen' ? ($totalItemSubtotal * $globalPajak / 100) : $globalPajak;
+        $globalPajakValue = $globalPajakType === 'percent' ? ($totalItemSubtotal * $globalPajak / 100) : $globalPajak;
 
         foreach ($validated['items'] as $idx => $item) {
             $qty = $item['qty'] ?? 0;
@@ -176,8 +176,8 @@ class FakturBeliController extends Controller
             $tax = $item['tax'] ?? 0;
             $taxType = $item['tax_type'] ?? 'nominal';
             $base = $qty * $harga;
-            $diskonValue = $diskonType === 'persen' ? ($base * $diskon / 100) : $diskon;
-            $taxValue = $taxType === 'persen' ? ($base * $tax / 100) : $tax;
+            $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
+            $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
             $itemSubtotal = $base - $diskonValue + $taxValue;
             // Distribute global pajak proportionally
             $prop = $totalItemSubtotal > 0 ? $itemSubtotal / $totalItemSubtotal : 0;
@@ -198,6 +198,7 @@ class FakturBeliController extends Controller
                 'gudang_id' => $item['gudang_id'],
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
+                'total_amount' => $itemSubtotal,
             ]);
         }
 
@@ -267,23 +268,30 @@ class FakturBeliController extends Controller
         $faktur->items()->delete();
         foreach ($validated['items'] as $item) {
             $qty = $item['qty'] ?? 0;
-            $diminta = $item['diminta'] ?? $qty;
+            $harga = $item['harga'] ?? 0;
+            $diskon = $item['diskon'] ?? 0;
             $diskonType = $item['diskon_type'] ?? 'nominal';
+            $tax = $item['tax'] ?? 0;
             $taxType = $item['tax_type'] ?? 'nominal';
-            
+            $base = $qty * $harga;
+            $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
+            $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
+            $itemSubtotal = $base - $diskonValue + $taxValue;
+
             $faktur->items()->create([
                 'obat_id' => $item['obat_id'],
                 'qty' => $qty,
-                'diminta' => $diminta,
+                'diminta' => $item['diminta'] ?? $qty,
                 'sisa' => $qty,
-                'harga' => $item['harga'],
-                'diskon' => $item['diskon'] ?? 0,
+                'harga' => $harga,
+                'diskon' => $diskon,
                 'diskon_type' => $diskonType,
-                'tax' => $item['tax'] ?? 0,
+                'tax' => $tax,
                 'tax_type' => $taxType,
                 'gudang_id' => $item['gudang_id'],
                 'batch' => $item['batch'] ?? null,
                 'expiration_date' => $item['expiration_date'] ?? null,
+                'total_amount' => $itemSubtotal,
             ]);
         }
 

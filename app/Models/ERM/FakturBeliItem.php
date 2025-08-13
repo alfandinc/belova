@@ -10,7 +10,7 @@ class FakturBeliItem extends Model
     use HasFactory;
     protected $table = 'erm_fakturbeli_items';
     protected $fillable = [
-        'fakturbeli_id', 'obat_id', 'qty', 'sisa', 'harga', 'diskon', 'diskon_type', 'tax', 'tax_type', 'gudang_id', 'batch', 'expiration_date', 'diminta'
+        'fakturbeli_id', 'obat_id', 'qty', 'sisa', 'harga', 'diskon', 'diskon_type', 'tax', 'tax_type', 'gudang_id', 'batch', 'expiration_date', 'diminta', 'total_amount'
     ];
 
     public function obat()
