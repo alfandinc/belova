@@ -243,7 +243,7 @@ class PermintaanController extends Controller
                         ->first();
                         $harga = $master ? $master->harga : 0;
                         $diskon = $master ? $master->diskon : 0;
-                        $diskon_type = $master ? ($master->diskon_type == 'percent' ? 'persen' : $master->diskon_type) : 'nominal';
+                        $diskon_type = $master ? ($master->diskon_type == 'percent' ? 'percent' : $master->diskon_type) : 'nominal';
                         \App\Models\ERM\FakturBeliItem::create([
                             'fakturbeli_id' => $faktur->id,
                             'obat_id' => $item->obat_id,
