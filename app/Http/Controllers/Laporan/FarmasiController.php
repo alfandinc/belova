@@ -37,6 +37,9 @@ class FarmasiController extends Controller
                 ->addColumn('harga_beli', function($item) {
                     return number_format($item->harga, 2);
                 })
+                ->addColumn('quantity', function($item) {
+                    return $item->qty ?? 1;
+                })
                 ->addColumn('diskon', function($item) {
                     $diskon = $item->diskon ?? 0;
                     $diskonType = $item->diskon_type ?? 'nominal';
@@ -55,7 +58,7 @@ class FarmasiController extends Controller
                     $hargaJadi = $base - $diskonValue + $taxValue;
                     return number_format($hargaJadi, 2);
                 })
-                ->rawColumns(['nama_pemasok', 'nama_obat', 'harga_beli', 'diskon', 'harga_jadi'])
+                ->rawColumns(['nama_pemasok', 'nama_obat', 'harga_beli', 'quantity', 'diskon', 'harga_jadi'])
                 ->make(true);
         }
         return view('laporan.farmasi.index');
@@ -101,10 +104,13 @@ class FarmasiController extends Controller
                 ->addColumn('harga_jual', function($item) {
                     return number_format($item->unit_price, 2);
                 })
+                ->addColumn('quantity', function($item) {
+                    return $item->quantity ?? 1;
+                })
                 ->addColumn('diskon_pelayanan', function($item) {
                     return ($item->discount ?? 0) > 0 ? 'Ada' : 'Tidak';
                 })
-                ->rawColumns(['nama_obat', 'harga_jual', 'diskon_pelayanan'])
+                ->rawColumns(['nama_obat', 'harga_jual', 'quantity', 'diskon_pelayanan'])
                 ->make(true);
         }
 
