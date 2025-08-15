@@ -30,6 +30,18 @@
         <!-- end page title end breadcrumb -->
         <div class="mb-3">
                 <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalCariPermintaan"><i class="fa fa-search"></i> Cari Faktur Berdasarkan No Permintaan</button>
+                <div class="form-inline mt-2">
+                    <label for="tanggalTerimaRange" class="mr-2">Filter Tanggal Terima:</label>
+                    <input type="text" id="tanggalTerimaRange" class="form-control" style="width:220px;" autocomplete="off" placeholder="Pilih rentang tanggal">
+                    <button class="btn btn-secondary btn-sm ml-2" id="resetTanggalTerima">Reset</button>
+                        <label for="statusFilter" class="ml-4 mr-2">Status:</label>
+                        <select id="statusFilter" class="form-control" style="width:150px;">
+                            <option value="">Semua</option>
+                            <option value="diminta">Diminta</option>
+                            <option value="diterima">Diterima</option>
+                            <option value="diapprove">Diapprove</option>
+                        </select>
+                </div>
         </div>
         <!-- Modal Cari Permintaan -->
         <div class="modal fade" id="modalCariPermintaan" tabindex="-1" role="dialog" aria-labelledby="modalCariPermintaanLabel" aria-hidden="true">
@@ -106,7 +118,13 @@ $(function() {
     $('#fakturbeli-table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: '{{ route('erm.fakturbeli.index') }}',
+            ajax: {
+                url: '{{ route('erm.fakturbeli.index') }}',
+                data: function(d) {
+                    d.tanggal_terima_range = $('#tanggalTerimaRange').val();
+                        d.status = $('#statusFilter').val();
+                }
+            },
         order: [[4, 'desc']], // received_date column (index 4)
         columns: [
             { data: null, name: 'no', orderable: false, searchable: false, render: function (data, type, row, meta) {
@@ -152,6 +170,33 @@ $(function() {
             { targets: -1, width: '280px' }
         ]
     });
+
+        // Date Range Picker for Tanggal Terima
+        $('#tanggalTerimaRange').daterangepicker({
+            autoUpdateInput: false,
+            locale: {
+                cancelLabel: 'Clear',
+                format: 'YYYY-MM-DD'
+            }
+        });
+
+        $('#tanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
+            $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
+            $('#fakturbeli-table').DataTable().ajax.reload();
+        });
+        $('#tanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
+            $(this).val('');
+            $('#fakturbeli-table').DataTable().ajax.reload();
+        });
+        $('#resetTanggalTerima').on('click', function() {
+            $('#tanggalTerimaRange').val('');
+            $('#fakturbeli-table').DataTable().ajax.reload();
+        });
+
+            // Status filter handler
+            $('#statusFilter').on('change', function() {
+                $('#fakturbeli-table').DataTable().ajax.reload();
+            });
     // Delete handler
     $('#fakturbeli-table').on('click', '.btn-delete-faktur', function() {
         if(confirm('Yakin ingin menghapus faktur ini?')) {

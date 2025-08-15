@@ -20,7 +20,21 @@ class FakturBeliController extends Controller
     {
         if ($request->ajax()) {
             $data = FakturBeli::with(['pemasok', 'items.obat'])->select('erm_fakturbeli.*');
-            return DataTables::of($data)
+                // Filter by received_date range if provided
+                if ($request->filled('tanggal_terima_range')) {
+                    $range = explode(' - ', $request->input('tanggal_terima_range'));
+                    if (count($range) === 2) {
+                        $start = $range[0];
+                        $end = $range[1];
+                        $data = $data->whereDate('received_date', '>=', $start)
+                                     ->whereDate('received_date', '<=', $end);
+                    }
+                }
+                    // Filter by status if provided
+                    if ($request->filled('status')) {
+                        $data = $data->where('status', $request->input('status'));
+                    }
+                return DataTables::of($data)
                 ->addColumn('pemasok', function($row) {
                     return $row->pemasok ? $row->pemasok->nama : '-';
                 })
