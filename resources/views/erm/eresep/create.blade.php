@@ -232,6 +232,39 @@
                             </tbody>
                         </table>
 
+                        <!-- Form untuk menambah obat baru ke racikan (hidden by default) -->
+                        <div class="add-medication-form d-none mb-3">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Tambah Obat ke Racikan {{ $ke }}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label>Nama Obat</label>
+                                            <select class="form-control select2-obat-racikan-add" style="width: 100%;">
+                                                <option value="">Pilih Obat</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label>Dosis</label>
+                                            <input type="number" class="form-control dosis-racikan-add" placeholder="Dosis" step="0.01" min="0">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label>Mode</label>
+                                            <select class="form-control mode-racikan-add">
+                                                <option value="manual">Manual</option>
+                                                <option value="tablet">Per Tablet</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 d-flex align-items-end">
+                                            <button type="button" class="btn btn-primary btn-sm btn-add-medication btn-block">Tambah</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="row">
                             <div class="col-md-3">
                                 <label>RACIKAN</label>
@@ -430,12 +463,29 @@
 
         // Function to refresh row colors based on farmasi prescriptions
         function refreshRowColors() {
+            // Handle non-racikan rows
             $('#resep-table-body tr[data-id]').each(function() {
                 const row = $(this);
                 const obatId = row.data('obat-id');
                 
                 if (obatId) {
                     checkIfObatInFarmasi(obatId, function(existsInFarmasi) {
+                        if (existsInFarmasi) {
+                            row.addClass('text-success row-in-farmasi');
+                        } else {
+                            row.removeClass('text-success row-in-farmasi');
+                        }
+                    });
+                }
+            });
+
+            // Handle racikan rows
+            $('#racikan-container .resep-table-body tr[data-obat-id]').each(function() {
+                const row = $(this);
+                const obatId = row.data('obat-id');
+                
+                if (obatId) {
+                    checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
                         if (existsInFarmasi) {
                             row.addClass('text-success row-in-farmasi');
                         } else {
@@ -685,6 +735,39 @@
                             </tr>
                         </tbody>
                     </table>
+
+                    <!-- Form untuk menambah obat baru ke racikan (hidden by default) -->
+                    <div class="add-medication-form d-none mb-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Tambah Obat ke Racikan ${racikanCount}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label>Nama Obat</label>
+                                        <select class="form-control select2-obat-racikan-add" style="width: 100%;">
+                                            <option value="">Pilih Obat</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Dosis</label>
+                                        <input type="number" class="form-control dosis-racikan-add" placeholder="Dosis" step="0.01" min="0">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Mode</label>
+                                        <select class="form-control mode-racikan-add">
+                                            <option value="manual">Manual</option>
+                                            <option value="tablet">Per Tablet</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-primary btn-sm btn-add-medication btn-block">Tambah</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="row">
                         <div class="col-md-3">
@@ -1076,6 +1159,8 @@
                     // Show save button, hide update button
                     card.find('.tambah-resepracikan').removeClass('d-none');
                     card.find('.update-resepracikan').addClass('d-none');
+                    // Hide add medication form
+                    card.find('.add-medication-form').addClass('d-none');
 
             card.find('.edit-obat, .hapus-obat').prop('disabled', true).addClass('disabled');
                     // Update total price
@@ -1220,7 +1305,7 @@
                                         <td>${paket.nama_paket}</td>
                                         <td>${wadahNama}</td>
                                         <td>
-                                            <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}">Gunakan</button>
+                                            <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}" data-paket='${JSON.stringify(paket)}'>Gunakan</button>
                                             <button class="btn btn-sm btn-info detail-paket" data-paket='${JSON.stringify(paket)}'>Detail</button>
                                             <button class="btn btn-sm btn-danger delete-paket" data-id="${paket.id}">Hapus</button>
                                         </td>
@@ -1425,73 +1510,126 @@
         // Copy Paket Racikan
         $(document).on('click', '.copy-paket', function() {
             let paketId = $(this).data('id');
+            let paketData = $(this).data('paket');
+            
+            // Set data paket ke modal konfirmasi
+            $('#paketNamaDisplay').text(paketData.nama_paket);
+            $('#paketBungkus').val(paketData.bungkus_default || 10);
+            $('#paketAturanPakai').val(paketData.aturan_pakai_default || '');
+            $('#selectedPaketId').val(paketId);
+            
+            // Tutup modal paket racikan dan buka modal konfirmasi
+            $('#paketRacikanModal').modal('hide');
+            $('#gunakanPaketModal').modal('show');
+        });
+
+        // Konfirmasi gunakan paket racikan
+        $(document).on('click', '#konfirmasiGunakanPaket', function() {
+            let paketId = $('#selectedPaketId').val();
+            let bungkus = $('#paketBungkus').val();
+            let aturanPakai = $('#paketAturanPakai').val();
             let visitationId = $('#visitation_id').val();
             
-            Swal.fire({
-                title: 'Konfirmasi',
-                text: 'Yakin ingin menggunakan paket racikan ini?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Ya, Gunakan!',
-                cancelButtonText: 'Batal'
-            }).then((result) => {
-                if (result.value) {
-                    // Show loading state
-                    $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...').prop('disabled', true);
-                    
-                    $.ajax({
-                        url: "{{ route('erm.paket-racikan.copy') }}",
-                        method: 'POST',
-                        data: {
-                            _token: "{{ csrf_token() }}",
-                            paket_racikan_id: paketId,
-                            visitation_id: visitationId
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                // Update racikan counter
-                                racikanCount = response.racikan_ke;
-                                
-                                // Get the paket data to build the card
-                                let paket = null;
-                                $('.copy-paket[data-id="' + paketId + '"]').closest('tr').find('.detail-paket').each(function() {
-                                    paket = $(this).data('paket');
-                                });
-                                
-                                if (paket) {
-                                    // Create the racikan card HTML
-                                    createRacikanCardFromPaket(paket, response.racikan_ke);
-                                }
-                                
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Berhasil!',
-                                    text: response.message,
-                                    confirmButtonColor: '#3085d6'
-                                });
-                                $('#paketRacikanModal').modal('hide');
-                                
-                                // Update total price
-                                updateTotalPrice();
-                            }
-                        },
-                        error: function(xhr) {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Gagal',
-                                text: 'Gagal menggunakan paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'),
-                                confirmButtonColor: '#3085d6'
-                            });
-                        },
-                        complete: function() {
-                            // Reset button state
-                            $('.copy-paket').html('Gunakan').prop('disabled', false);
+            // Validasi input
+            if (!bungkus || !aturanPakai) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Data Belum Lengkap',
+                    text: 'Bungkus dan Aturan Pakai harus diisi',
+                    confirmButtonColor: '#3085d6'
+                });
+                return;
+            }
+            
+            // Show loading state
+            $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...').prop('disabled', true);
+            
+            $.ajax({
+                url: "{{ route('erm.paket-racikan.copy') }}",
+                method: 'POST',
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    paket_racikan_id: paketId,
+                    visitation_id: visitationId,
+                    bungkus: bungkus,
+                    aturan_pakai: aturanPakai
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Tandai modal agar tidak buka ulang
+                        $('#gunakanPaketModal').addClass('reload-after-close');
+                        
+                        // Update racikan counter
+                        racikanCount = response.racikan_ke;
+                        
+                        // Dapatkan data paket untuk membuat card
+                        let paketData = null;
+                        $('.copy-paket[data-id="' + paketId + '"]').each(function() {
+                            let row = $(this).closest('tr');
+                            paketData = row.find('.detail-paket').data('paket');
+                        });
+                        
+                        if (paketData) {
+                            // Buat racikan card dari data paket dengan bungkus dan aturan pakai custom
+                            createRacikanCardFromPaketWithCustomData(paketData, response.racikan_ke, bungkus, aturanPakai);
+                            
+                            // Update total price
+                            updateTotalPrice();
+                            
+                            // Refresh row colors for new racikan
+                            setTimeout(function() {
+                                refreshRowColors();
+                            }, 500);
+                            
+                            // Tutup semua modal
+                            $('#paketRacikanModal').modal('hide');
                         }
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil!',
+                            text: response.message || 'Paket racikan berhasil diterapkan!',
+                            confirmButtonColor: '#3085d6',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal',
+                            text: response.message || 'Gagal menerapkan paket racikan',
+                            confirmButtonColor: '#3085d6'
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Error copying paket:', xhr);
+                    let errorMessage = 'Gagal menerapkan paket racikan';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: errorMessage,
+                        confirmButtonColor: '#3085d6'
                     });
+                },
+                complete: function() {
+                    $('#konfirmasiGunakanPaket').html('OK').prop('disabled', false);
+                    $('#gunakanPaketModal').modal('hide');
                 }
             });
+        });
+
+        // Handler untuk kembali ke modal paket racikan jika user batal di modal konfirmasi
+        $('#gunakanPaketModal').on('hidden.bs.modal', function (e) {
+            // Jika modal ditutup tanpa konfirmasi, buka kembali modal paket racikan
+            if (!$(e.target).hasClass('reload-after-close')) {
+                setTimeout(function() {
+                    $('#paketRacikanModal').modal('show');
+                }, 300);
+            }
         });
 
         // Function to create racikan card from paket data
@@ -1562,6 +1700,39 @@
                         </tbody>
                     </table>
 
+                    <!-- Form untuk menambah obat baru ke racikan (hidden by default) -->
+                    <div class="add-medication-form d-none mb-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Tambah Obat ke Racikan ${racikanKe}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label>Nama Obat</label>
+                                        <select class="form-control select2-obat-racikan-add" style="width: 100%;">
+                                            <option value="">Pilih Obat</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Dosis</label>
+                                        <input type="number" class="form-control dosis-racikan-add" placeholder="Dosis" step="0.01" min="0">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Mode</label>
+                                        <select class="form-control mode-racikan-add">
+                                            <option value="manual">Manual</option>
+                                            <option value="tablet">Per Tablet</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-primary btn-sm btn-add-medication btn-block">Tambah</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-3">
                             <label>RACIKAN</label>
@@ -1576,6 +1747,150 @@
                         <div class="col-md-6">
                             <label>Aturan Pakai</label>
                             <input type="text" class="form-control aturan_pakai" value="${paket.aturan_pakai_default || ''}" disabled>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
+                    <button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update Racikan</button>
+                </div>
+            `;
+
+            // Append to racikan container
+            $('#racikan-container').append(racikanCard);
+            
+            // Initialize select2 for the new wadah select
+            $('#racikan-container .select2-wadah-racikan').last().select2({
+                placeholder: 'Search wadah...',
+                ajax: {
+                    url: '{{ route("wadah.search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term };
+                    },
+                    processResults: function (data) {
+                        return { results: data };
+                    },
+                    cache: true
+                }
+            });
+        }
+
+        // Function to create racikan card from paket data with custom bungkus and aturan pakai
+        function createRacikanCardFromPaketWithCustomData(paket, racikanKe, customBungkus, customAturanPakai) {
+            let obatRows = '';
+            paket.details.forEach(function(detail) {
+                // Calculate harga akhir
+                let dosisObat = parseFloat(detail.obat.dosis) || 0;
+                let dosisRacik = parseFloat(detail.dosis) || 0;
+                let hargaSatuan = parseFloat(detail.obat.harga_nonfornas) || 0;
+                let hargaAkhir = (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
+                
+                // Determine stock color
+                let stok = detail.obat.stok || 0;
+                let stockColor = stok < 10 ? 'red' : (stok < 100 ? 'yellow' : 'green');
+                
+                obatRows += `
+                    <tr data-obat-id="${detail.obat.id}">
+                        <td data-id="" data-obat-id="${detail.obat.id}">${detail.obat.nama || '-'}</td>
+                        <td>${detail.obat.dosis || '-'}</td>
+                        <td>${detail.dosis}</td>
+                        <td>${new Intl.NumberFormat('id-ID').format(hargaSatuan)}</td>
+                        <td>${new Intl.NumberFormat('id-ID').format(hargaAkhir)}</td>
+                        <td style="color: ${stockColor};">${stok}</td>
+                        <td><button class="btn btn-danger btn-sm hapus-obat disabled" disabled>Hapus</button></td>
+                    </tr>
+                `;
+            });
+
+            // Calculate total harga racikan with custom bungkus
+            let totalHargaAkhir = 0;
+            paket.details.forEach(function(detail) {
+                let dosisObat = parseFloat(detail.obat.dosis) || 0;
+                let dosisRacik = parseFloat(detail.dosis) || 0;
+                let hargaSatuan = parseFloat(detail.obat.harga_nonfornas) || 0;
+                totalHargaAkhir += (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
+            });
+            let hargaRacikan = totalHargaAkhir * customBungkus;
+
+            let racikanCard = `
+                <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanKe}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5><strong>Racikan ${racikanKe}
+                            <span style="color: #00ff99; font-size: 1rem; font-weight: normal;">
+                                (Rp. ${new Intl.NumberFormat('id-ID').format(hargaRacikan)})
+                            </span>
+                        </strong></h5>
+                        <div>
+                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
+                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered text-white">
+                        <thead>
+                            <tr>
+                                <th>Nama Obat</th>
+                                <th>Dosis Obat</th>
+                                <th>Dosis Racik</th>
+                                <th>Harga Satuan</th>
+                                <th>Harga Akhir</th>
+                                <th>Sisa Stok</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="resep-table-body">
+                            ${obatRows}
+                        </tbody>
+                    </table>
+
+                    <!-- Form untuk menambah obat baru ke racikan (hidden by default) -->
+                    <div class="add-medication-form d-none mb-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Tambah Obat ke Racikan ${racikanKe}</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label>Nama Obat</label>
+                                        <select class="form-control select2-obat-racikan-add" style="width: 100%;">
+                                            <option value="">Pilih Obat</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Dosis</label>
+                                        <input type="number" class="form-control dosis-racikan-add" placeholder="Dosis" step="0.01" min="0">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Mode</label>
+                                        <select class="form-control mode-racikan-add">
+                                            <option value="manual">Manual</option>
+                                            <option value="tablet">Per Tablet</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-primary btn-sm btn-add-medication btn-block">Tambah</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label>RACIKAN</label>
+                            <select class="form-control select2-wadah-racikan wadah" name="wadah_id" disabled>
+                                <option value="${paket.wadah ? paket.wadah.id : ''}" selected>${paket.wadah ? paket.wadah.nama : 'Pilih Wadah'}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Bungkus</label>
+                            <input type="number" class="form-control jumlah_bungkus bungkus" value="${customBungkus}" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Aturan Pakai</label>
+                            <input type="text" class="form-control aturan_pakai" value="${customAturanPakai}" disabled>
                         </div>
                     </div>
 
@@ -1736,44 +2051,12 @@
         }
     });
 
-             // Function to refresh row colors based on farmasi prescriptions
-        function refreshRowColors() {
-            // Handle non-racikan rows
-            $('#resep-table-body tr[data-id]').each(function() {
-                const row = $(this);
-                const obatId = row.data('obat-id');
-                
-                if (obatId) {
-                    checkIfObatInFarmasi(obatId, function(existsInFarmasi) {
-                        if (existsInFarmasi) {
-                            row.addClass('text-success row-in-farmasi');
-                        } else {
-                            row.removeClass('text-success row-in-farmasi');
-                        }
-                    });
-                }
-            });
-
-            // Handle racikan rows
-            $('#racikan-container .resep-table-body tr[data-obat-id]').each(function() {
-                const row = $(this);
-                const obatId = row.data('obat-id');
-                
-                if (obatId) {
-                    checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
-                        if (existsInFarmasi) {
-                            row.addClass('text-success row-in-farmasi');
-                        } else {
-                            row.removeClass('text-success row-in-farmasi');
-                        }
-                    });
-                }
-            });
-        }/* TODO: Add background color for better visibility */
-
     // DEBUG: Global handler for edit-racikan to ensure it always works
     $(document).on('click', '.edit-racikan', function () {
+        console.log('Edit racikan clicked!'); // Debug log
         const card = $(this).closest('.racikan-card');
+        console.log('Found card:', card.length); // Debug log
+        
         // Enable all possible field classes to handle different naming conventions in the HTML
         card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
         card.find('.tambah-resepracikan').addClass('d-none');
@@ -1782,6 +2065,158 @@
         card.find('.hapus-obat').prop('disabled', false).removeClass('disabled');
         // Disable hapus-obat in other racikan cards
         $('#racikan-container .racikan-card').not(card).find('.hapus-obat').prop('disabled', true).addClass('disabled');
+        
+        // Show the add medication form during edit mode
+        const addForm = card.find('.add-medication-form');
+        console.log('Found add medication form:', addForm.length); // Debug log
+        addForm.removeClass('d-none');
+        
+        // Initialize Select2 for the medication dropdown in edit form if not already initialized
+        const select = card.find('.select2-obat-racikan-add');
+        console.log('Found select:', select.length); // Debug log
+        if (!select.hasClass('select2-hidden-accessible')) {
+            console.log('Initializing Select2...'); // Debug log
+            select.select2({
+                placeholder: 'Pilih Obat',
+                allowClear: true,
+                minimumInputLength: 3,
+                ajax: {
+                    url: '{{ route("obat.search") }}',
+                    type: 'GET',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return {
+                            q: params.term || ''
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function (item) {
+                                return {
+                                    id: item.id,
+                                    text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                    nama: item.nama,
+                                    dosis: item.dosis,
+                                    satuan: item.satuan,
+                                    harga_nonfornas: item.harga_nonfornas,
+                                    stok: item.stok
+                                };
+                            })
+                        };
+                    },
+                    cache: true
+                },
+                escapeMarkup: function (markup) {
+                    return markup;
+                },
+                templateResult: function (data) {
+                    return data.text;
+                },
+                templateSelection: function (data) {
+                    return data.text;
+                }
+            });
+        }
+    });
+
+    // Handle Add Medication button click in edit mode
+    $(document).on('click', '.btn-add-medication', function () {
+        console.log('Add medication button clicked!'); // Debug log
+        const card = $(this).closest('.racikan-card');
+        const racikanKe = card.data('racikan-ke');
+        const obatSelect = card.find('.select2-obat-racikan-add');
+        const dosisInput = card.find('.dosis-racikan-add');
+        const modeSelect = card.find('.mode-racikan-add');
+        
+        console.log('Form elements found:', {
+            card: card.length,
+            obatSelect: obatSelect.length,
+            dosisInput: dosisInput.length,
+            modeSelect: modeSelect.length
+        }); // Debug log
+        
+        const obatId = obatSelect.val();
+        const obatData = obatSelect.select2('data')[0]; // Get full obat data
+        const dosis = dosisInput.val();
+        const mode = modeSelect.val();
+        
+        console.log('Form values:', { obatId, obatData, dosis, mode }); // Debug log
+        
+        // Validation
+        if (!obatId || !dosis || !mode) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Data Belum Lengkap',
+                text: 'Semua field wajib diisi.',
+                confirmButtonColor: '#3085d6'
+            });
+            return;
+        }
+        
+        // Check if obat already exists in this racikan
+        let obatExists = false;
+        card.find('.resep-table-body tr[data-obat-id]').each(function() {
+            if ($(this).data('obat-id') == obatId && !$(this).hasClass('obat-deleted')) {
+                obatExists = true;
+                return false; // break loop
+            }
+        });
+        
+        if (obatExists) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Obat Sudah Ada',
+                text: 'Obat ini sudah ada dalam racikan ini.',
+                confirmButtonColor: '#3085d6'
+            });
+            return;
+        }
+        
+        // Calculate harga akhir using data from select2
+        let dosisObat = parseFloat(obatData.dosis) || 0;
+        let dosisRacik = parseFloat(dosis) || 0;
+        let hargaSatuan = parseFloat(obatData.harga_nonfornas) || 0;
+        let hargaAkhir = (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
+        
+        // Determine stock color
+        let stok = obatData.stok || 0;
+        let stockColor = stok < 10 ? 'red' : (stok < 100 ? 'yellow' : 'green');
+        
+        // Add new row to the table
+        const newRow = `
+            <tr data-obat-id="${obatId}" class="new-medication-row">
+                <td data-id="" data-obat-id="${obatId}">${obatData.nama || obatData.text}</td>
+                <td>${obatData.dosis || '-'}</td>
+                <td>${dosis}</td>
+                <td>${new Intl.NumberFormat('id-ID').format(hargaSatuan)}</td>
+                <td>${new Intl.NumberFormat('id-ID').format(hargaAkhir)}</td>
+                <td style="color: ${stockColor};">${stok}</td>
+                <td>
+                    <button class="btn btn-success btn-sm edit-obat disabled" disabled title="Edit">Edit</button>
+                    <button class="btn btn-danger btn-sm hapus-obat" title="Hapus">Hapus</button>
+                </td>
+            </tr>
+        `;
+        
+        card.find('.resep-table-body').append(newRow);
+        
+        // Clear the form
+        obatSelect.val(null).trigger('change');
+        dosisInput.val('');
+        modeSelect.val('');
+        
+        // Update total price
+        updateTotalPrice();
+        
+        // Show success message
+        Swal.fire({
+            icon: 'success',
+            title: 'Berhasil',
+            text: 'Obat berhasil ditambahkan ke racikan.',
+            timer: 1500,
+            showConfirmButton: false
+        });
     });
 
     // Pasien Keluar button handler

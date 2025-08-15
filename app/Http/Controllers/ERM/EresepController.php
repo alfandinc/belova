@@ -1274,12 +1274,16 @@ class EresepController extends Controller
         $validated = $request->validate([
             'paket_racikan_id' => 'required|exists:erm_paket_racikan,id',
             'visitation_id' => 'required',
+            'bungkus' => 'required|integer|min:1',
+            'aturan_pakai' => 'required|string|max:255',
         ]);
 
         $paketRacikan = PaketRacikan::with(['details.obat', 'wadah'])
             ->findOrFail($validated['paket_racikan_id']);
 
         $visitationId = $validated['visitation_id'];
+        $bungkus = $validated['bungkus'];
+        $aturanPakai = $validated['aturan_pakai'];
 
         // Get the next racikan_ke number
         $lastRacikanKe = ResepDokter::where('visitation_id', $visitationId)
@@ -1296,18 +1300,19 @@ class EresepController extends Controller
                 'id' => $customId,
                 'visitation_id' => $visitationId,
                 'obat_id' => $detail->obat_id,
-                'aturan_pakai' => $paketRacikan->aturan_pakai_default,
+                'aturan_pakai' => $aturanPakai, // Gunakan aturan pakai dari modal
                 'racikan_ke' => $newRacikanKe,
                 'wadah_id' => $paketRacikan->wadah_id,
-                'bungkus' => $paketRacikan->bungkus_default,
+                'bungkus' => $bungkus, // Gunakan bungkus dari modal
                 'dosis' => $detail->dosis,
+                'user_id' => Auth::id(),
                 'created_at' => now(),
             ]);
         }
 
         return response()->json([
             'success' => true,
-            'message' => "Paket racikan '{$paketRacikan->nama_paket}' berhasil ditambahkan.",
+            'message' => "Paket racikan '{$paketRacikan->nama_paket}' berhasil ditambahkan dengan {$bungkus} bungkus.",
             'racikan_ke' => $newRacikanKe
         ]);
     }

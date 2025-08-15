@@ -108,3 +108,36 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Konfirmasi Gunakan Paket Racikan -->
+<div class="modal fade" id="gunakanPaketModal" tabindex="-1" role="dialog" aria-labelledby="gunakanPaketModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gunakanPaketModalLabel">Gunakan Paket Racikan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label><strong>Nama Paket:</strong></label>
+                    <p id="paketNamaDisplay" class="mb-2"></p>
+                </div>
+                <div class="form-group">
+                    <label for="paketBungkus">Jumlah Bungkus <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control" id="paketBungkus" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="paketAturanPakai">Aturan Pakai <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="paketAturanPakai" placeholder="Contoh: 3 x 1 hari" required>
+                </div>
+                <input type="hidden" id="selectedPaketId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="konfirmasiGunakanPaket">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
