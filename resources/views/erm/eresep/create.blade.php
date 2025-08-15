@@ -11,40 +11,7 @@
         color: #28a745 !important;
         font-weight: bold;
     }
-         // Function to refresh row colors based on farmasi prescriptions
-        function refreshRowColors() {
-            // Handle non-racikan rows
-            $('#resep-table-body tr[data-id]').each(function() {
-                const row = $(this);
-                const obatId = row.data('obat-id');
-                
-                if (obatId) {
-                    checkIfObatInFarmasi(obatId, function(existsInFarmasi) {
-                        if (existsInFarmasi) {
-                            row.addClass('text-success row-in-farmasi');
-                        } else {
-                            row.removeClass('text-success row-in-farmasi');
-                        }
-                    });
-                }
-            });
 
-            // Handle racikan rows
-            $('#racikan-container .resep-table-body tr[data-obat-id]').each(function() {
-                const row = $(this);
-                const obatId = row.data('obat-id');
-                
-                if (obatId) {
-                    checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
-                        if (existsInFarmasi) {
-                            row.addClass('text-success row-in-farmasi');
-                        } else {
-                            row.removeClass('text-success row-in-farmasi');
-                        }
-                    });
-                }
-            });
-        }al: Add background color for better visibility */
     .row-in-farmasi {
         background-color: rgba(40, 167, 69, 0.1) !important;
     }
@@ -1768,6 +1735,41 @@
             initializePaketRacikanSelects();
         }
     });
+
+             // Function to refresh row colors based on farmasi prescriptions
+        function refreshRowColors() {
+            // Handle non-racikan rows
+            $('#resep-table-body tr[data-id]').each(function() {
+                const row = $(this);
+                const obatId = row.data('obat-id');
+                
+                if (obatId) {
+                    checkIfObatInFarmasi(obatId, function(existsInFarmasi) {
+                        if (existsInFarmasi) {
+                            row.addClass('text-success row-in-farmasi');
+                        } else {
+                            row.removeClass('text-success row-in-farmasi');
+                        }
+                    });
+                }
+            });
+
+            // Handle racikan rows
+            $('#racikan-container .resep-table-body tr[data-obat-id]').each(function() {
+                const row = $(this);
+                const obatId = row.data('obat-id');
+                
+                if (obatId) {
+                    checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
+                        if (existsInFarmasi) {
+                            row.addClass('text-success row-in-farmasi');
+                        } else {
+                            row.removeClass('text-success row-in-farmasi');
+                        }
+                    });
+                }
+            });
+        }/* TODO: Add background color for better visibility */
 
     // DEBUG: Global handler for edit-racikan to ensure it always works
     $(document).on('click', '.edit-racikan', function () {
