@@ -740,66 +740,63 @@ class EresepController extends Controller
         ], 200);
     }
 
-    // If force, delete only billing items for Obat
-    if ($force) {
-        Billing::where('visitation_id', $visitationId)
-            ->where('billable_type', 'App\Models\ERM\ResepFarmasi')
-            ->delete();
-    }
-
-    // Fetch all related prescriptions
-    $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
-    // Update resepdetail status to 1
-    \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->update(['status' => 1]);
-
-    // Bill for each medication and update stok/sisa
-    foreach ($reseps as $resep) {
-        $qty = $resep->racikan_ke ? ($resep->bungkus ?? 1) : ($resep->jumlah ?? 1);
-        // Reduce stok in obat
-        $obat = $resep->obat;
-        if ($obat && $qty > 0) {
-            $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
-            $obat->save();
-        }
-
-        // Reduce sisa in faktur beli items (nearest expiration first)
-        if ($obat && $qty > 0) {
-            $remaining = $qty;
-            $fakturItems = \App\Models\ERM\FakturBeliItem::where('obat_id', $obat->id)
-                ->where('sisa', '>', 0)
-                ->whereNotNull('expiration_date')
-                ->orderBy('expiration_date', 'asc')
-                ->get();
-            foreach ($fakturItems as $item) {
-                if ($remaining <= 0) break;
-                $take = min($item->sisa, $remaining);
-                $item->sisa -= $take;
-                $item->save();
-                $remaining -= $take;
-            }
-        }
-
-        Billing::updateOrCreate(
-            [
-                'billable_id' => $resep->id,
-                'billable_type' => ResepFarmasi::class,
-            ],
-            [
-                'visitation_id' => $resep->visitation_id,
-                'qty' => $qty,
-                'jumlah' => $resep->harga ?? 0,
-                'keterangan' => 'Obat: ' . ($resep->obat->nama ?? 'Tanpa Nama') . 
-                                ($resep->racikan_ke ? ' (Racikan #' . $resep->racikan_ke . ')' : ''),
-            ]
-        );
-    }
+    DB::beginTransaction();
     
+    try {
+        // If force, delete only billing items for Obat
+        if ($force) {
+            Billing::where('visitation_id', $visitationId)
+                ->where('billable_type', 'App\Models\ERM\ResepFarmasi')
+                ->delete();
+        }
 
+        // Fetch all related prescriptions
+        $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
+        
+        // Update resepdetail status to 1
+        \App\Models\ERM\ResepDetail::updateOrCreate(
+            ['visitation_id' => $visitationId],
+            ['status' => 1, 'submitted_at' => now()]
+        );
 
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Resep berhasil disubmit!'
-    ]);
+        // Create billing records (NO STOCK REDUCTION HERE)
+        foreach ($reseps as $resep) {
+            $qty = $resep->racikan_ke ? ($resep->bungkus ?? 1) : ($resep->jumlah ?? 1);
+            
+            Billing::updateOrCreate(
+                [
+                    'billable_id' => $resep->id,
+                    'billable_type' => ResepFarmasi::class,
+                ],
+                [
+                    'visitation_id' => $resep->visitation_id,
+                    'qty' => $qty,
+                    'jumlah' => $resep->harga ?? 0,
+                    'keterangan' => 'Obat: ' . ($resep->obat->nama ?? 'Tanpa Nama') . 
+                                    ($resep->racikan_ke ? ' (Racikan #' . $resep->racikan_ke . ')' : ''),
+                ]
+            );
+        }
+        
+        DB::commit();
+        
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Resep berhasil disubmit ke billing!'
+        ]);
+        
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error submitting resep', [
+            'visitation_id' => $visitationId,
+            'error' => $e->getMessage()
+        ]);
+        
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+        ], 500);
+    }
 }
 
     // RIWAYAT DOKTER & FARMASI

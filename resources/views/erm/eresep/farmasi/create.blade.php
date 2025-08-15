@@ -856,21 +856,40 @@
             const $btn = $(this);
             const visitationId = $('#visitation_id').val();
             
-            Swal.fire({
-                title: 'Konfirmasi',
-                text: 'Yakin ingin submit resep ini?',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, Submit!',
-                cancelButtonText: 'Batal'
-            }).then((result) => {
-                if (result.value) {
-                    doSubmit(false);
-                }
-            });
+            // Check if already submitted
+            const isSubmitted = $btn.hasClass('btn-secondary');
+            
+            if (isSubmitted) {
+                Swal.fire({
+                    title: 'Konfirmasi',
+                    text: 'Resep sudah pernah disubmit. Yakin ingin submit ulang?',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, Submit Ulang!',
+                    cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (result.value) {
+                        doSubmit(true); // Force resubmit
+                    }
+                });
+            } else {
+                Swal.fire({
+                    title: 'Konfirmasi',
+                    text: 'Yakin ingin submit resep ke billing? Stok akan dikurangi saat pembayaran.',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ya, Submit!',
+                    cancelButtonText: 'Batal'
+                }).then((result) => {
+                    if (result.value) {
+                        doSubmit(false);
+                    }
+                });
+            }
             
             function doSubmit(force = false) {
-                $btn.text('Telah disimpan').addClass('btn-secondary').removeClass('btn-success');
+                $btn.prop('disabled', true).text('Memproses...');
+                
                 $.ajax({
                     url: "{{ route('resepfarmasi.submit') }}",
                     method: 'POST',
@@ -892,21 +911,31 @@
                                 if (result.value) {
                                     doSubmit(true); // Resubmit with force
                                 } else {
-                                    $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
+                                    resetButton();
                                 }
                             });
-                        } else {
+                        } else if (res.status === 'success') {
                             Swal.fire('Sukses', res.message, 'success');
-                            // window.location.reload(); // Optionally reload the page
+                            $btn.text('Sudah Disubmit').addClass('btn-secondary').removeClass('btn-success').prop('disabled', false);
+                        } else if (res.status === 'error') {
+                            Swal.fire('Error', res.message, 'error');
+                            resetButton();
                         }
                     },
                     error: function () {
                         Swal.fire('Error', 'Gagal submit resep. Coba lagi.', 'error');
-                        $('button').not('.btn-primary, .btn-riwayat').prop('disabled', false);
-                        $('input, select, textarea').prop('disabled', false);
-                        $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
+                        resetButton();
                     }
                 });
+                
+                function resetButton() {
+                    $btn.prop('disabled', false);
+                    if (isSubmitted) {
+                        $btn.text('Sudah Disubmit').addClass('btn-secondary').removeClass('btn-success');
+                    } else {
+                        $btn.text('Submit Resep').addClass('btn-success').removeClass('btn-secondary');
+                    }
+                }
             }
         });
 

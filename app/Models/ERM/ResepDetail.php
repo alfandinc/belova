@@ -14,5 +14,10 @@ class ResepDetail extends Model
         'no_resep',
         'catatan_dokter',
         'status',
+        'submitted_at',
+    ];
+
+    protected $casts = [
+        'submitted_at' => 'datetime',
     ];
 }

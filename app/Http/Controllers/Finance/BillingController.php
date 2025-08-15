@@ -438,6 +438,34 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ], 404);
             }
 
+            // Check stock availability for medication items BEFORE creating invoice
+            $stockErrors = [];
+            foreach ($request->items as $item) {
+                if (isset($item['deleted']) && $item['deleted']) {
+                    continue;
+                }
+                
+                // Check if this is a ResepFarmasi item
+                if (isset($item['billable_type']) && $item['billable_type'] === 'App\Models\ERM\ResepFarmasi') {
+                    $resep = \App\Models\ERM\ResepFarmasi::find($item['billable_id']);
+                    if ($resep && $resep->obat) {
+                        $qty = intval($item['qty'] ?? 1);
+                        $currentStock = $resep->obat->stok ?? 0;
+                        
+                        if ($qty > $currentStock) {
+                            $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                        }
+                    }
+                }
+            }
+            
+            if (!empty($stockErrors)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Stok tidak mencukupi untuk beberapa obat:\n' . implode('\n', $stockErrors)
+                ], 400);
+            }
+
             // First, save any new items to the billing table
             $newItems = collect($request->items)->filter(function($item) {
                 return isset($item['id']) && (
@@ -518,6 +546,40 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
 
+            // NOW REDUCE STOCK for medication items
+            foreach ($request->items as $item) {
+                if (isset($item['deleted']) && $item['deleted']) {
+                    continue;
+                }
+                
+                // Reduce stock only for ResepFarmasi items
+                if (isset($item['billable_type']) && $item['billable_type'] === 'App\Models\ERM\ResepFarmasi') {
+                    $resep = \App\Models\ERM\ResepFarmasi::find($item['billable_id']);
+                    if ($resep && $resep->obat) {
+                        $qty = intval($item['qty'] ?? 1);
+                        $obat = $resep->obat;
+                        
+                        // Reduce main stock
+                        $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
+                        $obat->save();
+                        
+                        // Reduce faktur beli items (FIFO - First Expiry First Out)
+                        $this->reduceFakturStock($obat->id, $qty);
+                        
+                        // Log stock movement
+                        Log::info('Stock reduced via invoice', [
+                            'obat_id' => $obat->id,
+                            'obat_nama' => $obat->nama,
+                            'qty_reduced' => $qty,
+                            'remaining_stock' => $obat->stok,
+                            'invoice_id' => $invoice->id,
+                            'visitation_id' => $request->visitation_id,
+                            'user_id' => Auth::id()
+                        ]);
+                    }
+                }
+            }
+
             // Create invoice items
             foreach ($request->items as $item) {
                 if (isset($item['deleted']) && $item['deleted']) {
@@ -585,12 +647,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             return response()->json([
                 'success' => true,
-                'message' => 'Invoice created successfully',
+                'message' => 'Invoice berhasil dibuat dan stok telah diupdate',
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Error creating invoice', [
+                'error' => $e->getMessage(),
+                'visitation_id' => $request->visitation_id ?? null
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create invoice: ' . $e->getMessage()
@@ -887,5 +954,41 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'dokters' => $dokters,
             'kliniks' => $kliniks,
         ]);
+    }
+
+    /**
+     * Reduce stock in faktur beli items using FIFO (First Expiry First Out)
+     */
+    private function reduceFakturStock($obatId, $qty)
+    {
+        $remaining = $qty;
+        $fakturItems = \App\Models\ERM\FakturBeliItem::where('obat_id', $obatId)
+            ->where('sisa', '>', 0)
+            ->whereNotNull('expiration_date')
+            ->orderBy('expiration_date', 'asc')
+            ->get();
+            
+        foreach ($fakturItems as $item) {
+            if ($remaining <= 0) break;
+            $take = min($item->sisa, $remaining);
+            $item->sisa -= $take;
+            $item->save();
+            $remaining -= $take;
+            
+            Log::info('Faktur stock reduced', [
+                'faktur_item_id' => $item->id,
+                'obat_id' => $obatId,
+                'qty_reduced' => $take,
+                'remaining_sisa' => $item->sisa,
+                'remaining_to_reduce' => $remaining
+            ]);
+        }
+        
+        if ($remaining > 0) {
+            Log::warning('Could not reduce all faktur stock', [
+                'obat_id' => $obatId,
+                'remaining_unreduced' => $remaining
+            ]);
+        }
     }
 }
