@@ -17,13 +17,13 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="riwayat_penyakit_dahulu">Riwayat Penyakit Dahulu</label>
-                                    <input type="text" class="form-control" id="riwayat_penyakit_dahulu" name="riwayat_penyakit_dahulu" value="{{ old('riwayat_penyakit_dahulu', $asesmen->riwayat_penyakit_dahulu ?? '') }}">
+                                    <input type="text" class="form-control" id="riwayat_penyakit_dahulu" name="riwayat_penyakit_dahulu" value="{{ old('riwayat_penyakit_dahulu', $asesmen->riwayat_penyakit_dahulu ?? $prefill_riwayat_penyakit_dahulu ?? '') }}">
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="obat_dikonsumsi">Obat yang Dikonsumsi</label>
-                                    <input type="text" class="form-control" id="obat_dikonsumsi" name="obat_dikonsumsi" value="{{ old('obat_dikonsumsi', $asesmen->obat_dikonsumsi ?? '') }}">
+                                    <input type="text" class="form-control" id="obat_dikonsumsi" name="obat_dikonsumsi" value="{{ old('obat_dikonsumsi', $asesmen->obat_dikonsumsi ?? $prefill_obat_dikonsumsi ?? '') }}">
                                 </div>
                             </div>    
                         </div>

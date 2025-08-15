@@ -57,6 +57,22 @@ class AsesmenController extends Controller
 
         $jenisKonsultasi = Konsultasi::get();
 
+        // Get previous visitation for this patient (exclude current)
+        $lastVisitation = Visitation::where('pasien_id', $visitation->pasien_id)
+            ->where('id', '!=', $visitationId)
+            ->orderByDesc('tanggal_visitation')
+            ->orderByDesc('waktu_kunjungan')
+            ->first();
+
+        $lastAsesmenDalam = null;
+        if ($lastVisitation) {
+            $lastAsesmenDalam = AsesmenDalam::where('visitation_id', $lastVisitation->id)->first();
+        }
+
+        // Prepare prefill values for penyakit_dalam fields
+        $prefill_riwayat_penyakit_dahulu = $lastAsesmenDalam ? $lastAsesmenDalam->riwayat_penyakit_dahulu : '';
+        $prefill_obat_dikonsumsi = $lastAsesmenDalam ? $lastAsesmenDalam->obat_dikonsumsi : '';
+
         return view('erm.asesmendokter.create', array_merge([
             'visitation' => $visitation,
             'dataperawat' => $dataperawat,
@@ -66,6 +82,8 @@ class AsesmenController extends Controller
             'jenisKonsultasi' => $jenisKonsultasi,
             'lokalisPath' => $lokalisPath,
             'lokalisBackground' => $lokalisBackground,
+            'prefill_riwayat_penyakit_dahulu' => $prefill_riwayat_penyakit_dahulu,
+            'prefill_obat_dikonsumsi' => $prefill_obat_dikonsumsi,
         ], $pasienData, $createKunjunganData));
     }
 
