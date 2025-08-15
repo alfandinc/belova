@@ -39,8 +39,6 @@ class AsesmenAnak extends Model
         'n',
         's',
         'r',
-        'status_lokalis',
-        'ket_status_lokalis',
     ];
 
     public function visitation()

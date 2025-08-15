@@ -237,15 +237,6 @@ class AsesmenController extends Controller
 
     private function storeAsesmenAnak(Request $request)
     {
-        // Check if a new image is provided
-        if ($request->has('status_lokalis_image') && !empty($request->status_lokalis_image)) {
-            $this->saveLokalisImage($request);
-        }
-
-        // Retain the existing image if no new image is provided
-        $existingAsesmen = AsesmenAnak::where('visitation_id', $request->visitation_id)->first();
-        $statusLokalis = $existingAsesmen->status_lokalis ?? null;
-
         AsesmenAnak::updateOrCreate(
             ['visitation_id' => $request->visitation_id],
             [
@@ -275,8 +266,6 @@ class AsesmenController extends Controller
                 'n' => $request->n,
                 's' => $request->s,
                 'r' => $request->r,
-                'status_lokalis' => $request->status_lokalis ?? $statusLokalis,
-                'ket_status_lokalis' => $request->ket_status_lokalis,
             ]
         );
     }

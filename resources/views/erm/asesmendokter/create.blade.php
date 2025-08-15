@@ -493,16 +493,27 @@
     });
 
 });
-document.getElementById('addButton').addEventListener('click', function () {
-    let canvas = document.getElementById('drawingCanvas');
-    let base64Image = canvas.toDataURL('image/png');
-    document.getElementById('status_lokalis_image').value = base64Image;
-});
+
+// Canvas-related functions - only run if elements exist
+const addButton = document.getElementById('addButton');
+if (addButton) {
+    addButton.addEventListener('click', function () {
+        let canvas = document.getElementById('drawingCanvas');
+        if (canvas) {
+            let base64Image = canvas.toDataURL('image/png');
+            const statusLokalisInput = document.getElementById('status_lokalis_image');
+            if (statusLokalisInput) {
+                statusLokalisInput.value = base64Image;
+            }
+        }
+    });
+}
 </script>
 
 <script>
 window.onload = function () {
     const canvas = document.getElementById("drawingCanvas");
+    if (!canvas) return; // Exit if canvas doesn't exist
     const ctx = canvas.getContext("2d");
     const imagePath = "{{ asset($lokalisBackground) }}";
     const savedImagePath = "{{ asset($lokalisPath) }}"; // Load the saved image path
@@ -550,10 +561,13 @@ window.onload = function () {
             isDrawing = false;
         });
 
-        document.getElementById('resetButton').addEventListener('click', function () {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0); // Reset to background image
-        });
+        const resetButton = document.getElementById('resetButton');
+        if (resetButton) {
+            resetButton.addEventListener('click', function () {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0); // Reset to background image
+            });
+        }
     };
 
     img.src = imagePath;
