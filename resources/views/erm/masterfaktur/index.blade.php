@@ -34,6 +34,15 @@
         </div><!--end col-->
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
+        <div class="mb-3">
+            <div class="form-inline">
+                <label for="filterObat" class="mr-2">Nama Obat:</label>
+                <select id="filterObat" class="form-control select2-ajax" style="width:220px;"></select>
+                <label for="filterPemasok" class="ml-4 mr-2">Nama Pemasok:</label>
+                <select id="filterPemasok" class="form-control select2-ajax" style="width:220px;"></select>
+                <button class="btn btn-secondary btn-sm ml-2" id="resetMasterFakturFilter">Reset</button>
+            </div>
+        </div>
     <table class="table table-bordered" id="master-faktur-table">
         <thead>
             <tr>
@@ -138,7 +147,13 @@ $(document).ready(function() {
     var table = $('#master-faktur-table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: '{{ route('erm.masterfaktur.data') }}',
+            ajax: {
+                url: '{{ route('erm.masterfaktur.data') }}',
+                data: function(d) {
+                    d.obat_id = $('#filterObat').val();
+                    d.pemasok_id = $('#filterPemasok').val();
+                }
+            },
         columns: [
             { data: 'id', name: 'id' },
             { data: 'obat', name: 'obat' },
@@ -187,6 +202,53 @@ $(document).ready(function() {
         },
         allowClear: true
     });
+        // Filter select2 for Obat
+        $('#filterObat').select2({
+            placeholder: 'Cari Obat',
+            minimumInputLength: 2,
+            ajax: {
+                url: '/erm/ajax/obat',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return { results: data };
+                },
+                cache: true
+            },
+            allowClear: true
+        });
+        // Filter select2 for Pemasok
+        $('#filterPemasok').select2({
+            placeholder: 'Cari Pemasok',
+            minimumInputLength: 2,
+            ajax: {
+                url: '/erm/ajax/pemasok',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return { results: data };
+                },
+                cache: true
+            },
+            allowClear: true
+        });
+
+        // Reload table on filter change
+        $('#filterObat, #filterPemasok').on('change', function() {
+            table.ajax.reload();
+        });
+        // Reset filters
+        $('#resetMasterFakturFilter').on('click', function() {
+            $('#filterObat').val(null).trigger('change');
+            $('#filterPemasok').val(null).trigger('change');
+            table.ajax.reload();
+        });
     // Initialize select2 AJAX for Pemasok
     $('#mf_pemasok_id').select2({
         placeholder: 'Pilih Pemasok',

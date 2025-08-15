@@ -62,39 +62,50 @@ class MasterFakturController extends Controller
 
     public function data(Request $request)
     {
-        $query = MasterFaktur::with(['obat', 'pemasok']);
-        $total = $query->count();
-        // DataTables server-side params
-        $start = $request->input('start', 0);
-        $length = $request->input('length', 10);
-        $search = $request->input('search.value');
-        if ($search) {
-            $query->whereHas('obat', function($q) use ($search) {
-                $q->where('nama', 'like', "%$search%");
-            })->orWhereHas('pemasok', function($q) use ($search) {
-                $q->where('nama', 'like', "%$search%");
+            $query = MasterFaktur::with(['obat', 'pemasok']);
+            // Filter by obat_id
+            if ($request->filled('obat_id')) {
+                $query->where('obat_id', $request->input('obat_id'));
+            }
+            // Filter by pemasok_id
+            if ($request->filled('pemasok_id')) {
+                $query->where('pemasok_id', $request->input('pemasok_id'));
+            }
+            $total = $query->count();
+            // DataTables server-side params
+            $start = $request->input('start', 0);
+            $length = $request->input('length', 10);
+            $search = $request->input('search.value');
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->whereHas('obat', function($q2) use ($search) {
+                        $q2->where('nama', 'like', "%$search%");
+                    })
+                    ->orWhereHas('pemasok', function($q2) use ($search) {
+                        $q2->where('nama', 'like', "%$search%");
+                    });
+                });
+            }
+            $filtered = $query->count();
+            $data = $query->skip($start)->take($length)->get()->map(function($mf) {
+                return [
+                    'id' => $mf->id,
+                    'obat' => $mf->obat->nama ?? '-',
+                    'pemasok' => $mf->pemasok->nama ?? '-',
+                    'harga' => number_format($mf->harga,2),
+                    'qty_per_box' => $mf->qty_per_box,
+                    'diskon' => $mf->diskon,
+                    'diskon_type' => $mf->diskon_type,
+                    'action' => '<button class="btn btn-sm btn-info btn-edit-mf" data-id="'.$mf->id.'">Edit</button> '
+                        .'<button class="btn btn-sm btn-danger deleteMasterFaktur" data-id="'.$mf->id.'">Delete</button>',
+                ];
             });
-        }
-        $filtered = $query->count();
-        $data = $query->skip($start)->take($length)->get()->map(function($mf) {
-            return [
-                'id' => $mf->id,
-                'obat' => $mf->obat->nama ?? '-',
-                'pemasok' => $mf->pemasok->nama ?? '-',
-                'harga' => number_format($mf->harga,2),
-                'qty_per_box' => $mf->qty_per_box,
-                'diskon' => $mf->diskon,
-                'diskon_type' => $mf->diskon_type,
-                'action' => '<button class="btn btn-sm btn-info btn-edit-mf" data-id="'.$mf->id.'">Edit</button> '
-                    .'<button class="btn btn-sm btn-danger deleteMasterFaktur" data-id="'.$mf->id.'">Delete</button>',
-            ];
-        });
-        return response()->json([
-            'draw' => intval($request->input('draw')),
-            'recordsTotal' => $total,
-            'recordsFiltered' => $filtered,
-            'data' => $data,
-        ]);
+            return response()->json([
+                'draw' => intval($request->input('draw')),
+                'recordsTotal' => $total,
+                'recordsFiltered' => $filtered,
+                'data' => $data,
+            ]);
     }
 
     public function create()
