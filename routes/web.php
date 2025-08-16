@@ -146,6 +146,8 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
 
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
+    // Fill stok to 100 for all Obat with stok 0
+    Route::post('/obat/fill-stok', [App\Http\Controllers\ERM\ObatController::class, 'fillStok'])->name('erm.obat.fill-stok');
     Route::get('/obat-masuk/detail', [App\Http\Controllers\ERM\ObatMasukController::class, 'detail'])->name('erm.obatmasuk.detail');
     Route::get('/fakturpembelian/{id}/print', [App\Http\Controllers\ERM\FakturBeliController::class, 'printFaktur'])->name('erm.fakturbeli.print');
     // DataTables AJAX for Mutasi Obat Masuk

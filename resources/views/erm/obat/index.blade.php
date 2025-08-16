@@ -31,6 +31,8 @@
         <i class="fas fa-file-excel"></i> Export Excel
     </a>
 
+        <button id="fill-stok-btn" class="btn btn-warning mb-3"><i class="fas fa-sync"></i> Isi Stok 100 untuk Obat Stok 0</button>
+
     <div class="row mb-3">
         <div class="col-md-12">
             <div class="card">
@@ -187,6 +189,26 @@
         $('.select2').select2({
             width: '100%'
         });
+
+            // Handle fill stok button click
+            $('#fill-stok-btn').on('click', function() {
+                if (confirm('Isi stok 100 untuk semua obat dengan stok 0?')) {
+                    $.ajax({
+                        url: '/erm/obat/fill-stok',
+                        type: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}'
+                        },
+                        success: function(response) {
+                            alert(response.message || 'Stok berhasil diisi!');
+                            table.ajax.reload();
+                        },
+                        error: function(xhr) {
+                            alert('Terjadi kesalahan: ' + (xhr.responseJSON?.message || xhr.responseText));
+                        }
+                    });
+                }
+            });
         
         // Make sure filter_status has an empty value initially
         $('#filter_status').val('').trigger('change.select2');

@@ -15,6 +15,17 @@ use Yajra\DataTables\Facades\DataTables;
 class ObatController extends Controller
 {
     /**
+     * Fill stok to 100 for all Obat where stok is 0.
+     */
+    public function fillStok(Request $request)
+    {
+        $updated = \App\Models\ERM\Obat::withInactive()->where('stok', 0)->update(['stok' => 100]);
+        return response()->json([
+            'success' => true,
+            'message' => $updated > 0 ? "Stok berhasil diisi untuk $updated obat." : "Tidak ada obat dengan stok 0."
+        ]);
+    }
+    /**
      * Update harga_nonfornas (harga jual) via AJAX.
      */
     public function updateHargaJual(Request $request, $id)
