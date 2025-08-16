@@ -498,9 +498,9 @@ Terima kasih.
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                 <!-- Sesi Gejala -->
-                <h6 class="text-primary mb-3"><i class="fas fa-thermometer-half mr-2"></i>Sesi Gejala</h6>
+                <h6 class="text-primary mb-3"><i class="fas fa-thermometer-half mr-2"></i><strong>GEJALA</strong></h6>
                 <div class="table-responsive mb-4">
                     <table class="table table-bordered">
                         <tbody>
@@ -529,7 +529,7 @@ Terima kasih.
                 </div>
 
                 <!-- Sesi Faktor Resiko -->
-                <h6 class="text-warning mb-3"><i class="fas fa-exclamation-triangle mr-2"></i>Sesi Faktor Resiko</h6>
+                <h6 class="text-warning mb-3"><i class="fas fa-exclamation-triangle mr-2"></i><strong>FAKTOR RESIKO</strong></h6>
                 <div class="table-responsive mb-4">
                     <table class="table table-bordered">
                         <tbody>
@@ -562,7 +562,7 @@ Terima kasih.
                 </div>
 
                 <!-- Sesi Tools Screening Batuk -->
-                <h6 class="text-success mb-3"><i class="fas fa-lungs mr-2"></i>Sesi Tools Screening Batuk</h6>
+                <h6 class="text-success mb-3"><i class="fas fa-lungs mr-2"></i><strong>TOOLS SCREENING BATUK</strong></h6>
                 <div class="table-responsive mb-4">
                     <table class="table table-bordered">
                         <tbody>
