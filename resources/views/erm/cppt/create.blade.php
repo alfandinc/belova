@@ -154,7 +154,64 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label><strong>Assessment (A) *</strong></label>
-                        <textarea name="a" class="form-control" rows="8" required></textarea>
+                        <select id="assessmentOptions" class="form-control select2" style="width: 100%;">
+                            <option value="">-- Pilih Assessment --</option>
+                            <option value="Ansietas">Ansietas</option>
+                            <option value="Bersihan Jalan Nafas Tidak Efektif">Bersihan Jalan Nafas Tidak Efektif</option>
+                            <option value="Defisit Nutrisi">Defisit Nutrisi</option>
+                            <option value="Defisit Pengetahuan">Defisit Pengetahuan</option>
+                            <option value="Defisit Perawat Diri">Defisit Perawat Diri</option>
+                            <option value="Diare">Diare</option>
+                            <option value="Gangguan Citra Tubuh">Gangguan Citra Tubuh</option>
+                            <option value="Gangguan Eliminasi Urin">Gangguan Eliminasi Urin</option>
+                            <option value="Gangguan Komunikasi Verbal">Gangguan Komunikasi Verbal</option>
+                            <option value="Gangguan Menelan">Gangguan Menelan</option>
+                            <option value="Gangguan Mobilitas Fisik">Gangguan Mobilitas Fisik</option>
+                            <option value="Gangguan Pertukaran Gas">Gangguan Pertukaran Gas</option>
+                            <option value="Gangguan Rasa Nyaman">Gangguan Rasa Nyaman</option>
+                            <option value="Gangguan Sirkuasi Spontan">Gangguan Sirkuasi Spontan</option>
+                            <option value="Gangguan Tumbuh Kembang">Gangguan Tumbuh Kembang</option>
+                            <option value="Hipertemi">Hipertemi</option>
+                            <option value="Hipertemia/Hipotermia">Hipertemia/Hipotermia</option>
+                            <option value="Hipervolemia">Hipervolemia</option>
+                            <option value="Hipotermi">Hipotermi</option>
+                            <option value="Hypovolemia">Hypovolemia</option>
+                            <option value="Ikterik Neonatus">Ikterik Neonatus</option>
+                            <option value="Intoleransi Aktifitas">Intoleransi Aktifitas</option>
+                            <option value="Keletihan">Keletihan</option>
+                            <option value="Kesiapan Persalinan">Kesiapan Persalinan</option>
+                            <option value="Ketidaknyamanan Pasca Partum">Ketidaknyamanan Pasca Partum</option>
+                            <option value="Ketidakstabilan Kadar Glukosa Darah">Ketidakstabilan Kadar Glukosa Darah</option>
+                            <option value="Konstipasi">Konstipasi</option>
+                            <option value="Menyusui Efektif">Menyusui Efektif</option>
+                            <option value="Menyusui Tidak Efektif">Menyusui Tidak Efektif</option>
+                            <option value="Nausea">Nausea</option>
+                            <option value="Nyeri Akut">Nyeri Akut</option>
+                            <option value="Nyeri Kronis">Nyeri Kronis</option>
+                            <option value="Penurunan Curah Jantung">Penurunan Curah Jantung</option>
+                            <option value="Perfusi Perifer Tidak Efektif">Perfusi Perifer Tidak Efektif</option>
+                            <option value="Perilaku Kesehatan Cenderung Berisiko">Perilaku Kesehatan Cenderung Berisiko</option>
+                            <option value="Perlambatan Pemulihan Pasca Bedah">Perlambatan Pemulihan Pasca Bedah</option>
+                            <option value="Pola Nafas Tidak Efektif">Pola Nafas Tidak Efektif</option>
+                            <option value="Retensi Urin">Retensi Urin</option>
+                            <option value="Risiko Alergi">Risiko Alergi</option>
+                            <option value="Risiko Aspirasi">Risiko Aspirasi</option>
+                            <option value="Risiko Cidera">Risiko Cidera</option>
+                            <option value="Risiko Defisit Nutrisi">Risiko Defisit Nutrisi</option>
+                            <option value="Risiko Gangguan Integritas Kulit">Risiko Gangguan Integritas Kulit</option>
+                            <option value="Risiko Hipotermi">Risiko Hipotermi</option>
+                            <option value="Risiko Ikterik Neonatus">Risiko Ikterik Neonatus</option>
+                            <option value="Risiko Infeksi">Risiko Infeksi</option>
+                            <option value="Risiko Jatuh">Risiko Jatuh</option>
+                            <option value="Risiko Ketidakseimbangan Cairan">Risiko Ketidakseimbangan Cairan</option>
+                            <option value="Risiko Ketidakseimbangan Elektrolit">Risiko Ketidakseimbangan Elektrolit</option>
+                            <option value="Risiko Perdarahan">Risiko Perdarahan</option>
+                            <option value="Risiko Perfusi Perifer Tidak Efektif">Risiko Perfusi Perifer Tidak Efektif</option>
+                            <option value="Risiko Perfusi Renal Tidak Efektif">Risiko Perfusi Renal Tidak Efektif</option>
+                            <option value="Risiko Proses Pengasuhan Tidak Efektif">Risiko Proses Pengasuhan Tidak Efektif</option>
+                            <option value="Risiko Syok">Risiko Syok</option>
+                        </select>
+                        <textarea id="assessmentA" name="a" class="form-control mt-2" rows="6" required></textarea>
                         
                     </div>
                     <div class="col-md-6">
@@ -368,6 +425,28 @@
 <script>
 $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
+    
+    // Initialize assessment options select2 with minimum input length
+    $('#assessmentOptions').select2({ 
+        width: '100%',
+        minimumInputLength: 2,
+        placeholder: '-- Pilih Assessment --'
+    });
+
+    // Assessment options handler
+    $('#assessmentOptions').on('select2:select', function (e) {
+        var selectedData = e.params.data.text;
+        var currentValue = $('#assessmentA').val();
+        
+        if (currentValue) {
+            $('#assessmentA').val(currentValue + ', ' + selectedData);
+        } else {
+            $('#assessmentA').val(selectedData);
+        }
+        
+        // Clear the select2 after selection
+        $(this).val('').trigger('change');
+    });
 
     // Modal alergi logic
     $('#btnBukaAlergi').on('click', function () {
