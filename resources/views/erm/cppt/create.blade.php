@@ -8,6 +8,64 @@
 @include('erm.partials.modal-alergipasien')
 
 <div class="container-fluid">
+<style>
+    .cppt-value {
+        /* background: #23263a; */
+        /* color: #fff; */
+        border-radius: 0.7em;
+        padding: 0.7em 1em;
+        margin-bottom: 0.7em;
+        /* font-size: 0.97rem; */
+        box-shadow: 0 1px 6px rgba(33,150,243,0.07);
+        word-break: break-word;
+        border: 1px solid #2196f3;
+    }
+    .cppt-entry {
+        /* background: #23263a; */
+        border-radius: 1.2em;
+        box-shadow: 0 2px 12px rgba(33,150,243,0.08);
+        padding: 1.5em 1.2em;
+        margin-bottom: 1.5em;
+        display: flex;
+        align-items: flex-start;
+    }
+    .cppt-entry .cppt-label {
+        margin-bottom: 0.5em;
+    }
+    .cppt-entry .cppt-meta {
+        min-width: 140px;
+        text-align: center;
+        margin-right: 2em;
+    }
+    .cppt-entry .cppt-meta .display-4 {
+    font-size: 4rem;
+    font-weight: 700;
+    color: #2196f3;
+    margin-top: 0.5em;
+    }
+    .cppt-entry .cppt-content {
+        flex: 1;
+    }
+    .cppt-entry .row {
+        margin-bottom: 0.7em;
+    }
+    .cppt-entry .row:last-child {
+        margin-bottom: 0;
+    }
+    .cppt-label {
+        background: #2196f3;
+        color: #fff;
+        font-weight: bold;
+        font-size: 0.95rem;
+        padding: 0.35em 1.2em;
+        border-radius: 0.5em;
+        box-shadow: 0 2px 8px rgba(33,150,243,0.12);
+        display: inline-block;
+        margin-bottom: 0.7em;
+        letter-spacing: 0.5px;
+        border: none;
+    }
+</style>
     <div class="d-flex  align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">Catatan Perkembangan Pasien Terintegrasi</h3>
     </div>
@@ -54,23 +112,29 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label><strong>Subject (S) *</strong></label>
-                        <textarea name="s" class="form-control" required></textarea>
+                        <textarea name="s" class="form-control" rows="8" required></textarea>
                     </div>
                     <div class="col-md-6">
-                        <label><strong>Object (O) *</strong></label>
-                        <textarea name="o" class="form-control" required></textarea>
+                        <label><strong>Object (O) *</strong></label></textarea>
+                            <textarea id="objectO" name="o" class="form-control" rows="8" required></textarea>
+                            @if(auth()->user() && auth()->user()->hasRole('Perawat'))
+                            <button type="button" class="btn btn-secondary mt-2" id="btnTemplateO">Template</button>
+                            @endif
                     </div>
                 </div>
 
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label><strong>Assessment (A) *</strong></label>
-                        <textarea name="a" class="form-control" required></textarea>
+                        <textarea name="a" class="form-control" rows="8" required></textarea>
                         
                     </div>
                     <div class="col-md-6">
-                        <label><strong>Planning (P) *</strong></label>
-                        <textarea name="p" class="form-control" required></textarea>
+                        <label><strong>Planning (P) *</strong></label></textarea>
+                        <textarea id="planningP" name="p" class="form-control" rows="8" required></textarea>
+                            @if(auth()->user() && auth()->user()->hasRole('Perawat'))
+                            <button type="button" class="btn btn-secondary mt-2" id="btnTemplateP">Template</button>
+                            @endif
 
                     </div>
                 </div>
@@ -103,23 +167,23 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label><strong>Situation (S) *</strong></label>
-                        <textarea name="s" class="form-control" required></textarea>
+                        <textarea name="s" class="form-control" rows="8" required></textarea>
                     </div>
                     <div class="col-md-6">
                         <label><strong>Background (B) *</strong></label>
-                        <textarea name="o" class="form-control" required></textarea>
+                        <textarea name="o" class="form-control" rows="8" required></textarea>
                     </div>
                 </div>
 
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label><strong>Assessment (A) *</strong></label>
-                        <textarea name="a" class="form-control" required></textarea>
+                        <textarea name="a" class="form-control" rows="8" required></textarea>
                         
                     </div>
                     <div class="col-md-6">
                         <label><strong>Recommendation (R) *</strong></label>
-                        <textarea name="p" class="form-control" required></textarea>
+                        <textarea name="p" class="form-control" rows="8" required></textarea>
 
                     </div>
                 </div>
@@ -155,42 +219,41 @@
     </div>
     <div class="card-body">
         @forelse ($cpptList as $cppt)
-            <div class="row border-bottom py-3">
-                <div class="col-md-1 text-center">
+            <div class="cppt-entry">
+                <div class="cppt-meta">
                     <div class="font-weight-bold text-muted small">{{ \Carbon\Carbon::parse($cppt->created_at)->translatedFormat('d M Y H:i') }}</div>
-                    @php
-            $user = $cppt->user;
-        @endphp
-        <div class="display-4 text-dark">
-            @if ($user && $user->hasRole('perawat'))
-                P
-            @elseif ($user && $user->hasRole('dokter'))
-                D
-            @else
-                {{ strtoupper(substr(optional($user)->name ?? '', 0, 1)) }}
-            @endif
-        </div>
-                </div>
-                <div class="col-md-11">
-                    <div class="row">
-                        @if ($cppt->jenis_dokumen == 1)
-                            <div class="col-md-6"><strong>Subject (S)</strong>: <br>{{ $cppt->s }}</div>
-                            <div class="col-md-6"><strong>Object (O)</strong>: <br>{!! nl2br(e($cppt->o)) !!}</div>
-                        @elseif ($cppt->jenis_dokumen == 2)
-                            <div class="col-md-6"><strong>Situation (S)</strong>: <br>{{ $cppt->s }}</div>
-                            <div class="col-md-6"><strong>Background (B)</strong>: <br>{!! nl2br(e($cppt->o)) !!}</div>
+                    @php $user = $cppt->user; @endphp
+                    <div class="display-4">
+                        @if ($user && $user->hasRole('perawat'))
+                            P
+                        @elseif ($user && $user->hasRole('dokter'))
+                            D
+                        @else
+                            {{ strtoupper(substr(optional($user)->name ?? '', 0, 1)) }}
                         @endif
                     </div>
-                    <div class="row mt-2">
-                        <div class="col-md-6"><strong>Assessment (A)</strong>: <br>{{ $cppt->a }}</div>
+                </div>
+                <div class="cppt-content">
+                    <div class="row">
                         @if ($cppt->jenis_dokumen == 1)
-                            <div class="col-md-6"><strong>Planning (P)</strong>: <br>{!! nl2br(e($cppt->p)) !!}</div>
+                            <div class="col-md-6"><span class="cppt-label">Subject (S)</span><div class="cppt-value">{{ $cppt->s }}</div></div>
+                            <div class="col-md-6"><span class="cppt-label">Object (O)</span><div class="cppt-value">{!! nl2br(e($cppt->o)) !!}</div></div>
                         @elseif ($cppt->jenis_dokumen == 2)
-                            <div class="col-md-6"><strong>Recommendation (R)</strong>: <br>{!! nl2br(e($cppt->p)) !!}</div>
+                            <div class="col-md-6"><span class="cppt-label">Situation (S)</span><div class="cppt-value">{{ $cppt->s }}</div></div>
+                            <div class="col-md-6"><span class="cppt-label">Background (B)</span><div class="cppt-value">{!! nl2br(e($cppt->o)) !!}</div></div>
+                        @endif
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6"><span class="cppt-label">Assessment (A)</span><div class="cppt-value">{{ $cppt->a }}</div></div>
+                        @if ($cppt->jenis_dokumen == 1)
+                            <div class="col-md-6"><span class="cppt-label">Planning (P)</span><div class="cppt-value">{!! nl2br(e($cppt->p)) !!}</div></div>
+                        @elseif ($cppt->jenis_dokumen == 2)
+                            <div class="col-md-6"><span class="cppt-label">Recommendation (R)</span><div class="cppt-value">{!! nl2br(e($cppt->p)) !!}</div></div>
                         @endif
                     </div>
                 </div>
             </div>
+            <hr style="border-color:#2196f3;border-width:3px;opacity:0.5;">
         @empty
             <p class="text-muted text-center">Belum ada catatan CPPT.</p>
         @endforelse
@@ -212,6 +275,16 @@ $(document).ready(function () {
     $('#btnBukaAlergi').on('click', function () {
         $('#modalAlergi').modal('show');
     });
+
+        // Template button logic for Object (O)
+        $('#btnTemplateO').on('click', function () {
+            $('#objectO').val('KU = Baik\nT = \nN = \nRR = \nS = \nTB = \nBB = \nRESIKO JATUH= TIDAK BERESIKO\nSKALA NYERI= 0');
+        });
+
+        // Template button logic for Planning (P)
+        $('#btnTemplateP').on('click', function () {
+            $('#planningP').val('Monitor KU dan VS\nKolaborasi dengan Dokter');
+        });
 
     var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val();
     if (initialStatusAlergi === 'ada') {
@@ -253,12 +326,12 @@ $(document).ready(function () {
                                 </div>
                                 <div class="col-md-11">
                                     <div class="row">
-                                        <div class="col-md-6"><strong>${sLabel}</strong>: <br>${cppt.s}</div>
-                                        <div class="col-md-6"><strong>${oLabel}</strong>: <br>${cppt.o.replace(/\n/g, '<br>')}</div>
+                                        <div class="col-md-6"><strong><span>${sLabel}</span></strong>: <br>${cppt.s}</div>
+                                        <div class="col-md-6"><strong><span>${oLabel}</span></strong>: <br>${cppt.o.replace(/\n/g, '<br>')}</div>
                                     </div>
                                     <div class="row mt-2">
-                                        <div class="col-md-6"><strong>Assessment (A)</strong>: <br>${cppt.a}</div>
-                                        <div class="col-md-6"><strong>${pLabel}</strong>: <br>${cppt.p.replace(/\n/g, '<br>')}</div>
+                                        <div class="col-md-6"><strong><span>Assessment (A)</span></strong>: <br>${cppt.a}</div>
+                                        <div class="col-md-6"><strong><span>${pLabel}</span></strong>: <br>${cppt.p.replace(/\n/g, '<br>')}</div>
                                     </div>
                                 </div>
                             </div>
