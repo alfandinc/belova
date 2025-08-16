@@ -26,8 +26,9 @@
         box-shadow: 0 2px 12px rgba(33,150,243,0.08);
         padding: 1.5em 1.2em;
         margin-bottom: 1.5em;
-        display: flex;
-        align-items: flex-start;
+    display: flex;
+    align-items: flex-start;
+    position: relative;
     }
     .cppt-entry .cppt-label {
         margin-bottom: 0.5em;
@@ -44,13 +45,40 @@
     margin-top: 0.5em;
     }
     .cppt-entry .cppt-content {
-        flex: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     }
     .cppt-entry .row {
         margin-bottom: 0.7em;
     }
     .cppt-entry .row:last-child {
         margin-bottom: 0;
+    }
+    .cppt-entry .cppt-qr {
+        min-width: 120px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        margin-left: 2em;
+    }
+    .cppt-entry .cppt-qr img {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+        margin-bottom: 0.5em;
+        background: #fff;
+        border-radius: 0.5em;
+        border: 1px solid #2196f3;
+        box-shadow: 0 1px 6px rgba(33,150,243,0.07);
+    }
+    .cppt-entry .cppt-qr-label {
+        font-size: 0.85rem;
+        color: #2196f3;
+        font-weight: bold;
+        margin-bottom: 0.5em;
     }
     .cppt-label {
         background: #2196f3;
@@ -151,9 +179,6 @@
                     <div class="mr-2">
                         <button type="submit" class="btn btn-primary">Simpan SOAP</button>
                     </div>
-                    <div>
-                        <button type="button" class="btn btn-success">Tandai Dibaca</button>
-                    </div>
                 </div>
             </form>
                     
@@ -200,9 +225,6 @@
                     <div class="mr-2">
                         <button type="submit" class="btn btn-primary">Simpan SBAR</button>
                     </div>
-                    <div>
-                        <button type="button" class="btn btn-success">Tandai Dibaca</button>
-                    </div>
                 </div>
             </form>
                     
@@ -219,40 +241,116 @@
     </div>
     <div class="card-body">
         @forelse ($cpptList as $cppt)
-            <div class="cppt-entry">
-                <div class="cppt-meta">
-                    <div class="font-weight-bold text-muted small">{{ \Carbon\Carbon::parse($cppt->created_at)->translatedFormat('d M Y H:i') }}</div>
-                    @php $user = $cppt->user; @endphp
-                    <div class="display-4">
-                        @if ($user && $user->hasRole('perawat'))
-                            P
-                        @elseif ($user && $user->hasRole('dokter'))
-                            D
-                        @else
-                            {{ strtoupper(substr(optional($user)->name ?? '', 0, 1)) }}
-                        @endif
+            @php $user = $cppt->user; @endphp
+            @if ($cppt->jenis_dokumen == 1)
+                <table class="table table-bordered mb-3" style="table-layout: fixed; width: 100%; border: 1px solid #007bff;">
+                    <tr>
+                        <td rowspan="4" style="width: 180px; border: 1px solid #007bff; text-align: center; vertical-align: middle;">
+                            <div class="font-weight-bold text-muted small">{{ \Carbon\Carbon::parse($cppt->created_at)->translatedFormat('d M Y H:i') }}</div>
+                            <div class="display-4">
+                                @if ($user && $user->hasRole('Perawat'))
+                                    P
+                                @elseif ($user && $user->hasRole('Dokter'))
+                                    D
+                                @else
+                                    {{ strtoupper(substr(optional($user)->name ?? '', 0, 1)) }}
+                                @endif
+                            </div>
+                        </td>
+                        <td style="width: 150px; border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Subject (S)</span></td>
+                        <td class="cppt-value" style="border: 1px solid #007bff;">{{ $cppt->s }}</td>
+                        <td rowspan="4" style="width: 140px; border: 1px solid #007bff; text-align: center; vertical-align: middle;">
+                            @if ($user)
+                                <div class="cppt-qr-label">{{ $user->name }}</div>
+                                @if ($user->hasRole('Dokter'))
+                                    <div class="cppt-qr-label">TTD Dokter</div>
+                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($user->name . ' - Dokter - ' . $cppt->created_at) }}" alt="QR Dokter" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
+                                @elseif ($user->hasRole('Perawat'))
+                                    <div class="cppt-qr-label">TTD Perawat</div>
+                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($user->name . ' - Perawat - ' . $cppt->created_at) }}" alt="QR Perawat" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
+                                @endif
+                                <div class="mt-2">
+                                    @if ($cppt->dibaca)
+                                        <small class="text-success">
+                                            <strong>Dibaca oleh:</strong><br>
+                                            {{ $cppt->reader ? $cppt->reader->name : 'User tidak ditemukan' }}<br>
+                                            <strong>Pada:</strong><br>
+                                            {{ \Carbon\Carbon::parse($cppt->waktu_baca)->translatedFormat('d M Y H:i') }}
+                                        </small>
+                                    @else
+                                        <button class="btn btn-success btn-sm btn-mark-read" data-cppt-id="{{ $cppt->id }}">
+                                            Tandai Dibaca
+                                        </button>
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Object (O)</span></td>
+                        <td class="cppt-value" style="border: 1px solid #007bff;">{!! nl2br(e($cppt->o)) !!}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Assessment (A)</span></td>
+                        <td class="cppt-value" style="border: 1px solid #007bff;">{{ $cppt->a }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Planning (P)</span></td>
+                        <td class="cppt-value" style="border: 1px solid #007bff;">{!! nl2br(e($cppt->p)) !!}</td>
+                    </tr>
+                </table>
+            @elseif ($cppt->jenis_dokumen == 2)
+                <div class="cppt-entry">
+                    <div class="cppt-meta">
+                        <div class="font-weight-bold text-muted small">{{ \Carbon\Carbon::parse($cppt->created_at)->translatedFormat('d M Y H:i') }}</div>
+                        <div class="display-4">
+                            @if ($user && $user->hasRole('Perawat'))
+                                P
+                            @elseif ($user && $user->hasRole('Dokter'))
+                                D
+                            @else
+                                {{ strtoupper(substr(optional($user)->name ?? '', 0, 1)) }}
+                            @endif
+                        </div>
                     </div>
-                </div>
-                <div class="cppt-content">
-                    <div class="row">
-                        @if ($cppt->jenis_dokumen == 1)
-                            <div class="col-md-6"><span class="cppt-label">Subject (S)</span><div class="cppt-value">{{ $cppt->s }}</div></div>
-                            <div class="col-md-6"><span class="cppt-label">Object (O)</span><div class="cppt-value">{!! nl2br(e($cppt->o)) !!}</div></div>
-                        @elseif ($cppt->jenis_dokumen == 2)
+                    <div class="cppt-content">
+                        <div class="row">
                             <div class="col-md-6"><span class="cppt-label">Situation (S)</span><div class="cppt-value">{{ $cppt->s }}</div></div>
                             <div class="col-md-6"><span class="cppt-label">Background (B)</span><div class="cppt-value">{!! nl2br(e($cppt->o)) !!}</div></div>
-                        @endif
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6"><span class="cppt-label">Assessment (A)</span><div class="cppt-value">{{ $cppt->a }}</div></div>
-                        @if ($cppt->jenis_dokumen == 1)
-                            <div class="col-md-6"><span class="cppt-label">Planning (P)</span><div class="cppt-value">{!! nl2br(e($cppt->p)) !!}</div></div>
-                        @elseif ($cppt->jenis_dokumen == 2)
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6"><span class="cppt-label">Assessment (A)</span><div class="cppt-value">{{ $cppt->a }}</div></div>
                             <div class="col-md-6"><span class="cppt-label">Recommendation (R)</span><div class="cppt-value">{!! nl2br(e($cppt->p)) !!}</div></div>
+                        </div>
+                    </div>
+                    <div class="cppt-qr">
+                        @if ($user)
+                            <div class="cppt-qr-label">{{ $user->name }}</div>
+                            @if ($user->hasRole('dokter'))
+                                <div class="cppt-qr-label">TTD Dokter</div>
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($user->name . ' - Dokter - ' . $cppt->created_at) }}" alt="QR Dokter" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
+                            @elseif ($user->hasRole('perawat'))
+                                <div class="cppt-qr-label">TTD Perawat</div>
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($user->name . ' - Perawat - ' . $cppt->created_at) }}" alt="QR Perawat" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
+                            @endif
+                            <div class="mt-2">
+                                @if ($cppt->dibaca)
+                                    <small class="text-success">
+                                        <strong>Dibaca oleh:</strong><br>
+                                        {{ $cppt->reader ? $cppt->reader->name : 'User tidak ditemukan' }}<br>
+                                        <strong>Pada:</strong><br>
+                                        {{ \Carbon\Carbon::parse($cppt->waktu_baca)->translatedFormat('d M Y H:i') }}
+                                    </small>
+                                @else
+                                    <button class="btn btn-success btn-sm btn-mark-read" data-cppt-id="{{ $cppt->id }}">
+                                        Tandai Dibaca
+                                    </button>
+                                @endif
+                            </div>
                         @endif
                     </div>
                 </div>
-            </div>
+            @endif
             <hr style="border-color:#2196f3;border-width:3px;opacity:0.5;">
         @empty
             <p class="text-muted text-center">Belum ada catatan CPPT.</p>
@@ -313,29 +411,142 @@ $(document).ready(function () {
                     html = '<p class="text-muted text-center">Belum ada catatan CPPT.</p>';
                 } else {
                     res.forEach(cppt => {
-                        let sLabel = cppt.jenis_dokumen == 1 ? 'Subject (S)' : 'Situation (S)';
-                        let oLabel = cppt.jenis_dokumen == 1 ? 'Object (O)' : 'Background (B)';
-                        let pLabel = cppt.jenis_dokumen == 1 ? 'Planning (P)' : 'Recommendation (R)';
-                        let userInitial = cppt.user?.name?.charAt(0).toUpperCase() || '-';
+                        let user = cppt.user;
+                        let userInitial = 'P';
+                        let userRole = 'Perawat';
+                        
+                        if (user) {
+                            if (user.roles && user.roles.some(role => role.name === 'Dokter')) {
+                                userInitial = 'D';
+                                userRole = 'Dokter';
+                            } else if (user.roles && user.roles.some(role => role.name === 'Perawat')) {
+                                userInitial = 'P';
+                                userRole = 'Perawat';
+                            } else {
+                                userInitial = user.name?.charAt(0).toUpperCase() || '-';
+                            }
+                        }
 
-                        html += `
-                            <div class="row border-bottom py-3">
-                                <div class="col-md-1 text-center">
-                                    <div class="font-weight-bold text-muted small">${cppt.formatted_date}</div>
-                                    <div class="display-4 text-dark">${userInitial}</div>
-                                </div>
-                                <div class="col-md-11">
-                                    <div class="row">
-                                        <div class="col-md-6"><strong><span>${sLabel}</span></strong>: <br>${cppt.s}</div>
-                                        <div class="col-md-6"><strong><span>${oLabel}</span></strong>: <br>${cppt.o.replace(/\n/g, '<br>')}</div>
+                        if (cppt.jenis_dokumen == 1) {
+                            // SOAP format with table
+                            let readSection = '';
+                            if (cppt.dibaca) {
+                                let readerName = cppt.reader ? cppt.reader.name : 'User tidak ditemukan';
+                                let waktuBaca = new Date(cppt.waktu_baca).toLocaleDateString('id-ID', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+                                readSection = `
+                                    <div class="mt-2">
+                                        <small class="text-success">
+                                            <strong>Dibaca oleh:</strong><br>
+                                            ${readerName}<br>
+                                            <strong>Pada:</strong><br>
+                                            ${waktuBaca}
+                                        </small>
                                     </div>
-                                    <div class="row mt-2">
-                                        <div class="col-md-6"><strong><span>Assessment (A)</span></strong>: <br>${cppt.a}</div>
-                                        <div class="col-md-6"><strong><span>${pLabel}</span></strong>: <br>${cppt.p.replace(/\n/g, '<br>')}</div>
+                                `;
+                            } else {
+                                readSection = `
+                                    <div class="mt-2">
+                                        <button class="btn btn-success btn-sm btn-mark-read" data-cppt-id="${cppt.id}">
+                                            Tandai Dibaca
+                                        </button>
+                                    </div>
+                                `;
+                            }
+                            
+                            html += `
+                                <table class="table table-bordered mb-3" style="table-layout: fixed; width: 100%; border: 1px solid #007bff;">
+                                    <tr>
+                                        <td rowspan="4" style="width: 180px; border: 1px solid #007bff; text-align: center; vertical-align: middle;">
+                                            <div class="font-weight-bold text-muted small">${cppt.formatted_date}</div>
+                                            <div class="display-4">${userInitial}</div>
+                                        </td>
+                                        <td style="width: 150px; border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Subject (S)</span></td>
+                                        <td class="cppt-value" style="border: 1px solid #007bff;">${cppt.s}</td>
+                                        <td rowspan="4" style="width: 140px; border: 1px solid #007bff; text-align: center; vertical-align: middle;">
+                                            <div class="cppt-qr-label">${user ? user.name : ''}</div>
+                                            <div class="cppt-qr-label">TTD ${userRole}</div>
+                                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent((user ? user.name : '') + ' - ' + userRole + ' - ' + cppt.created_at)}" alt="QR ${userRole}" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
+                                            ${readSection}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Object (O)</span></td>
+                                        <td class="cppt-value" style="border: 1px solid #007bff;">${cppt.o.replace(/\n/g, '<br>')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Assessment (A)</span></td>
+                                        <td class="cppt-value" style="border: 1px solid #007bff;">${cppt.a}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Planning (P)</span></td>
+                                        <td class="cppt-value" style="border: 1px solid #007bff;">${cppt.p.replace(/\n/g, '<br>')}</td>
+                                    </tr>
+                                </table>
+                            `;
+                        } else {
+                            // SBAR format with original layout
+                            let readSection = '';
+                            if (cppt.dibaca) {
+                                let readerName = cppt.reader ? cppt.reader.name : 'User tidak ditemukan';
+                                let waktuBaca = new Date(cppt.waktu_baca).toLocaleDateString('id-ID', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+                                readSection = `
+                                    <div class="mt-2">
+                                        <small class="text-success">
+                                            <strong>Dibaca oleh:</strong><br>
+                                            ${readerName}<br>
+                                            <strong>Pada:</strong><br>
+                                            ${waktuBaca}
+                                        </small>
+                                    </div>
+                                `;
+                            } else {
+                                readSection = `
+                                    <div class="mt-2">
+                                        <button class="btn btn-success btn-sm btn-mark-read" data-cppt-id="${cppt.id}">
+                                            Tandai Dibaca
+                                        </button>
+                                    </div>
+                                `;
+                            }
+                            
+                            html += `
+                                <div class="cppt-entry">
+                                    <div class="cppt-meta">
+                                        <div class="font-weight-bold text-muted small">${cppt.formatted_date}</div>
+                                        <div class="display-4">${userInitial}</div>
+                                    </div>
+                                    <div class="cppt-content">
+                                        <div class="row">
+                                            <div class="col-md-6"><span class="cppt-label">Situation (S)</span><div class="cppt-value">${cppt.s}</div></div>
+                                            <div class="col-md-6"><span class="cppt-label">Background (B)</span><div class="cppt-value">${cppt.o.replace(/\n/g, '<br>')}</div></div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6"><span class="cppt-label">Assessment (A)</span><div class="cppt-value">${cppt.a}</div></div>
+                                            <div class="col-md-6"><span class="cppt-label">Recommendation (R)</span><div class="cppt-value">${cppt.p.replace(/\n/g, '<br>')}</div></div>
+                                        </div>
+                                    </div>
+                                    <div class="cppt-qr">
+                                        <div class="cppt-qr-label">${user ? user.name : ''}</div>
+                                        <div class="cppt-qr-label">TTD ${userRole}</div>
+                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent((user ? user.name : '') + ' - ' + userRole + ' - ' + cppt.created_at)}" alt="QR ${userRole}" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
+                                        ${readSection}
                                     </div>
                                 </div>
-                            </div>
-                        `;
+                                <hr style="border-color:#2196f3;border-width:3px;opacity:0.5;">
+                            `;
+                        }
                     });
                 }
                 // Temukan dan ganti bagian card-body dalam card Riwayat CPPT
@@ -396,6 +607,46 @@ $(document).ready(function () {
                 let msg = 'Terjadi kesalahan saat menyimpan.';
                 if (xhr.responseJSON?.message) msg = xhr.responseJSON.message;
                 Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
+            }
+        });
+    });
+
+    // Tandai Dibaca button functionality
+    $(document).on('click', '.btn-mark-read', function() {
+        let cpptId = $(this).data('cppt-id');
+        let button = $(this);
+        
+        $.ajax({
+            url: '/erm/cppt/' + cpptId + '/mark-read',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}'
+            },
+            beforeSend: function () {
+                button.prop('disabled', true).text('Loading...');
+            },
+            success: function (res) {
+                button.parent().html(`
+                    <small class="text-success">
+                        <strong>Dibaca oleh:</strong><br>
+                        ${res.reader_name}<br>
+                        <strong>Pada:</strong><br>
+                        ${res.waktu_baca}
+                    </small>
+                `);
+                Swal.fire({ 
+                    icon: 'success', 
+                    title: 'Berhasil', 
+                    text: res.message, 
+                    timer: 2000, 
+                    showConfirmButton: false 
+                });
+            },
+            error: function (xhr) {
+                let msg = 'Terjadi kesalahan saat menandai dibaca.';
+                if (xhr.responseJSON?.message) msg = xhr.responseJSON.message;
+                Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
+                button.prop('disabled', false).text('Tandai Dibaca');
             }
         });
     });

@@ -8,6 +8,7 @@ use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use App\Models\ERM\Visitation;
 use Illuminate\Http\Request;
 use App\Models\ERM\Cppt;
+use Illuminate\Support\Facades\Auth;
 
 class CPPTController extends Controller
 {
@@ -21,8 +22,8 @@ class CPPTController extends Controller
         // Step 1: Get pasien_id
         $visitationIds = Visitation::where('pasien_id', $visitation->pasien_id)->pluck('id');
 
-        // 2) Eager‑load the user AND their roles
-        $cpptList = Cppt::with('user.roles')
+        // 2) Eager‑load the user AND their roles, plus reader
+        $cpptList = Cppt::with(['user.roles', 'reader'])
             ->whereIn('visitation_id', $visitationIds)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -45,8 +46,8 @@ class CPPTController extends Controller
         $visitation = Visitation::findOrFail($request->visitation_id);
 
         // Update status_dokumen & progress berdasarkan role
-        if (auth()->check()) {
-            $user = auth()->user();
+        if (Auth::check()) {
+            $user = Auth::user();
 
             if ($user->hasRole('Perawat')) {
                 $visitation->status_kunjungan = 1;
@@ -61,7 +62,7 @@ class CPPTController extends Controller
 
         // Siapkan data
         $data = $request->all();
-        $data['user_id'] = auth()->id();
+        $data['user_id'] = Auth::id();
 
         // Buat atau update CPPT hanya berdasarkan visitation_id + user_id + jenis_dokumen
         $cppt = Cppt::updateOrCreate(
@@ -88,7 +89,7 @@ class CPPTController extends Controller
         // get all visitation ids for the same patient
         $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id');
 
-        $cpptList = Cppt::with('user')
+        $cpptList = Cppt::with(['user', 'reader'])
             ->whereIn('visitation_id', $visitationIds)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -98,5 +99,21 @@ class CPPTController extends Controller
         });
 
         return response()->json($cpptList);
+    }
+
+    public function markAsRead($id)
+    {
+        $cppt = Cppt::findOrFail($id);
+        
+        $cppt->update([
+            'dibaca' => Auth::id(),
+            'waktu_baca' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'CPPT berhasil ditandai sudah dibaca.',
+            'reader_name' => Auth::user()->name,
+            'waktu_baca' => now()->translatedFormat('d M Y H:i')
+        ]);
     }
 }

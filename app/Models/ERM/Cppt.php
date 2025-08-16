@@ -30,4 +30,9 @@ class Cppt extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function reader()
+    {
+        return $this->belongsTo(User::class, 'dibaca');
+    }
 }

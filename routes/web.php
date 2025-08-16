@@ -214,6 +214,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     //CPPT
     Route::get('cppt/{visitation_id}/create', [CPPTController::class, 'create'])->name('erm.cppt.create');
     Route::post('cppt/store', [CPPTController::class, 'store'])->name('erm.cppt.store');
+    Route::post('cppt/{id}/mark-read', [CPPTController::class, 'markAsRead'])->name('erm.cppt.mark-read');
     Route::get('/cppt/history-json/{visitation}', [CPPTController::class, 'historyJson']);
 
     // E Resep Dokter
