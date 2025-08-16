@@ -112,4 +112,9 @@ class Visitation extends Model
     {
         return $this->hasOne(SuratDiagnosa::class, 'visitation_id');
     }
+
+    public function screeningBatuk()
+    {
+        return $this->hasOne(ScreeningBatuk::class, 'visitation_id');
+    }
 }

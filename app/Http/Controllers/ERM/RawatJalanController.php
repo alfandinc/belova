@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
+use App\Models\ERM\ScreeningBatuk;
+use Illuminate\Support\Facades\Log;
 
 class RawatJalanController extends Controller
 {
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $visitations = Visitation::with(['pasien', 'metodeBayar'])
+            $visitations = Visitation::with(['pasien', 'metodeBayar', 'screeningBatuk'])
                 ->select(
                     'erm_visitations.*',
                     'erm_pasiens.nama as nama_pasien',
@@ -125,9 +127,22 @@ class RawatJalanController extends Controller
                     $user = Auth::user();
                     $dokumenBtn = '';
 
+                    // Debug: Log the visitation ID being used
+                    Log::info('Generating button for visitation ID: ' . $v->id);
+
                     if ($user->hasRole('Perawat')) {
-                        $url = route('erm.asesmenperawat.create', $v->id);
-                        $dokumenBtn = '<a href="' . $url . '" class="btn btn-sm btn-primary ml-1" style="font-weight:bold;" title="Lihat"><i class="fas fa-eye mr-1"></i>Lihat</a>';
+                        // Ensure the ID is cast as string to avoid JavaScript precision issues
+                        $visitationId = (string) $v->id;
+                        
+                        // Check if screening batuk already exists
+                        if ($v->screeningBatuk) {
+                            // If screening exists, show both "Lihat" and "Screening" buttons
+                            $dokumenBtn = '<a href="' . route('erm.asesmenperawat.create', $v->id) . '" class="btn btn-sm btn-primary ml-1" style="font-weight:bold;" title="Lihat"><i class="fas fa-eye mr-1"></i>Lihat</a>';
+                            $dokumenBtn .= '<button class="btn btn-sm btn-info ml-1 view-screening-btn" style="font-weight:bold;" title="Lihat Screening Batuk" data-visitation-id="' . $visitationId . '"><i class="fas fa-lungs mr-1"></i>Screening</button>';
+                        } else {
+                            // If no screening exists, show screening modal first
+                            $dokumenBtn = '<button class="btn btn-sm btn-primary ml-1 screening-btn" style="font-weight:bold;" title="Lihat" data-visitation-id="' . $visitationId . '"><i class="fas fa-eye mr-1"></i>Lihat</button>';
+                        }
                     } elseif ($user->hasRole('Dokter')) {
                         if ($v->status_dokumen === 'asesmen') {
                             $url = route('erm.asesmendokter.create', $v->id);
@@ -281,5 +296,163 @@ class RawatJalanController extends Controller
         }
         $visitation->save();
         return response()->json(['success' => true]);
+    }
+
+    // Store Screening Batuk
+    public function storeScreeningBatuk(Request $request)
+    {
+        // Debug: Log the request data
+        Log::info('Screening Batuk Request Data:', $request->all());
+        
+        $request->validate([
+            'visitation_id' => 'required|string',
+            // Sesi Gejala
+            'demam_badan_panas' => 'required|in:ya,tidak',
+            'batuk_pilek' => 'required|in:ya,tidak',
+            'sesak_nafas' => 'required|in:ya,tidak',
+            'kontak_covid' => 'required|in:ya,tidak',
+            'perjalanan_luar_negeri' => 'required|in:ya,tidak',
+            // Sesi Faktor Resiko
+            'riwayat_perjalanan' => 'required|in:ya,tidak',
+            'kontak_erat_covid' => 'required|in:ya,tidak',
+            'faskes_covid' => 'required|in:ya,tidak',
+            'kontak_hewan' => 'required|in:ya,tidak',
+            'riwayat_demam' => 'required|in:ya,tidak',
+            'riwayat_kontak_luar_negeri' => 'required|in:ya,tidak',
+            // Sesi Tools Screening Batuk
+            'riwayat_pengobatan_tb' => 'required|in:ya,tidak',
+            'sedang_pengobatan_tb' => 'required|in:ya,tidak',
+            'batuk_demam' => 'required|in:ya,tidak',
+            'nafsu_makan_menurun' => 'required|in:ya,tidak',
+            'bb_turun' => 'required|in:ya,tidak',
+            'keringat_malam' => 'required|in:ya,tidak',
+            'sesak_nafas_tb' => 'required|in:ya,tidak',
+            'kontak_erat_tb' => 'required|in:ya,tidak',
+            'hasil_rontgen' => 'required|in:ya,tidak',
+            // Others
+            'catatan' => 'nullable|string|max:1000'
+        ]);
+
+        try {
+            // Check if visitation exists
+            $visitation = Visitation::find($request->visitation_id);
+            Log::info('Looking for visitation with ID: ' . $request->visitation_id);
+            Log::info('Visitation found: ' . ($visitation ? 'Yes' : 'No'));
+            
+            if (!$visitation) {
+                // Let's also try to see if there are any similar IDs in the database
+                $similarVisitations = Visitation::where('id', 'LIKE', '%' . substr($request->visitation_id, -10) . '%')->limit(5)->get(['id']);
+                Log::info('Similar visitations found: ', $similarVisitations->toArray());
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kunjungan tidak ditemukan dengan ID: ' . $request->visitation_id
+                ], 404);
+            }
+
+            // Check if screening already exists for this visitation
+            $existingScreening = ScreeningBatuk::where('visitation_id', $request->visitation_id)->first();
+            
+            if ($existingScreening) {
+                // Update existing screening
+                $existingScreening->update([
+                    // Sesi Gejala
+                    'demam_badan_panas' => $request->demam_badan_panas,
+                    'batuk_pilek' => $request->batuk_pilek,
+                    'sesak_nafas' => $request->sesak_nafas,
+                    'kontak_covid' => $request->kontak_covid,
+                    'perjalanan_luar_negeri' => $request->perjalanan_luar_negeri,
+                    // Sesi Faktor Resiko
+                    'riwayat_perjalanan' => $request->riwayat_perjalanan,
+                    'kontak_erat_covid' => $request->kontak_erat_covid,
+                    'faskes_covid' => $request->faskes_covid,
+                    'kontak_hewan' => $request->kontak_hewan,
+                    'riwayat_demam' => $request->riwayat_demam,
+                    'riwayat_kontak_luar_negeri' => $request->riwayat_kontak_luar_negeri,
+                    // Sesi Tools Screening Batuk
+                    'riwayat_pengobatan_tb' => $request->riwayat_pengobatan_tb,
+                    'sedang_pengobatan_tb' => $request->sedang_pengobatan_tb,
+                    'batuk_demam' => $request->batuk_demam,
+                    'nafsu_makan_menurun' => $request->nafsu_makan_menurun,
+                    'bb_turun' => $request->bb_turun,
+                    'keringat_malam' => $request->keringat_malam,
+                    'sesak_nafas_tb' => $request->sesak_nafas_tb,
+                    'kontak_erat_tb' => $request->kontak_erat_tb,
+                    'hasil_rontgen' => $request->hasil_rontgen,
+                    // Others
+                    'catatan' => $request->catatan,
+                    'created_by' => Auth::id()
+                ]);
+            } else {
+                // Create new screening record
+                ScreeningBatuk::create([
+                    'visitation_id' => $request->visitation_id,
+                    // Sesi Gejala
+                    'demam_badan_panas' => $request->demam_badan_panas,
+                    'batuk_pilek' => $request->batuk_pilek,
+                    'sesak_nafas' => $request->sesak_nafas,
+                    'kontak_covid' => $request->kontak_covid,
+                    'perjalanan_luar_negeri' => $request->perjalanan_luar_negeri,
+                    // Sesi Faktor Resiko
+                    'riwayat_perjalanan' => $request->riwayat_perjalanan,
+                    'kontak_erat_covid' => $request->kontak_erat_covid,
+                    'faskes_covid' => $request->faskes_covid,
+                    'kontak_hewan' => $request->kontak_hewan,
+                    'riwayat_demam' => $request->riwayat_demam,
+                    'riwayat_kontak_luar_negeri' => $request->riwayat_kontak_luar_negeri,
+                    // Sesi Tools Screening Batuk
+                    'riwayat_pengobatan_tb' => $request->riwayat_pengobatan_tb,
+                    'sedang_pengobatan_tb' => $request->sedang_pengobatan_tb,
+                    'batuk_demam' => $request->batuk_demam,
+                    'nafsu_makan_menurun' => $request->nafsu_makan_menurun,
+                    'bb_turun' => $request->bb_turun,
+                    'keringat_malam' => $request->keringat_malam,
+                    'sesak_nafas_tb' => $request->sesak_nafas_tb,
+                    'kontak_erat_tb' => $request->kontak_erat_tb,
+                    'hasil_rontgen' => $request->hasil_rontgen,
+                    // Others
+                    'catatan' => $request->catatan,
+                    'created_by' => Auth::id()
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data screening batuk berhasil disimpan.'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Screening Batuk Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getScreeningBatuk($visitationId)
+    {
+        try {
+            $screening = ScreeningBatuk::where('visitation_id', $visitationId)->first();
+            
+            if (!$screening) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data screening batuk tidak ditemukan'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $screening
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get Screening Batuk Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengambil data: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
