@@ -241,24 +241,38 @@
             minimumInputLength: 3,
             placeholder: 'Search obat...',
             ajax: {
-                url: '/get-obat-select2',
+                url: '{{ route("obat.search") }}',
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
                     return { q: params.term };
                 },
                 processResults: function (data) {
-                    // If your endpoint returns an array, wrap it in results
-                    return {
-                        results: data.map(function(item) {
-                            return {
-                                id: item.id,
-                                text: item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
-                                harga: item.harga_nonfornas,
-                                stok: item.stok
-                            };
-                        })
-                    };
+                    // If your endpoint returns {results: [...]}, use that
+                    if (Array.isArray(data.results)) {
+                        return {
+                            results: data.results.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.text,
+                                    harga: item.harga_nonfornas,
+                                    stok: item.stok
+                                };
+                            })
+                        };
+                    } else {
+                        // fallback for array response
+                        return {
+                            results: data.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
+                                    harga: item.harga_nonfornas,
+                                    stok: item.stok
+                                };
+                            })
+                        };
+                    }
                 },
                 cache: true
             }
