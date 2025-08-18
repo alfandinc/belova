@@ -237,29 +237,31 @@
     $(document).ready(function () {
         $('.select2').select2({ width: '100%' });
         $('.select2-obat').select2({
+            width: '100%',
+            minimumInputLength: 3,
             placeholder: 'Search obat...',
             ajax: {
-                url: '{{ route("obat.search") }}',
+                url: '/get-obat-select2',
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
-                    return {
-                        q: params.term
-                    };
+                    return { q: params.term };
                 },
                 processResults: function (data) {
+                    // If your endpoint returns an array, wrap it in results
                     return {
-                        results: data.map(item => ({
-                            id: item.id,
-                            text: item.nama + ' - ' + item.harga_nonfornas,
-                            harga: item.harga_nonfornas, // Make sure this property exists
-                            stok: item.stok
-                        }))
+                        results: data.map(function(item) {
+                            return {
+                                id: item.id,
+                                text: item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
+                                harga: item.harga_nonfornas,
+                                stok: item.stok
+                            };
+                        })
                     };
                 },
                 cache: true
-            },
-            minimumInputLength: 3
+            }
         });
         $('.select2-wadah-racikan').select2({
             placeholder: 'Search wadah...',
