@@ -416,26 +416,49 @@
         $('.select2').select2({ width: '100%' });
         $('.select2-obat').select2({
             placeholder: 'Search obat...',
+            minimumInputLength: 3,
             ajax: {
-                url: '{{ route("obat.search") }}', // Define this route in your controller
+                url: '{{ route("obat.search") }}',
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
-                    return {
-                        q: params.term // Search term
-                    };
+                    return { q: params.term };
                 },
                 processResults: function (data) {
-                    return {
-                        results: data.map(item => ({
-                            id: item.id,
-                            text: `${item.nama} ${item.dosis} ${item.satuan}`
-                        }))
-                    };
+                    // If your endpoint returns {results: [...]}, use that
+                    if (Array.isArray(data.results)) {
+                        return {
+                            results: data.results.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.text,
+                                    nama: item.nama,
+                                    dosis: item.dosis,
+                                    satuan: item.satuan,
+                                    stok: item.stok,
+                                    harga_nonfornas: item.harga_nonfornas
+                                };
+                            })
+                        };
+                    } else {
+                        // fallback for array response
+                        return {
+                            results: data.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
+                                    nama: item.nama,
+                                    dosis: item.dosis,
+                                    satuan: item.satuan,
+                                    stok: item.stok,
+                                    harga_nonfornas: item.harga_nonfornas
+                                };
+                            })
+                        };
+                    }
                 },
                 cache: true
-            },
-            minimumInputLength: 3
+            }
         });
         $('.select2-wadah-racikan').select2({
             placeholder: 'Search wadah...',
