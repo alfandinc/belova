@@ -166,6 +166,14 @@ class Employee extends Model
         return $this->hasMany(PengajuanLibur::class, 'employee_id');
     }
 
+        /**
+         * Relasi ke jadwal shift mingguan karyawan
+         */
+        public function schedules()
+        {
+            return $this->hasMany(EmployeeSchedule::class, 'employee_id');
+        }
+
     /**
      * Ensure the employee has a jatah libur record
      * If not, it creates a new one with default values
