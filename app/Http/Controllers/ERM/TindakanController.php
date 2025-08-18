@@ -240,12 +240,27 @@ class TindakanController extends Controller
             $billing = Billing::create($billingData);
         }
 
+        // Create billing for bundled obats
+        $obatBillings = [];
+        foreach ($tindakan->obats as $obat) {
+            $obatBilling = Billing::create([
+                'visitation_id' => $data['visitation_id'],
+                'billable_id' => $obat->id,
+                'billable_type' => 'App\\Models\\ERM\\Obat',
+                'jumlah' => 0,
+                'qty' => 1,
+                'keterangan' => 'Obat Bundled: ' . $obat->nama
+            ]);
+            $obatBillings[] = $obatBilling;
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Riwayat tindakan dan billing berhasil disimpan. Inform consent akan dibuat jika tersedia.',
             'informConsent' => $informConsent,
             'spk' => $spk,
             'billing' => $billing,
+            'obatBillings' => $obatBillings,
             'riwayatTindakan' => $riwayatTindakan
         ]);
     }
