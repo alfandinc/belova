@@ -159,6 +159,8 @@ class TindakanController extends Controller
             'deskripsi' => 'nullable|string',
             'harga' => 'required|numeric|min:0',
             'spesialis_id' => 'required|exists:erm_spesialisasis,id',
+            'obat_ids' => 'array',
+            'obat_ids.*' => 'exists:erm_obat,id',
         ]);
 
         try {
@@ -210,6 +212,10 @@ class TindakanController extends Controller
                 }
             }
 
+            // Sync bundled obat
+            $obatIds = $request->input('obat_ids', []);
+            $tindakan->obats()->sync($obatIds);
+
             DB::commit();
 
             return response()->json([
@@ -231,7 +237,7 @@ class TindakanController extends Controller
      */
     public function getTindakan($id)
     {
-        $tindakan = Tindakan::with(['spesialis', 'sop' => function($q) { $q->orderBy('urutan'); }])->findOrFail($id);
+        $tindakan = Tindakan::with(['spesialis', 'sop' => function($q) { $q->orderBy('urutan'); }, 'obats'])->findOrFail($id);
         // Return SOPs as array for JS
         $result = $tindakan->toArray();
         $result['sop'] = $tindakan->sop->map(function($sop) {
@@ -240,6 +246,7 @@ class TindakanController extends Controller
                 'urutan' => $sop->urutan
             ];
         })->toArray();
+        $result['obat_ids'] = $tindakan->obats->pluck('id')->toArray();
         return response()->json($result);
     }
 

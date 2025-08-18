@@ -61,4 +61,12 @@ class Obat extends Model
     {
         return $this->belongsTo(MetodeBayar::class, 'metode_bayar_id');
     }
+
+        /**
+         * The tindakan that this obat is bundled with.
+         */
+        public function tindakans()
+        {
+            return $this->belongsToMany(Tindakan::class, 'erm_tindakan_obat', 'obat_id', 'tindakan_id');
+        }
 }

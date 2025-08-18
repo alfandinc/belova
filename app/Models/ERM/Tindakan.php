@@ -34,4 +34,12 @@ class Tindakan extends Model
     {
         return $this->hasMany(\App\Models\ERM\Sop::class, 'tindakan_id');
     }
+
+        /**
+         * The obat that belong to the tindakan (bundle).
+         */
+        public function obats()
+        {
+            return $this->belongsToMany(Obat::class, 'erm_tindakan_obat', 'tindakan_id', 'obat_id');
+        }
 }

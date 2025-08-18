@@ -130,6 +130,11 @@
                         <div class="invalid-feedback" id="spesialis_id-error"></div>
                     </div>
                     <div class="form-group">
+                        <label for="obat_ids">Bundled Obat</label>
+                        <select class="form-control select2" id="obat_ids" name="obat_ids[]" multiple></select>
+                        <div class="invalid-feedback" id="obat_ids-error"></div>
+                    </div>
+                    <div class="form-group">
                         <label>SOP List (Order with Up/Down, remove with X, add with text input)</label>
                         <ul id="tindakanSopList" class="list-group mb-2"></ul>
                         <div class="input-group">
@@ -240,9 +245,33 @@
             }
         });
         
-        // Initialize Select2
-        $('.select2').select2({
+        // Initialize Select2 for Specialist (no AJAX, no minimumInputLength)
+        $('#spesialis_id').select2({
             width: '100%',
+            dropdownParent: $('#tindakanModal')
+        });
+
+        // Initialize Select2 for bundled obat (with AJAX and minimumInputLength)
+        $('#obat_ids').select2({
+            width: '100%',
+            placeholder: 'Select Obat...',
+            minimumInputLength: 2,
+            ajax: {
+                url: "{{ route('obat.search') }}",
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.results.map(function(obat) {
+                            return { id: obat.id, text: obat.nama };
+                        })
+                    };
+                },
+                cache: true
+            },
             dropdownParent: $('#tindakanModal')
         });
 
@@ -454,6 +483,14 @@
                     $('#deskripsi').val(data.deskripsi);
                     $('#harga').val(data.harga);
                     $('#spesialis_id').val(data.spesialis_id).trigger('change');
+                    // Populate bundled obat
+                    if (data.obat_ids && Array.isArray(data.obat_ids)) {
+                        var obatOptions = [];
+                        data.obat_ids.forEach(function(id) {
+                            obatOptions.push(id);
+                        });
+                        $('#obat_ids').val(obatOptions).trigger('change');
+                    }
                     // Populate SOPs if available (ordered by urutan if present)
                     if (data.sop && Array.isArray(data.sop)) {
                         data.sop.sort(function(a, b) {
@@ -530,6 +567,13 @@
                 sopNames.push($(this).find('.sop-name').text());
             });
             formData.push({name: 'sop_names', value: sopNames});
+            // Collect bundled obat
+            var obatIds = $('#obat_ids').val();
+            if (Array.isArray(obatIds)) {
+                obatIds.forEach(function(id) {
+                    formData.push({name: 'obat_ids[]', value: id});
+                });
+            }
             var url = "{{ route('marketing.tindakan.store') }}";
             $.ajax({
                 url: url,

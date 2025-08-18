@@ -329,8 +329,8 @@ class ObatController extends Controller
             ->limit(10)
             ->get();
 
-        // Return the data in Select2 format
-        return response()->json($obats->map(function ($obat) {
+        // Return the data in Select2 format (with 'results' key)
+        $results = $obats->map(function ($obat) {
             return [
                 'id' => $obat->id,
                 'text' => $obat->nama . ' - ' . $obat->dosis . ' ' . $obat->satuan,
@@ -340,7 +340,8 @@ class ObatController extends Controller
                 'stok' => $obat->stok,
                 'harga_nonfornas' => $obat->harga_nonfornas,
             ];
-        }));
+        })->values();
+        return response()->json(['results' => $results]);
     }
 
     public function destroy($id)
