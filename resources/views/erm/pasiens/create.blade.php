@@ -56,7 +56,7 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="nik">NIK</label>
-                                    <input type="text" class="form-control" id="nik" name="nik" maxlength="16" value="{{ $pasien->nik ?? '' }}">
+                                    <input type="text" class="form-control" id="nik" name="nik" maxlength="16" required value="{{ $pasien->nik ?? '' }}">
                                 </div>
                             </div>
                             <div class="col-md-6">
