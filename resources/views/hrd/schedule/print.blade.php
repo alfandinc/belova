@@ -57,15 +57,18 @@
                                 @php
                                     $key = $employee->id . '_' . $date;
                                     $schedule = $schedules[$key][0] ?? null;
+                                    $isLibur = $schedule && isset($schedule->is_libur) && $schedule->is_libur;
                                     $shiftName = $schedule && $schedule->shift ? strtolower($schedule->shift->name) : '';
-                                    $cellClass = $shiftName ? 'shift-' . $shiftName : '';
-                                    $shiftLabel = ($schedule && $schedule->shift)
-                                        ? (\Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->start_time)->format('H:i')
-                                            . ' - ' .
-                                            \Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->end_time)->format('H:i'))
-                                        : '-';
+                                    $cellClass = $isLibur ? 'bg-danger text-white' : ($shiftName ? 'shift-' . $shiftName : '');
+                                    $shiftLabel = $isLibur
+                                        ? ($schedule->label ?? 'Libur/Cuti')
+                                        : (($schedule && $schedule->shift)
+                                            ? (\Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->start_time)->format('H:i')
+                                                . ' - ' .
+                                                \Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->end_time)->format('H:i'))
+                                            : '-');
                                 @endphp
-                                <td class="{{ $cellClass }}"><strong>{{ $shiftLabel }}</strong></td>
+                                <td class="{{ $isLibur ? 'bg-danger' : $cellClass }}" style="{{ $isLibur ? 'background:#e74c3c;color:#fff;' : '' }}"><strong>{{ $shiftLabel }}</strong></td>
                             @endforeach
                         </tr>
                     @endif

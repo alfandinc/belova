@@ -39,18 +39,23 @@
                                 @php
                                     $key = $employee->id . '_' . $date;
                                     $schedule = $schedules[$key][0] ?? null;
-                                    $shiftId = $schedule ? $schedule->shift_id : '';
+                                    $isLibur = $schedule && isset($schedule->is_libur) && $schedule->is_libur;
+                                    $shiftId = $schedule ? ($schedule->shift_id ?? '') : '';
                                     $shiftName = $schedule && $schedule->shift ? strtolower($schedule->shift->name) : '';
                                 @endphp
-                                <td class="shift-cell {{ $shiftName ? 'shift-' . $shiftName : '' }}">
-                                    <select name="schedule[{{ $employee->id }}][{{ $date }}]" class="form-control shift-select">
-                                        <option value="">-</option>
-                                        @foreach($shifts as $shift)
-                                            <option value="{{ $shift->id }}" data-shift-name="{{ strtolower($shift->name) }}" {{ ($shiftId == $shift->id) ? 'selected' : '' }}>
-                                                {{ $shift->name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                <td class="shift-cell {{ $isLibur ? 'bg-danger text-white' : ($shiftName ? 'shift-' . $shiftName : '') }}">
+                                    @if($isLibur)
+                                        <span style="font-weight:bold;">{{ $schedule->label ?? 'Libur/Cuti' }}</span>
+                                    @else
+                                        <select name="schedule[{{ $employee->id }}][{{ $date }}]" class="form-control shift-select">
+                                            <option value="">-</option>
+                                            @foreach($shifts as $shift)
+                                                <option value="{{ $shift->id }}" data-shift-name="{{ strtolower($shift->name) }}" {{ ($shiftId == $shift->id) ? 'selected' : '' }}>
+                                                    {{ $shift->name }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    @endif
                                 </td>
                             @endforeach
                         </tr>

@@ -35,6 +35,32 @@ class EmployeeScheduleController extends Controller
             ->with('shift')
             ->get()
             ->groupBy(fn($item) => $item->employee_id.'_'.$item->date);
+
+        // Integrate PengajuanLibur (approved by manager) into schedule
+        $libur = \App\Models\HRD\PengajuanLibur::where('status_manager', 'disetujui')
+            ->where(function($q) use ($dates) {
+                $q->whereIn('tanggal_mulai', $dates)->orWhereIn('tanggal_selesai', $dates);
+            })
+            ->get();
+        foreach ($libur as $cuti) {
+            $empId = $cuti->employee_id;
+            $start = \Carbon\Carbon::parse($cuti->tanggal_mulai);
+            $end = \Carbon\Carbon::parse($cuti->tanggal_selesai);
+            $label = strtolower($cuti->jenis_libur) == 'cuti_tahunan' ? 'Cuti' : 'Libur/Cuti';
+            foreach ($dates as $date) {
+                $cur = \Carbon\Carbon::parse($date);
+                if ($cur->betweenIncluded($start, $end)) {
+                    $key = $empId . '_' . $date;
+                    $schedules[$key] = [ (object)[
+                        'employee_id' => $empId,
+                        'date' => $date,
+                        'shift' => null,
+                        'is_libur' => true,
+                        'label' => $label
+                    ] ];
+                }
+            }
+        }
         $viewData = compact('dates', 'employeesByDivision', 'shifts', 'schedules', 'startOfWeek');
         if ($request->ajax()) {
             return view('hrd.schedule._table', $viewData)->render();
@@ -84,6 +110,32 @@ class EmployeeScheduleController extends Controller
             ->with('shift')
             ->get()
             ->groupBy(fn($item) => $item->employee_id.'_'.$item->date);
+
+        // Integrate PengajuanLibur (approved by manager) into schedule for PDF
+        $libur = \App\Models\HRD\PengajuanLibur::where('status_manager', 'disetujui')
+            ->where(function($q) use ($dates) {
+                $q->whereIn('tanggal_mulai', $dates)->orWhereIn('tanggal_selesai', $dates);
+            })
+            ->get();
+        foreach ($libur as $cuti) {
+            $empId = $cuti->employee_id;
+            $start = \Carbon\Carbon::parse($cuti->tanggal_mulai);
+            $end = \Carbon\Carbon::parse($cuti->tanggal_selesai);
+            $label = strtolower($cuti->jenis_libur) == 'cuti_tahunan' ? 'Cuti' : 'Libur/Cuti';
+            foreach ($dates as $date) {
+                $cur = \Carbon\Carbon::parse($date);
+                if ($cur->betweenIncluded($start, $end)) {
+                    $key = $empId . '_' . $date;
+                    $schedules[$key] = [ (object)[
+                        'employee_id' => $empId,
+                        'date' => $date,
+                        'shift' => null,
+                        'is_libur' => true,
+                        'label' => $label
+                    ] ];
+                }
+            }
+        }
         $viewData = compact('dates', 'employeesByDivision', 'shifts', 'schedules', 'startOfWeek');
 
         $pdf = \PDF::loadView('hrd.schedule.print', $viewData)->setPaper('A4', 'landscape');
