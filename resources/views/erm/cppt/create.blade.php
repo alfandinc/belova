@@ -398,10 +398,10 @@
                     <div class="cppt-qr">
                         @if ($user)
                             <div class="cppt-qr-label">{{ $user->name }}</div>
-                            @if ($user->hasRole('dokter'))
+                            @if ($user->hasRole('Dokter'))
                                 <div class="cppt-qr-label">TTD Dokter</div>
                                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($user->name . ' - Dokter - ' . $cppt->created_at) }}" alt="QR Dokter" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
-                            @elseif ($user->hasRole('perawat'))
+                            @elseif ($user->hasRole('Perawat'))
                                 <div class="cppt-qr-label">TTD Perawat</div>
                                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={{ urlencode($user->name . ' - Perawat - ' . $cppt->created_at) }}" alt="QR Perawat" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
                             @endif
@@ -506,19 +506,28 @@ $(document).ready(function () {
                 } else {
                     res.forEach(cppt => {
                         let user = cppt.user;
-                        let userInitial = 'P';
-                        let userRole = 'Perawat';
+                        let userInitial = '-';
+                        let userRole = 'Unknown';
                         
-                        if (user) {
-                            if (user.roles && user.roles.some(role => role.name === 'Dokter')) {
+                        if (user && user.roles) {
+                            // Check for Dokter role first (highest priority)
+                            if (user.roles.some(role => role.name === 'Dokter')) {
                                 userInitial = 'D';
                                 userRole = 'Dokter';
-                            } else if (user.roles && user.roles.some(role => role.name === 'Perawat')) {
+                            } 
+                            // Check for Perawat role second
+                            else if (user.roles.some(role => role.name === 'Perawat')) {
                                 userInitial = 'P';
                                 userRole = 'Perawat';
-                            } else {
+                            } 
+                            // Default to first letter of name for other roles
+                            else {
                                 userInitial = user.name?.charAt(0).toUpperCase() || '-';
+                                userRole = user.roles[0]?.name || 'Unknown';
                             }
+                        } else if (user) {
+                            // If no roles loaded, use first letter of name
+                            userInitial = user.name?.charAt(0).toUpperCase() || '-';
                         }
 
                         if (cppt.jenis_dokumen == 1) {

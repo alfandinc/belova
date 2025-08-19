@@ -126,7 +126,7 @@ class CPPTController extends Controller
         // get all visitation ids for the same patient
         $visitationIds = Visitation::where('pasien_id', $pasienId)->pluck('id');
 
-        $cpptList = Cppt::with(['user', 'reader'])
+        $cpptList = Cppt::with(['user.roles', 'reader'])
             ->whereIn('visitation_id', $visitationIds)
             ->orderBy('created_at', 'desc')
             ->get();
