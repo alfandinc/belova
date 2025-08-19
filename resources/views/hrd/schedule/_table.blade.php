@@ -4,12 +4,14 @@
     <input type="hidden" id="week-end" value="{{ \Carbon\Carbon::parse($dates[count($dates)-1])->toDateString() }}">
     <div class="table-responsive">
         <style>
-            .table td.shift-pagi { background: #28a745 !important; color: #fff !important; }
+            .table td.shift-pagi-office { background: #28a745 !important; color: #fff !important; }
+            .table td.shift-pagi-service { background: #68b800 !important; color: #fff !important; }
             .table td.shift-middle { background: #007bff !important; color: #fff !important; }
             .table td.shift-siang { background: #ffc107 !important; color: #212529 !important; }
             .table td.shift-malam { background: #6f42c1 !important; color: #fff !important; }
             .shift-cell { transition: background 0.2s; }
-            .shift-select.shift-pagi { background: #28a745 !important; color: #fff !important; }
+            .shift-select.shift-pagi-office { background: #28a745 !important; color: #fff !important; }
+            .shift-select.shift-pagi-service { background: #68b800 !important; color: #fff !important; }
             .shift-select.shift-middle { background: #007bff !important; color: #fff !important; }
             .shift-select.shift-siang { background: #ffc107 !important; color: #212529 !important; }
             .shift-select.shift-malam { background: #6f42c1 !important; color: #fff !important; }
@@ -69,7 +71,8 @@
                                 $shiftClass = 'shift-' . strtolower($shift->name);
                                 $color = '#fff';
                                 $bg = '#f5f5f5';
-                                if($shiftClass == 'shift-pagi') { $bg = '#28a745'; $color = '#fff'; }
+                                if($shiftClass == 'shift-pagi-office') { $bg = '#28a745'; $color = '#fff'; }
+                                elseif($shiftClass == 'shift-pagi-service') { $bg = '#68b800'; $color = '#fff'; }
                                 elseif($shiftClass == 'shift-middle') { $bg = '#007bff'; $color = '#fff'; }
                                 elseif($shiftClass == 'shift-siang') { $bg = '#ffc107'; $color = '#212529'; }
                                 elseif($shiftClass == 'shift-malam') { $bg = '#6f42c1'; $color = '#fff'; }

@@ -9,7 +9,8 @@
     .table th, .table td { border: 1px solid #333; padding: 3px 5px; text-align: center; font-size: 9px; }
     .table th { background: #f5f5f5; font-weight: bold; font-size: 10px; }
     .division-header { background: #e9ecef; font-weight: bold; color: #333; text-align: left; font-size: 10px; }
-    .shift-pagi { background: #28a745; color: #fff; }
+    .shift-pagi-office { background: #28a745; color: #fff; }
+    .shift-pagi-service { background: #68b800; color: #fff; }
     .shift-middle { background: #007bff; color: #fff; }
     .shift-siang { background: #ffc107; color: #212529; }
     .shift-malam { background: #6f42c1; color: #fff; }
