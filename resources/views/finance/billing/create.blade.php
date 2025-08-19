@@ -1033,17 +1033,16 @@ $('#saveAllChangesBtn').on('click', function() {
         // Add selected Tindakan to billingData
         $('#select-tindakan').on('select2:select', function(e) {
             const data = e.params.data;
-            // console.log('Tindakan selected data:', data);
             const harga = parseHarga(data.harga);
-            // console.log('Tindakan parsed harga:', harga);
-            
+            const qty = parseInt(data.qty) || 1;
             billingData.push({
                 id: 'tindakan-' + data.id,
                 billable_id: data.id,
                 billable_type: 'App\\Models\\ERM\\Tindakan',
                 nama_item: data.text,
                 jumlah: 'Rp ' + formatCurrency(harga),
-                qty: 1,
+                jumlah_raw: harga,
+                qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
                 harga_akhir: 'Rp ' + formatCurrency(harga),
@@ -1066,13 +1065,15 @@ $('#saveAllChangesBtn').on('click', function() {
         $('#select-lab').on('select2:select', function(e) {
             const data = e.params.data;
             const harga = parseHarga(data.harga);
+            const qty = parseInt(data.qty) || 1;
             billingData.push({
                 id: 'lab-' + data.id,
                 billable_id: data.id,
                 billable_type: 'App\\Models\\ERM\\LabTest',
                 nama_item: data.text,
                 jumlah: 'Rp ' + formatCurrency(harga),
-                qty: 1,
+                jumlah_raw: harga,
+                qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
                 harga_akhir: 'Rp ' + formatCurrency(harga),
@@ -1095,13 +1096,15 @@ $('#saveAllChangesBtn').on('click', function() {
         $('#select-konsultasi').on('select2:select', function(e) {
             const data = e.params.data;
             const harga = parseHarga(data.harga);
+            const qty = parseInt(data.qty) || 1;
             billingData.push({
                 id: 'konsultasi-' + data.id,
                 billable_id: data.id,
                 billable_type: 'App\\Models\\ERM\\Konsultasi',
                 nama_item: data.text,
                 jumlah: 'Rp ' + formatCurrency(harga),
-                qty: 1,
+                jumlah_raw: harga,
+                qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
                 harga_akhir: 'Rp ' + formatCurrency(harga),
@@ -1118,13 +1121,15 @@ $('#saveAllChangesBtn').on('click', function() {
         $('#select-obat').on('select2:select', function(e) {
             const data = e.params.data;
             const harga = parseHarga(data.harga);
+            const qty = parseInt(data.qty) || 1;
             billingData.push({
                 id: 'obat-' + data.id,
                 billable_id: data.id,
                 billable_type: 'App\\Models\\ERM\\Obat',
                 nama_item: data.text,
                 jumlah: 'Rp ' + formatCurrency(harga),
-                qty: 1,
+                jumlah_raw: harga,
+                qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
                 harga_akhir: 'Rp ' + formatCurrency(harga),
