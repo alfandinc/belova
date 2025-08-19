@@ -32,12 +32,22 @@
     <div class="menu-content h-100" data-simplebar>
         <ul class="metismenu left-sidenav-menu">
             <li class="menu-label mt-0">Main</li>
+                
             <li>
                 <a href="javascript: void(0);"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="/hrd"><i class="ti-control-record"></i>Analytics</a></li>
                 </ul>
             </li>
+            <!-- Jadwal Karyawan -->
+                @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
+                <li>
+                    <a href="{{ route('hrd.schedule.index') }}">
+                        <i data-feather="calendar" class="align-self-center menu-icon"></i>
+                        <span>Jadwal Mingguan</span>
+                    </a>
+                </li>
+                @endif
             <!-- Catatan Dosa - New Feature -->
             @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
             <li>
