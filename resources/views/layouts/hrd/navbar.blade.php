@@ -40,7 +40,7 @@
                 </ul>
             </li>
             <!-- Jadwal Karyawan -->
-                @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
+                @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
                 <li>
                     <a href="{{ route('hrd.schedule.index') }}">
                         <i data-feather="calendar" class="align-self-center menu-icon"></i>
