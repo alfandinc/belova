@@ -421,7 +421,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
-            'items' => 'required|array',
             'totals' => 'required|array',
         ]);
 
@@ -438,60 +437,28 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ], 404);
             }
 
+            // Fetch all billing items for this visitation
+            $billingItems = Billing::where('visitation_id', $request->visitation_id)->get();
+
             // Check stock availability for medication items BEFORE creating invoice
             $stockErrors = [];
-            foreach ($request->items as $item) {
-                if (isset($item['deleted']) && $item['deleted']) {
-                    continue;
-                }
-                
-                // Check if this is a ResepFarmasi item
-                if (isset($item['billable_type']) && $item['billable_type'] === 'App\Models\ERM\ResepFarmasi') {
-                    $resep = \App\Models\ERM\ResepFarmasi::find($item['billable_id']);
+            foreach ($billingItems as $item) {
+                if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
+                    $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                     if ($resep && $resep->obat) {
-                        $qty = intval($item['qty'] ?? 1);
+                        $qty = intval($item->qty ?? 1);
                         $currentStock = $resep->obat->stok ?? 0;
-                        
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
                         }
                     }
                 }
             }
-            
             if (!empty($stockErrors)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Stok tidak mencukupi untuk beberapa obat:\n' . implode('\n', $stockErrors)
                 ], 400);
-            }
-
-            // First, save any new items to the billing table
-            $newItems = collect($request->items)->filter(function($item) {
-                return isset($item['id']) && (
-                    str_starts_with($item['id'], 'tindakan-') ||
-                    str_starts_with($item['id'], 'lab-') ||
-                    str_starts_with($item['id'], 'konsultasi-') ||
-                    str_starts_with($item['id'], 'racikan-')
-                );
-            });
-
-            foreach ($newItems as $item) {
-                if (isset($item['deleted']) && $item['deleted']) {
-                    continue;
-                }
-
-                Billing::create([
-                    'visitation_id' => $request->visitation_id,
-                    'billable_type' => $item['billable_type'],
-                    'billable_id' => $item['billable_id'],
-                    'nama_item' => $item['nama_item'],
-                    'jumlah' => $item['jumlah_raw'] ?? $item['harga_akhir_raw'],
-                    'qty' => $item['qty'] ?? 1,
-                    'diskon' => $item['diskon_raw'] ?? 0,
-                    'diskon_type' => $item['diskon_type'] ?? 'nominal',
-                    'keterangan' => $item['deskripsi'] ?? null,
-                ]);
             }
 
             // Get totals from request
@@ -547,26 +514,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             }
 
             // NOW REDUCE STOCK for medication items
-            foreach ($request->items as $item) {
-                if (isset($item['deleted']) && $item['deleted']) {
-                    continue;
-                }
-                
-                // Reduce stock only for ResepFarmasi items
-                if (isset($item['billable_type']) && $item['billable_type'] === 'App\Models\ERM\ResepFarmasi') {
-                    $resep = \App\Models\ERM\ResepFarmasi::find($item['billable_id']);
+            foreach ($billingItems as $item) {
+                if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
+                    $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                     if ($resep && $resep->obat) {
-                        $qty = intval($item['qty'] ?? 1);
+                        $qty = intval($item->qty ?? 1);
                         $obat = $resep->obat;
-                        
-                        // Reduce main stock
                         $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
                         $obat->save();
-                        
-                        // Reduce faktur beli items (FIFO - First Expiry First Out)
                         $this->reduceFakturStock($obat->id, $qty);
-                        
-                        // Log stock movement
                         Log::info('Stock reduced via invoice', [
                             'obat_id' => $obat->id,
                             'obat_nama' => $obat->nama,
@@ -580,36 +536,66 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
-            // Create invoice items
-            foreach ($request->items as $item) {
-                if (isset($item['deleted']) && $item['deleted']) {
-                    continue; // Skip deleted items
-                }
+            // Create invoice items from billing items
+            foreach ($billingItems as $item) {
                 // Skip Jasa Farmasi from invoice/nota
                 if (
-                    (isset($item['nama_item']) && strtolower($item['nama_item']) === 'jasa farmasi') ||
-                    (isset($item['is_pharmacy_fee']) && $item['is_pharmacy_fee'])
+                    (isset($item->nama_item) && strtolower($item->nama_item) === 'jasa farmasi') ||
+                    (isset($item->is_pharmacy_fee) && $item->is_pharmacy_fee)
                 ) {
                     continue;
                 }
-
-                // Handle billable_id - allow string or numeric (for ResepFarmasi, etc)
-                $billableId = null;
-                if (isset($item['billable_id']) && $item['billable_id'] !== '' && $item['billable_id'] !== null) {
-                    $billableId = $item['billable_id'];
+                // Try to get name from related billable model
+                $name = $item->nama_item;
+                if (empty($name) || $name === 'Unknown Item') {
+                    $billableName = null;
+                    if (!empty($item->billable_type) && !empty($item->billable_id)) {
+                        try {
+                            $billableModel = app($item->billable_type)::find($item->billable_id);
+                            if ($billableModel) {
+                                // Try common name fields
+                                if (isset($billableModel->nama)) {
+                                    $billableName = $billableModel->nama;
+                                } elseif (isset($billableModel->name)) {
+                                    $billableName = $billableModel->name;
+                                } elseif (isset($billableModel->deskripsi)) {
+                                    $billableName = $billableModel->deskripsi;
+                                }
+                            }
+                        } catch (\Exception $e) {}
+                    }
+                    if (!empty($billableName)) {
+                        $name = $billableName;
+                    } elseif (!empty($item->deskripsi)) {
+                        $name = $item->deskripsi;
+                    } elseif (!empty($item->billable_type)) {
+                        $name = class_basename($item->billable_type);
+                    } else {
+                        $name = 'Item';
+                    }
                 }
-
+                // Fallback for description
+                $description = $item->keterangan;
+                if (empty($description)) {
+                    if (!empty($item->deskripsi)) {
+                        $description = $item->deskripsi;
+                    } elseif (!empty($item->nama_item)) {
+                        $description = $item->nama_item;
+                    } else {
+                        $description = '';
+                    }
+                }
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
-                    'name' => $item['nama_item'] ?? 'Unknown Item',
-                    'description' => $item['deskripsi'] ?? '',
-                    'quantity' => intval($item['qty'] ?? 1),
-                    'unit_price' => floatval($item['jumlah_raw'] ?? $item['harga_akhir_raw'] ?? 0),
-                    'discount' => floatval($item['diskon_raw'] ?? 0),
-                    'discount_type' => $item['diskon_type'] ?? null,
-                    'final_amount' => floatval($item['harga_akhir_raw'] ?? 0) * intval($item['qty'] ?? 1),
-                    'billable_type' => $item['billable_type'] ?? null,
-                    'billable_id' => $billableId, // This will be null for string IDs
+                    'name' => $name,
+                    'description' => $description,
+                    'quantity' => intval($item->qty ?? 1),
+                    'unit_price' => floatval($item->jumlah ?? 0),
+                    'discount' => floatval($item->diskon ?? 0),
+                    'discount_type' => $item->diskon_type ?? null,
+                    'final_amount' => floatval($item->jumlah ?? 0) * intval($item->qty ?? 1),
+                    'billable_type' => $item->billable_type ?? null,
+                    'billable_id' => $item->billable_id ?? null,
                 ]);
             }
 
