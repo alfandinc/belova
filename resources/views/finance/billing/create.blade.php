@@ -661,11 +661,23 @@
             // data.harga should be the unit price, data.qty the quantity, or adapt as needed
             const harga = parseHarga(data.harga);
             const qty = parseInt(data.qty) || 1;
+            
+            // Always use 'Obat Racikan' as the name for consistency
+            const racikanName = 'Obat Racikan';
+                
+            // Build the description with the list of medications
+            let description = '';
+            if (data.obat_list && Array.isArray(data.obat_list)) {
+                description = data.obat_list.map(obat => `- ${obat}`).join('<br>');
+            } else if (data.deskripsi) {
+                description = data.deskripsi;
+            }
+            
             billingData.push({
                 id: 'racikan-' + (data.id || Date.now()),
                 billable_id: data.id,
                 billable_type: 'App\\Models\\ERM\\ResepFarmasi',
-                nama_item: 'Obat Racikan',
+                nama_item: racikanName,
                 jumlah: 'Rp ' + formatCurrency(harga),
                 qty: qty,
                 diskon: 0,
@@ -673,8 +685,10 @@
                 harga_akhir: 'Rp ' + formatCurrency(harga * qty),
                 harga_akhir_raw: harga,
                 deleted: false,
-                deskripsi: data.deskripsi || '',
-                is_racikan: true
+                deskripsi: description,
+                is_racikan: true,
+                racikan_ke: data.racikan_ke || 0,
+                racikan_obat_list: data.obat_list || []
             });
             updateTable();
             calculateTotals();

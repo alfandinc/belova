@@ -203,6 +203,7 @@ class BillingController extends Controller
             $racikanItem->racikan_obat_list = $obatList;
             $racikanItem->racikan_total_price = $totalPrice;
             $racikanItem->racikan_bungkus = $bungkus;
+            $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
 
             $processedBillings[] = $racikanItem;
         }
@@ -513,6 +514,37 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
 
+            // Group racikan items first
+            $racikanGroups = [];
+            $regularItems = [];
+            $pharmacyFeeItems = [];
+
+            foreach ($billingItems as $item) {
+                // Identify pharmacy fee items
+                if (
+                    (isset($item->nama_item) && strtolower($item->nama_item) === 'jasa farmasi') ||
+                    (isset($item->is_pharmacy_fee) && $item->is_pharmacy_fee)
+                ) {
+                    $pharmacyFeeItems[] = $item;
+                    continue;
+                }
+
+                // Identify racikan items
+                if (
+                    $item->billable_type == 'App\Models\ERM\ResepFarmasi' && 
+                    isset($item->billable->racikan_ke) && 
+                    $item->billable->racikan_ke > 0
+                ) {
+                    $racikanKey = $item->billable->racikan_ke;
+                    if (!isset($racikanGroups[$racikanKey])) {
+                        $racikanGroups[$racikanKey] = [];
+                    }
+                    $racikanGroups[$racikanKey][] = $item;
+                } else {
+                    $regularItems[] = $item;
+                }
+            }
+
             // NOW REDUCE STOCK for medication items
             foreach ($billingItems as $item) {
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
@@ -536,44 +568,43 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
-            // Create invoice items from billing items
-            foreach ($billingItems as $item) {
-                // Skip Jasa Farmasi from invoice/nota
-                if (
-                    (isset($item->nama_item) && strtolower($item->nama_item) === 'jasa farmasi') ||
-                    (isset($item->is_pharmacy_fee) && $item->is_pharmacy_fee)
-                ) {
-                    continue;
-                }
-                // Try to get name from related billable model
+            // Process regular items
+            foreach ($regularItems as $item) {
                 $name = $item->nama_item;
+                
                 if (empty($name) || $name === 'Unknown Item') {
-                    $billableName = null;
                     if (!empty($item->billable_type) && !empty($item->billable_id)) {
                         try {
                             $billableModel = app($item->billable_type)::find($item->billable_id);
                             if ($billableModel) {
                                 // Try common name fields
                                 if (isset($billableModel->nama)) {
-                                    $billableName = $billableModel->nama;
+                                    $name = $billableModel->nama;
                                 } elseif (isset($billableModel->name)) {
-                                    $billableName = $billableModel->name;
-                                } elseif (isset($billableModel->deskripsi)) {
-                                    $billableName = $billableModel->deskripsi;
+                                    $name = $billableModel->name;
+                                } elseif ($item->billable_type == 'App\\Models\\ERM\\ResepFarmasi' && isset($billableModel->obat)) {
+                                    $name = $billableModel->obat->nama ?? 'Obat';
                                 }
                             }
-                        } catch (\Exception $e) {}
+                        } catch (\Exception $e) {
+                            Log::error('Error getting billable model name', [
+                                'error' => $e->getMessage(),
+                                'billable_type' => $item->billable_type,
+                                'billable_id' => $item->billable_id
+                            ]);
+                        }
                     }
-                    if (!empty($billableName)) {
-                        $name = $billableName;
-                    } elseif (!empty($item->deskripsi)) {
-                        $name = $item->deskripsi;
-                    } elseif (!empty($item->billable_type)) {
-                        $name = class_basename($item->billable_type);
-                    } else {
-                        $name = 'Item';
+                    
+                    // If name is still empty, use a default
+                    if (empty($name)) {
+                        if ($item->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
+                            $name = 'Obat';
+                        } else {
+                            $name = 'Item ' . substr(md5(rand()), 0, 5);
+                        }
                     }
                 }
+                
                 // Fallback for description
                 $description = $item->keterangan;
                 if (empty($description)) {
@@ -585,6 +616,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $description = '';
                     }
                 }
+                
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => $name,
@@ -598,7 +630,58 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'billable_id' => $item->billable_id ?? null,
                 ]);
             }
+            
+            // Process racikan groups
+            foreach ($racikanGroups as $racikanKey => $racikanItems) {
+                // Use the first item as base
+                $firstItem = $racikanItems[0];
+                
+                // Get the total price for this racikan group
+                $totalPrice = 0;
+                $obatList = [];
+                $qty = 0;
+                
+                foreach ($racikanItems as $item) {
+                    $totalPrice += floatval($item->jumlah ?? 0);
+                    
+                    // Get the obat name for description
+                    if (isset($item->billable) && $item->billable->obat) {
+                        $obatList[] = $item->billable->obat->nama;
+                    }
+                    
+                    // Use the qty/bungkus from the first item (should be the same for all items in racikan)
+                    if ($qty == 0) {
+                        $qty = intval($item->billable->bungkus ?? $item->qty ?? 30); // Default to 30 if not specified
+                    }
+                }
+                
+                // Format the description as a list
+                $formattedObatList = array_map(function($obat) {
+                    return "- " . $obat;
+                }, $obatList);
+                
+                $description = implode("\n", $formattedObatList);
+                
+                // For racikan, the unit price is the total price of all components per unit (bungkus)
+                // This calculation has to match what's shown in the UI (see harga_akhir column in DataTables)
+                $unitPrice = $totalPrice;  // Total price of all components is treated as unit price
+                $finalAmount = $totalPrice * $qty; // Final amount = total price × qty (bungkus)
 
+                // Create single invoice item for the racikan group
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'name' => 'Obat Racikan',
+                    'description' => $description,
+                    'quantity' => $qty,
+                    'unit_price' => $unitPrice,
+                    'discount' => 0,
+                    'discount_type' => null,
+                    'final_amount' => $finalAmount,
+                    'billable_type' => 'App\\Models\\ERM\\ResepFarmasi',
+                    'billable_id' => null, // No specific billable_id since it's a group
+                ]);
+            }
+            
             // Add biaya administrasi and biaya ongkir as invoice items if present
             if (!empty($totals['adminFee']) && $totals['adminFee'] > 0) {
                 InvoiceItem::create([
