@@ -830,16 +830,37 @@
                         };
                     },
                     processResults: function (data) {
-                        return {
-                            results: data.map(item => ({
-                                id: item.id,
-                                text: `${item.nama} ${item.dosis} ${item.satuan}`,
-                                stok: item.stok, // Include stok in the data
-                                dosis: item.dosis, // Include dosis in the data
-                                satuan: item.satuan, // Include satuan in the data
-                                harga_nonfornas: item.harga_nonfornas // Ensure harga_nonfornas is included!
-                            }))
-                        };
+                        // If your endpoint returns {results: [...]}, use that
+                        if (Array.isArray(data.results)) {
+                            return {
+                                results: data.results.map(function(item) {
+                                    return {
+                                        id: item.id,
+                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                        nama: item.nama,
+                                        dosis: item.dosis,
+                                        satuan: item.satuan,
+                                        stok: item.stok,
+                                        harga_nonfornas: item.harga_nonfornas
+                                    };
+                                })
+                            };
+                        } else {
+                            // fallback for array response
+                            return {
+                                results: data.map(function(item) {
+                                    return {
+                                        id: item.id,
+                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                        nama: item.nama,
+                                        dosis: item.dosis,
+                                        satuan: item.satuan,
+                                        stok: item.stok,
+                                        harga_nonfornas: item.harga_nonfornas
+                                    };
+                                })
+                            };
+                        }
                     },
                     cache: true
                 },
@@ -1395,7 +1416,13 @@
                         return { q: params.term };
                     },
                     processResults: function (data) {
-                        return { results: data };
+                        // If your endpoint returns {results: [...]}, use that
+                        if (Array.isArray(data.results)) {
+                            return { results: data.results };
+                        } else {
+                            // fallback for array response
+                            return { results: data };
+                        }
                     },
                     cache: true
                 },
@@ -2114,19 +2141,37 @@
                         };
                     },
                     processResults: function (data) {
-                        return {
-                            results: data.map(function (item) {
-                                return {
-                                    id: item.id,
-                                    text: `${item.nama} ${item.dosis} ${item.satuan}`,
-                                    nama: item.nama,
-                                    dosis: item.dosis,
-                                    satuan: item.satuan,
-                                    harga_nonfornas: item.harga_nonfornas,
-                                    stok: item.stok
-                                };
-                            })
-                        };
+                        // If your endpoint returns {results: [...]}, use that
+                        if (Array.isArray(data.results)) {
+                            return {
+                                results: data.results.map(function(item) {
+                                    return {
+                                        id: item.id,
+                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                        nama: item.nama,
+                                        dosis: item.dosis,
+                                        satuan: item.satuan,
+                                        harga_nonfornas: item.harga_nonfornas,
+                                        stok: item.stok
+                                    };
+                                })
+                            };
+                        } else {
+                            // fallback for array response
+                            return {
+                                results: data.map(function(item) {
+                                    return {
+                                        id: item.id,
+                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                        nama: item.nama,
+                                        dosis: item.dosis,
+                                        satuan: item.satuan,
+                                        harga_nonfornas: item.harga_nonfornas,
+                                        stok: item.stok
+                                    };
+                                })
+                            };
+                        }
                     },
                     cache: true
                 },
