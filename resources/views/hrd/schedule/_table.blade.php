@@ -6,14 +6,18 @@
         <style>
             .table td.shift-pagi-office { background: #28a745 !important; color: #fff !important; }
             .table td.shift-pagi-service { background: #68b800 !important; color: #fff !important; }
-            .table td.shift-middle { background: #007bff !important; color: #fff !important; }
-            .table td.shift-siang { background: #ffc107 !important; color: #212529 !important; }
+            .table td.shift-middle-office { background: #007bff !important; color: #fff !important; }
+            .table td.shift-middle-service { background: #2890ff !important; color: #fff !important; }
+            .table td.shift-siang-office { background: #ffc107 !important; color: #212529 !important; }
+            .table td.shift-siang-service { background: #ffd54f !important; color: #212529 !important; }
             .table td.shift-malam { background: #6f42c1 !important; color: #fff !important; }
             .shift-cell { transition: background 0.2s; }
             .shift-select.shift-pagi-office { background: #28a745 !important; color: #fff !important; }
             .shift-select.shift-pagi-service { background: #68b800 !important; color: #fff !important; }
-            .shift-select.shift-middle { background: #007bff !important; color: #fff !important; }
-            .shift-select.shift-siang { background: #ffc107 !important; color: #212529 !important; }
+            .shift-select.shift-middle-office { background: #007bff !important; color: #fff !important; }
+            .shift-select.shift-middle-service { background: #2890ff !important; color: #fff !important; }
+            .shift-select.shift-siang-office { background: #ffc107 !important; color: #212529 !important; }
+            .shift-select.shift-siang-service { background: #ffd54f !important; color: #212529 !important; }
             .shift-select.shift-malam { background: #6f42c1 !important; color: #fff !important; }
         </style>
         <table class="table table-bordered">
@@ -78,8 +82,10 @@
                                 $bg = '#f5f5f5';
                                 if($shiftClass == 'shift-pagi-office') { $bg = '#28a745'; $color = '#fff'; }
                                 elseif($shiftClass == 'shift-pagi-service') { $bg = '#68b800'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-middle') { $bg = '#007bff'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-siang') { $bg = '#ffc107'; $color = '#212529'; }
+                                elseif($shiftClass == 'shift-middle-office') { $bg = '#007bff'; $color = '#fff'; }
+                                elseif($shiftClass == 'shift-middle-service') { $bg = '#2890ff'; $color = '#fff'; }
+                                elseif($shiftClass == 'shift-siang-office') { $bg = '#ffc107'; $color = '#212529'; }
+                                elseif($shiftClass == 'shift-siang-service') { $bg = '#ffd54f'; $color = '#212529'; }
                                 elseif($shiftClass == 'shift-malam') { $bg = '#6f42c1'; $color = '#fff'; }
                             @endphp
                             <li class="mb-2">
