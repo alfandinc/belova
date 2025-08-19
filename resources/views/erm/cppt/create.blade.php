@@ -94,8 +94,22 @@
         border: none;
     }
 </style>
-    <div class="d-flex  align-items-center mb-0 mt-2">
-        <h3 class="mb-0 mr-2">Catatan Perkembangan Pasien Terintegrasi</h3>
+
+    <div class="d-flex align-items-center justify-content-between mb-0 mt-2">
+        <div>
+            <h3 class="mb-0">Catatan Perkembangan Pasien Terintegrasi</h3>
+        </div>
+        <div style="width: 400px;" class="d-flex align-items-center justify-content-end mt-2">
+            <select class="form-control select2" name="jenis_konsultasi" id="jenis_konsultasi" style="margin-right: 20px; flex-shrink: 0;">
+                <option value="" disabled>Pilih Jenis Konsultasi</option>
+                @foreach ($jenisKonsultasi as $konsultasi)
+                    <option value="{{ $konsultasi->id }}"
+                        {{ old('jenis_konsultasi', $visitation->dokter->spesialisasi->id == 6 ? 1 : 2) == $konsultasi->id ? 'selected' : '' }}>
+                        {{ $konsultasi->nama }} - Rp {{ $konsultasi->harga }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
     </div>
     <!-- Page-Title -->
     <div class="row">
@@ -246,6 +260,7 @@
                 @csrf
                 <input type="hidden" name="jenis_dokumen" value="2">
                 <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                <!-- Biaya konsultasi select only at top, not inside SBAR form -->
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label><strong>Situation (S) *</strong></label>
@@ -639,6 +654,8 @@ $(document).ready(function () {
         e.preventDefault();
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
+        // Add konsultasi value from top select
+        formData.set('jenis_konsultasi', $('#jenis_konsultasi').val());
 
         $.ajax({
             url: $(this).attr('action'),
@@ -667,6 +684,8 @@ $(document).ready(function () {
         e.preventDefault();
         let formData = new FormData(this);
         let visitationId = formData.get('visitation_id');
+        // Add konsultasi value from top select
+        formData.set('jenis_konsultasi', $('#jenis_konsultasi').val());
 
         $.ajax({
             url: $(this).attr('action'),

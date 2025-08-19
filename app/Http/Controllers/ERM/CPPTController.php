@@ -32,12 +32,15 @@ class CPPTController extends Controller
         $cpptList->each(function ($cppt) {
             $cppt->formatted_date = $cppt->created_at
                 ->translatedFormat('d M Y H:i');
-        });;
+        });
 
+        // Get konsultasi list for select
+        $jenisKonsultasi = \App\Models\ERM\Konsultasi::get();
 
         return view('erm.cppt.create', array_merge([
             'visitation' => $visitation,
             'cpptList' => $cpptList,
+            'jenisKonsultasi' => $jenisKonsultasi,
         ], $pasienData, $createKunjunganData));
     }
 
@@ -74,10 +77,44 @@ class CPPTController extends Controller
             $data
         );
 
+        // Store konsultasi billing if selected
+        if ($request->filled('jenis_konsultasi')) {
+            $this->storeJenisKonsultasi($request);
+        }
+
         return response()->json([
             'message' => 'CPPT berhasil disimpan.',
             'data'    => $cppt,
         ]);
+    }
+
+    // Copy-paste from AsesmenController, but simplified
+    private function storeJenisKonsultasi(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required',
+            'jenis_konsultasi' => 'required|exists:erm_konsultasi,id',
+        ]);
+
+        $visitationId = $request->visitation_id;
+        $jenis_konsultasi = $request->jenis_konsultasi;
+
+        $jasa = \App\Models\ERM\Konsultasi::findOrFail($jenis_konsultasi);
+
+        $existing = \App\Models\Finance\Billing::where('visitation_id', $visitationId)
+            ->where('billable_id', $jasa->id)
+            ->where('billable_type', \App\Models\ERM\Konsultasi::class)
+            ->first();
+
+        if (!$existing) {
+            \App\Models\Finance\Billing::create([
+                'visitation_id' => $visitationId,
+                'billable_id' => $jasa->id,
+                'billable_type' => \App\Models\ERM\Konsultasi::class,
+                'keterangan' => 'Tindakan: ' . $jasa->nama,
+                'jumlah' => $jasa->harga,
+            ]);
+        }
     }
 
 
