@@ -1019,9 +1019,11 @@ $('#saveAllChangesBtn').on('click', function() {
                     return { q: params.term };
                 },
                 processResults: function(data) {
+                    // Support both {results: [...]} and array response
+                    var items = Array.isArray(data) ? data : (data.results || []);
                     return {
-                        results: data.map(function(item) {
-                            return { id: item.id, text: item.nama, harga: item.harga_nonfornas || item.harga || 0 };
+                        results: items.map(function(item) {
+                            return { id: item.id, text: item.text || item.nama, harga: item.harga_nonfornas || item.harga || 0 };
                         })
                     };
                 },
