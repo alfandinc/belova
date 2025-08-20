@@ -41,12 +41,28 @@
             </li>
             <!-- Jadwal Karyawan -->
                 @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
-                <li>
-                    <a href="{{ route('hrd.schedule.index') }}">
-                        <i data-feather="calendar" class="align-self-center menu-icon"></i>
-                        <span>Jadwal Mingguan</span>
-                    </a>
-                </li>
+                    <!-- Jadwal dan Absensi Group -->
+                    <li>
+                        <a href="javascript: void(0);">
+                            <i data-feather="calendar" class="align-self-center menu-icon"></i>
+                            <span>Jadwal dan Absensi</span>
+                            <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                        </a>
+                        <ul class="nav-second-level" aria-expanded="false">
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('hrd.schedule.index') }}">
+                                    <i class="ti-control-record"></i>Jadwal Mingguan
+                                </a>
+                            </li>
+                            @if(Auth::user()->hasAnyRole('Hrd','Admin','Manager','Ceo'))
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ route('hrd.absensi_rekap.index') }}">
+                                    <i class="ti-control-record"></i>Rekap Absensi
+                                </a>
+                            </li>
+                            @endif
+                        </ul>
+                    </li>
                 @endif
             <!-- Catatan Dosa - New Feature -->
             @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
@@ -131,11 +147,8 @@
                 </ul>
             </li>
                 <li>
-                    <a href="{{ route('hrd.absensi_rekap.index') }}">
-                        <i data-feather="file-text" class="align-self-center menu-icon"></i>
-                        <span>Rekap Absensi</span>
-                    </a>
-                </li>
+                        {{-- Rekap Absensi now grouped under Jadwal dan Absensi --}}
+                
             
             <!-- For HRD and CEO: Division and Position Management -->
             <li>
