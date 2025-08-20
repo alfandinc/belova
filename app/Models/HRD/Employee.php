@@ -38,6 +38,7 @@ class Employee extends Model
         'email',
         'instagram'
         ,'perusahaan'
+        ,'finger_id' // New field for fingerprint ID
     ];
 
     protected $casts = [

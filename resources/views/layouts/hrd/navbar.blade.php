@@ -130,6 +130,12 @@
                     
                 </ul>
             </li>
+                <li>
+                    <a href="{{ route('hrd.absensi_rekap.index') }}">
+                        <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                        <span>Rekap Absensi</span>
+                    </a>
+                </li>
             
             <!-- For HRD and CEO: Division and Position Management -->
             <li>
