@@ -62,9 +62,10 @@ class CPPTController extends Controller
             ->get();
 
         // 3) Format the date for JS
-        $cpptList->each(function ($cppt) {
-            $cppt->formatted_date = $cppt->created_at
-                ->translatedFormat('d M Y H:i');
+            $cpptList->each(function ($cppt) {
+                $cppt->formatted_date = $cppt->created_at
+                    ? $cppt->created_at->translatedFormat('d M Y H:i')
+                    : '';
         });
 
         // Get konsultasi list for select
