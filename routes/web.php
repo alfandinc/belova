@@ -222,6 +222,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('cppt/store', [CPPTController::class, 'store'])->name('erm.cppt.store');
     Route::post('cppt/{id}/mark-read', [CPPTController::class, 'markAsRead'])->name('erm.cppt.mark-read');
     Route::get('/cppt/history-json/{visitation}', [CPPTController::class, 'historyJson']);
+    Route::post('cppt/{id}/update', [CPPTController::class, 'update']);
+    Route::post('cppt/mark-all-read/{visitationId}', [CPPTController::class, 'markAllAsRead']);
 
     // E Resep Dokter
     Route::get('eresep/{visitation_id}/create', [EresepController::class, 'create'])->name('erm.eresep.create');

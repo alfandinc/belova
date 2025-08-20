@@ -250,6 +250,7 @@
                     <div class="mr-2">
                         <button type="submit" class="btn btn-primary">Simpan SOAP</button>
                     </div>
+                        <button type="button" id="btnMarkAllReadSoap" class="btn btn-outline-primary">Tandai Dibaca Semua</button>
                 </div>
             </form>
                     
@@ -297,6 +298,7 @@
                     <div class="mr-2">
                         <button type="submit" class="btn btn-primary">Simpan SBAR</button>
                     </div>
+                        <button type="button" id="btnMarkAllReadSbar" class="btn btn-outline-primary">Tandai Dibaca Semua</button>
                 </div>
             </form>
                     
@@ -434,11 +436,55 @@
            
 </div><!-- container -->
 
+<!-- Edit CPPT Modal -->
+<div class="modal fade" id="modalEditCppt" tabindex="-1" role="dialog" aria-labelledby="modalEditCpptLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditCpptLabel">Edit CPPT</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="formEditCppt">
+                        <div class="modal-body">
+                            <input type="hidden" name="cppt_id" id="editCpptId">
+                            <div class="form-group">
+                                <label for="editS">Subject (S)</label>
+                                <textarea class="form-control" name="s" id="editS" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="editO">Object (O)</label>
+                                <textarea class="form-control" name="o" id="editO" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="editA">Assessment (A)</label>
+                                <textarea class="form-control" name="a" id="editA" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="editP">Planning (P)</label>
+                                <textarea class="form-control" name="p" id="editP" rows="2"></textarea>
+                            </div>
+                        </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 
 @endsection
 @section('scripts')
 <script>
 $(document).ready(function () {
+    // Refresh CPPT history on page load
+    var visitationId = $('input[name="visitation_id"]', '#form-cppt-soap').val() || $('input[name="visitation_id"]', '#form-cppt-sbar').val();
+    if (visitationId) {
+        refreshCpptHistory(visitationId);
+    }
     $('.select2').select2({ width: '100%' });
     
     // Initialize assessment options select2 with minimum input length
@@ -590,6 +636,11 @@ $(document).ready(function () {
                                         <td style="border: 1px solid #007bff;"><span class="badge badge-pill badge-primary px-3 py-2">Planning (P)</span></td>
                                         <td class="cppt-value" style="border: 1px solid #007bff;">${cppt.p.replace(/\n/g, '<br>')}</td>
                                     </tr>
+                                    <tr>
+                                        <td colspan="4" style="text-align:right; background:#23263a; border:none;">
+                                            <button class="btn btn-sm btn-warning btn-edit-cppt" data-cppt-id="${cppt.id}" data-cppt='${JSON.stringify(cppt)}'>Edit</button>
+                                        </td>
+                                    </tr>
                                 </table>
                             `;
                         } else {
@@ -633,11 +684,11 @@ $(document).ready(function () {
                                     <div class="cppt-content">
                                         <div class="row">
                                             <div class="col-md-6"><span class="cppt-label">Situation (S)</span><div class="cppt-value">${cppt.s}</div></div>
-                                            <div class="col-md-6"><span class="cppt-label">Background (B)</span><div class="cppt-value">${cppt.o.replace(/\n/g, '<br>')}</div></div>
+                                            <div class="col-md-6"><span class="cppt-label">Background (B)</span><div class="cppt-value">${cppt.o ? cppt.o.replace(/\n/g, '<br>') : ''}</div></div>
                                         </div>
                                         <div class="row">
                                             <div class="col-md-6"><span class="cppt-label">Assessment (A)</span><div class="cppt-value">${cppt.a}</div></div>
-                                            <div class="col-md-6"><span class="cppt-label">Recommendation (R)</span><div class="cppt-value">${cppt.p.replace(/\n/g, '<br>')}</div></div>
+                                            <div class="col-md-6"><span class="cppt-label">Recommendation (R)</span><div class="cppt-value">${cppt.p ? cppt.p.replace(/\n/g, '<br>') : ''}</div></div>
                                         </div>
                                     </div>
                                     <div class="cppt-qr">
@@ -645,10 +696,14 @@ $(document).ready(function () {
                                         <div class="cppt-qr-label">TTD ${userRole}</div>
                                         <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent((user ? user.name : '') + ' - ' + userRole + ' - ' + cppt.created_at)}" alt="QR ${userRole}" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
                                         ${readSection}
+                                        <div class="mt-2 text-right">
+                                            <button class="btn btn-sm btn-warning btn-edit-cppt" data-cppt-id="${cppt.id}" data-cppt='${JSON.stringify(cppt)}'>Edit</button>
+                                        </div>
                                     </div>
                                 </div>
                                 <hr style="border-color:#2196f3;border-width:3px;opacity:0.5;">
                             `;
+    
                         }
                     });
                 }
@@ -754,6 +809,68 @@ $(document).ready(function () {
                 if (xhr.responseJSON?.message) msg = xhr.responseJSON.message;
                 Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
                 button.prop('disabled', false).text('Tandai Dibaca');
+            }
+        });
+    });
+
+        // Mark all CPPT as read handler
+        function markAllCpptRead(visitationId) {
+            Swal.fire({ title: 'Menandai semua...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            $.ajax({
+                url: '/erm/cppt/mark-all-read/' + visitationId,
+                type: 'POST',
+                data: { _token: '{{ csrf_token() }}' },
+                success: function (res) {
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Semua CPPT ditandai sudah dibaca.', timer: 2000, showConfirmButton: false });
+                    refreshCpptHistory(visitationId);
+                },
+                error: function (xhr) {
+                    let msg = 'Terjadi kesalahan.';
+                    if (xhr.responseJSON?.message) msg = xhr.responseJSON.message;
+                    Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
+                }
+            });
+        }
+
+        $('#btnMarkAllReadSoap').on('click', function() {
+            let visitationId = $('input[name="visitation_id"]', '#form-cppt-soap').val();
+            markAllCpptRead(visitationId);
+        });
+        $('#btnMarkAllReadSbar').on('click', function() {
+            let visitationId = $('input[name="visitation_id"]', '#form-cppt-sbar').val();
+            markAllCpptRead(visitationId);
+        });
+
+        // Edit CPPT Modal logic
+    $(document).on('click', '.btn-edit-cppt', function() {
+        var cppt = $(this).data('cppt');
+    $('#editCpptId').val(cppt.id);
+    $('#editS').val(cppt.s || '');
+    $('#editO').val(cppt.o || '');
+    $('#editA').val(cppt.a || '');
+    $('#editP').val(cppt.p || '');
+    $('#modalEditCppt').modal('show');
+    });
+
+    $('#formEditCppt').on('submit', function(e) {
+        e.preventDefault();
+        var cpptId = $('#editCpptId').val();
+        var formData = $(this).serialize();
+        $.ajax({
+            url: '/erm/cppt/' + cpptId + '/update',
+            type: 'POST',
+            data: formData + '&_token={{ csrf_token() }}',
+            success: function(res) {
+                $('#modalEditCppt').modal('hide');
+                Swal.fire({ icon: 'success', title: 'Berhasil', text: 'CPPT berhasil diupdate.', timer: 2000, showConfirmButton: false });
+                // Refresh history
+                var visitationId = $('input[name="visitation_id"]', '#form-cppt-soap').val() || $('input[name="visitation_id"]', '#form-cppt-sbar').val();
+                refreshCpptHistory(visitationId);
+            },
+            error: function(xhr) {
+                let msg = 'Terjadi kesalahan saat update.';
+                if (xhr.responseJSON?.message) msg = xhr.responseJSON.message;
+                Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
             }
         });
     });

@@ -12,6 +12,39 @@ use Illuminate\Support\Facades\Auth;
 
 class CPPTController extends Controller
 {
+    // Update CPPT entry
+    public function update(Request $request, $id)
+    {
+    $cppt = Cppt::findOrFail($id);
+    $cppt->s = $request->input('s');
+    $cppt->o = $request->input('o');
+    $cppt->a = $request->input('a');
+    $cppt->p = $request->input('p');
+    $cppt->save();
+    return response()->json(['message' => 'CPPT berhasil diupdate.', 'data' => $cppt]);
+    }
+    // Mark all CPPTs for a visitation/patient as read
+    public function markAllAsRead($visitationId)
+    {
+        $visitation = \App\Models\ERM\Visitation::findOrFail($visitationId);
+        $pasienId = $visitation->pasien_id;
+        $visitationIds = \App\Models\ERM\Visitation::where('pasien_id', $pasienId)->pluck('id');
+        $cpptList = Cppt::whereIn('visitation_id', $visitationIds)->get();
+        $count = 0;
+        foreach ($cpptList as $cppt) {
+            if ($cppt->dibaca !== Auth::id()) {
+                $cppt->update([
+                    'dibaca' => Auth::id(),
+                    'waktu_baca' => now()
+                ]);
+                $count++;
+            }
+        }
+        return response()->json([
+            'message' => "Ditandai sudah dibaca: $count catatan.",
+            'count' => $count
+        ]);
+    }
     public function create($visitationId)
     {
         $visitation = Visitation::findOrFail($visitationId);
