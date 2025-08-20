@@ -63,16 +63,27 @@
                                 @php
                                     $key = $employee->id . '_' . $date;
                                     $schedule = $schedules[$key][0] ?? null;
-                                    $isLibur = $schedule && isset($schedule->is_libur) && $schedule->is_libur;
-                                    $shiftName = $schedule && $schedule->shift ? strtolower($schedule->shift->name) : '';
-                                    $cellClass = $isLibur ? 'bg-danger text-white' : ($shiftName ? 'shift-' . $shiftName : '');
-                                    $shiftLabel = $isLibur
-                                        ? ($schedule->label ?? 'Libur/Cuti')
-                                        : (($schedule && $schedule->shift)
-                                            ? (\Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->start_time)->format('H:i')
-                                                . ' - ' .
-                                                \Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->end_time)->format('H:i'))
-                                            : '-');
+                                    $isLibur = false;
+                                    $shiftName = '';
+                                    $cellClass = '';
+                                    $shiftLabel = '';
+                                    if ($schedule) {
+                                        $isLibur = isset($schedule->is_libur) && $schedule->is_libur;
+                                        $shiftName = $schedule->shift ? strtolower($schedule->shift->name) : '';
+                                        $cellClass = $isLibur ? 'bg-danger text-white' : ($shiftName ? 'shift-' . $shiftName : '');
+                                        $shiftLabel = $isLibur
+                                            ? ($schedule->label ?? 'Libur/Cuti')
+                                            : (($schedule && $schedule->shift)
+                                                ? (\Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->start_time)->format('H:i')
+                                                    . ' - ' .
+                                                    \Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->end_time)->format('H:i'))
+                                                : '-');
+                                    } else {
+                                        // No schedule for this day: treat as Libur/Cuti
+                                        $isLibur = true;
+                                        $cellClass = 'bg-danger text-white';
+                                        $shiftLabel = 'Libur';
+                                    }
                                 @endphp
                                 <td class="{{ $isLibur ? 'bg-danger' : $cellClass }}" style="{{ $isLibur ? 'background:#e74c3c;color:#fff;' : '' }}"><strong>{{ $shiftLabel }}</strong></td>
                             @endforeach
