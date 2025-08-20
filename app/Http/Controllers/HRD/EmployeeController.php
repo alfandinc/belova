@@ -132,7 +132,7 @@ class EmployeeController extends Controller
             'doc_pendukung' => 'nullable|file|max:2048',
             'create_account' => 'nullable|boolean',
             'email' => 'nullable|email|max:255|unique:hrd_employee,email',
-            'instagram' => 'nullable|string|max:100',
+            'instagram' => 'nullable|array', // Accept array for multiple Instagram accounts
             'role' => 'nullable',
             'perusahaan' => 'nullable|string|max:255',
         ]);
@@ -165,6 +165,10 @@ class EmployeeController extends Controller
         $employeeData = $data;
         if (isset($data['no_darurat'])) {
             $employeeData['no_darurat'] = $data['no_darurat'];
+        }
+        // Encode instagram array as JSON if present
+        if (isset($data['instagram']) && is_array($data['instagram'])) {
+            $employeeData['instagram'] = json_encode($data['instagram']);
         }
         $employee = Employee::create($employeeData);
 
@@ -227,7 +231,7 @@ class EmployeeController extends Controller
             'doc_pendukung' => 'nullable|file|max:2048',
             'durasi_kontrak' => 'nullable|integer|min:1',
             'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
-            'instagram' => 'nullable|string|max:100',
+            'instagram' => 'nullable|array', // Accept array for multiple Instagram accounts
             'perusahaan' => 'nullable|string|max:255',
         ]);
 
@@ -246,6 +250,10 @@ class EmployeeController extends Controller
         $employeeData = $data;
         if (isset($data['no_darurat'])) {
             $employeeData['no_darurat'] = $data['no_darurat'];
+        }
+        // Encode instagram array as JSON if present
+        if (isset($data['instagram']) && is_array($data['instagram'])) {
+            $employeeData['instagram'] = json_encode($data['instagram']);
         }
         $employee->update($employeeData);
 

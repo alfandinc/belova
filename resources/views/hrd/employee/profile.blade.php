@@ -59,7 +59,27 @@
                             <p><strong>Divisi:</strong> {{ $employee->division->name ?? '-' }}</p>
                             <p><strong>Jabatan:</strong> {{ $employee->position->name ?? '-' }}</p>
                             <p><strong>Email:</strong> {{ $employee->email ?? '-' }}</p>
-                            <p><strong>Instagram:</strong> {{ $employee->instagram ? '@'.$employee->instagram : '-' }}</p>
+                            <p><strong>Instagram:</strong>
+                                @php
+                                    $instagrams = is_array($employee->instagram) ? $employee->instagram : json_decode($employee->instagram, true);
+                                    $instagrams = array_filter($instagrams); // Remove empty/null values
+                                @endphp
+                                        @if (!empty($instagrams))
+                                            <ul class="mb-0">
+                                                @foreach($instagrams as $insta)
+                                                    <li>
+                                                        @if(Str::startsWith($insta, '@'))
+                                                            <a href="https://instagram.com/{{ ltrim($insta, '@') }}" target="_blank">{{ $insta }}</a>
+                                                        @else
+                                                            <a href="https://instagram.com/{{ $insta }}" target="_blank">{{ '@' . $insta }}</a>
+                                                        @endif
+                                                    </li>
+                                                @endforeach
+                                            </ul>
+                                        @else
+                                            -
+                                        @endif
+                            </p>
                         </div>
                         <div class="col-md-6">
                             <p><strong>Tanggal Masuk:</strong> {{ $employee->tanggal_masuk ? \Carbon\Carbon::parse($employee->tanggal_masuk)->format('d-m-Y') : '-' }}</p>

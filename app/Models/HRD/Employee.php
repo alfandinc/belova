@@ -42,11 +42,12 @@ class Employee extends Model
     ];
 
     protected $casts = [
-    'tanggal_lahir' => 'date',
-    'tanggal_masuk' => 'date',
-    'kontrak_berakhir' => 'date',
-    'masa_pensiun' => 'date',
-];
+        'tanggal_lahir' => 'date',
+        'tanggal_masuk' => 'date',
+        'kontrak_berakhir' => 'date',
+        'masa_pensiun' => 'date',
+        'instagram' => 'array', // Cast instagram as array for JSON storage
+    ];
 
     public function position()
     {

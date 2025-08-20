@@ -551,7 +551,31 @@ $(function() {
                     $('#employee-gol_darah').text(employee.gol_darah || '-');
                     $('#employee-no_darurat').text(employee.no_darurat || '-');
                     $('#employee-email').text(employee.email || '-');
-                    $('#employee-instagram').text(employee.instagram ? '@' + employee.instagram : '-');
+                    // Show Instagram as a list if array or JSON string
+                    var instaHtml = '-';
+                    if (employee.instagram) {
+                        var instagrams = employee.instagram;
+                        if (typeof instagrams === 'string') {
+                            try {
+                                instagrams = JSON.parse(instagrams);
+                            } catch (e) {
+                                instagrams = [instagrams];
+                            }
+                        }
+                        if (Array.isArray(instagrams)) {
+                            instagrams = instagrams.filter(function(i) { return i && i !== 'null'; });
+                            if (instagrams.length > 0) {
+                                instaHtml = '<ul class="mb-0">';
+                                instagrams.forEach(function(i) {
+                                    instaHtml += '<li>@' + i + '</li>';
+                                });
+                                instaHtml += '</ul>';
+                            }
+                        } else if (instagrams) {
+                            instaHtml = '@' + instagrams;
+                        }
+                    }
+                    $('#employee-instagram').html(instaHtml);
                     $('#employee-alamat').text(employee.alamat || '-');
                     $('#employee-pendidikan').text(employee.pendidikan || '-');
                     

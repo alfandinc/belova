@@ -137,13 +137,42 @@
                                 </div>
                             </div>
                             <div class="form-group col-md-6">
-                                <label for="instagram">Instagram</label>
-                                <div class="input-group">
-                                    <div class="input-group-prepend">
-                                        <span class="input-group-text"><i class="fab fa-instagram"></i></span>
+                                <label for="instagram">Instagram Accounts</label>
+                                @php
+                                    $instagrams = old('instagram', $employee->instagram ?? []);
+                                    // If it's a JSON string, decode it
+                                    if (is_string($instagrams)) {
+                                        $decoded = json_decode($instagrams, true);
+                                        $instagrams = is_array($decoded) ? $decoded : [$instagrams];
+                                    }
+                                    if (!is_array($instagrams)) {
+                                        $instagrams = $instagrams ? [$instagrams] : [];
+                                    }
+                                @endphp
+                                <div id="instagram-list">
+                                    @foreach ($instagrams as $idx => $insta)
+                                        <div class="input-group mb-1 instagram-input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text"><i class="fab fa-instagram"></i></span>
+                                            </div>
+                                            <input type="text" name="instagram[]" class="form-control" value="{{ $insta }}" placeholder="Instagram username">
+                                            <div class="input-group-append">
+                                                <button type="button" class="btn btn-danger" onclick="removeInstagramInput(this)"><i class="fas fa-times"></i></button>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                    <div class="input-group mb-1 instagram-input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text"><i class="fab fa-instagram"></i></span>
+                                        </div>
+                                        <input type="text" name="instagram[]" class="form-control" value="" placeholder="Add another Instagram">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-danger" onclick="removeInstagramInput(this)"><i class="fas fa-times"></i></button>
+                                        </div>
                                     </div>
-                                    <input type="text" id="instagram" name="instagram" class="form-control" value="{{ old('instagram', $employee->instagram ?? '') }}" placeholder="Instagram username">
                                 </div>
+                                <button type="button" class="btn btn-link" onclick="addInstagramInput()">+ Add Instagram</button>
+                                
                             </div>
                             <div class="form-group col-md-12">
                                 <label for="alamat">Alamat</label>
@@ -260,6 +289,22 @@
 @endsection
 
 @section('scripts')
+<script>
+function addInstagramInput() {
+    var container = document.getElementById('instagram-list');
+    var newInput = document.createElement('div');
+    newInput.className = 'input-group mb-1 instagram-input-group';
+    newInput.innerHTML = `
+        <div class=\"input-group-prepend\">\n            <span class=\"input-group-text\"><i class=\"fab fa-instagram\"></i></span>\n        </div>\n        <input type=\"text\" name=\"instagram[]\" class=\"form-control\" value=\"\" placeholder=\"Instagram username\">\n        <div class=\"input-group-append\">\n            <button type=\"button\" class=\"btn btn-danger\" onclick=\"removeInstagramInput(this)\"><i class=\"fas fa-times\"></i></button>\n        </div>\n    `;
+    container.appendChild(newInput);
+}
+function removeInstagramInput(btn) {
+    var group = btn.closest('.instagram-input-group');
+    if (group) {
+        group.remove();
+    }
+}
+</script>
 <script>
 // Store all positions in JS for dynamic filtering
 var allPositions = [
