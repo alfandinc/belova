@@ -9,8 +9,36 @@
 <div class="container-fluid">
     <div class="card">
         <div class="card-body">
-            <div class="d-flex align-items-center mb-0 mt-2">
-                <h3 class="mb-0 mr-2">SPK & CUCI TANGAN</h3>
+            <div class="d-flex align-items-center justify-content-between mb-0 mt-2">
+                <h3 class="mb-0">SPK & CUCI TANGAN</h3>
+                
+                @if(isset($allRiwayat) && $allRiwayat->count() > 1)
+                <div class="tindakan-navigation d-flex align-items-center">
+                    <div class="dropdown mr-2">
+                        <button class="btn btn-sm btn-info dropdown-toggle" type="button" id="tindakanDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            Tindakan {{ $currentIndex + 1 }} dari {{ $allRiwayat->count() }}
+                        </button>
+                        <div class="dropdown-menu" aria-labelledby="tindakanDropdown">
+                            @foreach($allRiwayat as $index => $item)
+                                <a class="dropdown-item {{ $index == $currentIndex ? 'active' : '' }}" 
+                                   href="{{ route('erm.spk.create', ['visitation_id' => $riwayat->visitation_id, 'index' => $index]) }}">
+                                   {{ $index + 1 }}. {{ $item->tindakan->nama ?? $item->paketTindakan->nama ?? 'Tindakan' }}
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <a href="{{ route('erm.spk.create', ['visitation_id' => $riwayat->visitation_id, 'index' => max(0, $currentIndex - 1)]) }}" 
+                           class="btn btn-sm btn-outline-secondary {{ $currentIndex <= 0 ? 'disabled' : '' }}">
+                            <i class="fas fa-chevron-left"></i> Prev
+                        </a>
+                        <a href="{{ route('erm.spk.create', ['visitation_id' => $riwayat->visitation_id, 'index' => min($allRiwayat->count() - 1, $currentIndex + 1)]) }}" 
+                           class="btn btn-sm btn-outline-secondary {{ $currentIndex >= $allRiwayat->count() - 1 ? 'disabled' : '' }}">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </div>
+                </div>
+                @endif
             </div>
             <div class="row">
                 <div class="col-sm-12">
@@ -108,7 +136,23 @@
                 </div>
                 <input type="hidden" id="spkInformConsentId" name="inform_consent_id">
                 <input type="hidden" id="spkRiwayatTindakanId" name="riwayat_tindakan_id" value="{{ $riwayat->id ?? '' }}">
-                <div class="d-flex justify-content-end">
+                
+                <div class="d-flex justify-content-between align-items-center">
+                    @if(isset($allRiwayat) && $allRiwayat->count() > 1)
+                    <div>
+                        <a href="{{ route('erm.spk.create', ['visitation_id' => $riwayat->visitation_id, 'index' => max(0, $currentIndex - 1)]) }}" 
+                           class="btn btn-outline-primary {{ $currentIndex <= 0 ? 'disabled' : '' }}">
+                            <i class="fas fa-chevron-left"></i> Tindakan Sebelumnya
+                        </a>
+                        <a href="{{ route('erm.spk.create', ['visitation_id' => $riwayat->visitation_id, 'index' => min($allRiwayat->count() - 1, $currentIndex + 1)]) }}" 
+                           class="btn btn-outline-primary {{ $currentIndex >= $allRiwayat->count() - 1 ? 'disabled' : '' }}">
+                            Tindakan Berikutnya <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </div>
+                    @else
+                    <div></div>
+                    @endif
+                    
                     <button type="button" class="btn btn-success" id="saveSpk">Simpan</button>
                 </div>
             </form>
@@ -226,7 +270,35 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(res => res.json())
         .then(response => {
             if (response.success) {
-                Swal.fire('Success', response.message, 'success');
+                // Get the current URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const visitationId = urlParams.get('visitation_id');
+                const currentIndex = parseInt(urlParams.get('index') || '0');
+                
+                // Check if we have more tindakan to navigate to
+                @if(isset($allRiwayat) && $allRiwayat->count() > 1)
+                const totalTindakan = {{ $allRiwayat->count() }};
+                if (visitationId && currentIndex < totalTindakan - 1) {
+                    // Show success and offer to navigate to next tindakan
+                    Swal.fire({
+                        title: 'Berhasil!',
+                        text: response.message + '. Lanjutkan ke tindakan berikutnya?',
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: 'Ya, lanjutkan',
+                        cancelButtonText: 'Tidak, tetap di halaman ini'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // Navigate to next tindakan
+                            window.location.href = `{{ route('erm.spk.create') }}?visitation_id=${visitationId}&index=${currentIndex + 1}`;
+                        }
+                    });
+                } else {
+                    Swal.fire('Berhasil!', response.message, 'success');
+                }
+                @else
+                Swal.fire('Berhasil!', response.message, 'success');
+                @endif
             } else {
                 Swal.fire('Error', response.message || 'Failed to save SPK data', 'error');
             }

@@ -34,9 +34,9 @@
                             <th>Tanggal</th>
                             <th>Jam Kunjungan</th>
                             <th>Pasien</th>
-                            <th>Tindakan</th>
+                            <th style="width: 30%;">Tindakan</th>
                             <th>Dokter</th>
-                            <th>Aksi</th>
+                            <th style="width: 20%;">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -83,7 +83,17 @@ $(document).ready(function() {
             { data: 'tanggal', name: 'tanggal' },
             { data: 'jam_kunjungan', name: 'jam_kunjungan' },
             { data: 'pasien', name: 'pasien' },
-            { data: 'tindakan', name: 'tindakan' },
+            { 
+                data: 'tindakan', 
+                name: 'tindakan',
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        return data;
+                    }
+                    // For sorting/filtering, create a plain text version
+                    return $('<div>').html(data).text();
+                }
+            },
             { data: 'dokter', name: 'dokter' },
             { 
                 data: 'aksi', 
@@ -100,7 +110,8 @@ $(document).ready(function() {
             } else if (data.spk_status_color === 'yellow') {
                 $(row).addClass('table-warning');
             }
-        }
+        },
+        order: [[0, 'desc'], [1, 'desc']]
     });
 
     $('#filterTanggal, #filterDokter').on('change', function() {

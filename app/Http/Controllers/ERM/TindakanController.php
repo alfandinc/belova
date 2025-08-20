@@ -424,6 +424,7 @@ class TindakanController extends Controller
     public function spkIndex(Request $request)
     {
         if ($request->ajax()) {
+            // Get all riwayat tindakan and group them by visitation
             $riwayat = \App\Models\ERM\RiwayatTindakan::with(['visitation.pasien', 'tindakan', 'visitation.dokter.user', 'paketTindakan']);
 
             // Filter by date range
@@ -442,73 +443,141 @@ class TindakanController extends Controller
                     $q->where('dokter_id', $dokterId);
                 });
             }
-
-            return datatables()->of($riwayat)
+            
+            // Get results
+            $results = $riwayat->get();
+            
+            // Group by visitation_id
+            $groupedResults = $results->groupBy('visitation_id');
+            
+            // Prepare data for datatables
+            $data = $groupedResults->map(function($group) {
+                // Use first item for common data
+                $first = $group->first();
+                return [
+                    'id' => $first->id,
+                    'visitation_id' => $first->visitation_id,
+                    'tanggal_tindakan' => $first->tanggal_tindakan,
+                    'visitation' => $first->visitation,
+                    'all_tindakan' => $group->map(function($item) {
+                        return [
+                            'id' => $item->id,
+                            'tindakan' => $item->tindakan,
+                            'paket_tindakan' => $item->paketTindakan
+                        ];
+                    })->toArray()
+                ];
+            })->values();
+            
+            return datatables()->of($data)
                 ->addColumn('tanggal', function($row) {
                     // Format tanggal to '1 Januari 2025'
-                    if ($row->tanggal_tindakan) {
+                    if ($row['tanggal_tindakan']) {
                         try {
-                            return \Carbon\Carbon::parse($row->tanggal_tindakan)
+                            return \Carbon\Carbon::parse($row['tanggal_tindakan'])
                                 ->locale('id')
                                 ->isoFormat('D MMMM YYYY');
                         } catch (\Exception $e) {
-                            return $row->tanggal_tindakan;
+                            return $row['tanggal_tindakan'];
                         }
                     }
                     return '-';
                 })
                 ->addColumn('jam_kunjungan', function($row) {
                     // Use waktu from visitation (format as H:i if datetime)
-                    if ($row->visitation && $row->visitation->waktu_kunjungan) {
+                    if ($row['visitation'] && $row['visitation']->waktu_kunjungan) {
                         try {
-                            return \Carbon\Carbon::parse($row->visitation->waktu_kunjungan)->format('H:i');
+                            return \Carbon\Carbon::parse($row['visitation']->waktu_kunjungan)->format('H:i');
                         } catch (\Exception $e) {
-                            return $row->visitation->waktu_kunjungan;
+                            return $row['visitation']->waktu_kunjungan;
                         }
                     }
                     return '-';
                 })
                 ->addColumn('pasien', function($row) {
-                    return $row->visitation?->pasien?->nama ?? '-';
+                    return $row['visitation']?->pasien?->nama ?? '-';
                 })
                 ->addColumn('tindakan', function($row) {
-                    return $row->tindakan?->nama ?? '-';
+                    // Create a formatted list of tindakan
+                    $tindakanList = collect($row['all_tindakan'])->map(function($item) {
+                        if ($item['tindakan']) {
+                            return $item['tindakan']->nama;
+                        } elseif ($item['paket_tindakan']) {
+                            return 'Paket: ' . $item['paket_tindakan']->nama;
+                        }
+                        return '-';
+                    })->join('<br>');
+                    
+                    return $tindakanList ?: '-';
                 })
                 ->addColumn('dokter', function($row) {
-                    return $row->visitation?->dokter?->user?->name ?? '-';
+                    return $row['visitation']?->dokter?->user?->name ?? '-';
                 })
                 ->addColumn('aksi', function($row) {
-                    return '<a href="'.route('erm.spk.create', ['riwayat_id' => $row->id]).'" class="btn btn-primary btn-sm">Input/Edit SPK</a>';
+                    $firstRiwayatId = $row['all_tindakan'][0]['id'];
+                    $visitationId = $row['visitation_id'];
+                    return '<a href="'.route('erm.spk.create', ['visitation_id' => $visitationId]).'" class="btn btn-primary btn-sm mb-1">Input/Edit SPK</a>';
                 })
                 ->addColumn('spk_filled', function($row) {
-                    // Check if any SPK detail for this riwayat has waktu_mulai filled
-                    $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
+                    // Check if any SPK detail for any riwayat in this group has waktu_mulai filled
+                    $riwayatIds = collect($row['all_tindakan'])->pluck('id')->toArray();
+                    $spk = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayatIds)->first();
                     if ($spk && $spk->details()->whereNotNull('waktu_mulai')->exists()) {
                         return true;
                     }
                     return false;
                 })
                 ->addColumn('spk_status_color', function($row) {
-                    $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
-                    if ($spk) {
-                        $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
-                        if ($hasSelesai) return 'green';
-                        $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
-                        if ($hasMulai) return 'yellow';
+                    $riwayatIds = collect($row['all_tindakan'])->pluck('id')->toArray();
+                    $spks = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayatIds)->get();
+                    
+                    if ($spks->isNotEmpty()) {
+                        $allCompleted = true;
+                        $anyStarted = false;
+                        
+                        foreach ($spks as $spk) {
+                            $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                            if (!$hasSelesai) {
+                                $allCompleted = false;
+                            }
+                            
+                            $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                            if ($hasMulai) {
+                                $anyStarted = true;
+                            }
+                        }
+                        
+                        if ($allCompleted) return 'green';
+                        if ($anyStarted) return 'yellow';
                     }
                     return '';
                 })
                 ->setRowClass(function($row) {
-                    $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $row->id)->first();
-                    if ($spk) {
-                        $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
-                        if ($hasSelesai) return 'table-success';
-                        $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
-                        if ($hasMulai) return 'table-warning';
+                    $riwayatIds = collect($row['all_tindakan'])->pluck('id')->toArray();
+                    $spks = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayatIds)->get();
+                    
+                    if ($spks->isNotEmpty()) {
+                        $allCompleted = true;
+                        $anyStarted = false;
+                        
+                        foreach ($spks as $spk) {
+                            $hasSelesai = $spk->details()->whereNotNull('waktu_selesai')->where('waktu_selesai', '!=', '')->exists();
+                            if (!$hasSelesai) {
+                                $allCompleted = false;
+                            }
+                            
+                            $hasMulai = $spk->details()->whereNotNull('waktu_mulai')->where('waktu_mulai', '!=', '')->exists();
+                            if ($hasMulai) {
+                                $anyStarted = true;
+                            }
+                        }
+                        
+                        if ($allCompleted) return 'table-success';
+                        if ($anyStarted) return 'table-warning';
                     }
                     return '';
                 })
-                ->rawColumns(['aksi'])
+                ->rawColumns(['aksi', 'tindakan'])
                 ->make(true);
         }
         return view('erm.spk.index');
@@ -517,9 +586,13 @@ class TindakanController extends Controller
     public function spkCreate(Request $request)
     {
         $riwayatId = $request->query('riwayat_id');
+        $visitationId = $request->query('visitation_id');
+        $currentIndex = (int)$request->query('index', 0);
         $riwayat = null;
+        $allRiwayat = null;
         
         if ($riwayatId) {
+            // Single riwayat_id provided (legacy support)
             $riwayat = RiwayatTindakan::with([
                 'visitation.pasien',
                 'visitation.dokter.user',
@@ -530,9 +603,36 @@ class TindakanController extends Controller
             if (!$riwayat) {
                 return redirect()->back()->with('error', 'Riwayat tindakan tidak ditemukan');
             }
+            
+            // Get all riwayat for this visitation for navigation
+            $allRiwayat = RiwayatTindakan::with([
+                'tindakan',
+                'paketTindakan'
+            ])->where('visitation_id', $riwayat->visitation_id)->get();
+            
+            // Find the index of the current riwayat
+            $currentIndex = $allRiwayat->search(function($item) use ($riwayatId) {
+                return $item->id == $riwayatId;
+            });
+        } elseif ($visitationId) {
+            // Get all riwayat for this visitation
+            $allRiwayat = RiwayatTindakan::with([
+                'visitation.pasien',
+                'visitation.dokter.user',
+                'tindakan.sop',
+                'paketTindakan'
+            ])->where('visitation_id', $visitationId)->get();
+            
+            if ($allRiwayat->isEmpty()) {
+                return redirect()->back()->with('error', 'Tidak ada riwayat tindakan untuk kunjungan ini');
+            }
+            
+            // Use the specified index or default to 0
+            $currentIndex = min($currentIndex, $allRiwayat->count() - 1);
+            $riwayat = $allRiwayat[$currentIndex];
         }
         
-        return view('erm.spk.create', compact('riwayat'));
+        return view('erm.spk.create', compact('riwayat', 'allRiwayat', 'currentIndex'));
     }
     
     public function getSpkDataByRiwayat($riwayatId)
@@ -710,4 +810,4 @@ class TindakanController extends Controller
             'tindakan' => $tindakan->nama,
         ]);
     }
-}
+};
