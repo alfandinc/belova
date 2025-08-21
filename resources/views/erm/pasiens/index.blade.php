@@ -140,7 +140,28 @@
         <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
     </div>
     <div class="col-md-2">
+        <select id="filter_status_pasien" class="form-control">
+            <option value="">Semua Status Pasien</option>
+            <option value="Regular">Regular</option>
+            <option value="VIP">VIP</option>
+            <option value="Familia">Familia</option>
+            <option value="Black Card">Black Card</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select id="filter_status_akses" class="form-control">
+            <option value="">Semua Status Akses</option>
+            <option value="normal">Normal</option>
+            <option value="akses cepat">Akses Cepat</option>
+        </select>
+    </div>
+</div>
+<div class="row mb-3">
+    <div class="col-md-2">
         <button id="btn-filter" class="btn btn-primary"><i class="fas fa-search-plus mr-2"></i>Cari</button>
+    </div>
+    <div class="col-md-2">
+        <button id="btn-reset" class="btn btn-secondary"><i class="fas fa-undo mr-2"></i>Reset</button>
     </div>
 </div>
             <table class="table table-bordered table-striped" id="pasiens-table">
@@ -181,6 +202,8 @@ $(document).ready(function () {
                 d.nama = $('#filter_nama').val();
                 d.nik = $('#filter_nik').val();
                 d.alamat = $('#filter_alamat').val();
+                d.status_pasien = $('#filter_status_pasien').val();
+                d.status_akses = $('#filter_status_akses').val();
             }
         },
         columns: [
@@ -205,11 +228,30 @@ $(document).ready(function () {
         table.ajax.reload();
     });
 
+    // Reset button functionality
+    $('#btn-reset').click(function () {
+        // Clear all filter inputs
+        $('#filter_no_rm').val('');
+        $('#filter_nama').val('');
+        $('#filter_nik').val('');
+        $('#filter_alamat').val('');
+        $('#filter_status_pasien').val('');
+        $('#filter_status_akses').val('');
+        
+        // Reload table with cleared filters
+        table.ajax.reload();
+    });
+
     // Add Enter key functionality to search fields
     $('#filter_no_rm, #filter_nama, #filter_nik, #filter_alamat').on('keypress', function(e) {
         if (e.which === 13) { // Enter key code
             table.ajax.reload();
         }
+    });
+
+    // Add change event for select dropdowns
+    $('#filter_status_pasien, #filter_status_akses').on('change', function() {
+        table.ajax.reload();
     });
 
     // Optional: Add input event for real-time search (search as you type)

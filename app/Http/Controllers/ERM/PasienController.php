@@ -35,6 +35,12 @@ class PasienController extends Controller
             if ($request->alamat) {
                 $pasiens->where('alamat', 'like', '%' . $request->alamat . '%');
             }
+            if ($request->status_pasien) {
+                $pasiens->where('status_pasien', $request->status_pasien);
+            }
+            if ($request->status_akses) {
+                $pasiens->where('status_akses', $request->status_akses);
+            }
 
             return DataTables::of($pasiens)
                 ->addColumn('status_pasien', function ($user) {
