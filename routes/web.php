@@ -701,16 +701,25 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
 );
 
 Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function () {
-    // Add pasien to follow up from pasien data
-    Route::post('/followup/add-from-pasien', [\App\Http\Controllers\Marketing\FollowUpController::class, 'addFromPasien'])->name('marketing.followup.add-from-pasien');
-    // AJAX search for SOPs
-    Route::get('/sop/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchSop']);
-
+    // Main dashboard and analytics
+    Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
+    Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
+    
+    // Analytics pages  
     Route::get('/revenue', [MarketingController::class, 'revenue'])->name('marketing.revenue');
     Route::get('/patients', [MarketingController::class, 'patients'])->name('marketing.patients');
     Route::get('/services', [MarketingController::class, 'services'])->name('marketing.services');
     Route::get('/products', [MarketingController::class, 'products'])->name('marketing.products');
     Route::get('/clinic-comparison', [MarketingController::class, 'clinicComparison'])->name('marketing.clinic-comparison');
+
+    // Patient data management
+    Route::get('/pasien-data', [MarketingController::class, 'pasienData'])->name('marketing.pasien.data');
+    Route::get('pasien/{pasien}/riwayat-rm', [MarketingController::class, 'riwayatRM']);
+    
+    // Add pasien to follow up from pasien data
+    Route::post('/followup/add-from-pasien', [\App\Http\Controllers\Marketing\FollowUpController::class, 'addFromPasien'])->name('marketing.followup.add-from-pasien');
+    // AJAX search for SOPs
+    Route::get('/sop/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchSop']);
     
     // Tindakan Management
     Route::get('/tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'index'])->name('marketing.tindakan.index');

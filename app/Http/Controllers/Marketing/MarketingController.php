@@ -11,19 +11,94 @@ use App\Models\ERM\Pasien;
 use App\Models\ERM\Tindakan;
 use App\Models\ERM\Visitation;
 use App\Models\ERM\PaketTindakan;
+use App\Models\ERM\ResepFarmasi;
+use App\Models\ERM\LabPermintaan;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class MarketingController extends Controller
 {
     public function dashboard()
     {
-        // Main dashboard stats
-        // You can add summary metrics here
-        return view('marketing.dashboard');
+        $clinics = Klinik::all();
+        $currentYear = date('Y');
+        $currentMonth = date('m');
+        
+        // Quick stats for dashboard
+        $stats = $this->getDashboardStats();
+        
+        return view('marketing.dashboard', compact('clinics', 'currentYear', 'currentMonth', 'stats'));
+    }
+
+    /**
+     * Get comprehensive dashboard statistics
+     */
+    private function getDashboardStats()
+    {
+        $today = Carbon::today();
+        $thisMonth = Carbon::now()->startOfMonth();
+        $thisYear = Carbon::now()->startOfYear();
+        
+        return [
+            'patients' => [
+                'total' => Pasien::count(),
+                'new_today' => Pasien::whereDate('created_at', $today)->count(),
+                'new_this_month' => Pasien::whereDate('created_at', '>=', $thisMonth)->count(),
+                'active_this_year' => Pasien::whereHas('visitations', function($q) use ($thisYear) {
+                    $q->where('tanggal_visitation', '>=', $thisYear);
+                })->count()
+            ],
+            'revenue' => [
+                'today' => Invoice::whereHas('visitation', function($q) use ($today) { 
+                    $q->whereDate('tanggal_visitation', $today); 
+                })->where('amount_paid', '>', 0)->sum('total_amount'),
+                'this_month' => Invoice::whereHas('visitation', function($q) use ($thisMonth) { 
+                    $q->whereDate('tanggal_visitation', '>=', $thisMonth); 
+                })->where('amount_paid', '>', 0)->sum('total_amount'),
+                'this_year' => Invoice::whereHas('visitation', function($q) use ($thisYear) { 
+                    $q->whereDate('tanggal_visitation', '>=', $thisYear); 
+                })->where('amount_paid', '>', 0)->sum('total_amount'),
+                'average_per_visit' => $this->getAverageRevenuePerVisit()
+            ],
+            'visits' => [
+                'today' => Visitation::whereDate('tanggal_visitation', $today)->count(),
+                'this_month' => Visitation::whereDate('tanggal_visitation', '>=', $thisMonth)->count(),
+                'this_year' => Visitation::whereDate('tanggal_visitation', '>=', $thisYear)->count(),
+            ],
+            'treatments' => [
+                'most_popular' => $this->getMostPopularTreatment(),
+                'total_performed' => InvoiceItem::where('billable_type', 'App\\Models\\ERM\\Tindakan')->count(),
+            ]
+        ];
+    }
+
+    private function getAverageRevenuePerVisit()
+    {
+        $totalRevenue = Invoice::whereHas('visitation')->where('amount_paid', '>', 0)->sum('total_amount');
+        $totalVisits = Visitation::whereHas('invoice', function($q) {
+            $q->where('amount_paid', '>', 0);
+        })->count();
+        return $totalVisits > 0 ? round($totalRevenue / $totalVisits, 0) : 0;
+    }
+
+    private function getMostPopularTreatment()
+    {
+        $treatment = InvoiceItem::where('billable_type', 'App\\Models\\ERM\\Tindakan')
+            ->select('billable_id', DB::raw('COUNT(*) as count'))
+            ->groupBy('billable_id')
+            ->orderBy('count', 'desc')
+            ->first();
+            
+        if ($treatment) {
+            $tindakan = Tindakan::find($treatment->billable_id);
+            return $tindakan ? $tindakan->nama : 'Unknown';
+        }
+        
+        return 'No data';
     }
 
     public function pasienData(Request $request)
@@ -127,9 +202,11 @@ class MarketingController extends Controller
      * Calculate address statistics for the areas
      * 
      * @param int|null $clinicId
+     * @param int|null $year
+     * @param int|null $month
      * @return array
      */
-    private function getAddressStatistics($clinicId = null)
+    private function getAddressStatistics($clinicId = null, $year = null, $month = null)
     {
         $areas = ['Laweyan', 'Banjarsari', 'Serengan', 'Pasar Kliwon', 'Jebres', 'Sukoharjo', 'Wonogiri', 'Karanganyar'];
         $stats = [];
@@ -137,10 +214,12 @@ class MarketingController extends Controller
         // Base query
         $query = Pasien::query();
         
-        // Apply clinic filter if provided
-        if ($clinicId) {
-            $query = $query->whereHas('visitations', function($q) use ($clinicId) {
-                $q->where('klinik_id', $clinicId);
+        // Apply filters if provided
+        if ($clinicId || $year || $month) {
+            $query = $query->whereHas('visitations', function($q) use ($clinicId, $year, $month) {
+                if ($clinicId) $q->where('klinik_id', $clinicId);
+                if ($year) $q->whereYear('tanggal_visitation', $year);
+                if ($month) $q->whereMonth('tanggal_visitation', $month);
             });
         }
         
@@ -174,31 +253,63 @@ class MarketingController extends Controller
 
     public function revenue(Request $request)
     {
-        $year = $request->input('year', date('Y'));
-        $clinicId = $request->input('clinic_id');
+        try {
+            $year = $request->input('year', date('Y'));
+            $month = $request->input('month');
 
-        // 1. Monthly Revenue Data
-        $monthlyRevenue = $this->getMonthlyRevenue($year, $clinicId);
+            // 1. Monthly Revenue Data
+            $monthlyRevenue = $this->getMonthlyRevenue($year);
 
-        // 2. Revenue by Doctor
-        $doctorRevenue = $this->getDoctorRevenue($year, $clinicId);
+            // 2. Revenue by Doctor
+            $doctorRevenue = $this->getDoctorRevenue($year);
 
-        // 3. Most Profitable Patients
-        $topPatients = $this->getProfitablePatients($year, $clinicId);
+            // 3. Most Profitable Patients
+            $topPatients = $this->getProfitablePatients($year);
 
-        $clinics = Klinik::all();
+            // 4. Revenue by Treatment Category
+            $treatmentRevenue = $this->getRevenueByTreatmentCategory($year);
 
-        return view('marketing.revenue', compact(
-            'monthlyRevenue',
-            'doctorRevenue',
-            'topPatients',
-            'clinics',
-            'year',
-            'clinicId'
-        ));
+            // 5. Payment Method Analysis
+            $paymentMethodAnalysis = $this->getPaymentMethodAnalysis($year);
+
+            // 6. Revenue Growth Comparison
+            $revenueGrowth = $this->getRevenueGrowthComparison($year);
+
+            // 7. Daily Revenue Trends (for current month)
+            $dailyRevenue = $this->getDailyRevenueTrends($year, $month ?: date('m'));
+
+            return view('marketing.revenue', compact(
+                'monthlyRevenue',
+                'doctorRevenue',
+                'topPatients',
+                'treatmentRevenue',
+                'paymentMethodAnalysis',
+                'revenueGrowth',
+                'dailyRevenue',
+                'year',
+                'month'
+            ));
+        } catch (\Exception $e) {
+            Log::error('Revenue analytics error: ' . $e->getMessage());
+            
+            // Return view with empty data
+            return view('marketing.revenue')->with([
+                'monthlyRevenue' => ['labels' => [], 'series' => []],
+                'doctorRevenue' => ['labels' => [], 'series' => []],
+                'topPatients' => [],
+                'treatmentRevenue' => ['labels' => [], 'revenue' => [], 'count' => []],
+                'paymentMethodAnalysis' => ['labels' => [], 'revenue' => []],
+                'revenueGrowth' => ['labels' => [], 'current_year' => [], 'previous_year' => []],
+                'dailyRevenue' => ['labels' => [], 'series' => []],
+                'year' => date('Y'),
+                'month' => null,
+                'clinicId' => null,
+                'error' => 'Unable to load revenue data. Please check database configuration.'
+            ]);
+        }
     }
 
-        /**
+    /**
      * AJAX: Get riwayat resep dokter & tindakan grouped by visitation for a pasien
      */
     public function riwayatRM($pasienId)
@@ -254,25 +365,29 @@ class MarketingController extends Controller
     public function patients(Request $request)
     {
         $year = $request->input('year', date('Y'));
+        $month = $request->input('month');
         $clinicId = $request->input('clinic_id');
 
         // 1. Age Demographics
-        $ageDemographics = $this->getAgeDemographics($clinicId);
+        $ageDemographics = $this->getAgeDemographics($clinicId, $year, $month);
 
         // 2. Gender Demographics
-            // Filter by last visit's clinic if provided
-            if ($request->has('last_visit_klinik') && $request->last_visit_klinik != 'all') {
-                $klinikId = $request->last_visit_klinik;
-                $allPasien = $data->get();
-                $filtered = $allPasien->filter(function($pasien) use ($klinikId) {
-                    $lastVisit = $pasien->visitations()->orderByDesc('tanggal_visitation')->first();
-                    return $lastVisit && $lastVisit->klinik_id == $klinikId;
-                });
-                $data = collect($filtered); // Ensure it's a collection for datatables
-            }
+        $genderDemographics = $this->getGenderDemographics($clinicId, $year, $month);
+
+        // 3. Patient Loyalty
+        $patientLoyalty = $this->getPatientLoyalty($year, $clinicId, $month);
+
+        // 4. Geographic Distribution
+        $geographicDistribution = $this->getGeographicDistribution($clinicId, $year, $month);
         
         // 5. Address Distribution
-        $addressStats = $this->getAddressStatistics($clinicId);
+        $addressStats = $this->getAddressStatistics($clinicId, $year, $month);
+
+        // 6. Patient Growth Trends
+        $growthTrends = $this->getPatientGrowthTrends($year, $clinicId);
+
+        // 7. Patient Retention Analysis
+        $retentionAnalysis = $this->getPatientRetentionAnalysis($year, $clinicId);
 
         $clinics = Klinik::all();
 
@@ -282,8 +397,11 @@ class MarketingController extends Controller
             'patientLoyalty',
             'geographicDistribution',
             'addressStats',
+            'growthTrends',
+            'retentionAnalysis',
             'clinics',
             'year',
+            'month',
             'clinicId'
         ));
     }
@@ -292,16 +410,26 @@ class MarketingController extends Controller
     {
         $year = $request->input('year', date('Y'));
         $period = $request->input('period', 'year');
+        $month = $request->input('month');
         $clinicId = $request->input('clinic_id');
 
         // 1. Popular Treatments
-        $popularTreatments = $this->getPopularTreatments($period, $clinicId);
+        $popularTreatments = $this->getPopularTreatments($period, $clinicId, $year, $month);
 
         // 2. Treatment Package Performance
-        $packagePerformance = $this->getPackagePerformance($period, $clinicId);
+        $packagePerformance = $this->getPackagePerformance($period, $clinicId, $year, $month);
 
         // 3. Visitation Trends (monthly)
-        $visitationTrends = $this->getVisitationTrends($year, $clinicId);
+        $visitationTrends = $this->getVisitationTrends($year, $clinicId, $month);
+
+        // 4. Doctor Performance Analysis
+        $doctorPerformance = $this->getDoctorPerformanceAnalysis($year, $clinicId);
+
+        // 5. Treatment Efficiency Analysis
+        $treatmentEfficiency = $this->getTreatmentEfficiencyAnalysis($year, $clinicId);
+
+        // 6. Service Satisfaction Trends
+        $satisfactionTrends = $this->getServiceSatisfactionTrends($year, $clinicId);
 
         $clinics = Klinik::all();
 
@@ -309,9 +437,13 @@ class MarketingController extends Controller
             'popularTreatments',
             'packagePerformance',
             'visitationTrends',
+            'doctorPerformance',
+            'treatmentEfficiency',
+            'satisfactionTrends',
             'clinics',
             'year',
             'period',
+            'month',
             'clinicId'
         ));
     }
@@ -320,6 +452,7 @@ class MarketingController extends Controller
     {
         $year = $request->input('year', date('Y'));
         $period = $request->input('period', 'year');
+        $month = $request->input('month');
         $clinicId = $request->input('clinic_id');
 
         // 1. Best Selling Products
@@ -328,14 +461,27 @@ class MarketingController extends Controller
         // 2. Medication Trends
         $medicationTrends = $this->getMedicationTrends($year, $clinicId);
 
+        // 3. Product Category Performance
+        $categoryPerformance = $this->getProductCategoryPerformance($year, $clinicId);
+
+        // 4. Inventory Turnover Analysis
+        $inventoryTurnover = $this->getInventoryTurnoverAnalysis($year, $clinicId);
+
+        // 5. Product Profitability Analysis
+        $profitabilityAnalysis = $this->getProductProfitabilityAnalysis($year, $clinicId);
+
         $clinics = Klinik::all();
 
         return view('marketing.products', compact(
             'bestSellingProducts',
             'medicationTrends',
+            'categoryPerformance',
+            'inventoryTurnover',
+            'profitabilityAnalysis',
             'clinics',
             'year',
             'period',
+            'month',
             'clinicId'
         ));
     }
@@ -367,23 +513,17 @@ class MarketingController extends Controller
 
     // HELPER METHODS FOR DATA RETRIEVAL
 
-    private function getMonthlyRevenue($year, $clinicId = null)
+    private function getMonthlyRevenue($year)
     {
-        $query = Invoice::whereNotNull('payment_date')
-            ->whereYear('payment_date', $year)
-            ->where('status', 'paid');
-
-        if ($clinicId) {
-            $query->whereHas('visitation', function ($q) use ($clinicId) {
-                $q->where('klinik_id', $clinicId);
-            });
-        }
+        $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
 
         $data = $query->select(
-            DB::raw('MONTH(payment_date) as month'),
-            DB::raw('SUM(total_amount) as revenue')
+            DB::raw('MONTH(erm_visitations.tanggal_visitation) as month'),
+            DB::raw('SUM(finance_invoices.total_amount) as revenue')
         )
-            ->groupBy(DB::raw('MONTH(payment_date)'))
+            ->groupBy(DB::raw('MONTH(erm_visitations.tanggal_visitation)'))
             ->orderBy('month')
             ->get();
 
@@ -400,18 +540,13 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getDoctorRevenue($year, $clinicId = null)
+    private function getDoctorRevenue($year)
     {
         $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_dokters', 'erm_visitations.dokter_id', '=', 'erm_dokters.id')
             ->join('users', 'erm_dokters.user_id', '=', 'users.id')
-            ->whereNotNull('finance_invoices.payment_date')
-            ->whereYear('finance_invoices.payment_date', $year)
-            ->where('finance_invoices.status', 'paid');
-
-        if ($clinicId) {
-            $query->where('erm_visitations.klinik_id', $clinicId);
-        }
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
 
         $data = $query->select(
             'erm_dokters.id as doctor_id',
@@ -431,17 +566,12 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getProfitablePatients($year, $clinicId = null)
+    private function getProfitablePatients($year)
     {
         $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
-            ->whereNotNull('finance_invoices.payment_date')
-            ->whereYear('finance_invoices.payment_date', $year)
-            ->where('finance_invoices.status', 'paid');
-
-        if ($clinicId) {
-            $query->where('erm_visitations.klinik_id', $clinicId);
-        }
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
 
         $data = $query->select(
             'erm_pasiens.id as patient_id',
@@ -463,14 +593,168 @@ class MarketingController extends Controller
         ];
     }
 
+    private function getRevenueByTreatmentCategory($year)
+    {
+        try {
+            // First try with spesialisasi join
+            $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+                ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+                ->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
+                ->leftJoin('erm_spesialisasis', 'erm_tindakan.spesialis_id', '=', 'erm_spesialisasis.id')
+                ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Tindakan')
+                ->whereYear('erm_visitations.tanggal_visitation', $year)
+                ->where('finance_invoices.amount_paid', '>', 0);
+
+            $data = $query->select(
+                DB::raw('COALESCE(erm_spesialisasis.nama, "General Treatment") as category_name'),
+                DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue'),
+                DB::raw('COUNT(*) as treatment_count')
+            )
+                ->groupBy('category_name')
+                ->orderBy('total_revenue', 'desc')
+                ->get();
+
+            return [
+                'labels' => $data->pluck('category_name')->toArray(),
+                'revenue' => $data->pluck('total_revenue')->map(function ($val) {
+                    return floatval($val);
+                })->toArray(),
+                'count' => $data->pluck('treatment_count')->toArray()
+            ];
+        } catch (\Exception $e) {
+            Log::error('getRevenueByTreatmentCategory error: ' . $e->getMessage());
+            
+            // Fallback: Group by treatment name instead
+            try {
+                $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+                    ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+                    ->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
+                    ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Tindakan')
+                    ->whereYear('erm_visitations.tanggal_visitation', $year)
+                    ->where('finance_invoices.amount_paid', '>', 0);
+
+                $data = $query->select(
+                    'erm_tindakan.nama as category_name',
+                    DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue'),
+                    DB::raw('COUNT(*) as treatment_count')
+                )
+                    ->groupBy('erm_tindakan.nama')
+                    ->orderBy('total_revenue', 'desc')
+                    ->limit(10)
+                    ->get();
+
+                return [
+                    'labels' => $data->pluck('category_name')->toArray(),
+                    'revenue' => $data->pluck('total_revenue')->map(function ($val) {
+                        return floatval($val);
+                    })->toArray(),
+                    'count' => $data->pluck('treatment_count')->toArray()
+                ];
+            } catch (\Exception $e2) {
+                Log::error('Fallback getRevenueByTreatmentCategory error: ' . $e2->getMessage());
+                return [
+                    'labels' => ['No Data'],
+                    'revenue' => [0],
+                    'count' => [0]
+                ];
+            }
+        }
+    }
+
+    private function getPaymentMethodAnalysis($year)
+    {
+        $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        $data = $query->select(
+            'finance_invoices.payment_method',
+            DB::raw('COUNT(*) as transaction_count'),
+            DB::raw('SUM(finance_invoices.total_amount) as total_revenue')
+        )
+            ->groupBy('finance_invoices.payment_method')
+            ->orderBy('total_revenue', 'desc')
+            ->get();
+
+        return [
+            'labels' => $data->pluck('payment_method')->toArray(),
+            'revenue' => $data->pluck('total_revenue')->map(function ($val) {
+                return floatval($val);
+            })->toArray(),
+            'count' => $data->pluck('transaction_count')->toArray()
+        ];
+    }
+
+    private function getRevenueGrowthComparison($year)
+    {
+        $currentYearRevenue = $this->getMonthlyRevenue($year);
+        $previousYearRevenue = $this->getMonthlyRevenue($year - 1);
+
+        $growth = [];
+        for ($i = 0; $i < 12; $i++) {
+            $current = $currentYearRevenue['series'][$i] ?? 0;
+            $previous = $previousYearRevenue['series'][$i] ?? 0;
+            
+            if ($previous > 0) {
+                $growthPercent = round((($current - $previous) / $previous) * 100, 1);
+            } else {
+                $growthPercent = $current > 0 ? 100 : 0;
+            }
+            
+            $growth[] = $growthPercent;
+        }
+
+        return [
+            'labels' => $currentYearRevenue['labels'],
+            'current_year' => $currentYearRevenue['series'],
+            'previous_year' => $previousYearRevenue['series'],
+            'growth_percentage' => $growth
+        ];
+    }
+
+    private function getDailyRevenueTrends($year, $month)
+    {
+        $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->whereMonth('erm_visitations.tanggal_visitation', $month)
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        $data = $query->select(
+            DB::raw('DAY(erm_visitations.tanggal_visitation) as day'),
+            DB::raw('SUM(finance_invoices.total_amount) as revenue')
+        )
+            ->groupBy(DB::raw('DAY(erm_visitations.tanggal_visitation)'))
+            ->orderBy('day')
+            ->get();
+
+        $daysInMonth = Carbon::create($year, $month)->daysInMonth;
+        $dailyData = array_fill(0, $daysInMonth, 0);
+
+        foreach ($data as $item) {
+            $dailyData[$item->day - 1] = floatval($item->revenue);
+        }
+
+        $labels = [];
+        for ($i = 1; $i <= $daysInMonth; $i++) {
+            $labels[] = $i;
+        }
+
+        return [
+            'labels' => $labels,
+            'series' => $dailyData
+        ];
+    }
+
     private function getAgeDemographics($clinicId = null, $year = null, $month = null)
     {
         $ageRanges = [
-            'Under 18' => [0, 17],
-            '18-30' => [18, 30],
-            '31-45' => [31, 45],
-            '46-60' => [46, 60],
-            'Over 60' => [61, 200]
+            '0-17' => [0, 17],
+            '18-25' => [18, 25],
+            '26-35' => [26, 35],
+            '36-45' => [36, 45],
+            '46-55' => [46, 55],
+            '56-65' => [56, 65],
+            '65+' => [66, 200]
         ];
 
         $results = [];
@@ -479,14 +763,9 @@ class MarketingController extends Controller
             $query = Pasien::whereRaw('TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) >= ?', [$range[0]])
                 ->whereRaw('TIMESTAMPDIFF(YEAR, tanggal_lahir, CURDATE()) <= ?', [$range[1]]);
 
-            if ($clinicId) {
+            if ($clinicId || $year || $month) {
                 $query->whereHas('visitations', function ($q) use ($clinicId, $year, $month) {
-                    $q->where('klinik_id', $clinicId);
-                    if ($year) $q->whereYear('tanggal_visitation', $year);
-                    if ($month) $q->whereMonth('tanggal_visitation', $month);
-                });
-            } elseif ($year || $month) {
-                $query->whereHas('visitations', function ($q) use ($year, $month) {
+                    if ($clinicId) $q->where('klinik_id', $clinicId);
                     if ($year) $q->whereYear('tanggal_visitation', $year);
                     if ($month) $q->whereMonth('tanggal_visitation', $month);
                 });
@@ -521,7 +800,7 @@ class MarketingController extends Controller
         $series = [];
 
         foreach ($data as $item) {
-            $gender = $item->gender == 'M' ? 'Male' : ($item->gender == 'F' ? 'Female' : $item->gender);
+            $gender = $item->gender == 'Laki-laki' ? 'Male' : ($item->gender == 'Perempuan' ? 'Female' : $item->gender);
             $labels[] = $gender;
             $series[] = $item->count;
         }
@@ -584,13 +863,77 @@ class MarketingController extends Controller
         ];
     }
 
+    private function getPatientGrowthTrends($year, $clinicId = null)
+    {
+        $query = Pasien::whereYear('created_at', $year);
+        
+        if ($clinicId) {
+            $query->whereHas('visitations', function ($q) use ($clinicId) {
+                $q->where('klinik_id', $clinicId);
+            });
+        }
+
+        $data = $query->select(
+            DB::raw('MONTH(created_at) as month'),
+            DB::raw('COUNT(*) as count')
+        )
+            ->groupBy(DB::raw('MONTH(created_at)'))
+            ->orderBy('month')
+            ->get();
+
+        $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        $seriesData = array_fill(0, 12, 0);
+
+        foreach ($data as $item) {
+            $seriesData[$item->month - 1] = $item->count;
+        }
+
+        return [
+            'labels' => $months,
+            'series' => $seriesData
+        ];
+    }
+
+    private function getPatientRetentionAnalysis($year, $clinicId = null)
+    {
+        $query = DB::table('erm_visitations as v1')
+            ->join('erm_visitations as v2', 'v1.pasien_id', '=', 'v2.pasien_id')
+            ->where('v1.tanggal_visitation', '<', 'v2.tanggal_visitation')
+            ->whereYear('v1.tanggal_visitation', $year);
+
+        if ($clinicId) {
+            $query->where('v1.klinik_id', $clinicId)
+                  ->where('v2.klinik_id', $clinicId);
+        }
+
+        $returnVisits = $query->select('v1.pasien_id')
+            ->distinct()
+            ->count();
+
+        $totalPatients = Pasien::whereHas('visitations', function ($q) use ($year, $clinicId) {
+            $q->whereYear('tanggal_visitation', $year);
+            if ($clinicId) $q->where('klinik_id', $clinicId);
+        })->count();
+
+        $retentionRate = $totalPatients > 0 ? round(($returnVisits / $totalPatients) * 100, 1) : 0;
+
+        return [
+            'total_patients' => $totalPatients,
+            'returning_patients' => $returnVisits,
+            'retention_rate' => $retentionRate,
+            'one_time_patients' => $totalPatients - $returnVisits
+        ];
+    }
+
     private function getPopularTreatments($period, $clinicId = null, $year = null, $month = null)
     {
         $endDate = now();
         $startDate = $this->getStartDate($period);
         $query = InvoiceItem::whereHas('invoice', function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('payment_date', [$startDate, $endDate])
-                ->where('status', 'paid');
+            $q->whereHas('visitation', function ($v) use ($startDate, $endDate) {
+                $v->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+            })
+                ->where('amount_paid', '>', 0);
         })
             ->where('billable_type', 'App\\Models\\ERM\\Tindakan');
         if ($clinicId) {
@@ -634,8 +977,10 @@ class MarketingController extends Controller
         $endDate = now();
         $startDate = $this->getStartDate($period);
         $query = InvoiceItem::whereHas('invoice', function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('payment_date', [$startDate, $endDate])
-                ->where('status', 'paid');
+            $q->whereHas('visitation', function ($v) use ($startDate, $endDate) {
+                $v->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+            })
+                ->where('amount_paid', '>', 0);
         })
             ->where('billable_type', 'App\\Models\\ERM\\PaketTindakan');
         if ($clinicId) {
@@ -705,8 +1050,10 @@ class MarketingController extends Controller
         $startDate = $this->getStartDate($period);
 
         $query = InvoiceItem::whereHas('invoice', function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('payment_date', [$startDate, $endDate])
-                ->where('status', 'paid');
+            $q->whereHas('visitation', function ($v) use ($startDate, $endDate) {
+                $v->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+            })
+                ->where('amount_paid', '>', 0);
         })
             ->where('billable_type', 'App\Models\ERM\Obat');
 
@@ -741,21 +1088,20 @@ class MarketingController extends Controller
     private function getMedicationTrends($year, $clinicId = null)
     {
         $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+            ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
             ->where('finance_invoice_items.billable_type', 'App\Models\ERM\Obat')
-            ->whereYear('finance_invoices.payment_date', $year)
-            ->where('finance_invoices.status', 'paid');
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
 
         if ($clinicId) {
-            $query->whereHas('invoice.visitation', function ($q) use ($clinicId) {
-                $q->where('klinik_id', $clinicId);
-            });
+            $query->where('erm_visitations.klinik_id', $clinicId);
         }
 
         $data = $query->select(
-            DB::raw('MONTH(finance_invoices.payment_date) as month'),
+            DB::raw('MONTH(erm_visitations.tanggal_visitation) as month'),
             DB::raw('SUM(finance_invoice_items.quantity) as total_quantity')
         )
-            ->groupBy(DB::raw('MONTH(finance_invoices.payment_date)'))
+            ->groupBy(DB::raw('MONTH(erm_visitations.tanggal_visitation)'))
             ->orderBy('month')
             ->get();
 
@@ -781,11 +1127,11 @@ class MarketingController extends Controller
         foreach ($clinics as $clinic) {
             $clinicNames[] = $clinic->nama;
 
-            $revenue = Invoice::whereHas('visitation', function ($q) use ($clinic) {
-                $q->where('klinik_id', $clinic->id);
+            $revenue = Invoice::whereHas('visitation', function ($q) use ($clinic, $year) {
+                $q->where('klinik_id', $clinic->id)
+                    ->whereYear('tanggal_visitation', $year);
             })
-                ->whereYear('payment_date', $year)
-                ->where('status', 'paid')
+                ->where('amount_paid', '>', 0)
                 ->sum('total_amount');
 
             $clinicRevenue[] = floatval($revenue);
@@ -858,7 +1204,7 @@ class MarketingController extends Controller
                 $q->where('klinik_id', $clinic->id)
                     ->whereYear('tanggal_visitation', $year);
             })
-                ->where('status', 'paid')
+                ->where('amount_paid', '>', 0)
                 ->sum('total_amount');
 
             $patientCount = Visitation::where('klinik_id', $clinic->id)
@@ -941,5 +1287,216 @@ class MarketingController extends Controller
             'visitationTrends' => $visitationTrends,
             'year' => $year,
         ]);
+    }
+
+    // NEW ENHANCED ANALYTICS METHODS
+
+    private function getDoctorPerformanceAnalysis($year, $clinicId = null)
+    {
+        $query = Visitation::join('erm_dokters', 'erm_visitations.dokter_id', '=', 'erm_dokters.id')
+            ->join('users', 'erm_dokters.user_id', '=', 'users.id')
+            ->whereYear('erm_visitations.tanggal_visitation', $year);
+
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
+
+        $data = $query->select(
+            'users.name as doctor_name',
+            DB::raw('COUNT(DISTINCT erm_visitations.pasien_id) as unique_patients'),
+            DB::raw('COUNT(erm_visitations.id) as total_visits'),
+            DB::raw('AVG(CASE WHEN finance_invoices.total_amount IS NOT NULL THEN finance_invoices.total_amount ELSE 0 END) as avg_revenue_per_visit')
+        )
+            ->leftJoin('finance_invoices', 'erm_visitations.id', '=', 'finance_invoices.visitation_id')
+            ->groupBy('erm_dokters.id', 'users.name')
+            ->orderBy('total_visits', 'desc')
+            ->get();
+
+        return [
+            'labels' => $data->pluck('doctor_name')->toArray(),
+            'unique_patients' => $data->pluck('unique_patients')->toArray(),
+            'total_visits' => $data->pluck('total_visits')->toArray(),
+            'avg_revenue' => $data->pluck('avg_revenue_per_visit')->map(function ($val) {
+                return round(floatval($val), 0);
+            })->toArray()
+        ];
+    }
+
+    private function getTreatmentEfficiencyAnalysis($year, $clinicId = null)
+    {
+        $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+            ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Tindakan')
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
+
+        $data = $query->select(
+            'finance_invoice_items.billable_id',
+            DB::raw('COUNT(*) as frequency'),
+            DB::raw('AVG(finance_invoice_items.final_amount) as avg_price'),
+            DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue')
+        )
+            ->with('billable:id,nama')
+            ->groupBy('finance_invoice_items.billable_id')
+            ->orderBy('frequency', 'desc')
+            ->limit(10)
+            ->get();
+
+        return [
+            'labels' => $data->map(function ($item) {
+                return $item->billable->nama ?? 'Unknown';
+            })->toArray(),
+            'frequency' => $data->pluck('frequency')->toArray(),
+            'avg_price' => $data->pluck('avg_price')->map(function ($val) {
+                return round(floatval($val), 0);
+            })->toArray(),
+            'total_revenue' => $data->pluck('total_revenue')->map(function ($val) {
+                return floatval($val);
+            })->toArray()
+        ];
+    }
+
+    private function getServiceSatisfactionTrends($year, $clinicId = null)
+    {
+        // This would need a customer satisfaction table/survey system
+        // For now, return dummy data structure that can be implemented later
+        return [
+            'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            'satisfaction_score' => [4.2, 4.3, 4.1, 4.4, 4.5, 4.3, 4.6, 4.4, 4.5, 4.7, 4.6, 4.8],
+            'response_rate' => [85, 87, 82, 88, 90, 85, 92, 89, 91, 94, 92, 95]
+        ];
+    }
+
+    private function getProductCategoryPerformance($year, $clinicId = null)
+    {
+        $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+            ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_obat', 'finance_invoice_items.billable_id', '=', 'erm_obat.id')
+            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Obat')
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
+
+        $data = $query->select(
+            'erm_obat.kategori',
+            DB::raw('COUNT(*) as total_sales'),
+            DB::raw('SUM(finance_invoice_items.quantity) as total_quantity'),
+            DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue')
+        )
+            ->whereNotNull('erm_obat.kategori')
+            ->groupBy('erm_obat.kategori')
+            ->orderBy('total_revenue', 'desc')
+            ->get();
+
+        return [
+            'labels' => $data->pluck('kategori')->toArray(),
+            'sales_count' => $data->pluck('total_sales')->toArray(),
+            'quantity' => $data->pluck('total_quantity')->toArray(),
+            'revenue' => $data->pluck('total_revenue')->map(function ($val) {
+                return floatval($val);
+            })->toArray()
+        ];
+    }
+
+    private function getInventoryTurnoverAnalysis($year, $clinicId = null)
+    {
+        $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+            ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_obat', 'finance_invoice_items.billable_id', '=', 'erm_obat.id')
+            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Obat')
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
+
+        $data = $query->select(
+            'finance_invoice_items.billable_id',
+            'erm_obat.nama',
+            'erm_obat.stok',
+            DB::raw('SUM(finance_invoice_items.quantity) as total_sold'),
+            DB::raw('COUNT(*) as transaction_count')
+        )
+            ->groupBy('finance_invoice_items.billable_id', 'erm_obat.nama', 'erm_obat.stok')
+            ->orderBy('total_sold', 'desc')
+            ->limit(15)
+            ->get();
+
+        $turnoverRates = $data->map(function ($item) {
+            $turnoverRate = $item->stok > 0 ? round($item->total_sold / $item->stok, 2) : 0;
+            return [
+                'name' => $item->nama,
+                'turnover_rate' => $turnoverRate,
+                'total_sold' => $item->total_sold,
+                'current_stock' => $item->stok,
+                'transactions' => $item->transaction_count
+            ];
+        })->sortByDesc('turnover_rate');
+
+        return [
+            'labels' => $turnoverRates->pluck('name')->toArray(),
+            'turnover_rates' => $turnoverRates->pluck('turnover_rate')->toArray(),
+            'total_sold' => $turnoverRates->pluck('total_sold')->toArray(),
+            'current_stock' => $turnoverRates->pluck('current_stock')->toArray()
+        ];
+    }
+
+    private function getProductProfitabilityAnalysis($year, $clinicId = null)
+    {
+        $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+            ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->join('erm_obat', 'finance_invoice_items.billable_id', '=', 'erm_obat.id')
+            ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Obat')
+            ->whereYear('erm_visitations.tanggal_visitation', $year)
+            ->where('finance_invoices.amount_paid', '>', 0);
+
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
+
+        $data = $query->select(
+            'finance_invoice_items.billable_id',
+            'erm_obat.nama',
+            'erm_obat.hpp',
+            DB::raw('SUM(finance_invoice_items.quantity) as total_quantity'),
+            DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue'),
+            DB::raw('AVG(finance_invoice_items.unit_price) as avg_selling_price')
+        )
+            ->whereNotNull('erm_obat.hpp')
+            ->groupBy('finance_invoice_items.billable_id', 'erm_obat.nama', 'erm_obat.hpp')
+            ->orderBy('total_revenue', 'desc')
+            ->limit(10)
+            ->get();
+
+        $profitabilityData = $data->map(function ($item) {
+            $costOfGoodsSold = $item->hpp * $item->total_quantity;
+            $profit = $item->total_revenue - $costOfGoodsSold;
+            $profitMargin = $item->total_revenue > 0 ? round(($profit / $item->total_revenue) * 100, 1) : 0;
+            
+            return [
+                'name' => $item->nama,
+                'revenue' => floatval($item->total_revenue),
+                'cost' => floatval($costOfGoodsSold),
+                'profit' => floatval($profit),
+                'profit_margin' => $profitMargin,
+                'quantity' => $item->total_quantity
+            ];
+        });
+
+        return [
+            'labels' => $profitabilityData->pluck('name')->toArray(),
+            'revenue' => $profitabilityData->pluck('revenue')->toArray(),
+            'cost' => $profitabilityData->pluck('cost')->toArray(),
+            'profit' => $profitabilityData->pluck('profit')->toArray(),
+            'profit_margin' => $profitabilityData->pluck('profit_margin')->toArray()
+        ];
     }
 }

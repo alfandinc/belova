@@ -33,6 +33,14 @@
                                     </option>
                                 @endfor
                             </select>
+                            <select name="clinic_id" class="form-select form-select-sm" style="width: auto;">
+                                <option value="">All Clinics</option>
+                                @foreach($clinics as $clinic)
+                                    <option value="{{ $clinic->id }}" {{ $clinicId == $clinic->id ? 'selected' : '' }}>
+                                        {{ $clinic->nama }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -234,257 +242,179 @@
 @endsection
 
 @push('scripts')
+<!-- ApexCharts -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
 <script>
 $(document).ready(function() {
-    // Wait for ApexCharts to be fully loaded and prevent conflicts
-    setTimeout(function() {
-        // Destroy any existing charts first to prevent conflicts
-        if (window.ApexCharts && window.ApexCharts.exec) {
-            try {
-                window.ApexCharts.exec('monthlyRevenueChart', 'destroy');
-                window.ApexCharts.exec('doctorRevenueChart', 'destroy');
-                window.ApexCharts.exec('treatmentRevenueChart', 'destroy');
-                window.ApexCharts.exec('paymentMethodChart', 'destroy');
-                window.ApexCharts.exec('revenueGrowthChart', 'destroy');
-                window.ApexCharts.exec('dailyRevenueChart', 'destroy');
-            } catch (e) {
-                // Ignore destroy errors
-            }
-        }
-        initializeCharts();
-    }, 200);
-});
-
-function initializeCharts() {
-    // Check if ApexCharts is loaded
-    if (typeof ApexCharts === 'undefined') {
-        console.error('ApexCharts is not loaded');
-        // Show error message in all chart containers
-        $('.card-body > div[id$="Chart"]').html('<div class="text-center text-muted py-5"><i class="fas fa-exclamation-triangle"></i><br>Chart library not loaded</div>');
-        return;
-    }
-
-    console.log('ApexCharts version:', ApexCharts.version || 'Unknown');
-
-    // Debug: Log data
-    var revenueData = {
-        monthlyRevenue: @json($monthlyRevenue ?? []),
-        doctorRevenue: @json($doctorRevenue ?? []),
-        treatmentRevenue: @json($treatmentRevenue ?? []),
-        paymentMethodAnalysis: @json($paymentMethodAnalysis ?? []),
-        revenueGrowth: @json($revenueGrowth ?? []),
-        dailyRevenue: @json($dailyRevenue ?? [])
-    };
-    console.log('Revenue data:', revenueData);
-
     // Monthly Revenue Chart
-    if (document.querySelector("#monthlyRevenueChart")) {
-        var monthlyRevenueData = @json($monthlyRevenue ?? ['labels' => [], 'series' => []]);
-        var monthlyRevenueOptions = {
-            chart: {
-                height: 350,
-                type: 'area',
-                toolbar: { show: true }
-            },
-            series: [{
-                name: 'Revenue',
-                data: monthlyRevenueData.series || []
-            }],
-            xaxis: {
-                categories: monthlyRevenueData.labels || []
-            },
-            yaxis: {
-                labels: {
-                    formatter: function(val) {
-                        return 'Rp ' + val.toLocaleString('id-ID');
-                    }
-                }
-            },
-            colors: ['#4e73df'],
-            fill: {
-                type: 'gradient',
-                gradient: {
-                    shadeIntensity: 1,
-                    opacityFrom: 0.7,
-                    opacityTo: 0.3,
-                }
-            },
-            tooltip: {
-                y: {
-                    formatter: function(val) {
-                        return 'Rp ' + val.toLocaleString('id-ID');
-                    }
+    var monthlyRevenueOptions = {
+        chart: {
+            height: 350,
+            type: 'area',
+            toolbar: { show: true }
+        },
+        series: [{
+            name: 'Revenue',
+            data: @json($monthlyRevenue['series'])
+        }],
+        xaxis: {
+            categories: @json($monthlyRevenue['labels'])
+        },
+        yaxis: {
+            labels: {
+                formatter: function(val) {
+                    return 'Rp ' + val.toLocaleString('id-ID');
                 }
             }
-        };
-        try {
-            new ApexCharts(document.querySelector("#monthlyRevenueChart"), monthlyRevenueOptions).render();
-        } catch (e) {
-            console.error('Error rendering monthly revenue chart:', e);
+        },
+        colors: ['#4e73df'],
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.7,
+                opacityTo: 0.3,
+            }
+        },
+        tooltip: {
+            y: {
+                formatter: function(val) {
+                    return 'Rp ' + val.toLocaleString('id-ID');
+                }
+            }
         }
-    }
+    };
+    new ApexCharts(document.querySelector("#monthlyRevenueChart"), monthlyRevenueOptions).render();
 
     // Doctor Revenue Chart
-    if (document.querySelector("#doctorRevenueChart")) {
-        var doctorRevenueData = @json($doctorRevenue ?? ['labels' => [], 'series' => []]);
-        var doctorRevenueOptions = {
-            chart: {
-                height: 350,
-                type: 'bar'
-            },
-            series: [{
-                name: 'Revenue',
-                data: doctorRevenueData.series || []
-            }],
-            xaxis: {
-                categories: doctorRevenueData.labels || [],
-                labels: {
-                    rotate: -45
-                }
-            },
-            yaxis: {
-                labels: {
-                    formatter: function(val) {
-                        return 'Rp ' + val.toLocaleString('id-ID');
-                    }
-                }
-            },
-            colors: ['#1cc88a'],
-            plotOptions: {
-                bar: {
-                    horizontal: false,
-                    columnWidth: '55%'
+    var doctorRevenueOptions = {
+        chart: {
+            height: 350,
+            type: 'bar'
+        },
+        series: [{
+            name: 'Revenue',
+            data: @json($doctorRevenue['series'])
+        }],
+        xaxis: {
+            categories: @json($doctorRevenue['labels']),
+            labels: {
+                rotate: -45
+            }
+        },
+        yaxis: {
+            labels: {
+                formatter: function(val) {
+                    return 'Rp ' + val.toLocaleString('id-ID');
                 }
             }
-        };
-        try {
-            new ApexCharts(document.querySelector("#doctorRevenueChart"), doctorRevenueOptions).render();
-        } catch (e) {
-            console.error('Error rendering doctor revenue chart:', e);
+        },
+        colors: ['#1cc88a'],
+        plotOptions: {
+            bar: {
+                horizontal: false,
+                columnWidth: '55%'
+            }
         }
-    }
+    };
+    new ApexCharts(document.querySelector("#doctorRevenueChart"), doctorRevenueOptions).render();
 
     // Treatment Revenue Chart
-    if (document.querySelector("#treatmentRevenueChart")) {
-        var treatmentRevenueData = @json($treatmentRevenue ?? ['labels' => [], 'revenue' => []]);
-        var treatmentRevenueOptions = {
-            chart: {
-                height: 350,
-                type: 'donut'
-            },
-            series: treatmentRevenueData.revenue || [],
-            labels: treatmentRevenueData.labels || [],
-            colors: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6c757d']
-        };
-        try {
-            new ApexCharts(document.querySelector("#treatmentRevenueChart"), treatmentRevenueOptions).render();
-        } catch (e) {
-            console.error('Error rendering treatment revenue chart:', e);
-        }
-    }
+    var treatmentRevenueOptions = {
+        chart: {
+            height: 350,
+            type: 'donut'
+        },
+        series: @json($treatmentRevenue['revenue']),
+        labels: @json($treatmentRevenue['labels']),
+        colors: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b', '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6c757d']
+    };
+    new ApexCharts(document.querySelector("#treatmentRevenueChart"), treatmentRevenueOptions).render();
 
     // Payment Method Chart
-    if (document.querySelector("#paymentMethodChart")) {
-        var paymentMethodData = @json($paymentMethodAnalysis ?? ['labels' => [], 'revenue' => []]);
-        var paymentMethodOptions = {
-            chart: {
-                height: 350,
-                type: 'pie'
-            },
-            series: paymentMethodData.revenue || [],
-            labels: paymentMethodData.labels || [],
-            colors: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e']
-        };
-        try {
-            new ApexCharts(document.querySelector("#paymentMethodChart"), paymentMethodOptions).render();
-        } catch (e) {
-            console.error('Error rendering payment method chart:', e);
-        }
-    }
+    var paymentMethodOptions = {
+        chart: {
+            height: 350,
+            type: 'pie'
+        },
+        series: @json($paymentMethodAnalysis['revenue']),
+        labels: @json($paymentMethodAnalysis['labels']),
+        colors: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e']
+    };
+    new ApexCharts(document.querySelector("#paymentMethodChart"), paymentMethodOptions).render();
 
     // Revenue Growth Chart
-    if (document.querySelector("#revenueGrowthChart")) {
-        var revenueGrowthData = @json($revenueGrowth ?? ['labels' => [], 'current_year' => [], 'previous_year' => []]);
-        var revenueGrowthOptions = {
-            chart: {
-                height: 350,
-                type: 'line'
-            },
-            series: [{
-                name: '{{ $year ?? date("Y") }}',
-                data: revenueGrowthData.current_year || []
-            }, {
-                name: '{{ ($year ?? date("Y")) - 1 }}',
-                data: revenueGrowthData.previous_year || []
-            }],
-            xaxis: {
-                categories: revenueGrowthData.labels || []
-            },
-            yaxis: {
-                labels: {
-                    formatter: function(val) {
-                        return 'Rp ' + val.toLocaleString('id-ID');
-                    }
+    var revenueGrowthOptions = {
+        chart: {
+            height: 350,
+            type: 'line'
+        },
+        series: [{
+            name: '{{ $year }}',
+            data: @json($revenueGrowth['current_year'])
+        }, {
+            name: '{{ $year - 1 }}',
+            data: @json($revenueGrowth['previous_year'])
+        }],
+        xaxis: {
+            categories: @json($revenueGrowth['labels'])
+        },
+        yaxis: {
+            labels: {
+                formatter: function(val) {
+                    return 'Rp ' + val.toLocaleString('id-ID');
                 }
-            },
-            colors: ['#4e73df', '#36b9cc'],
-            stroke: {
-                width: 3
             }
-        };
-        try {
-            new ApexCharts(document.querySelector("#revenueGrowthChart"), revenueGrowthOptions).render();
-        } catch (e) {
-            console.error('Error rendering revenue growth chart:', e);
+        },
+        colors: ['#4e73df', '#36b9cc'],
+        stroke: {
+            width: 3
         }
-    }
+    };
+    new ApexCharts(document.querySelector("#revenueGrowthChart"), revenueGrowthOptions).render();
 
+    @if($month)
     // Daily Revenue Chart
-    @if($month ?? false)
-    if (document.querySelector("#dailyRevenueChart")) {
-        var dailyRevenueData = @json($dailyRevenue ?? ['labels' => [], 'series' => []]);
-        var dailyRevenueOptions = {
-            chart: {
-                height: 300,
-                type: 'column'
-            },
-            series: [{
-                name: 'Daily Revenue',
-                data: dailyRevenueData.series || []
-            }],
-            xaxis: {
-                categories: dailyRevenueData.labels || [],
-                title: { text: 'Day of Month' }
-            },
-            yaxis: {
-                labels: {
-                    formatter: function(val) {
-                        return 'Rp ' + val.toLocaleString('id-ID');
-                    }
+    var dailyRevenueOptions = {
+        chart: {
+            height: 300,
+            type: 'column'
+        },
+        series: [{
+            name: 'Daily Revenue',
+            data: @json($dailyRevenue['series'])
+        }],
+        xaxis: {
+            categories: @json($dailyRevenue['labels']),
+            title: { text: 'Day of Month' }
+        },
+        yaxis: {
+            labels: {
+                formatter: function(val) {
+                    return 'Rp ' + val.toLocaleString('id-ID');
                 }
-            },
-            colors: ['#f6c23e']
-        };
-        try {
-            new ApexCharts(document.querySelector("#dailyRevenueChart"), dailyRevenueOptions).render();
-        } catch (e) {
-            console.error('Error rendering daily revenue chart:', e);
-        }
-    }
+            }
+        },
+        colors: ['#f6c23e']
+    };
+    new ApexCharts(document.querySelector("#dailyRevenueChart"), dailyRevenueOptions).render();
     @endif
 
     // Filter change handlers
-    $('select[name="year"], select[name="month"]').on('change', function() {
+    $('select[name="year"], select[name="month"], select[name="clinic_id"]').on('change', function() {
         var params = new URLSearchParams();
         var year = $('select[name="year"]').val();
         var month = $('select[name="month"]').val();
+        var clinicId = $('select[name="clinic_id"]').val();
         
         if (year) params.append('year', year);
         if (month) params.append('month', month);
+        if (clinicId) params.append('clinic_id', clinicId);
         
         window.location.href = '/marketing/revenue?' + params.toString();
     });
-}
+});
 </script>
 @endpush
 
