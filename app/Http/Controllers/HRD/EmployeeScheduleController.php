@@ -37,8 +37,27 @@ class EmployeeScheduleController extends Controller
             'Employee' => 15
         ];
         
+        // Define role display labels
+        $roleDisplayLabels = [
+            'Hrd' => 'HRD',
+            'Manager' => 'Manager on Duty',
+            'Admin' => 'IT',
+            'Marketing' => 'Marketing & FO',
+            'Kasir' => 'Kasir & Akunting',
+            'Inventaris' => 'Inventaris',
+            'Farmasi' => 'Farmasi',
+            'Beautician' => 'Beautician',
+            'Perawat' => 'Perawat',
+            'CEO' => 'CEO',
+            'Ceo' => 'CEO',
+            'Dokter' => 'Dokter',
+            'Pendaftaran' => 'Pendaftaran',
+            'Lab' => 'Lab',
+            'Employee' => 'Employee'
+        ];
+        
         // Kelompokkan per role berdasarkan prioritas tertinggi
-        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority){
+        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority, $roleDisplayLabels){
             if (!$emp->user || !$emp->user->roles->count()) {
                 return 'Tanpa Role';
             }
@@ -55,7 +74,8 @@ class EmployeeScheduleController extends Controller
                 }
             }
             
-            return $highestPriorityRole ?? 'Lainnya';
+            // Return display label instead of role name
+            return $roleDisplayLabels[$highestPriorityRole] ?? ($highestPriorityRole ?? 'Lainnya');
         });
         
         // Urutkan dalam setiap grup berdasarkan nama
@@ -64,8 +84,10 @@ class EmployeeScheduleController extends Controller
         });
         
         // Urutkan grup berdasarkan prioritas role
-        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($rolePriority) {
-            return $rolePriority[$roleName] ?? 999;
+        $employeesByDivision = $employeesByDivision->sortBy(function($group, $displayLabel) use ($rolePriority, $roleDisplayLabels) {
+            // Find the original role name from display label
+            $originalRole = array_search($displayLabel, $roleDisplayLabels);
+            return $rolePriority[$originalRole] ?? 999;
         });
         $shifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
@@ -153,7 +175,26 @@ class EmployeeScheduleController extends Controller
             'Employee' => 15
         ];
         
-        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority){
+        // Define role display labels
+        $roleDisplayLabels = [
+            'Hrd' => 'HRD',
+            'Manager' => 'Manager on Duty',
+            'Admin' => 'IT',
+            'Marketing' => 'Marketing & FO',
+            'Kasir' => 'Kasir & Akunting',
+            'Inventaris' => 'Inventaris',
+            'Farmasi' => 'Farmasi',
+            'Beautician' => 'Beautician',
+            'Perawat' => 'Perawat',
+            'CEO' => 'CEO',
+            'Ceo' => 'CEO',
+            'Dokter' => 'Dokter',
+            'Pendaftaran' => 'Pendaftaran',
+            'Lab' => 'Lab',
+            'Employee' => 'Employee'
+        ];
+        
+        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority, $roleDisplayLabels){
             if (!$emp->user || !$emp->user->roles->count()) {
                 return 'Tanpa Role';
             }
@@ -170,14 +211,17 @@ class EmployeeScheduleController extends Controller
                 }
             }
             
-            return $highestPriorityRole ?? 'Lainnya';
+            // Return display label instead of role name
+            return $roleDisplayLabels[$highestPriorityRole] ?? ($highestPriorityRole ?? 'Lainnya');
         })->map(function($group){
             return $group->sortBy('nama')->values();
         });
         
         // Urutkan grup berdasarkan prioritas role
-        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($rolePriority) {
-            return $rolePriority[$roleName] ?? 999;
+        $employeesByDivision = $employeesByDivision->sortBy(function($group, $displayLabel) use ($rolePriority, $roleDisplayLabels) {
+            // Find the original role name from display label
+            $originalRole = array_search($displayLabel, $roleDisplayLabels);
+            return $rolePriority[$originalRole] ?? 999;
         });
         $shifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
