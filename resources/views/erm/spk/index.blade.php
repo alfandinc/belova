@@ -47,6 +47,23 @@
         </div>
     </div>
 </div>
+
+<!-- SPK Modal -->
+<div class="modal fade" id="spkModal" tabindex="-1" role="dialog" aria-labelledby="spkModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="spkModalLabel">SPK & CUCI TANGAN</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="spkModalBody">
+                <!-- Content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 @section('scripts')
 <script>
@@ -117,6 +134,71 @@ $(document).ready(function() {
     $('#filterTanggal, #filterDokter').on('change', function() {
         table.ajax.reload();
     });
+
+    // Handle SPK Modal
+    $(document).on('click', '.open-spk-modal', function(e) {
+        e.preventDefault();
+        const visitationId = $(this).data('visitation-id');
+        const currentIndex = $(this).data('current-index') || 0;
+        
+        // Show modal immediately with loading state
+        $('#spkModal').modal('show');
+        $('#spkModalBody').html(`
+            <div class="d-flex justify-content-center align-items-center" style="min-height: 200px;">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <div class="mt-2">Memuat data SPK...</div>
+                </div>
+            </div>
+        `);
+        
+        // Load modal content
+        $.get('/erm/spk/modal', {
+            visitation_id: visitationId,
+            index: currentIndex
+        })
+        .done(function(response) {
+            $('#spkModalBody').html(response);
+            // Initialize any necessary plugins in the modal
+            initializeModalPlugins();
+        })
+        .fail(function() {
+            $('#spkModalBody').html('<div class="alert alert-danger">Gagal memuat data SPK. Silakan coba lagi.</div>');
+        });
+    });
+
+    // Handle modal close - clean up
+    $('#spkModal').on('hidden.bs.modal', function () {
+        // Clear modal content completely
+        $('#spkModalBody').empty();
+        // Destroy any select2 instances to prevent conflicts
+        $('#spkModal .select2-spk').each(function() {
+            if ($(this).hasClass('select2-hidden-accessible')) {
+                $(this).select2('destroy');
+            }
+        });
+    });
+
+    function initializeModalPlugins() {
+        // Initialize select2 for modal selects
+        $('#spkModal .select2-spk').each(function() {
+            if (!$(this).hasClass('select2-hidden-accessible')) {
+                $(this).select2({
+                    width: '100%',
+                    dropdownParent: $('#spkModal')
+                });
+            }
+        });
+        
+        // Trigger data loading if function exists (small delay to ensure modal content is rendered)
+        if (typeof window.loadSpkModalData === 'function') {
+            setTimeout(function() {
+                window.loadSpkModalData();
+            }, 50);
+        }
+    }
 });
 </script>
 @endsection

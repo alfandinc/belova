@@ -516,7 +516,28 @@ class TindakanController extends Controller
                 ->addColumn('aksi', function($row) {
                     $firstRiwayatId = $row['all_tindakan'][0]['id'];
                     $visitationId = $row['visitation_id'];
-                    return '<a href="'.route('erm.spk.create', ['visitation_id' => $visitationId]).'" class="btn btn-primary btn-sm mb-1">Input/Edit SPK</a>';
+                    
+                    // Get SPK timestamps for the first riwayat (representative of the group)
+                    $spk = \App\Models\ERM\Spk::where('riwayat_tindakan_id', $firstRiwayatId)->first();
+                    
+                    $actionHtml = '<button class="btn btn-primary btn-sm mb-1 open-spk-modal" data-visitation-id="'.$visitationId.'" data-current-index="0">Input/Edit SPK</button>';
+                    
+                    if ($spk) {
+                        $createdAt = $spk->created_at ? $spk->created_at->format('d M Y, H:i') : '-';
+                        $updatedAt = $spk->updated_at ? $spk->updated_at->format('d M Y, H:i') : '-';
+                        
+                        $actionHtml .= '<div class="mt-1 text-muted" style="font-size: 0.75rem;">';
+                        $actionHtml .= '<div><strong>Dibuat:</strong> ' . $createdAt . '</div>';
+                        $actionHtml .= '<div><strong>Diubah:</strong> ' . $updatedAt . '</div>';
+                        $actionHtml .= '</div>';
+                    } else {
+                        $actionHtml .= '<div class="mt-1 text-muted" style="font-size: 0.75rem;">';
+                        $actionHtml .= '<div><strong>Dibuat:</strong> -</div>';
+                        $actionHtml .= '<div><strong>Diubah:</strong> -</div>';
+                        $actionHtml .= '</div>';
+                    }
+                    
+                    return $actionHtml;
                 })
                 ->addColumn('spk_filled', function($row) {
                     // Check if any SPK detail for any riwayat in this group has waktu_mulai filled
@@ -634,20 +655,58 @@ class TindakanController extends Controller
         
         return view('erm.spk.create', compact('riwayat', 'allRiwayat', 'currentIndex'));
     }
+
+    public function spkModal(Request $request)
+    {
+        $visitationId = $request->query('visitation_id');
+        $currentIndex = (int)$request->query('index', 0);
+        $riwayat = null;
+        $allRiwayat = null;
+        
+        if ($visitationId) {
+            // Get all riwayat for this visitation
+            $allRiwayat = RiwayatTindakan::with([
+                'visitation.pasien',
+                'visitation.dokter.user',
+                'tindakan.sop',
+                'paketTindakan'
+            ])->where('visitation_id', $visitationId)->get();
+            
+            if ($allRiwayat->isEmpty()) {
+                return response()->json(['error' => 'Tidak ada riwayat tindakan untuk kunjungan ini'], 404);
+            }
+            
+            // Use the specified index or default to 0
+            $currentIndex = min($currentIndex, $allRiwayat->count() - 1);
+            $riwayat = $allRiwayat[$currentIndex];
+        }
+        
+        return view('erm.spk.modal-content', compact('riwayat', 'allRiwayat', 'currentIndex'));
+    }
     
     public function getSpkDataByRiwayat($riwayatId)
     {
+        // Use eager loading to reduce queries
         $riwayat = RiwayatTindakan::with([
             'paketTindakan',
             'visitation.pasien',
             'visitation.dokter.user',
-            'tindakan.sop'
+            'tindakan.sop' => function($query) {
+                $query->orderBy('urutan');
+            }
         ])->findOrFail($riwayatId);
 
-        $spk = Spk::with('details.sop')->where('riwayat_tindakan_id', $riwayatId)->first();
-        $users = User::whereHas('roles', function($query) {
-            $query->whereIn('name', ['Dokter', 'Beautician']);
-        })->get(['id', 'name']);
+        // Get SPK with details in one query
+        $spk = Spk::with(['details.sop' => function($query) {
+            $query->orderBy('urutan');
+        }])->where('riwayat_tindakan_id', $riwayatId)->first();
+        
+        // Cache users query for better performance
+        $users = cache()->remember('spk_users', 300, function() {
+            return User::whereHas('roles', function($query) {
+                $query->whereIn('name', ['Dokter', 'Beautician']);
+            })->get(['id', 'name']);
+        });
 
         $sopList = $riwayat->tindakan && $riwayat->tindakan->sop 
             ? $riwayat->tindakan->sop->sortBy('urutan')->values()->toArray()

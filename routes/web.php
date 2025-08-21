@@ -330,6 +330,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/tindakan/spk/save', [TindakanController::class, 'saveSpk'])->name('erm.tindakan.spk.save');
     Route::get('/spk', [TindakanController::class, 'spkIndex'])->name('erm.spk.index');
     Route::get('/spk/create', [TindakanController::class, 'spkCreate'])->name('erm.spk.create');
+    Route::get('/spk/modal', [TindakanController::class, 'spkModal'])->name('erm.spk.modal');
     Route::get('/spk/print/{riwayatId}', [TindakanController::class, 'printSpk'])->name('erm.spk.print');
 
     //Riwayat Kunjungan
