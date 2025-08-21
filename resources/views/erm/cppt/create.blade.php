@@ -638,7 +638,10 @@ $(document).ready(function () {
                                     </tr>
                                     <tr>
                                         <td colspan="4" style="text-align:right; background:#23263a; border:none;">
-                                            <button class="btn btn-sm btn-warning btn-edit-cppt" data-cppt-id="${cppt.id}" data-cppt='${JSON.stringify(cppt)}'>Edit</button>
+                                            ${(userInitial === 'D' || (cppt.user_id === {{ auth()->id() }} && {{ auth()->user()->hasRole('Dokter') ? 'true' : 'false' }})) ? 
+                                                `<button class="btn btn-sm btn-warning btn-edit-cppt" data-cppt-id="${cppt.id}" data-cppt='${JSON.stringify(cppt)}'>Edit</button>` : 
+                                                ''
+                                            }
                                         </td>
                                     </tr>
                                 </table>
@@ -697,7 +700,10 @@ $(document).ready(function () {
                                         <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent((user ? user.name : '') + ' - ' + userRole + ' - ' + cppt.created_at)}" alt="QR ${userRole}" style="width: 120px; height: 120px; object-fit: contain; margin-top: 1em; margin-bottom: 0.5em; background: #fff; border-radius: 0.5em; border: 1px solid #2196f3; box-shadow: 0 1px 6px rgba(33,150,243,0.07);">
                                         ${readSection}
                                         <div class="mt-2 text-right">
-                                            <button class="btn btn-sm btn-warning btn-edit-cppt" data-cppt-id="${cppt.id}" data-cppt='${JSON.stringify(cppt)}'>Edit</button>
+                                            ${(userInitial === 'D' || (cppt.user_id === {{ auth()->id() }} && {{ auth()->user()->hasRole('Dokter') ? 'true' : 'false' }})) ? 
+                                                `<button class="btn btn-sm btn-warning btn-edit-cppt" data-cppt-id="${cppt.id}" data-cppt='${JSON.stringify(cppt)}'>Edit</button>` : 
+                                                ''
+                                            }
                                         </div>
                                     </div>
                                 </div>
