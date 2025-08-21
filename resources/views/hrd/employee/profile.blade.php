@@ -62,7 +62,7 @@
                             <p><strong>Instagram:</strong>
                                 @php
                                     $instagrams = is_array($employee->instagram) ? $employee->instagram : json_decode($employee->instagram, true);
-                                    $instagrams = array_filter($instagrams); // Remove empty/null values
+                                    $instagrams = is_array($instagrams) ? array_filter($instagrams) : []; // Remove empty/null values only if it's an array
                                 @endphp
                                         @if (!empty($instagrams))
                                             <ul class="mb-0">
