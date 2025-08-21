@@ -14,6 +14,7 @@
             .table td.shift-long { background: #b10085 !important; color: #fff !important; }
             .table td.shift-khusus-1 { background: #f080ff !important; color: #212529 !important; }
             .table td.shift-khusus-2 { background: #ff8bff !important; color: #212529 !important; }
+            .table td.shift-praktek-pagi { background: #9dff90 !important; color: #212529 !important; }
             .shift-cell { transition: background 0.2s; }
             .shift-select.shift-pagi-office { background: #28a745 !important; color: #fff !important; }
             .shift-select.shift-pagi-service { background: #68b800 !important; color: #fff !important; }
@@ -25,6 +26,7 @@
             .shift-select.shift-long { background: #b10085 !important; color: #fff !important; }
             .shift-select.shift-khusus-1 { background: #f080ff !important; color: #212529 !important; }
             .shift-select.shift-khusus-2 { background: #ff8bff !important; color: #212529 !important; }
+            .shift-select.shift-praktek-pagi { background: #9dff90 !important; color: #212529 !important; }
         </style>
         <table class="table table-bordered">
             <thead>
@@ -96,6 +98,7 @@
                                 elseif($shiftClass == 'shift-long') { $bg = '#b10085'; $color = '#fff'; }
                                 elseif($shiftClass == 'shift-khusus-1') { $bg = '#f080ff'; $color = '#212529'; }
                                 elseif($shiftClass == 'shift-khusus-2') { $bg = '#ff8bff'; $color = '#212529'; }
+                                elseif($shiftClass == 'shift-praktek-pagi') { $bg = '#9dff90'; $color = '#212529'; }
                             @endphp
                             <li class="mb-2">
                                 <div style="background:{{ $bg }};color:{{ $color }};border-radius:8px;padding:7px 12px;display:flex;align-items:center;">

@@ -254,6 +254,21 @@ class EmployeeScheduleController extends Controller
                 }
             }
         }
+        
+        // Filter out role groups that have no employees with schedule data
+        $employeesByDivision = $employeesByDivision->filter(function($employees, $roleName) use ($schedules, $dates) {
+            // Check if any employee in this role group has schedule data
+            foreach ($employees as $employee) {
+                foreach ($dates as $date) {
+                    $key = $employee->id . '_' . $date;
+                    if (isset($schedules[$key])) {
+                        return true; // Found at least one employee with schedule data
+                    }
+                }
+            }
+            return false; // No employees in this group have schedule data
+        });
+        
         $viewData = compact('dates', 'employeesByDivision', 'shifts', 'schedules', 'startOfWeek');
 
         $pdf = \PDF::loadView('hrd.schedule.print', $viewData)->setPaper('A4', 'landscape');

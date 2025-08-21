@@ -19,6 +19,7 @@
     .shift-long { background: #b10085; color: #fff; }
     .shift-khusus-1 { background: #f080ff; color: #212529; }
     .shift-khusus-2 { background: #ff8bff; color: #212529; }
+    .shift-praktek-pagi { background: #9dff90; color: #212529; }
 
     .legend-box { border: 1px solid #ccc; border-radius: 8px; padding: 7px; margin-bottom: 7px; }
     .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
