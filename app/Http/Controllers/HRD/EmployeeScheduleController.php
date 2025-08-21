@@ -15,20 +15,32 @@ class EmployeeScheduleController extends Controller
     {
         $startOfWeek = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfWeek() : Carbon::now()->startOfWeek();
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString()); // array of Y-m-d
-        // Ambil employee beserta divisi, urutkan per divisi lalu nama
-        $employees = Employee::with('division')->orderBy('division_id')->orderBy('nama')->get();
-        // Kelompokkan per divisi
+        // Ambil employee beserta user dan roles, urutkan per nama
+        $employees = Employee::with(['user.roles'])->orderBy('nama')->get();
+        // Kelompokkan per role
         $employeesByDivision = $employees->groupBy(function($emp){
-            return $emp->division ? $emp->division->name : 'Tanpa Divisi';
+            if (!$emp->user || !$emp->user->roles->count()) {
+                return 'Tanpa Role';
+            }
+            // Ambil role pertama sebagai pengelompokan utama
+            return $emp->user->roles->first()->name;
         });
-        // Urutkan manager di atas untuk setiap divisi
+        // Urutkan berdasarkan hierarki role dan nama
         $employeesByDivision = $employeesByDivision->map(function($group){
             return $group->sort(function($a, $b){
-                // Manager di atas, lalu urut nama
+                // CEO di atas, kemudian Manager, lalu role lainnya, diurutkan nama
+                if($a->isCEO() && !$b->isCEO()) return -1;
+                if(!$a->isCEO() && $b->isCEO()) return 1;
                 if($a->isManager() && !$b->isManager()) return -1;
                 if(!$a->isManager() && $b->isManager()) return 1;
                 return strcmp($a->nama, $b->nama);
             })->values();
+        });
+        // Urutkan grup berdasarkan prioritas role
+        $roleOrder = ['CEO', 'Ceo', 'Manager', 'Hrd', 'Dokter', 'Perawat', 'Farmasi', 'Kasir', 'Pendaftaran', 'Lab', 'Beautician', 'Marketing', 'Admin', 'Employee', 'Inventaris'];
+        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($roleOrder) {
+            $index = array_search($roleName, $roleOrder);
+            return $index !== false ? $index : 999;
         });
         $shifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
@@ -95,15 +107,28 @@ class EmployeeScheduleController extends Controller
     {
         $startOfWeek = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfWeek() : Carbon::now()->startOfWeek();
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
-        $employees = Employee::with('division')->orderBy('division_id')->orderBy('nama')->get();
+        $employees = Employee::with(['user.roles'])->orderBy('nama')->get();
         $employeesByDivision = $employees->groupBy(function($emp){
-            return $emp->division ? $emp->division->name : 'Tanpa Divisi';
+            if (!$emp->user || !$emp->user->roles->count()) {
+                return 'Tanpa Role';
+            }
+            // Ambil role pertama sebagai pengelompokan utama
+            return $emp->user->roles->first()->name;
         })->map(function($group){
             return $group->sort(function($a, $b){
+                // CEO di atas, kemudian Manager, lalu role lainnya, diurutkan nama
+                if($a->isCEO() && !$b->isCEO()) return -1;
+                if(!$a->isCEO() && $b->isCEO()) return 1;
                 if($a->isManager() && !$b->isManager()) return -1;
                 if(!$a->isManager() && $b->isManager()) return 1;
                 return strcmp($a->nama, $b->nama);
             })->values();
+        });
+        // Urutkan grup berdasarkan prioritas role
+        $roleOrder = ['CEO', 'Ceo', 'Manager', 'Hrd', 'Dokter', 'Perawat', 'Farmasi', 'Kasir', 'Pendaftaran', 'Lab', 'Beautician', 'Marketing', 'Admin', 'Employee', 'Inventaris'];
+        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($roleOrder) {
+            $index = array_search($roleName, $roleOrder);
+            return $index !== false ? $index : 999;
         });
         $shifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
