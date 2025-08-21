@@ -571,7 +571,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Process regular items
             foreach ($regularItems as $item) {
                 $name = $item->nama_item;
-                
+                // Fix: If LabPermintaan, use LabTest name
+                if ($item->billable_type == 'App\\Models\\ERM\\LabPermintaan' && !empty($item->billable_id)) {
+                    $labPermintaan = \App\Models\ERM\LabPermintaan::with('labTest')->find($item->billable_id);
+                    if ($labPermintaan && $labPermintaan->labTest) {
+                        $name = $labPermintaan->labTest->nama ?? 'Lab Test';
+                    }
+                }
                 if (empty($name) || $name === 'Unknown Item') {
                     if (!empty($item->billable_type) && !empty($item->billable_id)) {
                         try {
@@ -594,7 +600,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             ]);
                         }
                     }
-                    
                     // If name is still empty, use a default
                     if (empty($name)) {
                         if ($item->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
