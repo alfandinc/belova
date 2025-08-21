@@ -17,30 +17,55 @@ class EmployeeScheduleController extends Controller
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString()); // array of Y-m-d
         // Ambil employee beserta user dan roles, urutkan per nama
         $employees = Employee::with(['user.roles'])->orderBy('nama')->get();
-        // Kelompokkan per role
-        $employeesByDivision = $employees->groupBy(function($emp){
+        
+        // Define role priority order as requested
+        $rolePriority = [
+            'Manager' => 1,
+            'Marketing' => 2,
+            'Kasir' => 3,
+            'Inventaris' => 4,
+            'Farmasi' => 5,
+            'Perawat' => 6,
+            'CEO' => 7,
+            'Ceo' => 8,
+            'Hrd' => 9,
+            'Dokter' => 10,
+            'Pendaftaran' => 11,
+            'Lab' => 12,
+            'Beautician' => 13,
+            'Admin' => 14,
+            'Employee' => 15
+        ];
+        
+        // Kelompokkan per role berdasarkan prioritas tertinggi
+        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority){
             if (!$emp->user || !$emp->user->roles->count()) {
                 return 'Tanpa Role';
             }
-            // Ambil role pertama sebagai pengelompokan utama
-            return $emp->user->roles->first()->name;
+            
+            // Cari role dengan prioritas tertinggi (angka terkecil)
+            $highestPriorityRole = null;
+            $highestPriority = 999;
+            
+            foreach ($emp->user->roles as $role) {
+                $priority = $rolePriority[$role->name] ?? 999;
+                if ($priority < $highestPriority) {
+                    $highestPriority = $priority;
+                    $highestPriorityRole = $role->name;
+                }
+            }
+            
+            return $highestPriorityRole ?? 'Lainnya';
         });
-        // Urutkan berdasarkan hierarki role dan nama
+        
+        // Urutkan dalam setiap grup berdasarkan nama
         $employeesByDivision = $employeesByDivision->map(function($group){
-            return $group->sort(function($a, $b){
-                // CEO di atas, kemudian Manager, lalu role lainnya, diurutkan nama
-                if($a->isCEO() && !$b->isCEO()) return -1;
-                if(!$a->isCEO() && $b->isCEO()) return 1;
-                if($a->isManager() && !$b->isManager()) return -1;
-                if(!$a->isManager() && $b->isManager()) return 1;
-                return strcmp($a->nama, $b->nama);
-            })->values();
+            return $group->sortBy('nama')->values();
         });
+        
         // Urutkan grup berdasarkan prioritas role
-        $roleOrder = ['CEO', 'Ceo', 'Manager', 'Hrd', 'Dokter', 'Perawat', 'Farmasi', 'Kasir', 'Pendaftaran', 'Lab', 'Beautician', 'Marketing', 'Admin', 'Employee', 'Inventaris'];
-        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($roleOrder) {
-            $index = array_search($roleName, $roleOrder);
-            return $index !== false ? $index : 999;
+        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($rolePriority) {
+            return $rolePriority[$roleName] ?? 999;
         });
         $shifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
@@ -108,27 +133,51 @@ class EmployeeScheduleController extends Controller
         $startOfWeek = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfWeek() : Carbon::now()->startOfWeek();
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
         $employees = Employee::with(['user.roles'])->orderBy('nama')->get();
-        $employeesByDivision = $employees->groupBy(function($emp){
+        
+        // Define role priority order as requested
+        $rolePriority = [
+            'Manager' => 1,
+            'Marketing' => 2,
+            'Kasir' => 3,
+            'Inventaris' => 4,
+            'Farmasi' => 5,
+            'Perawat' => 6,
+            'CEO' => 7,
+            'Ceo' => 8,
+            'Hrd' => 9,
+            'Dokter' => 10,
+            'Pendaftaran' => 11,
+            'Lab' => 12,
+            'Beautician' => 13,
+            'Admin' => 14,
+            'Employee' => 15
+        ];
+        
+        $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority){
             if (!$emp->user || !$emp->user->roles->count()) {
                 return 'Tanpa Role';
             }
-            // Ambil role pertama sebagai pengelompokan utama
-            return $emp->user->roles->first()->name;
+            
+            // Cari role dengan prioritas tertinggi (angka terkecil)
+            $highestPriorityRole = null;
+            $highestPriority = 999;
+            
+            foreach ($emp->user->roles as $role) {
+                $priority = $rolePriority[$role->name] ?? 999;
+                if ($priority < $highestPriority) {
+                    $highestPriority = $priority;
+                    $highestPriorityRole = $role->name;
+                }
+            }
+            
+            return $highestPriorityRole ?? 'Lainnya';
         })->map(function($group){
-            return $group->sort(function($a, $b){
-                // CEO di atas, kemudian Manager, lalu role lainnya, diurutkan nama
-                if($a->isCEO() && !$b->isCEO()) return -1;
-                if(!$a->isCEO() && $b->isCEO()) return 1;
-                if($a->isManager() && !$b->isManager()) return -1;
-                if(!$a->isManager() && $b->isManager()) return 1;
-                return strcmp($a->nama, $b->nama);
-            })->values();
+            return $group->sortBy('nama')->values();
         });
+        
         // Urutkan grup berdasarkan prioritas role
-        $roleOrder = ['CEO', 'Ceo', 'Manager', 'Hrd', 'Dokter', 'Perawat', 'Farmasi', 'Kasir', 'Pendaftaran', 'Lab', 'Beautician', 'Marketing', 'Admin', 'Employee', 'Inventaris'];
-        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($roleOrder) {
-            $index = array_search($roleName, $roleOrder);
-            return $index !== false ? $index : 999;
+        $employeesByDivision = $employeesByDivision->sortBy(function($group, $roleName) use ($rolePriority) {
+            return $rolePriority[$roleName] ?? 999;
         });
         $shifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
