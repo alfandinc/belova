@@ -454,11 +454,33 @@ class TindakanController extends Controller
             $data = $groupedResults->map(function($group) {
                 // Use first item for common data
                 $first = $group->first();
+                $riwayatIds = $group->pluck('id')->toArray();
+                
+                // Check if SPK data exists AND has meaningful data for any riwayat in this group
+                $hasSpkData = \App\Models\ERM\Spk::whereIn('riwayat_tindakan_id', $riwayatIds)
+                    ->whereHas('details', function($q) {
+                        $q->where(function($subQ) {
+                            $subQ->whereNotNull('waktu_mulai')
+                                 ->where('waktu_mulai', '!=', '')
+                                 ->orWhereNotNull('waktu_selesai')
+                                 ->where('waktu_selesai', '!=', '')
+                                 ->orWhere('sbk', true)
+                                 ->orWhere('sba', true)
+                                 ->orWhere('sdc', true)
+                                 ->orWhere('sdk', true)
+                                 ->orWhere('sdl', true)
+                                 ->orWhereNotNull('notes')
+                                 ->where('notes', '!=', '');
+                        });
+                    })
+                    ->exists();
+                
                 return [
                     'id' => $first->id,
                     'visitation_id' => $first->visitation_id,
                     'tanggal_tindakan' => $first->tanggal_tindakan,
                     'visitation' => $first->visitation,
+                    'has_spk_data' => $hasSpkData,
                     'all_tindakan' => $group->map(function($item) {
                         return [
                             'id' => $item->id,
@@ -468,6 +490,19 @@ class TindakanController extends Controller
                     })->toArray()
                 ];
             })->values();
+            
+            // Filter by status layanan
+            $statusLayanan = $request->input('status_layanan');
+            if ($statusLayanan) {
+                $data = $data->filter(function($row) use ($statusLayanan) {
+                    if ($statusLayanan === 'sudah_dilayani') {
+                        return $row['has_spk_data'];
+                    } elseif ($statusLayanan === 'belum_dilayani') {
+                        return !$row['has_spk_data'];
+                    }
+                    return true;
+                })->values();
+            }
             
             return datatables()->of($data)
                 ->addColumn('tanggal', function($row) {
@@ -512,6 +547,9 @@ class TindakanController extends Controller
                 })
                 ->addColumn('dokter', function($row) {
                     return $row['visitation']?->dokter?->user?->name ?? '-';
+                })
+                ->addColumn('status_layanan', function($row) {
+                    return $row['has_spk_data'] ? 'sudah_dilayani' : 'belum_dilayani';
                 })
                 ->addColumn('aksi', function($row) {
                     $firstRiwayatId = $row['all_tindakan'][0]['id'];
@@ -598,7 +636,7 @@ class TindakanController extends Controller
                     }
                     return '';
                 })
-                ->rawColumns(['aksi', 'tindakan'])
+                ->rawColumns(['aksi', 'tindakan', 'status_layanan'])
                 ->make(true);
         }
         return view('erm.spk.index');

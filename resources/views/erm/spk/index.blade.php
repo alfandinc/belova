@@ -24,6 +24,14 @@
                 @endforeach
             </select>
         </div>
+        <div class="col-md-3">
+            <label for="filterStatusLayanan">Status Layanan</label>
+            <select id="filterStatusLayanan" class="form-control">
+                <option value="">Semua Status</option>
+                <option value="sudah_dilayani">Sudah Dilayani</option>
+                <option value="belum_dilayani">Belum Dilayani</option>
+            </select>
+        </div>
     </div>
     <div class="card mt-3">
         <div class="card-body">
@@ -36,6 +44,7 @@
                             <th>Pasien</th>
                             <th style="width: 30%;">Tindakan</th>
                             <th>Dokter</th>
+                            <th>Status</th>
                             <th style="width: 20%;">Aksi</th>
                         </tr>
                     </thead>
@@ -94,6 +103,7 @@ $(document).ready(function() {
                 d.tanggal_start = tanggal[0];
                 d.tanggal_end = tanggal[1] || tanggal[0];
                 d.dokter_id = $('#filterDokter').val();
+                d.status_layanan = $('#filterStatusLayanan').val();
             }
         },
         columns: [
@@ -113,6 +123,17 @@ $(document).ready(function() {
             },
             { data: 'dokter', name: 'dokter' },
             { 
+                data: 'status_layanan', 
+                name: 'status_layanan',
+                render: function(data, type, row) {
+                    if (data === 'sudah_dilayani') {
+                        return '<span class="badge badge-success">Sudah Dilayani</span>';
+                    } else {
+                        return '<span class="badge badge-warning">Belum Dilayani</span>';
+                    }
+                }
+            },
+            { 
                 data: 'aksi', 
                 name: 'aksi', 
                 orderable: false, 
@@ -131,7 +152,7 @@ $(document).ready(function() {
         order: [[0, 'desc'], [1, 'desc']]
     });
 
-    $('#filterTanggal, #filterDokter').on('change', function() {
+    $('#filterTanggal, #filterDokter, #filterStatusLayanan').on('change', function() {
         table.ajax.reload();
     });
 
