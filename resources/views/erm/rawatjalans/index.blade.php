@@ -82,7 +82,7 @@ Terima kasih.
         <div class="modal-content">
             <div class="modal-header bg-warning">
                 <h5 class="modal-title text-white" id="modalScreeningBatukTitle">
-                    <i class="fas fa-lungs mr-2"></i>Screening Batuk
+                    <i class="fas fa-lungs mr-2"></i><span id="screening-modal-title">Screening Batuk</span>
                 </h5>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
@@ -472,6 +472,8 @@ Terima kasih.
                     </div>
 
                     <input type="hidden" id="screening-visitation-id" name="visitation_id">
+                    <input type="hidden" id="screening-edit-mode" value="false">
+                    <input type="hidden" id="screening-id" name="screening_id">
                 </form>
             </div>
             <div class="modal-footer">
@@ -479,7 +481,7 @@ Terima kasih.
                     <i class="fas fa-times mr-1"></i>Batal
                 </button>
                 <button type="button" class="btn btn-primary" id="btn-simpan-screening">
-                    <i class="fas fa-save mr-1"></i>Simpan & Lanjutkan
+                    <i class="fas fa-save mr-1"></i><span id="screening-btn-text">Simpan & Lanjutkan</span>
                 </button>
             </div>
         </div>
@@ -621,6 +623,9 @@ Terima kasih.
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">
                     <i class="fas fa-times mr-1"></i>Tutup
+                </button>
+                <button type="button" class="btn btn-warning" id="btn-edit-screening">
+                    <i class="fas fa-edit mr-1"></i>Edit Screening
                 </button>
             </div>
         </div>
@@ -1000,11 +1005,93 @@ function openKonfirmasiModal(namaPasien, telepon, dokterNama, tanggalKunjungan, 
 }
 
 // Open Screening Batuk Modal
-function openScreeningBatukModal(visitationId) {
-    console.log('Opening screening modal for visitation ID:', visitationId);
+function openScreeningBatukModal(visitationId, editMode = false) {
+    console.log('Opening screening modal for visitation ID:', visitationId, 'Edit mode:', editMode);
     $('#screening-visitation-id').val(visitationId);
-    $('#form-screening-batuk')[0].reset();
+    $('#screening-edit-mode').val(editMode);
+    
+    if (editMode) {
+        // Load existing data for editing
+        loadScreeningDataForEdit(visitationId);
+        $('#screening-modal-title').text('Edit Screening Batuk');
+        $('#screening-btn-text').text('Update Screening');
+    } else {
+        // Reset form for new entry
+        $('#form-screening-batuk')[0].reset();
+        // Set all radio buttons to default "tidak" values
+        $('input[name$="_tidak"]').prop('checked', true);
+        $('#screening-modal-title').text('Screening Batuk');
+        $('#screening-btn-text').text('Simpan & Lanjutkan');
+        $('#screening-id').val('');
+    }
+    
     $('#modalScreeningBatuk').modal('show');
+}
+
+// Load existing screening data for editing
+function loadScreeningDataForEdit(visitationId) {
+    $.ajax({
+        url: '{{ url("erm/screening/batuk") }}/' + visitationId,
+        method: 'GET',
+        success: function(res) {
+            if (res.success && res.data) {
+                const data = res.data;
+                $('#screening-id').val(data.id);
+                
+                // Populate form fields
+                populateScreeningForm(data);
+            } else {
+                console.error('No screening data found');
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Data screening tidak ditemukan.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading screening data:', xhr);
+            Swal.fire({
+                title: 'Error',
+                text: 'Gagal memuat data screening.',
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+        }
+    });
+}
+
+// Populate screening form with existing data
+function populateScreeningForm(data) {
+    // Sesi Gejala
+    $('input[name="demam_badan_panas"][value="' + data.demam_badan_panas + '"]').prop('checked', true);
+    $('input[name="batuk_pilek"][value="' + data.batuk_pilek + '"]').prop('checked', true);
+    $('input[name="sesak_nafas"][value="' + data.sesak_nafas + '"]').prop('checked', true);
+    $('input[name="kontak_covid"][value="' + data.kontak_covid + '"]').prop('checked', true);
+    $('input[name="perjalanan_luar_negeri"][value="' + data.perjalanan_luar_negeri + '"]').prop('checked', true);
+    
+    // Sesi Faktor Resiko
+    $('input[name="riwayat_perjalanan"][value="' + data.riwayat_perjalanan + '"]').prop('checked', true);
+    $('input[name="kontak_erat_covid"][value="' + data.kontak_erat_covid + '"]').prop('checked', true);
+    $('input[name="faskes_covid"][value="' + data.faskes_covid + '"]').prop('checked', true);
+    $('input[name="kontak_hewan"][value="' + data.kontak_hewan + '"]').prop('checked', true);
+    $('input[name="riwayat_demam"][value="' + data.riwayat_demam + '"]').prop('checked', true);
+    $('input[name="riwayat_kontak_luar_negeri"][value="' + data.riwayat_kontak_luar_negeri + '"]').prop('checked', true);
+    
+    // Sesi Tools Screening Batuk
+    $('input[name="riwayat_pengobatan_tb"][value="' + data.riwayat_pengobatan_tb + '"]').prop('checked', true);
+    $('input[name="sedang_pengobatan_tb"][value="' + data.sedang_pengobatan_tb + '"]').prop('checked', true);
+    $('input[name="batuk_demam"][value="' + data.batuk_demam + '"]').prop('checked', true);
+    $('input[name="nafsu_makan_menurun"][value="' + data.nafsu_makan_menurun + '"]').prop('checked', true);
+    $('input[name="bb_turun"][value="' + data.bb_turun + '"]').prop('checked', true);
+    $('input[name="keringat_malam"][value="' + data.keringat_malam + '"]').prop('checked', true);
+    $('input[name="sesak_nafas_tb"][value="' + data.sesak_nafas_tb + '"]').prop('checked', true);
+    $('input[name="kontak_erat_tb"][value="' + data.kontak_erat_tb + '"]').prop('checked', true);
+    $('input[name="hasil_rontgen"][value="' + data.hasil_rontgen + '"]').prop('checked', true);
+    
+    // Catatan
+    $('#catatan_screening').val(data.catatan || '');
 }
 
 // Event handler for screening button using data attribute
@@ -1012,9 +1099,22 @@ $(document).on('click', '.screening-btn', function(e) {
     e.preventDefault();
     const visitationId = $(this).data('visitation-id');
     console.log('Opening screening modal for visitation ID from data attribute:', visitationId);
-    $('#screening-visitation-id').val(visitationId);
-    $('#form-screening-batuk')[0].reset();
-    $('#modalScreeningBatuk').modal('show');
+    openScreeningBatukModal(visitationId, false);
+});
+
+// Event handler for edit screening button
+$(document).on('click', '#btn-edit-screening', function(e) {
+    e.preventDefault();
+    const visitationId = $('#screening-visitation-id').val();
+    console.log('Editing screening for visitation ID:', visitationId);
+    
+    // Close view modal first
+    $('#modalViewScreeningBatuk').modal('hide');
+    
+    // Open edit modal after a short delay to ensure smooth transition
+    setTimeout(function() {
+        openScreeningBatukModal(visitationId, true);
+    }, 300);
 });
 
 // Handle Screening Batuk Form Submission
@@ -1047,40 +1147,62 @@ $('#btn-simpan-screening').click(function() {
     }
     
     const visitationId = $('#screening-visitation-id').val();
+    const editMode = $('#screening-edit-mode').val() === 'true';
+    const screeningId = $('#screening-id').val();
     const formData = $('#form-screening-batuk').serialize();
     
     console.log('Visitation ID:', visitationId);
+    console.log('Edit Mode:', editMode);
+    console.log('Screening ID:', screeningId);
     console.log('Form Data:', formData);
     
-    // Save screening data via AJAX
+    // Determine URL and method based on edit mode
+    let url = '{{ route("erm.screening.batuk.store") }}';
+    let method = 'POST';
+    let additionalData = '&_token={{ csrf_token() }}';
+    
+    if (editMode && screeningId) {
+        url = '{{ url("erm/screening/batuk/update") }}/' + screeningId;
+        method = 'PUT';
+        additionalData = '&_token={{ csrf_token() }}&_method=PUT';
+    }
+    
+    // Save or update screening data via AJAX
     $.ajax({
-        url: '{{ route("erm.screening.batuk.store") }}',
-        method: 'POST',
-        data: formData + '&_token={{ csrf_token() }}',
+        url: url,
+        method: method,
+        data: formData + additionalData,
         success: function(res) {
             console.log('Success response:', res);
             $('#modalScreeningBatuk').modal('hide');
             
-            // Show success notification before redirecting
+            // Show success notification
             Swal.fire({
                 title: 'Berhasil!',
-                text: 'Data screening batuk berhasil disimpan. Akan dialihkan ke halaman asesmen perawat.',
+                text: editMode ? 'Data screening batuk berhasil diperbarui.' : 'Data screening batuk berhasil disimpan. Akan dialihkan ke halaman asesmen perawat.',
                 icon: 'success',
-                timer: 2000,
+                timer: editMode ? 2000 : 2000,
                 timerProgressBar: true,
                 showConfirmButton: false,
                 allowOutsideClick: false,
                 allowEscapeKey: false
             }).then(() => {
-                // Redirect to asesmen perawat create page after the notification
-                window.location.href = '{{ url("erm/asesmenperawat") }}/' + visitationId + '/create';
+                if (editMode) {
+                    // Refresh datatable for edit mode
+                    if (typeof table !== 'undefined') {
+                        table.ajax.reload(null, false);
+                    }
+                } else {
+                    // Redirect to asesmen perawat create page for new entries
+                    window.location.href = '{{ url("erm/asesmenperawat") }}/' + visitationId + '/create';
+                }
             });
         },
         error: function(xhr) {
             console.error('Error saving screening data:', xhr);
             console.error('Response text:', xhr.responseText);
             
-            let errorMessage = 'Gagal menyimpan data screening. Silakan coba lagi.';
+            let errorMessage = editMode ? 'Gagal memperbarui data screening. Silakan coba lagi.' : 'Gagal menyimpan data screening. Silakan coba lagi.';
             if (xhr.responseJSON && xhr.responseJSON.message) {
                 errorMessage = xhr.responseJSON.message;
             }
@@ -1100,6 +1222,9 @@ $(document).on('click', '.view-screening-btn', function(e) {
     e.preventDefault();
     const visitationId = $(this).data('visitation-id');
     console.log('Viewing screening data for visitation ID:', visitationId);
+    
+    // Store visitation ID for edit button
+    $('#screening-visitation-id').val(visitationId);
     
     // Fetch and display screening data
     $.ajax({

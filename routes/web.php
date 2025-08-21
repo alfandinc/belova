@@ -216,6 +216,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     //screening batuk
     Route::post('screening/batuk/store', [RawatJalanController::class, 'storeScreeningBatuk'])->name('erm.screening.batuk.store');
     Route::get('screening/batuk/{visitation}', [RawatJalanController::class, 'getScreeningBatuk'])->name('erm.screening.batuk.get');
+    Route::put('screening/batuk/update/{id}', [RawatJalanController::class, 'updateScreeningBatuk'])->name('erm.screening.batuk.update');
 
     //CPPT
     Route::get('cppt/{visitation_id}/create', [CPPTController::class, 'create'])->name('erm.cppt.create');

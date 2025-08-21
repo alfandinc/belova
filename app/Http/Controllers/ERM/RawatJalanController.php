@@ -455,4 +455,96 @@ class RawatJalanController extends Controller
             ], 500);
         }
     }
+
+    public function updateScreeningBatuk(Request $request, $id)
+    {
+        // Debug: Log the request data
+        Log::info('Update Screening Batuk Request Data:', $request->all());
+        Log::info('Screening ID:', [$id]);
+        
+        $request->validate([
+            'visitation_id' => 'required|string',
+            // Sesi Gejala
+            'demam_badan_panas' => 'required|in:ya,tidak',
+            'batuk_pilek' => 'required|in:ya,tidak',
+            'sesak_nafas' => 'required|in:ya,tidak',
+            'kontak_covid' => 'required|in:ya,tidak',
+            'perjalanan_luar_negeri' => 'required|in:ya,tidak',
+            // Sesi Faktor Resiko
+            'riwayat_perjalanan' => 'required|in:ya,tidak',
+            'kontak_erat_covid' => 'required|in:ya,tidak',
+            'faskes_covid' => 'required|in:ya,tidak',
+            'kontak_hewan' => 'required|in:ya,tidak',
+            'riwayat_demam' => 'required|in:ya,tidak',
+            'riwayat_kontak_luar_negeri' => 'required|in:ya,tidak',
+            // Sesi Tools Screening Batuk
+            'riwayat_pengobatan_tb' => 'required|in:ya,tidak',
+            'sedang_pengobatan_tb' => 'required|in:ya,tidak',
+            'batuk_demam' => 'required|in:ya,tidak',
+            'nafsu_makan_menurun' => 'required|in:ya,tidak',
+            'bb_turun' => 'required|in:ya,tidak',
+            'keringat_malam' => 'required|in:ya,tidak',
+            'sesak_nafas_tb' => 'required|in:ya,tidak',
+            'kontak_erat_tb' => 'required|in:ya,tidak',
+            'hasil_rontgen' => 'required|in:ya,tidak',
+            // Others
+            'catatan' => 'nullable|string|max:1000'
+        ]);
+
+        try {
+            // Find the screening record
+            $screening = ScreeningBatuk::find($id);
+            
+            if (!$screening) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data screening batuk tidak ditemukan'
+                ], 404);
+            }
+
+            // Update the screening data
+            $screening->update([
+                'visitation_id' => $request->visitation_id,
+                // Sesi Gejala
+                'demam_badan_panas' => $request->demam_badan_panas,
+                'batuk_pilek' => $request->batuk_pilek,
+                'sesak_nafas' => $request->sesak_nafas,
+                'kontak_covid' => $request->kontak_covid,
+                'perjalanan_luar_negeri' => $request->perjalanan_luar_negeri,
+                // Sesi Faktor Resiko
+                'riwayat_perjalanan' => $request->riwayat_perjalanan,
+                'kontak_erat_covid' => $request->kontak_erat_covid,
+                'faskes_covid' => $request->faskes_covid,
+                'kontak_hewan' => $request->kontak_hewan,
+                'riwayat_demam' => $request->riwayat_demam,
+                'riwayat_kontak_luar_negeri' => $request->riwayat_kontak_luar_negeri,
+                // Sesi Tools Screening Batuk
+                'riwayat_pengobatan_tb' => $request->riwayat_pengobatan_tb,
+                'sedang_pengobatan_tb' => $request->sedang_pengobatan_tb,
+                'batuk_demam' => $request->batuk_demam,
+                'nafsu_makan_menurun' => $request->nafsu_makan_menurun,
+                'bb_turun' => $request->bb_turun,
+                'keringat_malam' => $request->keringat_malam,
+                'sesak_nafas_tb' => $request->sesak_nafas_tb,
+                'kontak_erat_tb' => $request->kontak_erat_tb,
+                'hasil_rontgen' => $request->hasil_rontgen,
+                // Others
+                'catatan' => $request->catatan,
+                'created_by' => Auth::id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data screening batuk berhasil diperbarui.',
+                'data' => $screening
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Update Screening Batuk Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
