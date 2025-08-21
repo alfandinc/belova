@@ -61,24 +61,52 @@
                             <p><strong>Email:</strong> {{ $employee->email ?? '-' }}</p>
                             <p><strong>Instagram:</strong>
                                 @php
-                                    $instagrams = is_array($employee->instagram) ? $employee->instagram : json_decode($employee->instagram, true);
-                                    $instagrams = is_array($instagrams) ? array_filter($instagrams) : []; // Remove empty/null values only if it's an array
+                                    // Check if it's already an array
+                                    if (is_array($employee->instagram)) {
+                                        $instagrams = array_filter($employee->instagram);
+                                        $isMultiple = true;
+                                    } 
+                                    // Check if it's a valid JSON string
+                                    else if (is_string($employee->instagram) && json_decode($employee->instagram, true) !== null) {
+                                        $instagrams = array_filter(json_decode($employee->instagram, true));
+                                        $isMultiple = true;
+                                    }
+                                    // If it's a plain text string
+                                    else if (!empty($employee->instagram)) {
+                                        $instagrams = $employee->instagram;
+                                        $isMultiple = false;
+                                    }
+                                    // If it's empty or null
+                                    else {
+                                        $instagrams = null;
+                                        $isMultiple = false;
+                                    }
                                 @endphp
-                                        @if (!empty($instagrams))
-                                            <ul class="mb-0">
-                                                @foreach($instagrams as $insta)
-                                                    <li>
-                                                        @if(Str::startsWith($insta, '@'))
-                                                            <a href="https://instagram.com/{{ ltrim($insta, '@') }}" target="_blank">{{ $insta }}</a>
-                                                        @else
-                                                            <a href="https://instagram.com/{{ $insta }}" target="_blank">{{ '@' . $insta }}</a>
-                                                        @endif
-                                                    </li>
-                                                @endforeach
-                                            </ul>
+                                
+                                @if ($instagrams)
+                                    @if ($isMultiple && !empty($instagrams))
+                                        <ul class="mb-0">
+                                            @foreach($instagrams as $insta)
+                                                <li>
+                                                    @if(Str::startsWith($insta, '@'))
+                                                        <a href="https://instagram.com/{{ ltrim($insta, '@') }}" target="_blank">{{ $insta }}</a>
+                                                    @else
+                                                        <a href="https://instagram.com/{{ $insta }}" target="_blank">{{ '@' . $insta }}</a>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @else
+                                        {{-- Single text value --}}
+                                        @if(Str::startsWith($instagrams, '@'))
+                                            <a href="https://instagram.com/{{ ltrim($instagrams, '@') }}" target="_blank">{{ $instagrams }}</a>
                                         @else
-                                            -
+                                            <a href="https://instagram.com/{{ $instagrams }}" target="_blank">{{ '@' . $instagrams }}</a>
                                         @endif
+                                    @endif
+                                @else
+                                    -
+                                @endif
                             </p>
                         </div>
                         <div class="col-md-6">
