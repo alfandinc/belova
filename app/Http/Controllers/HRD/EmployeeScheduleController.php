@@ -20,21 +20,21 @@ class EmployeeScheduleController extends Controller
         
         // Define role priority order as requested
         $rolePriority = [
-            'Hrd' => 1,
-            'Manager' => 2,
-            'Admin' => 3,
-            'Marketing' => 4,
-            'Kasir' => 5,
-            'Inventaris' => 6,
-            'Farmasi' => 7,
-            'Beautician' => 8,
-            'Perawat' => 9,
-            'CEO' => 10,
-            'Ceo' => 11,
-            'Dokter' => 12,
-            'Pendaftaran' => 13,
-            'Lab' => 14,
-            'Employee' => 15
+            'CEO' => 1,
+            'Ceo' => 1,
+            'Hrd' => 2,
+            'Manager' => 3,
+            'Admin' => 4,
+            'Marketing' => 5,
+            'Kasir' => 6,
+            'Inventaris' => 7,
+            'Farmasi' => 8,
+            'Beautician' => 9,
+            'Perawat' => 10,
+            'Dokter' => 11,
+            'Pendaftaran' => 12,
+            'Lab' => 13,
+            'Employee' => 14
         ];
         
         // Define role display labels
@@ -53,7 +53,7 @@ class EmployeeScheduleController extends Controller
             'Dokter' => 'Dokter',
             'Pendaftaran' => 'Pendaftaran',
             'Lab' => 'Lab',
-            'Employee' => 'Employee'
+            'Employee' => 'Lain-Lain'
         ];
         
         // Kelompokkan per role berdasarkan prioritas tertinggi
@@ -158,21 +158,21 @@ class EmployeeScheduleController extends Controller
         
         // Define role priority order as requested
         $rolePriority = [
-            'Hrd' => 1,
-            'Manager' => 2,
-            'Admin' => 3,
-            'Marketing' => 4,
-            'Kasir' => 5,
-            'Inventaris' => 6,
-            'Farmasi' => 7,
-            'Beautician' => 8,
-            'Perawat' => 9,
-            'CEO' => 10,
-            'Ceo' => 11,
-            'Dokter' => 12,
-            'Pendaftaran' => 13,
-            'Lab' => 14,
-            'Employee' => 15
+            'CEO' => 1,
+            'Ceo' => 1,
+            'Hrd' => 2,
+            'Manager' => 3,
+            'Admin' => 4,
+            'Marketing' => 5,
+            'Kasir' => 6,
+            'Inventaris' => 7,
+            'Farmasi' => 8,
+            'Beautician' => 9,
+            'Perawat' => 10,
+            'Dokter' => 11,
+            'Pendaftaran' => 12,
+            'Lab' => 13,
+            'Employee' => 14
         ];
         
         // Define role display labels
@@ -191,7 +191,7 @@ class EmployeeScheduleController extends Controller
             'Dokter' => 'Dokter',
             'Pendaftaran' => 'Pendaftaran',
             'Lab' => 'Lab',
-            'Employee' => 'Employee'
+            'Employee' => 'Lain-Lain'
         ];
         
         $employeesByDivision = $employees->groupBy(function($emp) use ($rolePriority, $roleDisplayLabels){
