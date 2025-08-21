@@ -147,6 +147,76 @@ class AbsensiRekapController extends Controller
         return view('hrd.absensi_rekap.index');
     }
 
+    public function statistics(Request $request)
+    {
+        $query = AttendanceRekap::with(['employee', 'employeeSchedule.shift']);
+        
+        // Apply same filters as data method
+        $dateRange = $request->input('date_range');
+        if ($dateRange) {
+            $dates = explode(' - ', $dateRange);
+            if (count($dates) === 2) {
+                $start = $dates[0];
+                $end = $dates[1];
+                $query->whereBetween('date', [$start, $end]);
+            }
+        }
+        
+        $employeeIds = $request->input('employee_ids');
+        if ($employeeIds && !empty($employeeIds) && $employeeIds !== '') {
+            if (is_array($employeeIds)) {
+                $query->whereIn('employee_id', $employeeIds);
+            } else {
+                $query->where('employee_id', $employeeIds);
+            }
+        }
+        
+        $records = $query->get();
+        
+        $totalEmployees = $records->count();
+        $lateCount = 0;
+        $overtimeCount = 0;
+        $onTimeCount = 0;
+        
+        foreach ($records as $record) {
+            $isLate = false;
+            $hasOvertime = false;
+            
+            // Check if late
+            $jamMasuk = $record->jam_masuk ? (explode(' ', $record->jam_masuk)[1] ?? $record->jam_masuk) : null;
+            $shiftStart = $record->shift_start ?? null;
+            
+            if ($jamMasuk && $shiftStart && $jamMasuk > $shiftStart) {
+                $lateCount++;
+                $isLate = true;
+            }
+            
+            // Check if overtime
+            $jamKeluar = $record->jam_keluar ? (explode(' ', $record->jam_keluar)[1] ?? $record->jam_keluar) : null;
+            $shiftEnd = $record->shift_end ?? null;
+            
+            if ($jamKeluar && $shiftEnd && $jamKeluar > $shiftEnd) {
+                $overtimeCount++;
+                $hasOvertime = true;
+            }
+            
+            // Count on-time (not late and has both jam_masuk and jam_keluar)
+            if (!$isLate && $jamMasuk && $jamKeluar) {
+                $onTimeCount++;
+            }
+        }
+        
+        return response()->json([
+            'total_records' => $totalEmployees,
+            'late_count' => $lateCount,
+            'overtime_count' => $overtimeCount,
+            'on_time_count' => $onTimeCount,
+            'late_percentage' => $totalEmployees > 0 ? round(($lateCount / $totalEmployees) * 100, 1) : 0,
+            'overtime_percentage' => $totalEmployees > 0 ? round(($overtimeCount / $totalEmployees) * 100, 1) : 0,
+            'on_time_percentage' => $totalEmployees > 0 ? round(($onTimeCount / $totalEmployees) * 100, 1) : 0,
+        ]);
+    }
+
     public function upload(Request $request)
     {
         try {

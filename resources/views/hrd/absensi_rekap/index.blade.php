@@ -6,6 +6,112 @@
 @section('content')
 <div class="container-fluid">
     <h2>Rekap Absensi</h2>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4" id="statisticsCards">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Records
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalRecords">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-danger shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                Late Employees
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="lateCount">0</div>
+                            <div class="row no-gutters align-items-center">
+                                <div class="col-auto">
+                                    <div class="text-xs font-weight-bold text-danger mr-3" id="latePercentage">0%</div>
+                                </div>
+                                <div class="col">
+                                    <div class="progress progress-sm mr-2">
+                                        <div class="progress-bar bg-danger" role="progressbar" id="lateProgressBar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Overtime Employees
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="overtimeCount">0</div>
+                            <div class="row no-gutters align-items-center">
+                                <div class="col-auto">
+                                    <div class="text-xs font-weight-bold text-warning mr-3" id="overtimePercentage">0%</div>
+                                </div>
+                                <div class="col">
+                                    <div class="progress progress-sm mr-2">
+                                        <div class="progress-bar bg-warning" role="progressbar" id="overtimeProgressBar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-business-time fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                On Time Employees
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800" id="onTimeCount">0</div>
+                            <div class="row no-gutters align-items-center">
+                                <div class="col-auto">
+                                    <div class="text-xs font-weight-bold text-success mr-3" id="onTimePercentage">0%</div>
+                                </div>
+                                <div class="col">
+                                    <div class="progress progress-sm mr-2">
+                                        <div class="progress-bar bg-success" role="progressbar" id="onTimeProgressBar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div class="row mb-3">
         <div class="col-md-4">
             <div class="form-group mb-0">
@@ -17,6 +123,7 @@
             <div class="form-group mb-0">
                 <label for="employeeFilter">Filter Karyawan:</label>
                 <select id="employeeFilter" class="form-control">
+                    <option value="">Semua Karyawan</option>
                     @foreach(\App\Models\HRD\Employee::orderBy('nama')->get() as $emp)
                         <option value="{{ $emp->id }}">{{ $emp->nama }}</option>
                     @endforeach
@@ -85,9 +192,141 @@
         </thead>
     </table>
 </div>
+
+@push('styles')
+<style>
+/* Bootstrap 4 Dashboard Cards */
+.border-left-primary {
+    border-left: 0.25rem solid #4e73df !important;
+}
+
+.border-left-success {
+    border-left: 0.25rem solid #1cc88a !important;
+}
+
+.border-left-warning {
+    border-left: 0.25rem solid #f6c23e !important;
+}
+
+.border-left-danger {
+    border-left: 0.25rem solid #e74a3b !important;
+}
+
+.text-xs {
+    font-size: 0.7rem;
+}
+
+.text-gray-800 {
+    color: #5a5c69 !important;
+}
+
+.text-gray-300 {
+    color: #dddfeb !important;
+}
+
+.shadow {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important;
+}
+
+.card {
+    transition: all 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.25rem 2rem 0 rgba(58, 59, 69, 0.2) !important;
+}
+
+#statisticsCards .card {
+    cursor: pointer;
+}
+
+/* Responsive text sizing */
+@media (max-width: 768px) {
+    .h5 {
+        font-size: 1.1rem;
+    }
+    
+    .fa-2x {
+        font-size: 1.5em;
+    }
+}
+
+/* Animation for number updates */
+@keyframes countUp {
+    from { opacity: 0.5; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.count-update {
+    animation: countUp 0.5s ease-out;
+}
+
+/* Progress bars for percentages */
+.progress-sm {
+    height: 0.5rem;
+}
+
+.progress-xs {
+    height: 0.25rem;
+}
+</style>
+@endpush
+
 @push('scripts')
 <script>
 $(function() {
+    // Function to load statistics
+    function loadStatistics() {
+        $.ajax({
+            url: '{{ route('hrd.absensi_rekap.statistics') }}',
+            type: 'GET',
+            data: {
+                date_range: $('#dateRange').val(),
+                employee_ids: $('#employeeFilter').val()
+            },
+            success: function(response) {
+                console.log('Statistics request data:', {
+                    date_range: $('#dateRange').val(),
+                    employee_ids: $('#employeeFilter').val()
+                });
+                console.log('Statistics response:', response);
+                
+                // Add animation class and update numbers
+                $('#totalRecords').addClass('count-update').text(response.total_records);
+                $('#lateCount').addClass('count-update').text(response.late_count);
+                $('#overtimeCount').addClass('count-update').text(response.overtime_count);
+                $('#onTimeCount').addClass('count-update').text(response.on_time_count);
+                
+                // Update percentages and progress bars
+                $('#latePercentage').text(response.late_percentage + '%');
+                $('#overtimePercentage').text(response.overtime_percentage + '%');
+                $('#onTimePercentage').text(response.on_time_percentage + '%');
+                
+                // Animate progress bars
+                $('#lateProgressBar').css('width', '0%').animate({width: response.late_percentage + '%'}, 800);
+                $('#overtimeProgressBar').css('width', '0%').animate({width: response.overtime_percentage + '%'}, 800);
+                $('#onTimeProgressBar').css('width', '0%').animate({width: response.on_time_percentage + '%'}, 800);
+                
+                // Update aria attributes
+                $('#lateProgressBar').attr('aria-valuenow', response.late_percentage);
+                $('#overtimeProgressBar').attr('aria-valuenow', response.overtime_percentage);
+                $('#onTimeProgressBar').attr('aria-valuenow', response.on_time_percentage);
+                
+                // Remove animation class after animation completes
+                setTimeout(function() {
+                    $('.count-update').removeClass('count-update');
+                }, 500);
+            },
+            error: function(xhr) {
+                console.error('Error loading statistics:', xhr);
+            }
+        });
+    }
+
+    // Load initial statistics
+    loadStatistics();
+
     // Date range picker
     $('#dateRange').daterangepicker({
         locale: { format: 'YYYY-MM-DD' },
@@ -103,10 +342,12 @@ $(function() {
     $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
         table.ajax.reload();
+        loadStatistics();
     });
     $('#dateRange').on('cancel.daterangepicker', function(ev, picker) {
         $(this).val('');
         table.ajax.reload();
+        loadStatistics();
     });
 
     // Enable select2 multi-select
@@ -148,6 +389,7 @@ $(function() {
 
     $('#employeeFilter').on('change', function() {
         table.ajax.reload();
+        loadStatistics();
     });
 
     $('#rekapTable').on('click', '.edit-btn', function() {
@@ -174,12 +416,43 @@ $(function() {
             success: function(response) {
                 $('#editModal').modal('hide');
                 table.ajax.reload();
+                loadStatistics();
                 alert('Data berhasil diupdate!');
             },
             error: function(xhr) {
                 alert('Gagal update: ' + (xhr.responseJSON?.error || 'Unknown error'));
             }
         });
+    });
+
+    // Upload form handler
+    $('#uploadForm').on('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(this);
+        
+        $.ajax({
+            url: '{{ route('hrd.absensi_rekap.upload') }}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                alert('File berhasil diupload!');
+                table.ajax.reload();
+                loadStatistics();
+                $('#uploadForm')[0].reset();
+                $('.custom-file-label').text('Choose XLS file');
+            },
+            error: function(xhr) {
+                alert('Gagal upload: ' + (xhr.responseJSON?.error || 'Unknown error'));
+            }
+        });
+    });
+
+    // Update file input label
+    $('#file').on('change', function() {
+        var fileName = $(this)[0].files[0] ? $(this)[0].files[0].name : 'Choose XLS file';
+        $(this).next('.custom-file-label').text(fileName);
     });
 });
 </script>

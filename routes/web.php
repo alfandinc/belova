@@ -549,6 +549,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
     Route::get('absensi-rekap', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'index'])->name('hrd.absensi_rekap.index');
     Route::post('absensi-rekap/upload', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'upload'])->name('hrd.absensi_rekap.upload');
     Route::get('absensi-rekap/data', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'data'])->name('hrd.absensi_rekap.data');
+    Route::get('absensi-rekap/statistics', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'statistics'])->name('hrd.absensi_rekap.statistics');
     Route::post('absensi-rekap/{id}/update', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'update'])->name('hrd.absensi_rekap.update');
         Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
         Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');
