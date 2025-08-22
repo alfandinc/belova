@@ -554,6 +554,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
     Route::get('absensi-rekap/sync-shifts', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'syncShiftData'])->name('hrd.absensi_rekap.sync_shifts');
     Route::get('absensi-rekap/debug-shifts', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'debugShiftData'])->name('hrd.absensi_rekap.debug_shifts');
     Route::get('absensi-rekap/reprocess-times', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'reprocessAttendanceTimes'])->name('hrd.absensi_rekap.reprocess_times');
+    Route::get('absensi-rekap/test-cross-date', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'testCrossDateSelection'])->name('hrd.absensi_rekap.test_cross_date');
         Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
         Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');
         Route::post('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'store'])->name('hrd.lembur.store');

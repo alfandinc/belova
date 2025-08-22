@@ -600,6 +600,9 @@ class AbsensiRekapController extends Controller
                     continue; // Skip if employee not found
                 }
                 
+                // Sort dates to process them in order
+                ksort($dates);
+                
                 foreach ($dates as $date => $times) {
                     // Get shift schedule first
                     $schedule = EmployeeSchedule::where('employee_id', $employee->id)
@@ -610,19 +613,31 @@ class AbsensiRekapController extends Controller
                     $shiftStart = $schedule?->shift?->start_time;
                     $shiftEnd = $schedule?->shift?->end_time;
                     
-                    // Use smart time selection based on shift schedule
-                    [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($times, $shiftStart, $shiftEnd, $date);
+                    // For overnight shifts, we need to consider times from next date too
+                    $allAvailableTimes = $times;
+                    if ($shiftStart && $shiftEnd && $this->isOvernightShift($shiftStart, $shiftEnd)) {
+                        $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
+                        if (isset($dates[$nextDate])) {
+                            // Merge times from next date for cross-date selection
+                            $allAvailableTimes = array_merge($times, $dates[$nextDate]);
+                        }
+                    }
+                    
+                    // Use smart time selection based on shift schedule with all available times
+                    [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($allAvailableTimes, $shiftStart, $shiftEnd, $date);
                     
                     // Calculate work hours using the new helper function
                     $workHour = $this->calculateWorkHours($jamMasuk, $jamKeluar, $date);
                     
                     // Log the selection for debugging
                     Log::info("Smart time selection for {$employee->nama} on {$date}", [
-                        'available_times' => $times,
+                        'current_date_times' => $times,
+                        'all_available_times' => $allAvailableTimes,
                         'shift' => $shiftStart . '-' . $shiftEnd,
                         'selected_masuk' => $jamMasuk,
                         'selected_keluar' => $jamKeluar,
-                        'work_hours' => $workHour
+                        'work_hours' => $workHour,
+                        'is_overnight_shift' => $shiftStart && $shiftEnd ? $this->isOvernightShift($shiftStart, $shiftEnd) : false
                     ]);
                     
                     AttendanceRekap::updateOrCreate(
@@ -873,5 +888,43 @@ class AbsensiRekapController extends Controller
             Log::error("Error in reprocessAttendanceTimes: " . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Test cross-date overnight shift time selection
+     */
+    public function testCrossDateSelection()
+    {
+        // Sofia's test data from the screenshot
+        $testTimes = [
+            '2025-08-13 15:58:44',
+            '2025-08-13 16:00:13',
+            '2025-08-14 00:00:30',
+        ];
+        
+        $shiftStart = '16:00:00';
+        $shiftEnd = '00:00:00';
+        $date = '2025-08-13';
+        
+        [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($testTimes, $shiftStart, $shiftEnd, $date);
+        
+        return response()->json([
+            'test_data' => [
+                'available_times' => $testTimes,
+                'shift' => $shiftStart . '-' . $shiftEnd,
+                'date' => $date,
+                'is_overnight_shift' => $this->isOvernightShift($shiftStart, $shiftEnd)
+            ],
+            'results' => [
+                'selected_jam_masuk' => $jamMasuk,
+                'selected_jam_keluar' => $jamKeluar,
+                'expected_jam_masuk' => '2025-08-13 15:58:44',
+                'expected_jam_keluar' => '2025-08-14 00:00:30',
+                'test_passed' => [
+                    'jam_masuk' => $jamMasuk === '2025-08-13 15:58:44',
+                    'jam_keluar' => $jamKeluar === '2025-08-14 00:00:30'
+                ]
+            ]
+        ]);
     }
 }
