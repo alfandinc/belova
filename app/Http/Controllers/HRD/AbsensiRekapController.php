@@ -126,130 +126,110 @@ class AbsensiRekapController extends Controller
 
         $bestMasuk = null;
         $bestKeluar = null;
-        $minMasukDiff = PHP_INT_MAX;
-        $minKeluarDiff = PHP_INT_MAX;
-
-        // Create target timestamps for shift start and end
-        $shiftStartTarget = strtotime($date . ' ' . $shiftStart);
         
-        // For overnight shifts, shift end is next day
-        $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
-        $shiftEndTarget = $isOvernightShift ? 
-            strtotime($nextDate . ' ' . $shiftEnd) : 
-            strtotime($date . ' ' . $shiftEnd);
-
-        // Find best jam masuk (closest to shift start on the same date)
-        foreach ($timeRecords as $record) {
-            // For jam masuk, prefer times on the shift date
-            if ($record['date_only'] === $date) {
-                $diff = abs($record['timestamp'] - $shiftStartTarget);
-                $hoursDiff = $diff / 3600;
-                
-                // Allow up to 4 hours difference from shift start
-                if ($hoursDiff <= 4 && $diff < $minMasukDiff) {
-                    $minMasukDiff = $diff;
-                    $bestMasuk = $record['original'];
-                }
-            }
-        }
-
-        // Find best jam keluar
         if ($isOvernightShift) {
-            // For overnight shifts, prefer times on the next date for jam keluar
-            foreach ($timeRecords as $record) {
-                // Check both same date (late times) and next date (early times)
-                $targetTimestamp = $shiftEndTarget;
+            // For overnight shifts, find jam masuk from shift date and jam keluar from next date
+            $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
+            
+            // Find best jam masuk (from shift date, closest to shift start)
+            $shiftDateTimes = array_filter($timeRecords, function($record) use ($date) {
+                return $record['date_only'] === $date;
+            });
+            
+            if (!empty($shiftDateTimes)) {
+                $shiftStartTarget = strtotime($date . ' ' . $shiftStart);
+                $minMasukDiff = PHP_INT_MAX;
                 
-                if ($record['date_only'] === $nextDate) {
-                    // Time is on next date - perfect for overnight shift end
-                    $diff = abs($record['timestamp'] - $targetTimestamp);
-                } elseif ($record['date_only'] === $date && $record['time_only'] >= '20:00:00') {
-                    // Time is on same date but late (might be close to midnight)
-                    $diff = abs($record['timestamp'] - $targetTimestamp);
-                } else {
-                    continue; // Skip times that don't make sense for jam keluar
-                }
-                
-                $hoursDiff = $diff / 3600;
-                
-                // Allow up to 6 hours difference from shift end
-                if ($hoursDiff <= 6 && $diff < $minKeluarDiff) {
-                    $minKeluarDiff = $diff;
-                    $bestKeluar = $record['original'];
+                foreach ($shiftDateTimes as $record) {
+                    $diff = abs($record['timestamp'] - $shiftStartTarget);
+                    if ($diff < $minMasukDiff) {
+                        $minMasukDiff = $diff;
+                        $bestMasuk = $record['original'];
+                    }
                 }
             }
-        } else {
-            // For regular shifts, find jam keluar on the same date
-            foreach ($timeRecords as $record) {
-                if ($record['date_only'] === $date) {
+            
+            // Find best jam keluar (from next date, closest to shift end)
+            $nextDateTimes = array_filter($timeRecords, function($record) use ($nextDate) {
+                return $record['date_only'] === $nextDate;
+            });
+            
+            if (!empty($nextDateTimes)) {
+                $shiftEndTarget = strtotime($nextDate . ' ' . $shiftEnd);
+                $minKeluarDiff = PHP_INT_MAX;
+                
+                foreach ($nextDateTimes as $record) {
                     $diff = abs($record['timestamp'] - $shiftEndTarget);
-                    $hoursDiff = $diff / 3600;
-                    
-                    // Allow up to 6 hours difference from shift end
-                    if ($hoursDiff <= 6 && $diff < $minKeluarDiff) {
+                    if ($diff < $minKeluarDiff) {
                         $minKeluarDiff = $diff;
                         $bestKeluar = $record['original'];
                     }
                 }
             }
-        }
-
-        // Enhanced fallback logic
-        if (!$bestMasuk) {
-            // Find the latest time on the shift date that could be jam masuk
+            
+            // Fallbacks for overnight shifts
+            if (!$bestMasuk && !empty($shiftDateTimes)) {
+                // Use latest time from shift date as fallback for masuk
+                $bestMasuk = end($shiftDateTimes)['original'];
+            }
+            
+            if (!$bestKeluar && !empty($nextDateTimes)) {
+                // Use earliest time from next date as fallback for keluar
+                $bestKeluar = reset($nextDateTimes)['original'];
+            }
+            
+            // Ultimate fallback for overnight shifts
+            if (!$bestMasuk) {
+                $bestMasuk = reset($timeRecords)['original'];
+            }
+            if (!$bestKeluar) {
+                $bestKeluar = end($timeRecords)['original'];
+            }
+            
+        } else {
+            // For regular shifts, find both times from the same date
             $sameDateTimes = array_filter($timeRecords, function($record) use ($date) {
                 return $record['date_only'] === $date;
             });
             
             if (!empty($sameDateTimes)) {
-                // For jam masuk, prefer times in the afternoon/evening if it's night shift
-                if ($isOvernightShift) {
-                    $afternoonTimes = array_filter($sameDateTimes, function($record) {
-                        return $record['time_only'] >= '12:00:00';
-                    });
-                    $bestMasuk = !empty($afternoonTimes) ? 
-                        reset($afternoonTimes)['original'] : 
-                        reset($sameDateTimes)['original'];
-                } else {
-                    $bestMasuk = reset($sameDateTimes)['original'];
-                }
-            } else {
-                $bestMasuk = $timeRecords[0]['original'];
-            }
-        }
-
-        if (!$bestKeluar) {
-            if ($isOvernightShift) {
-                // For overnight shifts, prefer times on next date
-                $nextDateTimes = array_filter($timeRecords, function($record) use ($nextDate) {
-                    return $record['date_only'] === $nextDate;
-                });
+                $shiftStartTarget = strtotime($date . ' ' . $shiftStart);
+                $shiftEndTarget = strtotime($date . ' ' . $shiftEnd);
                 
-                if (!empty($nextDateTimes)) {
-                    // Prefer early morning times on next date
-                    $morningTimes = array_filter($nextDateTimes, function($record) {
-                        return $record['time_only'] <= '08:00:00';
-                    });
-                    $bestKeluar = !empty($morningTimes) ? 
-                        reset($morningTimes)['original'] : 
-                        reset($nextDateTimes)['original'];
-                } else {
-                    // Fallback to latest time on same date
-                    $sameDateTimes = array_filter($timeRecords, function($record) use ($date) {
-                        return $record['date_only'] === $date;
-                    });
-                    $bestKeluar = !empty($sameDateTimes) ? 
-                        end($sameDateTimes)['original'] : 
-                        end($timeRecords)['original'];
+                $minMasukDiff = PHP_INT_MAX;
+                $minKeluarDiff = PHP_INT_MAX;
+                
+                foreach ($sameDateTimes as $record) {
+                    // Check for jam masuk
+                    $masukDiff = abs($record['timestamp'] - $shiftStartTarget);
+                    if ($masukDiff < $minMasukDiff) {
+                        $minMasukDiff = $masukDiff;
+                        $bestMasuk = $record['original'];
+                    }
+                    
+                    // Check for jam keluar
+                    $keluarDiff = abs($record['timestamp'] - $shiftEndTarget);
+                    if ($keluarDiff < $minKeluarDiff) {
+                        $minKeluarDiff = $keluarDiff;
+                        $bestKeluar = $record['original'];
+                    }
                 }
-            } else {
-                // For regular shifts, use latest time on same date
-                $sameDateTimes = array_filter($timeRecords, function($record) use ($date) {
+            }
+            
+            // Fallbacks for regular shifts
+            if (!$bestMasuk || !$bestKeluar) {
+                $allSameDateTimes = array_filter($timeRecords, function($record) use ($date) {
                     return $record['date_only'] === $date;
                 });
-                $bestKeluar = !empty($sameDateTimes) ? 
-                    end($sameDateTimes)['original'] : 
-                    end($timeRecords)['original'];
+                
+                if (!empty($allSameDateTimes)) {
+                    if (!$bestMasuk) {
+                        $bestMasuk = reset($allSameDateTimes)['original'];
+                    }
+                    if (!$bestKeluar) {
+                        $bestKeluar = end($allSameDateTimes)['original'];
+                    }
+                }
             }
         }
 
@@ -260,9 +240,7 @@ class AbsensiRekapController extends Controller
             'is_overnight' => $isOvernightShift,
             'available_times' => array_column($timeRecords, 'formatted_datetime'),
             'selected_masuk' => $bestMasuk,
-            'selected_keluar' => $bestKeluar,
-            'shift_start_target' => date('Y-m-d H:i:s', $shiftStartTarget),
-            'shift_end_target' => date('Y-m-d H:i:s', $shiftEndTarget)
+            'selected_keluar' => $bestKeluar
         ]);
 
         return [$bestMasuk, $bestKeluar];
@@ -934,34 +912,63 @@ class AbsensiRekapController extends Controller
      */
     public function testCrossDateSelection()
     {
-        // Sofia's test data from the screenshot
-        $testTimes = [
+        // Sofia's actual data from screenshot
+        // Aug 13: 15:58, 16:00, 00:00 (from Aug 14)
+        // Aug 14: 08:59, 17:44, 17:29
+        
+        // Test 1: Aug 13 Malam shift (16:00-00:00)
+        $aug13Times = [
             '2025-08-13 15:58:44',
             '2025-08-13 16:00:13',
-            '2025-08-14 00:00:30',
+            '2025-08-14 00:00:30',  // This should be selected as keluar
         ];
         
         $shiftStart = '16:00:00';
         $shiftEnd = '00:00:00';
         $date = '2025-08-13';
         
-        [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($testTimes, $shiftStart, $shiftEnd, $date);
+        [$jamMasuk13, $jamKeluar13] = $this->findBestAttendanceTimes($aug13Times, $shiftStart, $shiftEnd, $date);
+        
+        // Test 2: Aug 14 Pagi-Service shift (08:45-17:00)
+        $aug14Times = [
+            '2025-08-14 08:59:00',  // This should be selected as masuk
+            '2025-08-14 17:44:00',
+            '2025-08-14 17:29:00',  // This should be selected as keluar
+        ];
+        
+        $shiftStart14 = '08:45:00';
+        $shiftEnd14 = '17:00:00';
+        $date14 = '2025-08-14';
+        
+        [$jamMasuk14, $jamKeluar14] = $this->findBestAttendanceTimes($aug14Times, $shiftStart14, $shiftEnd14, $date14);
         
         return response()->json([
-            'test_data' => [
-                'available_times' => $testTimes,
+            'aug_13_malam_shift' => [
+                'available_times' => $aug13Times,
                 'shift' => $shiftStart . '-' . $shiftEnd,
                 'date' => $date,
-                'is_overnight_shift' => $this->isOvernightShift($shiftStart, $shiftEnd)
-            ],
-            'results' => [
-                'selected_jam_masuk' => $jamMasuk,
-                'selected_jam_keluar' => $jamKeluar,
+                'is_overnight_shift' => $this->isOvernightShift($shiftStart, $shiftEnd),
+                'selected_jam_masuk' => $jamMasuk13,
+                'selected_jam_keluar' => $jamKeluar13,
                 'expected_jam_masuk' => '2025-08-13 15:58:44',
                 'expected_jam_keluar' => '2025-08-14 00:00:30',
                 'test_passed' => [
-                    'jam_masuk' => $jamMasuk === '2025-08-13 15:58:44',
-                    'jam_keluar' => $jamKeluar === '2025-08-14 00:00:30'
+                    'jam_masuk' => $jamMasuk13 === '2025-08-13 15:58:44',
+                    'jam_keluar' => $jamKeluar13 === '2025-08-14 00:00:30'
+                ]
+            ],
+            'aug_14_pagi_service_shift' => [
+                'available_times' => $aug14Times,
+                'shift' => $shiftStart14 . '-' . $shiftEnd14,
+                'date' => $date14,
+                'is_overnight_shift' => $this->isOvernightShift($shiftStart14, $shiftEnd14),
+                'selected_jam_masuk' => $jamMasuk14,
+                'selected_jam_keluar' => $jamKeluar14,
+                'expected_jam_masuk' => '2025-08-14 08:59:00',
+                'expected_jam_keluar' => '2025-08-14 17:29:00',
+                'test_passed' => [
+                    'jam_masuk' => $jamMasuk14 === '2025-08-14 08:59:00',
+                    'jam_keluar' => $jamKeluar14 === '2025-08-14 17:29:00'
                 ]
             ]
         ]);
