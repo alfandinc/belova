@@ -150,18 +150,13 @@
     <div class="row mb-3">
         <div class="col-md-8">
             <button id="syncShiftsBtn" class="btn btn-warning mr-2" data-toggle="tooltip" data-placement="top" 
-                    title="Sync shift data and recalculate work hours for overnight shifts">
+                    title="Sync shift data and recalculate work hours for all attendance records">
                 <i class="fas fa-sync"></i> Sync Shift Data & Work Hours
-            </button>
-            <button id="reprocessTimesBtn" class="btn btn-info" data-toggle="tooltip" data-placement="top" 
-                    title="Reprocess attendance times using smart selection (closest to shift schedule)">
-                <i class="fas fa-clock"></i> Smart Time Selection
             </button>
             <br>
             <small class="text-muted">
                 <i class="fas fa-info-circle"></i> 
-                <strong>Sync:</strong> Fix overnight shift calculations &nbsp;|&nbsp; 
-                <strong>Smart Selection:</strong> Choose best jam masuk/keluar for night shifts
+                <strong>Sync:</strong> Fix shift times and recalculate work hours for all records
             </small>
         </div>
     </div>
@@ -490,34 +485,6 @@ $(function() {
             },
             error: function(xhr) {
                 alert('Failed to sync shifts: ' + (xhr.responseJSON?.error || 'Unknown error'));
-            },
-            complete: function() {
-                btn.prop('disabled', false).html(originalText);
-            }
-        });
-    });
-
-    // Reprocess Times Button Handler
-    $('#reprocessTimesBtn').on('click', function() {
-        var btn = $(this);
-        var originalText = btn.html();
-        
-        if (!confirm('This will reprocess attendance times using smart selection based on shift schedules. Continue?')) {
-            return;
-        }
-        
-        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
-        
-        $.ajax({
-            url: '{{ route("hrd.absensi_rekap.reprocess_times") }}',
-            type: 'GET',
-            success: function(response) {
-                alert(response.message || 'Attendance times reprocessed successfully!');
-                table.ajax.reload();
-                loadStatistics();
-            },
-            error: function(xhr) {
-                alert('Failed to reprocess times: ' + (xhr.responseJSON?.error || 'Unknown error'));
             },
             complete: function() {
                 btn.prop('disabled', false).html(originalText);
