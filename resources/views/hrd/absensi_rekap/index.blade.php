@@ -33,7 +33,7 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
-                                Late Employees
+                                Late Records
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800" id="lateCount">0</div>
                             <div class="row no-gutters align-items-center">
@@ -61,7 +61,7 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Overtime Employees
+                                Overtime Records
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800" id="overtimeCount">0</div>
                             <div class="row no-gutters align-items-center">
@@ -89,7 +89,7 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                On Time Employees
+                                On Time Records
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800" id="onTimeCount">0</div>
                             <div class="row no-gutters align-items-center">
