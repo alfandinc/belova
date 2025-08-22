@@ -103,6 +103,14 @@
                 </a>
             </li>
             
+            <!-- Pengajuan Ganti Shift - Visible to all authenticated users -->
+            <li>
+                <a href="{{ route('hrd.gantishift.index') }}">
+                    <i data-feather="refresh-cw" class="align-self-center menu-icon"></i>
+                    <span>Pengajuan Ganti Shift</span>
+                </a>
+            </li>
+            
             <!-- Performance Evaluations - Visible to all authenticated users -->
             <li>
                 <a href="javascript: void(0);"> <i data-feather="award" class="align-self-center menu-icon"></i><span>Penilaian Kinerja</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
