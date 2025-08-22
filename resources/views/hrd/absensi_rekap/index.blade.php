@@ -112,6 +112,27 @@
         </div>
     </div>
     
+    <!-- Top 5 Most Late Employees Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-danger">
+                        <i class="fas fa-clock text-danger"></i>
+                        Top 5 Karyawan Paling Sering Terlambat
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="top5LateEmployees">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div class="row mb-3">
         <div class="col-md-4">
             <div class="form-group mb-0">
@@ -286,6 +307,56 @@
 .progress-xs {
     height: 0.25rem;
 }
+
+/* Top 5 Late Employees Styling */
+#top5LateEmployees .table-responsive {
+    border-radius: 0.35rem;
+}
+
+#top5LateEmployees .table th {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    font-weight: 600;
+    color: #5a5c69;
+    font-size: 0.8rem;
+}
+
+#top5LateEmployees .table td {
+    vertical-align: middle;
+    font-size: 0.875rem;
+}
+
+#top5LateEmployees .badge-danger {
+    background-color: #e74a3b;
+}
+
+#top5LateEmployees .badge-warning {
+    background-color: #f6c23e;
+    color: #fff;
+}
+
+#top5LateEmployees .badge-secondary {
+    background-color: #6c757d;
+}
+
+#top5LateEmployees .badge-light {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    border: 1px solid #e3e6f0;
+}
+
+#top5LateEmployees .fa-crown {
+    animation: sparkle 2s infinite;
+}
+
+@keyframes sparkle {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+#top5LateEmployees tr:hover {
+    background-color: #f8f9fc;
+}
 </style>
 @endpush
 
@@ -294,6 +365,63 @@
 $(function() {
     // Initialize tooltips
     $('[data-toggle="tooltip"]').tooltip();
+
+    // Function to update Top 5 Late Employees display
+    function updateTop5LateEmployees(employees) {
+        const container = $('#top5LateEmployees');
+        
+        if (!employees || employees.length === 0) {
+            container.html(`
+                <div class="text-center text-muted">
+                    <i class="fas fa-check-circle text-success"></i>
+                    <p class="mb-0">Tidak ada karyawan yang terlambat dalam periode ini</p>
+                </div>
+            `);
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-sm">';
+        html += `
+            <thead>
+                <tr>
+                    <th width="5%">#</th>
+                    <th width="40%">Nama Karyawan</th>
+                    <th width="20%">Total Keterlambatan</th>
+                    <th width="15%">Jumlah Terlambat</th>
+                    <th width="20%">Rata-rata Terlambat</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        employees.forEach((employee, index) => {
+            const badgeClass = index === 0 ? 'danger' : (index === 1 ? 'warning' : 'secondary');
+            const crown = index === 0 ? '<i class="fas fa-crown text-warning mr-1"></i>' : '';
+            
+            html += `
+                <tr>
+                    <td>
+                        <span class="badge badge-${badgeClass}">${index + 1}</span>
+                    </td>
+                    <td>
+                        ${crown}${employee.employee_name}
+                    </td>
+                    <td>
+                        <span class="text-danger font-weight-bold">${employee.formatted_total}</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-light">${employee.late_instances}x</span>
+                    </td>
+                    <td>
+                        <span class="text-muted">${employee.formatted_avg}</span>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        container.html(html);
+    }
 
     // Function to load statistics
     function loadStatistics() {
@@ -326,6 +454,9 @@ $(function() {
                 $('#lateProgressBar').css('width', '0%').animate({width: response.late_percentage + '%'}, 800);
                 $('#overtimeProgressBar').css('width', '0%').animate({width: response.overtime_percentage + '%'}, 800);
                 $('#onTimeProgressBar').css('width', '0%').animate({width: response.on_time_percentage + '%'}, 800);
+                
+                // Update Top 5 Late Employees
+                updateTop5LateEmployees(response.top_5_late_employees || []);
                 
                 // Update aria attributes
                 $('#lateProgressBar').attr('aria-valuenow', response.late_percentage);

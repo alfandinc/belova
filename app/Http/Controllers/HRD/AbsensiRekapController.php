@@ -95,6 +95,28 @@ class AbsensiRekapController extends Controller
     }
 
     /**
+     * Calculate minutes late for an employee
+     */
+    private function calculateMinutesLate($jamMasuk, $shiftStart, $date)
+    {
+        if (!$jamMasuk || !$shiftStart) {
+            return 0;
+        }
+
+        $jamMasukTime = strpos($jamMasuk, ' ') !== false ? 
+            strtotime($jamMasuk) : 
+            strtotime($date . ' ' . $jamMasuk);
+        
+        $shiftStartTime = strtotime($date . ' ' . $shiftStart);
+
+        if ($jamMasukTime > $shiftStartTime) {
+            return round(($jamMasukTime - $shiftStartTime) / 60);
+        }
+
+        return 0;
+    }
+
+    /**
      * Find the best jam masuk and jam keluar based on shift schedule
      * Supports cross-date selection for overnight shifts
      */
@@ -497,6 +519,7 @@ class AbsensiRekapController extends Controller
         $lateCount = 0;
         $overtimeCount = 0;
         $onTimeCount = 0;
+        $employeeLateMinutes = [];
         
         foreach ($records as $record) {
             $isLate = false;
@@ -509,6 +532,25 @@ class AbsensiRekapController extends Controller
             if ($this->isLate($jamMasuk, $shiftStart, $record->date)) {
                 $lateCount++;
                 $isLate = true;
+                
+                // Calculate minutes late
+                $minutesLate = $this->calculateMinutesLate($jamMasuk, $shiftStart, $record->date);
+                
+                // Track employee late minutes
+                $employeeId = $record->employee_id;
+                $employeeName = $record->employee ? $record->employee->nama : 'Unknown';
+                
+                if (!isset($employeeLateMinutes[$employeeId])) {
+                    $employeeLateMinutes[$employeeId] = [
+                        'employee_id' => $employeeId,
+                        'employee_name' => $employeeName,
+                        'total_late_minutes' => 0,
+                        'late_instances' => 0
+                    ];
+                }
+                
+                $employeeLateMinutes[$employeeId]['total_late_minutes'] += $minutesLate;
+                $employeeLateMinutes[$employeeId]['late_instances']++;
             }
             
             // Check if overtime using new helper function
@@ -526,6 +568,25 @@ class AbsensiRekapController extends Controller
             }
         }
         
+        // Get top 5 most late employees
+        $top5LateEmployees = collect($employeeLateMinutes)
+            ->sortByDesc('total_late_minutes')
+            ->take(5)
+            ->map(function($employee) {
+                $avgMinutesLate = $employee['late_instances'] > 0 ? 
+                    round($employee['total_late_minutes'] / $employee['late_instances'], 1) : 0;
+                
+                return [
+                    'employee_name' => $employee['employee_name'],
+                    'total_late_minutes' => $employee['total_late_minutes'],
+                    'late_instances' => $employee['late_instances'],
+                    'avg_minutes_late' => $avgMinutesLate,
+                    'formatted_total' => $this->formatMinutes($employee['total_late_minutes']),
+                    'formatted_avg' => $this->formatMinutes($avgMinutesLate)
+                ];
+            })
+            ->values();
+        
         return response()->json([
             'total_records' => $totalEmployees,
             'late_count' => $lateCount,
@@ -534,7 +595,27 @@ class AbsensiRekapController extends Controller
             'late_percentage' => $totalEmployees > 0 ? round(($lateCount / $totalEmployees) * 100, 1) : 0,
             'overtime_percentage' => $totalEmployees > 0 ? round(($overtimeCount / $totalEmployees) * 100, 1) : 0,
             'on_time_percentage' => $totalEmployees > 0 ? round(($onTimeCount / $totalEmployees) * 100, 1) : 0,
+            'top_5_late_employees' => $top5LateEmployees
         ]);
+    }
+
+    /**
+     * Format minutes to human readable format
+     */
+    private function formatMinutes($minutes)
+    {
+        if ($minutes < 60) {
+            return $minutes . ' menit';
+        }
+        
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+        
+        if ($remainingMinutes > 0) {
+            return $hours . ' jam ' . $remainingMinutes . ' menit';
+        }
+        
+        return $hours . ' jam';
     }
 
     /**
