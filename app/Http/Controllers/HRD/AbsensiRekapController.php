@@ -40,7 +40,7 @@ class AbsensiRekapController extends Controller
     }
     public function data(Request $request)
     {
-    $query = AttendanceRekap::with(['employee', 'employeeSchedule.shift']);
+    $query = AttendanceRekap::with(['employee']);
         $dateRange = $request->input('date_range');
         if ($dateRange) {
             $dates = explode(' - ', $dateRange);
@@ -166,7 +166,7 @@ class AbsensiRekapController extends Controller
 
     public function statistics(Request $request)
     {
-        $query = AttendanceRekap::with(['employee', 'employeeSchedule.shift']);
+        $query = AttendanceRekap::with(['employee']);
         
         // Apply same filters as data method
         $dateRange = $request->input('date_range');
