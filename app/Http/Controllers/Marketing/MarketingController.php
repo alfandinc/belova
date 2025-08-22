@@ -253,59 +253,66 @@ class MarketingController extends Controller
 
     public function revenue(Request $request)
     {
+        $year = $request->input('year', date('Y'));
+        $month = $request->input('month');
+
+        return view('marketing.revenue', compact('year', 'month'));
+    }
+
+    // AJAX endpoints for revenue analytics
+    public function getRevenueData(Request $request)
+    {
         try {
             $year = $request->input('year', date('Y'));
             $month = $request->input('month');
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+            $clinicId = $request->input('clinic_id');
 
-            // 1. Monthly Revenue Data
-            $monthlyRevenue = $this->getMonthlyRevenue($year);
+            // If no date range provided, default to current year
+            if (!$startDate || !$endDate) {
+                $year = $year ?: date('Y');
+            }
 
-            // 2. Revenue by Doctor
-            $doctorRevenue = $this->getDoctorRevenue($year);
+            $data = [
+                'monthlyRevenue' => $this->getMonthlyRevenue($year, $startDate, $endDate, $clinicId),
+                'doctorRevenue' => $this->getDoctorRevenue($year, $startDate, $endDate, $clinicId),
+                'topPatients' => $this->getProfitablePatients($year, $startDate, $endDate, $clinicId),
+                'treatmentRevenue' => $this->getRevenueByTreatmentCategory($year, $startDate, $endDate, $clinicId),
+                'paymentMethodAnalysis' => $this->getPaymentMethodAnalysis($year, $startDate, $endDate, $clinicId),
+                'revenueGrowth' => $this->getRevenueGrowthComparison($year, $startDate, $endDate, $clinicId),
+                'dailyRevenue' => $this->getDailyRevenueTrends($year, $month ?: date('m'), $startDate, $endDate, $clinicId)
+            ];
 
-            // 3. Most Profitable Patients
-            $topPatients = $this->getProfitablePatients($year);
-
-            // 4. Revenue by Treatment Category
-            $treatmentRevenue = $this->getRevenueByTreatmentCategory($year);
-
-            // 5. Payment Method Analysis
-            $paymentMethodAnalysis = $this->getPaymentMethodAnalysis($year);
-
-            // 6. Revenue Growth Comparison
-            $revenueGrowth = $this->getRevenueGrowthComparison($year);
-
-            // 7. Daily Revenue Trends (for current month)
-            $dailyRevenue = $this->getDailyRevenueTrends($year, $month ?: date('m'));
-
-            return view('marketing.revenue', compact(
-                'monthlyRevenue',
-                'doctorRevenue',
-                'topPatients',
-                'treatmentRevenue',
-                'paymentMethodAnalysis',
-                'revenueGrowth',
-                'dailyRevenue',
-                'year',
-                'month'
-            ));
-        } catch (\Exception $e) {
-            Log::error('Revenue analytics error: ' . $e->getMessage());
-            
-            // Return view with empty data
-            return view('marketing.revenue')->with([
-                'monthlyRevenue' => ['labels' => [], 'series' => []],
-                'doctorRevenue' => ['labels' => [], 'series' => []],
-                'topPatients' => [],
-                'treatmentRevenue' => ['labels' => [], 'revenue' => [], 'count' => []],
-                'paymentMethodAnalysis' => ['labels' => [], 'revenue' => []],
-                'revenueGrowth' => ['labels' => [], 'current_year' => [], 'previous_year' => []],
-                'dailyRevenue' => ['labels' => [], 'series' => []],
-                'year' => date('Y'),
-                'month' => null,
-                'clinicId' => null,
-                'error' => 'Unable to load revenue data. Please check database configuration.'
+            return response()->json([
+                'success' => true,
+                'data' => $data
             ]);
+        } catch (\Exception $e) {
+            Log::error('AJAX Revenue analytics error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load analytics data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Get clinics for filter dropdown
+    public function getClinics()
+    {
+        try {
+            $clinics = Klinik::orderBy('nama')->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => $clinics
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching clinics: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -513,11 +520,22 @@ class MarketingController extends Controller
 
     // HELPER METHODS FOR DATA RETRIEVAL
 
-    private function getMonthlyRevenue($year)
+    private function getMonthlyRevenue($year, $startDate = null, $endDate = null, $clinicId = null)
     {
         $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
-            ->whereYear('erm_visitations.tanggal_visitation', $year)
             ->where('finance_invoices.amount_paid', '>', 0);
+
+        // Apply date range or year filter
+        if ($startDate && $endDate) {
+            $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            $query->whereYear('erm_visitations.tanggal_visitation', $year);
+        }
+
+        // Apply clinic filter
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
 
         $data = $query->select(
             DB::raw('MONTH(erm_visitations.tanggal_visitation) as month'),
@@ -540,13 +558,24 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getDoctorRevenue($year)
+    private function getDoctorRevenue($year, $startDate = null, $endDate = null, $clinicId = null)
     {
         $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_dokters', 'erm_visitations.dokter_id', '=', 'erm_dokters.id')
             ->join('users', 'erm_dokters.user_id', '=', 'users.id')
-            ->whereYear('erm_visitations.tanggal_visitation', $year)
             ->where('finance_invoices.amount_paid', '>', 0);
+
+        // Apply date range or year filter
+        if ($startDate && $endDate) {
+            $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            $query->whereYear('erm_visitations.tanggal_visitation', $year);
+        }
+
+        // Apply clinic filter
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
 
         $data = $query->select(
             'erm_dokters.id as doctor_id',
@@ -566,12 +595,23 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getProfitablePatients($year)
+    private function getProfitablePatients($year, $startDate = null, $endDate = null, $clinicId = null)
     {
         $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
             ->join('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
-            ->whereYear('erm_visitations.tanggal_visitation', $year)
             ->where('finance_invoices.amount_paid', '>', 0);
+
+        // Apply date range or year filter
+        if ($startDate && $endDate) {
+            $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            $query->whereYear('erm_visitations.tanggal_visitation', $year);
+        }
+
+        // Apply clinic filter
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
 
         $data = $query->select(
             'erm_pasiens.id as patient_id',
@@ -593,7 +633,7 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getRevenueByTreatmentCategory($year)
+    private function getRevenueByTreatmentCategory($year, $startDate = null, $endDate = null, $clinicId = null)
     {
         try {
             // First try with spesialisasi join
@@ -602,8 +642,19 @@ class MarketingController extends Controller
                 ->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
                 ->leftJoin('erm_spesialisasis', 'erm_tindakan.spesialis_id', '=', 'erm_spesialisasis.id')
                 ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Tindakan')
-                ->whereYear('erm_visitations.tanggal_visitation', $year)
                 ->where('finance_invoices.amount_paid', '>', 0);
+
+            // Apply date range or year filter
+            if ($startDate && $endDate) {
+                $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+            } else {
+                $query->whereYear('erm_visitations.tanggal_visitation', $year);
+            }
+
+            // Apply clinic filter
+            if ($clinicId) {
+                $query->where('erm_visitations.klinik_id', $clinicId);
+            }
 
             $data = $query->select(
                 DB::raw('COALESCE(erm_spesialisasis.nama, "General Treatment") as category_name'),
@@ -630,8 +681,19 @@ class MarketingController extends Controller
                     ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
                     ->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
                     ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\Tindakan')
-                    ->whereYear('erm_visitations.tanggal_visitation', $year)
                     ->where('finance_invoices.amount_paid', '>', 0);
+
+                // Apply date range or year filter
+                if ($startDate && $endDate) {
+                    $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+                } else {
+                    $query->whereYear('erm_visitations.tanggal_visitation', $year);
+                }
+
+                // Apply clinic filter
+                if ($clinicId) {
+                    $query->where('erm_visitations.klinik_id', $clinicId);
+                }
 
                 $data = $query->select(
                     'erm_tindakan.nama as category_name',
@@ -661,11 +723,22 @@ class MarketingController extends Controller
         }
     }
 
-    private function getPaymentMethodAnalysis($year)
+    private function getPaymentMethodAnalysis($year, $startDate = null, $endDate = null, $clinicId = null)
     {
         $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
-            ->whereYear('erm_visitations.tanggal_visitation', $year)
             ->where('finance_invoices.amount_paid', '>', 0);
+
+        // Apply date range or year filter
+        if ($startDate && $endDate) {
+            $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            $query->whereYear('erm_visitations.tanggal_visitation', $year);
+        }
+
+        // Apply clinic filter
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
 
         $data = $query->select(
             'finance_invoices.payment_method',
@@ -685,10 +758,10 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getRevenueGrowthComparison($year)
+    private function getRevenueGrowthComparison($year, $startDate = null, $endDate = null, $clinicId = null)
     {
-        $currentYearRevenue = $this->getMonthlyRevenue($year);
-        $previousYearRevenue = $this->getMonthlyRevenue($year - 1);
+        $currentYearRevenue = $this->getMonthlyRevenue($year, $startDate, $endDate, $clinicId);
+        $previousYearRevenue = $this->getMonthlyRevenue($year - 1, $startDate, $endDate, $clinicId);
 
         $growth = [];
         for ($i = 0; $i < 12; $i++) {
@@ -712,12 +785,23 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getDailyRevenueTrends($year, $month)
+    private function getDailyRevenueTrends($year, $month, $startDate = null, $endDate = null, $clinicId = null)
     {
         $query = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
-            ->whereYear('erm_visitations.tanggal_visitation', $year)
-            ->whereMonth('erm_visitations.tanggal_visitation', $month)
             ->where('finance_invoices.amount_paid', '>', 0);
+
+        // Apply date range or year/month filter
+        if ($startDate && $endDate) {
+            $query->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            $query->whereYear('erm_visitations.tanggal_visitation', $year)
+                ->whereMonth('erm_visitations.tanggal_visitation', $month);
+        }
+
+        // Apply clinic filter
+        if ($clinicId) {
+            $query->where('erm_visitations.klinik_id', $clinicId);
+        }
 
         $data = $query->select(
             DB::raw('DAY(erm_visitations.tanggal_visitation) as day'),

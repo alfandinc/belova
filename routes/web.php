@@ -807,6 +807,12 @@ Route::get('/marketing/patients-analytics-data', [\App\Http\Controllers\Marketin
 // AJAX route for services analytics charts
 Route::get('/marketing/services-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'servicesAnalyticsData'])->name('marketing.services.analytics.data');
 
+// AJAX route for revenue analytics charts
+Route::get('/marketing/revenue-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'getRevenueData'])->name('marketing.revenue.analytics.data');
+
+// AJAX route for clinics data
+Route::get('/marketing/clinics', [\App\Http\Controllers\Marketing\MarketingController::class, 'getClinics'])->name('marketing.clinics');
+
 Route::prefix('admin')->group(
     function () {
         //User Management
