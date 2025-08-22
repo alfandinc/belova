@@ -602,8 +602,14 @@ class AbsensiRekapController extends Controller
                 
                 // Sort dates to process them in order
                 ksort($dates);
+                $processedOvernightDates = []; // Track which dates were processed as overnight shifts
                 
                 foreach ($dates as $date => $times) {
+                    // Skip if this date was already processed as part of an overnight shift
+                    if (in_array($date, $processedOvernightDates)) {
+                        continue;
+                    }
+                    
                     // Get shift schedule first
                     $schedule = EmployeeSchedule::where('employee_id', $employee->id)
                         ->where('date', $date)
@@ -613,32 +619,65 @@ class AbsensiRekapController extends Controller
                     $shiftStart = $schedule?->shift?->start_time;
                     $shiftEnd = $schedule?->shift?->end_time;
                     
-                    // For overnight shifts, we need to consider times from next date too
-                    $allAvailableTimes = $times;
-                    if ($shiftStart && $shiftEnd && $this->isOvernightShift($shiftStart, $shiftEnd)) {
-                        $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
-                        if (isset($dates[$nextDate])) {
-                            // Merge times from next date for cross-date selection
-                            $allAvailableTimes = array_merge($times, $dates[$nextDate]);
-                        }
-                    }
+                    // Check if this is an overnight shift
+                    $isOvernightShift = $shiftStart && $shiftEnd && $this->isOvernightShift($shiftStart, $shiftEnd);
                     
-                    // Use smart time selection based on shift schedule with all available times
-                    [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($allAvailableTimes, $shiftStart, $shiftEnd, $date);
+                    if ($isOvernightShift) {
+                        // For overnight shifts, merge times from current and next date
+                        $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
+                        $allAvailableTimes = $times;
+                        
+                        if (isset($dates[$nextDate])) {
+                            // Check if next date has its own shift schedule
+                            $nextSchedule = EmployeeSchedule::where('employee_id', $employee->id)
+                                ->where('date', $nextDate)
+                                ->with('shift')
+                                ->first();
+                            
+                            if ($nextSchedule && $nextSchedule->shift) {
+                                // Next date has its own shift, so only use early times from next date (for overnight end)
+                                $nextDateTimes = $dates[$nextDate];
+                                $earlyTimesFromNextDate = array_filter($nextDateTimes, function($time) use ($nextDate) {
+                                    $timeOnly = date('H:i:s', strtotime($time));
+                                    return $timeOnly <= '06:00:00'; // Only early morning times for overnight end
+                                });
+                                $allAvailableTimes = array_merge($times, $earlyTimesFromNextDate);
+                            } else {
+                                // Next date has no shift, use all times from next date
+                                $allAvailableTimes = array_merge($times, $dates[$nextDate]);
+                                $processedOvernightDates[] = $nextDate;
+                            }
+                        }
+                        
+                        // Use smart time selection for overnight shift
+                        [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($allAvailableTimes, $shiftStart, $shiftEnd, $date);
+                        
+                        // Log the selection for debugging
+                        Log::info("Overnight shift processing for {$employee->nama} on {$date}", [
+                            'current_date_times' => $times,
+                            'next_date_times' => isset($dates[$nextDate]) ? $dates[$nextDate] : [],
+                            'all_available_times' => $allAvailableTimes,
+                            'shift' => $shiftStart . '-' . $shiftEnd,
+                            'selected_masuk' => $jamMasuk,
+                            'selected_keluar' => $jamKeluar,
+                            'next_date_has_own_shift' => isset($nextSchedule) && $nextSchedule && $nextSchedule->shift,
+                            'processed_overnight_dates' => $processedOvernightDates
+                        ]);
+                    } else {
+                        // For regular shifts, use only current date times
+                        [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($times, $shiftStart, $shiftEnd, $date);
+                        
+                        // Log the selection for debugging
+                        Log::info("Regular shift processing for {$employee->nama} on {$date}", [
+                            'available_times' => $times,
+                            'shift' => $shiftStart . '-' . $shiftEnd,
+                            'selected_masuk' => $jamMasuk,
+                            'selected_keluar' => $jamKeluar
+                        ]);
+                    }
                     
                     // Calculate work hours using the new helper function
                     $workHour = $this->calculateWorkHours($jamMasuk, $jamKeluar, $date);
-                    
-                    // Log the selection for debugging
-                    Log::info("Smart time selection for {$employee->nama} on {$date}", [
-                        'current_date_times' => $times,
-                        'all_available_times' => $allAvailableTimes,
-                        'shift' => $shiftStart . '-' . $shiftEnd,
-                        'selected_masuk' => $jamMasuk,
-                        'selected_keluar' => $jamKeluar,
-                        'work_hours' => $workHour,
-                        'is_overnight_shift' => $shiftStart && $shiftEnd ? $this->isOvernightShift($shiftStart, $shiftEnd) : false
-                    ]);
                     
                     AttendanceRekap::updateOrCreate(
                         [
