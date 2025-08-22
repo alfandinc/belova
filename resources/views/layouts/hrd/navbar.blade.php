@@ -92,7 +92,7 @@
             <li>
                 <a href="{{ route('hrd.tidakmasuk.index') }}">
                     <i data-feather="user-x" class="align-self-center menu-icon"></i>
-                    <span>Tidak Masuk (Sakit/Izin)</span>
+                    <span>Pengajuan Sakit/Izin</span>
                 </a>
             </li>
             <!-- Pengajuan Lembur - Visible to all authenticated users -->
