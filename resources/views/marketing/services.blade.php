@@ -20,32 +20,19 @@
                     </div>
                     <div class="col-auto">
                         <div class="d-flex gap-2">
-                            <select name="period" class="form-select form-select-sm" style="width: auto;">
-                                <option value="month" {{ $period == 'month' ? 'selected' : '' }}>Last Month</option>
-                                <option value="quarter" {{ $period == 'quarter' ? 'selected' : '' }}>Last Quarter</option>
-                                <option value="year" {{ $period == 'year' ? 'selected' : '' }}>Last Year</option>
-                            </select>
-                            <select name="year" class="form-select form-select-sm" style="width: auto;">
-                                @for($i = date('Y'); $i >= date('Y') - 5; $i--)
-                                    <option value="{{ $i }}" {{ $year == $i ? 'selected' : '' }}>{{ $i }}</option>
-                                @endfor
-                            </select>
-                            <select name="month" class="form-select form-select-sm" style="width: auto;">
-                                <option value="">All Months</option>
-                                @for($i = 1; $i <= 12; $i++)
-                                    <option value="{{ $i }}" {{ $month == $i ? 'selected' : '' }}>
-                                        {{ DateTime::createFromFormat('!m', $i)->format('F') }}
-                                    </option>
-                                @endfor
-                            </select>
-                            <select name="clinic_id" class="form-select form-select-sm" style="width: auto;">
+                            <div class="form-group">
+                                <input type="text" id="daterange" class="form-control form-control-sm" 
+                                       placeholder="Select Date Range" style="width: 250px;">
+                            </div>
+                            <select id="clinic_filter" class="form-select form-select-sm" style="width: 200px;">
                                 <option value="">All Clinics</option>
-                                @foreach($clinics as $clinic)
-                                    <option value="{{ $clinic->id }}" {{ $clinicId == $clinic->id ? 'selected' : '' }}>
-                                        {{ $clinic->nama }}
-                                    </option>
+                                @foreach(\App\Models\ERM\Klinik::all() as $clinic)
+                                    <option value="{{ $clinic->id }}">{{ $clinic->nama }}</option>
                                 @endforeach
                             </select>
+                            <button type="button" id="refresh_data" class="btn btn-primary btn-sm">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -53,399 +40,530 @@
         </div>
     </div>
 
-    <!-- Service Overview Cards -->
-    <div class="row">
-        <div class="col-lg-3 col-md-6">
-            <div class="card border-left-primary">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div>
-                            <h4 class="text-primary mb-1">{{ array_sum($popularTreatments['count']) }}</h4>
-                            <p class="text-muted mb-0">Total Treatments</p>
+    <!-- Loading Spinner -->
+    <div id="loading_spinner" class="row">
+        <div class="col-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading service analytics data...</p>
+        </div>
+    </div>
+
+    <!-- Analytics Content -->
+    <div id="analytics_content" style="display: none;">
+        <!-- Key Metrics Cards -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-8">
+                                <p class="text-muted mb-2">Total Treatments</p>
+                                <h4 class="mb-0" id="total_treatments">-</h4>
+                            </div>
+                            <div class="col-4">
+                                <div class="avatar-sm mx-auto">
+                                    <span class="avatar-title rounded-circle bg-soft-primary">
+                                        <i class="mdi mdi-medical-bag font-size-20"></i>
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="ms-auto">
-                            <i data-feather="activity" class="icon-lg text-primary"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-8">
+                                <p class="text-muted mb-2">Total Packages</p>
+                                <h4 class="mb-0" id="total_packages">-</h4>
+                            </div>
+                            <div class="col-4">
+                                <div class="avatar-sm mx-auto">
+                                    <span class="avatar-title rounded-circle bg-soft-success">
+                                        <i class="mdi mdi-package-variant font-size-20"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-8">
+                                <p class="text-muted mb-2">Avg Satisfaction</p>
+                                <h4 class="mb-0" id="avg_satisfaction">-</h4>
+                            </div>
+                            <div class="col-4">
+                                <div class="avatar-sm mx-auto">
+                                    <span class="avatar-title rounded-circle bg-soft-warning">
+                                        <i class="mdi mdi-star font-size-20"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-8">
+                                <p class="text-muted mb-2">Service Efficiency</p>
+                                <h4 class="mb-0" id="service_efficiency">-</h4>
+                            </div>
+                            <div class="col-4">
+                                <div class="avatar-sm mx-auto">
+                                    <span class="avatar-title rounded-circle bg-soft-info">
+                                        <i class="mdi mdi-speedometer font-size-20"></i>
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6">
-            <div class="card border-left-success">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div>
-                            <h4 class="text-success mb-1">{{ 'Rp ' . number_format(array_sum($popularTreatments['revenue']), 0, ',', '.') }}</h4>
-                            <p class="text-muted mb-0">Treatment Revenue</p>
-                        </div>
-                        <div class="ms-auto">
-                            <i data-feather="dollar-sign" class="icon-lg text-success"></i>
-                        </div>
+        <!-- Charts Row 1 -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">Popular Treatments</h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="popular_treatments_chart"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">Doctor Performance</h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="doctor_performance_chart"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6">
-            <div class="card border-left-warning">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div>
-                            <h4 class="text-warning mb-1">{{ array_sum($visitationTrends['series']) }}</h4>
-                            <p class="text-muted mb-0">Total Visits</p>
-                        </div>
-                        <div class="ms-auto">
-                            <i data-feather="users" class="icon-lg text-warning"></i>
-                        </div>
+        <!-- Charts Row 2 -->
+        <div class="row">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">Visitation Trends</h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="visitation_trends_chart"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-3 col-md-6">
-            <div class="card border-left-info">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div>
-                            @php
-                                $avgRating = rand(40, 50) / 10; // Dummy data for now
-                            @endphp
-                            <h4 class="text-info mb-1">{{ number_format($avgRating, 1) }}/5</h4>
-                            <p class="text-muted mb-0">Avg Satisfaction</p>
-                        </div>
-                        <div class="ms-auto">
-                            <i data-feather="star" class="icon-lg text-info"></i>
-                        </div>
+        <!-- Charts Row 3 -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">Treatment Efficiency</h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="treatment_efficiency_chart"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">Service Satisfaction Trends</h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="satisfaction_trends_chart"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Popular Treatments & Treatment Packages -->
-    <div class="row">
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Popular Treatments</h5>
-                </div>
-                <div class="card-body">
-                    <div id="popularTreatmentsChart" style="height: 350px;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Treatment Package Performance</h5>
-                </div>
-                <div class="card-body">
-                    <div id="packagePerformanceChart" style="height: 350px;"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Doctor Performance & Treatment Efficiency -->
-    <div class="row">
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Doctor Performance Analysis</h5>
-                </div>
-                <div class="card-body">
-                    <div id="doctorPerformanceChart" style="height: 350px;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Treatment Efficiency</h5>
-                </div>
-                <div class="card-body">
-                    <div id="treatmentEfficiencyChart" style="height: 350px;"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Visitation Trends & Satisfaction -->
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Monthly Visitation Trends {{ $year }}</h5>
-                </div>
-                <div class="card-body">
-                    <div id="visitationTrendsChart" style="height: 350px;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Service Satisfaction Trends</h5>
-                </div>
-                <div class="card-body">
-                    <div id="satisfactionTrendsChart" style="height: 350px;"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Detailed Performance Tables -->
-    <div class="row">
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Top Doctor Performance</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Doctor</th>
-                                    <th>Patients</th>
-                                    <th>Visits</th>
-                                    <th>Avg Revenue</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach(array_slice($doctorPerformance['labels'], 0, 10) as $index => $doctorName)
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="avatar-sm bg-primary-lighten rounded-circle d-flex align-items-center justify-content-center me-2">
-                                                <span class="text-primary font-weight-bold">{{ substr($doctorName, 0, 1) }}</span>
-                                            </div>
-                                            <span class="font-12">{{ Str::limit($doctorName, 20) }}</span>
-                                        </div>
-                                    </td>
-                                    <td><span class="badge bg-info">{{ $doctorPerformance['unique_patients'][$index] }}</span></td>
-                                    <td><span class="badge bg-success">{{ $doctorPerformance['total_visits'][$index] }}</span></td>
-                                    <td class="font-12 text-success">Rp {{ number_format($doctorPerformance['avg_revenue'][$index], 0, ',', '.') }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Treatment Efficiency Metrics</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Treatment</th>
-                                    <th>Frequency</th>
-                                    <th>Avg Price</th>
-                                    <th>Revenue</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach(array_slice($treatmentEfficiency['labels'], 0, 10) as $index => $treatmentName)
-                                <tr>
-                                    <td>
-                                        <span class="font-12">{{ Str::limit($treatmentName, 25) }}</span>
-                                    </td>
-                                    <td><span class="badge bg-primary">{{ $treatmentEfficiency['frequency'][$index] }}</span></td>
-                                    <td class="font-12">Rp {{ number_format($treatmentEfficiency['avg_price'][$index], 0, ',', '.') }}</td>
-                                    <td class="font-12 text-success">Rp {{ number_format($treatmentEfficiency['total_revenue'][$index], 0, ',', '.') }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
 </div>
 @endsection
 
-@push('scripts')
+@section('scripts')
 <script>
 $(document).ready(function() {
-    let popularTreatmentsChart, packagePerformanceChart, visitationTrendsChart, doctorPerformanceChart, treatmentEfficiencyChart, satisfactionTrendsChart;
+    console.log('Services analytics page loaded');
+    
+    // Chart instances for proper cleanup
+    let chartInstances = {};
 
-    function updateCharts(data) {
-        // Update Popular Treatments
-        popularTreatmentsChart.updateOptions({
-            xaxis: { categories: data.popularTreatments.labels },
-            series: [
-                { name: 'Count', data: data.popularTreatments.count },
-                { name: 'Revenue', data: data.popularTreatments.revenue }
-            ]
+    // Initialize date range picker
+    const today = moment();
+    const startOfMonth = today.clone().startOf('month');
+    
+    $('#daterange').daterangepicker({
+        startDate: startOfMonth,
+        endDate: today,
+        ranges: {
+            'Today': [moment(), moment()],
+            'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+            'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+            'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+            'This Month': [moment().startOf('month'), moment().endOf('month')],
+            'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')],
+            'This Year': [moment().startOf('year'), moment().endOf('year')],
+            'Last Year': [moment().subtract(1, 'year').startOf('year'), moment().subtract(1, 'year').endOf('year')]
+        },
+        locale: {
+            format: 'YYYY-MM-DD'
+        }
+    });
+
+    console.log('Date range picker initialized');
+
+    // Function to destroy all charts
+    function destroyAllCharts() {
+        Object.values(chartInstances).forEach(chart => {
+            if (chart && typeof chart.destroy === 'function') {
+                chart.destroy();
+            }
         });
+        chartInstances = {};
+    }
+
+    // Function to load analytics data
+    function loadAnalyticsData() {
+        console.log('Loading analytics data...');
         
-        // Update Package Performance
-        packagePerformanceChart.updateOptions({
-            xaxis: { categories: data.packagePerformance.labels },
-            series: [
-                { name: 'Count', data: data.packagePerformance.count },
-                { name: 'Revenue', data: data.packagePerformance.revenue }
-            ]
-        });
-        
-        // Update Visitation Trends
-        visitationTrendsChart.updateOptions({
-            xaxis: { categories: data.visitationTrends.labels },
-            series: [{ name: 'Visitations', data: data.visitationTrends.series }],
-            title: { text: 'Monthly Visitations for ' + data.year }
+        const dateRange = $('#daterange').val().split(' - ');
+        const clinicId = $('#clinic_filter').val();
+
+        console.log('Date range:', dateRange);
+        console.log('Clinic ID:', clinicId);
+
+        $('#loading_spinner').show();
+        $('#analytics_content').hide();
+
+        // Destroy existing charts before loading new data
+        destroyAllCharts();
+
+        $.ajax({
+            url: '/marketing/services-analytics-data',
+            method: 'GET',
+            data: {
+                start_date: dateRange[0],
+                end_date: dateRange[1],
+                clinic_id: clinicId
+            },
+            success: function(response) {
+                console.log('AJAX success:', response);
+                
+                if (response.success) {
+                    updateDashboard(response.data);
+                } else {
+                    console.error('API returned error:', response.message);
+                    alert('Error loading data: ' + (response.message || 'Unknown error'));
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', {
+                    status: status,
+                    error: error,
+                    response: xhr.responseText,
+                    responseJSON: xhr.responseJSON
+                });
+                
+                // Show detailed error message
+                let errorMessage = 'Error loading analytics data.';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage += ' Details: ' + xhr.responseJSON.message;
+                } else if (xhr.responseText) {
+                    errorMessage += ' Response: ' + xhr.responseText.substring(0, 200);
+                }
+                
+                alert(errorMessage);
+            },
+            complete: function() {
+                $('#loading_spinner').hide();
+                $('#analytics_content').show();
+            }
         });
     }
 
-    // Popular Treatments Chart
-    popularTreatmentsChart = new ApexCharts(document.querySelector("#popularTreatmentsChart"), {
-        chart: { height: 350, type: 'bar', stacked: false },
-        plotOptions: { bar: { horizontal: false, columnWidth: '55%' } },
-        dataLabels: { enabled: false },
-        stroke: { show: true, width: 2, colors: ['transparent'] },
-        series: [
-            { name: 'Count', data: @json($popularTreatments['count']) },
-            { name: 'Revenue', data: @json($popularTreatments['revenue']) }
-        ],
-        xaxis: { 
-            categories: @json($popularTreatments['labels']), 
-            labels: { rotate: -45, style: { fontSize: '12px' } } 
-        },
-        yaxis: [
-            { title: { text: 'Count' } },
-            { opposite: true, title: { text: 'Revenue (Rp)' } }
-        ],
-        colors: ['#4e73df', '#1cc88a']
-    });
-    popularTreatmentsChart.render();
+    // Function to update dashboard with data
+    function updateDashboard(data) {
+        try {
+            console.log('Updating dashboard with data:', data);
+            
+            // Update metrics cards
+            $('#total_treatments').text(data.summary?.total_treatments || '0');
+            $('#total_packages').text(data.summary?.total_packages || '0');
+            $('#avg_satisfaction').text((data.satisfactionTrends?.satisfaction_score?.slice(-1)[0] || 0).toFixed(1));
+            $('#service_efficiency').text((data.treatmentEfficiency?.efficiency_rate || 0).toFixed(1) + '%');
 
-    // Package Performance Chart
-    packagePerformanceChart = new ApexCharts(document.querySelector("#packagePerformanceChart"), {
-        chart: { height: 350, type: 'bar' },
-        series: [
-            { name: 'Count', data: @json($packagePerformance['count']) },
-            { name: 'Revenue', data: @json($packagePerformance['revenue']) }
-        ],
-        xaxis: { 
-            categories: @json($packagePerformance['labels']),
-            labels: { rotate: -45 }
-        },
-        colors: ['#f6c23e', '#36b9cc']
-    });
-    packagePerformanceChart.render();
+            // Create charts
+            createPopularTreatmentsChart(data.popularTreatments);
+            createDoctorPerformanceChart(data.doctorPerformance);
+            createVisitationTrendsChart(data.visitationTrends);
+            createTreatmentEfficiencyChart(data.treatmentEfficiency);
+            createSatisfactionTrendsChart(data.satisfactionTrends);
 
-    // Visitation Trends Chart
-    visitationTrendsChart = new ApexCharts(document.querySelector("#visitationTrendsChart"), {
-        chart: { height: 350, type: 'area' },
-        series: [{ name: 'Visits', data: @json($visitationTrends['series']) }],
-        xaxis: { categories: @json($visitationTrends['labels']) },
-        colors: ['#e74a3b'],
-        fill: {
-            type: 'gradient',
-            gradient: {
-                shadeIntensity: 1,
-                opacityFrom: 0.7,
-                opacityTo: 0.3,
-            }
+            console.log('Dashboard updated successfully');
+
+        } catch (error) {
+            console.error('Error updating dashboard:', error);
+            alert('Error displaying data. Please check console for details.');
         }
-    });
-    visitationTrendsChart.render();
+    }
 
-    // Doctor Performance Chart
-    doctorPerformanceChart = new ApexCharts(document.querySelector("#doctorPerformanceChart"), {
-        chart: { height: 350, type: 'bar' },
-        series: [
-            { name: 'Unique Patients', data: @json($doctorPerformance['unique_patients']) },
-            { name: 'Total Visits', data: @json($doctorPerformance['total_visits']) }
-        ],
-        xaxis: { 
-            categories: @json($doctorPerformance['labels']),
-            labels: { rotate: -45 }
-        },
-        colors: ['#6f42c1', '#e83e8c']
-    });
-    doctorPerformanceChart.render();
-
-    // Treatment Efficiency Chart
-    treatmentEfficiencyChart = new ApexCharts(document.querySelector("#treatmentEfficiencyChart"), {
-        chart: { height: 350, type: 'scatter' },
-        series: [{
-            name: 'Efficiency',
-            data: @json($treatmentEfficiency['frequency']).map((freq, index) => ({
-                x: freq,
-                y: @json($treatmentEfficiency['avg_price'])[index]
-            }))
-        }],
-        xaxis: { title: { text: 'Frequency' } },
-        yaxis: { title: { text: 'Average Price (Rp)' } },
-        colors: ['#fd7e14']
-    });
-    treatmentEfficiencyChart.render();
-
-    // Satisfaction Trends Chart
-    satisfactionTrendsChart = new ApexCharts(document.querySelector("#satisfactionTrendsChart"), {
-        chart: { height: 350, type: 'line' },
-        series: [
-            { name: 'Satisfaction Score', data: @json($satisfactionTrends['satisfaction_score']) },
-            { name: 'Response Rate', data: @json($satisfactionTrends['response_rate']) }
-        ],
-        xaxis: { categories: @json($satisfactionTrends['labels']) },
-        yaxis: [
-            { title: { text: 'Score (1-5)' }, max: 5 },
-            { opposite: true, title: { text: 'Response Rate (%)' }, max: 100 }
-        ],
-        colors: ['#20c997', '#6c757d']
-    });
-    satisfactionTrendsChart.render();
-
-    // Filter change handlers
-    $(document).on('change', 'select[name="year"], select[name="month"], select[name="clinic_id"], select[name="period"]', function(e) {
-        e.preventDefault();
-        const year = $('select[name="year"]').val();
-        const month = $('select[name="month"]').val();
-        const clinic_id = $('select[name="clinic_id"]').val();
-        const period = $('select[name="period"]').val();
+    // Chart creation functions
+    function createPopularTreatmentsChart(data) {
+        console.log('Creating popular treatments chart:', data);
         
-        $.getJSON("{{ route('marketing.services.analytics.data') }}", { year, month, clinic_id, period }, function(data) {
-            updateCharts(data);
-        });
+        if (!data || !data.labels || !data.values) {
+            console.warn('No data for popular treatments chart');
+            return;
+        }
+
+        const options = {
+            series: [{
+                name: 'Treatments',
+                data: data.values
+            }],
+            chart: {
+                type: 'bar',
+                height: 350
+            },
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    borderRadius: 4
+                }
+            },
+            xaxis: {
+                categories: data.labels
+            },
+            colors: ['#5156be']
+        };
+
+        chartInstances.popularTreatments = new ApexCharts(
+            document.querySelector("#popular_treatments_chart"), 
+            options
+        );
+        chartInstances.popularTreatments.render();
+    }
+
+    function createTreatmentEfficiencyChart(data) {
+        console.log('Creating treatment efficiency chart:', data);
+        
+        if (!data || !data.labels || !data.frequency) {
+            console.warn('No data for treatment efficiency chart');
+            return;
+        }
+
+        const options = {
+            series: [{
+                name: 'Frequency',
+                data: data.frequency
+            }, {
+                name: 'Avg Price',
+                data: data.avg_price
+            }],
+            chart: {
+                type: 'bar',
+                height: 350
+            },
+            plotOptions: {
+                bar: {
+                    horizontal: false,
+                    columnWidth: '55%',
+                    endingShape: 'rounded'
+                }
+            },
+            dataLabels: {
+                enabled: false
+            },
+            stroke: {
+                show: true,
+                width: 2,
+                colors: ['transparent']
+            },
+            xaxis: {
+                categories: data.labels
+            },
+            yaxis: [{
+                title: {
+                    text: 'Frequency'
+                }
+            }],
+            fill: {
+                opacity: 1
+            },
+            colors: ['#5156be', '#2ab57d']
+        };
+
+        chartInstances.treatmentEfficiency = new ApexCharts(
+            document.querySelector("#treatment_efficiency_chart"), 
+            options
+        );
+        chartInstances.treatmentEfficiency.render();
+    }
+
+    function createVisitationTrendsChart(data) {
+        console.log('Creating visitation trends chart:', data);
+        
+        if (!data || !data.labels || !data.values) {
+            console.warn('No data for visitation trends chart');
+            return;
+        }
+
+        const options = {
+            series: [{
+                name: 'Visits',
+                data: data.values
+            }],
+            chart: {
+                type: 'line',
+                height: 350
+            },
+            xaxis: {
+                categories: data.labels
+            },
+            stroke: {
+                curve: 'smooth',
+                width: 3
+            },
+            colors: ['#5156be']
+        };
+
+        chartInstances.visitationTrends = new ApexCharts(
+            document.querySelector("#visitation_trends_chart"), 
+            options
+        );
+        chartInstances.visitationTrends.render();
+    }
+
+    function createDoctorPerformanceChart(data) {
+        console.log('Creating doctor performance chart:', data);
+        
+        if (!data || !data.labels || !data.revenue || !data.patients) {
+            console.warn('No data for doctor performance chart');
+            return;
+        }
+
+        const options = {
+            series: [{
+                name: 'Revenue',
+                type: 'column',
+                data: data.revenue
+            }, {
+                name: 'Patients',
+                type: 'line',
+                data: data.patients
+            }],
+            chart: {
+                height: 350,
+                type: 'line'
+            },
+            stroke: {
+                width: [0, 4]
+            },
+            xaxis: {
+                categories: data.labels
+            },
+            yaxis: [{
+                title: {
+                    text: 'Revenue (IDR)'
+                }
+            }, {
+                opposite: true,
+                title: {
+                    text: 'Patients'
+                }
+            }],
+            colors: ['#5156be', '#2ab57d']
+        };
+
+        chartInstances.doctorPerformance = new ApexCharts(
+            document.querySelector("#doctor_performance_chart"), 
+            options
+        );
+        chartInstances.doctorPerformance.render();
+    }
+
+    function createSatisfactionTrendsChart(data) {
+        console.log('Creating satisfaction trends chart:', data);
+        
+        if (!data || !data.labels || !data.satisfaction_score) {
+            console.warn('No data for satisfaction trends chart');
+            return;
+        }
+
+        const options = {
+            series: [{
+                name: 'Satisfaction Score',
+                data: data.satisfaction_score
+            }, {
+                name: 'Response Rate (%)',
+                data: data.response_rate
+            }],
+            chart: {
+                height: 350,
+                type: 'line'
+            },
+            stroke: {
+                width: 3,
+                curve: 'smooth'
+            },
+            xaxis: {
+                categories: data.labels
+            },
+            yaxis: [{
+                title: {
+                    text: 'Satisfaction Score'
+                },
+                min: 0,
+                max: 5
+            }, {
+                opposite: true,
+                title: {
+                    text: 'Response Rate (%)'
+                },
+                min: 0,
+                max: 100
+            }],
+            colors: ['#fd7e14', '#2ab57d']
+        };
+
+        chartInstances.satisfactionTrends = new ApexCharts(
+            document.querySelector("#satisfaction_trends_chart"), 
+            options
+        );
+        chartInstances.satisfactionTrends.render();
+    }
+
+    // Event handlers
+    $('#refresh_data, #clinic_filter').on('change', function() {
+        console.log('Filter changed, reloading data');
+        loadAnalyticsData();
     });
+
+    $('#daterange').on('apply.daterangepicker', function() {
+        console.log('Date range changed, reloading data');
+        loadAnalyticsData();
+    });
+
+    // Initial load
+    console.log('Starting initial load...');
+    loadAnalyticsData();
 });
 </script>
-@endpush
-
-<style>
-.border-left-primary {
-    border-left: 4px solid #4e73df !important;
-}
-.border-left-success {
-    border-left: 4px solid #1cc88a !important;
-}
-.border-left-warning {
-    border-left: 4px solid #f6c23e !important;
-}
-.border-left-info {
-    border-left: 4px solid #36b9cc !important;
-}
-.icon-lg {
-    width: 2.5rem;
-    height: 2.5rem;
-}
-.avatar-sm {
-    width: 2rem;
-    height: 2rem;
-}
-</style>
 @endsection

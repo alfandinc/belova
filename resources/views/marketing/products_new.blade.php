@@ -35,14 +35,6 @@
                                     <option value="{{ $clinic->id }}">{{ $clinic->nama }}</option>
                                 @endforeach
                             </select>
-
-                            <!-- Category Filter -->
-                            <select id="categoryFilter" class="form-select form-select-sm" style="width: 180px;">
-                                <option value="">All Categories</option>
-                                @foreach($categories as $category)
-                                    <option value="{{ $category }}">{{ $category }}</option>
-                                @endforeach
-                            </select>
                         </div>
                     </div>
                 </div>
@@ -170,12 +162,10 @@ $(document).ready(function() {
         }
     });
 
-    // Initialize Select2 for clinic and category filters
-    $('#clinicFilter, #categoryFilter').select2({
+    // Initialize Select2 for clinic filter
+    $('#clinicFilter').select2({
         theme: 'bootstrap-5',
-        placeholder: function() {
-            return $(this).attr('id') === 'clinicFilter' ? 'Select clinic' : 'Select category';
-        },
+        placeholder: 'Select clinic',
         allowClear: true
     });
 
@@ -197,7 +187,6 @@ $(document).ready(function() {
         const startDate = dateRange.startDate.format('YYYY-MM-DD');
         const endDate = dateRange.endDate.format('YYYY-MM-DD');
         const clinicId = $('#clinicFilter').val();
-        const kategori = $('#categoryFilter').val();
 
         // Show loading state
         $('#loadingState').show();
@@ -209,8 +198,7 @@ $(document).ready(function() {
             data: {
                 start_date: startDate,
                 end_date: endDate,
-                clinic_id: clinicId,
-                kategori: kategori
+                clinic_id: clinicId
             },
             success: function(response) {
                 if (response.success) {
@@ -275,21 +263,6 @@ $(document).ready(function() {
                 colors: ['#3B82F6'],
                 grid: {
                     borderColor: '#e7e7e7'
-                },
-                tooltip: {
-                    custom: function({series, seriesIndex, dataPointIndex, w}) {
-                        const productName = charts.best_selling_products.labels[dataPointIndex];
-                        const quantity = charts.best_selling_products.values[dataPointIndex];
-                        const revenue = charts.best_selling_products.revenue[dataPointIndex];
-                        const category = charts.best_selling_products.categories ? charts.best_selling_products.categories[dataPointIndex] : '';
-                        
-                        return `<div class="custom-tooltip p-3">
-                            <div><strong>${productName}</strong></div>
-                            ${category ? `<div class="text-muted">Category: ${category}</div>` : ''}
-                            <div>Quantity: ${quantity.toLocaleString()}</div>
-                            <div>Revenue: Rp ${revenue.toLocaleString()}</div>
-                        </div>`;
-                    }
                 }
             };
             bestSellingProductsChart = new ApexCharts(document.querySelector("#bestSellingProductsChart"), bestSellingOptions);
@@ -336,7 +309,7 @@ $(document).ready(function() {
         loadAnalyticsData();
     });
 
-    $('#clinicFilter, #categoryFilter').on('change', function() {
+    $('#clinicFilter').on('change', function() {
         loadAnalyticsData();
     });
 
@@ -355,13 +328,4 @@ $(document).ready(function() {
 <link rel="stylesheet" href="{{ asset('css/daterangepicker.css') }}">
 <link rel="stylesheet" href="{{ asset('css/select2.min.css') }}">
 <link rel="stylesheet" href="{{ asset('css/select2-bootstrap-5-theme.min.css') }}">
-<style>
-.custom-tooltip {
-    background: white;
-    border: 1px solid #e7e7e7;
-    border-radius: 6px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    font-size: 13px;
-}
-</style>
 @endsection
