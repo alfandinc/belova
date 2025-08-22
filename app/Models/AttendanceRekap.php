@@ -27,6 +27,15 @@ class AttendanceRekap extends Model
     public function employeeSchedule()
     {
         return $this->hasOne(\App\Models\HRD\EmployeeSchedule::class, 'employee_id', 'employee_id')
-            ->where('date', $this->date);
+            ->whereColumn('date', 'attendance_rekap.date');
+    }
+
+    // Alternative method to get schedule for a specific date
+    public function getScheduleForDate()
+    {
+        return \App\Models\HRD\EmployeeSchedule::where('employee_id', $this->employee_id)
+            ->where('date', $this->date)
+            ->with('shift')
+            ->first();
     }
 }

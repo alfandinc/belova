@@ -145,6 +145,16 @@
             </form>
         </div>
     </div>
+    
+    <!-- Add Sync Shifts Button -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <button id="syncShiftsBtn" class="btn btn-warning">
+                <i class="fas fa-sync"></i> Sync Shift Data
+            </button>
+        </div>
+    </div>
+    
     <hr>
     <table id="rekapTable" class="table table-bordered table-striped">
         <thead>
@@ -445,6 +455,30 @@ $(function() {
             },
             error: function(xhr) {
                 alert('Gagal upload: ' + (xhr.responseJSON?.error || 'Unknown error'));
+            }
+        });
+    });
+
+    // Sync Shifts Button Handler
+    $('#syncShiftsBtn').on('click', function() {
+        var btn = $(this);
+        var originalText = btn.html();
+        
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Syncing...');
+        
+        $.ajax({
+            url: '{{ route("hrd.absensi_rekap.sync_shifts") }}',
+            type: 'GET',
+            success: function(response) {
+                alert(response.message || 'Shift data synchronized successfully!');
+                table.ajax.reload();
+                loadStatistics();
+            },
+            error: function(xhr) {
+                alert('Failed to sync shifts: ' + (xhr.responseJSON?.error || 'Unknown error'));
+            },
+            complete: function() {
+                btn.prop('disabled', false).html(originalText);
             }
         });
     });

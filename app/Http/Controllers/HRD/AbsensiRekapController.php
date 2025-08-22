@@ -119,26 +119,43 @@ class AbsensiRekapController extends Controller
                 $shiftName = '';
                 $start = $row->shift_start ?? '';
                 $end = $row->shift_end ?? '';
-                // Try relationship first
-                if ($row->employeeSchedule && $row->employeeSchedule->shift) {
-                    $shiftName = $row->employeeSchedule->shift->name ?? '';
-                } else {
-                    // Fallback: fetch EmployeeSchedule and Shift manually
-                    $schedule = \App\Models\HRD\EmployeeSchedule::where('employee_id', $row->employee_id)
-                        ->where('date', $row->date)
-                        ->with('shift')
-                        ->first();
-                    if ($schedule && $schedule->shift) {
-                        $shiftName = $schedule->shift->name ?? '';
+                
+                // Try to get the actual schedule for this date
+                $schedule = \App\Models\HRD\EmployeeSchedule::where('employee_id', $row->employee_id)
+                    ->where('date', $row->date)
+                    ->with('shift')
+                    ->first();
+                
+                if ($schedule && $schedule->shift) {
+                    $shiftName = $schedule->shift->name;
+                    // Use the actual shift times from the shift definition
+                    $actualStart = $schedule->shift->start_time ?? $start;
+                    $actualEnd = $schedule->shift->end_time ?? $end;
+                    
+                    // Update the attendance_rekap record if shift times don't match
+                    if ($actualStart !== $start || $actualEnd !== $end) {
+                        try {
+                            AttendanceRekap::where('id', $row->id)->update([
+                                'shift_start' => $actualStart,
+                                'shift_end' => $actualEnd
+                            ]);
+                            $start = $actualStart;
+                            $end = $actualEnd;
+                        } catch (\Exception $e) {
+                            Log::error("Failed to update shift times for attendance ID {$row->id}: " . $e->getMessage());
+                        }
                     }
-                }
-                if ($shiftName) {
+                    
                     return $shiftName . ' (' . $start . '-' . $end . ')';
-                } elseif ($start || $end) {
-                    return '(' . $start . '-' . $end . ')';
+                } elseif ($start && $end) {
+                    // Fallback to stored times if no schedule found
+                    return '<span class="text-warning">No Schedule</span> (' . $start . '-' . $end . ')';
+                } else {
+                    // No shift data available
+                    return '<span class="text-danger">No Shift Data</span>';
                 }
-                return '';
             })
+            ->rawColumns(['shift']) // Allow HTML in shift column
             ->make(true);
     }
 
@@ -249,6 +266,12 @@ class AbsensiRekapController extends Controller
             }
             foreach ($grouped as $fingerId => $dates) {
                 $employee = Employee::where('finger_id', $fingerId)->first();
+                
+                if (!$employee) {
+                    Log::warning("Employee not found for finger_id: {$fingerId}");
+                    continue; // Skip if employee not found
+                }
+                
                 foreach ($dates as $date => $times) {
                     $jamMasuk = min($times);
                     $jamKeluar = max($times);
@@ -297,5 +320,94 @@ class AbsensiRekapController extends Controller
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Sync shift data for all attendance records
+     */
+    public function syncShiftData()
+    {
+        try {
+            $updatedCount = 0;
+            $missingScheduleCount = 0;
+            
+            // Get all attendance records
+            $attendanceRecords = AttendanceRekap::with('employee')->get();
+            
+            foreach ($attendanceRecords as $record) {
+                // Find the corresponding schedule
+                $schedule = EmployeeSchedule::where('employee_id', $record->employee_id)
+                    ->where('date', $record->date)
+                    ->with('shift')
+                    ->first();
+                
+                if ($schedule && $schedule->shift) {
+                    // Update the shift times if they don't match
+                    $actualStart = $schedule->shift->start_time;
+                    $actualEnd = $schedule->shift->end_time;
+                    
+                    if ($record->shift_start !== $actualStart || $record->shift_end !== $actualEnd) {
+                        $record->update([
+                            'shift_start' => $actualStart,
+                            'shift_end' => $actualEnd
+                        ]);
+                        $updatedCount++;
+                    }
+                } else {
+                    $missingScheduleCount++;
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => "Sync completed! Updated: {$updatedCount} records. Missing schedules: {$missingScheduleCount} records.",
+                'updated_count' => $updatedCount,
+                'missing_schedule_count' => $missingScheduleCount
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Debug method to check shift data issues
+     */
+    public function debugShiftData()
+    {
+        $issues = [];
+        
+        // Check for attendance records without schedules
+        $attendanceWithoutSchedule = AttendanceRekap::whereNotExists(function($query) {
+            $query->select(DB::raw(1))
+                  ->from('hrd_employee_schedules')
+                  ->whereRaw('hrd_employee_schedules.employee_id = attendance_rekap.employee_id')
+                  ->whereRaw('hrd_employee_schedules.date = attendance_rekap.date');
+        })->count();
+        $issues['attendance_without_schedule'] = $attendanceWithoutSchedule;
+        
+        // Check for attendance records with empty shift times
+        $attendanceWithoutShiftTimes = AttendanceRekap::where(function($query) {
+            $query->whereNull('shift_start')
+                  ->orWhereNull('shift_end')
+                  ->orWhere('shift_start', '')
+                  ->orWhere('shift_end', '');
+        })->count();
+        $issues['attendance_without_shift_times'] = $attendanceWithoutShiftTimes;
+        
+        // Check for mismatched shift times
+        $mismatchedShifts = DB::select("
+            SELECT ar.id, ar.employee_id, ar.date, ar.shift_start, ar.shift_end, 
+                   s.start_time, s.end_time, s.name as shift_name
+            FROM attendance_rekap ar
+            LEFT JOIN hrd_employee_schedules es ON ar.employee_id = es.employee_id AND ar.date = es.date
+            LEFT JOIN hrd_shifts s ON es.shift_id = s.id
+            WHERE s.id IS NOT NULL 
+            AND (ar.shift_start != s.start_time OR ar.shift_end != s.end_time)
+            LIMIT 10
+        ");
+        $issues['mismatched_shifts_sample'] = $mismatchedShifts;
+        
+        return response()->json($issues);
     }
 }
