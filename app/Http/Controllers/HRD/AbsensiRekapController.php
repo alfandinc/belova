@@ -87,6 +87,7 @@ class AbsensiRekapController extends Controller
 
     /**
      * Find the best jam masuk and jam keluar based on shift schedule
+     * Supports cross-date selection for overnight shifts
      */
     private function findBestAttendanceTimes($times, $shiftStart, $shiftEnd, $date)
     {
@@ -99,131 +100,170 @@ class AbsensiRekapController extends Controller
             return [min($times), max($times)];
         }
 
-        // Convert times to timestamps for comparison
-        $timeStamps = [];
+        // Determine if this is an overnight shift
+        $isOvernightShift = $this->isOvernightShift($shiftStart, $shiftEnd);
+        
+        // Parse all available times with their full datetime info
+        $timeRecords = [];
         foreach ($times as $time) {
             $timestamp = strtotime($time);
             $timeOnly = date('H:i:s', $timestamp);
+            $dateOnly = date('Y-m-d', $timestamp);
             
-            $timeStamps[] = [
+            $timeRecords[] = [
                 'original' => $time,
                 'timestamp' => $timestamp,
                 'time_only' => $timeOnly,
-                'date_only' => date('Y-m-d', $timestamp)
+                'date_only' => $dateOnly,
+                'formatted_datetime' => date('Y-m-d H:i:s', $timestamp)
             ];
         }
 
         // Sort by timestamp
-        usort($timeStamps, function($a, $b) {
+        usort($timeRecords, function($a, $b) {
             return $a['timestamp'] - $b['timestamp'];
         });
-
-        // Determine if this is an overnight shift
-        $isOvernightShift = $this->isOvernightShift($shiftStart, $shiftEnd);
-        
-        // Create shift start and end timestamps for comparison
-        $shiftStartTimestamp = strtotime($date . ' ' . $shiftStart);
-        $shiftEndTimestamp = strtotime($date . ' ' . $shiftEnd);
-
-        // For overnight shifts, adjust end timestamp to next day
-        if ($isOvernightShift) {
-            $shiftEndTimestamp += 24 * 3600; // Add 24 hours
-        }
 
         $bestMasuk = null;
         $bestKeluar = null;
         $minMasukDiff = PHP_INT_MAX;
         $minKeluarDiff = PHP_INT_MAX;
 
-        foreach ($timeStamps as $timeData) {
-            $timestamp = $timeData['timestamp'];
-            $timeOnly = $timeData['time_only'];
-            $dateOnly = $timeData['date_only'];
-            
-            // For overnight shifts, adjust timestamp if time is early morning of next day
-            $adjustedTimestamp = $timestamp;
-            if ($isOvernightShift) {
-                // If the time is early morning (00:00 - 11:59) and it's the next day, or
-                // if the time is early morning and we expect it to be next day
-                if ($timeOnly < '12:00:00' && 
-                    ($dateOnly > $date || 
-                     ($dateOnly === $date && $shiftEnd < '12:00:00'))) {
-                    $adjustedTimestamp += 24 * 3600; // Treat as next day
+        // Create target timestamps for shift start and end
+        $shiftStartTarget = strtotime($date . ' ' . $shiftStart);
+        
+        // For overnight shifts, shift end is next day
+        $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
+        $shiftEndTarget = $isOvernightShift ? 
+            strtotime($nextDate . ' ' . $shiftEnd) : 
+            strtotime($date . ' ' . $shiftEnd);
+
+        // Find best jam masuk (closest to shift start on the same date)
+        foreach ($timeRecords as $record) {
+            // For jam masuk, prefer times on the shift date
+            if ($record['date_only'] === $date) {
+                $diff = abs($record['timestamp'] - $shiftStartTarget);
+                $hoursDiff = $diff / 3600;
+                
+                // Allow up to 4 hours difference from shift start
+                if ($hoursDiff <= 4 && $diff < $minMasukDiff) {
+                    $minMasukDiff = $diff;
+                    $bestMasuk = $record['original'];
                 }
             }
+        }
 
-            // Find closest to shift start (jam masuk)
-            // Jam masuk should be around shift start time, not too early or too late
-            $masukDiff = abs($adjustedTimestamp - $shiftStartTimestamp);
-            if ($masukDiff < $minMasukDiff) {
-                $hoursDiff = $masukDiff / 3600;
-                // For jam masuk, allow up to 4 hours before/after shift start
-                if ($hoursDiff <= 4) {
-                    // Prefer times that are after shift start (not too early)
-                    $timeDiff = $adjustedTimestamp - $shiftStartTimestamp;
-                    if ($timeDiff >= -2 * 3600) { // Not more than 2 hours early
-                        $minMasukDiff = $masukDiff;
-                        $bestMasuk = $timeData['original'];
-                    }
+        // Find best jam keluar
+        if ($isOvernightShift) {
+            // For overnight shifts, prefer times on the next date for jam keluar
+            foreach ($timeRecords as $record) {
+                // Check both same date (late times) and next date (early times)
+                $targetTimestamp = $shiftEndTarget;
+                
+                if ($record['date_only'] === $nextDate) {
+                    // Time is on next date - perfect for overnight shift end
+                    $diff = abs($record['timestamp'] - $targetTimestamp);
+                } elseif ($record['date_only'] === $date && $record['time_only'] >= '20:00:00') {
+                    // Time is on same date but late (might be close to midnight)
+                    $diff = abs($record['timestamp'] - $targetTimestamp);
+                } else {
+                    continue; // Skip times that don't make sense for jam keluar
+                }
+                
+                $hoursDiff = $diff / 3600;
+                
+                // Allow up to 6 hours difference from shift end
+                if ($hoursDiff <= 6 && $diff < $minKeluarDiff) {
+                    $minKeluarDiff = $diff;
+                    $bestKeluar = $record['original'];
                 }
             }
-
-            // Find closest to shift end (jam keluar)
-            // Jam keluar should be around shift end time
-            $keluarDiff = abs($adjustedTimestamp - $shiftEndTimestamp);
-            if ($keluarDiff < $minKeluarDiff) {
-                $hoursDiff = $keluarDiff / 3600;
-                // For jam keluar, allow up to 6 hours before/after shift end
-                if ($hoursDiff <= 6) {
-                    // Prefer times that are after shift end (indicating completion)
-                    $timeDiff = $adjustedTimestamp - $shiftEndTimestamp;
-                    if ($timeDiff >= -1 * 3600) { // Not more than 1 hour early
-                        $minKeluarDiff = $keluarDiff;
-                        $bestKeluar = $timeData['original'];
+        } else {
+            // For regular shifts, find jam keluar on the same date
+            foreach ($timeRecords as $record) {
+                if ($record['date_only'] === $date) {
+                    $diff = abs($record['timestamp'] - $shiftEndTarget);
+                    $hoursDiff = $diff / 3600;
+                    
+                    // Allow up to 6 hours difference from shift end
+                    if ($hoursDiff <= 6 && $diff < $minKeluarDiff) {
+                        $minKeluarDiff = $diff;
+                        $bestKeluar = $record['original'];
                     }
                 }
             }
         }
 
         // Enhanced fallback logic
-        if (!$bestMasuk || !$bestKeluar) {
-            if ($isOvernightShift) {
-                // For overnight shifts, be smarter about fallback
-                $afternoonTimes = [];
-                $morningTimes = [];
-                
-                foreach ($timeStamps as $timeData) {
-                    $timeOnly = $timeData['time_only'];
-                    if ($timeOnly >= '12:00:00') {
-                        $afternoonTimes[] = $timeData;
-                    } else {
-                        $morningTimes[] = $timeData;
-                    }
-                }
-                
-                // Use earliest afternoon time for masuk if not found
-                if (!$bestMasuk && !empty($afternoonTimes)) {
-                    $bestMasuk = $afternoonTimes[0]['original'];
-                } elseif (!$bestMasuk) {
-                    $bestMasuk = $timeStamps[0]['original'];
-                }
-                
-                // Use latest morning time or latest afternoon time for keluar
-                if (!$bestKeluar && !empty($morningTimes)) {
-                    $bestKeluar = end($morningTimes)['original'];
-                } elseif (!$bestKeluar) {
-                    $bestKeluar = end($timeStamps)['original'];
+        if (!$bestMasuk) {
+            // Find the latest time on the shift date that could be jam masuk
+            $sameDateTimes = array_filter($timeRecords, function($record) use ($date) {
+                return $record['date_only'] === $date;
+            });
+            
+            if (!empty($sameDateTimes)) {
+                // For jam masuk, prefer times in the afternoon/evening if it's night shift
+                if ($isOvernightShift) {
+                    $afternoonTimes = array_filter($sameDateTimes, function($record) {
+                        return $record['time_only'] >= '12:00:00';
+                    });
+                    $bestMasuk = !empty($afternoonTimes) ? 
+                        reset($afternoonTimes)['original'] : 
+                        reset($sameDateTimes)['original'];
+                } else {
+                    $bestMasuk = reset($sameDateTimes)['original'];
                 }
             } else {
-                // Regular shift fallback
-                if (!$bestMasuk) {
-                    $bestMasuk = $timeStamps[0]['original']; // Earliest time
-                }
-                if (!$bestKeluar) {
-                    $bestKeluar = end($timeStamps)['original']; // Latest time
-                }
+                $bestMasuk = $timeRecords[0]['original'];
             }
         }
+
+        if (!$bestKeluar) {
+            if ($isOvernightShift) {
+                // For overnight shifts, prefer times on next date
+                $nextDateTimes = array_filter($timeRecords, function($record) use ($nextDate) {
+                    return $record['date_only'] === $nextDate;
+                });
+                
+                if (!empty($nextDateTimes)) {
+                    // Prefer early morning times on next date
+                    $morningTimes = array_filter($nextDateTimes, function($record) {
+                        return $record['time_only'] <= '08:00:00';
+                    });
+                    $bestKeluar = !empty($morningTimes) ? 
+                        reset($morningTimes)['original'] : 
+                        reset($nextDateTimes)['original'];
+                } else {
+                    // Fallback to latest time on same date
+                    $sameDateTimes = array_filter($timeRecords, function($record) use ($date) {
+                        return $record['date_only'] === $date;
+                    });
+                    $bestKeluar = !empty($sameDateTimes) ? 
+                        end($sameDateTimes)['original'] : 
+                        end($timeRecords)['original'];
+                }
+            } else {
+                // For regular shifts, use latest time on same date
+                $sameDateTimes = array_filter($timeRecords, function($record) use ($date) {
+                    return $record['date_only'] === $date;
+                });
+                $bestKeluar = !empty($sameDateTimes) ? 
+                    end($sameDateTimes)['original'] : 
+                    end($timeRecords)['original'];
+            }
+        }
+
+        // Log the selection process for debugging
+        Log::info("Smart time selection process", [
+            'date' => $date,
+            'shift' => $shiftStart . '-' . $shiftEnd,
+            'is_overnight' => $isOvernightShift,
+            'available_times' => array_column($timeRecords, 'formatted_datetime'),
+            'selected_masuk' => $bestMasuk,
+            'selected_keluar' => $bestKeluar,
+            'shift_start_target' => date('Y-m-d H:i:s', $shiftStartTarget),
+            'shift_end_target' => date('Y-m-d H:i:s', $shiftEndTarget)
+        ]);
 
         return [$bestMasuk, $bestKeluar];
     }
@@ -510,6 +550,18 @@ class AbsensiRekapController extends Controller
         ]);
     }
 
+    /**
+     * Upload attendance data from Excel file
+     * Uses smart time selection to pick the best jam masuk/keluar based on shift schedule
+     * 
+     * For overnight shifts (e.g., 16:00-00:00):
+     * - Jam masuk: picks time closest to shift start on the shift date
+     * - Jam keluar: picks time closest to shift end, which may be on the next date
+     * 
+     * Example: Sofia's shift malam (16:00-00:00) on 2025-08-13
+     * Available times: [08:59, 15:58, 17:44, 14/08 00:00, 14/08 17:29]
+     * Selected: Masuk = 15:58 (closest to 16:00), Keluar = 14/08 00:00 (exact match)
+     */
     public function upload(Request $request)
     {
         try {
@@ -701,63 +753,86 @@ class AbsensiRekapController extends Controller
 
     /**
      * Re-process attendance records with smart time selection
+     * Handles cross-date selection for overnight shifts
      */
     public function reprocessAttendanceTimes()
     {
         try {
             $processedCount = 0;
             
-            // Group attendance records by employee and date to simulate upload data
+            // Get all attendance records grouped by employee and date
             $attendanceRecords = AttendanceRekap::with(['employee'])
                 ->whereNotNull('employee_id')
-                ->get()
-                ->groupBy(['employee_id', 'date']);
+                ->orderBy('employee_id')
+                ->orderBy('date')
+                ->get();
             
-            foreach ($attendanceRecords as $employeeId => $dateGroups) {
+            // Group by employee_id and date
+            $groupedRecords = [];
+            foreach ($attendanceRecords as $record) {
+                $groupedRecords[$record->employee_id][$record->date][] = $record;
+            }
+            
+            foreach ($groupedRecords as $employeeId => $dateGroups) {
                 foreach ($dateGroups as $date => $records) {
-                    // Skip if only one record (no multiple times to choose from)
-                    if ($records->count() <= 1) {
-                        continue;
-                    }
+                    $employee = $records[0]->employee;
                     
-                    $employee = $records->first()->employee;
-                    
-                    // Get all attendance times for this employee on this date
-                    $times = [];
-                    foreach ($records as $record) {
-                        if ($record->jam_masuk) $times[] = $record->jam_masuk;
-                        if ($record->jam_keluar) $times[] = $record->jam_keluar;
-                    }
-                    
-                    // Remove duplicates and sort
-                    $times = array_unique($times);
-                    sort($times);
-                    
-                    if (count($times) < 2) {
-                        continue; // Need at least 2 different times
-                    }
-                    
-                    // Get shift schedule
+                    // Get shift schedule for this date
                     $schedule = EmployeeSchedule::where('employee_id', $employeeId)
                         ->where('date', $date)
                         ->with('shift')
                         ->first();
                     
-                    $shiftStart = $schedule?->shift?->start_time;
-                    $shiftEnd = $schedule?->shift?->end_time;
+                    if (!$schedule || !$schedule->shift) {
+                        continue; // Skip if no schedule
+                    }
+                    
+                    $shiftStart = $schedule->shift->start_time;
+                    $shiftEnd = $schedule->shift->end_time;
+                    $isOvernightShift = $this->isOvernightShift($shiftStart, $shiftEnd);
+                    
+                    // Collect all possible attendance times for this date and next date (for overnight shifts)
+                    $availableTimes = [];
+                    
+                    // Add times from current date
+                    foreach ($records as $record) {
+                        if ($record->jam_masuk) $availableTimes[] = $record->jam_masuk;
+                        if ($record->jam_keluar) $availableTimes[] = $record->jam_keluar;
+                    }
+                    
+                    // For overnight shifts, also check next date records
+                    if ($isOvernightShift) {
+                        $nextDate = date('Y-m-d', strtotime($date . ' +1 day'));
+                        $nextDateRecords = AttendanceRekap::where('employee_id', $employeeId)
+                            ->where('date', $nextDate)
+                            ->get();
+                        
+                        foreach ($nextDateRecords as $record) {
+                            if ($record->jam_masuk) $availableTimes[] = $record->jam_masuk;
+                            if ($record->jam_keluar) $availableTimes[] = $record->jam_keluar;
+                        }
+                    }
+                    
+                    // Remove duplicates and ensure we have enough times
+                    $availableTimes = array_unique($availableTimes);
+                    
+                    if (count($availableTimes) < 2) {
+                        continue; // Need at least 2 different times
+                    }
                     
                     // Use smart time selection
-                    [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($times, $shiftStart, $shiftEnd, $date);
+                    [$jamMasuk, $jamKeluar] = $this->findBestAttendanceTimes($availableTimes, $shiftStart, $shiftEnd, $date);
                     
                     // Calculate work hours
                     $workHour = $this->calculateWorkHours($jamMasuk, $jamKeluar, $date);
                     
-                    // Update the main record (use the first one found)
-                    $mainRecord = $records->first();
+                    // Update the main record
+                    $mainRecord = $records[0];
                     $oldMasuk = $mainRecord->jam_masuk;
                     $oldKeluar = $mainRecord->jam_keluar;
+                    $oldWorkHour = $mainRecord->work_hour;
                     
-                    if ($oldMasuk !== $jamMasuk || $oldKeluar !== $jamKeluar) {
+                    if ($oldMasuk !== $jamMasuk || $oldKeluar !== $jamKeluar || $oldWorkHour !== $workHour) {
                         $mainRecord->update([
                             'jam_masuk' => $jamMasuk,
                             'jam_keluar' => $jamKeluar,
@@ -765,31 +840,37 @@ class AbsensiRekapController extends Controller
                         ]);
                         
                         Log::info("Reprocessed attendance for {$employee->nama} on {$date}", [
+                            'shift' => $shiftStart . '-' . $shiftEnd,
+                            'is_overnight' => $isOvernightShift,
                             'old_masuk' => $oldMasuk,
                             'old_keluar' => $oldKeluar,
+                            'old_work_hour' => $oldWorkHour,
                             'new_masuk' => $jamMasuk,
                             'new_keluar' => $jamKeluar,
-                            'available_times' => $times,
-                            'shift' => $shiftStart . '-' . $shiftEnd
+                            'new_work_hour' => $workHour,
+                            'available_times' => $availableTimes
                         ]);
                         
                         $processedCount++;
-                        
-                        // Delete duplicate records for the same employee/date
-                        $records->skip(1)->each(function($record) {
-                            $record->delete();
-                        });
+                    }
+                    
+                    // Remove duplicate records for the same employee/date (keep only the first one)
+                    if (count($records) > 1) {
+                        for ($i = 1; $i < count($records); $i++) {
+                            $records[$i]->delete();
+                        }
                     }
                 }
             }
             
             return response()->json([
                 'success' => true,
-                'message' => "Reprocessed {$processedCount} attendance records with smart time selection. Check logs for details.",
+                'message' => "Reprocessed {$processedCount} attendance records with smart cross-date selection. Check logs for details.",
                 'processed_count' => $processedCount
             ]);
             
         } catch (\Exception $e) {
+            Log::error("Error in reprocessAttendanceTimes: " . $e->getMessage());
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
