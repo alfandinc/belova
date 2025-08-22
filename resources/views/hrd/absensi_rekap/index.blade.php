@@ -148,10 +148,15 @@
     
     <!-- Add Sync Shifts Button -->
     <div class="row mb-3">
-        <div class="col-md-3">
-            <button id="syncShiftsBtn" class="btn btn-warning">
-                <i class="fas fa-sync"></i> Sync Shift Data
+        <div class="col-md-6">
+            <button id="syncShiftsBtn" class="btn btn-warning" data-toggle="tooltip" data-placement="top" 
+                    title="Sync shift data and recalculate work hours for overnight shifts">
+                <i class="fas fa-sync"></i> Sync Shift Data & Work Hours
             </button>
+            <small class="text-muted ml-2">
+                <i class="fas fa-info-circle"></i> 
+                Use this to fix overnight shift calculations (e.g., shifts ending at 00:00 or crossing midnight)
+            </small>
         </div>
     </div>
     
@@ -286,6 +291,9 @@
 @push('scripts')
 <script>
 $(function() {
+    // Initialize tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+
     // Function to load statistics
     function loadStatistics() {
         $.ajax({

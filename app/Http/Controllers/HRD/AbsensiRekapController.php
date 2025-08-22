@@ -13,9 +13,116 @@ use Illuminate\Support\Facades\DB;
 
 class AbsensiRekapController extends Controller
 {
+    /**
+     * Check if a shift crosses midnight (overnight shift)
+     */
+    private function isOvernightShift($startTime, $endTime)
+    {
+        // If end time is 00:00:00 or earlier than start time, it's overnight
+        return $endTime === '00:00:00' || $startTime > $endTime;
+    }
+
+    /**
+     * Calculate work hours considering overnight shifts
+     */
+    private function calculateWorkHours($jamMasuk, $jamKeluar, $date)
+    {
+        if (!$jamMasuk || !$jamKeluar) {
+            return 0;
+        }
+
+        // Parse times
+        $jamMasukTime = null;
+        $jamKeluarTime = null;
+
+        // Handle different time formats
+        if (strpos($jamMasuk, ' ') !== false) {
+            // Format: "2024-08-22 08:00:00"
+            $jamMasukTime = strtotime($jamMasuk);
+        } else {
+            // Format: "08:00:00" - combine with date
+            $jamMasukTime = strtotime($date . ' ' . $jamMasuk);
+        }
+
+        if (strpos($jamKeluar, ' ') !== false) {
+            // Format: "2024-08-22 17:00:00"
+            $jamKeluarTime = strtotime($jamKeluar);
+        } else {
+            // Format: "17:00:00" - combine with date
+            $jamKeluarTime = strtotime($date . ' ' . $jamKeluar);
+        }
+
+        // Extract time parts for comparison
+        $jamMasukTimeOnly = date('H:i:s', $jamMasukTime);
+        $jamKeluarTimeOnly = date('H:i:s', $jamKeluarTime);
+
+        // If jam_keluar is earlier than jam_masuk or it's midnight (00:00:00), it's next day
+        if ($jamKeluarTimeOnly <= $jamMasukTimeOnly || $jamKeluarTimeOnly === '00:00:00') {
+            $jamKeluarTime += 24 * 3600; // Add 24 hours
+        }
+
+        $workHours = round(($jamKeluarTime - $jamMasukTime) / 3600, 2);
+        
+        // Ensure positive work hours
+        return max(0, $workHours);
+    }
+
+    /**
+     * Check if employee is late considering overnight shifts
+     */
+    private function isLate($jamMasuk, $shiftStart, $date)
+    {
+        if (!$jamMasuk || !$shiftStart) {
+            return false;
+        }
+
+        $jamMasukTime = strpos($jamMasuk, ' ') !== false ? 
+            strtotime($jamMasuk) : 
+            strtotime($date . ' ' . $jamMasuk);
+        
+        $shiftStartTime = strtotime($date . ' ' . $shiftStart);
+
+        return $jamMasukTime > $shiftStartTime;
+    }
+
+    /**
+     * Check if employee has overtime considering overnight shifts
+     */
+    private function hasOvertime($jamKeluar, $shiftEnd, $date)
+    {
+        if (!$jamKeluar || !$shiftEnd) {
+            return false;
+        }
+
+        $jamKeluarTime = strpos($jamKeluar, ' ') !== false ? 
+            strtotime($jamKeluar) : 
+            strtotime($date . ' ' . $jamKeluar);
+        
+        $shiftEndTime = strtotime($date . ' ' . $shiftEnd);
+
+        // For overnight shifts (ending at 00:00:00 or early hours), shift end is next day
+        if ($shiftEnd === '00:00:00' || ($shiftEnd < '12:00:00' && $shiftEnd !== '00:00:00')) {
+            $shiftEndTime += 24 * 3600; // Add 24 hours for next day
+        }
+
+        // Extract time parts
+        $jamKeluarTimeOnly = date('H:i:s', $jamKeluarTime);
+        $shiftEndTimeOnly = $shiftEnd;
+
+        // If jam_keluar is early morning and shift ends late (overnight shift)
+        if ($jamKeluarTimeOnly < '12:00:00' && $shiftEndTimeOnly > '12:00:00') {
+            $jamKeluarTime += 24 * 3600; // jam_keluar is next day
+        }
+        // If shift ends at midnight and jam_keluar is after midnight
+        elseif ($shiftEnd === '00:00:00' && $jamKeluarTimeOnly > '00:00:00' && $jamKeluarTimeOnly < '12:00:00') {
+            $jamKeluarTime += 24 * 3600; // jam_keluar is next day
+        }
+
+        return $jamKeluarTime > $shiftEndTime;
+    }
     public function update(Request $request, $id)
     {
-        \Log::info('AbsensiRekapController@update called', ['id' => $id, 'data' => $request->all()]);
+        Log::info('AbsensiRekapController@update called', ['id' => $id, 'data' => $request->all()]);
         $rekap = AttendanceRekap::findOrFail($id);
         $request->validate([
             'jam_masuk' => 'required',
@@ -25,13 +132,10 @@ class AbsensiRekapController extends Controller
         $date = $rekap->date;
         $jamMasuk = $date . ' ' . $request->jam_masuk;
         $jamKeluar = $date . ' ' . $request->jam_keluar;
-        // Recalculate work hour
-        $start = strtotime($jamMasuk);
-        $end = strtotime($jamKeluar);
-        $workHour = 0;
-        if ($start && $end && $end > $start) {
-            $workHour = round(($end - $start) / 3600, 2);
-        }
+        
+        // Recalculate work hour using the new helper function
+        $workHour = $this->calculateWorkHours($jamMasuk, $jamKeluar, $date);
+        
         $rekap->jam_masuk = $jamMasuk;
         $rekap->jam_keluar = $jamKeluar;
         $rekap->work_hour = $workHour;
@@ -76,17 +180,20 @@ class AbsensiRekapController extends Controller
             })
                 ->addColumn('status', function($row) {
                     $status = [];
+                    
                     // Compare only time part
                     $jamMasuk = $row->jam_masuk ? (explode(' ', $row->jam_masuk)[1] ?? $row->jam_masuk) : null;
                     $jamKeluar = $row->jam_keluar ? (explode(' ', $row->jam_keluar)[1] ?? $row->jam_keluar) : null;
                     $shiftStart = $row->shift_start ?? null;
                     $shiftEnd = $row->shift_end ?? null;
-                    // Calculate Terlambat
-                    if ($jamMasuk && $shiftStart && $jamMasuk > $shiftStart) {
-                        $start = strtotime($shiftStart);
-                        $masuk = strtotime($jamMasuk);
-                        $diff = $masuk - $start;
+                    
+                    // Calculate Terlambat using new helper function
+                    if ($this->isLate($jamMasuk, $shiftStart, $row->date)) {
+                        $jamMasukTime = strtotime($row->date . ' ' . $jamMasuk);
+                        $shiftStartTime = strtotime($row->date . ' ' . $shiftStart);
+                        $diff = $jamMasukTime - $shiftStartTime;
                         $minutes = round($diff / 60);
+                        
                         if ($minutes >= 60) {
                             $hours = floor($minutes / 60);
                             $mins = $minutes % 60;
@@ -97,22 +204,48 @@ class AbsensiRekapController extends Controller
                         }
                         $status[] = $label;
                     }
-                    // Calculate Over Time
-                    if ($jamKeluar && $shiftEnd && $jamKeluar > $shiftEnd) {
-                        $end = strtotime($shiftEnd);
-                        $keluar = strtotime($jamKeluar);
-                        $diff = $keluar - $end;
-                        $minutes = round($diff / 60);
-                        if ($minutes >= 60) {
-                            $hours = floor($minutes / 60);
-                            $mins = $minutes % 60;
-                            $label = 'Over Time ' . $hours . ' jam';
-                            if ($mins > 0) $label .= ' ' . $mins . ' menit';
-                        } else {
-                            $label = 'Over Time ' . $minutes . ' menit';
+                    
+                    // Calculate Over Time using new helper function
+                    if ($this->hasOvertime($jamKeluar, $shiftEnd, $row->date)) {
+                        $jamKeluarTime = strpos($jamKeluar, ' ') !== false ? 
+                            strtotime($jamKeluar) : 
+                            strtotime($row->date . ' ' . $jamKeluar);
+                        
+                        $shiftEndTime = strtotime($row->date . ' ' . $shiftEnd);
+                        
+                        // For overnight shifts (ending at 00:00:00 or early hours), shift end is next day
+                        if ($shiftEnd === '00:00:00' || ($shiftEnd < '12:00:00' && $shiftEnd !== '00:00:00')) {
+                            $shiftEndTime += 24 * 3600; // Add 24 hours for next day
                         }
-                        $status[] = $label;
+
+                        // Extract time parts
+                        $jamKeluarTimeOnly = date('H:i:s', $jamKeluarTime);
+
+                        // If jam_keluar is early morning and shift ends late (overnight shift)
+                        if ($jamKeluarTimeOnly < '12:00:00' && $shiftEnd > '12:00:00') {
+                            $jamKeluarTime += 24 * 3600; // jam_keluar is next day
+                        }
+                        // If shift ends at midnight and jam_keluar is after midnight
+                        elseif ($shiftEnd === '00:00:00' && $jamKeluarTimeOnly > '00:00:00' && $jamKeluarTimeOnly < '12:00:00') {
+                            $jamKeluarTime += 24 * 3600; // jam_keluar is next day
+                        }
+                        
+                        $diff = $jamKeluarTime - $shiftEndTime;
+                        $minutes = round($diff / 60);
+                        
+                        if ($minutes > 0) {
+                            if ($minutes >= 60) {
+                                $hours = floor($minutes / 60);
+                                $mins = $minutes % 60;
+                                $label = 'Over Time ' . $hours . ' jam';
+                                if ($mins > 0) $label .= ' ' . $mins . ' menit';
+                            } else {
+                                $label = 'Over Time ' . $minutes . ' menit';
+                            }
+                            $status[] = $label;
+                        }
                     }
+                    
                     return implode(' & ', $status);
                 })
             ->addColumn('shift', function($row) {
@@ -197,24 +330,24 @@ class AbsensiRekapController extends Controller
         
         foreach ($records as $record) {
             $isLate = false;
-            $hasOvertime = false;
+            $hasOvertimeFlag = false;
             
-            // Check if late
+            // Check if late using new helper function
             $jamMasuk = $record->jam_masuk ? (explode(' ', $record->jam_masuk)[1] ?? $record->jam_masuk) : null;
             $shiftStart = $record->shift_start ?? null;
             
-            if ($jamMasuk && $shiftStart && $jamMasuk > $shiftStart) {
+            if ($this->isLate($jamMasuk, $shiftStart, $record->date)) {
                 $lateCount++;
                 $isLate = true;
             }
             
-            // Check if overtime
+            // Check if overtime using new helper function
             $jamKeluar = $record->jam_keluar ? (explode(' ', $record->jam_keluar)[1] ?? $record->jam_keluar) : null;
             $shiftEnd = $record->shift_end ?? null;
             
-            if ($jamKeluar && $shiftEnd && $jamKeluar > $shiftEnd) {
+            if ($this->hasOvertime($jamKeluar, $shiftEnd, $record->date)) {
                 $overtimeCount++;
-                $hasOvertime = true;
+                $hasOvertimeFlag = true;
             }
             
             // Count on-time (not late and has both jam_masuk and jam_keluar)
@@ -280,26 +413,10 @@ class AbsensiRekapController extends Controller
                         ->first();
                     $shiftStart = $schedule?->shift?->start_time;
                     $shiftEnd = $schedule?->shift?->end_time;
-                    $workHour = 0;
-                    if ($jamMasuk && $jamKeluar && $jamMasuk !== $jamKeluar) {
-                        $jmParts = explode(' ', $jamMasuk);
-                        $jkParts = explode(' ', $jamKeluar);
-                        if (count($jmParts) === 2 && count($jkParts) === 2) {
-                            $jmDate = $jmParts[0]; $jmTime = $jmParts[1];
-                            $jkDate = $jkParts[0]; $jkTime = $jkParts[1];
-                            $jmDateParts = explode('/', $jmDate);
-                            $jkDateParts = explode('/', $jkDate);
-                            if (count($jmDateParts) === 3 && count($jkDateParts) === 3) {
-                                $jmFormatted = $jmDateParts[2] . '-' . $jmDateParts[1] . '-' . $jmDateParts[0] . ' ' . $jmTime;
-                                $jkFormatted = $jkDateParts[2] . '-' . $jkDateParts[1] . '-' . $jkDateParts[0] . ' ' . $jkTime;
-                                $start = strtotime($jmFormatted);
-                                $end = strtotime($jkFormatted);
-                                if ($start && $end && $end > $start) {
-                                    $workHour = round(($end - $start) / 3600, 2);
-                                }
-                            }
-                        }
-                    }
+                    
+                    // Calculate work hours using the new helper function
+                    $workHour = $this->calculateWorkHours($jamMasuk, $jamKeluar, $date);
+                    
                     AttendanceRekap::updateOrCreate(
                         [
                             'finger_id' => $fingerId,
@@ -330,11 +447,14 @@ class AbsensiRekapController extends Controller
         try {
             $updatedCount = 0;
             $missingScheduleCount = 0;
+            $workHourUpdated = 0;
             
             // Get all attendance records
             $attendanceRecords = AttendanceRekap::with('employee')->get();
             
             foreach ($attendanceRecords as $record) {
+                $hasUpdates = false;
+                
                 // Find the corresponding schedule
                 $schedule = EmployeeSchedule::where('employee_id', $record->employee_id)
                     ->where('date', $record->date)
@@ -347,21 +467,33 @@ class AbsensiRekapController extends Controller
                     $actualEnd = $schedule->shift->end_time;
                     
                     if ($record->shift_start !== $actualStart || $record->shift_end !== $actualEnd) {
-                        $record->update([
-                            'shift_start' => $actualStart,
-                            'shift_end' => $actualEnd
-                        ]);
-                        $updatedCount++;
+                        $record->shift_start = $actualStart;
+                        $record->shift_end = $actualEnd;
+                        $hasUpdates = true;
                     }
                 } else {
                     $missingScheduleCount++;
+                }
+                
+                // Recalculate work hours with new logic
+                $newWorkHour = $this->calculateWorkHours($record->jam_masuk, $record->jam_keluar, $record->date);
+                if ($record->work_hour !== $newWorkHour) {
+                    $record->work_hour = $newWorkHour;
+                    $hasUpdates = true;
+                    $workHourUpdated++;
+                }
+                
+                if ($hasUpdates) {
+                    $record->save();
+                    $updatedCount++;
                 }
             }
             
             return response()->json([
                 'success' => true,
-                'message' => "Sync completed! Updated: {$updatedCount} records. Missing schedules: {$missingScheduleCount} records.",
+                'message' => "Sync completed! Updated: {$updatedCount} records (Work hours: {$workHourUpdated}). Missing schedules: {$missingScheduleCount} records.",
                 'updated_count' => $updatedCount,
+                'work_hour_updated' => $workHourUpdated,
                 'missing_schedule_count' => $missingScheduleCount
             ]);
             
