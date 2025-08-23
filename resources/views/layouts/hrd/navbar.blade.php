@@ -40,7 +40,7 @@
                 </ul>
             </li>
             <!-- Jadwal Karyawan -->
-                {{-- @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager')) --}}
+                @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
                     <!-- Jadwal dan Absensi Group -->
                     <li>
                         <a href="javascript: void(0);">
@@ -49,7 +49,8 @@
                             <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                         </a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            @if(Auth::user()->hasAnyRole('Hrd','Admin','Manager','Ceo'))
+                            {{-- @if(Auth::user()->hasAnyRole('Hrd','Admin','Manager','Ceo')) --}}
+                            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('hrd.schedule.index') }}">
                                     <i class="ti-control-record"></i>Jadwal Mingguan
