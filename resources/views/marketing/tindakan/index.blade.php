@@ -130,7 +130,7 @@
                         <div class="invalid-feedback" id="spesialis_id-error"></div>
                     </div>
                     <div class="form-group">
-                        <label for="obat_ids">Bundled Obat</label>
+                        <label for="obat_ids">Bundled Obat/BHP</label>
                         <select class="form-control select2" id="obat_ids" name="obat_ids[]" multiple></select>
                         <div class="invalid-feedback" id="obat_ids-error"></div>
                     </div>
