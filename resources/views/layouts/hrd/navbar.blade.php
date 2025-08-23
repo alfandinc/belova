@@ -187,7 +187,7 @@
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Laporan Cuti</a></li>
                 </ul>
             </li> --}}
-            @endif
+            {{-- @endif --}}
         </ul>              
     </div>
 </div>
