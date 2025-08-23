@@ -182,40 +182,47 @@ class TindakanController extends Controller
                 ]
             );
 
-            // Handle SOPs if provided (from text input, as names)
+            // Handle SOPs (from text input, as names)
             $sopNames = $request->input('sop_names');
+            $sopNamesArr = [];
             if ($sopNames) {
                 $sopNamesArr = is_array($sopNames) ? $sopNames : explode(',', $sopNames);
-                // Get current SOPs for tindakan
-                $currentSops = $tindakan->sop()->get();
-                $toDelete = $currentSops->filter(function($sop) use ($sopNamesArr) {
-                    return !in_array($sop->nama_sop, $sopNamesArr);
-                });
-                // Only delete SOPs not referenced in erm_spk_details
-                foreach ($toDelete as $sop) {
-                    $isReferenced = DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
-                    if (!$isReferenced) {
-                        $sop->delete();
-                    }
+                $sopNamesArr = array_filter(array_map('trim', $sopNamesArr)); // Remove empty strings
+            }
+            
+            // Get current SOPs for tindakan
+            $currentSops = $tindakan->sop()->get();
+            
+            // Find SOPs to delete (current SOPs not in the new list)
+            $toDelete = $currentSops->filter(function($sop) use ($sopNamesArr) {
+                return !in_array($sop->nama_sop, $sopNamesArr);
+            });
+            
+            // Only delete SOPs not referenced in erm_spk_details
+            foreach ($toDelete as $sop) {
+                $isReferenced = DB::table('erm_spk_details')->where('sop_id', $sop->id)->exists();
+                if (!$isReferenced) {
+                    $sop->delete();
                 }
-                // Add or update SOPs
-                foreach ($sopNamesArr as $idx => $sopName) {
-                    $sopName = trim($sopName);
-                    if ($sopName === '') continue;
-                    $existing = $currentSops->firstWhere('nama_sop', $sopName);
-                    if ($existing) {
-                        // Update order if needed
-                        if ($existing->urutan != $idx + 1) {
-                            $existing->urutan = $idx + 1;
-                            $existing->save();
-                        }
-                    } else {
-                        $tindakan->sop()->create([
-                            'nama_sop' => $sopName,
-                            'deskripsi' => null,
-                            'urutan' => $idx + 1
-                        ]);
+            }
+            
+            // Add or update SOPs
+            foreach ($sopNamesArr as $idx => $sopName) {
+                $sopName = trim($sopName);
+                if ($sopName === '') continue;
+                $existing = $currentSops->firstWhere('nama_sop', $sopName);
+                if ($existing) {
+                    // Update order if needed
+                    if ($existing->urutan != $idx + 1) {
+                        $existing->urutan = $idx + 1;
+                        $existing->save();
                     }
+                } else {
+                    $tindakan->sop()->create([
+                        'nama_sop' => $sopName,
+                        'deskripsi' => null,
+                        'urutan' => $idx + 1
+                    ]);
                 }
             }
 
