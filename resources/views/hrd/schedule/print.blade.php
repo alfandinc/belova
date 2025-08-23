@@ -44,7 +44,7 @@
         <tbody>
             @foreach($employeesByDivision as $divisionName => $employees)
                 <tr>
-                    <td colspan="{{ count($dates) + 1 }}" class="division-header">{{ $divisionName }}</td>
+                    <td colspan="{{ count($dates) + 1 }}" class="division-header" style="text-align:left;">{{ $divisionName }}</td>
                 </tr>
                 @foreach($employees as $employee)
                     @php
