@@ -2,11 +2,27 @@
 
 @section('title', 'Manage Tindakan - Marketing')
 
+
+
 @section('navbar')
     @include('layouts.marketing.navbar')
 @endsection
 
 @section('content')
+<style>
+@keyframes blink {
+    0%   { opacity: 1; }
+    25%  { opacity: 0.1; }
+    50%  { opacity: 1; }
+    75%  { opacity: 0.1; }
+    100% { opacity: 1; }
+}
+
+.blink-icon {
+    animation: blink 1s linear infinite;
+    transition: opacity 0.2s;
+}
+</style>
 <div class="container-fluid">
     <!-- Page-Title -->
     <div class="row">

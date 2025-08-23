@@ -25,11 +25,18 @@ class TindakanController extends Controller
      */
     public function getTindakanData(Request $request)
     {
-        $tindakan = Tindakan::with('spesialis')->get();
+        $tindakan = Tindakan::with('spesialis')->withCount('sop')->get();
 
         return DataTables::of($tindakan)
             ->addColumn('spesialis_nama', function ($row) {
                 return $row->spesialis ? $row->spesialis->nama : 'N/A';
+            })
+            ->editColumn('nama', function ($row) {
+                $nama = $row->nama;
+                if ($row->sop_count == 0) {
+                    $nama = '<i class="fas fa-exclamation-triangle text-warning blink-icon mr-2" title="No SOP available"></i>' . $nama;
+                }
+                return $nama;
             })
             ->addColumn('action', function ($row) {
                 return '
@@ -42,7 +49,7 @@ class TindakanController extends Controller
                     </button>
                 ';
             })
-            ->rawColumns(['action'])
+            ->rawColumns(['nama', 'action'])
             ->make(true);
     }
 
