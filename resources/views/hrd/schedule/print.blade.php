@@ -9,17 +9,17 @@
     .table th, .table td { border: 1px solid #333; padding: 4px 7px; text-align: center; font-size: 11px; }
     .table th { background: #f5f5f5; font-weight: bold; font-size: 12px; }
     .division-header { background: #e9ecef; font-weight: bold; color: #333; text-align: left; font-size: 12px; }
-    .shift-pagi-office { background: #b2f2e9; color: #212529; }
-    .shift-pagi-service { background: #b2f2e9; color: #212529; }
+    .shift-pagi-office { background: #a3cfbb; color: #212529; }
+    .shift-pagi-service { background: #a3cfbb; color: #212529; }
     .shift-middle-office { background: #90caf9; color: #212529; }
     .shift-middle-service { background: #90caf9; color: #212529; }
-    .shift-siang-office { background: #fff9c4; color: #212529; }
-    .shift-siang-service { background: #fff9c4; color: #212529; }
-    .shift-malam { background: #d1c4e9; color: #212529; }
-    .shift-long { background: #f8bbd0; color: #212529; }
-    .shift-khusus-1 { background: #f8bbd0; color: #212529; }
-    .shift-khusus-2 { background: #f8bbd0; color: #212529; }
-    .shift-praktek-pagi { background: #b2f2e9; color: #212529; }
+    .shift-siang-office { background: #ffe082; color: #212529; }
+    .shift-siang-service { background: #ffe082; color: #212529; }
+    .shift-malam { background: #b39ddb; color: #212529; }
+    .shift-long { background: #f48fb1; color: #212529; }
+    .shift-khusus-1 { background: #f48fb1; color: #212529; }
+    .shift-khusus-2 { background: #f48fb1; color: #212529; }
+    .shift-praktek-pagi { background: #a3cfbb; color: #212529; }
 
     .legend-box { border: 1px solid #ccc; border-radius: 8px; padding: 7px; margin-bottom: 7px; }
     .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
