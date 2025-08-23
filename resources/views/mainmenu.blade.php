@@ -415,12 +415,29 @@
                     <div class="menu-label">LAPORAN</div>
                 </a>
                 <!-- Jadwal Saya Tile -->
-                <a href="{{ route('hrd.schedule.print') }}" class="menu-tile tile-jadwal animate-item delay-12" target="_blank">
+                <a href="#" class="menu-tile tile-jadwal animate-item delay-12" id="jadwal-menu-tile">
                     <div class="menu-icon">
                         <i class="fas fa-calendar-check"></i>
                     </div>
                     <div class="menu-label">JADWAL</div>
                 </a>
+            </div>
+            <!-- Jadwal Modal -->
+            <div class="modal fade" id="jadwalModal" tabindex="-1" role="dialog" aria-labelledby="jadwalModalLabel" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered" role="document">
+                <div class="modal-content" style="background: var(--bg-body); color: var(--text-color);">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="jadwalModalLabel">Pilih Jadwal</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
+                      <span aria-hidden="true">&times;</span>
+                    </button>
+                  </div>
+                  <div class="modal-body text-center">
+                    <button type="button" class="btn btn-success m-2" id="jadwal-this-week">Jadwal Minggu Ini</button>
+                    <button type="button" class="btn btn-primary m-2" id="jadwal-next-week">Jadwal Minggu Depan</button>
+                  </div>
+                </div>
+              </div>
             </div>
         </div>
 
@@ -540,7 +557,37 @@
         $('#info-update-btn').on('click', function() {
             $('#systemUpdateModal').modal('show');
         });
-
+        // Jadwal menu modal logic
+        $('#jadwal-menu-tile').on('click', function(e) {
+            e.preventDefault();
+            var jadwalModal = document.getElementById('jadwalModal');
+            if (jadwalModal) {
+                // Use Bootstrap's JS API to show modal
+                if (typeof $ !== 'undefined' && typeof $.fn.modal === 'function') {
+                    $('#jadwalModal').modal('show');
+                } else if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    var modal = new bootstrap.Modal(jadwalModal);
+                    modal.show();
+                }
+            }
+        });
+        $('#jadwal-this-week').on('click', function() {
+            // Open print for this week (no start_date param)
+            window.open("{{ route('hrd.schedule.print') }}", '_blank');
+            $('#jadwalModal').modal('hide');
+        });
+        $('#jadwal-next-week').on('click', function() {
+            // Calculate next week's Monday
+            var today = new Date();
+            var nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (8 - today.getDay()));
+            var yyyy = nextMonday.getFullYear();
+            var mm = String(nextMonday.getMonth() + 1).padStart(2, '0');
+            var dd = String(nextMonday.getDate()).padStart(2, '0');
+            var startDate = yyyy + '-' + mm + '-' + dd;
+            var url = "{{ route('hrd.schedule.print') }}?start_date=" + startDate;
+            window.open(url, '_blank');
+            $('#jadwalModal').modal('hide');
+        });
     });
     </script>
 </body>
