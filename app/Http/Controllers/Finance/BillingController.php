@@ -169,7 +169,16 @@ class BillingController extends Controller
                 }
                 $racikanGroups[$racikanKey][] = $billing;
             }
-            // Case 3: Regular billing items
+            // Case 3: Skip bundled obat items (don't show in billing list)
+            else if (
+                $billing->billable_type == 'App\Models\ERM\Obat' &&
+                isset($billing->keterangan) && 
+                str_contains($billing->keterangan, 'Obat Bundled:')
+            ) {
+                // Skip bundled obat - don't add to any display array
+                continue;
+            }
+            // Case 4: Regular billing items
             else {
                 $regularBillings[] = $billing;
             }
@@ -444,6 +453,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Check stock availability for medication items BEFORE creating invoice
             $stockErrors = [];
             foreach ($billingItems as $item) {
+                // Check ResepFarmasi items
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                     $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                     if ($resep && $resep->obat) {
@@ -451,6 +461,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $currentStock = $resep->obat->stok ?? 0;
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                        }
+                    }
+                }
+                // Check bundled Obat items
+                else if (
+                    isset($item->billable_type) && 
+                    $item->billable_type === 'App\\Models\\ERM\\Obat' &&
+                    isset($item->keterangan) && 
+                    str_contains($item->keterangan, 'Obat Bundled:')
+                ) {
+                    $obat = \App\Models\ERM\Obat::find($item->billable_id);
+                    if ($obat) {
+                        $qty = intval($item->qty ?? 1);
+                        $currentStock = $obat->stok ?? 0;
+                        if ($qty > $currentStock) {
+                            $stockErrors[] = "Stok {$obat->nama} (bundled) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
                         }
                     }
                 }
@@ -547,6 +573,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             // NOW REDUCE STOCK for medication items
             foreach ($billingItems as $item) {
+                // For ResepFarmasi items
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                     $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                     if ($resep && $resep->obat) {
@@ -555,7 +582,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
                         $obat->save();
                         $this->reduceFakturStock($obat->id, $qty);
-                        Log::info('Stock reduced via invoice', [
+                        Log::info('Stock reduced via invoice (ResepFarmasi)', [
                             'obat_id' => $obat->id,
                             'obat_nama' => $obat->nama,
                             'qty_reduced' => $qty,
@@ -563,6 +590,31 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             'invoice_id' => $invoice->id,
                             'visitation_id' => $request->visitation_id,
                             'user_id' => Auth::id()
+                        ]);
+                    }
+                }
+                // For bundled Obat items (from Tindakan)
+                else if (
+                    isset($item->billable_type) && 
+                    $item->billable_type === 'App\\Models\\ERM\\Obat' &&
+                    isset($item->keterangan) && 
+                    str_contains($item->keterangan, 'Obat Bundled:')
+                ) {
+                    $obat = \App\Models\ERM\Obat::find($item->billable_id);
+                    if ($obat) {
+                        $qty = intval($item->qty ?? 1);
+                        $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
+                        $obat->save();
+                        $this->reduceFakturStock($obat->id, $qty);
+                        Log::info('Stock reduced via invoice (Bundled Obat)', [
+                            'obat_id' => $obat->id,
+                            'obat_nama' => $obat->nama,
+                            'qty_reduced' => $qty,
+                            'remaining_stock' => $obat->stok,
+                            'invoice_id' => $invoice->id,
+                            'visitation_id' => $request->visitation_id,
+                            'user_id' => Auth::id(),
+                            'keterangan' => $item->keterangan
                         ]);
                     }
                 }
