@@ -208,11 +208,93 @@ class RawatJalanController extends Controller
                 ->make(true);
         }
 
+        // Calculate statistics
+        $stats = $this->getVisitationStats();
+        
         $dokters = Dokter::with('user', 'spesialisasi')->get();
         $metodeBayar = MetodeBayar::all();
         $kliniks = Klinik::all();
         $role = Auth::user()->getRoleNames()->first();
-        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks'));
+        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks', 'stats'));
+    }
+
+    /**
+     * Get visitation statistics based on status_kunjungan
+     */
+    private function getVisitationStats()
+    {
+        $baseQuery = Visitation::whereIn('jenis_kunjungan', [1, 2]);
+        
+        // Apply same filters as in the DataTable query
+        $user = Auth::user();
+        if ($user->hasRole('Dokter')) {
+            $dokter = Dokter::where('user_id', $user->id)->first();
+            if ($dokter) {
+                $baseQuery->where('dokter_id', $dokter->id);
+            }
+        }
+
+        // Apply today's date filter by default
+        $today = now()->format('Y-m-d');
+        $baseQuery->whereDate('tanggal_visitation', $today);
+
+        // Calculate statistics
+        $stats = [
+            'total' => (clone $baseQuery)->count(),
+            'tidak_datang' => (clone $baseQuery)->where('status_kunjungan', 0)->count(),
+            'belum_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 1)->count(),
+            'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
+            'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
+        ];
+
+        return $stats;
+    }
+
+    /**
+     * Get visitation statistics via AJAX for dynamic updates
+     */
+    public function getStats(Request $request)
+    {
+        $baseQuery = Visitation::whereIn('jenis_kunjungan', [1, 2]);
+        
+        // Apply same filters as in the DataTable query
+        $user = Auth::user();
+        if ($user->hasRole('Dokter')) {
+            $dokter = Dokter::where('user_id', $user->id)->first();
+            if ($dokter) {
+                $baseQuery->where('dokter_id', $dokter->id);
+            }
+        }
+
+        // Filter by klinik_id if provided
+        if ($request->klinik_id) {
+            $baseQuery->where('klinik_id', $request->klinik_id);
+        }
+
+        // Date range filter
+        if ($request->start_date && $request->end_date) {
+            $baseQuery->whereDate('tanggal_visitation', '>=', $request->start_date)
+                     ->whereDate('tanggal_visitation', '<=', $request->end_date);
+        } else {
+            // Default to today if no date filter
+            $today = now()->format('Y-m-d');
+            $baseQuery->whereDate('tanggal_visitation', $today);
+        }
+
+        if ($request->dokter_id) {
+            $baseQuery->where('dokter_id', $request->dokter_id);
+        }
+
+        // Calculate statistics including cancelled visits for total count
+        $stats = [
+            'total' => (clone $baseQuery)->count(),
+            'tidak_datang' => (clone $baseQuery)->where('status_kunjungan', 0)->count(),
+            'belum_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 1)->count(),
+            'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
+            'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
+        ];
+
+        return response()->json($stats);
     }
 
     public function cekAntrian(Request $request)

@@ -33,6 +33,36 @@
         opacity: 0.2;
     }
 }
+
+/* Statistics Cards Styling */
+.stat-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+}
+
+.stat-icon {
+    transition: transform 0.2s ease-in-out;
+}
+
+.stat-card:hover .stat-icon {
+    transform: scale(1.1);
+}
+
+.stat-number {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+@media (max-width: 768px) {
+    .stat-number {
+        font-size: 1.5rem;
+    }
+}
 </style>
 
 @include('erm.partials.modal-reschedule')
@@ -650,6 +680,99 @@ Terima kasih.
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
 
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card shadow-sm stat-card" style="border: 2px solid #007bff; border-radius: 10px;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
+                                <i class="fas fa-users text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-fill">
+                            <h6 class="mb-1 font-weight-bold text-muted">Total Kunjungan</h6>
+                            <h4 class="mb-0 text-primary stat-number" id="stat-total">{{ $stats['total'] }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card shadow-sm stat-card" style="border: 2px solid #ffc107; border-radius: 10px;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
+                                <i class="fas fa-clock text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-fill">
+                            <h6 class="mb-1 font-weight-bold text-muted">Belum Diperiksa</h6>
+                            <h4 class="mb-0 text-warning stat-number" id="stat-belum-diperiksa">{{ $stats['belum_diperiksa'] }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card shadow-sm stat-card" style="border: 2px solid #28a745; border-radius: 10px;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <div class="rounded-circle bg-success d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
+                                <i class="fas fa-check text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-fill">
+                            <h6 class="mb-1 font-weight-bold text-muted">Sudah Diperiksa</h6>
+                            <h4 class="mb-0 text-success stat-number" id="stat-sudah-diperiksa">{{ $stats['sudah_diperiksa'] }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card shadow-sm stat-card" style="border: 2px solid #17a2b8; border-radius: 10px;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <div class="rounded-circle bg-info d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
+                                <i class="fas fa-user-times text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-fill">
+                            <h6 class="mb-1 font-weight-bold text-muted">Tidak Datang</h6>
+                            <h4 class="mb-0 text-info stat-number" id="stat-tidak-datang">{{ $stats['tidak_datang'] }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card shadow-sm stat-card" style="border: 2px solid #dc3545; border-radius: 10px;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <div class="rounded-circle bg-danger d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px;">
+                                <i class="fas fa-times text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-fill">
+                            <h6 class="mb-1 font-weight-bold text-muted">Dibatalkan</h6>
+                            <h4 class="mb-0 text-danger stat-number" id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header bg-primary">
             <h4 class="card-title text-white">Daftar Kunjungan Rawat Jalan</h4>
@@ -747,12 +870,14 @@ $(document).ready(function () {
     $('#filter_tanggal').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('DD-MM-YYYY') + ' s/d ' + picker.endDate.format('DD-MM-YYYY'));
         table.ajax.reload();
+        updateStats();
     });
     
     // Handle cancel event
     $('#filter_tanggal').on('cancel.daterangepicker', function(ev, picker) {
         $(this).val('');
         table.ajax.reload();
+        updateStats();
     });
 
     $.fn.dataTable.ext.order['antrian-number'] = function(settings, col) {
@@ -816,14 +941,18 @@ var userRole = "{{ $role }}";
 }
     });
 
+    // Initial stats update
+    updateStats();
 
     // Auto-refresh DataTable every 10 seconds
     setInterval(function() {
         table.ajax.reload(null, false); // false to keep current page
+        updateStats(); // Also update statistics
     }, 10000);
 
     $('#filter_dokter, #filter_klinik').on('change', function () {
         table.ajax.reload();
+        updateStats();
     });
 
     // ambil no antrian otomatis
@@ -878,6 +1007,42 @@ var userRole = "{{ $role }}";
         alert('Nomor telepon tidak valid');
     }
 });
+
+// Function to update statistics
+function updateStats() {
+    // Get current filter values
+    let filterTanggal = $('#filter_tanggal').val();
+    let filterDokter = $('#filter_dokter').val();
+    let filterKlinik = $('#filter_klinik').val();
+    
+    // Parse date range
+    let startDate = '';
+    let endDate = '';
+    if (filterTanggal) {
+        let dates = filterTanggal.split(' s/d ');
+        if (dates.length === 2) {
+            startDate = moment(dates[0], 'DD-MM-YYYY').format('YYYY-MM-DD');
+            endDate = moment(dates[1], 'DD-MM-YYYY').format('YYYY-MM-DD');
+        }
+    }
+    
+    // Make AJAX request to get updated stats
+    $.get('{{ route("erm.rawatjalans.stats") }}', {
+        start_date: startDate,
+        end_date: endDate,
+        dokter_id: filterDokter,
+        klinik_id: filterKlinik
+    }, function(stats) {
+        // Update the statistics display
+        $('#stat-total').text(stats.total);
+        $('#stat-tidak-datang').text(stats.tidak_datang);
+        $('#stat-belum-diperiksa').text(stats.belum_diperiksa);
+        $('#stat-sudah-diperiksa').text(stats.sudah_diperiksa);
+        $('#stat-dibatalkan').text(stats.dibatalkan);
+    }).fail(function() {
+        console.error('Failed to update statistics');
+    });
+}
 
 
 });
