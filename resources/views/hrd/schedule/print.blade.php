@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <title>Jadwal Karyawan Mingguan</title>
     <style>
-    body { font-family: Arial, sans-serif; font-size: 10px; }
+    body { font-family: Arial, sans-serif; font-size: 12px; }
     .table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
-    .table th, .table td { border: 1px solid #333; padding: 3px 5px; text-align: center; font-size: 9px; }
-    .table th { background: #f5f5f5; font-weight: bold; font-size: 10px; }
-    .division-header { background: #e9ecef; font-weight: bold; color: #333; text-align: left; font-size: 10px; }
+    .table th, .table td { border: 1px solid #333; padding: 4px 7px; text-align: center; font-size: 11px; }
+    .table th { background: #f5f5f5; font-weight: bold; font-size: 12px; }
+    .division-header { background: #e9ecef; font-weight: bold; color: #333; text-align: left; font-size: 12px; }
     .shift-pagi-office { background: #a3cfbb; color: #212529; }
     .shift-pagi-service { background: #a3cfbb; color: #212529; }
     .shift-middle-office { background: #90caf9; color: #212529; }
