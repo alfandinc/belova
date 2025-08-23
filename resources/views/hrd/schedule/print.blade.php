@@ -10,16 +10,16 @@
     .table th { background: #f5f5f5; font-weight: bold; font-size: 10px; }
     .division-header { background: #e9ecef; font-weight: bold; color: #333; text-align: left; font-size: 10px; }
     .shift-pagi-office { background: #28a745; color: #fff; }
-    .shift-pagi-service { background: #68b800; color: #fff; }
+    .shift-pagi-service { background: #28a745; color: #fff; }
     .shift-middle-office { background: #007bff; color: #fff; }
-    .shift-middle-service { background: #2890ff; color: #fff; }
+    .shift-middle-service { background: #007bff; color: #fff; }
     .shift-siang-office { background: #ffc107; color: #212529; }
-    .shift-siang-service { background: #ffd54f; color: #212529; }
+    .shift-siang-service { background: #ffc107; color: #212529; }
     .shift-malam { background: #6f42c1; color: #fff; }
     .shift-long { background: #b10085; color: #fff; }
-    .shift-khusus-1 { background: #f080ff; color: #212529; }
-    .shift-khusus-2 { background: #ff8bff; color: #212529; }
-    .shift-praktek-pagi { background: #9dff90; color: #212529; }
+    .shift-khusus-1 { background: #b10085; color: #212529; }
+    .shift-khusus-2 { background: #b10085; color: #212529; }
+    .shift-praktek-pagi { background: #28a745; color: #212529; }
 
     .legend-box { border: 1px solid #ccc; border-radius: 8px; padding: 7px; margin-bottom: 7px; }
     .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
