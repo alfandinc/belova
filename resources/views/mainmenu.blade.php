@@ -217,6 +217,7 @@
         .tile-kos { background-color: #d41886; }
         .tile-insiden { background-color: #800000; }
         .tile-laporan { background-color: #5309c9; }
+        .tile-jadwal { background-color: #882fb1; }
         .footer {
             text-align: center;
             padding: 20px;
@@ -251,6 +252,7 @@
         .delay-9 { animation-delay: 0.9s; }
         .delay-10 { animation-delay: 1.0s; }
         .delay-11 { animation-delay: 1.1s; }
+        .delay-12 { animation-delay: 1.2s; }
     </style>
 </head>
 
@@ -411,6 +413,13 @@
                         <i class="fas fa-file-alt"></i>
                     </div>
                     <div class="menu-label">LAPORAN</div>
+                </a>
+                <!-- Jadwal Saya Tile -->
+                <a href="{{ route('hrd.schedule.print') }}" class="menu-tile tile-jadwal animate-item delay-12" target="_blank">
+                    <div class="menu-icon">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div class="menu-label">JADWAL</div>
                 </a>
             </div>
         </div>
