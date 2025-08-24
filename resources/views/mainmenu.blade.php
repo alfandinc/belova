@@ -577,9 +577,16 @@
             $('#jadwalModal').modal('hide');
         });
         $('#jadwal-next-week').on('click', function() {
-            // Calculate next week's Monday
+            // Calculate next week's Monday correctly
             var today = new Date();
-            var nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (8 - today.getDay()));
+            var nextMonday;
+            if (today.getDay() === 0) {
+                // If today is Sunday, next Monday is tomorrow
+                nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+            } else {
+                // Otherwise, next Monday is the next occurrence
+                nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (8 - today.getDay()));
+            }
             var yyyy = nextMonday.getFullYear();
             var mm = String(nextMonday.getMonth() + 1).padStart(2, '0');
             var dd = String(nextMonday.getDate()).padStart(2, '0');
