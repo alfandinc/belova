@@ -63,6 +63,11 @@
                                     <i class="ti-control-record"></i>Rekap Absensi
                                 </a>
                             </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ route('hrd.dokter-schedule.index') }}">
+                                        <i class="ti-control-record"></i>Jadwal Dokter
+                                    </a>
+                                </li>
                             @endif
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('hrd.schedule.print') }}" target="_blank">
