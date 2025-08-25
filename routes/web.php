@@ -124,6 +124,10 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:Admin|Hrd|Manager|Employee')
         ->name('insiden.dashboard');
 
+    Route::get('/laporan', [LaporanDashboardController::class, 'index'])
+        ->middleware('role:Hrd|Manager|Admin')
+        ->name('laporan.dashboard');
+
 
 
 });
@@ -134,7 +138,7 @@ Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('cus
 Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('customer.survey');
 
 //LAPORAN Routes
-Route::prefix('laporan')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function () {
     Route::get('/farmasi/penjualan-obat/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanExcel'])->name('laporan.farmasi.penjualan-obat.excel');
     Route::get('/farmasi/penjualan-obat/pdf', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanPdf'])->name('laporan.farmasi.penjualan-obat.pdf');
     Route::get('/farmasi/penjualan-obat', [\App\Http\Controllers\Laporan\FarmasiController::class, 'penjualanObat'])->name('laporan.farmasi.penjualan-obat');

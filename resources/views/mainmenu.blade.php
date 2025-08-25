@@ -408,12 +408,16 @@
                     <div class="menu-label">KOS BCL</div>
                 </a>
                 <!-- Laporan Tile -->
-                <a href="/laporan" class="menu-tile tile-laporan animate-item delay-11">
-                    <div class="menu-icon">
-                        <i class="fas fa-file-alt"></i>
-                    </div>
-                    <div class="menu-label">LAPORAN</div>
-                </a>
+                
+                    <a href="/laporan" class="menu-tile tile-laporan animate-item delay-11"
+                       @if(!array_intersect($userRoles, ['Manager','Hrd','Admin']))
+                           onclick="showRoleWarning(event, 'Laporan')"
+                       @endif>
+                        <div class="menu-icon">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div class="menu-label">LAPORAN</div>
+                    </a>
                 <!-- Jadwal Saya Tile -->
                 <a href="#" class="menu-tile tile-jadwal animate-item delay-12" id="jadwal-menu-tile">
                     <div class="menu-icon">
