@@ -432,10 +432,39 @@
                       <span aria-hidden="true">&times;</span>
                     </button>
                   </div>
-                  <div class="modal-body text-center">
-                    <button type="button" class="btn btn-success m-2" id="jadwal-this-week">Jadwal Minggu Ini</button>
-                    <button type="button" class="btn btn-primary m-2" id="jadwal-next-week">Jadwal Minggu Depan</button>
-                  </div>
+                        <div class="modal-body text-center">
+                            <div class="mb-2" style="font-weight:600;">Jadwal Karyawan:</div>
+                            <button type="button" class="btn btn-success m-2" id="jadwal-this-week">Jadwal Minggu Ini</button>
+                            <button type="button" class="btn btn-primary m-2" id="jadwal-next-week">Jadwal Minggu Depan</button>
+                            <hr>
+                            <div class="mb-2" style="font-weight:600;">Jadwal Dokter:</div>
+                            @php
+                                $clinics = \App\Models\ERM\Klinik::all();
+                            @endphp
+                            @foreach($clinics as $clinic)
+                                @php
+                                    $btnClass = 'btn-info';
+                                    if(Str::contains(Str::lower($clinic->nama), 'utama')) {
+                                        $btnClass = 'btn-primary'; // blue
+                                    } elseif(Str::contains(Str::lower($clinic->nama), 'pratama')) {
+                                        $btnClass = 'btn-pink'; // custom pink
+                                    }
+                                @endphp
+                                <button type="button" class="btn {{ $btnClass }} m-2 print-jadwal-dokter-btn" data-clinic-id="{{ $clinic->id }}">{{ $clinic->nama }}</button>
+                            @endforeach
+        <style>
+        .btn-pink {
+            background-color: #e91e63;
+            color: #fff;
+            border-color: #e91e63;
+        }
+        .btn-pink:hover, .btn-pink:focus {
+            background-color: #c2185b;
+            border-color: #c2185b;
+            color: #fff;
+        }
+        </style>
+                        </div>
                 </div>
               </div>
             </div>
@@ -572,19 +601,15 @@
             }
         });
         $('#jadwal-this-week').on('click', function() {
-            // Open print for this week (no start_date param)
             window.open("{{ route('hrd.schedule.print') }}", '_blank');
             $('#jadwalModal').modal('hide');
         });
         $('#jadwal-next-week').on('click', function() {
-            // Calculate next week's Monday correctly
             var today = new Date();
             var nextMonday;
             if (today.getDay() === 0) {
-                // If today is Sunday, next Monday is tomorrow
                 nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
             } else {
-                // Otherwise, next Monday is the next occurrence
                 nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (8 - today.getDay()));
             }
             var yyyy = nextMonday.getFullYear();
@@ -593,6 +618,12 @@
             var startDate = yyyy + '-' + mm + '-' + dd;
             var url = "{{ route('hrd.schedule.print') }}?start_date=" + startDate;
             window.open(url, '_blank');
+            $('#jadwalModal').modal('hide');
+        });
+        // Print Jadwal Dokter by clinic name
+        $('.print-jadwal-dokter-btn').on('click', function() {
+            var clinicId = $(this).data('clinic-id');
+            window.open("{{ route('hrd.dokter-schedule.print') }}?clinic_id=" + clinicId, '_blank');
             $('#jadwalModal').modal('hide');
         });
     });

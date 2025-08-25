@@ -538,6 +538,8 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
 
 Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(function () {
     Route::get('/dokter-schedule/print', [\App\Http\Controllers\HRD\DokterSchedulePrintController::class, 'print'])->name('hrd.dokter-schedule.print');
+    // Jadwal Karyawan Print (Employee)
+    Route::get('/schedule/print', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'print'])->name('hrd.schedule.print');
     Route::post('/dokter-schedule/delete/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'deleteJadwal']);
 
      // Jadwal Karyawan
