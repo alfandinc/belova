@@ -537,13 +537,15 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
 );
 
 Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(function () {
+    Route::get('/dokter-schedule/print', [\App\Http\Controllers\HRD\DokterSchedulePrintController::class, 'print'])->name('hrd.dokter-schedule.print');
+    Route::post('/dokter-schedule/delete/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'deleteJadwal']);
 
      // Jadwal Karyawan
      // ...existing code...
-// HRD Jadwal Print PDF
-    Route::get('/schedule/print', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'print'])->name('hrd.schedule.print');
-    Route::get('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'index'])->name('hrd.schedule.index');
-    Route::post('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'store'])->name('hrd.schedule.store');
+        Route::get('/schedule/print', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'print'])->name('hrd.schedule.print');
+        Route::get('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'index'])->name('hrd.schedule.index');
+        Route::post('schedule', [\App\Http\Controllers\HRD\EmployeeScheduleController::class, 'store'])->name('hrd.schedule.store');
+        Route::post('/dokter-schedule/update-jam/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'updateJam']);
     // Jadwal Dokter
     Route::get('dokter-schedule', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'index'])->name('hrd.dokter-schedule.index');
     Route::get('dokter-schedule/get', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'getSchedules'])->name('hrd.dokter-schedule.get');

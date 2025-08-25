@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
@@ -44,7 +43,34 @@ class DokterScheduleController extends Controller
     public function getSchedules(Request $request)
     {
         $month = $request->input('month', now()->format('Y-m'));
-    $schedules = DokterSchedule::whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$month])->with(['dokter.user'])->get();
+        $clinicId = $request->input('clinic_id');
+        $query = DokterSchedule::whereRaw("DATE_FORMAT(date, '%Y-%m') = ?", [$month])->with(['dokter.user']);
+        if ($clinicId) {
+            $query->whereHas('dokter', function($q) use ($clinicId) {
+                $q->where('klinik_id', $clinicId);
+            });
+        }
+        $schedules = $query->get();
         return response()->json($schedules);
     }
+
+        public function updateJam(Request $request, $id)
+    {
+        $request->validate([
+            'jam_mulai' => 'required',
+            'jam_selesai' => 'required',
+        ]);
+        $jadwal = DokterSchedule::findOrFail($id);
+        $jadwal->jam_mulai = $request->jam_mulai;
+        $jadwal->jam_selesai = $request->jam_selesai;
+        $jadwal->save();
+        return response()->json(['success' => true]);
+    }
+        public function deleteJadwal(Request $request, $id)
+    {
+        $jadwal = DokterSchedule::findOrFail($id);
+        $jadwal->delete();
+        return response()->json(['success' => true]);
+    }
+
 }
