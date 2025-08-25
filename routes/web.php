@@ -142,6 +142,13 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::get('/farmasi', [\App\Http\Controllers\Laporan\FarmasiController::class, 'index'])->name('laporan.farmasi');
     Route::get('/farmasi/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportExcel'])->name('laporan.farmasi.excel');
     Route::get('/farmasi/pdf', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPdf'])->name('laporan.farmasi.pdf');
+
+    // HRD Rekap Kehadiran
+    Route::get('/hrd/rekap-kehadiran', [\App\Http\Controllers\Laporan\HRDController::class, 'rekapKehadiran'])->name('laporan.hrd.rekap-kehadiran');
+
+    // Export Rekap Kehadiran
+    Route::get('/hrd/rekap-kehadiran/excel', [\App\Http\Controllers\Laporan\HRDController::class, 'exportExcel'])->name('laporan.hrd.rekap-kehadiran.excel');
+    Route::get('/hrd/rekap-kehadiran/pdf', [\App\Http\Controllers\Laporan\HRDController::class, 'exportPdf'])->name('laporan.hrd.rekap-kehadiran.pdf');
 });
 
 // ERM Routes

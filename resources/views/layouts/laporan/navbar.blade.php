@@ -39,10 +39,15 @@
                 </ul>
             </li>
             <li>
-                <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Laporan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                <a class="nav-link" href="/laporan/farmasi">
+                    <i data-feather="activity" class="align-self-center menu-icon"></i>
+                    <span>Laporan Farmasi</span>
+                </a>
+            </li>
+            <li>
+                <a href="javascript:void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Laporan HRD</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="/laporan/farmasi"><i class="ti-control-record"></i>Laporan Farmasi</a></li>
-
+                    <li class="nav-item"><a class="nav-link" href="/laporan/hrd/rekap-kehadiran"><i class="ti-control-record"></i>Rekap Kehadiran</a></li>
                 </ul>
             </li>
         </ul>

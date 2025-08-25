@@ -9,6 +9,18 @@ class Employee extends Model
 {
     use HasFactory;
 
+    public function attendanceRekap()
+    {
+        return $this->hasMany(\App\Models\AttendanceRekap::class, 'employee_id');
+    }
+    use HasFactory;
+
+    public function pengajuanTidakMasuk()
+    {
+        return $this->hasMany(PengajuanTidakMasuk::class, 'employee_id');
+    }
+    use HasFactory;
+
     protected $table = 'hrd_employee';
 
     protected $fillable = [
