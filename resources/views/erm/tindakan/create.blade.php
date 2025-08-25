@@ -233,9 +233,10 @@
             pageLength: 5,
             ajax: `/erm/tindakan/history/${@json($visitation->id)}`,
             columns: [
-                { data: 'tanggal', name: 'tanggal' },
+                { data: 'tanggal', name: 'tanggal', render: function(data, type, row) {
+                    return data;
+                } },
                 { data: 'tindakan', name: 'tindakan' },
-                { data: 'paket', name: 'paket' },
                 { data: 'dokter', name: 'dokter' },
                 { data: 'spesialisasi', name: 'spesialisasi' },
                 { data: 'status', name: 'status' },
@@ -249,9 +250,21 @@
                         let buttons = '';
                         if (row.inform_consent) {
                             const fileUrl = `/storage/${row.inform_consent.file_path}`;
+                            const hasBefore = row.inform_consent.before_image_path && row.inform_consent.before_image_path.trim() !== '';
+                            const hasAfter = row.inform_consent.after_image_path && row.inform_consent.after_image_path.trim() !== '';
+                            let fotoBtnText, fotoBtnClass, fotoBtnIcon;
+                            if (hasBefore && hasAfter) {
+                                fotoBtnText = 'Lihat Foto';
+                                fotoBtnClass = 'btn-primary';
+                                fotoBtnIcon = '<i class="fas fa-eye mr-1"></i>';
+                            } else {
+                                fotoBtnText = 'Upload Foto';
+                                fotoBtnClass = 'btn-success';
+                                fotoBtnIcon = '<i class="fas fa-upload mr-1"></i>';
+                            }
                             buttons += `
                                 <a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>
-                                <button class="btn btn-primary btn-sm foto-hasil-btn mr-1" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">Foto Hasil</button>
+                                <button class="btn ${fotoBtnClass} btn-sm foto-hasil-btn mr-1" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">${fotoBtnIcon}${fotoBtnText}</button>
                                 <button class="btn btn-warning btn-sm spk-btn mr-1" data-riwayat-id="${row.id}">SPK</button>
                             `;
                         } else {
@@ -261,9 +274,11 @@
                         buttons += `<button class="btn btn-danger btn-sm batalkan-tindakan-btn" data-id="${row.id}">Batalkan</button>`;
                         return buttons;
                     }
-                }
+                },
+                // Hidden column for raw date sorting
+                { data: 'tanggal_raw', name: 'tanggal_raw', visible: false },
             ],
-            order: [[0, 'desc']] // Sort by date descending
+            order: [[6, 'desc']] // Sort by hidden raw date column
         });
 
         // Handle click on "Foto Hasil" button

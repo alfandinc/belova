@@ -276,30 +276,34 @@ class TindakanController extends Controller
             ->pluck('id')->toArray();
 
         // Get all riwayat tindakan for all visitations of this patient
-        $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
-            ->with(['tindakan', 'paketTindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
-            ->get()
-            ->map(function ($item) use ($visitationId) {
-                // Format the date using Carbon
-                $tanggalFormatted = '-';
-                if ($item->tanggal_tindakan) {
-                    $tanggalFormatted = Carbon::parse($item->tanggal_tindakan)
-                        ->locale('id')
-                        ->isoFormat('D MMMM YYYY');
-                }
-
-                // Return as object, not array
-                return (object) [
-                    'id' => $item->id,
-                    'tanggal' => $tanggalFormatted,
-                    'tindakan' => $item->tindakan->nama ?? '-',
-                    'paket' => $item->paketTindakan->nama ?? '-',
-                    'dokter' => $item->visitation->dokter->user->name ?? '-',
-                    'spesialisasi' => $item->visitation->dokter->spesialisasi->nama ?? '-',
-                    'inform_consent' => $item->informConsent,
-                    'current' => ($item->visitation_id == $visitationId) ? true : false
-                ];
-            });
+            $history = RiwayatTindakan::whereIn('visitation_id', $patientVisitations)
+                ->with(['tindakan', 'paketTindakan', 'visitation.dokter.user', 'visitation.dokter.spesialisasi', 'informConsent'])
+                ->get()
+                ->map(function ($item) use ($visitationId) {
+                    $tanggalRaw = $item->visitation->tanggal_visitation ?? null;
+                    $tanggalFormatted = '-';
+                    if ($tanggalRaw) {
+                        $tanggalFormatted = Carbon::parse($tanggalRaw)
+                            ->locale('id')
+                            ->isoFormat('D MMMM YYYY');
+                    }
+                    return (object) [
+                        'id' => $item->id,
+                        'tanggal' => $tanggalFormatted,
+                        'tanggal_raw' => $tanggalRaw,
+                        'tindakan' => $item->tindakan->nama ?? '-',
+                        'paket' => $item->paketTindakan->nama ?? '-',
+                        'dokter' => $item->visitation->dokter->user->name ?? '-',
+                        'spesialisasi' => $item->visitation->dokter->spesialisasi->nama ?? '-',
+                        'inform_consent' => $item->informConsent,
+                        'current' => ($item->visitation_id == $visitationId) ? true : false
+                    ];
+                })
+                ->sortByDesc(function ($item) {
+                    // Sort by raw visitation date (string, so convert to timestamp)
+                    return $item->tanggal_raw ? strtotime($item->tanggal_raw) : 0;
+                })
+                ->values();
 
         return datatables()->of($history)
             ->addColumn('dokumen', function ($row) {
@@ -311,11 +315,14 @@ class TindakanController extends Controller
                     $buttons .= '<a href="' . $url . '" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>';
                     
                     // Always add foto hasil button
+                    $hasBefore = isset($row->inform_consent->before_image_path) && trim($row->inform_consent->before_image_path) !== '';
+                    $hasAfter = isset($row->inform_consent->after_image_path) && trim($row->inform_consent->after_image_path) !== '';
+                    $fotoBtnText = ($hasBefore && $hasAfter) ? 'Lihat Foto' : 'Upload Foto';
                     $buttons .= '<button class="btn btn-primary btn-sm foto-hasil-btn mr-1" ' .
                         'data-id="' . $row->inform_consent->id . '" ' .
                         'data-before="' . ($row->inform_consent->before_image_path ?? '') . '" ' .
                         'data-after="' . ($row->inform_consent->after_image_path ?? '') . '">' .
-                        'Foto Hasil</button>';
+                        $fotoBtnText . '</button>';
                     
                     // Add SPK button
                     $buttons .= '<button class="btn btn-warning btn-sm spk-btn" ' .
