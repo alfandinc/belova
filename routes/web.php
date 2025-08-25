@@ -724,6 +724,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
 );
 
 Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function () {
+    // Galeri Before After gallery for tindakan
+Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
     // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');

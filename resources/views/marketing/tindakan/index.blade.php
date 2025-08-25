@@ -73,10 +73,47 @@
             </div>
         </div>
     </div>
+    <!-- Modal for Galeri Before After -->
+<div class="modal fade" id="galeriBeforeAfterModal" tabindex="-1" role="dialog" aria-labelledby="galeriBeforeAfterModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Galeri Before After</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body" id="galeriBeforeAfterContent">
+                <!-- Content will be loaded via JS -->
+                <style>
+                #galeriBeforeAfterContent {
+                    max-height: 60vh;
+                    overflow-y: auto;
+                }
+                </style>
+                <style>
+                #galeriBeforeAfterContent {
+                    max-height: 60vh;
+                    overflow-y: auto;
+                }
+                .gallery-img {
+                    max-width: 100%;
+                    max-height: 300px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                }
+                .download-btn {
+                    margin-top: 16px;
+                    display: inline-block;
+                }
+                </style>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Modal for Edit SOP Tindakan -->
 <div class="modal fade" id="editSopTindakanModal" tabindex="-1" role="dialog" aria-labelledby="editSopTindakanModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
+
             <div class="modal-header">
                 <h5 class="modal-title" id="editSopTindakanModalLabel">Edit SOP Tindakan</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -650,5 +687,55 @@
             });
         }
     });
+    
+    // Galeri Before After button click handler
+    $(document).on('click', '.galeri-before-after', function() {
+        var tindakanId = $(this).data('id');
+        $.ajax({
+            url: '/marketing/tindakan/' + tindakanId + '/galeri-before-after',
+            type: 'GET',
+            success: function(data) {
+                var html = '';
+                if (!data || data.length === 0) {
+                    html = '<p>No gallery found for this tindakan.</p>';
+                } else {
+                    data.forEach(function(item) {
+                        html += '<div class="row mb-3">';
+                        html += '<div class="col-md-4"><strong>Pasien:</strong> ' + item.pasien_nama + '</div>';
+                        html += '<div class="col-md-4"><strong>Tanggal Visit:</strong> ' + item.tanggal_visit + '</div>';
+                        html += '<div class="col-md-4"><strong>Dokter:</strong> ' + item.dokter_nama + '</div>';
+                        html += '</div>';
+                        html += '<div class="row mb-4">';
+                        html += '<div class="col-md-6 text-center">';
+                        if (item.before_image) {
+                            var beforeFileName = (item.nama_tindakan ? item.nama_tindakan.replace(/\s+/g, '_') : 'Tindakan') + '_' + (item.pasien_nama ? item.pasien_nama.replace(/\s+/g, '_') : 'Pasien') + '_' + (item.tanggal_visit ? item.tanggal_visit : '') + '_before';
+                            html += '<img src="' + item.before_image + '" class="img-fluid gallery-img" alt="Before">';
+                            html += '<a href="' + item.before_image + '" download="' + beforeFileName + '" class="btn btn-outline-primary btn-sm download-btn mt-3"><i class="fas fa-download"></i> Download Before</a>';
+                        } else {
+                            html += '<span class="text-muted">No Before Image</span>';
+                        }
+                        html += '</div>';
+                        html += '<div class="col-md-6 text-center">';
+                        if (item.after_image) {
+                            var afterFileName = (item.nama_tindakan ? item.nama_tindakan.replace(/\s+/g, '_') : 'Tindakan') + '_' + (item.pasien_nama ? item.pasien_nama.replace(/\s+/g, '_') : 'Pasien') + '_' + (item.tanggal_visit ? item.tanggal_visit : '') + '_after';
+                            html += '<img src="' + item.after_image + '" class="img-fluid gallery-img" alt="After">';
+                            html += '<a href="' + item.after_image + '" download="' + afterFileName + '" class="btn btn-outline-success btn-sm download-btn mt-3"><i class="fas fa-download"></i> Download After</a>';
+                        } else {
+                            html += '<span class="text-muted">No After Image</span>';
+                        }
+                        html += '</div>';
+                        html += '</div>';
+                    });
+                }
+                $('#galeriBeforeAfterContent').html(html);
+                $('#galeriBeforeAfterModal').modal('show');
+            },
+            error: function() {
+                $('#galeriBeforeAfterContent').html('<p class="text-danger">Failed to load gallery data.</p>');
+                $('#galeriBeforeAfterModal').modal('show');
+            }
+        });
+    });
 </script>
 @endsection
+

@@ -13,6 +13,44 @@ use Yajra\DataTables\Facades\DataTables;
 class TindakanController extends Controller
 {
     /**
+     * Get before/after gallery for tindakan.
+     */
+    public function galeriBeforeAfter($id)
+    {
+        $informConsents = \App\Models\ERM\InformConsent::where('tindakan_id', $id)
+            ->whereNotNull('before_image_path')
+            ->where('before_image_path', '!=', '')
+            ->whereNotNull('after_image_path')
+            ->where('after_image_path', '!=', '')
+            ->with(['visitation.pasien', 'visitation.dokter'])
+            ->get();
+
+        $result = [];
+        foreach ($informConsents as $ic) {
+            // If path does not start with 'storage/', prepend it
+            $beforePath = $ic->before_image_path;
+            $afterPath = $ic->after_image_path;
+            if ($beforePath && !preg_match('/^storage\//', $beforePath)) {
+                $beforePath = 'storage/' . ltrim($beforePath, '/');
+            }
+            if ($afterPath && !preg_match('/^storage\//', $afterPath)) {
+                $afterPath = 'storage/' . ltrim($afterPath, '/');
+            }
+            $tanggalVisit = $ic->visitation && $ic->visitation->tanggal_visitation
+                ? \Carbon\Carbon::parse($ic->visitation->tanggal_visitation)->translatedFormat('j F Y')
+                : 'N/A';
+            $result[] = [
+                'nama_tindakan' => $ic->tindakan ? $ic->tindakan->nama : 'Tindakan',
+                'pasien_nama' => $ic->visitation && $ic->visitation->pasien ? $ic->visitation->pasien->nama : 'N/A',
+                'tanggal_visit' => $tanggalVisit,
+                'dokter_nama' => $ic->visitation && $ic->visitation->dokter ? $ic->visitation->dokter->user ? $ic->visitation->dokter->user->name : ($ic->visitation->dokter->nama ?? 'N/A') : 'N/A',
+                'before_image' => asset($beforePath),
+                'after_image' => asset($afterPath),
+            ];
+        }
+        return response()->json($result);
+    }
+    /**
      * Display a listing of tindakan.
      */
     public function index()
@@ -43,9 +81,11 @@ class TindakanController extends Controller
                     <button type="button" class="btn btn-primary btn-sm edit-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-edit"></i> Edit
                     </button>
-                    
                     <button type="button" class="btn btn-danger btn-sm delete-tindakan" data-id="'.$row->id.'">
                         <i class="fas fa-trash"></i> Delete
+                    </button>
+                    <button type="button" class="btn btn-info btn-sm galeri-before-after" data-id="'.$row->id.'">
+                        <i class="fas fa-images"></i> Galeri Before After
                     </button>
                 ';
             })
