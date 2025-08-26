@@ -24,6 +24,17 @@ use Carbon\Carbon;
 
 class TindakanController extends Controller
 {
+    /**
+     * Get allow_post value for InformConsent (AJAX).
+     */
+    public function getInformConsentAllowPost($id)
+    {
+        $informConsent = InformConsent::find($id);
+        if (!$informConsent) {
+            return response()->json(['allow_post' => false]);
+        }
+        return response()->json(['allow_post' => (bool)$informConsent->allow_post]);
+    }
     public function create($visitationId)
     {
         // Kosongkan dulu, tidak ada data dummy

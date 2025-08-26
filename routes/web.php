@@ -159,6 +159,8 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function (
 
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
+    // AJAX: Get allow_post value for InformConsent
+    Route::get('/inform-consent/{id}/get', [App\Http\Controllers\ERM\TindakanController::class, 'getInformConsentAllowPost']);
     // Fill stok to 100 for all Obat with stok 0
     Route::post('/obat/fill-stok', [App\Http\Controllers\ERM\ObatController::class, 'fillStok'])->name('erm.obat.fill-stok');
     Route::get('/obat-masuk/detail', [App\Http\Controllers\ERM\ObatMasukController::class, 'detail'])->name('erm.obatmasuk.detail');

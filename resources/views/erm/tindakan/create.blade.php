@@ -286,23 +286,27 @@
         const id = $(this).data('id');
         const beforePath = $(this).data('before');
         const afterPath = $(this).data('after');
-        
         // Reset form
         $('#informConsentId').val(id);
         $('#beforeImage').val('');
         $('#afterImage').val('');
         $('#beforePreview').hide();
         $('#afterPreview').hide();
-        
+        // Reset allow_post checkbox
+        $('#allowPost').prop('checked', false);
         // Show existing images if available
         if (beforePath) {
             $('#beforePreview').attr('src', `/storage/${beforePath}`).show();
         }
-        
         if (afterPath) {
             $('#afterPreview').attr('src', `/storage/${afterPath}`).show();
         }
-        
+        // Fetch allow_post value via AJAX and set checkbox
+        $.get(`/erm/inform-consent/${id}/get`, function(response) {
+            if (response && typeof response.allow_post !== 'undefined') {
+                $('#allowPost').prop('checked', !!response.allow_post);
+            }
+        });
         // Show modal
         $('#modalFotoHasil').modal('show');
     });
