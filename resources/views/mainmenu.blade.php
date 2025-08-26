@@ -427,51 +427,62 @@
                 </a>
             </div>
             <!-- Jadwal Modal -->
-            <div class="modal fade" id="jadwalModal" tabindex="-1" role="dialog" aria-labelledby="jadwalModalLabel" aria-hidden="true">
-              <div class="modal-dialog modal-dialog-centered" role="document">
-                <div class="modal-content" style="background: var(--bg-body); color: var(--text-color);">
-                  <div class="modal-header">
-                    <h5 class="modal-title" id="jadwalModalLabel">Pilih Jadwal</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
-                      <span aria-hidden="true">&times;</span>
-                    </button>
-                  </div>
-                        <div class="modal-body text-center">
-                            <div class="mb-2" style="font-weight:600;">Jadwal Karyawan:</div>
-                            <button type="button" class="btn btn-success m-2" id="jadwal-this-week">Jadwal Minggu Ini</button>
-                            <button type="button" class="btn btn-primary m-2" id="jadwal-next-week">Jadwal Minggu Depan</button>
-                            <hr>
-                            <div class="mb-2" style="font-weight:600;">Jadwal Dokter:</div>
-                            @php
-                                $clinics = \App\Models\ERM\Klinik::all();
-                            @endphp
-                            @foreach($clinics as $clinic)
-                                @php
-                                    $btnClass = 'btn-info';
-                                    if(Str::contains(Str::lower($clinic->nama), 'utama')) {
-                                        $btnClass = 'btn-primary'; // blue
-                                    } elseif(Str::contains(Str::lower($clinic->nama), 'pratama')) {
-                                        $btnClass = 'btn-pink'; // custom pink
-                                    }
-                                @endphp
-                                <button type="button" class="btn {{ $btnClass }} m-2 print-jadwal-dokter-btn" data-clinic-id="{{ $clinic->id }}">{{ $clinic->nama }}</button>
-                            @endforeach
-        <style>
-        .btn-pink {
-            background-color: #e91e63;
-            color: #fff;
-            border-color: #e91e63;
-        }
-        .btn-pink:hover, .btn-pink:focus {
-            background-color: #c2185b;
-            border-color: #c2185b;
-            color: #fff;
-        }
-        </style>
+                        <!-- Jadwal Improved Modal -->
+                                    <div class="modal fade" id="jadwalModal" tabindex="-1" role="dialog" aria-labelledby="jadwalModalLabel" aria-hidden="true">
+                                        <div class="modal-dialog modal-fullscreen" role="document" style="max-width:1800px; width:95vw;">
+                                            <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="jadwalModalLabel">Cetak Jadwal</h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <ul class="nav nav-tabs" id="jadwalTab" role="tablist">
+                                            <li class="nav-item">
+                                                <a class="nav-link active" id="karyawan-tab" data-toggle="tab" href="#karyawan" role="tab" aria-controls="karyawan" aria-selected="true">Karyawan</a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a class="nav-link" id="dokter-tab" data-toggle="tab" href="#dokter" role="tab" aria-controls="dokter" aria-selected="false">Dokter</a>
+                                            </li>
+                                        </ul>
+                                        <div class="tab-content mt-3" id="jadwalTabContent">
+                                            <!-- Karyawan Tab -->
+                                            <div class="tab-pane fade show active" id="karyawan" role="tabpanel" aria-labelledby="karyawan-tab">
+                                                <div class="form-row mb-3">
+                                                    <div class="col-md-4">
+                                                        <label for="jadwal-week">Periode (Minggu)</label>
+                                                        <input type="week" class="form-control" id="jadwal-week" value="{{ date('Y-\WW') }}">
+                                                    </div>
+                                                </div>
+                                                <div id="jadwal-karyawan-pdf" style="height:600px; width:100%; border:1px solid #eee; background:#fafafa; display:flex; align-items:center; justify-content:center;">
+                                                    <span>Pilih klinik dan periode untuk melihat jadwal karyawan.</span>
+                                                </div>
+                                            </div>
+                                            <!-- Dokter Tab -->
+                                            <div class="tab-pane fade" id="dokter" role="tabpanel" aria-labelledby="dokter-tab">
+                                                <div class="form-row mb-3">
+                                                    <div class="col-md-4">
+                                                        <label for="jadwal-klinik-dokter">Klinik</label>
+                                                        <select class="form-control" id="jadwal-klinik-dokter"></select>
+                                                    </div>
+                                                    <div class="col-md-4">
+                                                        <label for="jadwal-month">Periode (Bulan)</label>
+                                                        <input type="month" class="form-control" id="jadwal-month" value="{{ date('Y-m') }}">
+                                                    </div>
+                                                </div>
+                                                <div id="jadwal-dokter-pdf" style="height:600px; width:100%; border:1px solid #eee; background:#fafafa; display:flex; align-items:center; justify-content:center;">
+                                                    <span>Pilih klinik dan periode untuk melihat jadwal dokter.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                </div>
-              </div>
-            </div>
         </div>
 
         <!-- Footer -->
@@ -486,6 +497,7 @@
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js')}}"></script>
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js')}}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
     <script>
     function showRoleWarning(e, modul) {
         e.preventDefault();
@@ -590,39 +602,71 @@
         $('#info-update-btn').on('click', function() {
             $('#systemUpdateModal').modal('show');
         });
-        // Jadwal menu modal logic
-        $('#jadwal-menu-tile').on('click', function(e) {
-            e.preventDefault();
-            var jadwalModal = document.getElementById('jadwalModal');
-            if (jadwalModal) {
-                // Use Bootstrap's JS API to show modal
-                if (typeof $ !== 'undefined' && typeof $.fn.modal === 'function') {
-                    $('#jadwalModal').modal('show');
-                } else if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                    var modal = new bootstrap.Modal(jadwalModal);
-                    modal.show();
+        // Jadwal Improved Modal logic
+        $('#jadwal-menu-tile').on('click', function() {
+            $('#jadwalModal').modal('show');
+            // Load jadwal for active tab when modal opens
+            setTimeout(function() {
+                if ($('#karyawan-tab').hasClass('active')) {
+                    loadKaryawanPDF();
+                } else if ($('#dokter-tab').hasClass('active')) {
+                    loadDokterPDF();
                 }
-            }
+            }, 300); // Wait for modal animation
         });
-        $('#jadwal-this-week').on('click', function() {
-            window.open("{{ route('hrd.schedule.print') }}", '_blank');
-            $('#jadwalModal').modal('hide');
-        });
-        $('#jadwal-next-week').on('click', function() {
-            var today = new Date();
-            var nextMonday;
-            if (today.getDay() === 0) {
-                nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+        // Fetch klinik list for both selectors (AJAX, replace with your endpoint)
+        function fetchKlinikList(selectId) {
+            $.get('/marketing/clinics', function(data) {
+                var select = $(selectId);
+                select.empty();
+                select.append('<option value="">Semua Klinik</option>');
+                var klinikList = [];
+                if (data && data.success && Array.isArray(data.data)) {
+                    klinikList = data.data;
+                } else if (Array.isArray(data)) {
+                    klinikList = data;
+                }
+                klinikList.forEach(function(klinik) {
+                    select.append('<option value="'+klinik.id+'">'+klinik.nama+'</option>');
+                });
+                // If this is dokter selector, load PDF after populating
+                if (selectId === '#jadwal-klinik-dokter') {
+                    loadDokterPDF();
+                }
+            });
+        }
+    // Load klinik list for dokter, then load PDF if tab is active
+    fetchKlinikList('#jadwal-klinik-dokter');
+    $('#jadwal-klinik-dokter').on('change', loadDokterPDF);
+
+        // Load PDF for karyawan
+        function loadKaryawanPDF() {
+            var week = $('#jadwal-week').val();
+            if (!week) return;
+            var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
+            var url = '/hrd/schedule/print?start_date='+startDate;
+            $('#jadwal-karyawan-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
+        }
+        $('#jadwal-week').on('change', loadKaryawanPDF);
+
+        // Load PDF for dokter
+        function loadDokterPDF() {
+            var clinicId = $('#jadwal-klinik-dokter').val();
+            var month = $('#jadwal-month').val();
+            if (!month) return;
+            var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
+            $('#jadwal-dokter-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
+        }
+        $('#jadwal-month').on('change', loadDokterPDF);
+
+        // Tab switch: load PDF if already selected
+        $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+            if ($(e.target).attr('id') === 'karyawan-tab') {
+                loadKaryawanPDF();
             } else {
-                nextMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (8 - today.getDay()));
+                loadDokterPDF();
             }
-            var yyyy = nextMonday.getFullYear();
-            var mm = String(nextMonday.getMonth() + 1).padStart(2, '0');
-            var dd = String(nextMonday.getDate()).padStart(2, '0');
-            var startDate = yyyy + '-' + mm + '-' + dd;
-            var url = "{{ route('hrd.schedule.print') }}?start_date=" + startDate;
-            window.open(url, '_blank');
-            $('#jadwalModal').modal('hide');
         });
         // Print Jadwal Dokter by clinic name
         $('.print-jadwal-dokter-btn').on('click', function() {
