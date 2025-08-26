@@ -583,9 +583,20 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         if ($resep && $resep->obat) {
                             $qty = intval($item->qty ?? 1);
                             $obat = $resep->obat;
-                            $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
+                            $oldStok = $obat->stok ?? 0;
+                            $newStok = max(0, $oldStok - $qty);
+                            $obat->stok = $newStok;
                             $obat->save();
                             $this->reduceFakturStock($obat->id, $qty);
+                            \App\Models\ERM\KartuStok::create([
+                                'obat_id' => $obat->id,
+                                'tanggal' => now(),
+                                'tipe' => 'keluar',
+                                'qty' => $qty,
+                                'stok_setelah' => $newStok,
+                                'ref_type' => 'invoice',
+                                'ref_id' => $invoice->id,
+                            ]);
                             Log::info('Stock reduced via invoice (ResepFarmasi)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,
@@ -607,9 +618,20 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $obat = \App\Models\ERM\Obat::find($item->billable_id);
                         if ($obat) {
                             $qty = intval($item->qty ?? 1);
-                            $obat->stok = max(0, ($obat->stok ?? 0) - $qty);
+                            $oldStok = $obat->stok ?? 0;
+                            $newStok = max(0, $oldStok - $qty);
+                            $obat->stok = $newStok;
                             $obat->save();
                             $this->reduceFakturStock($obat->id, $qty);
+                            \App\Models\ERM\KartuStok::create([
+                                'obat_id' => $obat->id,
+                                'tanggal' => now(),
+                                'tipe' => 'keluar',
+                                'qty' => $qty,
+                                'stok_setelah' => $newStok,
+                                'ref_type' => 'invoice',
+                                'ref_id' => $invoice->id,
+                            ]);
                             Log::info('Stock reduced via invoice (Bundled Obat)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,

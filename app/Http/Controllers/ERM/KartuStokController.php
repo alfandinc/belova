@@ -21,25 +21,49 @@ class KartuStokController extends Controller
         $end = request('end');
 
         $obatList = Obat::withInactive()->get();
+        $obatIds = $obatList->pluck('id')->toArray();
+
+        // Batch masuk
+        $masukBatch = DB::table('erm_fakturbeli_items')
+            ->select('obat_id', DB::raw('SUM(qty) as total_masuk'))
+            ->whereIn('obat_id', $obatIds)
+            ->where('qty', '>', 0);
+        if ($start && $end) {
+            $masukBatch->whereBetween('created_at', [$start, $end]);
+        }
+        $masukBatch = $masukBatch->groupBy('obat_id')->pluck('total_masuk', 'obat_id');
+
+        // Batch keluar Obat
+        $keluarObatBatch = DB::table('finance_invoice_items as ii')
+            ->select('ii.billable_id as obat_id', DB::raw('SUM(ii.quantity) as total_keluar'))
+            ->leftJoin('finance_invoices as i', 'ii.invoice_id', '=', 'i.id')
+            ->where('ii.billable_type', 'App\\Models\\ERM\\Obat')
+            ->whereIn('ii.billable_id', $obatIds);
+        if ($start && $end) {
+            $keluarObatBatch->whereBetween('i.created_at', [$start, $end]);
+        }
+        $keluarObatBatch = $keluarObatBatch->groupBy('ii.billable_id')->pluck('total_keluar', 'obat_id');
+
+        // Batch keluar ResepFarmasi
+        $keluarResepBatch = DB::table('finance_invoice_items as ii')
+            ->select('rf.obat_id', DB::raw('SUM(ii.quantity) as total_keluar'))
+            ->leftJoin('finance_invoices as i', 'ii.invoice_id', '=', 'i.id')
+            ->leftJoin('erm_resepfarmasi as rf', function($join) {
+                $join->on('ii.billable_id', '=', 'rf.id');
+            })
+            ->where('ii.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+            ->whereIn('rf.obat_id', $obatIds);
+        if ($start && $end) {
+            $keluarResepBatch->whereBetween('i.created_at', [$start, $end]);
+        }
+        $keluarResepBatch = $keluarResepBatch->groupBy('rf.obat_id')->pluck('total_keluar', 'obat_id');
+
         $result = [];
         foreach ($obatList as $obat) {
-            // Masuk
-            $masukQuery = DB::table('erm_fakturbeli_items')
-                ->where('obat_id', $obat->id)
-                ->where('qty', '>', 0);
-            if ($start && $end) {
-                $masukQuery->whereBetween('created_at', [$start, $end]);
-            }
-            $masuk = $masukQuery->sum('qty');
-
-            // Keluar
-            $keluarQuery = DB::table('erm_resepfarmasi')
-                ->where('obat_id', $obat->id);
-            if ($start && $end) {
-                $keluarQuery->whereBetween('created_at', [$start, $end]);
-            }
-            $keluar = $keluarQuery->sum('jumlah');
-
+            $masuk = $masukBatch[$obat->id] ?? 0;
+            $keluarObat = $keluarObatBatch[$obat->id] ?? 0;
+            $keluarResep = $keluarResepBatch[$obat->id] ?? 0;
+            $keluar = $keluarObat + $keluarResep;
             $result[] = [
                 'nama_obat' => $obat->nama,
                 'masuk' => $masuk,
@@ -64,22 +88,43 @@ class KartuStokController extends Controller
                     ->where('fi.obat_id', $obatId)
                     ->where('fi.qty', '>', 0);
                 if ($start && $end) {
-                    $masukQuery->whereBetween('fi.created_at', [$start, $end]);
+                    $masukQuery->whereBetween('fi.updated_at', [$start, $end]);
                 }
                 $masuk = $masukQuery
-                    ->select('fi.qty as jumlah', 'fi.created_at', 'f.no_faktur as no_ref', DB::raw("'Masuk' as tipe"))
+                    ->select('fi.qty as jumlah', 'f.updated_at as created_at', 'f.no_faktur as no_ref', DB::raw("'Masuk' as tipe"))
                     ->get();
 
-                // Get keluar transactions, join to erm_resepdetail for no_resep
-                $keluarQuery = DB::table('erm_resepfarmasi as rf')
-                    ->leftJoin('erm_resepdetail as rd', 'rf.visitation_id', '=', 'rd.visitation_id')
+                // Get keluar transactions from invoice items (Obat and ResepFarmasi)
+                // 1. Obat: billable_type = Obat, billable_id = obatId
+                $keluarObatQuery = DB::table('finance_invoice_items as ii')
+                    ->leftJoin('finance_invoices as i', 'ii.invoice_id', '=', 'i.id')
+                    ->where('ii.billable_type', 'App\\Models\\ERM\\Obat')
+                    ->where('ii.billable_id', $obatId);
+                if ($start && $end) {
+                    $keluarObatQuery->whereBetween('i.created_at', [$start, $end]);
+                }
+                $keluarObat = $keluarObatQuery
+                    ->select('ii.quantity as jumlah', 'i.created_at as created_at', 'i.invoice_number as no_ref', DB::raw("'Keluar' as tipe"))
+                    ->get();
+
+                $keluarResepQuery = DB::table('finance_invoice_items as ii')
+                    ->leftJoin('finance_invoices as i', 'ii.invoice_id', '=', 'i.id')
+                    ->leftJoin('erm_resepfarmasi as rf', function($join) {
+                        $join->on('ii.billable_id', '=', 'rf.id');
+                    })
+                    ->where('ii.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
                     ->where('rf.obat_id', $obatId);
                 if ($start && $end) {
-                    $keluarQuery->whereBetween('rf.created_at', [$start, $end]);
+                    $keluarResepQuery->whereBetween('i.created_at', [$start, $end]);
                 }
-                $keluar = $keluarQuery
-                    ->select('rf.jumlah as jumlah', 'rf.created_at', 'rd.no_resep as no_ref', DB::raw("'Keluar' as tipe"))
+                $keluarResep = $keluarResepQuery
+                    ->select('ii.quantity as jumlah', 'i.created_at as created_at', 'i.invoice_number as no_ref', DB::raw("'Keluar' as tipe"))
                     ->get();
+
+
+                // DEBUG: Dump all invoice items for this obat
+
+                $keluar = collect($keluarObat)->merge($keluarResep);
 
                 // Merge and sort by date ascending for calculation
                     // Merge and sort by date descending for backward calculation

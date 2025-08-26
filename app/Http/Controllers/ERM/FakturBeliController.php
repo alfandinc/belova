@@ -476,6 +476,17 @@ class FakturBeliController extends Controller
                         'stok' => $newStok,
                         'hpp' => $newHpp
                     ]);
+
+                    // Insert KartuStok row (obat masuk)
+                    \App\Models\ERM\KartuStok::create([
+                        'obat_id' => $item->obat_id,
+                        'tanggal' => now(),
+                        'tipe' => 'masuk',
+                        'qty' => $qty,
+                        'stok_setelah' => $newStok,
+                        'ref_type' => 'faktur',
+                        'ref_id' => $faktur->id,
+                    ]);
                 }
             }
 

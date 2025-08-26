@@ -38,9 +38,7 @@
                                                     </button>
                                                 </div>
                                                 <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-                                                    <div class="mb-3">
-                                                        <input type="text" id="modalDateRange" class="form-control" style="max-width:250px;display:inline-block;" readonly />
-                                                    </div>
+                                                    <!-- Removed modal date filter -->
                                                     <div id="detailModalContent">
                                                             <div class="text-center"><span class="spinner-border"></span> Loading...</div>
                                                     </div>
@@ -101,28 +99,9 @@ $(function() {
     });
 
     // Handle detail button click
-    var modalDateRange = $('#modalDateRange');
-    var defaultStart = moment().startOf('month');
-    var defaultEnd = moment().endOf('month');
-    modalDateRange.daterangepicker({
-        locale: { format: 'YYYY-MM-DD' },
-        startDate: defaultStart,
-        endDate: defaultEnd,
-        autoUpdateInput: true,
-        opens: 'left',
-        ranges: {
-            'Today': [moment(), moment()],
-            'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
-            'Last 7 Days': [moment().subtract(6, 'days'), moment()],
-            'Last 30 Days': [moment().subtract(29, 'days'), moment()],
-            'This Month': [moment().startOf('month'), moment().endOf('month')],
-            'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
-        }
-    });
-
     var lastObatId = null;
     function loadDetailKartuStok(obatId) {
-        var drp = modalDateRange.data('daterangepicker');
+        var drp = mainDateRange.data('daterangepicker');
         var start = drp.startDate.format('YYYY-MM-DD');
         var end = drp.endDate.format('YYYY-MM-DD');
         $('#detailModalContent').html('<div class="text-center"><span class="spinner-border"></span> Loading...</div>');
@@ -144,12 +123,6 @@ $(function() {
         lastObatId = $(this).data('obat-id');
         $('#detailModal').modal('show');
         loadDetailKartuStok(lastObatId);
-    });
-
-    modalDateRange.on('apply.daterangepicker', function(ev, picker) {
-        if (lastObatId) {
-            loadDetailKartuStok(lastObatId);
-        }
     });
 });
 </script>
