@@ -53,6 +53,10 @@
                     <!-- Dashboard Section -->
                     @hasrole('Dokter|Admin')
                     <li>
+
+                        <li>
+                            <a href="/erm/kartu-stok"><i data-feather="book" class="align-self-center menu-icon"></i><span>Kartu Stok</span></a>
+                        </li>
                         <a href="javascript: void(0);"><i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li>
@@ -134,6 +138,10 @@
                             </li> --}}
                             <li>
                                 <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Obat Keluar</span></a>
+                            </li>
+
+                            <li>
+                                <a href="/erm/kartu-stok"><i data-feather="credit-card" class="align-self-center menu-icon"></i><span>Kartu Stok</span></a>
                             </li>
 
                         </ul>
