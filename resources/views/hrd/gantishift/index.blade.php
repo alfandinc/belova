@@ -50,6 +50,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h4 class="card-title">Persetujuan Ganti Shift Tim</h4>
+                            <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -77,6 +78,7 @@
                     <div class="card">
                         <div class="card-header">
                             <h4 class="card-title">Persetujuan HRD - Ganti Shift</h4>
+                            <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
