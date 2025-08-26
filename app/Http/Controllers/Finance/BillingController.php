@@ -47,11 +47,17 @@ class BillingController extends Controller
         }
 
         // Total pendapatan, nota, kunjungan
-        $invoiceQuery = Invoice::whereHas('visitation', function($q) use ($startDate, $endDate, $klinikId) {
-            $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
-            if ($klinikId) $q->where('klinik_id', $klinikId);
-        });
-        $pendapatan = $invoiceQuery->sum('amount_paid');
+        $invoiceQuery = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate])
+            ->where('finance_invoices.amount_paid', '>', 0);
+        if ($klinikId) {
+            $invoiceQuery->where('erm_visitations.klinik_id', $klinikId);
+        }
+        // Debug: Log raw SQL and invoice IDs
+        \Illuminate\Support\Facades\Log::info('Finance statistikPendapatanAjax SQL:', ['sql' => $invoiceQuery->toSql(), 'bindings' => $invoiceQuery->getBindings()]);
+        $invoiceIds = $invoiceQuery->pluck('finance_invoices.id');
+        \Illuminate\Support\Facades\Log::info('Finance statistikPendapatanAjax Invoice IDs:', ['ids' => $invoiceIds]);
+        $pendapatan = $invoiceQuery->sum('finance_invoices.total_amount');
         $jumlahNota = $invoiceQuery->count();
 
         $kunjunganQuery = \App\Models\ERM\Visitation::whereBetween('tanggal_visitation', [$startDate, $endDate]);
@@ -86,12 +92,20 @@ class BillingController extends Controller
         $klinikId = $request->input('klinik_id');
 
         // Query invoice hari ini
-        $invoiceQuery = Invoice::whereHas('visitation', function($q) use ($date, $klinikId) {
-            $q->whereDate('tanggal_visitation', $date);
-            if ($klinikId) $q->where('klinik_id', $klinikId);
-        });
-        $pendapatan = $invoiceQuery->sum('amount_paid');
-        $jumlahNota = $invoiceQuery->count();
+        $invoiceQuery = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+            ->whereDate('erm_visitations.tanggal_visitation', $date)
+            ->where('finance_invoices.amount_paid', '>', 0);
+        if ($klinikId) {
+            $invoiceQuery->where('erm_visitations.klinik_id', $klinikId);
+        }
+        // Debug: Log raw SQL and invoice IDs
+        \Illuminate\Support\Facades\Log::info('Finance rekapPenjualanForm SQL:', ['sql' => $invoiceQuery->toSql(), 'bindings' => $invoiceQuery->getBindings()]);
+        $invoiceIds = $invoiceQuery->pluck('finance_invoices.id');
+        \Illuminate\Support\Facades\Log::info('Finance rekapPenjualanForm Invoice IDs:', ['ids' => $invoiceIds]);
+            $invoiceIds = $invoiceQuery->pluck('finance_invoices.id');
+            \Illuminate\Support\Facades\Log::info('Finance rekapPenjualanForm Invoice IDs:', ['ids' => $invoiceIds]);
+            $pendapatan = $invoiceQuery->sum('finance_invoices.total_amount');
+            $jumlahNota = $invoiceQuery->count();
 
         // Query kunjungan hari ini
         $kunjunganQuery = \App\Models\ERM\Visitation::whereDate('tanggal_visitation', $date);
@@ -104,7 +118,17 @@ class BillingController extends Controller
             $q->whereDate('tanggal_visitation', $yesterday);
             if ($klinikId) $q->where('klinik_id', $klinikId);
         });
-        $pendapatanKemarin = $invoiceYesterdayQuery->sum('amount_paid');
+            $invoiceYesterdayQuery = Invoice::join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+                ->whereDate('erm_visitations.tanggal_visitation', $yesterday)
+                ->where('finance_invoices.amount_paid', '>', 0);
+            if ($klinikId) {
+                $invoiceYesterdayQuery->where('erm_visitations.klinik_id', $klinikId);
+            }
+            // Debug: Log raw SQL and invoice IDs for yesterday
+            \Illuminate\Support\Facades\Log::info('Finance rekapPenjualanForm Yesterday SQL:', ['sql' => $invoiceYesterdayQuery->toSql(), 'bindings' => $invoiceYesterdayQuery->getBindings()]);
+            $invoiceYesterdayIds = $invoiceYesterdayQuery->pluck('finance_invoices.id');
+            \Illuminate\Support\Facades\Log::info('Finance rekapPenjualanForm Yesterday Invoice IDs:', ['ids' => $invoiceYesterdayIds]);
+            $pendapatanKemarin = $invoiceYesterdayQuery->sum('finance_invoices.total_amount');
 
         // Hitung persentase perubahan
         $persen = $pendapatanKemarin > 0 ? (($pendapatan - $pendapatanKemarin) / $pendapatanKemarin) * 100 : null;
@@ -131,7 +155,8 @@ class BillingController extends Controller
         $endDate = $request->input('end_date');
         $klinikId = $request->input('klinik_id');
         $dokterId = $request->input('dokter_id');
-        return (new \App\Exports\Finance\RekapPenjualanExport($startDate, $endDate, $klinikId, $dokterId))->download('rekap-penjualan.xlsx');
+    // Ensure RekapPenjualanExport uses total_amount for revenue calculation
+    return (new \App\Exports\Finance\RekapPenjualanExport($startDate, $endDate, $klinikId, $dokterId, 'total_amount'))->download('rekap-penjualan.xlsx');
     }
     public function index()
     {
