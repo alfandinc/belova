@@ -109,11 +109,12 @@ class BillingController extends Controller
         // Hitung persentase perubahan
         $persen = $pendapatanKemarin > 0 ? (($pendapatan - $pendapatanKemarin) / $pendapatanKemarin) * 100 : null;
 
-        // Ambil daftar klinik
+        // Ambil daftar klinik dan dokter
         $kliniks = \App\Models\ERM\Klinik::select('id', 'nama')->orderBy('nama')->get();
+        $dokters = \App\Models\ERM\Dokter::with('user')->orderBy('id')->get();
 
         return view('finance.billing.rekap_penjualan_form', compact(
-            'pendapatan', 'jumlahNota', 'jumlahKunjungan', 'persen', 'date', 'klinikId', 'kliniks'
+            'pendapatan', 'jumlahNota', 'jumlahKunjungan', 'persen', 'date', 'klinikId', 'kliniks', 'dokters'
         ));
     }
 
@@ -128,7 +129,9 @@ class BillingController extends Controller
         ]);
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
-        return (new \App\Exports\Finance\RekapPenjualanExport($startDate, $endDate))->download('rekap-penjualan.xlsx');
+        $klinikId = $request->input('klinik_id');
+        $dokterId = $request->input('dokter_id');
+        return (new \App\Exports\Finance\RekapPenjualanExport($startDate, $endDate, $klinikId, $dokterId))->download('rekap-penjualan.xlsx');
     }
     public function index()
     {

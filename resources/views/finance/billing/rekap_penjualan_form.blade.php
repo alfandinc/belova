@@ -64,7 +64,7 @@ $(function() {
 
 @section('content')
 
-<div class="container py-4">
+<div class="container-fluid py-4">
     <div class="mb-4">
         <h2 class="fw-bold text-primary mb-3">Statistik Pendapatan Harian</h2>
         <div class="card shadow rounded mb-4 p-3">
@@ -125,34 +125,74 @@ $(function() {
 
     <div class="mb-5">
         <h2 class="fw-bold text-primary mb-3">Rekap Penjualan</h2>
-        <form method="GET" action="{{ route('finance.rekap-penjualan.download') }}" class="row g-3 align-items-end mb-4">
-            <div class="col-md-3">
-                <label for="start_date" class="form-label">Tanggal Mulai</label>
-                <input type="date" name="start_date" id="start_date" class="form-control" required value="{{ request('start_date') }}">
-            </div>
-            <div class="col-md-3">
-                <label for="end_date" class="form-label">Tanggal Selesai</label>
-                <input type="date" name="end_date" id="end_date" class="form-control" required value="{{ request('end_date') }}">
-            </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-success w-100 shadow-sm rounded-pill py-2">Download Rekap Penjualan</button>
+        <form method="GET" action="{{ route('finance.rekap-penjualan.download') }}" class="mb-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label for="start_date" class="form-label">Tanggal Mulai</label>
+                    <input type="date" name="start_date" id="start_date" class="form-control" required value="{{ request('start_date') }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="end_date" class="form-label">Tanggal Selesai</label>
+                    <input type="date" name="end_date" id="end_date" class="form-control" required value="{{ request('end_date') }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_klinik" class="form-label">Klinik</label>
+                    <select name="klinik_id" id="filter_klinik" class="form-control select2">
+                        <option value="">Semua Klinik</option>
+                        @foreach($kliniks as $klinik)
+                            <option value="{{ $klinik->id }}" {{ request('klinik_id') == $klinik->id ? 'selected' : '' }}>{{ $klinik->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_dokter" class="form-label">Dokter</label>
+                    <select name="dokter_id" id="filter_dokter" class="form-control select2">
+                        <option value="">Semua Dokter</option>
+                        @foreach($dokters as $dokter)
+                            <option value="{{ $dokter->id }}" {{ request('dokter_id') == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name ?? $dokter->id }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100 shadow-sm rounded-pill py-2">Download Rekap Penjualan</button>
+                </div>
             </div>
         </form>
     </div>
 
     <div class="mb-5">
         <h2 class="fw-bold text-primary mb-3">Export Invoice</h2>
-        <form method="GET" action="{{ route('finance.invoice.export.download') }}" class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label for="start_date" class="form-label">Tanggal Mulai</label>
-                <input type="date" name="start_date" id="invoice_start_date" class="form-control" required value="{{ request('start_date') }}">
-            </div>
-            <div class="col-md-3">
-                <label for="end_date" class="form-label">Tanggal Selesai</label>
-                <input type="date" name="end_date" id="invoice_end_date" class="form-control" required value="{{ request('end_date') }}">
-            </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-primary w-100 shadow-sm rounded-pill py-2">Download Invoice Excel</button>
+        <form method="GET" action="{{ route('finance.invoice.export.download') }}">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label for="invoice_start_date" class="form-label">Tanggal Mulai</label>
+                    <input type="date" name="start_date" id="invoice_start_date" class="form-control" required value="{{ request('start_date') }}">
+                </div>
+                <div class="col-md-2">
+                    <label for="invoice_end_date" class="form-label">Tanggal Selesai</label>
+                    <input type="date" name="end_date" id="invoice_end_date" class="form-control" required value="{{ request('end_date') }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_klinik_invoice" class="form-label">Klinik</label>
+                    <select name="klinik_id" id="filter_klinik_invoice" class="form-control select2">
+                        <option value="">Semua Klinik</option>
+                        @foreach($kliniks as $klinik)
+                            <option value="{{ $klinik->id }}" {{ request('klinik_id') == $klinik->id ? 'selected' : '' }}>{{ $klinik->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filter_dokter_invoice" class="form-label">Dokter</label>
+                    <select name="dokter_id" id="filter_dokter_invoice" class="form-control select2">
+                        <option value="">Semua Dokter</option>
+                        @foreach($dokters as $dokter)
+                            <option value="{{ $dokter->id }}" {{ request('dokter_id') == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name ?? $dokter->id }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm rounded-pill py-2">Download Invoice Excel</button>
+                </div>
             </div>
         </form>
     </div>

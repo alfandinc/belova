@@ -14,11 +14,15 @@ class InvoiceExport implements FromQuery, WithHeadings, WithMapping, Responsable
 
     private $startDate;
     private $endDate;
+    private $klinikId;
+    private $dokterId;
 
-    public function __construct($startDate, $endDate)
+    public function __construct($startDate, $endDate, $klinikId = null, $dokterId = null)
     {
         $this->startDate = $startDate;
         $this->endDate = $endDate;
+        $this->klinikId = $klinikId;
+        $this->dokterId = $dokterId;
     }
 
     public function query()
@@ -26,8 +30,14 @@ class InvoiceExport implements FromQuery, WithHeadings, WithMapping, Responsable
         return Invoice::query()
             ->whereHas('visitation', function($q) {
                 $q->whereBetween('tanggal_visitation', [$this->startDate, $this->endDate]);
+                if ($this->klinikId) {
+                    $q->where('klinik_id', $this->klinikId);
+                }
+                if ($this->dokterId) {
+                    $q->where('dokter_id', $this->dokterId);
+                }
             })
-            ->with(['visitation.pasien']);
+            ->with(['visitation.pasien', 'visitation.dokter.user', 'visitation.klinik']);
     }
 
     public function headings(): array
@@ -37,6 +47,8 @@ class InvoiceExport implements FromQuery, WithHeadings, WithMapping, Responsable
             'Tanggal Dibayar',
             'No RM',
             'Nama Pasien',
+            'Nama Dokter',
+            'Nama Klinik',
             'Subtotal',
             'Discount',
             'Tax',
@@ -51,11 +63,15 @@ class InvoiceExport implements FromQuery, WithHeadings, WithMapping, Responsable
     {
         $visitation = $invoice->visitation;
         $pasien = $visitation ? $visitation->pasien : null;
+        $dokter = $visitation && $visitation->dokter ? $visitation->dokter->user->name ?? $visitation->dokter->id : null;
+        $klinik = $visitation && $visitation->klinik ? $visitation->klinik->nama : null;
         return [
             optional($visitation)->tanggal_visitation,
             optional($invoice)->payment_date,
             optional($pasien)->id,
             optional($pasien)->nama,
+            $dokter,
+            $klinik,
             $invoice->subtotal,
             $invoice->discount,
             $invoice->tax,

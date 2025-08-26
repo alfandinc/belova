@@ -17,7 +17,9 @@ class InvoiceController extends Controller
      */
     public function invoiceExportForm(Request $request)
     {
-        return view('finance.invoice.export_form');
+    $kliniks = \App\Models\ERM\Klinik::select('id', 'nama')->orderBy('nama')->get();
+    $dokters = \App\Models\ERM\Dokter::with('user')->orderBy('id')->get();
+    return view('finance.invoice.export_form', compact('kliniks', 'dokters'));
     }
 
     /**
@@ -31,7 +33,9 @@ class InvoiceController extends Controller
         ]);
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
-        return (new \App\Exports\Finance\InvoiceExport($startDate, $endDate))->download('invoice-export.xlsx');
+        $klinikId = $request->input('klinik_id');
+        $dokterId = $request->input('dokter_id');
+        return (new \App\Exports\Finance\InvoiceExport($startDate, $endDate, $klinikId, $dokterId))->download('invoice-export.xlsx');
     }
     /**
      * Display a listing of invoices
