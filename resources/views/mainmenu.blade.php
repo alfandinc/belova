@@ -646,11 +646,7 @@
             if (!week) return;
             var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
             var url = '/hrd/schedule/print?start_date='+startDate;
-            if (isMobile()) {
-                $('#jadwal-karyawan-pdf').html('<a href="'+url+'" class="btn btn-primary" target="_blank">Download/Preview PDF</a>');
-            } else {
-                $('#jadwal-karyawan-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
-            }
+            $('#jadwal-karyawan-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
         }
         $('#jadwal-week').on('change', loadKaryawanPDF);
 
@@ -660,15 +656,7 @@
             var month = $('#jadwal-month').val();
             if (!month) return;
             var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
-            if (isMobile()) {
-                $('#jadwal-dokter-pdf').html('<a href="'+url+'" class="btn btn-primary" target="_blank">Download/Preview PDF</a>');
-            } else {
-                $('#jadwal-dokter-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
-            }
-        // Utility: detect mobile device
-        function isMobile() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        }
+            $('#jadwal-dokter-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
         }
         $('#jadwal-month').on('change', loadDokterPDF);
 
