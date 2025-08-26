@@ -48,9 +48,12 @@ class ObatController extends Controller
     public function monitorProfit(Request $request)
     {
         if ($request->ajax()) {
+            $PPN = 11;
             $obats = Obat::withInactive()
                 ->select(['id', 'kode_obat', 'nama', 'hpp', 'harga_nonfornas'])
-                ->selectRaw('(CASE WHEN hpp > 0 THEN ((harga_nonfornas - hpp) / hpp) * 100 ELSE NULL END) as profit_percent_value');
+                ->selectRaw('(CASE WHEN hpp > 0 THEN (((harga_nonfornas * (100 + '.$PPN.') / 100) - hpp) / hpp) * 100 ELSE NULL END) as profit_percent_value');
+            $PPN = 11; // PPN% default, can be changed or fetched from config
+            $defaultProfit = 30; // Default profit percent
             return DataTables::of($obats)
                 ->addColumn('profit_percent', function ($obat) {
                     if (isset($obat->profit_percent_value)) {
@@ -62,6 +65,12 @@ class ObatController extends Controller
                         return $text;
                     }
                     return '-';
+                })
+                ->addColumn('saran_harga_jual', function ($obat) use ($PPN, $defaultProfit) {
+                    $hpp = floatval($obat->hpp);
+                    $profitPercent = $defaultProfit;
+                    $saran = $hpp * ((100 + $profitPercent) / 100) * ((100 + $PPN) / 100);
+                    return $hpp > 0 ? number_format($saran, 0) : '-';
                 })
                 ->orderColumn('profit_percent', 'profit_percent_value $1')
                 ->editColumn('hpp', function ($obat) {

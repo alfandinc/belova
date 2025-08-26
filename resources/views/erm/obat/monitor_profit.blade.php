@@ -44,14 +44,18 @@
     <!-- end page title end breadcrumb -->
     <div class="row">
         <div class="col-12">            
+                    <div class="mb-2 d-flex justify-content-end">
+                        <span class="badge badge-info" style="font-size:1rem !important; font-weight:500; padding:0.35em 0.7em; letter-spacing:0.2px; box-shadow:0 1px 4px rgba(0,0,0,0.08); border-radius:0.35em; line-height:1.2;">PPN yang berlaku: <b style="font-size:1.05rem !important;">11%</b></span>
+                    </div>
                     <table id="monitor-profit-table" class="table table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>Kode Obat</th>
                                 <th>Nama Obat</th>
                                 <th>HPP</th>
+                                <th>Saran Harga Jual<br><small>(HPP × 1.3 × 1.11)</small></th>
                                 <th>Harga Jual</th>
-                                <th>Profit (%)</th>
+                                <th>Profit (%)<br><small>(Sudah termasuk PPN 11%)</small></th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
@@ -101,15 +105,16 @@ $(function() {
             url: '{{ route('erm.monitor-profit') }}',
             type: 'GET'
         },
-        columns: [
-            { data: 'kode_obat', name: 'kode_obat' },
-            { data: 'nama', name: 'nama' },
-            { data: 'hpp', name: 'hpp' },
-            { data: 'harga_nonfornas', name: 'harga_nonfornas', title: 'Harga Jual' },
-            { data: 'profit_percent', name: 'profit_percent', orderable: true, searchable: false },
-            { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
+    columns: [
+        { data: 'kode_obat', name: 'kode_obat' },
+        { data: 'nama', name: 'nama' },
+        { data: 'hpp', name: 'hpp' },
+        { data: 'saran_harga_jual', name: 'saran_harga_jual', orderable: false, searchable: false },
+        { data: 'harga_nonfornas', name: 'harga_nonfornas', title: 'Harga Jual' },
+        { data: 'profit_percent', name: 'profit_percent', orderable: true, searchable: false },
+        { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
     ],
-    order: [[4, 'desc']]
+    order: [[5, 'desc']]
     });
 
         // Handle edit button click
