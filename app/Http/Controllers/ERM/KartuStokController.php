@@ -91,7 +91,8 @@ class KartuStokController extends Controller
                     $masukQuery->whereBetween('fi.updated_at', [$start, $end]);
                 }
                 $masuk = $masukQuery
-                    ->select('fi.qty as jumlah', 'f.updated_at as created_at', 'f.no_faktur as no_ref', DB::raw("'Masuk' as tipe"))
+                    ->leftJoin('erm_pemasok as p', 'f.pemasok_id', '=', 'p.id')
+                    ->select('fi.qty as jumlah', 'f.updated_at as created_at', 'f.no_faktur as no_ref', DB::raw("'Masuk' as tipe"), 'p.nama as nama_pemasok')
                     ->get();
 
                 // Get keluar transactions from invoice items (Obat and ResepFarmasi)
@@ -104,7 +105,9 @@ class KartuStokController extends Controller
                     $keluarObatQuery->whereBetween('i.created_at', [$start, $end]);
                 }
                 $keluarObat = $keluarObatQuery
-                    ->select('ii.quantity as jumlah', 'i.created_at as created_at', 'i.invoice_number as no_ref', DB::raw("'Keluar' as tipe"))
+                    ->leftJoin('erm_visitations as v', 'i.visitation_id', '=', 'v.id')
+                    ->leftJoin('erm_pasiens as ps', 'v.pasien_id', '=', 'ps.id')
+                    ->select('ii.quantity as jumlah', 'i.created_at as created_at', 'i.invoice_number as no_ref', DB::raw("'Keluar' as tipe"), 'ps.nama as nama_pasien')
                     ->get();
 
                 $keluarResepQuery = DB::table('finance_invoice_items as ii')
@@ -118,7 +121,9 @@ class KartuStokController extends Controller
                     $keluarResepQuery->whereBetween('i.created_at', [$start, $end]);
                 }
                 $keluarResep = $keluarResepQuery
-                    ->select('ii.quantity as jumlah', 'i.created_at as created_at', 'i.invoice_number as no_ref', DB::raw("'Keluar' as tipe"))
+                    ->leftJoin('erm_visitations as v', 'i.visitation_id', '=', 'v.id')
+                    ->leftJoin('erm_pasiens as ps', 'v.pasien_id', '=', 'ps.id')
+                    ->select('ii.quantity as jumlah', 'i.created_at as created_at', 'i.invoice_number as no_ref', DB::raw("'Keluar' as tipe"), 'ps.nama as nama_pasien')
                     ->get();
 
 
@@ -142,7 +147,10 @@ class KartuStokController extends Controller
                             'tanggal' => $trx->created_at,
                             'jumlah' => $trx->jumlah,
                             'no_ref' => $trx->no_ref,
-                            'stok' => $runningStok
+                            'stok' => $runningStok,
+                            'info' => $trx->tipe == 'Masuk'
+                                ? ($trx->nama_pemasok ?? '-')
+                                : ($trx->nama_pasien ?? '-')
                         ];
                         // Reverse the calculation: subtract for Masuk, add for Keluar
                         if ($trx->tipe == 'Masuk') {
@@ -154,9 +162,9 @@ class KartuStokController extends Controller
 
                 $html = '';
                 $html .= '<div class="table-responsive"><table class="table table-bordered table-striped">';
-                $html .= '<thead><tr><th>Tipe</th><th>Tanggal</th><th>Jumlah</th><th>No Faktur/Resep</th><th>Stok Setelah</th></tr></thead><tbody>';
+                $html .= '<thead><tr><th>Tipe</th><th>Tanggal</th><th>Jumlah</th><th>No Faktur/Resep</th><th>Stok Setelah</th><th>Info</th></tr></thead><tbody>';
                 if (count($rows) === 0) {
-                    $html .= '<tr><td colspan="5" class="text-center text-danger">Tidak ada transaksi ditemukan. (DEBUG)</td></tr>';
+                    $html .= '<tr><td colspan="6" class="text-center text-danger">Tidak ada transaksi ditemukan. (DEBUG)</td></tr>';
                 } else {
                     foreach ($rows as $row) {
                         $html .= '<tr>';
@@ -165,6 +173,7 @@ class KartuStokController extends Controller
                         $html .= '<td>' . $row['jumlah'] . '</td>';
                         $html .= '<td>' . $row['no_ref'] . '</td>';
                         $html .= '<td>' . $row['stok'] . '</td>';
+                        $html .= '<td>' . $row['info'] . '</td>';
                         $html .= '</tr>';
                     }
                 }
