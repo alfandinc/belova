@@ -704,6 +704,15 @@
                         html += '<div class="col-md-4"><strong>Pasien:</strong> ' + item.pasien_nama + '</div>';
                         html += '<div class="col-md-4"><strong>Tanggal Visit:</strong> ' + item.tanggal_visit + '</div>';
                         html += '<div class="col-md-4"><strong>Dokter:</strong> ' + item.dokter_nama + '</div>';
+                        if (typeof item.allow_post !== "undefined") {
+                            html += '<div class="col-md-12 mt-1">';
+                            if (item.allow_post) {
+                                html += '<span class="badge badge-success"><i class="fas fa-check"></i> Diizinkan Posting ke Sosmed</span>';
+                            } else {
+                                html += '<span class="badge badge-secondary"><i class="fas fa-ban"></i> Tidak Diizinkan Posting</span>';
+                            }
+                            html += '</div>';
+                        }
                         html += '</div>';
                         html += '<div class="row mb-4">';
                         html += '<div class="col-md-6 text-center">';

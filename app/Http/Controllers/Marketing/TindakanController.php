@@ -46,6 +46,7 @@ class TindakanController extends Controller
                 'dokter_nama' => $ic->visitation && $ic->visitation->dokter ? $ic->visitation->dokter->user ? $ic->visitation->dokter->user->name : ($ic->visitation->dokter->nama ?? 'N/A') : 'N/A',
                 'before_image' => asset($beforePath),
                 'after_image' => asset($afterPath),
+                'allow_post' => (bool) $ic->allow_post,
             ];
         }
         return response()->json($result);
