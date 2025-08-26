@@ -55,6 +55,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             'Total Harga',
             'Diskon',
             'Status',
+            'Payment Method',
         ];
     }
 
@@ -79,6 +80,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             $item->quantity * $item->unit_price,
             $item->discount,
             $status,
+            $invoice ? $invoice->payment_method : null,
         ];
     }
 }
