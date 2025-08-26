@@ -10,14 +10,118 @@ use App\Models\HRD\PengajuanTidakMasuk;
 use App\Models\HRD\JatahLibur;
 
 class HRDController extends Controller
-    // --- Helper functions copied from AbsensiRekapController ---
 {
+    public function rekapKehadiranData(Request $request)
+    {
+        $startDate = null;
+        $endDate = null;
+        if ($request->filled('date_range')) {
+            $dates = explode(' s/d ', $request->input('date_range'));
+            if (count($dates) === 2) {
+                $startDate = $dates[0];
+                $endDate = $dates[1];
+            }
+        }
+
+        // DataTables params
+        $draw = intval($request->input('draw'));
+        $start = intval($request->input('start', 0));
+        $length = intval($request->input('length', 10));
+        $search = $request->input('search.value', '');
+
+        $employees = \App\Models\HRD\Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+
+        // Map and filter data
+        $mapped = $employees->map(function ($employee) use ($startDate, $endDate) {
+            $sakit = $employee->pengajuanTidakMasuk->where('jenis', 'sakit')->sum('total_hari');
+            $izin = $employee->pengajuanTidakMasuk->where('jenis', 'izin')->sum('total_hari');
+            $cuti = $employee->pengajuanLibur->where('jenis_libur', 'cuti')->sum('total_hari');
+            $jatahCuti = $employee->jatahLibur ? $employee->jatahLibur->jatah_cuti_tahunan : 0;
+            $sisaCuti = $jatahCuti - $cuti;
+
+            $attendance = $employee->attendanceRekap;
+            if ($startDate && $endDate) {
+                $attendance = $attendance->whereBetween('date', [$startDate, $endDate]);
+            }
+            $on_time = 0;
+            $overtime = 0;
+            $terlambat = 0;
+            $menit_terlambat = 0;
+            $jumlah_hari_masuk = 0;
+            foreach ($attendance as $a) {
+                $jamMasuk = $a->jam_masuk ? (explode(' ', $a->jam_masuk)[1] ?? $a->jam_masuk) : null;
+                $jamKeluar = $a->jam_keluar ? (explode(' ', $a->jam_keluar)[1] ?? $a->jam_keluar) : null;
+                $shiftStart = $a->shift_start ?? null;
+                $shiftEnd = $a->shift_end ?? null;
+                $date = $a->date ?? null;
+                if ($jamMasuk) {
+                    $jumlah_hari_masuk++;
+                }
+                if ($this->isLate($jamMasuk, $shiftStart, $date)) {
+                    $terlambat++;
+                    $menit_terlambat += $this->calculateMinutesLate($jamMasuk, $shiftStart, $date);
+                } else if ($jamMasuk && $shiftStart) {
+                    $on_time++;
+                }
+                if ($this->hasOvertime($jamKeluar, $shiftEnd, $date)) {
+                    $overtime += $this->calculateMinutesOvertime($jamKeluar, $shiftEnd, $date);
+                }
+            }
+
+            return [
+                'no_induk' => $employee->no_induk,
+                'nama' => $employee->nama,
+                'sakit' => $sakit,
+                'izin' => $izin,
+                'cuti' => $cuti,
+                'sisa_cuti' => $sisaCuti,
+                'jumlah_hari_masuk' => $jumlah_hari_masuk,
+                'on_time' => $on_time,
+                'overtime' => $overtime,
+                'terlambat' => $terlambat,
+                'menit_terlambat' => $menit_terlambat,
+            ];
+        });
+
+        // Search filter
+        if ($search) {
+            $mapped = $mapped->filter(function($row) use ($search) {
+                return stripos($row['no_induk'], $search) !== false ||
+                       stripos($row['nama'], $search) !== false;
+            });
+        }
+
+        $recordsTotal = $employees->count();
+        $recordsFiltered = $mapped->count();
+
+        // Pagination
+        $data = $mapped->slice($start, $length)->values();
+
+        return response()->json([
+            'draw' => $draw,
+            'recordsTotal' => $recordsTotal,
+            'recordsFiltered' => $recordsFiltered,
+            'data' => $data,
+        ]);
+    }
+    // --- Helper functions copied from AbsensiRekapController ---
     public function rekapKehadiran(Request $request)
     {
-        // Get all employees
-        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk'])->get();
+        // Parse date range from request
+        $startDate = null;
+        $endDate = null;
+        if ($request->filled('date_range')) {
+            $dates = explode(' s/d ', $request->input('date_range'));
+            if (count($dates) === 2) {
+                $startDate = $dates[0];
+                $endDate = $dates[1];
+            }
+        }
 
-        $data = $employees->map(function ($employee) {
+        // Get all employees
+        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+
+        $data = $employees->map(function ($employee) use ($startDate, $endDate) {
             $sakit = $employee->pengajuanTidakMasuk->where('jenis', 'sakit')->sum('total_hari');
             $izin = $employee->pengajuanTidakMasuk->where('jenis', 'izin')->sum('total_hari');
             $cuti = $employee->pengajuanLibur->where('jenis_libur', 'cuti')->sum('total_hari');
@@ -26,6 +130,9 @@ class HRDController extends Controller
 
             // Attendance aggregates
             $attendance = $employee->attendanceRekap;
+            if ($startDate && $endDate) {
+                $attendance = $attendance->whereBetween('date', [$startDate, $endDate]);
+            }
             $on_time = 0;
             $overtime = 0;
             $terlambat = 0;
@@ -142,8 +249,18 @@ class HRDController extends Controller
 
     public function exportExcel(Request $request)
     {
-        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk'])->get();
-        $data = $employees->map(function ($employee) {
+        // Parse date range from request
+        $startDate = null;
+        $endDate = null;
+        if ($request->filled('date_range')) {
+            $dates = explode(' s/d ', $request->input('date_range'));
+            if (count($dates) === 2) {
+                $startDate = $dates[0];
+                $endDate = $dates[1];
+            }
+        }
+        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+        $data = $employees->map(function ($employee) use ($startDate, $endDate) {
             $sakit = $employee->pengajuanTidakMasuk->where('jenis', 'sakit')->sum('total_hari');
             $izin = $employee->pengajuanTidakMasuk->where('jenis', 'izin')->sum('total_hari');
             $cuti = $employee->pengajuanLibur->where('jenis_libur', 'cuti')->sum('total_hari');
@@ -151,6 +268,9 @@ class HRDController extends Controller
             $sisaCuti = $jatahCuti - $cuti;
 
             $attendance = $employee->attendanceRekap;
+            if ($startDate && $endDate) {
+                $attendance = $attendance->whereBetween('date', [$startDate, $endDate]);
+            }
             $on_time = 0;
             $overtime = 0;
             $terlambat = 0;
@@ -190,8 +310,18 @@ class HRDController extends Controller
 
     public function exportPdf(Request $request)
     {
-        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk'])->get();
-        $data = $employees->map(function ($employee) {
+        // Parse date range from request
+        $startDate = null;
+        $endDate = null;
+        if ($request->filled('date_range')) {
+            $dates = explode(' s/d ', $request->input('date_range'));
+            if (count($dates) === 2) {
+                $startDate = $dates[0];
+                $endDate = $dates[1];
+            }
+        }
+        $employees = Employee::with(['jatahLibur', 'pengajuanLibur', 'pengajuanTidakMasuk', 'attendanceRekap'])->get();
+        $data = $employees->map(function ($employee) use ($startDate, $endDate) {
             $sakit = $employee->pengajuanTidakMasuk->where('jenis', 'sakit')->sum('total_hari');
             $izin = $employee->pengajuanTidakMasuk->where('jenis', 'izin')->sum('total_hari');
             $cuti = $employee->pengajuanLibur->where('jenis_libur', 'cuti')->sum('total_hari');
@@ -199,16 +329,23 @@ class HRDController extends Controller
             $sisaCuti = $jatahCuti - $cuti;
 
             $attendance = $employee->attendanceRekap;
+            if ($startDate && $endDate) {
+                $attendance = $attendance->whereBetween('date', [$startDate, $endDate]);
+            }
             $on_time = 0;
             $overtime = 0;
             $terlambat = 0;
             $menit_terlambat = 0;
+            $jumlah_hari_masuk = 0;
             foreach ($attendance as $a) {
                 $jamMasuk = $a->jam_masuk ? (explode(' ', $a->jam_masuk)[1] ?? $a->jam_masuk) : null;
                 $jamKeluar = $a->jam_keluar ? (explode(' ', $a->jam_keluar)[1] ?? $a->jam_keluar) : null;
                 $shiftStart = $a->shift_start ?? null;
                 $shiftEnd = $a->shift_end ?? null;
                 $date = $a->date ?? null;
+                if ($jamMasuk) {
+                    $jumlah_hari_masuk++;
+                }
                 if ($this->isLate($jamMasuk, $shiftStart, $date)) {
                     $terlambat++;
                     $menit_terlambat += $this->calculateMinutesLate($jamMasuk, $shiftStart, $date);
@@ -227,14 +364,15 @@ class HRDController extends Controller
                 'izin' => $izin,
                 'cuti' => $cuti,
                 'sisa_cuti' => $sisaCuti,
+                'jumlah_hari_masuk' => $jumlah_hari_masuk,
                 'on_time' => $on_time,
                 'overtime' => $overtime,
                 'terlambat' => $terlambat,
                 'menit_terlambat' => $menit_terlambat,
             ];
         });
-    $pdf = \PDF::loadView('laporan.hrd.rekap_kehadiran_pdf', ['data' => $data]);
-    $pdf->setPaper('A4', 'landscape');
-    return $pdf->download('rekap_kehadiran.pdf');
+        $pdf = \PDF::loadView('laporan.hrd.rekap_kehadiran_pdf', ['data' => $data]);
+        $pdf->setPaper('A4', 'landscape');
+        return $pdf->download('rekap_kehadiran.pdf');
     }
 }
