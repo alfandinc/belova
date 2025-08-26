@@ -417,6 +417,13 @@ class TindakanController extends Controller
             $informConsent->after_image_path = $afterPath;
         }
 
+        // Handle allow_post checkbox
+        if ($request->has('allow_post')) {
+            $informConsent->allow_post = $request->input('allow_post') ? true : false;
+        } else {
+            $informConsent->allow_post = false;
+        }
+
         $informConsent->save();
 
         return response()->json([

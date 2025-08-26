@@ -33,6 +33,14 @@
               </div>
             </div>
           </div>
+          <div class="form-group mt-3">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="allowPost" name="allow_post" value="1">
+              <label class="form-check-label" for="allowPost">
+                Izinkan Posting ke Sosial Media
+              </label>
+            </div>
+          </div>
         </form>
       </div>
       <div class="modal-footer">
