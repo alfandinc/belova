@@ -104,16 +104,25 @@
     <td style="width: 30%; line-height: 1.2;"><strong>With the following diagnoses</strong></td>
     <td style="width: 70%; line-height: 1.2;">
       <strong>:</strong>
+      @php
+        $filteredDiagnosis = collect($diagnosis_list)->filter(function($d) {
+          $val = trim(strtolower($d));
+          return !empty($val) && !in_array($val, ['1', '0', '-']);
+        })->values();
+      @endphp
+      @if($filteredDiagnosis->isEmpty())
+        -
+      @else
+        <table style="width:100%; border:none;">
+        @foreach($filteredDiagnosis as $index => $diagnosis)
+          <tr>
+            <td style="border:none; padding:0;">{{ $index + 1 }}. {{ $diagnosis }}</td>
+          </tr>
+        @endforeach
+        </table>
+      @endif
     </td>
   </tr>
-  @foreach($diagnosis_list as $index => $diagnosis)
-  <tr>
-    <td style="width: 30%; line-height: 1.2;"></td>
-    <td style="width: 70%; line-height: 1.2;">
-      {{ $index + 1 }}. {{ $diagnosis }}
-    </td>
-  </tr>
-  @endforeach
   <tr>
     <td style="width: 30%; line-height: 1.2;"><strong>Remarks</strong></td>
     <td style="width: 70%; line-height: 1.2;"><strong>:</strong> {{ $keterangan }}</td>
