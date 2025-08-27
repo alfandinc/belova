@@ -45,6 +45,12 @@
                 </a>
             </li>
             <li>
+                <a class="nav-link" href="/laporan/laboratorium">
+                    <i data-feather="file-text" class="align-self-center menu-icon"></i>
+                    <span>Laporan Laboratorium</span>
+                </a>
+            </li>
+            <li>
                 <a href="javascript:void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Laporan HRD</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="/laporan/hrd/rekap-kehadiran"><i class="ti-control-record"></i>Rekap Kehadiran</a></li>

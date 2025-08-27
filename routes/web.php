@@ -155,6 +155,13 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function (
     // Export Rekap Kehadiran
     Route::get('/hrd/rekap-kehadiran/excel', [\App\Http\Controllers\Laporan\HRDController::class, 'exportExcel'])->name('laporan.hrd.rekap-kehadiran.excel');
     Route::get('/hrd/rekap-kehadiran/pdf', [\App\Http\Controllers\Laporan\HRDController::class, 'exportPdf'])->name('laporan.hrd.rekap-kehadiran.pdf');
+
+    // Laporan Laboratorium
+    Route::get('/laboratorium', [\App\Http\Controllers\Laporan\LabController::class, 'index'])->name('laporan.laboratorium');
+    Route::get('/laboratorium/data', [\App\Http\Controllers\Laporan\LabController::class, 'data'])->name('laporan.laboratorium.data');
+    // Dokter & Klinik list for laporan filter (no middleware)
+    Route::get('/dokters', [\App\Http\Controllers\Laporan\LabController::class, 'listDokters'])->name('laporan.dokters');
+    Route::get('/kliniks', [\App\Http\Controllers\Laporan\LabController::class, 'listKliniks'])->name('laporan.kliniks');
 });
 
 // ERM Routes
