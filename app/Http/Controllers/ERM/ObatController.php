@@ -327,22 +327,38 @@ class ObatController extends Controller
     public function search(Request $request)
     {
         $query = $request->get('q');
+        $metodeBayarId = $request->get('metode_bayar_id');
 
-        // Fetch obat data based on the search query and only show active medications
-        $obats = Obat::where('status_aktif', 1)
+        // Search by obat name, dosis, satuan, or zat aktif name, and filter by metode_bayar_id if provided
+        $obatsQuery = Obat::where('status_aktif', 1)
             ->where(function($q) use ($query) {
                 $q->where('nama', 'LIKE', "%{$query}%")
                   ->orWhere('dosis', 'LIKE', "%{$query}%")
-                  ->orWhere('satuan', 'LIKE', "%{$query}%");
-            })
-            ->limit(10)
-            ->get();
+                  ->orWhere('satuan', 'LIKE', "%{$query}%")
+                  ->orWhereHas('zatAktifs', function($z) use ($query) {
+                      $z->where('nama', 'LIKE', "%{$query}%");
+                  });
+            });
+        if ($metodeBayarId) {
+            $obatsQuery->where('metode_bayar_id', $metodeBayarId);
+        }
+        $obats = $obatsQuery->limit(10)->get();
 
         // Return the data in Select2 format (with 'results' key)
         $results = $obats->map(function ($obat) {
+            // Show zat aktif names in the text for better UX, format to title case
+            $zatAktifNames = $obat->zatAktifs->pluck('nama')->map(function($nama) {
+                // Convert to lowercase then uppercase first letter of each word
+                return ucwords(strtolower($nama));
+            })->implode(', ');
+            $text = $obat->nama;
+            if ($zatAktifNames) {
+                $text .= ' [' . $zatAktifNames . ']';
+            }
+            $text .= ' - ' . $obat->dosis . ' ' . $obat->satuan;
             return [
                 'id' => $obat->id,
-                'text' => $obat->nama . ' - ' . $obat->dosis . ' ' . $obat->satuan,
+                'text' => $text,
                 'nama' => $obat->nama,
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,

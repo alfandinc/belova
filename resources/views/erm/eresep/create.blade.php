@@ -422,7 +422,12 @@
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
-                    return { q: params.term };
+                    // Get metode_bayar_id from visitation (from blade or JS variable)
+                    var metodeBayarId = {{ $visitation->metode_bayar_id ?? 'null' }};
+                    return {
+                        q: params.term,
+                        metode_bayar_id: metodeBayarId
+                    };
                 },
                 processResults: function (data) {
                     // If your endpoint returns {results: [...]}, use that
@@ -821,22 +826,24 @@
             $('.select2-obat-racikan').last().select2({
                 placeholder: 'Search obat...',
                 ajax: {
-                    url: '{{ route("obat.search") }}', // Define this route in your controller
+                    url: '{{ route("obat.search") }}',
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
+                        var metodeBayarId = {{ $visitation->metode_bayar_id ?? 'null' }};
                         return {
-                            q: params.term // Search term
+                            q: params.term,
+                            metode_bayar_id: metodeBayarId
                         };
                     },
                     processResults: function (data) {
-                        // If your endpoint returns {results: [...]}, use that
+                        // Ensure zat aktif is shown in dropdown
                         if (Array.isArray(data.results)) {
                             return {
                                 results: data.results.map(function(item) {
                                     return {
                                         id: item.id,
-                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                        text: item.text,
                                         nama: item.nama,
                                         dosis: item.dosis,
                                         satuan: item.satuan,
@@ -846,12 +853,12 @@
                                 })
                             };
                         } else {
-                            // fallback for array response
                             return {
                                 results: data.map(function(item) {
+                                    var zatAktif = item.zat_aktif ? ' [' + item.zat_aktif + ']' : '';
                                     return {
                                         id: item.id,
-                                        text: `${item.nama} ${item.dosis} ${item.satuan}`,
+                                        text: item.nama + zatAktif + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : ''),
                                         nama: item.nama,
                                         dosis: item.dosis,
                                         satuan: item.satuan,
