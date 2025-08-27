@@ -210,8 +210,8 @@
                 }
             });
         
-        // Make sure filter_status has an empty value initially
-        $('#filter_status').val('').trigger('change.select2');
+    // Set filter_status to 'Aktif' by default
+    $('#filter_status').val('1').trigger('change.select2');
 
         // Initialize DataTable
         let table = $('#obat-table').DataTable({
