@@ -13,6 +13,106 @@ use Illuminate\Support\Facades\Log;
 
 class LabController extends Controller
 {
+        // Monthly stats for lab requests (for chart)
+    public function monthlyStats(Request $request)
+    {
+        $year = $request->input('year', date('Y'));
+        $stats = LabPermintaan::selectRaw('MONTH(created_at) as month, COUNT(*) as jumlah')
+            ->whereYear('created_at', $year)
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+
+        $labels = [];
+        $values = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $labels[] = date('M', mktime(0,0,0,$m,1));
+            $found = $stats->firstWhere('month', $m);
+            $values[] = $found ? $found->jumlah : 0;
+        }
+        return response()->json(['labels' => $labels, 'values' => $values]);
+    }
+
+    // AJAX endpoint for grouped visitation data
+    public function groupedData(Request $request)
+    {
+        $query = Visitation::with([
+            'pasien',
+            'dokter.user',
+            'klinik',
+            'invoice',
+            'labPermintaan.labTest',
+        ])->whereHas('labPermintaan');
+
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $dokterId = $request->input('dokter_id');
+        $klinikId = $request->input('klinik_id');
+        if ($startDate && $endDate) {
+            $query = $query->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+        }
+        if ($dokterId) {
+            $query = $query->where('dokter_id', $dokterId);
+        }
+        if ($klinikId) {
+            $query = $query->where('klinik_id', $klinikId);
+        }
+
+        return DataTables::eloquent($query)
+            ->addColumn('pasien', function($row) {
+                return $row->pasien->nama ?? '-';
+            })
+            ->addColumn('dokter', function($row) {
+                return $row->dokter->user->name ?? $row->dokter->nama ?? '-';
+            })
+            ->addColumn('klinik', function($row) {
+                return $row->klinik->nama ?? '-';
+            })
+            ->addColumn('invoice', function($row) {
+                return $row->invoice ? $row->invoice->invoice_number : '-';
+            })
+            ->addColumn('total_harga_jual', function($row) {
+                $total = 0;
+                foreach ($row->labPermintaan as $permintaan) {
+                    $invoiceItem = InvoiceItem::where('billable_type', LabPermintaan::class)
+                        ->where('billable_id', $permintaan->id)->first();
+                    $total += $invoiceItem ? floatval($invoiceItem->final_amount) : 0;
+                }
+                return 'Rp ' . number_format($total, 0, ',', '.');
+            })
+            ->addColumn('action', function($row) {
+                return '<button class="btn btn-info btn-sm" onclick="showLabDetails(' . htmlspecialchars(json_encode($row->id)) . ')">Detail</button>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    // AJAX endpoint for permintaan details modal
+    public function permintaanDetails(Request $request, $visitationId)
+    {
+        $permintaan = LabPermintaan::with(['labTest'])->where('visitation_id', $visitationId)->get();
+        \Log::info('Permintaan details for visitation', ['visitationId' => $visitationId, 'permintaan_count' => $permintaan->count()]);
+        $details = $permintaan->map(function($row) {
+            $invoiceItem = InvoiceItem::where('billable_type', LabPermintaan::class)
+                ->where('billable_id', $row->id)->first();
+            \Log::info('LabPermintaan detail', [
+                'id' => $row->id,
+                'nama_test' => $row->labTest->nama ?? '-',
+                'harga' => $row->labTest->harga ?? '-',
+                'harga_jual' => $invoiceItem ? $invoiceItem->final_amount : '-',
+                'status' => $row->status ?? '-',
+                'hasil' => $row->hasil ?? '-',
+            ]);
+            return [
+                'nama_test' => $row->labTest->nama ?? '-',
+                'harga' => $row->labTest->harga ?? '-',
+                'harga_jual' => $invoiceItem ? $invoiceItem->final_amount : '-',
+                'status' => $row->status ?? '-',
+                'hasil' => $row->hasil ?? '-',
+            ];
+        });
+        return response()->json(['details' => $details]);
+    }
     // Export lab report to Excel
     public function exportExcel(Request $request)
     {

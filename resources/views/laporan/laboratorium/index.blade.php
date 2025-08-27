@@ -39,6 +39,7 @@
             </div>
         </div>
     </div>
+
     <div class="row mb-3">
         <div class="col-md-4">
             <input type="text" id="dateRange" class="form-control" placeholder="Filter tanggal visit...">
@@ -54,26 +55,89 @@
             </select>
         </div>
     </div>
-    <table id="labTable" class="table table-bordered table-striped">
-        <thead>
-            <tr>
-                <th>Tanggal Visit</th>
-                <th>Pasien</th>
-                <th>Nama Test</th>
-                <th>Dokter</th>
-                <th>Klinik</th>
-                <th>Harga</th>
-                <th>Harga Jual</th>
-                <th>Invoice</th>
-            </tr>
-        </thead>
-    </table>
+        <table id="labTable" class="table table-bordered table-striped">
+                <thead>
+                        <tr>
+                                <th>Tanggal Visit</th>
+                                <th>Pasien</th>
+                                <th>Dokter</th>
+                                <th>Klinik</th>
+                                <th>Invoice</th>
+                                <th>Total Harga Jual</th>
+                                <th>Action</th>
+                        </tr>
+                </thead>
+        </table>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="mb-3">Grafik Permintaan Lab per Bulan</h6>
+                        <canvas id="labMonthChart" height="80"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for permintaan details -->
+        <div class="modal fade" id="labDetailsModal" tabindex="-1" role="dialog" aria-labelledby="labDetailsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="labDetailsModalLabel">Detail Permintaan Lab</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Nama Test</th>
+                                    <th>Harga</th>
+                                    <th>Harga Jual</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="labDetailsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
 </div>
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 $(function() {
+    // Monthly chart
+    $.getJSON('/laporan/laboratorium/monthly-stats', function(data) {
+        var labels = data.labels;
+        var values = data.values;
+        var ctx = document.getElementById('labMonthChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Jumlah Permintaan Lab',
+                    data: values,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    });
     // Export Excel
     $('#btnExportExcel').on('click', function() {
         var dr = $('#dateRange').val().split(' - ');
@@ -140,7 +204,7 @@ $(function() {
         processing: true,
         serverSide: true,
         ajax: {
-            url: '{{ route("laporan.laboratorium.data") }}',
+            url: '/laporan/laboratorium/grouped-data',
             data: function(d) {
                 var dr = $('#dateRange').val().split(' - ');
                 d.start_date = dr[0];
@@ -150,16 +214,36 @@ $(function() {
             }
         },
         columns: [
-            { data: 'tanggal_visit', name: 'tanggal_visit' },
+            { data: 'tanggal_visitation', name: 'tanggal_visitation' },
             { data: 'pasien', name: 'pasien' },
-            { data: 'nama_test', name: 'nama_test' },
             { data: 'dokter', name: 'dokter' },
             { data: 'klinik', name: 'klinik' },
-            { data: 'harga', name: 'harga' },
-            { data: 'harga_jual', name: 'harga_jual' },
             { data: 'invoice', name: 'invoice' },
+            { data: 'total_harga_jual', name: 'total_harga_jual' },
+            { data: 'action', name: 'action', orderable: false, searchable: false },
         ]
     });
+    // Show details modal
+    window.showLabDetails = function(visitationId) {
+        $('#labDetailsBody').html('<tr><td colspan="5">Loading...</td></tr>');
+        $('#labDetailsModal').modal('show');
+        $.getJSON('/laporan/laboratorium/permintaan-details/' + visitationId, function(data) {
+            var html = '';
+            if (data.details && data.details.length) {
+                data.details.forEach(function(item) {
+                    html += '<tr>' +
+                        '<td>' + item.nama_test + '</td>' +
+                        '<td>' + item.harga + '</td>' +
+                        '<td>' + item.harga_jual + '</td>' +
+                        '<td>' + item.status + '</td>' +
+                        '</tr>';
+                });
+            } else {
+                html = '<tr><td colspan="4">No data</td></tr>';
+            }
+            $('#labDetailsBody').html(html);
+        });
+    }
 
     // Reload table and stats when filter changes
     function reloadLabTableAndStats() {

@@ -159,6 +159,10 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function (
     // Laporan Laboratorium
     Route::get('/laboratorium', [\App\Http\Controllers\Laporan\LabController::class, 'index'])->name('laporan.laboratorium');
     Route::get('/laboratorium/data', [\App\Http\Controllers\Laporan\LabController::class, 'data'])->name('laporan.laboratorium.data');
+    Route::get('/laboratorium/grouped-data', [\App\Http\Controllers\Laporan\LabController::class, 'groupedData']);
+    Route::get('/laboratorium/permintaan-details/{visitationId}', [\App\Http\Controllers\Laporan\LabController::class, 'permintaanDetails']);
+        Route::get('/laboratorium/monthly-stats', [\App\Http\Controllers\Laporan\LabController::class, 'monthlyStats']);
+    Route::get('/laboratorium/chart', function() { return view('laporan.laboratorium.lab_chart'); });
     // Dokter & Klinik list for laporan filter (no middleware)
     Route::get('/dokters', [\App\Http\Controllers\Laporan\LabController::class, 'listDokters'])->name('laporan.dokters');
     Route::get('/kliniks', [\App\Http\Controllers\Laporan\LabController::class, 'listKliniks'])->name('laporan.kliniks');
