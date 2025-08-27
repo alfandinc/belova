@@ -164,6 +164,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped" id="suratTable">
+
                             <thead class="table-dark">
                                 <tr>
                                     <th>Dokter</th>
@@ -212,6 +213,100 @@
                 </div>
             </div>
         </div>
+
+        
+        <!-- Surat Diagnosa Card -->
+        <div class="col-lg-12 col-12 mb-3">
+            <div class="card">
+                <div class="card-header text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Surat Diagnosa</h5>
+                    <button class="btn btn-info" data-toggle="modal" data-target="#modalSuratDiagnosa">
+                        <i class="fas fa-plus"></i> Buat Surat Diagnosa
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="suratDiagnosaTable">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Dokter</th>
+                                    <th>Spesialisasi</th>
+                                    <th>Keterangan</th>
+                                    <th>Tanggal</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+<!-- Modal Surat Diagnosa -->
+<div class="modal fade" id="modalSuratDiagnosa" tabindex="-1" role="dialog" aria-labelledby="modalSuratDiagnosaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <form id="formSuratDiagnosa">
+            @csrf
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="modalSuratDiagnosaLabel">
+                        <i class="fas fa-file-medical-alt"></i> Buat Surat Diagnosa
+                    </h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="pasien_id" value="{{ $pasien->id }}">
+                    <div class="form-group mb-3">
+                        <label class="form-label"><i class="fas fa-user-md"></i> Dokter</label>
+                        <select id="dokter_id_diagnosa" name="dokter_id" class="form-control select2" required>
+                            @foreach ($dokters as $dokter)
+                                <option value="{{ $dokter->id }}">{{ $dokter->user->name ?? 'Tanpa Nama' }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label"><i class="fas fa-sticky-note"></i> Keterangan</label>
+                        <textarea name="keterangan" class="form-control" rows="3" placeholder="Masukkan keterangan..." required></textarea>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label"><i class="fas fa-notes-medical"></i> Pilih Kunjungan</label>
+                        <select name="visitation_id" class="form-control select2" required id="diagnosaKunjunganSelect">
+                            @foreach($visitations as $visit)
+                                <option value="{{ $visit->id }}" data-diagnosa="{{
+                                    collect([
+                                        $visit->asesmenPenunjang->diagnosakerja_1 ?? '',
+                                        $visit->asesmenPenunjang->diagnosakerja_2 ?? '',
+                                        $visit->asesmenPenunjang->diagnosakerja_3 ?? '',
+                                        $visit->asesmenPenunjang->diagnosakerja_4 ?? '',
+                                        $visit->asesmenPenunjang->diagnosakerja_5 ?? ''
+                                    ])->filter()->implode('|')
+                                }}">
+                                    {{ $visit->tanggal_visitation }} - {{ $visit->dokter->user->name ?? '-' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label class="form-label"><i class="fas fa-diagnoses"></i> Diagnosa Kerja</label>
+                        <ul id="diagnosaKerjaList" class="list-group"></ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Batal
+                    </button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-save"></i> Simpan
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
     </div>
 
 </div><!-- container -->
@@ -346,7 +441,100 @@ $(document).ready(function() {
         ]
     });
 
+
     $('.select2').select2({ width: '100%' });
+
+    // Initialize Surat Diagnosa DataTable with AJAX
+    let tableDiagnosa = $('#suratDiagnosaTable').DataTable({
+        responsive: true,
+        autoWidth: false,
+        processing: true,
+        serverSide: false,
+        scrollX: true,
+        language: {
+            processing: "Memuat data...",
+            search: "Cari:",
+            lengthMenu: "Tampilkan _MENU_ data per halaman",
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
+            infoFiltered: "(disaring dari _MAX_ total data)",
+            paginate: {
+                first: "Pertama",
+                last: "Terakhir",
+                next: "Selanjutnya",
+                previous: "Sebelumnya"
+            },
+            emptyTable: "Tidak ada data surat diagnosa"
+        },
+        ajax: {
+            url: '/erm/riwayatkunjungan/{{ $pasien->id }}/get-data-diagnosis-table',
+            type: 'GET',
+        },
+        columns: [
+            { data: 'DT_RowIndex', name: 'DT_RowIndex', title: 'No', orderable: false, searchable: false },
+            { data: 'dokter', name: 'dokter', title: 'Dokter' },
+            { data: 'spesialisasi', name: 'spesialisasi', title: 'Spesialisasi' },
+            { data: 'keterangan', name: 'keterangan', title: 'Keterangan' },
+            { data: 'tanggal', name: 'tanggal', title: 'Tanggal' },
+            { data: 'aksi', name: 'aksi', orderable: false, searchable: false, title: 'Aksi', className: 'text-center' },
+        ],
+        columnDefs: [
+            { targets: [0, 5], className: 'text-center' }
+        ]
+    });
+
+    // Surat Diagnosa Form Submission
+    // Diagnosa Kerja dynamic display
+    $('#diagnosaKunjunganSelect').on('change', function() {
+        var diagnosaStr = $(this).find('option:selected').data('diagnosa');
+        var diagnosaArr = diagnosaStr ? diagnosaStr.split('|') : [];
+        var html = '';
+        if (diagnosaArr.length > 0) {
+            diagnosaArr.forEach(function(d, i) {
+                html += '<li class="list-group-item">' + (i+1) + '. ' + d + '</li>';
+            });
+        } else {
+            html = '<li class="list-group-item text-muted">Tidak ada diagnosa kerja.</li>';
+        }
+        $('#diagnosaKerjaList').html(html);
+    });
+    // Trigger on page load for default selection
+    $('#diagnosaKunjunganSelect').trigger('change');
+
+    $('#formSuratDiagnosa').on('submit', function(e) {
+        e.preventDefault();
+        $.ajax({
+            url: '/erm/riwayatkunjungan/store-surat-diagnosis',
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(data) {
+                $('#modalSuratDiagnosa').modal('hide');
+                $('#formSuratDiagnosa')[0].reset();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Berhasil!',
+                    text: 'Surat diagnosa berhasil dibuat.',
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#28a745'
+                });
+                tableDiagnosa.ajax.reload();
+            },
+            error: function(err) {
+                let errorMessage = 'Terjadi kesalahan saat menyimpan data.';
+                if (err.responseJSON && err.responseJSON.errors) {
+                    const errors = Object.values(err.responseJSON.errors).flat();
+                    errorMessage = errors.join('\n');
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Gagal!',
+                    text: errorMessage,
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#d33'
+                });
+            }
+        });
+    });
 
     function countDays() {
         let mulai = $('input[name="tanggal_mulai"]').val();

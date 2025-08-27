@@ -34,6 +34,11 @@ class SuratIstirahatController extends Controller
         // Get asesmen penunjang data for autofill
         $asesmenPenunjang = AsesmenPenunjang::where('visitation_id', $visitId)->first();
 
+        // Get Surat Diagnosa data for this pasien
+        $suratDiagnosas = \App\Models\ERM\SuratDiagnosa::whereHas('visitation', function($q) use ($pasien_id) {
+            $q->where('pasien_id', $pasien_id);
+        })->with(['visitation.dokter.user', 'visitation.dokter.spesialisasi'])->get();
+
         // Check if the request is for DataTable AJAX data
         if (request()->ajax()) {
             return datatables()->of($surats)
@@ -64,6 +69,8 @@ class SuratIstirahatController extends Controller
             'dokters' => $dokters,
             'dokterUserId' => $dokterUserId,
             'asesmenPenunjang' => $asesmenPenunjang,
+            'suratDiagnosas' => $suratDiagnosas,
+            'visitations' => $pasien->visitations ?? [],
         ], $pasienData, $createKunjunganData));
     }
 

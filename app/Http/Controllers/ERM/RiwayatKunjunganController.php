@@ -15,6 +15,95 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class RiwayatKunjunganController extends Controller
 {
+    public function printSuratDiagnosisEn($visitationId)
+    {
+        $visitation = Visitation::with([
+            'dokter.user',
+            'dokter.spesialisasi',
+            'asesmenDalam',
+            'asesmenAnak',
+            'asesmenEstetika',
+            'asesmenSaraf',
+            'asesmenGigi',
+            'asesmenPenunjang',
+            'asesmenUmum',
+            'asesmenPerawat',
+            'resepDokter.obat'
+        ])->findOrFail($visitationId);
+
+        $pasien = PasienHelperController::getDataPasien($visitationId);
+        $suratDiagnosa = SuratDiagnosa::where('visitation_id', $visitationId)->first();
+
+        // Get diagnosis list
+        $diagnosisList = [];
+        if ($visitation->asesmenPenunjang) {
+            $diagnosisList = array_filter([
+                $visitation->asesmenPenunjang->diagnosakerja_1 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_2 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_3 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_4 ?? '',
+                $visitation->asesmenPenunjang->diagnosakerja_5 ?? '',
+            ]);
+        }
+        if (empty($diagnosisList) && $suratDiagnosa && !empty($suratDiagnosa->keterangan)) {
+            $diagnosisList[] = $suratDiagnosa->keterangan;
+        }
+
+        $birthDate = \Carbon\Carbon::parse($pasien['pasien']->tanggal_lahir);
+        $age = $birthDate->age;
+
+        $data = [
+            'visitation_id' => $visitation->id,
+            'tanggal_visit' => $visitation->tanggal_visitation,
+            'nama_dokter' => $visitation->dokter->user->name ?? 'Doctor',
+            'spesialisasi' => $visitation->dokter->spesialisasi->nama ?? '-',
+            'pasien' => $pasien['pasien'],
+            'diagnosis_list' => $diagnosisList,
+            'keterangan' => $suratDiagnosa->keterangan ?? '-',
+            'ttd_image_path' => '',
+            'umur' => $age
+        ];
+
+        try {
+            $pdf = \PDF::loadView('erm.riwayatkunjungan.surat-diagnosis-en', $data);
+            return $pdf->stream('medical-diagnosis-certificate.pdf');
+        } catch (\Exception $e) {
+            \Log::error('Error generating English surat diagnosis PDF: ' . $e->getMessage());
+            return response()->view('errors.custom', [
+                'message' => 'Error generating English diagnosis certificate. Please try again or contact admin.',
+                'exception' => $e
+            ], 500);
+        }
+    }
+    public function getDataDiagnosisTable($pasienId)
+    {
+        $diagnosas = SuratDiagnosa::whereHas('visitation', function($q) use ($pasienId) {
+            $q->where('pasien_id', $pasienId);
+        })->with(['visitation.dokter.user', 'visitation.dokter.spesialisasi'])->get();
+
+        return \Yajra\DataTables\DataTables::of($diagnosas)
+            ->addIndexColumn()
+            ->addColumn('dokter', function($row) {
+                return $row->visitation->dokter->user->name ?? '-';
+            })
+            ->addColumn('spesialisasi', function($row) {
+                return $row->visitation->dokter->spesialisasi->nama ?? '-';
+            })
+            ->addColumn('keterangan', function($row) {
+                return $row->keterangan ?? '-';
+            })
+            ->addColumn('tanggal', function($row) {
+                return $row->created_at ? $row->created_at->format('d/m/Y') : '-';
+            })
+            ->addColumn('aksi', function($row) {
+                $printUrl = route('riwayatkunjungan.print-surat-diagnosis', $row->visitation_id);
+                $printUrlEn = route('riwayatkunjungan.print-surat-diagnosis-en', $row->visitation_id);
+                return '<a href="' . $printUrl . '" target="_blank" class="btn btn-sm btn-secondary mr-1"><i class="fas fa-print"></i> Cetak</a>' .
+                       '<a href="' . $printUrlEn . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i> Print (EN)</a>';
+            })
+            ->rawColumns(['aksi'])
+            ->make(true);
+    }
     public function index(Request $request, $pasien)
     {
 

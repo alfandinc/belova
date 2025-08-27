@@ -375,7 +375,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/resume-medis/{visitation}', [RiwayatKunjunganController::class, 'resumeMedis'])->name('resume.medis');
     Route::get('/riwayatkunjungan/{visitation}/get-data-diagnosis', [RiwayatKunjunganController::class, 'getDataDiagnosis']);
     Route::post('/riwayatkunjungan/store-surat-diagnosis', [RiwayatKunjunganController::class, 'storeSuratDiagnosis']);
-    Route::get('/riwayatkunjungan/{visitation}/print-surat-diagnosis', [RiwayatKunjunganController::class, 'printSuratDiagnosis']);
+    Route::get('/riwayatkunjungan/{visitation}/print-surat-diagnosis', [RiwayatKunjunganController::class, 'printSuratDiagnosis'])->name('riwayatkunjungan.print-surat-diagnosis');
+        Route::get('/riwayatkunjungan/{pasien}/get-data-diagnosis-table', [RiwayatKunjunganController::class, 'getDataDiagnosisTable'])->name('riwayatkunjungan.get-data-diagnosis-table');
+    Route::get('/riwayatkunjungan/{visitation}/print-surat-diagnosis-en', [RiwayatKunjunganController::class, 'printSuratDiagnosisEn'])->name('riwayatkunjungan.print-surat-diagnosis-en');
+
 
     //Antrian
     Route::get('/listantrian', [ListAntrianController::class, 'index']);
