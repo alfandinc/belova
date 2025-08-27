@@ -13,6 +13,140 @@ use Illuminate\Support\Facades\Log;
 
 class LabController extends Controller
 {
+    // Export lab report to Excel
+    public function exportExcel(Request $request)
+    {
+        $query = LabPermintaan::with([
+            'visitation.pasien',
+            'labTest',
+            'visitation.dokter',
+            'visitation.klinik',
+        ]);
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $dokterId = $request->input('dokter_id');
+        $klinikId = $request->input('klinik_id');
+        if ($startDate && $endDate) {
+            $query = $query->whereHas('visitation', function($q) use ($startDate, $endDate) {
+                $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+            });
+        }
+        if ($dokterId) {
+            $query = $query->whereHas('visitation', function($q) use ($dokterId) {
+                $q->where('dokter_id', $dokterId);
+            });
+        }
+        if ($klinikId) {
+            $query = $query->whereHas('visitation', function($q) use ($klinikId) {
+                $q->where('klinik_id', $klinikId);
+            });
+        }
+        $data = $query->get();
+
+        // Prepare array for export
+        $rows = [];
+        foreach ($data as $row) {
+            $rows[] = [
+                'Tanggal Visit' => $row->visitation->tanggal_visitation ?? '-',
+                'Pasien' => $row->visitation->pasien->nama ?? '-',
+                'Nama Test' => $row->labTest->nama ?? '-',
+                'Dokter' => $row->visitation->dokter->user->name ?? $row->visitation->dokter->nama ?? '-',
+                'Klinik' => $row->visitation->klinik->nama ?? '-',
+                'Harga' => $row->labTest->harga ?? '-',
+                'Harga Jual' => optional($row->invoiceItem)->final_amount ?? '-',
+            ];
+        }
+
+        // Use Laravel Excel if available, else fallback to CSV
+        if (class_exists('Maatwebsite\\Excel\\Facades\\Excel')) {
+            return \Maatwebsite\Excel\Facades\Excel::download(new class($rows) implements \Maatwebsite\Excel\Concerns\FromArray {
+                protected $rows;
+                public function __construct($rows) { $this->rows = $rows; }
+                public function array(): array { return $this->rows; }
+            }, 'laporan-laboratorium.xlsx');
+        } else {
+            // Fallback: CSV
+            $filename = 'laporan-laboratorium.csv';
+            $handle = fopen('php://temp', 'r+');
+            fputcsv($handle, array_keys($rows[0] ?? []));
+            foreach ($rows as $row) {
+                fputcsv($handle, $row);
+            }
+            rewind($handle);
+            $csv = stream_get_contents($handle);
+            fclose($handle);
+            return response($csv)
+                ->header('Content-Type', 'text/csv')
+                ->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
+        }
+    }
+
+    // Print lab report to PDF
+    public function printPdf(Request $request)
+    {
+        $query = LabPermintaan::with([
+            'visitation.pasien',
+            'labTest',
+            'visitation.dokter',
+            'visitation.klinik',
+        ]);
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $dokterId = $request->input('dokter_id');
+        $klinikId = $request->input('klinik_id');
+        if ($startDate && $endDate) {
+            $query = $query->whereHas('visitation', function($q) use ($startDate, $endDate) {
+                $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+            });
+        }
+        if ($dokterId) {
+            $query = $query->whereHas('visitation', function($q) use ($dokterId) {
+                $q->where('dokter_id', $dokterId);
+            });
+        }
+        if ($klinikId) {
+            $query = $query->whereHas('visitation', function($q) use ($klinikId) {
+                $q->where('klinik_id', $klinikId);
+            });
+        }
+        $data = $query->get();
+
+        $rows = [];
+        foreach ($data as $row) {
+            // Get invoice number from visitation->invoice
+            $invoiceNumber = $row->visitation && $row->visitation->invoice ? $row->visitation->invoice->invoice_number : '-';
+            $rows[] = [
+                'Tanggal Visit' => $row->visitation->tanggal_visitation ?? '-',
+                'Pasien' => $row->visitation->pasien->nama ?? '-',
+                'Nama Test' => $row->labTest->nama ?? '-',
+                'Dokter' => $row->visitation->dokter->user->name ?? $row->visitation->dokter->nama ?? '-',
+                'Harga Jual' => optional($row->invoiceItem)->final_amount ?? '-',
+                'Invoice' => $invoiceNumber,
+            ];
+        }
+
+        // Use DomPDF if available
+        if (class_exists('Barryvdh\\DomPDF\\Facade\\Pdf')) {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('laporan.laboratorium.pdf', ['rows' => $rows]);
+            return $pdf->download('laporan-laboratorium.pdf');
+        } else {
+            // Fallback: simple HTML
+            $html = '<h2>Laporan Laboratorium</h2><table border="1" cellpadding="5" cellspacing="0"><tr>';
+            foreach (array_keys($rows[0] ?? []) as $col) {
+                $html .= '<th>'.$col.'</th>';
+            }
+            $html .= '</tr>';
+            foreach ($rows as $row) {
+                $html .= '<tr>';
+                foreach ($row as $val) {
+                    $html .= '<td>'.$val.'</td>';
+                }
+                $html .= '</tr>';
+            }
+            $html .= '</table>';
+            return response($html);
+        }
+    }
     // List all dokters for filter dropdown
     public function listDokters(Request $request)
     {

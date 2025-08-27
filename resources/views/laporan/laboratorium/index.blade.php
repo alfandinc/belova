@@ -7,6 +7,12 @@
 @section('content')
 <div class="container-fluid">
     <h4 class="mb-4">Laporan Laboratorium</h4>
+    <div class="row mb-3">
+        <div class="col-md-12 mb-2">
+            <button class="btn btn-success" id="btnExportExcel"><i class="fa fa-file-excel-o"></i> Export Excel</button>
+            <button class="btn btn-danger" id="btnPrintPdf"><i class="fa fa-file-pdf-o"></i> Print PDF</button>
+        </div>
+    </div>
     <div class="row mb-3" id="labStats">
         <div class="col-md-4">
             <div class="card">
@@ -68,6 +74,26 @@
 @push('scripts')
 <script>
 $(function() {
+    // Export Excel
+    $('#btnExportExcel').on('click', function() {
+        var dr = $('#dateRange').val().split(' - ');
+        var dokter_id = $('#filterDokter').val();
+        var klinik_id = $('#filterKlinik').val();
+        var url = '/laporan/laboratorium/export-excel?start_date=' + encodeURIComponent(dr[0]) + '&end_date=' + encodeURIComponent(dr[1]);
+        if (dokter_id) url += '&dokter_id=' + encodeURIComponent(dokter_id);
+        if (klinik_id) url += '&klinik_id=' + encodeURIComponent(klinik_id);
+        window.open(url, '_blank');
+    });
+    // Print PDF
+    $('#btnPrintPdf').on('click', function() {
+        var dr = $('#dateRange').val().split(' - ');
+        var dokter_id = $('#filterDokter').val();
+        var klinik_id = $('#filterKlinik').val();
+        var url = '/laporan/laboratorium/print-pdf?start_date=' + encodeURIComponent(dr[0]) + '&end_date=' + encodeURIComponent(dr[1]);
+        if (dokter_id) url += '&dokter_id=' + encodeURIComponent(dokter_id);
+        if (klinik_id) url += '&klinik_id=' + encodeURIComponent(klinik_id);
+        window.open(url, '_blank');
+    });
     function loadLabStats() {
         var dr = $('#dateRange').val().split(' - ');
         var dokter_id = $('#filterDokter').val();

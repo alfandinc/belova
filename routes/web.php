@@ -162,6 +162,9 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function (
     // Dokter & Klinik list for laporan filter (no middleware)
     Route::get('/dokters', [\App\Http\Controllers\Laporan\LabController::class, 'listDokters'])->name('laporan.dokters');
     Route::get('/kliniks', [\App\Http\Controllers\Laporan\LabController::class, 'listKliniks'])->name('laporan.kliniks');
+    // Export & Print routes for Laporan Laboratorium
+    Route::get('/laboratorium/export-excel', [\App\Http\Controllers\Laporan\LabController::class, 'exportExcel'])->name('laporan.laboratorium.exportExcel');
+    Route::get('/laboratorium/print-pdf', [\App\Http\Controllers\Laporan\LabController::class, 'printPdf'])->name('laporan.laboratorium.printPdf');
 });
 
 // ERM Routes
