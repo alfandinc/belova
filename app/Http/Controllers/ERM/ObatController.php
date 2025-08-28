@@ -30,7 +30,7 @@ class ObatController extends Controller
             $query->where('metode_bayar_id', $request->metode_bayar_id);
         }
         $total = $query->get()->sum(function($obat) {
-            return (float)$obat->hpp * (float)$obat->stok;
+            return (float)$obat->hpp_jual * (float)$obat->stok;
         });
         return response()->json(['total' => $total]);
     }
@@ -70,11 +70,14 @@ class ObatController extends Controller
         if ($request->ajax()) {
             $PPN = 11;
             $obats = Obat::withInactive()
-                ->select(['id', 'kode_obat', 'nama', 'hpp', 'harga_nonfornas'])
-                ->selectRaw('(CASE WHEN hpp > 0 THEN (((harga_nonfornas * (100 + '.$PPN.') / 100) - hpp) / hpp) * 100 ELSE NULL END) as profit_percent_value');
+                ->select(['id', 'kode_obat', 'nama', 'hpp', 'hpp_jual', 'harga_nonfornas'])
+                ->selectRaw('(CASE WHEN hpp_jual > 0 THEN (((harga_nonfornas * (100 + '.$PPN.') / 100) - hpp_jual) / hpp_jual) * 100 ELSE NULL END) as profit_percent_value');
             $PPN = 11; // PPN% default, can be changed or fetched from config
             $defaultProfit = 30; // Default profit percent
             return DataTables::of($obats)
+                ->addColumn('hpp_jual', function ($obat) {
+                    return number_format($obat->hpp_jual, 0);
+                })
                 ->addColumn('profit_percent', function ($obat) {
                     if (isset($obat->profit_percent_value)) {
                         $percent = $obat->profit_percent_value;
@@ -87,10 +90,10 @@ class ObatController extends Controller
                     return '-';
                 })
                 ->addColumn('saran_harga_jual', function ($obat) use ($PPN, $defaultProfit) {
-                    $hpp = floatval($obat->hpp);
+                    $hpp_jual = floatval($obat->hpp_jual);
                     $profitPercent = $defaultProfit;
-                    $saran = $hpp * ((100 + $profitPercent) / 100) * ((100 + $PPN) / 100);
-                    return $hpp > 0 ? number_format($saran, 0) : '-';
+                    $saran = $hpp_jual * ((100 + $profitPercent) / 100) * ((100 + $PPN) / 100);
+                    return $hpp_jual > 0 ? number_format($saran, 0) : '-';
                 })
                 ->orderColumn('profit_percent', 'profit_percent_value $1')
                 ->editColumn('hpp', function ($obat) {
