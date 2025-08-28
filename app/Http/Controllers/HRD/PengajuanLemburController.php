@@ -162,7 +162,7 @@ class PengajuanLemburController extends Controller
         $request->validate([
             'tanggal' => 'required|date',
             'jam_mulai' => 'required|date_format:H:i',
-            'jam_selesai' => 'required|date_format:H:i|after:jam_mulai',
+            'jam_selesai' => 'required|date_format:H:i', // removed after:jam_mulai
             'alasan' => 'required|string',
         ]);
 

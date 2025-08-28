@@ -44,14 +44,17 @@ class PengajuanLembur extends Model
     {
         parent::boot();
         static::saving(function ($model) {
-            if ($model->jam_mulai && $model->jam_selesai) {
-                $start = strtotime($model->jam_mulai);
-                $end = strtotime($model->jam_selesai);
-                if ($start !== false && $end !== false && $end > $start) {
-                    $model->total_jam = intval(($end - $start) / 60);
+            if ($model->jam_mulai && $model->jam_selesai && $model->tanggal) {
+                $tanggalStr = is_object($model->tanggal) ? $model->tanggal->format('Y-m-d') : $model->tanggal;
+                $start = \Carbon\Carbon::parse($tanggalStr . ' ' . $model->jam_mulai);
+                // If jam_selesai < jam_mulai, assume next day
+                if ($model->jam_selesai > $model->jam_mulai) {
+                    $end = \Carbon\Carbon::parse($tanggalStr . ' ' . $model->jam_selesai);
                 } else {
-                    $model->total_jam = 0;
+                    $end = \Carbon\Carbon::parse($tanggalStr . ' ' . $model->jam_selesai)->addDay();
                 }
+                $minutes = $start->diffInMinutes($end);
+                $model->total_jam = $minutes;
             }
         });
     }
