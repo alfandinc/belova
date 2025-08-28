@@ -238,13 +238,14 @@ class ObatController extends Controller
             'kode_obat' => 'nullable|string',
             'dosis' => 'nullable|string',
             'satuan' => 'nullable|string',
-            // zataktif_id is optional, no validation required
             'kategori' => 'nullable|string',
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
             'harga_nonfornas' => 'required|numeric',
             'stok' => 'nullable|integer|min:0',
+            'hpp' => 'nullable|numeric',
+            'hpp_jual' => 'nullable|numeric',
         ]);
 
         DB::beginTransaction();
@@ -272,6 +273,8 @@ class ObatController extends Controller
                     'kategori' => $request->kategori,
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
+                    'hpp' => $request->hpp,
+                    'hpp_jual' => $request->hpp_jual,
                 ]);
             } else {
                 // Create new record
@@ -287,6 +290,8 @@ class ObatController extends Controller
                     'kategori' => $request->kategori,
                     'metode_bayar_id' => $request->metode_bayar_id,
                     'status_aktif' => $statusAktif,
+                    'hpp' => $request->hpp,
+                    'hpp_jual' => $request->hpp_jual,
                 ]);
             }
 

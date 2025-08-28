@@ -125,6 +125,17 @@
                         </select>
                     </div>
 
+                    <div class="form-group col-md-4">
+                        <label for="hpp">Harga Pokok Pembelian (HPP)</label>
+                        <input type="number" name="hpp" id="hpp" class="form-control" step="0.01" value="{{ $obat->hpp ?? old('hpp') }}">
+                    </div>
+
+                    <div class="form-group col-md-4">
+                        <label for="hpp_jual">Harga Pokok Penjualan (HPP Jual)</label>
+                        <input type="number" name="hpp_jual" id="hpp_jual" class="form-control" step="0.01" value="{{ $obat->hpp_jual ?? old('hpp_jual') }}">
+                    </div>
+                    </div>
+
 
                 </div>
 
