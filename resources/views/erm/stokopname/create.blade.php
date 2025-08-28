@@ -37,7 +37,10 @@
                       </div>
                     </div>
 <div class="container-fluid">
-    <h4 class="mb-4">Lakukan Stok Opname</h4>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Lakukan Stok Opname</h4>
+        <a href="{{ route('erm.stokopname.index') }}" class="btn btn-secondary mt-2"><i class="fa fa-arrow-left"></i> Kembali</a>
+    </div>
     <div class="row">
         <div class="col-md-7">
             <div class="card mb-3">
@@ -149,7 +152,13 @@ $(function () {
             {data: 'obat_id', name: 'obat_id'},
             {data: 'nama_obat', name: 'nama_obat'},
             {data: 'stok_sistem', name: 'stok_sistem'},
-            {data: 'stok_fisik', name: 'stok_fisik'},
+                {
+                    data: 'stok_fisik',
+                    name: 'stok_fisik',
+                    render: function(data, type, row) {
+                        return `<input type="number" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${data}" style="width:90px;">`;
+                    }
+                },
             {
                 data: 'selisih',
                 name: 'selisih',
@@ -173,6 +182,36 @@ $(function () {
         ]
     });
 
+        // Inline update stok fisik
+        $('#stokOpnameItemsTable').on('change', '.stok-fisik-input', function() {
+            var itemId = $(this).data('id');
+            var stokFisik = $(this).val();
+            var input = $(this);
+            input.prop('disabled', true);
+            $.ajax({
+                url: '/erm/stokopname-item/' + itemId + '/update-stok-fisik',
+                method: 'POST',
+                data: {
+                    stok_fisik: stokFisik,
+                    _token: '{{ csrf_token() }}'
+                },
+                success: function(res) {
+                    input.removeClass('is-invalid').addClass('is-valid');
+                    setTimeout(() => input.removeClass('is-valid'), 1000);
+                    // Update selisih cell in the same row
+                    var rowIdx = table.row(input.closest('tr')).index();
+                    var selisihCell = $(table.cell(rowIdx, 4).node());
+                    var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
+                    selisihCell.html(res.selisih + ' ' + icon);
+                },
+                error: function() {
+                    input.addClass('is-invalid');
+                },
+                complete: function() {
+                    input.prop('disabled', false);
+                }
+            });
+        });
     // Inline update notes
     $('#stokOpnameItemsTable').on('change', '.notes-input', function() {
         var itemId = $(this).data('id');
@@ -210,6 +249,12 @@ $(function () {
                 });
             }
         });
+    });
+
+    // Show selected file name in upload
+    $('#file').on('change', function() {
+        var fileName = $(this).val().split('\\').pop();
+        $(this).next('.custom-file-label').html(fileName);
     });
 
     // Save stok fisik to stok obat

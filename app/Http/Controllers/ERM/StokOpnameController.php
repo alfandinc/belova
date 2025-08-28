@@ -15,11 +15,32 @@ use App\Imports\StokOpnameImport;
 
 class StokOpnameController extends Controller
 {
+    /**
+     * Inline update stok fisik and recalculate selisih
+     */
+    public function updateStokFisik(Request $request, $itemId)
+    {
+        $request->validate([
+            'stok_fisik' => 'required|numeric',
+        ]);
+        $item = StokOpnameItem::findOrFail($itemId);
+        $item->stok_fisik = $request->stok_fisik;
+        $item->selisih = $item->stok_fisik - $item->stok_sistem;
+        $item->save();
+        return response()->json([
+            'success' => true,
+            'stok_fisik' => $item->stok_fisik,
+            'selisih' => $item->selisih,
+        ]);
+    }
     public function index(Request $request)
     {
         if ($request->ajax()) {
             $data = StokOpname::with('gudang', 'user')->latest();
             return datatables()->of($data)
+                ->addColumn('selisih_count', function($row) {
+                    return $row->items()->whereRaw('ABS(selisih) > 0')->count();
+                })
                 ->addColumn('aksi', function($row) {
                     return '<a href="'.route('erm.stokopname.create', $row->id).'" class="btn btn-primary btn-sm">Lakukan Stok Opname</a>';
                 })

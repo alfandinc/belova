@@ -15,15 +15,16 @@
     </div>
     <table class="table table-bordered yajra-datatable">
         <thead>
-            <tr>
-                <th>No</th>
-                <th>Tanggal Opname</th>
-                <th>Gudang</th>
-                <th>Periode</th>
-                <th>Status</th>
-                <th>Dibuat Oleh</th>
-                <th>Aksi</th>
-            </tr>
+      <tr>
+        <th>No</th>
+        <th>Tanggal Opname</th>
+        <th>Gudang</th>
+        <th>Periode</th>
+        <th>Status</th>
+        <th>Dibuat Oleh</th>
+        <th>Obat Selisih</th>
+        <th>Aksi</th>
+      </tr>
         </thead>
         <tbody></tbody>
     </table>
@@ -92,6 +93,15 @@
 @endsection
 
 @push('scripts')
+<style>
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.blink-warning {
+  animation: blink 1s linear infinite;
+}
+</style>
 <script>
 $(function () {
     // Set default year for periode_tahun input
@@ -101,54 +111,67 @@ $(function () {
         processing: true,
         serverSide: true,
         ajax: "{{ route('erm.stokopname.index') }}",
-        columns: [
-            {
-                data: null,
-                name: 'no',
-                orderable: false,
-                searchable: false,
-                render: function (data, type, row, meta) {
-                    return meta.row + meta.settings._iDisplayStart + 1;
-                }
-            },
-            {
-                data: 'tanggal_opname',
-                name: 'tanggal_opname',
-                render: function(data) {
-                    if (!data) return '';
-                    var bulan = [
-                        '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-                        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-                    ];
-                    var d = new Date(data);
-                    var tgl = d.getDate();
-                    var bln = bulan[d.getMonth() + 1];
-                    var thn = d.getFullYear();
-                    return tgl + ' ' + bln + ' ' + thn;
-                }
-            },
-            {data: 'gudang.nama', name: 'gudang.nama'},
-            {data: null, render: function(data) {
-                return data.periode_bulan + '/' + data.periode_tahun;
-            }},
-            {
-                data: 'status',
-                name: 'status',
-                render: function(data) {
-                    if (data === 'draft') {
-                        return '<span class="badge badge-primary">Draft</span>';
-                    } else if (data === 'proses') {
-                        return '<span class="badge badge-warning text-dark">Proses</span>';
-                    } else if (data === 'selesai') {
-                        return '<span class="badge badge-success">Selesai</span>';
-                    } else {
-                        return data;
-                    }
-                }
-            },
-            {data: 'user.name', name: 'user.name'},
-            {data: 'aksi', name: 'aksi', orderable: false, searchable: false},
-        ]
+    columns: [
+      {
+        data: null,
+        name: 'no',
+        orderable: false,
+        searchable: false,
+        render: function (data, type, row, meta) {
+          return meta.row + meta.settings._iDisplayStart + 1;
+        }
+      },
+      {
+        data: 'tanggal_opname',
+        name: 'tanggal_opname',
+        render: function(data) {
+          if (!data) return '';
+          var bulan = [
+            '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+          ];
+          var d = new Date(data);
+          var tgl = d.getDate();
+          var bln = bulan[d.getMonth() + 1];
+          var thn = d.getFullYear();
+          return tgl + ' ' + bln + ' ' + thn;
+        }
+      },
+      {data: 'gudang.nama', name: 'gudang.nama'},
+      {data: null, render: function(data) {
+        return data.periode_bulan + '/' + data.periode_tahun;
+      }},
+      {
+        data: 'status',
+        name: 'status',
+        render: function(data) {
+          if (data === 'draft') {
+            return '<span class="badge badge-primary">Draft</span>';
+          } else if (data === 'proses') {
+            return '<span class="badge badge-warning text-dark">Proses</span>';
+          } else if (data === 'selesai') {
+            return '<span class="badge badge-success">Selesai</span>';
+          } else {
+            return data;
+          }
+        }
+      },
+      {data: 'user.name', name: 'user.name'},
+      {
+        data: 'selisih_count',
+        name: 'selisih_count',
+        orderable: false,
+        searchable: false,
+        render: function(data, type, row) {
+          if (data > 0) {
+            return data + ' Obat Selisih <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>';
+          } else {
+            return data + ' Obat Selisih <i class="fa fa-check text-success" title="Tidak ada selisih"></i>';
+          }
+        }
+      },
+      {data: 'aksi', name: 'aksi', orderable: false, searchable: false},
+    ]
     });
 
     $('#stokOpnameForm').submit(function(e){
