@@ -69,7 +69,7 @@
                         <label for="kategori">Kategori</label>
                         <select id="kategori" name="kategori" class="form-control select2">
                             <option value="">Pilih Kategori</option>
-                            @foreach ($kategoris as $kategori)
+                            @foreach (['Produk', 'Obat', 'Racikan', 'Bhp', 'Lainnya'] as $kategori)
                                 <option value="{{ $kategori }}" {{ ($obat->kategori ?? old('kategori')) == $kategori ? 'selected' : '' }}>{{ $kategori }}</option>
                             @endforeach
                         </select>
