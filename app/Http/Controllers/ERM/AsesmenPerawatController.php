@@ -27,6 +27,17 @@ class AsesmenPerawatController extends Controller
 
     public function store(Request $request)
     {
+        // Validasi input wajib
+        $validated = $request->validate([
+            'keluhan_utama' => 'required',
+            'alasan_kunjungan' => 'required',
+            'kesadaran' => 'required',
+            'td' => 'required',
+            'nadi' => 'required',
+            'rr' => 'required',
+            'suhu' => 'required',
+        ]);
+
         $user = auth()->id();
 
         // Tangani masalah keperawatan
@@ -38,7 +49,6 @@ class AsesmenPerawatController extends Controller
                 return $item === 'Lain-lain' ? 'Lain-lain: ' . $request->lain_lain_text : $item;
             }, $masalah);
         }
-
 
         $visitation = Visitation::findOrFail($request->visitation_id); // Find the visitation by ID
         $visitation->status_kunjungan = 1; // Change progress to 1
