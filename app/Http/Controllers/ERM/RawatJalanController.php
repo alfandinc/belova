@@ -17,9 +17,19 @@ class RawatJalanController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $visitations = Visitation::with(['pasien', 'metodeBayar', 'screeningBatuk'])
-                ->select(
-                    'erm_visitations.*',
+            $visitations = Visitation::query()
+                ->select([
+                    'erm_visitations.id',
+                    'erm_visitations.pasien_id',
+                    'erm_visitations.metode_bayar_id',
+                    'erm_visitations.dokter_id',
+                    'erm_visitations.klinik_id',
+                    'erm_visitations.status_kunjungan',
+                    'erm_visitations.status_dokumen',
+                    'erm_visitations.jenis_kunjungan',
+                    'erm_visitations.tanggal_visitation',
+                    'erm_visitations.waktu_kunjungan',
+                    'erm_visitations.no_antrian',
                     'erm_pasiens.nama as nama_pasien',
                     'erm_pasiens.id as no_rm',
                     'erm_pasiens.no_hp as telepon_pasien',
@@ -27,35 +37,38 @@ class RawatJalanController extends Controller
                     'erm_pasiens.tanggal_lahir as tanggal_lahir',
                     'erm_pasiens.status_pasien as status_pasien',
                     'erm_pasiens.status_akses as status_akses'
-                )
+                ])
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
-                ->whereIn('jenis_kunjungan', [1, 2])
-                ->where('status_kunjungan', '!=', 7); // Exclude cancelled visits
+                ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
+                ->where('erm_visitations.status_kunjungan', '!=', 7);
 
-            // Filter by klinik_id if provided
-            if ($request->klinik_id) {
-                $visitations->where('klinik_id', $request->klinik_id);
+            if ($request->filled('klinik_id')) {
+                $visitations->where('erm_visitations.klinik_id', $request->klinik_id);
             }
-
-            // Filter by logged-in doctor's ID if the user is a doctor
             $user = Auth::user();
-            if ($user->hasRole('Dokter')) {
+            if ($user && $user->hasRole('Dokter')) {
                 $dokter = Dokter::where('user_id', $user->id)->first();
                 if ($dokter) {
-                    $visitations->where('dokter_id', $dokter->id);
+                    $visitations->where('erm_visitations.dokter_id', $dokter->id);
                 }
             }
-
-            // Date range filter
-            if ($request->start_date && $request->end_date) {
-                $visitations->whereDate('tanggal_visitation', '>=', $request->start_date)
-                    ->whereDate('tanggal_visitation', '<=', $request->end_date);
+            if ($request->filled('start_date') && $request->filled('end_date')) {
+                $visitations->whereDate('erm_visitations.tanggal_visitation', '>=', $request->start_date)
+                    ->whereDate('erm_visitations.tanggal_visitation', '<=', $request->end_date);
             }
-
-            if ($request->dokter_id) {
-                $visitations->where('dokter_id', $request->dokter_id);
+            if ($request->filled('dokter_id')) {
+                $visitations->where('erm_visitations.dokter_id', $request->dokter_id);
             }
-
+            $visitations->with([
+                'metodeBayar:id,nama',
+                'dokter.user:id,name',
+                'dokter.spesialisasi:id,nama',
+                'screeningBatuk:id,visitation_id',
+                'labPermintaan:id,visitation_id',
+                'riwayatTindakan:id,visitation_id',
+                'asesmenPenunjang:id,visitation_id,created_at',
+                'cppt:id,visitation_id,created_at'
+            ]);
             return datatables()->of($visitations)
                 ->filterColumn('nama_pasien', function ($query, $keyword) {
                     $query->where('erm_pasiens.nama', 'like', "%{$keyword}%");
@@ -65,82 +78,43 @@ class RawatJalanController extends Controller
                 })
                 ->addColumn('antrian', function ($v) {
                     $antrianHtml = '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
-                    // Check if visitation has labpermintaan
                     if ($v->labPermintaan && $v->labPermintaan->count() > 0) {
-                        $antrianHtml .= ' <span class="lab-icon blinking d-inline-flex align-items-center justify-content-center" title="Ada Permintaan Lab" style="width: 20px; height: 20px; background-color: #17a2b8; border-radius: 3px; margin-left: 12px; color: #fff;"><i class="fas fa-flask" style="font-size: 11px;"></i></span>';
+                        $antrianHtml .= ' <i class="fas fa-flask blinking" title="Ada permintaan lab"></i>';
                     }
                     if ($v->riwayatTindakan && $v->riwayatTindakan->count() > 0) {
-                        $antrianHtml .= ' <span class="tindakan-icon blinking d-inline-flex align-items-center justify-content-center" title="Ada Tindakan" style="width: 20px; height: 20px; background-color: #28a745; border-radius: 3px; margin-left: 12px; color: #fff;"><i class="fas fa-stethoscope" style="font-size: 11px;"></i></span>';
+                        $antrianHtml .= ' <i class="fas fa-stethoscope blinking" title="Ada tindakan"></i>';
                     }
                     return $antrianHtml;
                 })
-                ->addColumn('no_rm', fn($v) => $v->no_rm ?? '-') // Use the aliased column
+                ->addColumn('no_rm', function($v) { return $v->no_rm ?? '-'; })
                 ->addColumn('nama_pasien', function ($v) {
                     $nama = $v->nama_pasien ?? '-';
                     $icons = '';
-                    
-                    // Status pasien configuration (exclude Regular from display)
-                    $statusConfig = [
-                        'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
-                        'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
-                        'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member']
-                    ];
-                    
-                    // Add status_pasien icon if not Regular
                     $status = $v->status_pasien ?? 'Regular';
-                    if ($status !== 'Regular' && isset($statusConfig[$status])) {
-                        $config = $statusConfig[$status];
-                        $icons .= '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" 
-                                      style="width: 20px; height: 20px; background-color: ' . $config['color'] . '; border-radius: 3px; margin-right: 8px;" 
-                                      title="' . $config['title'] . '">
-                                      <i class="' . $config['icon'] . ' text-white" style="font-size: 11px;"></i>
-                                  </span>';
+                    if ($status !== 'Regular') {
+                        $icons .= '<span class="status-pasien-icon">' . $status . '</span>';
                     }
-                    
-                    // Add status_akses icon if akses cepat
-                    $statusAkses = $v->status_akses ?? 'normal';
-                    if ($statusAkses === 'akses cepat') {
-                        $icons .= '<span class="status-akses-icon d-inline-flex align-items-center justify-content-center" 
-                                      style="width: 20px; height: 20px; background-color: #007BFF; border-radius: 3px; margin-right: 8px;" 
-                                      title="Akses Cepat">
-                                      <i class="fas fa-wheelchair text-white" style="font-size: 11px;"></i>
-                                  </span>';
-                    }
-                    
-                    // Return icons + name
                     return $icons . $nama;
-                }) // Use the aliased column
-                ->addColumn('tanggal', function ($v) {
-                    // Convert to Indonesian date format: 1 Januari 2025
-                    $date = \Carbon\Carbon::parse($v->tanggal_visitation);
-                    setlocale(LC_TIME, 'id_ID.utf8', 'id_ID', 'id');
-                    return $date->translatedFormat('j F Y');
                 })
-                ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
+                ->addColumn('tanggal', function ($v) {
+                    return \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
+                })
+                ->addColumn('metode_bayar', function($v) { return $v->metodeBayar->nama ?? '-'; })
                 ->addColumn('spesialisasi', function ($v) {
-                    return $v->dokter && $v->dokter->spesialisasi ? $v->dokter->spesialisasi->nama : '-';
+                    return ($v->dokter && $v->dokter->spesialisasi) ? $v->dokter->spesialisasi->nama : '-';
                 })
                 ->addColumn('dokter_nama', function ($v) {
-                    return $v->dokter && $v->dokter->user ? $v->dokter->user->name : '-';
+                    return ($v->dokter && $v->dokter->user) ? $v->dokter->user->name : '-';
                 })
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
                     $dokumenBtn = '';
-
-                    // Debug: Log the visitation ID being used
-                    Log::info('Generating button for visitation ID: ' . $v->id);
-
                     if ($user->hasRole('Perawat')) {
-                        // Ensure the ID is cast as string to avoid JavaScript precision issues
                         $visitationId = (string) $v->id;
-                        
-                        // Check if screening batuk already exists
                         if ($v->screeningBatuk) {
-                            // If screening exists, show both "Lihat" and "Screening" buttons
                             $dokumenBtn = '<a href="' . route('erm.asesmenperawat.create', $v->id) . '" class="btn btn-sm btn-primary ml-1" style="font-weight:bold;" title="Lihat"><i class="fas fa-eye mr-1"></i>Lihat</a>';
-                            $dokumenBtn .= '<button class="btn btn-sm btn-info ml-1 view-screening-btn" style="font-weight:bold;" title="Lihat Screening Batuk" data-visitation-id="' . $visitationId . '"><i class="fas fa-lungs mr-1"></i>Screening</button>';
+                            $dokumenBtn .= '<button class="btn btn-sm btn-info ml-1 view-screening-btn" style="font-weight:bold;" title="Screening Batuk" data-visitation-id="' . $visitationId . '"><i class="fas fa-lungs"></i></button>';
                         } else {
-                            // If no screening exists, show screening modal first
                             $dokumenBtn = '<button class="btn btn-sm btn-primary ml-1 screening-btn" style="font-weight:bold;" title="Lihat" data-visitation-id="' . $visitationId . '"><i class="fas fa-eye mr-1"></i>Lihat</button>';
                         }
                     } elseif ($user->hasRole('Dokter')) {
@@ -152,28 +126,10 @@ class RawatJalanController extends Controller
                             $dokumenBtn = '<a href="' . $url . '" class="btn btn-sm btn-success ml-1" style="font-weight:bold;" title="CPPT"><i class="fas fa-notes-medical mr-1"></i>CPPT</a>';
                         }
                     }
-
-                    // Only show reschedule button for Pendaftaran or Perawat roles
                     $additionalBtns = '';
-                    // Remove Jadwal Ulang button
-                    // if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
-                    //     $additionalBtns .= '<button class="btn btn-sm btn-warning ml-1" onclick="openRescheduleModal(' . $v->id . ', `' . $v->nama_pasien . '`, ' . $v->pasien_id . ')">Jadwal Ulang</button>';
-                    //     // Add the konfirmasi kunjungan button with gender and birth date
-                    //     $dokterNama = $v->dokter->user->name ?? 'Dokter';
-                    //     $tanggalKunjungan = \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
-                    //     $additionalBtns .= '<button class="btn btn-sm btn-success ml-1" onclick="openKonfirmasiModal(`' . 
-                    //         $v->nama_pasien . '`, `' . 
-                    //         $v->telepon_pasien . '`, `' . 
-                    //         $dokterNama . '`, `' . 
-                    //         $tanggalKunjungan . '`, `' .
-                    //         $v->no_antrian . '`, `' .
-                    //         $v->gender . '`, `' .
-                    //         $v->tanggal_lahir . '`)">Konfirmasi Kunjungan</button>';
-                    // }
                     if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
                         $dokterNama = $v->dokter->user->name ?? 'Dokter';
                         $tanggalKunjungan = \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
-                        // WA Pasien button (icon only)
                         $additionalBtns .= '<button class="btn btn-sm btn-success ml-1" style="font-weight:bold;" onclick="openKonfirmasiModal(`' .
                             $v->nama_pasien . '`, `' .
                             $v->telepon_pasien . '`, `' .
@@ -182,12 +138,10 @@ class RawatJalanController extends Controller
                             $v->no_antrian . '`, `' .
                             $v->gender . '`, `' .
                             $v->tanggal_lahir . '` )" title="WA Pasien"><i class=\'fab fa-whatsapp\'></i></button>';
-                        // Edit Antrian button (icon only)
-                        $additionalBtns .= '<button class="btn btn-sm btn-info ml-1" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $v->no_antrian . ', \'' . $v->waktu_kunjungan . '\')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
-                        // Batalkan button (icon only)
+                        $waktuKunjungan = $v->waktu_kunjungan ?? '';
+                        $additionalBtns .= '<button class="btn btn-sm btn-info ml-1" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $v->no_antrian . ', \'' . htmlspecialchars($waktuKunjungan, ENT_QUOTES, 'UTF-8') . '\')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
                         $additionalBtns .= '<button class="btn btn-sm btn-danger ml-1" style="font-weight:bold;" onclick="batalkanKunjungan(\'' . $v->id . '\', this)" title="Batalkan"><i class=\'fas fa-times\'></i></button>';
                     }
-
                     return $dokumenBtn . ' ' . $additionalBtns;
                 })
                 ->addColumn('selesai_asesmen', function ($v) {
