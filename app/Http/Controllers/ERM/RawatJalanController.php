@@ -14,6 +14,23 @@ use Illuminate\Support\Facades\Log;
 
 class RawatJalanController extends Controller
 {
+        /**
+     * Restore visitation status from dibatalkan (7) to tidak datang (0)
+     */
+    public function restoreStatus(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+        ]);
+        $visitation = Visitation::findOrFail($request->visitation_id);
+        if ($visitation->status_kunjungan == 7) {
+            $visitation->status_kunjungan = 0;
+            $visitation->save();
+            return response()->json(['success' => true]);
+        } else {
+            return response()->json(['success' => false, 'message' => 'Status kunjungan bukan dibatalkan'], 400);
+        }
+    }
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -583,4 +600,63 @@ class RawatJalanController extends Controller
             ], 500);
         }
     }
+        /**
+     * AJAX: Get list of visitations by status for stats modal
+     */
+    public function listByStatus(Request $request)
+    {
+        $status = $request->input('status');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $dokterId = $request->input('dokter_id');
+        $klinikId = $request->input('klinik_id');
+
+        $query = Visitation::query()
+            ->with(['pasien', 'dokter'])
+            ->whereIn('jenis_kunjungan', [1, 2]);
+
+        // Status filter
+        if ($status && $status !== 'total') {
+            $map = [
+                'tidak_datang' => 0,
+                'belum_diperiksa' => 1,
+                'sudah_diperiksa' => 2,
+                'dibatalkan' => 7
+            ];
+            if (isset($map[$status])) {
+                $query->where('status_kunjungan', $map[$status]);
+            }
+        }
+
+        // Date range filter
+        if ($startDate && $endDate) {
+            $query->whereDate('tanggal_visitation', '>=', $startDate)
+                  ->whereDate('tanggal_visitation', '<=', $endDate);
+        }
+
+        // Dokter filter
+        if ($dokterId) {
+            $query->where('dokter_id', $dokterId);
+        }
+
+        // Klinik filter
+        if ($klinikId) {
+            $query->where('klinik_id', $klinikId);
+        }
+
+        $visitations = $query->orderBy('tanggal_visitation', 'desc')->limit(100)->get();
+
+        $data = $visitations->map(function($v) {
+            return [
+                'id' => $v->id,
+                'pasien_nama' => $v->pasien ? $v->pasien->nama : '-',
+                'dokter_nama' => $v->dokter ? ($v->dokter->user->name ?? '-') : '-',
+                'tanggal_visitation' => $v->tanggal_visitation,
+                'no_antrian' => $v->no_antrian,
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
 }

@@ -683,7 +683,7 @@ Terima kasih.
     <!-- Statistics Cards -->
     <div class="row mb-4">
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card shadow-sm stat-card" style="border: 2px solid #007bff; border-radius: 10px;">
+            <div class="card shadow-sm stat-card stat-card-clickable" data-status="total" style="border: 2px solid #007bff; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="mr-3">
@@ -699,9 +699,8 @@ Terima kasih.
                 </div>
             </div>
         </div>
-        
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card shadow-sm stat-card" style="border: 2px solid #ffc107; border-radius: 10px;">
+            <div class="card shadow-sm stat-card stat-card-clickable" data-status="belum_diperiksa" style="border: 2px solid #ffc107; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="mr-3">
@@ -717,9 +716,8 @@ Terima kasih.
                 </div>
             </div>
         </div>
-        
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card shadow-sm stat-card" style="border: 2px solid #28a745; border-radius: 10px;">
+            <div class="card shadow-sm stat-card stat-card-clickable" data-status="sudah_diperiksa" style="border: 2px solid #28a745; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="mr-3">
@@ -735,9 +733,8 @@ Terima kasih.
                 </div>
             </div>
         </div>
-        
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card shadow-sm stat-card" style="border: 2px solid #17a2b8; border-radius: 10px;">
+            <div class="card shadow-sm stat-card stat-card-clickable" data-status="tidak_datang" style="border: 2px solid #17a2b8; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="mr-3">
@@ -753,9 +750,8 @@ Terima kasih.
                 </div>
             </div>
         </div>
-        
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
-            <div class="card shadow-sm stat-card" style="border: 2px solid #dc3545; border-radius: 10px;">
+            <div class="card shadow-sm stat-card stat-card-clickable" data-status="dibatalkan" style="border: 2px solid #dc3545; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
                         <div class="mr-3">
@@ -767,6 +763,25 @@ Terima kasih.
                             <h6 class="mb-1 font-weight-bold text-muted">Dibatalkan</h6>
                             <h4 class="mb-0 text-danger stat-number" id="stat-dibatalkan">{{ $stats['dibatalkan'] }}</h4>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Visitation List by Stat -->
+    <div class="modal fade" id="modalVisitationList" tabindex="-1" role="dialog" aria-labelledby="modalVisitationListTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalVisitationListTitle">Daftar Pasien</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="visitation-list-content">
+                        <div class="text-center"><span class="spinner-border"></span> Memuat data...</div>
                     </div>
                 </div>
             </div>
@@ -953,6 +968,85 @@ var userRole = "{{ $role }}";
     $('#filter_dokter, #filter_klinik').on('change', function () {
         table.ajax.reload();
         updateStats();
+    });
+
+    // Stat card click handler
+    $('.stat-card-clickable').on('click', function() {
+        var status = $(this).data('status');
+        let filterTanggal = $('#filter_tanggal').val();
+        let filterDokter = $('#filter_dokter').val();
+        let filterKlinik = $('#filter_klinik').val();
+        let startDate = '';
+        let endDate = '';
+        if (filterTanggal) {
+            let dates = filterTanggal.split(' s/d ');
+            if (dates.length === 2) {
+                startDate = moment(dates[0], 'DD-MM-YYYY').format('YYYY-MM-DD');
+                endDate = moment(dates[1], 'DD-MM-YYYY').format('YYYY-MM-DD');
+            }
+        }
+        $('#modalVisitationList').modal('show');
+        $('#visitation-list-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat data...</div>');
+        $.ajax({
+            url: '{{ url("erm/rawatjalans/list-by-status") }}',
+            method: 'GET',
+            data: {
+                status: status,
+                start_date: startDate,
+                end_date: endDate,
+                dokter_id: filterDokter,
+                klinik_id: filterKlinik
+            },
+            success: function(res) {
+                if (res.data && res.data.length > 0) {
+                    let html = '<table class="table table-bordered"><thead><tr><th>Nama Pasien</th><th>Dokter</th><th>Tanggal</th><th>No Antrian</th>';
+                    if (status === 'dibatalkan') {
+                        html += '<th>Aksi</th>';
+                    }
+                    html += '</tr></thead><tbody>';
+                    res.data.forEach(function(item) {
+                        html += `<tr><td>${item.pasien_nama}</td><td>${item.dokter_nama}</td><td>${item.tanggal_visitation}</td><td>${item.no_antrian ?? '-'}</td>`;
+                        if (status === 'dibatalkan') {
+                            html += `<td><button class="btn btn-sm btn-success restore-status-btn" data-id="${item.id}">Pulihkan</button></td>`;
+                        }
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    $('#visitation-list-content').html(html);
+                } else {
+                    $('#visitation-list-content').html('<div class="text-center">Tidak ada data kunjungan.</div>');
+                }
+            },
+            error: function() {
+                $('#visitation-list-content').html('<div class="text-danger text-center">Gagal memuat data.</div>');
+            }
+        });
+
+        // Delegate click for restore button
+        $('#visitation-list-content').off('click').on('click', '.restore-status-btn', function() {
+            var visitationId = $(this).data('id');
+            var btn = $(this);
+            btn.prop('disabled', true).text('Memproses...');
+            $.ajax({
+                url: '{{ url("erm/rawatjalans/restore-status") }}',
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    visitation_id: visitationId
+                },
+                success: function(res) {
+                    btn.removeClass('btn-success').addClass('btn-secondary').text('Berhasil');
+                    setTimeout(function(){
+                        $('#modalVisitationList').modal('hide');
+                        $('.stat-card-clickable[data-status="dibatalkan"]').click(); // refresh dibatalkan list
+                    }, 1000);
+                },
+                error: function() {
+                    btn.prop('disabled', false).text('Pulihkan');
+                    alert('Gagal memulihkan status');
+                }
+            });
+        });
     });
 
     // ambil no antrian otomatis
