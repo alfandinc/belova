@@ -15,6 +15,26 @@ use Yajra\DataTables\Facades\DataTables;
 class ObatController extends Controller
 {
     /**
+     * Get total nilai stok (HPP x Stok) for all active obat, with optional filters.
+     */
+    public function totalNilaiStok(Request $request)
+    {
+        $query = Obat::withInactive();
+        // Only count active obat
+        $query->where('status_aktif', 1);
+        // Apply filters if provided
+        if ($request->has('kategori') && !empty($request->kategori)) {
+            $query->where('kategori', $request->kategori);
+        }
+        if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
+            $query->where('metode_bayar_id', $request->metode_bayar_id);
+        }
+        $total = $query->get()->sum(function($obat) {
+            return (float)$obat->hpp * (float)$obat->stok;
+        });
+        return response()->json(['total' => $total]);
+    }
+    /**
      * Fill stok to 100 for all Obat where stok is 0.
      */
     public function fillStok(Request $request)
