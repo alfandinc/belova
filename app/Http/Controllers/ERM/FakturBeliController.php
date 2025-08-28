@@ -375,34 +375,47 @@ class FakturBeliController extends Controller
             if ($item->obat) {
                 $qty = $item->qty ?? 0;
                 $harga = $item->harga ?? 0;
-                $itemTax = $item->tax ?? 0;
                 $diskon = $item->diskon ?? 0;
-                // Calculate proportional global tax for this item
-                $itemValue = $harga * $qty;
-                $globalTaxPortion = $invoiceSubtotal > 0 ? 
-                    (($itemValue / $invoiceSubtotal) * ($faktur->global_pajak ?? 0)) : 0;
-                // Calculate total purchase cost for this item (harga already includes per-item tax, add global tax portion)
-                $purchaseCost = $itemValue + $globalTaxPortion;
+                $diskonType = $item->diskon_type ?? 'nominal';
+                $itemTax = $item->tax ?? 0;
+                $taxType = $item->tax_type ?? 'nominal';
+                $base = $qty * $harga;
+                $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
+                $taxValue = $taxType === 'percent' ? ($base * $itemTax / 100) : $itemTax;
+                $itemSubtotal = $base - $diskonValue + $taxValue;
+                // Jika hanya satu item, global pajak langsung diberikan penuh
+                if (count($faktur->items) === 1) {
+                    $globalTaxPortion = $faktur->global_pajak ?? 0;
+                } else {
+                    $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
+                    $globalTaxPortion = $invoiceSubtotal > 0 ? ($itemSubtotal / $invoiceSubtotal) * ($faktur->global_pajak ?? 0) : 0;
+                }
+                $purchaseCost = $itemSubtotal + $globalTaxPortion; // HPP (dengan diskon)
+                $purchaseCostJual = $base + $taxValue + $globalTaxPortion; // HPP Jual (tanpa diskon)
                 $obat = $item->obat;
                 $oldHpp = $obat->hpp ?? 0;
                 $oldStok = $obat->stok ?? 0;
                 $newStok = $oldStok + $qty;
-                // Moving Average Method
                 $newHpp = ($oldHpp * $oldStok + $purchaseCost) / ($oldStok + $qty > 0 ? $oldStok + $qty : 1);
+                $oldHppJual = $obat->hpp_jual ?? 0;
+                $newHppJual = ($oldHppJual * $oldStok + $purchaseCostJual) / ($oldStok + $qty > 0 ? $oldStok + $qty : 1);
                 $debugInfo[] = [
                     'obat_id' => $item->obat_id,
                     'obat_nama' => $obat->nama ?? 'Unknown',
                     'qty' => $qty,
                     'harga' => $harga,
-                    'itemValue' => $itemValue,
-                    'itemTax' => $itemTax,
+                    'itemValue' => $itemSubtotal, // Sudah diskon dan pajak
+                    'itemTax' => $taxValue,
                     'globalTaxPortion' => $globalTaxPortion,
                     'oldHpp' => $oldHpp,
                     'oldStok' => $oldStok,
                     'purchaseCost' => $purchaseCost,
                     'newStok' => $newStok,
                     'newHpp' => $newHpp,
-                    'hasTax' => ($itemTax > 0 || $globalTaxPortion > 0),
+                    'oldHppJual' => $oldHppJual,
+                    'purchaseCostJual' => $purchaseCostJual,
+                    'newHppJual' => $newHppJual,
+                    'hasTax' => ($taxValue > 0 || $globalTaxPortion > 0),
                 ];
             }
         }
@@ -457,24 +470,34 @@ class FakturBeliController extends Controller
                     // Moving Average HPP Calculation (match debug logic)
                     $qty = $item->qty ?? 0;
                     $harga = $item->harga ?? 0;
-                    $itemTax = $item->tax ?? 0;
                     $diskon = $item->diskon ?? 0;
-                    // Calculate proportional global tax for this item
-                    $itemValue = $harga * $qty;
-                    $globalTaxPortion = $invoiceSubtotal > 0 ? 
-                        (($itemValue / $invoiceSubtotal) * ($faktur->global_pajak ?? 0)) : 0;
-                    // Purchase cost = harga*qty + global pajak portion
-                    $purchaseCost = $itemValue + $globalTaxPortion;
+                    $diskonType = $item->diskon_type ?? 'nominal';
+                    $itemTax = $item->tax ?? 0;
+                    $taxType = $item->tax_type ?? 'nominal';
+                    $base = $qty * $harga;
+                    $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
+                    $taxValue = $taxType === 'percent' ? ($base * $itemTax / 100) : $itemTax;
+                    $itemSubtotal = $base - $diskonValue + $taxValue;
+                    // Distribute global pajak proportionally
+                    if (count($faktur->items) === 1) {
+                        $globalTaxPortion = $faktur->global_pajak ?? 0;
+                    } else {
+                        $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
+                        $globalTaxPortion = $invoiceSubtotal > 0 ? ($itemSubtotal / $invoiceSubtotal) * ($faktur->global_pajak ?? 0) : 0;
+                    }
+                    $purchaseCost = $itemSubtotal + $globalTaxPortion; // HPP (dengan diskon)
+                    $purchaseCostJual = $base + $taxValue + $globalTaxPortion; // HPP Jual (tanpa diskon)
                     $obat = $item->obat;
                     $oldHpp = $obat->hpp ?? 0;
                     $oldStok = $obat->stok ?? 0;
                     $newStok = $oldStok + $qty;
-                    // Moving Average Method
                     $newHpp = ($oldHpp * $oldStok + $purchaseCost) / (($oldStok + $qty) > 0 ? ($oldStok + $qty) : 1);
-                    // Update the obat record
+                    $oldHppJual = $obat->hpp_jual ?? 0;
+                    $newHppJual = ($oldHppJual * $oldStok + $purchaseCostJual) / (($oldStok + $qty) > 0 ? ($oldStok + $qty) : 1);
                     $obat->update([
                         'stok' => $newStok,
-                        'hpp' => $newHpp
+                        'hpp' => $newHpp,
+                        'hpp_jual' => $newHppJual
                     ]);
 
                     // Insert KartuStok row (obat masuk)

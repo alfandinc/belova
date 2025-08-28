@@ -297,6 +297,9 @@ $(function() {
                         let formula = `New HPP = (Old HPP × Old Stok + Purchase Cost) / (Old Stok + Qty)<br>
                             = (${item.oldHpp} × ${item.oldStok} + ${item.purchaseCost}) / (${item.oldStok} + ${item.qty})<br>
                             = ${item.newHpp}`;
+                        let formulaJual = `New HPP Jual = (Old HPP Jual × Old Stok + Purchase Cost Jual) / (Old Stok + Qty)<br>
+                            = (${item.oldHppJual ?? '-'} × ${item.oldStok} + ${item.purchaseCostJual ?? '-'}) / (${item.oldStok} + ${item.qty})<br>
+                            = ${item.newHppJual ?? '-'}`;
                         debugInfo += `<tr>
                             <td>${item.obat_nama}</td>
                             <td>${item.qty}</td>
@@ -309,7 +312,7 @@ $(function() {
                             <td>Rp${parseFloat(item.purchaseCost || 0).toLocaleString('id-ID')}</td>
                             <td>${item.newStok}</td>
                             <td>Rp${parseFloat(item.newHpp || 0).toLocaleString('id-ID')}</td>
-                            <td style="font-size: 0.9em;">${formula}</td>
+                            <td style="font-size: 0.9em;">${formula}<br><hr><b>HPP Jual (tanpa diskon):</b><br>${formulaJual}</td>
                         </tr>`;
                     });
                     debugInfo += `</tbody></table>`;
