@@ -71,7 +71,6 @@
             @include('layouts.erm.footer')
         </div>
     </div>
-
     <!-- Scripts -->
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
@@ -147,5 +146,7 @@
 
     @yield('scripts')
     @stack('scripts')  <!-- Add this line -->
+
+    @include('erm.partials.perawat-notif')
 </body>
 </html>
