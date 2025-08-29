@@ -1019,7 +1019,27 @@ var userRole = "{{ $role }}";
                 }
             },
             { data: 'no_rm', name: 'no_rm', searchable: true, orderable: false },
-            { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false },
+                {
+                    data: 'nama_pasien',
+                    name: 'nama_pasien',
+                    searchable: true,
+                    orderable: false,
+                    render: function(data, type, row, meta) {
+                        let iconHtml = '';
+                        let status = row.status_pasien || 'Regular';
+                        if (status === 'VIP') {
+                            iconHtml = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#FFD700;border-radius:3px;" title="VIP Member"><i class="fas fa-crown text-white" style="font-size:11px;"></i></span>';
+                        } else if (status === 'Familia') {
+                            iconHtml = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#32CD32;border-radius:3px;" title="Familia Member"><i class="fas fa-users text-white" style="font-size:11px;"></i></span>';
+                        } else if (status === 'Black Card') {
+                            iconHtml = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#2F2F2F;border-radius:3px;" title="Black Card Member"><i class="fas fa-credit-card text-white" style="font-size:11px;"></i></span>';
+                        } else {
+                            // Regular: no icon, just name
+                            iconHtml = '';
+                        }
+                        return iconHtml + data;
+                    }
+                },
             { data: 'tanggal', name: 'tanggal_visitation', searchable: true },
             { data: 'waktu_kunjungan', name: 'waktu_kunjungan', searchable: false, orderable: false }, // Add waktu_kunjungan column
             { data: 'spesialisasi', name: 'spesialisasi', searchable: false, orderable: false },
