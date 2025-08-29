@@ -96,9 +96,12 @@
 
                     <!-- Farmasi Section -->
                     @hasrole('Farmasi|Admin')
-                    <li>
-                                <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat</span></a>
-                            </li>
+                        <li>
+                            <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat</span></a>
+                        </li>
+                        <li>
+                            <a href="/erm/pemasok"><i data-feather="truck" class="align-self-center menu-icon"></i><span>Master Pemasok</span></a>
+                        </li>
                     <li>
                         <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">

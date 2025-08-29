@@ -218,6 +218,15 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     // ...existing code...
 
+    // Master Pemasok AJAX CRUD
+    Route::get('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'index']);
+    Route::post('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'store']);
+    Route::put('pemasok/{id}', [App\Http\Controllers\ERM\PemasokController::class, 'update']);
+    Route::delete('pemasok/{id}', [App\Http\Controllers\ERM\PemasokController::class, 'destroy']);
+
+    // Export to Excel
+    Route::get('pemasok/export-excel', [App\Http\Controllers\ERM\PemasokController::class, 'exportExcel']);
+
    
     Route::get('permintaan/data', [App\Http\Controllers\ERM\PermintaanController::class, 'data'])->name('erm.permintaan.data');
     Route::get('permintaan/master-faktur', [App\Http\Controllers\ERM\PermintaanController::class, 'getMasterFaktur'])->name('erm.permintaan.masterfaktur');
