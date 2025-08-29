@@ -14,6 +14,42 @@ use Illuminate\Support\Facades\Log;
 
 class RawatJalanController extends Controller
 {
+    /**
+     * Send notification from Dokter to all Perawat users
+     */
+    public function sendNotifToPerawat(Request $request)
+    {
+        if (!Auth::user()->hasRole('Dokter')) {
+            return response()->json(['success' => false], 403);
+        }
+        $request->validate([
+            'message' => 'required|string|max:255',
+        ]);
+        $perawats = \App\Models\User::role('Perawat')->get();
+        \Log::info('Perawat IDs:', $perawats->pluck('id')->toArray());
+        foreach ($perawats as $perawat) {
+            \Log::info('Sending notification to Perawat ID: ' . $perawat->id);
+            $perawat->notify(new \App\Notifications\DokterToPerawatNotification($request->message));
+        }
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Poll for unread notifications for Perawat
+     */
+    public function getNotif()
+    {
+        $user = Auth::user();
+        if (!$user->hasRole('Perawat')) {
+            return response()->json(['new' => false]);
+        }
+        $notif = $user->unreadNotifications()->latest()->first();
+        if ($notif) {
+            $notif->markAsRead();
+            return response()->json(['new' => true, 'message' => $notif->data['message'], 'sender' => $notif->data['sender']]);
+        }
+        return response()->json(['new' => false]);
+    }
         /**
      * Restore visitation status from dibatalkan (7) to tidak datang (0)
      */

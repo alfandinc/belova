@@ -680,6 +680,19 @@ Terima kasih.
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
 
+    <!-- Dokter-to-Perawat Notification Button -->
+    @if (auth()->user() && auth()->user()->hasRole('Dokter'))
+    <div class="row mb-3">
+        <div class="col-md-12 d-flex gap-2">
+            <button id="btn-buka-pintu" class="btn btn-danger mr-2">
+                <i class="fas fa-door-open"></i> Perawat Buka Pintu
+            </button>
+            <button id="btn-panggil-perawat" class="btn btn-warning">
+                <i class="fas fa-bell"></i> Panggil Perawat ke Ruang Dokter
+            </button>
+        </div>
+    </div>
+    @endif
     <!-- Statistics Cards -->
     <div class="row mb-4">
         <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
@@ -854,6 +867,80 @@ Terima kasih.
 @section('scripts')
 <script>
 $(document).ready(function () {
+    // Dokter: Send 'Perawat Buka Pintu' notification
+    $('#btn-buka-pintu').click(function() {
+        $.post('/erm/send-notif-perawat', {
+            _token: '{{ csrf_token() }}',
+            message: 'Mohon buka pintu untuk pasien.'
+        }, function(res) {
+            if (res.success) {
+                Swal.fire('Terkirim!', 'Notifikasi "Buka Pintu" berhasil dikirim ke Perawat.', 'success');
+            } else {
+                Swal.fire('Gagal', 'Notifikasi gagal dikirim.', 'error');
+            }
+        }).fail(function() {
+            Swal.fire('Gagal', 'Terjadi kesalahan saat mengirim notifikasi.', 'error');
+        });
+        // Set sound type for Perawat
+        localStorage.setItem('notifSoundType', 'bell');
+    });
+
+    // Dokter: Send 'Panggil Perawat ke Ruang Dokter' notification
+    $('#btn-panggil-perawat').click(function() {
+        $.post('/erm/send-notif-perawat', {
+            _token: '{{ csrf_token() }}',
+            message: 'Mohon datang ke ruang dokter.'
+        }, function(res) {
+            if (res.success) {
+                Swal.fire('Terkirim!', 'Notifikasi "Panggil Perawat" berhasil dikirim ke Perawat.', 'success');
+            } else {
+                Swal.fire('Gagal', 'Notifikasi gagal dikirim.', 'error');
+            }
+        }).fail(function() {
+            Swal.fire('Gagal', 'Terjadi kesalahan saat mengirim notifikasi.', 'error');
+        });
+        // Set sound type for Perawat
+        localStorage.setItem('notifSoundType', 'notif');
+    });
+
+    // Perawat: Poll for notifications every 5 seconds
+    @if ($role === 'Perawat')
+    // Sound permission popup on page load
+    window.soundEnabled = false;
+    $(function() {
+        Swal.fire({
+            title: 'Aktifkan Notifikasi Suara?',
+            text: 'Klik OK untuk mengaktifkan suara notifikasi. Anda hanya perlu melakukan ini sekali.',
+            icon: 'question',
+            confirmButtonText: 'OK'
+        }).then(() => {
+            var audio = new Audio('/sounds/confirm.mp3');
+            audio.play();
+            window.soundEnabled = true;
+        });
+    });
+
+    setInterval(function() {
+        $.get('/erm/get-notif', function(data) {
+            if (data.new) {
+                let soundFile = '/sounds/notif.mp3';
+                if (data.message === 'Mohon buka pintu untuk pasien.') {
+                    soundFile = '/sounds/bell.wav';
+                }
+                Swal.fire({
+                    title: 'Notifikasi dari Dokter',
+                    text: data.message + (data.sender ? ('\n(Dari: ' + data.sender + ')') : ''),
+                    icon: 'info',
+                    confirmButtonText: 'OK'
+                });
+                if (window.soundEnabled) {
+                    var audio = new Audio(soundFile);
+                    audio.play();
+                }
+            }
+        });
+    }, 2000);
+    @endif
 
     $('.select2').select2({
         width: '100%' 
