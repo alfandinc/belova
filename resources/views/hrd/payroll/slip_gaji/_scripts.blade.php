@@ -1,5 +1,32 @@
 <script>
 $(function() {
+    // Submit form edit slip gaji
+    $(document).on('click', '#btnSimpanSlipGaji', function() {
+        var form = $('#formEditSlipGaji');
+        var id = $('#slipGajiTable').DataTable().row('.selected').data()?.id || form.data('id');
+        if (!id) {
+            // fallback: cari id dari input hidden jika ada
+            id = form.find('input[name="id"]').val();
+        }
+        var formData = form.serialize();
+        $.ajax({
+            url: '/hrd/payroll/slip-gaji/update/' + id,
+            type: 'POST',
+            data: formData + '&_token={{ csrf_token() }}',
+            success: function(res) {
+                if(res.success) {
+                    Swal.fire('Sukses', 'Data slip gaji berhasil diupdate!', 'success');
+                    $('#modalSlipGajiDetail').modal('hide');
+                    table.ajax.reload();
+                } else {
+                    Swal.fire('Error', 'Gagal update data!', 'error');
+                }
+            },
+            error: function(xhr) {
+                Swal.fire('Error', 'Terjadi kesalahan!', 'error');
+            }
+        });
+    });
     var table = $('#slipGajiTable').DataTable({
         processing: true,
         serverSide: true,

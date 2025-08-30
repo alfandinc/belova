@@ -7,8 +7,36 @@ use App\Models\HRD\PrSlipGaji;
 use App\Models\HRD\Employee;
 
 class PrSlipGajiController extends Controller
-
 {
+    // Update slip gaji dari modal detail
+    public function update(Request $request, $id)
+    {
+        $slip = PrSlipGaji::findOrFail($id);
+        $slip->status_gaji = $request->input('status_gaji', $slip->status_gaji);
+        $slip->total_hari_masuk = $request->input('total_hari_masuk', $slip->total_hari_masuk);
+        $slip->kpi_poin = $request->input('kpi_poin', $slip->kpi_poin);
+        $slip->total_pendapatan = $request->input('total_pendapatan', $slip->total_pendapatan);
+        $slip->total_potongan = $request->input('total_potongan', $slip->total_potongan);
+        $slip->total_gaji = $request->input('total_gaji', $slip->total_gaji);
+        $slip->gaji_pokok = $request->input('gaji_pokok', $slip->gaji_pokok);
+        $slip->tunjangan_jabatan = $request->input('tunjangan_jabatan', $slip->tunjangan_jabatan);
+        $slip->uang_makan = $request->input('uang_makan', $slip->uang_makan);
+        $slip->uang_kpi = $request->input('uang_kpi', $slip->uang_kpi);
+        $slip->jasa_medis = $request->input('jasa_medis', $slip->jasa_medis);
+        $slip->total_jam_lembur = $request->input('total_jam_lembur', $slip->total_jam_lembur);
+        $slip->uang_lembur = $request->input('uang_lembur', $slip->uang_lembur);
+        $slip->potongan_pinjaman = $request->input('potongan_pinjaman', $slip->potongan_pinjaman);
+        $slip->potongan_bpjs_kesehatan = $request->input('potongan_bpjs_kesehatan', $slip->potongan_bpjs_kesehatan);
+        $slip->potongan_jamsostek = $request->input('potongan_jamsostek', $slip->potongan_jamsostek);
+        $slip->potongan_penalty = $request->input('potongan_penalty', $slip->potongan_penalty);
+        $slip->potongan_lain = $request->input('potongan_lain', $slip->potongan_lain);
+        $slip->benefit_bpjs_kesehatan = $request->input('benefit_bpjs_kesehatan', $slip->benefit_bpjs_kesehatan);
+        $slip->benefit_jht = $request->input('benefit_jht', $slip->benefit_jht);
+        $slip->benefit_jkk = $request->input('benefit_jkk', $slip->benefit_jkk);
+        $slip->benefit_jkm = $request->input('benefit_jkm', $slip->benefit_jkm);
+        $slip->save();
+        return response()->json(['success' => true]);
+    }
     // ...existing code...
         // Return omset input fields for all available penghasil omset
     public function getOmsetInputs(Request $request)
@@ -92,7 +120,11 @@ class PrSlipGajiController extends Controller
 
     public function data(Request $request)
     {
+        $bulan = $request->get('bulan');
         $query = PrSlipGaji::with(['employee.division']);
+        if ($bulan) {
+            $query->where('bulan', $bulan);
+        }
         return datatables()->of($query)
             ->addColumn('id', function($row) {
                 return $row->id;
