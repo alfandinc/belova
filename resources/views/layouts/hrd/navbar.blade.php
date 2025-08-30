@@ -182,6 +182,15 @@
                     <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Saldo Cuti</a></li> --}}
                 </ul>
             </li>
+                <!-- Payroll Menu -->
+                    <li>
+                        <a href="javascript: void(0);"> <i data-feather="dollar-sign" class="align-self-center menu-icon"></i><span>Payroll</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <ul class="nav-second-level" aria-expanded="false">
+                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.master.index') }}"><i class="ti-control-record"></i>Master Payroll</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.insentif_omset.index') }}"><i class="ti-control-record"></i>Insentif Omset</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.kpi.index') }}"><i class="ti-control-record"></i>KPI</a></li>
+                        </ul>
+                    </li>
             
             <!-- For HRD and CEO: Reports -->
             {{-- <li>

@@ -216,8 +216,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 
-    // ...existing code...
-
     // Master Pemasok AJAX CRUD
     Route::get('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'index']);
     Route::post('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'store']);
@@ -965,3 +963,51 @@ Route::get('/get-gudang-select2', [\App\Http\Controllers\ERM\FakturBeliControlle
     // AJAX spesialisasi select2
     Route::get('/erm/spesialisasi-select2', [\App\Http\Controllers\Insiden\LaporanInsidenController::class, 'spesialisasiSelect2'])->name('erm.spesialisasi.select2');
     // AJAX division select2 (unit penyebab)
+    Route::get('/erm/division-select2', [\App\Http\Controllers\Insiden\LaporanInsidenController::class, 'divisionSelect2'])->name('erm.division.select2');
+
+    // Payroll Master Routes
+Route::prefix('hrd/payroll/master')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+    Route::get('/gajipokok', [App\Http\Controllers\HRD\PayrollMasterController::class, 'datatableGajiPokok']);
+    Route::post('/gajipokok', [App\Http\Controllers\HRD\PayrollMasterController::class, 'storeGajiPokok']);
+    Route::put('/gajipokok/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'updateGajiPokok']);
+    Route::delete('/gajipokok/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'destroyGajiPokok']);
+
+    Route::get('/tunjangan-jabatan', [App\Http\Controllers\HRD\PayrollMasterController::class, 'datatableTunjanganJabatan']);
+    Route::post('/tunjangan-jabatan', [App\Http\Controllers\HRD\PayrollMasterController::class, 'storeTunjanganJabatan']);
+    Route::put('/tunjangan-jabatan/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'updateTunjanganJabatan']);
+    Route::delete('/tunjangan-jabatan/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'destroyTunjanganJabatan']);
+
+    Route::get('/tunjangan-lain', [App\Http\Controllers\HRD\PayrollMasterController::class, 'datatableTunjanganLain']);
+    Route::post('/tunjangan-lain', [App\Http\Controllers\HRD\PayrollMasterController::class, 'storeTunjanganLain']);
+    Route::put('/tunjangan-lain/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'updateTunjanganLain']);
+    Route::delete('/tunjangan-lain/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'destroyTunjanganLain']);
+
+    Route::get('/benefit', [App\Http\Controllers\HRD\PayrollMasterController::class, 'datatableBenefit']);
+    Route::post('/benefit', [App\Http\Controllers\HRD\PayrollMasterController::class, 'storeBenefit']);
+    Route::put('/benefit/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'updateBenefit']);
+    Route::delete('/benefit/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'destroyBenefit']);
+
+    Route::get('/potongan', [App\Http\Controllers\HRD\PayrollMasterController::class, 'datatablePotongan']);
+    Route::post('/potongan', [App\Http\Controllers\HRD\PayrollMasterController::class, 'storePotongan']);
+    Route::put('/potongan/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'updatePotongan']);
+    Route::delete('/potongan/{id}', [App\Http\Controllers\HRD\PayrollMasterController::class, 'destroyPotongan']);
+
+    Route::get('/', [App\Http\Controllers\HRD\PayrollMasterController::class, 'index'])->name('hrd.payroll.master.index');
+});
+
+// Payroll Insentif Omset Routes
+Route::prefix('hrd/payroll/insentif-omset')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+    Route::get('/', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'index'])->name('hrd.payroll.insentif_omset.index');
+    Route::get('/data', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'data'])->name('hrd.payroll.insentif_omset.data');
+    Route::post('/', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'store'])->name('hrd.payroll.insentif_omset.store');
+    Route::put('/{id}', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'update'])->name('hrd.payroll.insentif_omset.update');
+    Route::delete('/{id}', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'destroy'])->name('hrd.payroll.insentif_omset.destroy');
+    });
+    // Payroll KPI Routes
+Route::prefix('hrd/payroll/kpi')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+    Route::get('/', [App\Http\Controllers\HRD\PrKpiController::class, 'index'])->name('hrd.payroll.kpi.index');
+    Route::get('/data', [App\Http\Controllers\HRD\PrKpiController::class, 'data'])->name('hrd.payroll.kpi.data');
+    Route::post('/', [App\Http\Controllers\HRD\PrKpiController::class, 'store'])->name('hrd.payroll.kpi.store');
+    Route::put('/{id}', [App\Http\Controllers\HRD\PrKpiController::class, 'update'])->name('hrd.payroll.kpi.update');
+    Route::delete('/{id}', [App\Http\Controllers\HRD\PrKpiController::class, 'destroy'])->name('hrd.payroll.kpi.destroy');
+});
