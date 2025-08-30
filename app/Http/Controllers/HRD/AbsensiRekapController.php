@@ -11,6 +11,55 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
+    // /**
+    //  * AJAX: Get schedule and shift info for employee and date
+    //  */
+    // public function getSchedule(Request $request)
+    // {
+    //     $employeeId = $request->input('employee_id');
+    //     $date = $request->input('date');
+    //     $schedule = EmployeeSchedule::where('employee_id', $employeeId)
+    //         ->where('date', $date)
+    //         ->with('shift')
+    //         ->first();
+    //     if ($schedule && $schedule->shift) {
+    //         return response()->json([
+    //             'shift' => [
+    //                 'name' => $schedule->shift->name ?? '',
+    //                 'start' => $schedule->shift->start_time ?? '',
+    //                 'end' => $schedule->shift->end_time ?? '',
+    //             ]
+    //         ]);
+    //     }
+    //     return response()->json(['shift' => null]);
+    // }
+
+    // /**
+    //  * Store new absensi record
+    //  */
+    // public function store(Request $request)
+    // {
+    //     $validated = $request->validate([
+    //         'employee_id' => 'required|exists:hrd_employee,id',
+    //         'date' => 'required|date',
+    //         'jam_masuk' => 'required',
+    //         'jam_keluar' => 'required',
+    //         'shift' => 'nullable|string',
+    //         'work_hour' => 'required|numeric',
+    //     ]);
+    //     $employee = Employee::find($validated['employee_id']);
+    //     $rekap = new AttendanceRekap();
+    //     $rekap->employee_id = $validated['employee_id'];
+    //     $rekap->finger_id = $employee ? $employee->finger_id : null;
+    //     $rekap->date = $validated['date'];
+    //     $rekap->jam_masuk = $validated['jam_masuk'];
+    //     $rekap->jam_keluar = $validated['jam_keluar'];
+    //     $rekap->shift = $validated['shift'] ?? null;
+    //     $rekap->work_hour = $validated['work_hour'];
+    //     $rekap->save();
+    //     return response()->json(['success' => true]);
+    // }
+
 class AbsensiRekapController extends Controller
 {
     /**
@@ -20,6 +69,61 @@ class AbsensiRekapController extends Controller
     {
         // If end time is 00:00:00 or earlier than start time, it's overnight
         return $endTime === '00:00:00' || $startTime > $endTime;
+    }
+
+    /**
+     * AJAX: Get schedule and shift info for employee and date
+     */
+    public function getSchedule(Request $request)
+    {
+        $employeeId = $request->input('employee_id');
+        $date = $request->input('date');
+        $schedule = EmployeeSchedule::where('employee_id', $employeeId)
+            ->where('date', $date)
+            ->with('shift')
+            ->first();
+        if ($schedule && $schedule->shift) {
+            return response()->json([
+                'shift' => [
+                    'name' => $schedule->shift->name ?? '',
+                    'start' => $schedule->shift->start_time ?? '',
+                    'end' => $schedule->shift->end_time ?? '',
+                ]
+            ]);
+        }
+        return response()->json(['shift' => null]);
+    }
+
+    /**
+     * Store new absensi record
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:hrd_employee,id',
+            'date' => 'required|date',
+            'jam_masuk' => 'required',
+            'jam_keluar' => 'required',
+            'shift_start' => 'nullable|string',
+            'shift_end' => 'nullable|string',
+            'work_hour' => 'required|numeric',
+        ]);
+        $employee = Employee::find($validated['employee_id']);
+        AttendanceRekap::updateOrCreate(
+            [
+                'finger_id' => $employee ? $employee->finger_id : null,
+                'date' => $validated['date'],
+            ],
+            [
+                'employee_id' => $validated['employee_id'],
+                'jam_masuk' => $validated['jam_masuk'],
+                'jam_keluar' => $validated['jam_keluar'],
+                'shift_start' => $validated['shift_start'] ?? null,
+                'shift_end' => $validated['shift_end'] ?? null,
+                'work_hour' => $validated['work_hour'],
+            ]
+        );
+        return response()->json(['success' => true]);
     }
 
     /**
@@ -41,10 +145,25 @@ class AbsensiRekapController extends Controller
 
         // Calculate difference in seconds
         $diff = $jamKeluarTime - $jamMasukTime;
-        
-        // If negative, it might be overnight (keluar next day)
+
+        // If jam_keluar is on the next day, handle overnight shift
         if ($diff < 0) {
-            $diff += 24 * 3600; // Add 24 hours
+            // Try to detect if jam_keluar is on the next day
+            // Parse date part from both jam_masuk and jam_keluar
+            $dateMasuk = null;
+            $dateKeluar = null;
+            if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})/', $jamMasuk, $mMasuk)) {
+                $dateMasuk = $mMasuk[3] . '-' . $mMasuk[2] . '-' . $mMasuk[1];
+            }
+            if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})/', $jamKeluar, $mKeluar)) {
+                $dateKeluar = $mKeluar[3] . '-' . $mKeluar[2] . '-' . $mKeluar[1];
+            }
+            if ($dateMasuk && $dateKeluar && $dateKeluar > $dateMasuk) {
+                // jam_keluar is on the next day, so calculate the true difference
+                $diff = $jamKeluarTime - $jamMasukTime;
+            } else {
+                $diff += 24 * 3600; // fallback: add 24 hours
+            }
         }
         
         $workHours = $diff / 3600;
@@ -896,21 +1015,39 @@ class AbsensiRekapController extends Controller
                     // Calculate work hours
                     $workHour = $this->calculateWorkHours($jamMasuk, $jamKeluar, $date);
                     
-                    // Save to database
-                    AttendanceRekap::updateOrCreate(
-                        [
-                            'finger_id' => $fingerId,
-                            'date' => $date,
-                        ],
-                        [
-                            'employee_id' => $employee->id,
-                            'jam_masuk' => $jamMasuk,
-                            'jam_keluar' => $jamKeluar,
-                            'shift_start' => $shiftStart,
-                            'shift_end' => $shiftEnd,
-                            'work_hour' => $workHour,
-                        ]
-                    );
+                        // Helper to standardize to 'd/m/Y H:i'
+                        $toExcelFormat = function($datetime, $date) {
+                            // If already in 'd/m/Y H:i', return as is
+                            if (preg_match('/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/', $datetime)) {
+                                return $datetime;
+                            }
+                            // If in 'Y-m-d H:i:s', convert
+                            if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $datetime)) {
+                                $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $datetime);
+                                return $dt ? $dt->format('d/m/Y H:i') : $datetime;
+                            }
+                            // If only time, combine with date
+                            if (preg_match('/^\d{2}:\d{2}:\d{2}$/', $datetime)) {
+                                $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $date . ' ' . $datetime);
+                                return $dt ? $dt->format('d/m/Y H:i') : $datetime;
+                            }
+                            return $datetime;
+                        };
+
+                        AttendanceRekap::updateOrCreate(
+                            [
+                                'finger_id' => $fingerId,
+                                'date' => $date,
+                            ],
+                            [
+                                'employee_id' => $employee->id,
+                                'jam_masuk' => $toExcelFormat($jamMasuk, $date),
+                                'jam_keluar' => $toExcelFormat($jamKeluar, $date),
+                                'shift_start' => $shiftStart,
+                                'shift_end' => $shiftEnd,
+                                'work_hour' => $workHour,
+                            ]
+                        );
                     
                     Log::info("Saved attendance for {$employee->nama} on {$date}", [
                         'jam_masuk' => $jamMasuk,

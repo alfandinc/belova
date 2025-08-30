@@ -23,15 +23,15 @@ class EmployeeController extends Controller
      * Search employees for select2 (sales field)
      */
     public function searchForSelect2(Request $request)
-    {
-        $search = $request->input('search');
-        $query = Employee::query();
-        if ($search) {
-            $query->where('nama', 'like', "%$search%");
+        {
+            $search = $request->input('q'); // select2 uses 'q' for the search term
+            $query = Employee::query();
+            if ($search) {
+                $query->where('nama', 'like', "%$search%");
+            }
+            $results = $query->orderBy('nama')->limit(20)->get(['id', 'nama']);
+            return response()->json($results);
         }
-        $results = $query->orderBy('nama')->limit(20)->get(['id', 'nama']);
-        return response()->json($results);
-    }
     public function index(Request $request)
 {
     if ($request->ajax()) {

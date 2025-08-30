@@ -228,6 +228,58 @@
 </div>
         </thead>
     </table>
+
+        <!-- Add Absensi Button -->
+        <button class="btn btn-primary mb-3" id="addAbsensiBtn">
+            <i class="fas fa-plus"></i> Tambah Absensi
+        </button>
+
+        <!-- Add Absensi Modal -->
+        <div class="modal fade" id="addAbsensiModal" tabindex="-1" role="dialog" aria-labelledby="addAbsensiModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addAbsensiModalLabel">Tambah Absensi</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <form id="addAbsensiForm">
+                        @csrf
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="addEmployee">Karyawan</label>
+                                <select id="addEmployee" name="employee_id" class="form-control" required></select>
+                            </div>
+                            <div class="form-group">
+                                <label for="addTanggal">Tanggal</label>
+                                <input type="date" id="addTanggal" name="date" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="addShift">Shift</label>
+                                <input type="text" id="addShift" name="shift" class="form-control" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label for="addJamMasuk">Jam Masuk</label>
+                                <input type="time" id="addJamMasuk" name="jam_masuk" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="addJamKeluar">Jam Keluar</label>
+                                <input type="time" id="addJamKeluar" name="jam_keluar" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="addWorkHour">Work Hour</label>
+                                <input type="text" id="addWorkHour" name="work_hour" class="form-control" readonly>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-primary">Simpan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
 </div>
 
 @push('styles')
@@ -524,7 +576,16 @@ $(function() {
             { data: 'jam_masuk', name: 'jam_masuk' },
             { data: 'jam_keluar', name: 'jam_keluar' },
             { data: 'shift', name: 'shift' },
-            { data: 'work_hour', name: 'work_hour' },
+            {
+                data: 'work_hour',
+                name: 'work_hour',
+                render: function(data, type, row) {
+                    if (data == null) return '';
+                    var hours = Math.floor(data);
+                    var minutes = Math.round((data - hours) * 60);
+                    return hours + ' jam ' + minutes + ' menit';
+                }
+            },
             { data: 'status', name: 'status' },
             {
                 data: null,
@@ -565,7 +626,7 @@ $(function() {
             },
             success: function(response) {
                 $('#editModal').modal('hide');
-                table.ajax.reload();
+                table.ajax.reload(null, false); // force reload and keep paging
                 loadStatistics();
                 alert('Data berhasil diupdate!');
             },
@@ -628,6 +689,109 @@ $(function() {
         var fileName = $(this)[0].files[0] ? $(this)[0].files[0].name : 'Choose XLS file';
         $(this).next('.custom-file-label').text(fileName);
     });
+
+        // Add Absensi Modal logic
+        $('#addAbsensiBtn').on('click', function() {
+            $('#addAbsensiModal').modal('show');
+            $('#addAbsensiForm')[0].reset();
+            $('#addShift').val('');
+            $('#addWorkHour').val('');
+        });
+
+        // Initialize select2 for employee
+            $('#addEmployee').select2({
+                placeholder: 'Pilih Karyawan',
+                allowClear: true,
+                width: '100%',
+                ajax: {
+                    url: '/api/hrd/employees',
+                    dataType: 'json',
+                    delay: 250,
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function(emp) {
+                                return { id: emp.id, text: emp.nama };
+                            })
+                        };
+                    }
+                }
+            });
+
+        // Fetch schedule and autofill
+        function fetchScheduleAndFill() {
+            var empId = $('#addEmployee').val();
+            var tanggal = $('#addTanggal').val();
+            if (empId && tanggal) {
+                $.get('/hrd/absensi-rekap/schedule', { employee_id: empId, date: tanggal }, function(res) {
+                    if (res && res.shift) {
+                        $('#addShift').val(res.shift.name || '');
+                        $('#addJamMasuk').val(res.shift.start || '');
+                        $('#addJamKeluar').val(res.shift.end || '');
+                        calculateWorkHour();
+                    } else {
+                        $('#addShift').val('');
+                        $('#addJamMasuk').val('');
+                        $('#addJamKeluar').val('');
+                        $('#addWorkHour').val('');
+                    }
+                });
+            }
+        }
+
+        $('#addEmployee, #addTanggal').on('change', fetchScheduleAndFill);
+
+        // Calculate work hour
+        function calculateWorkHour() {
+            var masuk = $('#addJamMasuk').val();
+            var keluar = $('#addJamKeluar').val();
+            if (masuk && keluar) {
+                var start = moment(masuk, 'HH:mm');
+                var end = moment(keluar, 'HH:mm');
+                var diff = end.diff(start, 'minutes');
+                if (diff < 0) {
+                    // Overnight shift: add 24 hours
+                    diff += 24 * 60;
+                }
+                $('#addWorkHour').val(diff > 0 ? (diff / 60).toFixed(2) : '0');
+            } else {
+                $('#addWorkHour').val('');
+            }
+        }
+        $('#addJamMasuk, #addJamKeluar').on('change', calculateWorkHour);
+
+        // Submit add absensi form
+            $('#addAbsensiForm').on('submit', function(e) {
+                e.preventDefault();
+                // Combine date and time to 'd/m/Y H:i' format
+                var tanggal = $('#addTanggal').val();
+                var jamMasuk = $('#addJamMasuk').val();
+                var jamKeluar = $('#addJamKeluar').val();
+                function toExcelFormat(date, time) {
+                    if (!date || !time) return '';
+                    var parts = date.split('-'); // yyyy-mm-dd
+                    if (parts.length === 3) {
+                        return parts[2] + '/' + parts[1] + '/' + parts[0] + ' ' + time.substring(0,5);
+                    }
+                    return date + ' ' + time.substring(0,5);
+                }
+                var jamMasukExcel = toExcelFormat(tanggal, jamMasuk);
+                var jamKeluarExcel = toExcelFormat(tanggal, jamKeluar);
+
+                var formData = $(this).serializeArray();
+                // Replace jam_masuk and jam_keluar values
+                formData = formData.map(function(f) {
+                    if (f.name === 'jam_masuk') f.value = jamMasukExcel;
+                    if (f.name === 'jam_keluar') f.value = jamKeluarExcel;
+                    return f;
+                });
+                $.post('/hrd/absensi-rekap', $.param(formData), function(res) {
+                    alert('Absensi berhasil ditambahkan!');
+                    $('#addAbsensiModal').modal('hide');
+                    table.ajax.reload(null, false); // force reload and keep paging
+                }).fail(function(xhr) {
+                    alert('Gagal menambah absensi: ' + (xhr.responseJSON?.error || 'Unknown error'));
+                });
+            });
 });
 </script>
 @endpush
