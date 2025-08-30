@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\HRD;
 
+use App\Models\AttendanceLatenessRecap;
+
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\HRD\Employee;
@@ -62,6 +64,98 @@ use Illuminate\Support\Facades\DB;
 
 class AbsensiRekapController extends Controller
 {
+    /**
+     * Submit lateness recap for the selected month
+     */
+    public function submitLatenessRecap(Request $request)
+    {
+        $dateRange = $request->input('date_range');
+        $employeeIds = $request->input('employee_ids');
+        if (!$dateRange) {
+            return response()->json(['message' => 'Rentang tanggal diperlukan!'], 422);
+        }
+        // Parse date range
+        [$start, $end] = explode(' - ', $dateRange);
+        $startDate = date('Y-m-01', strtotime($start));
+        $endDate = date('Y-m-t', strtotime($end));
+        $month = date('Y-m', strtotime($start));
+
+        // Query absensi rekap for the month
+        $query = AttendanceRekap::whereBetween('date', [$startDate, $endDate]);
+        if ($employeeIds && is_array($employeeIds)) {
+            $query->whereIn('employee_id', $employeeIds);
+        }
+        $rekaps = $query->get();
+
+        // Group by employee
+        $grouped = $rekaps->groupBy('employee_id');
+        foreach ($grouped as $employeeId => $records) {
+            $totalLateDays = 0;
+            $totalLateMinutes = 0;
+            $totalOvertimeMinutes = 0;
+            foreach ($records as $rec) {
+                // Get shift times from record or schedule
+                $shiftStart = $rec->shift_start;
+                $shiftEnd = $rec->shift_end;
+                if (!$shiftStart || !$shiftEnd) {
+                    $schedule = \App\Models\HRD\EmployeeSchedule::where('employee_id', $rec->employee_id)
+                        ->where('date', $rec->date)
+                        ->with('shift')
+                        ->first();
+                    if ($schedule && $schedule->shift) {
+                        $shiftStart = $schedule->shift->start_time;
+                        $shiftEnd = $schedule->shift->end_time;
+                    }
+                }
+                $jamMasuk = $rec->jam_masuk ? (explode(' ', $rec->jam_masuk)[1] ?? $rec->jam_masuk) : null;
+                $jamKeluar = $rec->jam_keluar ? (explode(' ', $rec->jam_keluar)[1] ?? $rec->jam_keluar) : null;
+                // Calculate lateness
+                $lateMinutes = 0;
+                if ($jamMasuk && $shiftStart) {
+                    $jamMasukTime = strtotime($rec->date . ' ' . $jamMasuk);
+                    $shiftStartTime = strtotime($rec->date . ' ' . $shiftStart);
+                    $diff = $jamMasukTime - $shiftStartTime;
+                    $lateMinutes = $diff > 0 ? round($diff / 60) : 0;
+                }
+                // Calculate overtime
+                $overtimeMinutes = 0;
+                if ($jamKeluar && $shiftEnd) {
+                    $jamKeluarTime = strtotime($rec->date . ' ' . $jamKeluar);
+                    $shiftEndTime = strtotime($rec->date . ' ' . $shiftEnd);
+                    // Overnight shift handling
+                    if ($shiftEnd === '00:00:00' || ($shiftEnd < '12:00:00' && $shiftEnd !== '00:00:00')) {
+                        $shiftEndTime += 24 * 3600;
+                    }
+                    $jamKeluarTimeOnly = date('H:i:s', $jamKeluarTime);
+                    if ($jamKeluarTimeOnly < '12:00:00' && $shiftEnd > '12:00:00') {
+                        $jamKeluarTime += 24 * 3600;
+                    } else if ($shiftEnd === '00:00:00' && $jamKeluarTimeOnly > '00:00:00' && $jamKeluarTimeOnly < '12:00:00') {
+                        $jamKeluarTime += 24 * 3600;
+                    }
+                    $diff = $jamKeluarTime - $shiftEndTime;
+                    $overtimeMinutes = $diff > 0 ? round($diff / 60) : 0;
+                }
+                if ($lateMinutes > 0) {
+                    $totalLateDays++;
+                    $totalLateMinutes += $lateMinutes;
+                }
+                $totalOvertimeMinutes += $overtimeMinutes;
+            }
+            AttendanceLatenessRecap::updateOrCreate(
+                [
+                    'employee_id' => $employeeId,
+                    'month' => $month,
+                ],
+                [
+                    'total_late_days' => $totalLateDays,
+                    'total_late_minutes' => $totalLateMinutes,
+                    'total_overtime_minutes' => $totalOvertimeMinutes,
+                    'total_late_minus_overtime' => $totalLateMinutes - $totalOvertimeMinutes,
+                ]
+            );
+        }
+        return response()->json(['message' => 'Rekap keterlambatan bulan ini berhasil disimpan!']);
+    }
     /**
      * Check if a shift crosses midnight (overnight shift)
      */
@@ -488,6 +582,58 @@ class AbsensiRekapController extends Controller
                     return isset($parts[1]) ? $parts[1] : $row->jam_keluar;
                 }
                 return '';
+            })
+            ->addColumn('menit_terlambat', function($row) {
+                // Get shift start from record or schedule
+                $shiftStart = $row->shift_start;
+                if (!$shiftStart) {
+                    $schedule = \App\Models\HRD\EmployeeSchedule::where('employee_id', $row->employee_id)
+                        ->where('date', $row->date)
+                        ->with('shift')
+                        ->first();
+                    if ($schedule && $schedule->shift) {
+                        $shiftStart = $schedule->shift->start_time;
+                    }
+                }
+                $jamMasuk = $row->jam_masuk ? (explode(' ', $row->jam_masuk)[1] ?? $row->jam_masuk) : null;
+                if ($jamMasuk && $shiftStart) {
+                    $jamMasukTime = strtotime($row->date . ' ' . $jamMasuk);
+                    $shiftStartTime = strtotime($row->date . ' ' . $shiftStart);
+                    $diff = $jamMasukTime - $shiftStartTime;
+                    return $diff > 0 ? round($diff / 60) : 0;
+                }
+                return 0;
+            })
+            ->addColumn('overtime', function($row) {
+                // Get shift end from record or schedule
+                $shiftEnd = $row->shift_end;
+                if (!$shiftEnd) {
+                    $schedule = \App\Models\HRD\EmployeeSchedule::where('employee_id', $row->employee_id)
+                        ->where('date', $row->date)
+                        ->with('shift')
+                        ->first();
+                    if ($schedule && $schedule->shift) {
+                        $shiftEnd = $schedule->shift->end_time;
+                    }
+                }
+                $jamKeluar = $row->jam_keluar ? (explode(' ', $row->jam_keluar)[1] ?? $row->jam_keluar) : null;
+                if ($jamKeluar && $shiftEnd) {
+                    $jamKeluarTime = strtotime($row->date . ' ' . $jamKeluar);
+                    $shiftEndTime = strtotime($row->date . ' ' . $shiftEnd);
+                    // Overnight shift handling
+                    if ($shiftEnd === '00:00:00' || ($shiftEnd < '12:00:00' && $shiftEnd !== '00:00:00')) {
+                        $shiftEndTime += 24 * 3600;
+                    }
+                    $jamKeluarTimeOnly = date('H:i:s', $jamKeluarTime);
+                    if ($jamKeluarTimeOnly < '12:00:00' && $shiftEnd > '12:00:00') {
+                        $jamKeluarTime += 24 * 3600;
+                    } else if ($shiftEnd === '00:00:00' && $jamKeluarTimeOnly > '00:00:00' && $jamKeluarTimeOnly < '12:00:00') {
+                        $jamKeluarTime += 24 * 3600;
+                    }
+                    $diff = $jamKeluarTime - $shiftEndTime;
+                    return $diff > 0 ? round($diff / 60) : 0;
+                }
+                return 0;
             })
                 ->addColumn('status', function($row) {
                     $status = [];

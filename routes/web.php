@@ -626,6 +626,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         Route::get('absensi-rekap/schedule', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'getSchedule']);
         // Store new absensi
         Route::post('absensi-rekap', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'store']);
+        Route::post('absensi-rekap/submit-lateness-recap', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'submitLatenessRecap']);
         Route::get('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'index'])->name('hrd.lembur.index');
         Route::get('lembur/create', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'create'])->name('hrd.lembur.create');
         Route::post('lembur', [\App\Http\Controllers\HRD\PengajuanLemburController::class, 'store'])->name('hrd.lembur.store');

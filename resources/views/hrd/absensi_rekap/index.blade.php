@@ -164,6 +164,29 @@
                     </div>
                 </div>
             </form>
+            <button id="showLatenessRecapModalBtn" class="btn btn-success mt-2" style="width:100%">
+                <i class="fas fa-file-export"></i> Submit Rekap Keterlambatan Bulan Ini
+            </button>
+            <!-- Modal for lateness recap confirmation -->
+            <div class="modal fade" id="latenessRecapModal" tabindex="-1" role="dialog" aria-labelledby="latenessRecapModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="latenessRecapModalLabel">Konfirmasi Rekap Keterlambatan Bulan Ini</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="latenessRecapTableContainer"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                            <button type="button" id="confirmLatenessRecapBtn" class="btn btn-success">Konfirmasi & Simpan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -193,7 +216,8 @@
                 <th>Jam Keluar</th>
                 <th>Shift</th>
                 <th>Work Hour</th>
-                <th>Status</th>
+                <th>Terlambat</th>
+                <th>Overtime</th>
                 <th>Aksi</th>
             </tr>
 <!-- Edit Modal -->
@@ -489,6 +513,97 @@ $(function() {
                     date_range: $('#dateRange').val(),
                     employee_ids: $('#employeeFilter').val()
                 });
+            // Show lateness recap modal before submitting
+            $('#showLatenessRecapModalBtn').on('click', function() {
+                var dateRange = $('#dateRange').val();
+                var employeeIds = $('#employeeFilter').val();
+                if (!dateRange) {
+                    alert('Pilih rentang tanggal terlebih dahulu!');
+                    return;
+                }
+                $(this).prop('disabled', true).text('Memproses...');
+                $.ajax({
+                    url: '/hrd/absensi-rekap/data',
+                    method: 'GET',
+                    data: {
+                        date_range: dateRange,
+                        employee_ids: employeeIds
+                    },
+                    success: function(res) {
+                        // Summarize lateness recap per employee
+                        var data = res.data || res;
+                        var recap = {};
+                        data.forEach(function(row) {
+                            var empId = row.employee_id;
+                            if (!recap[empId]) {
+                                recap[empId] = {
+                                    nama: row.employee_name,
+                                    total_late_days: 0,
+                                    total_late_minutes: 0,
+                                    total_overtime_minutes: 0
+                                };
+                            }
+                            if (row.menit_terlambat > 0) {
+                                recap[empId].total_late_days++;
+                                recap[empId].total_late_minutes += row.menit_terlambat;
+                            }
+                            recap[empId].total_overtime_minutes += row.overtime;
+                        });
+                        // Build table
+                        var html = '<table class="table table-bordered"><thead><tr><th>Nama</th><th>Total Hari Terlambat</th><th>Total Menit Terlambat</th><th>Total Menit Overtime</th><th>Total Menit Terlambat - Overtime</th></tr></thead><tbody>';
+                        Object.values(recap).forEach(function(r) {
+                            html += '<tr>' +
+                                '<td>' + r.nama + '</td>' +
+                                '<td>' + r.total_late_days + '</td>' +
+                                '<td>' + r.total_late_minutes + '</td>' +
+                                '<td>' + r.total_overtime_minutes + '</td>' +
+                                '<td>' + (r.total_late_minutes - r.total_overtime_minutes) + '</td>' +
+                                '</tr>';
+                        });
+                        html += '</tbody></table>';
+                        $('#latenessRecapTableContainer').html(html);
+                        $('#latenessRecapModal').modal('show');
+                    },
+                    error: function(xhr) {
+                        alert('Gagal mengambil data rekap!');
+                    },
+                    complete: function() {
+                        $('#showLatenessRecapModalBtn').prop('disabled', false).html('<i class="fas fa-file-export"></i> Submit Rekap Keterlambatan Bulan Ini');
+                    }
+                });
+            });
+
+            // Confirm and submit lateness recap
+            $('#confirmLatenessRecapBtn').on('click', function() {
+                var dateRange = $('#dateRange').val();
+                var employeeIds = $('#employeeFilter').val();
+                $.ajax({
+                    url: '/hrd/absensi-rekap/submit-lateness-recap',
+                    method: 'POST',
+                    data: {
+                        _token: $('meta[name="csrf-token"]').attr('content') || $('[name="_token"]').val(),
+                        date_range: dateRange,
+                        employee_ids: employeeIds
+                    },
+                    success: function(res) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil',
+                            text: res.message || 'Rekap keterlambatan berhasil disimpan!',
+                            confirmButtonText: 'OK'
+                        });
+                        $('#latenessRecapModal').modal('hide');
+                    },
+                    error: function(xhr) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Gagal',
+                            text: 'Gagal menyimpan rekap keterlambatan!',
+                            confirmButtonText: 'OK'
+                        });
+                    }
+                });
+            });
                 console.log('Statistics response:', response);
                 
                 // Add animation class and update numbers
@@ -541,6 +656,10 @@ $(function() {
             'Bulan lalu': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
         }
     });
+    // Set default to current month
+    var startOfMonth = moment().startOf('month');
+    var endOfMonth = moment().endOf('month');
+    $('#dateRange').val(startOfMonth.format('YYYY-MM-DD') + ' - ' + endOfMonth.format('YYYY-MM-DD'));
     $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
         table.ajax.reload();
@@ -586,7 +705,20 @@ $(function() {
                     return hours + ' jam ' + minutes + ' menit';
                 }
             },
-            { data: 'status', name: 'status' },
+            {
+                data: 'menit_terlambat',
+                name: 'menit_terlambat',
+                render: function(data, type, row) {
+                    return data > 0 ? data + ' menit' : '-';
+                }
+            },
+            {
+                data: 'overtime',
+                name: 'overtime',
+                render: function(data, type, row) {
+                    return data > 0 ? data + ' menit' : '-';
+                }
+            },
             {
                 data: null,
                 orderable: false,
