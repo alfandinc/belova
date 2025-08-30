@@ -32,8 +32,10 @@ class PrSlipGaji extends Model
         'benefit_jkm',
         'total_pendapatan',
         'total_potongan',
-        'total_gaji',
-        'status',
+    'total_gaji',
+    'status_gaji',
+        'total_hari_scheduled',
+        'total_hari_masuk',
     ];
 
     public function employee()

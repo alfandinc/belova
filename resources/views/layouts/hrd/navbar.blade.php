@@ -189,6 +189,7 @@
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.master.index') }}"><i class="ti-control-record"></i>Master Payroll</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.insentif_omset.index') }}"><i class="ti-control-record"></i>Insentif Omset</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.kpi.index') }}"><i class="ti-control-record"></i>KPI</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji.index') }}"><i class="ti-control-record"></i>Slip Gaji</a></li>
                         </ul>
                     </li>
             
