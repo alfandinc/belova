@@ -100,9 +100,25 @@ class PrSlipGajiController extends Controller
             $totalOmset += floatval($nominal);
         }
 
+        // Parse year and month from 'bulan' (format: YYYY-MM)
+        $year = substr($bulan, 0, 4);
+        $month = substr($bulan, 5, 2);
+
         // Then create slip gaji records for all employees
         $employees = Employee::all();
         foreach ($employees as $employee) {
+            // Count total hari scheduled
+            $totalHariScheduled = $employee->schedules()
+                ->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->count();
+
+            // Count total hari masuk
+            $totalHariMasuk = $employee->attendanceRekap()
+                ->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->count();
+
             PrSlipGaji::updateOrCreate(
                 [
                     'employee_id' => $employee->id,
@@ -110,7 +126,9 @@ class PrSlipGajiController extends Controller
                 ],
                 [
                     'status_gaji' => 'draft',
-                    // You can add more fields here if needed
+                    'total_hari_scheduled' => $totalHariScheduled,
+                    'total_hari_masuk' => $totalHariMasuk,
+                    // ...other fields if needed...
                 ]
             );
         }

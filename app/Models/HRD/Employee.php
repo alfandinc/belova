@@ -48,10 +48,27 @@ class Employee extends Model
         'user_id',
         'photo',
         'email',
-        'instagram'
-        ,'perusahaan'
-        ,'finger_id' // New field for fingerprint ID
+        'instagram',
+        'perusahaan',
+        'finger_id', // New field for fingerprint ID
+        'gol_gaji_pokok_id',
+        'gol_tunjangan_jabatan_id'
     ];
+    /**
+     * Get the master gaji pokok (salary group) for the employee.
+     */
+    public function golGajiPokok()
+    {
+        return $this->belongsTo(PrMasterGajipokok::class, 'gol_gaji_pokok_id');
+    }
+
+    /**
+     * Get the master tunjangan jabatan (position allowance group) for the employee.
+     */
+    public function golTunjanganJabatan()
+    {
+        return $this->belongsTo(PrMasterTunjanganJabatan::class, 'gol_tunjangan_jabatan_id');
+    }
 
     protected $casts = [
         'tanggal_lahir' => 'date',
