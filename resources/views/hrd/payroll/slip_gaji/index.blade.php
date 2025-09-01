@@ -16,7 +16,12 @@
     </div>
     <div class="row mb-2">
         <div class="col-12">
-            <div id="omsetInfoBox" class="alert alert-info">Bulan: <span id="omsetInfoBulan">{{ date('m-Y') }}</span> &nbsp; Total Omset Bulan Ini: <span id="omsetInfoNominal">0</span></div>
+            <div id="omsetInfoBox" class="alert alert-info">
+                Bulan: <span id="omsetInfoBulan">{{ date('m-Y', strtotime($bulan)) }}</span>
+                &nbsp; Total Omset Bulan Ini: <span id="omsetInfoNominal">{{ number_format($totalOmset, 2) }}</span>
+                &nbsp; Total KPI Poin Bulan Ini: <span id="kpiInfoTotal">{{ $kpiSummary ? number_format($kpiSummary->total_kpi_poin, 2) : '-' }}</span>
+                &nbsp; Rata-rata KPI Poin Bulan Ini: <span id="kpiInfoAvg">{{ $kpiSummary ? number_format($kpiSummary->average_kpi_poin, 2) : '-' }}</span>
+            </div>
         </div>
     </div>
     <div class="row">

@@ -5,6 +5,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\HRD\PrSlipGaji;
 use App\Models\HRD\Employee;
+use App\Models\HRD\PengajuanLembur;
+use Illuminate\Support\Facades\Log;
 
 class PrSlipGajiController extends Controller
 {
@@ -20,7 +22,11 @@ class PrSlipGajiController extends Controller
         $slip->total_gaji = $request->input('total_gaji', $slip->total_gaji);
         $slip->gaji_pokok = $request->input('gaji_pokok', $slip->gaji_pokok);
         $slip->tunjangan_jabatan = $request->input('tunjangan_jabatan', $slip->tunjangan_jabatan);
+        $slip->tunjangan_masa_kerja = $request->input('tunjangan_masa_kerja', $slip->tunjangan_masa_kerja);
         $slip->uang_makan = $request->input('uang_makan', $slip->uang_makan);
+        $slip->poin_marketing = $request->input('poin_marketing', $slip->poin_marketing);
+        $slip->poin_penilaian = $request->input('poin_penilaian', $slip->poin_penilaian);
+        $slip->poin_kehadiran = $request->input('poin_kehadiran', $slip->poin_kehadiran);
         $slip->uang_kpi = $request->input('uang_kpi', $slip->uang_kpi);
         $slip->jasa_medis = $request->input('jasa_medis', $slip->jasa_medis);
         $slip->total_jam_lembur = $request->input('total_jam_lembur', $slip->total_jam_lembur);
@@ -35,10 +41,46 @@ class PrSlipGajiController extends Controller
         $slip->benefit_jkk = $request->input('benefit_jkk', $slip->benefit_jkk);
         $slip->benefit_jkm = $request->input('benefit_jkm', $slip->benefit_jkm);
         $slip->save();
+
+        // After saving, recalculate kpi_poin for all employees in the current month
+        $bulan = $slip->bulan;
+        $initialPoinMarketing = \App\Models\HRD\PrKpi::where('nama_poin', 'Marketing')->value('initial_poin') ?? 0;
+        $slips = \App\Models\HRD\PrSlipGaji::where('bulan', $bulan)->get();
+        foreach ($slips as $sg) {
+            // Use each slip's own poin_marketing value
+            $kpi_poin = ($sg->poin_marketing ?? $initialPoinMarketing) + ($sg->poin_penilaian ?? 0) + ($sg->poin_kehadiran ?? 0);
+            $sg->kpi_poin = $kpi_poin;
+            $sg->save();
+        }
+        // Recalculate only uang_kpi for all employees for the current month
+        $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
+        $employees = \App\Models\HRD\Employee::all();
+        $employeeKpiPoin = [];
+        foreach ($employees as $employee) {
+            $employeeKpiPoin[$employee->id] = \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
+                ->where('bulan', $bulan)
+                ->value('kpi_poin') ?? 0;
+        }
+        $totalKpiPoin = array_sum($employeeKpiPoin);
+        $averageKpiPoin = count($employeeKpiPoin) > 0 ? ($totalKpiPoin / count($employeeKpiPoin)) : 0;
+        \App\Models\HRD\PrKpiSummary::updateOrCreate(
+            ['bulan' => $bulan],
+            [
+                'total_kpi_poin' => $totalKpiPoin,
+                'average_kpi_poin' => $averageKpiPoin
+            ]
+        );
+        foreach ($employees as $employee) {
+            $kpiPoin = $employeeKpiPoin[$employee->id];
+            $uangKpi = ($totalKpiPoin > 0) ? ($kpiPoin / $totalKpiPoin * $totalOmset) : 0;
+            \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
+                ->where('bulan', $bulan)
+                ->update(['uang_kpi' => $uangKpi]);
+        }
+
         return response()->json(['success' => true]);
     }
-    // ...existing code...
-        // Return omset input fields for all available penghasil omset
+    // Return omset input fields for all available penghasil omset
     public function getOmsetInputs(Request $request)
     {
         $bulan = $request->get('bulan');
@@ -75,13 +117,34 @@ class PrSlipGajiController extends Controller
         return response()->json(['total_omset' => number_format($totalOmset, 2)]);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        return view('hrd.payroll.slip_gaji.index');
+        $filterBulan = $request->get('bulan') ?? date('Y-m');
+        // Stricter conversion to YYYY-MM
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterBulan)) {
+            $bulan = substr($filterBulan, 0, 7);
+        } elseif (preg_match('/^\d{4}-\d{2}$/', $filterBulan)) {
+            $bulan = $filterBulan;
+        } else {
+            $bulan = date('Y-m', strtotime($filterBulan));
+        }
+        Log::info('filterBulan: ' . $filterBulan . ', bulan: ' . $bulan);
+        $kpiSummary = \App\Models\HRD\PrKpiSummary::where('bulan', $bulan)->first();
+        $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
+        return view('hrd.payroll.slip_gaji.index', compact('bulan', 'kpiSummary', 'totalOmset'));
     }
 
-        public function storeAll(Request $request)
+    public function storeAll(Request $request)
+
     {
+        // Get master potongan values once
+        $potonganBpjsKesehatan = \App\Models\HRD\PrMasterPotongan::where('nama_potongan', 'IURAN BPJS KESEHATAN')->value('nominal');
+        $potonganJamsostek = \App\Models\HRD\PrMasterPotongan::where('nama_potongan', 'IURAN JAMSOSTEK')->value('nominal');
+        // Get master benefit values once
+        $benefitBpjsKesehatan = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KESEHATAN')->value('nominal');
+        $benefitJht = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JHT')->value('nominal');
+        $benefitJkk = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JKK')->value('nominal');
+        $benefitJkm = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JKM')->value('nominal');
         $bulan = $request->input('bulan');
         $omsetBulanan = $request->input('omset_bulanan', []);
 
@@ -103,6 +166,214 @@ class PrSlipGajiController extends Controller
         // Parse year and month from 'bulan' (format: YYYY-MM)
         $year = substr($bulan, 0, 4);
         $month = substr($bulan, 5, 2);
+        $employees = Employee::all();
+
+        // Get master tunjangan lain values once
+        $uangMakanMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Uang Makan')->first();
+        $tunjanganMasaKerjaMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Tunjangan Masa Kerja')->first();
+
+        // Get master benefit values once
+        $benefitBpjsKesehatan = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KESEHATAN')->value('nominal');
+        $benefitJht = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JHT')->value('nominal');
+        $benefitJkk = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JKK')->value('nominal');
+        $benefitJkm = \App\Models\HRD\PrMasterBenefit::where('nama_benefit', 'BPJS KETENAGAKERJAAN - JKM')->value('nominal');
+
+        $periodePenilaianId = $request->input('periode_penilaian_id');
+
+        foreach ($employees as $employee) {
+            // Calculate poin penilaian (average score for selected period)
+            $poinPenilaian = 0;
+            if ($periodePenilaianId) {
+                $evaluations = \App\Models\HRD\PerformanceEvaluation::where('period_id', $periodePenilaianId)
+                    ->where('evaluatee_id', $employee->id)
+                    ->where('status', 'completed')
+                    ->with('scores.question')
+                    ->get();
+                $allScores = collect();
+                foreach ($evaluations as $evaluation) {
+                    $allScores = $allScores->concat($evaluation->scores);
+                }
+                $scoreTypeScores = $allScores->filter(function ($score) {
+                    return $score->question &&
+                        $score->question->question_type === 'score' &&
+                        in_array($score->question->evaluation_type, ['manager_to_employee', 'hrd_to_manager', 'ceo_to_manager']);
+                });
+                if ($scoreTypeScores->isNotEmpty()) {
+                    $poinPenilaian = round($scoreTypeScores->avg('score'), 2);
+                }
+            }
+            // Count total hari scheduled
+            $totalHariScheduled = $employee->schedules()
+                ->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->count();
+
+            // Count total hari masuk
+            $totalHariMasuk = $employee->attendanceRekap()
+                ->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->count();
+
+            // Get gaji pokok nominal from master
+            $gajiPokok = $employee->golGajiPokok ? $employee->golGajiPokok->nominal : 0;
+            // Get tunjangan jabatan nominal from master
+            $tunjanganJabatan = $employee->golTunjanganJabatan ? $employee->golTunjanganJabatan->nominal : 0;
+
+            // Calculate uang makan
+            $uangMakanNominal = $uangMakanMaster ? $uangMakanMaster->nominal : 0;
+            $uangMakan = $uangMakanNominal * $totalHariMasuk;
+
+            // Calculate tunjangan masa kerja
+            $tunjanganMasaKerjaNominal = $tunjanganMasaKerjaMaster ? $tunjanganMasaKerjaMaster->nominal : 0;
+            $masaKerjaTahun = 0;
+            if ($employee->tanggal_masuk) {
+                $tanggalMasuk = \Carbon\Carbon::parse($employee->tanggal_masuk);
+                $referenceDate = \Carbon\Carbon::create($year, $month)->endOfMonth();
+                $masaKerjaTahun = (int) $tanggalMasuk->diffInYears($referenceDate);
+            }
+            // Only give tunjangan masa kerja if masa kerja >= 1 year, and only count full years
+            $tunjanganMasaKerja = ($masaKerjaTahun >= 1) ? ($tunjanganMasaKerjaNominal * $masaKerjaTahun) : 0;
+
+            // Calculate gaji per jam and per hari
+            $gajiPerJam = $gajiPokok > 0 ? ($gajiPokok / 173) : 0;
+            $gajiPerHari = ($gajiPokok > 0 && $totalHariMasuk > 0) ? ($gajiPokok / $totalHariMasuk) : 0;
+
+
+            // Calculate total jam lembur for the employee in the selected month with status_hrd disetujui
+            $totalJamLembur = PengajuanLembur::where('employee_id', $employee->id)
+                ->whereYear('tanggal', $year)
+                ->whereMonth('tanggal', $month)
+                ->where('status_hrd', 'disetujui')
+                ->sum('total_jam');
+
+            // Calculate uang lembur
+            $uangLembur = 0;
+            $jamLembur = $totalJamLembur / 60; // convert minutes to hours
+            if ($jamLembur > 0) {
+                if ($jamLembur <= 6) {
+                    // First hour: 1.5 * gaji_perjam
+                    $uangLembur += min(1, $jamLembur) * 1.5 * $gajiPerJam;
+                    // Next hours (2-6): 2 * gaji_perjam
+                    if ($jamLembur > 1) {
+                        $uangLembur += min(5, $jamLembur - 1) * 2 * $gajiPerJam;
+                    }
+                } else {
+                    // More than 6 hours: 6 jam = 1x gaji perhari, sisanya: jam pertama *1.5, jam kedua dst sampai 6 *2
+                    $uangLembur += $gajiPerHari; // 6 jam pertama
+                    $sisaJam = $jamLembur - 6;
+                    if ($sisaJam > 0) {
+                        // Jam ke-7 (jam pertama setelah 6 jam): 1x gaji perjam * 1.5
+                        $uangLembur += min(1, $sisaJam) * 1.5 * $gajiPerJam;
+                        // Jam ke-8,9,10 dst (jam kedua sampai keempat): 1x gaji perjam * 2
+                        if ($sisaJam > 1) {
+                            $uangLembur += min(3, $sisaJam - 1) * 2 * $gajiPerJam;
+                        }
+                    }
+                }
+            }
+
+            // Get initial poin kehadiran from prkpi
+            $initialPoinKehadiran = \App\Models\HRD\PrKpi::where('nama_poin', 'Kehadiran')->value('initial_poin');
+            // Get lateness recap for the employee in the selected month
+            $latenessRecap = \App\Models\AttendanceLatenessRecap::where('employee_id', $employee->id)
+                ->where('month', $bulan)
+                ->first();
+            $latenessMinus = 0;
+            if ($latenessRecap && $latenessRecap->total_late_days > 0) {
+                $lateMinutes = $latenessRecap->total_late_minutes;
+                $lateDays = $latenessRecap->total_late_days;
+                // Calculate average lateness per day
+                $avgLate = $lateDays > 0 ? ($lateMinutes / $lateDays) : 0;
+                for ($i = 0; $i < $lateDays; $i++) {
+                    if ($avgLate >= 1 && $avgLate <= 15) {
+                        $latenessMinus += 0.2;
+                    } elseif ($avgLate >= 16 && $avgLate <= 29) {
+                        $latenessMinus += 0.4;
+                    } elseif ($avgLate >= 30) {
+                        $latenessMinus += 0.6;
+                    }
+                }
+            }
+
+
+            // Calculate poin kehadiran
+            $selisih = $totalHariScheduled - $totalHariMasuk;
+            $pengajuanTidakMasuk = \App\Models\HRD\PengajuanTidakMasuk::where('employee_id', $employee->id)
+                ->whereYear('tanggal_mulai', $year)
+                ->whereMonth('tanggal_mulai', $month)
+                ->where('status_hrd', 'disetujui')
+                ->sum('total_hari');
+            $excused = min($pengajuanTidakMasuk, $selisih);
+            $unexcused = max($selisih - $excused, 0);
+            $minus = ($unexcused * 1) + ($excused * 0.5);
+            $poinKehadiran = max($initialPoinKehadiran - $minus - $latenessMinus, 0);
+            // Get initial poin marketing from prkpi
+            $initialPoinMarketing = \App\Models\HRD\PrKpi::where('nama_poin', 'Marketing')->value('initial_poin');
+
+
+
+            $kpiPoin = $initialPoinMarketing + $poinPenilaian + $poinKehadiran;
+
+            // Calculate uang_kpi
+            // First, collect all kpi_poin for all employees in this month
+            // We'll do this after the loop, so collect in an array
+            $employeeKpiData[$employee->id] = [
+                'kpi_poin' => $kpiPoin
+            ];
+            // Store slip gaji data temporarily, will update with uang_kpi after loop
+            $slipGajiData[$employee->id] = [
+                'status_gaji' => 'draft',
+                'total_hari_scheduled' => $totalHariScheduled,
+                'total_hari_masuk' => $totalHariMasuk,
+                'gaji_pokok' => $gajiPokok,
+                'tunjangan_jabatan' => $tunjanganJabatan,
+                'uang_makan' => $uangMakan,
+                'tunjangan_masa_kerja' => $tunjanganMasaKerja,
+                'gaji_perjam' => $gajiPerJam,
+                'gaji_perhari' => $gajiPerHari,
+                'benefit_bpjs_kesehatan' => $benefitBpjsKesehatan,
+                'benefit_jht' => $benefitJht,
+                'benefit_jkk' => $benefitJkk,
+                'benefit_jkm' => $benefitJkm,
+                'potongan_bpjs_kesehatan' => $potonganBpjsKesehatan,
+                'potongan_jamsostek' => $potonganJamsostek,
+                'total_jam_lembur' => $totalJamLembur,
+                'uang_lembur' => $uangLembur,
+                'poin_penilaian' => $poinPenilaian,
+                'poin_kehadiran' => $poinKehadiran,
+                'poin_marketing' => $initialPoinMarketing,
+                'kpi_poin' => $kpiPoin,
+                // uang_kpi will be added after loop
+            ];
+        // After loop: calculate total kpi_poin
+        $totalKpiPoin = array_sum(array_column($employeeKpiData, 'kpi_poin'));
+        $averageKpiPoin = count($employeeKpiData) > 0 ? ($totalKpiPoin / count($employeeKpiData)) : 0;
+        \App\Models\HRD\PrKpiSummary::updateOrCreate(
+            ['bulan' => $bulan],
+            [
+                'total_kpi_poin' => $totalKpiPoin,
+                'average_kpi_poin' => $averageKpiPoin
+            ]
+        );
+        foreach ($employees as $employee) {
+                $kpiPoin = isset($employeeKpiData[$employee->id]) ? $employeeKpiData[$employee->id]['kpi_poin'] : 0;
+                $uangKpi = ($totalKpiPoin > 0) ? ($kpiPoin / $totalKpiPoin * $totalOmset) : 0;
+                $data = isset($slipGajiData[$employee->id]) ? $slipGajiData[$employee->id] : [];
+                $data['uang_kpi'] = $uangKpi;
+                PrSlipGaji::updateOrCreate(
+                    [
+                        'employee_id' => $employee->id,
+                        'bulan' => $bulan
+                    ],
+                    $data
+                );
+        }
+    }
+    return response()->json(['success' => true, 'total_omset' => number_format($totalOmset, 2)]);
+
+        // Parse year and month from 'bulan' (format: YYYY-MM)
+        $year = substr($bulan, 0, 4);
+        $month = substr($bulan, 5, 2);
 
         // Then create slip gaji records for all employees
         $employees = Employee::all();
@@ -119,6 +390,11 @@ class PrSlipGajiController extends Controller
                 ->whereMonth('date', $month)
                 ->count();
 
+            // Get gaji pokok nominal from master
+            $gajiPokok = $employee->golGajiPokok ? $employee->golGajiPokok->nominal : 0;
+            // Get tunjangan jabatan nominal from master
+            $tunjanganJabatan = $employee->golTunjanganJabatan ? $employee->golTunjanganJabatan->nominal : 0;
+
             PrSlipGaji::updateOrCreate(
                 [
                     'employee_id' => $employee->id,
@@ -128,6 +404,9 @@ class PrSlipGajiController extends Controller
                     'status_gaji' => 'draft',
                     'total_hari_scheduled' => $totalHariScheduled,
                     'total_hari_masuk' => $totalHariMasuk,
+                    'gaji_pokok' => $gajiPokok,
+                    'tunjangan_jabatan' => $tunjanganJabatan,
+                    'tunjangan_masa_kerja' => 0, // Set default or calculate as needed
                     // ...other fields if needed...
                 ]
             );
@@ -193,5 +472,22 @@ class PrSlipGajiController extends Controller
     $slip->status_gaji = $request->input('status_gaji', $slip->status_gaji == 'draft' ? 'final' : 'draft');
     $slip->save();
     return response()->json(['success' => true]);
+    }
+
+    public function getKpiSummary(Request $request)
+    {
+        $filterBulan = $request->get('bulan') ?? date('Y-m');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterBulan)) {
+            $bulan = substr($filterBulan, 0, 7);
+        } elseif (preg_match('/^\d{4}-\d{2}$/', $filterBulan)) {
+            $bulan = $filterBulan;
+        } else {
+            $bulan = date('Y-m', strtotime($filterBulan));
+        }
+        $kpiSummary = \App\Models\HRD\PrKpiSummary::where('bulan', $bulan)->first();
+        return response()->json([
+            'total_kpi_poin' => $kpiSummary ? number_format($kpiSummary->total_kpi_poin, 2) : '-',
+            'average_kpi_poin' => $kpiSummary ? number_format($kpiSummary->average_kpi_poin, 2) : '-',
+        ]);
     }
 }

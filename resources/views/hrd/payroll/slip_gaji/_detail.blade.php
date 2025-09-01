@@ -118,6 +118,7 @@ $(function() {
         <table class="table table-bordered">
             <tr><th>Gaji Pokok</th><td><input type="number" step="0.01" class="form-control" name="gaji_pokok" value="{{ $slip->gaji_pokok }}"></td></tr>
             <tr><th>Tunjangan Jabatan</th><td><input type="number" step="0.01" class="form-control" name="tunjangan_jabatan" value="{{ $slip->tunjangan_jabatan }}"></td></tr>
+            <tr><th>Tunjangan Masa Kerja</th><td><input type="number" step="0.01" class="form-control" name="tunjangan_masa_kerja" value="{{ $slip->tunjangan_masa_kerja }}"></td></tr>
             <tr><th>Uang Makan</th><td><input type="number" step="0.01" class="form-control" name="uang_makan" value="{{ $slip->uang_makan }}"></td></tr>
             <tr><th>Uang KPI</th><td><input type="number" step="0.01" class="form-control" name="uang_kpi" value="{{ $slip->uang_kpi }}"></td></tr>
             <!-- Jasa Medis akan dipindah ke bawah -->

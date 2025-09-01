@@ -895,7 +895,7 @@ Route::get('/marketing/patients-analytics-data', [\App\Http\Controllers\Marketin
 Route::get('/marketing/services-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'servicesAnalyticsData'])->name('marketing.services.analytics.data');
 
 // AJAX route for products analytics charts
-Route::get('/marketing/products-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'productsAnalyticsData'])->name('marketing.products.analytics.data');
+Route::get('/marketing/products-analytics-data', [\AppHttp\Controllers\Marketing\MarketingController::class, 'productsAnalyticsData'])->name('marketing.products.analytics.data');
 
 // AJAX route for revenue analytics charts
 Route::get('/marketing/revenue-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'getRevenueData'])->name('marketing.revenue.analytics.data');
@@ -1002,8 +1002,9 @@ Route::prefix('hrd/payroll/insentif-omset')->middleware(['auth', 'role:Hrd|Admin
     Route::post('/', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'store'])->name('hrd.payroll.insentif_omset.store');
     Route::put('/{id}', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'update'])->name('hrd.payroll.insentif_omset.update');
     Route::delete('/{id}', [App\Http\Controllers\HRD\PrInsentifOmsetController::class, 'destroy'])->name('hrd.payroll.insentif_omset.destroy');
-    });
-    // Payroll KPI Routes
+});
+
+// Payroll KPI Routes
 Route::prefix('hrd/payroll/kpi')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrKpiController::class, 'index'])->name('hrd.payroll.kpi.index');
     Route::get('/data', [App\Http\Controllers\HRD\PrKpiController::class, 'data'])->name('hrd.payroll.kpi.data');
@@ -1026,3 +1027,8 @@ Route::get('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSl
 Route::post('hrd/payroll/slip-gaji/omset-bulanan', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'store']);
 Route::get('hrd/payroll/slip-gaji/omset-bulanan-total', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'getTotal']);
 Route::post('hrd/payroll/slip-gaji/store-all', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'storeAll']);
+// AJAX route for periode penilaian options for modal
+Route::get('hrd/performance-evaluation-periods-for-month', [App\Http\Controllers\HRD\PerformanceEvaluationPeriodController::class, 'getPeriodsForMonth']);
+
+// KPI summary route
+Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'getKpiSummary']);

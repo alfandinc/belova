@@ -14,6 +14,13 @@
             <label for="bulan">Bulan</label>
             <input type="month" class="form-control" id="bulan" name="bulan" required>
           </div>
+          <div class="form-group">
+            <label for="periode_penilaian_id">Periode Penilaian</label>
+            <select class="form-control" id="periode_penilaian_id" name="periode_penilaian_id">
+              <option value="">Pilih Periode Penilaian</option>
+              <!-- Options will be loaded via AJAX -->
+            </select>
+          </div>
           <div id="omsetBulananInputs">
             <!-- Omset bulanan inputs will be loaded here via AJAX -->
           </div>

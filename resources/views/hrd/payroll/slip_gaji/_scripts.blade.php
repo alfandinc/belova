@@ -60,6 +60,11 @@ $(function() {
         $.get('{{ url('hrd/payroll/slip-gaji/omset-bulanan-total') }}?bulan=' + bulan, function(res) {
             $('#omsetInfoNominal').text(res.total_omset);
         });
+        // Fetch KPI summary for selected month
+        $.get('{{ url('hrd/payroll/slip-gaji/kpi-summary') }}?bulan=' + bulan, function(res) {
+            $('#kpiInfoTotal').text(res.total_kpi_poin);
+            $('#kpiInfoAvg').text(res.average_kpi_poin);
+        });
         table.ajax.reload();
     });
 
