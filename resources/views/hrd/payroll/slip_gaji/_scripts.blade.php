@@ -114,5 +114,10 @@ $(function() {
             }
         });
     });
+
+    $('#slipGajiTable').on('click', '.btn-print', function() {
+        var data = table.row($(this).parents('tr')).data();
+        window.open('/hrd/payroll/slip-gaji/print/' + data.id, '_blank');
+    });
 });
 </script>

@@ -7,6 +7,7 @@ use App\Models\HRD\PrSlipGaji;
 use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanLembur;
 use Illuminate\Support\Facades\Log;
+use App\Helpers\TerbilangHelper;
 
 class PrSlipGajiController extends Controller
 {
@@ -454,7 +455,9 @@ class PrSlipGajiController extends Controller
                 return $row->status_gaji;
             })
             ->addColumn('action', function($row) {
-                return '<button class="btn btn-info btn-sm btn-detail">Detail Slip</button> <button class="btn btn-warning btn-sm btn-status">Change Status</button>';
+                return '<button class="btn btn-info btn-sm btn-detail">Detail Slip</button> '
+                    . '<button class="btn btn-warning btn-sm btn-status">Change Status</button> '
+                    . '<button class="btn btn-primary btn-sm btn-print">Print</button>';
             })
             ->rawColumns(['action'])
             ->make(true);
@@ -489,5 +492,15 @@ class PrSlipGajiController extends Controller
             'total_kpi_poin' => $kpiSummary ? number_format($kpiSummary->total_kpi_poin, 2) : '-',
             'average_kpi_poin' => $kpiSummary ? number_format($kpiSummary->average_kpi_poin, 2) : '-',
         ]);
+    }
+
+    public function print($id)
+    {
+        $slip = \App\Models\HRD\PrSlipGaji::with('employee.division')->findOrFail($id);
+        $terbilang = function($angka) { return TerbilangHelper::terbilang($angka); };
+        $html = view('hrd.payroll.slip_gaji.print', compact('slip', 'terbilang'))->render();
+        $mpdf = new \Mpdf\Mpdf(['format' => 'A4']);
+        $mpdf->WriteHTML($html);
+        return response($mpdf->Output('slip-gaji.pdf', 'S'))->header('Content-Type', 'application/pdf');
     }
 }

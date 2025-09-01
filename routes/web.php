@@ -1020,6 +1020,7 @@ Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Hrd|Admin|Mana
     Route::get('/detail/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'detail'])->name('hrd.payroll.slip_gaji.detail');
     Route::put('/status/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'changeStatus'])->name('hrd.payroll.slip_gaji.status');
     Route::post('/update/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'update'])->name('hrd.payroll.slip_gaji.update');
+    Route::get('/print/{id}', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'print']);
 });
 
 // Omset Bulanan AJAX for Slip Gaji
