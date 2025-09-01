@@ -27,6 +27,12 @@ class StokOpnameImport implements ToCollection, WithHeadingRow
                 $this->skippedRows[] = $row->toArray();
                 continue;
             }
+            // Skip if obat_id does not exist in erm_obat
+            if (!\App\Models\ERM\Obat::where('id', $row['obat_id'])->exists()) {
+                $this->skipped++;
+                $this->skippedRows[] = $row->toArray();
+                continue;
+            }
             $stokSistem = (int) $row['stok_sistem'];
             $stokFisik = (int) $row['stok_fisik'];
             $selisih = $stokFisik - $stokSistem;
