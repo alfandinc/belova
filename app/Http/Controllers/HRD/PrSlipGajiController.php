@@ -10,7 +10,52 @@ use Illuminate\Support\Facades\Log;
 use App\Helpers\TerbilangHelper;
 
 class PrSlipGajiController extends Controller
+
 {
+        // Batch generate uang KPI for all employees in selected month
+    public function generateUangKpi(Request $request)
+    {
+        $bulan = $request->input('bulan') ?? date('Y-m');
+        $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
+        $employees = \App\Models\HRD\Employee::all();
+        $employeeKpiPoin = [];
+        foreach ($employees as $employee) {
+            $employeeKpiPoin[$employee->id] = \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
+                ->where('bulan', $bulan)
+                ->value('kpi_poin') ?? 0;
+        }
+        $totalKpiPoin = array_sum($employeeKpiPoin);
+        $averageKpiPoin = count($employeeKpiPoin) > 0 ? ($totalKpiPoin / count($employeeKpiPoin)) : 0;
+        \App\Models\HRD\PrKpiSummary::updateOrCreate(
+            ['bulan' => $bulan],
+            [
+                'total_kpi_poin' => $totalKpiPoin,
+                'average_kpi_poin' => $averageKpiPoin
+            ]
+        );
+        foreach ($employees as $employee) {
+            $kpiPoin = $employeeKpiPoin[$employee->id];
+            $uangKpi = ($totalKpiPoin > 0) ? ($kpiPoin / $totalKpiPoin * $totalOmset) : 0;
+            $slip = \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
+                ->where('bulan', $bulan)
+                ->first();
+            if ($slip) {
+                $slip->uang_kpi = $uangKpi;
+                // Recalculate total_pendapatan and total_gaji
+                $slip->total_pendapatan =
+                    ($slip->gaji_pokok ?? 0)
+                    + ($slip->tunjangan_jabatan ?? 0)
+                    + ($slip->tunjangan_masa_kerja ?? 0)
+                    + ($slip->uang_makan ?? 0)
+                    + ($slip->uang_lembur ?? 0)
+                    + ($slip->jasa_medis ?? 0)
+                    + ($slip->uang_kpi ?? 0);
+                $slip->total_gaji = ($slip->total_pendapatan ?? 0) - ($slip->total_potongan ?? 0);
+                $slip->save();
+            }
+        }
+        return response()->json(['success' => true]);
+    }
     // Update slip gaji dari modal detail
     public function update(Request $request, $id)
     {
@@ -41,45 +86,11 @@ class PrSlipGajiController extends Controller
         $slip->benefit_jht = $request->input('benefit_jht', $slip->benefit_jht);
         $slip->benefit_jkk = $request->input('benefit_jkk', $slip->benefit_jkk);
         $slip->benefit_jkm = $request->input('benefit_jkm', $slip->benefit_jkm);
+    $slip->total_benefit = $request->input('total_benefit', $slip->total_benefit);
         $slip->save();
 
-        // After saving, recalculate kpi_poin for all employees in the current month
-        $bulan = $slip->bulan;
-        $initialPoinMarketing = \App\Models\HRD\PrKpi::where('nama_poin', 'Marketing')->value('initial_poin') ?? 0;
-        $slips = \App\Models\HRD\PrSlipGaji::where('bulan', $bulan)->get();
-        foreach ($slips as $sg) {
-            // Use each slip's own poin_marketing value
-            $kpi_poin = ($sg->poin_marketing ?? $initialPoinMarketing) + ($sg->poin_penilaian ?? 0) + ($sg->poin_kehadiran ?? 0);
-            $sg->kpi_poin = $kpi_poin;
-            $sg->save();
-        }
-        // Recalculate only uang_kpi for all employees for the current month
-        $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
-        $employees = \App\Models\HRD\Employee::all();
-        $employeeKpiPoin = [];
-        foreach ($employees as $employee) {
-            $employeeKpiPoin[$employee->id] = \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
-                ->where('bulan', $bulan)
-                ->value('kpi_poin') ?? 0;
-        }
-        $totalKpiPoin = array_sum($employeeKpiPoin);
-        $averageKpiPoin = count($employeeKpiPoin) > 0 ? ($totalKpiPoin / count($employeeKpiPoin)) : 0;
-        \App\Models\HRD\PrKpiSummary::updateOrCreate(
-            ['bulan' => $bulan],
-            [
-                'total_kpi_poin' => $totalKpiPoin,
-                'average_kpi_poin' => $averageKpiPoin
-            ]
-        );
-        foreach ($employees as $employee) {
-            $kpiPoin = $employeeKpiPoin[$employee->id];
-            $uangKpi = ($totalKpiPoin > 0) ? ($kpiPoin / $totalKpiPoin * $totalOmset) : 0;
-            \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
-                ->where('bulan', $bulan)
-                ->update(['uang_kpi' => $uangKpi]);
-        }
-
-        return response()->json(['success' => true]);
+    // Removed autogenerate uang KPI logic. Now only updates slip fields.
+    return response()->json(['success' => true]);
     }
     // Return omset input fields for all available penghasil omset
     public function getOmsetInputs(Request $request)
@@ -275,6 +286,7 @@ class PrSlipGajiController extends Controller
 
             // Get initial poin kehadiran from prkpi
             $initialPoinKehadiran = \App\Models\HRD\PrKpi::where('nama_poin', 'Kehadiran')->value('initial_poin');
+            $initialPoinMedsos = \App\Models\HRD\PrKpi::where('nama_poin', 'Medsos')->value('initial_poin');
             // Get lateness recap for the employee in the selected month
             $latenessRecap = \App\Models\AttendanceLatenessRecap::where('employee_id', $employee->id)
                 ->where('month', $bulan)
@@ -310,67 +322,47 @@ class PrSlipGajiController extends Controller
             $poinKehadiran = max($initialPoinKehadiran - $minus - $latenessMinus, 0);
             // Get initial poin marketing from prkpi
             $initialPoinMarketing = \App\Models\HRD\PrKpi::where('nama_poin', 'Marketing')->value('initial_poin');
+            $initialPoinMedsos = \App\Models\HRD\PrKpi::where('nama_poin', 'Medsos')->value('initial_poin');
 
 
 
             $kpiPoin = $initialPoinMarketing + $poinPenilaian + $poinKehadiran;
 
-            // Calculate uang_kpi
-            // First, collect all kpi_poin for all employees in this month
-            // We'll do this after the loop, so collect in an array
-            $employeeKpiData[$employee->id] = [
-                'kpi_poin' => $kpiPoin
-            ];
-            // Store slip gaji data temporarily, will update with uang_kpi after loop
-            $slipGajiData[$employee->id] = [
-                'status_gaji' => 'draft',
-                'total_hari_scheduled' => $totalHariScheduled,
-                'total_hari_masuk' => $totalHariMasuk,
-                'gaji_pokok' => $gajiPokok,
-                'tunjangan_jabatan' => $tunjanganJabatan,
-                'uang_makan' => $uangMakan,
-                'tunjangan_masa_kerja' => $tunjanganMasaKerja,
-                'gaji_perjam' => $gajiPerJam,
-                'gaji_perhari' => $gajiPerHari,
-                'benefit_bpjs_kesehatan' => $benefitBpjsKesehatan,
-                'benefit_jht' => $benefitJht,
-                'benefit_jkk' => $benefitJkk,
-                'benefit_jkm' => $benefitJkm,
-                'potongan_bpjs_kesehatan' => $potonganBpjsKesehatan,
-                'potongan_jamsostek' => $potonganJamsostek,
-                'total_jam_lembur' => $totalJamLembur,
-                'uang_lembur' => $uangLembur,
-                'poin_penilaian' => $poinPenilaian,
-                'poin_kehadiran' => $poinKehadiran,
-                'poin_marketing' => $initialPoinMarketing,
-                'kpi_poin' => $kpiPoin,
-                // uang_kpi will be added after loop
-            ];
-        // After loop: calculate total kpi_poin
-        $totalKpiPoin = array_sum(array_column($employeeKpiData, 'kpi_poin'));
-        $averageKpiPoin = count($employeeKpiData) > 0 ? ($totalKpiPoin / count($employeeKpiData)) : 0;
-        \App\Models\HRD\PrKpiSummary::updateOrCreate(
-            ['bulan' => $bulan],
-            [
-                'total_kpi_poin' => $totalKpiPoin,
-                'average_kpi_poin' => $averageKpiPoin
-            ]
-        );
-        foreach ($employees as $employee) {
-                $kpiPoin = isset($employeeKpiData[$employee->id]) ? $employeeKpiData[$employee->id]['kpi_poin'] : 0;
-                $uangKpi = ($totalKpiPoin > 0) ? ($kpiPoin / $totalKpiPoin * $totalOmset) : 0;
-                $data = isset($slipGajiData[$employee->id]) ? $slipGajiData[$employee->id] : [];
-                $data['uang_kpi'] = $uangKpi;
-                PrSlipGaji::updateOrCreate(
-                    [
-                        'employee_id' => $employee->id,
-                        'bulan' => $bulan
-                    ],
-                    $data
-                );
+            // Store slip gaji for each employee, without uang_kpi
+            $totalBenefit = ($benefitBpjsKesehatan ?? 0) + ($benefitJht ?? 0) + ($benefitJkk ?? 0) + ($benefitJkm ?? 0);
+            PrSlipGaji::updateOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'bulan' => $bulan
+                ],
+                [
+                    'status_gaji' => 'draft',
+                    'total_hari_scheduled' => $totalHariScheduled,
+                    'total_hari_masuk' => $totalHariMasuk,
+                    'gaji_pokok' => $gajiPokok,
+                    'tunjangan_jabatan' => $tunjanganJabatan,
+                    'uang_makan' => $uangMakan,
+                    'tunjangan_masa_kerja' => $tunjanganMasaKerja,
+                    'gaji_perjam' => $gajiPerJam,
+                    'gaji_perhari' => $gajiPerHari,
+                    'benefit_bpjs_kesehatan' => $benefitBpjsKesehatan,
+                    'benefit_jht' => $benefitJht,
+                    'benefit_jkk' => $benefitJkk,
+                    'benefit_jkm' => $benefitJkm,
+                    'total_benefit' => $totalBenefit,
+                    'potongan_bpjs_kesehatan' => $potonganBpjsKesehatan,
+                    'potongan_jamsostek' => $potonganJamsostek,
+                    'total_jam_lembur' => $totalJamLembur,
+                    'uang_lembur' => $uangLembur,
+                    'poin_penilaian' => $poinPenilaian,
+                    'poin_kehadiran' => $poinKehadiran,
+                    'poin_marketing' => $initialPoinMedsos,
+                    'poin_medsos' => $initialPoinMedsos,
+                    'kpi_poin' => $kpiPoin
+                ]
+            );
         }
-    }
-    return response()->json(['success' => true, 'total_omset' => number_format($totalOmset, 2)]);
+        return response()->json(['success' => true, 'total_omset' => number_format($totalOmset, 2)]);
 
         // Parse year and month from 'bulan' (format: YYYY-MM)
         $year = substr($bulan, 0, 4);

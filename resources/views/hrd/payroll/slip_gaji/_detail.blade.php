@@ -65,6 +65,7 @@ $(function() {
 });
 </script>
             <tr><th>Jumlah Pendapatan</th><td><input type="number" step="0.01" class="form-control" name="total_pendapatan" id="total_pendapatan" value="{{ $slip->total_pendapatan }}" readonly></td></tr>
+            <tr><th>Total Benefit</th><td><input type="number" step="0.01" class="form-control" name="total_benefit" id="total_benefit" value="{{ $slip->total_benefit ?? 0 }}" readonly></td></tr>
             <tr><th>Jumlah Potongan</th><td><input type="number" step="0.01" class="form-control" name="total_potongan" id="total_potongan" value="{{ $slip->total_potongan }}" readonly></td></tr>
             <tr><th>Total Gaji</th><td><input type="number" step="0.01" class="form-control" name="total_gaji" id="total_gaji" value="{{ $slip->total_gaji }}" readonly></td></tr>
 <script>
@@ -72,8 +73,7 @@ $(function() {
     // ...existing code...
     function sumPendapatan() {
         var fields = [
-            'gaji_pokok', 'tunjangan_jabatan', 'uang_makan', 'uang_kpi', 'uang_lembur',
-            'benefit_bpjs_kesehatan', 'benefit_jht', 'benefit_jkk', 'benefit_jkm', 'jasa_medis'
+            'gaji_pokok', 'tunjangan_jabatan', 'tunjangan_masa_kerja', 'uang_makan', 'uang_kpi', 'uang_lembur', 'jasa_medis'
         ];
         var total = 0;
         fields.forEach(function(name) {
@@ -81,6 +81,19 @@ $(function() {
             total += val;
         });
         $('#total_pendapatan').val(total.toFixed(2));
+        return total;
+    }
+
+    function sumBenefit() {
+        var fields = [
+            'benefit_bpjs_kesehatan', 'benefit_jht', 'benefit_jkk', 'benefit_jkm'
+        ];
+        var total = 0;
+        fields.forEach(function(name) {
+            var val = parseFloat($('[name="'+name+'"]').val()) || 0;
+            total += val;
+        });
+        $('#total_benefit').val(total.toFixed(2));
         return total;
     }
     function sumPotongan() {
@@ -102,10 +115,14 @@ $(function() {
         $('#total_gaji').val(totalGaji.toFixed(2));
     }
     // Trigger update saat input berubah
-    $('[name="gaji_pokok"], [name="tunjangan_jabatan"], [name="uang_makan"], [name="uang_kpi"], [name="uang_lembur"], [name="benefit_bpjs_kesehatan"], [name="benefit_jht"], [name="benefit_jkk"], [name="benefit_jkm"], [name="jasa_medis"], [name="potongan_pinjaman"], [name="potongan_bpjs_kesehatan"], [name="potongan_jamsostek"], [name="potongan_penalty"], [name="potongan_lain"]')
-        .on('input', updateTotalGaji);
+    $('[name="gaji_pokok"], [name="tunjangan_jabatan"], [name="tunjangan_masa_kerja"], [name="uang_makan"], [name="uang_kpi"], [name="uang_lembur"], [name="jasa_medis"], [name="benefit_bpjs_kesehatan"], [name="benefit_jht"], [name="benefit_jkk"], [name="benefit_jkm"], [name="potongan_pinjaman"], [name="potongan_bpjs_kesehatan"], [name="potongan_jamsostek"], [name="potongan_penalty"], [name="potongan_lain"]')
+        .on('input', function() {
+            updateTotalGaji();
+            sumBenefit();
+        });
     // Inisialisasi saat modal dibuka
     updateTotalGaji();
+    sumBenefit();
 });
 </script>
         </table>

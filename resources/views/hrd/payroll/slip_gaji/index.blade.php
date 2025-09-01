@@ -10,7 +10,8 @@
             <h4 class="card-title">Slip Gaji</h4>
             <div class="d-flex align-items-center">
                 <input type="month" id="filterBulan" class="form-control mr-2" style="width:180px;" value="{{ date('Y-m') }}">
-                <button class="btn btn-success" id="btnBuatSlipGaji">Buat Slip Gaji</button>
+                <button class="btn btn-success mr-2" id="btnBuatSlipGaji">Buat Slip Gaji</button>
+                <button class="btn btn-warning" id="btnGenerateUangKpi">Generate Uang KPI</button>
             </div>
         </div>
     </div>

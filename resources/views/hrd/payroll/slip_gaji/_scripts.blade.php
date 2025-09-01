@@ -119,5 +119,38 @@ $(function() {
         var data = table.row($(this).parents('tr')).data();
         window.open('/hrd/payroll/slip-gaji/print/' + data.id, '_blank');
     });
+
+        // Generate Uang KPI button
+    $('#btnGenerateUangKpi').on('click', function() {
+        var bulan = $('#filterBulan').val();
+        Swal.fire({
+            title: 'Generate Uang KPI?',
+            text: 'Pastikan semua poin KPI sudah final sebelum generate uang KPI.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Generate',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if(result.value) {
+                $.ajax({
+                    url: '/hrd/payroll/slip-gaji/generate-uang-kpi',
+                    type: 'POST',
+                    data: { bulan: bulan, _token: '{{ csrf_token() }}' },
+                    success: function(res) {
+                        if(res.success) {
+                            Swal.fire('Sukses', 'Uang KPI berhasil digenerate!', 'success');
+                            table.ajax.reload();
+                        } else {
+                            Swal.fire('Error', 'Gagal generate uang KPI!', 'error');
+                        }
+                    },
+                    error: function(xhr) {
+                        Swal.fire('Error', 'Terjadi kesalahan!', 'error');
+                    }
+                });
+            }
+        });
+    });
+
 });
 </script>

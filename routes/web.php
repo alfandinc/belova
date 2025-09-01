@@ -1033,3 +1033,5 @@ Route::get('hrd/performance-evaluation-periods-for-month', [App\Http\Controllers
 
 // KPI summary route
 Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'getKpiSummary']);
+// Generate Uang KPI for all employees in selected month
+Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'generateUangKpi'])->name('hrd.payroll.slip_gaji.generate_uang_kpi');
