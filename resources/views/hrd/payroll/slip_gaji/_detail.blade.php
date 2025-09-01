@@ -65,9 +65,9 @@ $(function() {
 });
 </script>
             <tr><th>Jumlah Pendapatan</th><td><input type="number" step="0.01" class="form-control" name="total_pendapatan" id="total_pendapatan" value="{{ $slip->total_pendapatan }}" readonly></td></tr>
-            <tr><th>Total Benefit</th><td><input type="number" step="0.01" class="form-control" name="total_benefit" id="total_benefit" value="{{ $slip->total_benefit ?? 0 }}" readonly></td></tr>
             <tr><th>Jumlah Potongan</th><td><input type="number" step="0.01" class="form-control" name="total_potongan" id="total_potongan" value="{{ $slip->total_potongan }}" readonly></td></tr>
             <tr><th>Total Gaji</th><td><input type="number" step="0.01" class="form-control" name="total_gaji" id="total_gaji" value="{{ $slip->total_gaji }}" readonly></td></tr>
+            <tr><th>Total Benefit</th><td><input type="number" step="0.01" class="form-control" name="total_benefit" id="total_benefit" value="{{ $slip->total_benefit ?? 0 }}" readonly></td></tr>
 <script>
 $(function() {
     // ...existing code...
