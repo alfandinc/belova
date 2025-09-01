@@ -234,6 +234,29 @@
                             </div>
                             <input type="hidden" id="durasi_kontrak" name="durasi_kontrak" value="{{ old('durasi_kontrak', isset($employee->kontrak_berakhir) && isset($employee->tanggal_masuk) ? round(($employee->kontrak_berakhir->timestamp - $employee->tanggal_masuk->timestamp) / (30 * 24 * 60 * 60)) : '') }}">
                             <input type="hidden" id="kontrak_berakhir" name="kontrak_berakhir" value="{{ old('kontrak_berakhir', isset($employee->kontrak_berakhir) ? $employee->kontrak_berakhir->format('Y-m-d') : '') }}">
+
+                            <div class="form-group col-md-6">
+                                <label for="gol_gaji_pokok_id">Gaji Pokok</label>
+                                <select name="gol_gaji_pokok_id" id="gol_gaji_pokok_id" class="form-control select2">
+                                    <option value="">-- Pilih Gaji Pokok --</option>
+                                    @foreach($gajiPokokList as $gaji)
+                                        <option value="{{ $gaji->id }}" {{ old('gol_gaji_pokok_id', $employee->gol_gaji_pokok_id ?? '') == $gaji->id ? 'selected' : '' }}>
+                                            {{ $gaji->golongan }} - Rp{{ number_format($gaji->nominal,0,',','.') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="gol_tunjangan_jabatan_id">Tunjangan Jabatan</label>
+                                <select name="gol_tunjangan_jabatan_id" id="gol_tunjangan_jabatan_id" class="form-control select2">
+                                    <option value="">-- Pilih Tunjangan Jabatan --</option>
+                                    @foreach($tunjanganJabatanList as $tunjangan)
+                                        <option value="{{ $tunjangan->id }}" {{ old('gol_tunjangan_jabatan_id', $employee->gol_tunjangan_jabatan_id ?? '') == $tunjangan->id ? 'selected' : '' }}>
+                                            {{ $tunjangan->golongan }} - Rp{{ number_format($tunjangan->nominal,0,',','.') }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
                         </div>
                     </div>
 

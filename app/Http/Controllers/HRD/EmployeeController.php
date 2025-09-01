@@ -96,13 +96,16 @@ class EmployeeController extends Controller
 
     public function create()
     {
-        $positions = Position::all();
-        $divisions = Division::all();
-        
-        return view('hrd.employee.form', compact(
-            'positions',
-            'divisions'
-        ));
+            $positions = Position::all();
+            $divisions = Division::all();
+            $gajiPokokList = \App\Models\HRD\PrMasterGajipokok::all();
+            $tunjanganJabatanList = \App\Models\HRD\PrMasterTunjanganJabatan::all();
+            return view('hrd.employee.form', compact(
+                'positions',
+                'divisions',
+                'gajiPokokList',
+                'tunjanganJabatanList'
+            ));
     }
 
     public function store(Request $request)
@@ -135,6 +138,8 @@ class EmployeeController extends Controller
             'instagram' => 'nullable|array', // Accept array for multiple Instagram accounts
             'role' => 'nullable',
             'perusahaan' => 'nullable|string|max:255',
+            'gol_gaji_pokok_id' => 'nullable|exists:pr_master_gajipokok,id',
+            'gol_tunjangan_jabatan_id' => 'nullable|exists:pr_master_tunjangan_jabatan,id',
         ]);
 
         // Handle file uploads
@@ -193,15 +198,18 @@ class EmployeeController extends Controller
 
     public function edit($id)
     {
-        $employee = Employee::findOrFail($id);
-        $positions = Position::all();
-        $divisions = Division::all();
-
-        return view('hrd.employee.form', compact(
-            'employee',
-            'positions',
-            'divisions'
-        ));
+            $employee = Employee::findOrFail($id);
+            $positions = Position::all();
+            $divisions = Division::all();
+            $gajiPokokList = \App\Models\HRD\PrMasterGajipokok::all();
+            $tunjanganJabatanList = \App\Models\HRD\PrMasterTunjanganJabatan::all();
+            return view('hrd.employee.form', compact(
+                'employee',
+                'positions',
+                'divisions',
+                'gajiPokokList',
+                'tunjanganJabatanList'
+            ));
     }
 
     public function update(Request $request, $id)
@@ -233,6 +241,8 @@ class EmployeeController extends Controller
             'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
             'instagram' => 'nullable|array', // Accept array for multiple Instagram accounts
             'perusahaan' => 'nullable|string|max:255',
+            'gol_gaji_pokok_id' => 'nullable|exists:pr_master_gajipokok,id',
+            'gol_tunjangan_jabatan_id' => 'nullable|exists:pr_master_tunjangan_jabatan,id',
         ]);
 
         // Handle file uploads
