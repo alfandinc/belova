@@ -488,11 +488,12 @@ class PrSlipGajiController extends Controller
 
     public function print($id)
     {
-        $slip = \App\Models\HRD\PrSlipGaji::with('employee.division')->findOrFail($id);
-        $terbilang = function($angka) { return TerbilangHelper::terbilang($angka); };
-        $html = view('hrd.payroll.slip_gaji.print', compact('slip', 'terbilang'))->render();
-        $mpdf = new \Mpdf\Mpdf(['format' => 'A4']);
-        $mpdf->WriteHTML($html);
-        return response($mpdf->Output('slip-gaji.pdf', 'S'))->header('Content-Type', 'application/pdf');
+    $slip = \App\Models\HRD\PrSlipGaji::with('employee.division')->findOrFail($id);
+    $terbilang = function($angka) { return TerbilangHelper::terbilang($angka); };
+    $html = view('hrd.payroll.slip_gaji.print', compact('slip', 'terbilang'))->render();
+    // Set margin_top to 5mm for minimal gap at the top
+    $mpdf = new \Mpdf\Mpdf(['format' => 'A4-L', 'margin_top' => 5, 'margin_bottom' => 5]);
+    $mpdf->WriteHTML($html);
+    return response($mpdf->Output('slip-gaji.pdf', 'S'))->header('Content-Type', 'application/pdf');
     }
 }
