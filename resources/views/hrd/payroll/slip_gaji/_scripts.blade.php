@@ -86,34 +86,6 @@ $(function() {
         });
     });
 
-    $('#slipGajiTable').on('click', '.btn-status', function() {
-        var data = table.row($(this).parents('tr')).data();
-        Swal.fire({
-            title: 'Ubah Status?',
-            text: 'Ubah status slip gaji ini?',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Ya',
-            cancelButtonText: 'Batal'
-        }).then((result) => {
-            if(result.isConfirmed) {
-                $.ajax({
-                    url: '{{ url('hrd/payroll/slip-gaji/status') }}/' + data.id,
-                    type: 'PUT',
-                    data: {_token: '{{ csrf_token() }}'},
-                    success: function(res) {
-                        if(res.success) {
-                            Swal.fire('Sukses', 'Status berhasil diubah!', 'success');
-                            table.ajax.reload();
-                        }
-                    },
-                    error: function(xhr) {
-                        Swal.fire('Error', 'Terjadi kesalahan!', 'error');
-                    }
-                });
-            }
-        });
-    });
 
     $('#slipGajiTable').on('click', '.btn-print', function() {
         var data = table.row($(this).parents('tr')).data();

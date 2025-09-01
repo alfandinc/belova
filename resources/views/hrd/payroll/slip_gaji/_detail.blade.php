@@ -11,7 +11,8 @@
             <tr><th>Status</th><td>
                 <select class="form-control" name="status_gaji">
                     <option value="draft" {{ $slip->status_gaji == 'draft' ? 'selected' : '' }}>Draft</option>
-                    <option value="final" {{ $slip->status_gaji == 'final' ? 'selected' : '' }}>Final</option>
+                    <option value="diapprove" {{ $slip->status_gaji == 'diapprove' ? 'selected' : '' }}>Diapprove</option>
+                    <option value="paid" {{ $slip->status_gaji == 'paid' ? 'selected' : '' }}>Paid</option>
                 </select>
             </td></tr>
         </table>

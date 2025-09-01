@@ -448,7 +448,6 @@ class PrSlipGajiController extends Controller
             })
             ->addColumn('action', function($row) {
                 return '<button class="btn btn-info btn-sm btn-detail">Detail Slip</button> '
-                    . '<button class="btn btn-warning btn-sm btn-status">Change Status</button> '
                     . '<button class="btn btn-primary btn-sm btn-print">Print</button>';
             })
             ->rawColumns(['action'])
