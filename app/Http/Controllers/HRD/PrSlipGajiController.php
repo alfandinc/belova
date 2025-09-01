@@ -326,7 +326,7 @@ class PrSlipGajiController extends Controller
 
 
 
-            $kpiPoin = $initialPoinMarketing + $poinPenilaian + $poinKehadiran;
+            $kpiPoin = $initialPoinMedsos + $poinPenilaian + $poinKehadiran;
 
             // Store slip gaji for each employee, without uang_kpi
             $totalBenefit = ($benefitBpjsKesehatan ?? 0) + ($benefitJht ?? 0) + ($benefitJkk ?? 0) + ($benefitJkm ?? 0);

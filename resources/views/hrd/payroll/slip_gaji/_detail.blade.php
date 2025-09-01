@@ -138,13 +138,15 @@ $(function() {
             <tr><th>Tunjangan Masa Kerja</th><td><input type="number" step="0.01" class="form-control" name="tunjangan_masa_kerja" value="{{ $slip->tunjangan_masa_kerja }}"></td></tr>
             <tr><th>Uang Makan</th><td><input type="number" step="0.01" class="form-control" name="uang_makan" value="{{ $slip->uang_makan }}"></td></tr>
             <tr><th>Uang KPI</th><td><input type="number" step="0.01" class="form-control" name="uang_kpi" value="{{ $slip->uang_kpi }}"></td></tr>
-            <!-- Jasa Medis akan dipindah ke bawah -->
             <tr><th>Uang Lembur</th><td><input type="number" step="0.01" class="form-control" name="uang_lembur" value="{{ $slip->uang_lembur }}"></td></tr>
+            <tr><th>Jasa Medis</th><td><input type="number" step="0.01" class="form-control" name="jasa_medis" value="{{ $slip->jasa_medis }}"></td></tr>
+        </table>
+        <h5 class="mt-4">Benefit</h5>
+        <table class="table table-bordered bg-light">
             <tr><th>Benefit BPJS Kesehatan</th><td><input type="number" step="0.01" class="form-control" name="benefit_bpjs_kesehatan" value="{{ $slip->benefit_bpjs_kesehatan }}"></td></tr>
             <tr><th>Benefit JHT</th><td><input type="number" step="0.01" class="form-control" name="benefit_jht" value="{{ $slip->benefit_jht }}"></td></tr>
             <tr><th>Benefit JKK</th><td><input type="number" step="0.01" class="form-control" name="benefit_jkk" value="{{ $slip->benefit_jkk }}"></td></tr>
             <tr><th>Benefit JKM</th><td><input type="number" step="0.01" class="form-control" name="benefit_jkm" value="{{ $slip->benefit_jkm }}"></td></tr>
-            <tr><th>Jasa Medis</th><td><input type="number" step="0.01" class="form-control" name="jasa_medis" value="{{ $slip->jasa_medis }}"></td></tr>
         </table>
     </div>
     <div class="col-md-6">
