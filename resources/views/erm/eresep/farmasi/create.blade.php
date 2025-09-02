@@ -514,17 +514,23 @@
                             q: params.term // Search term
                         };
                     },
-                    processResults: function (data) {
-                        return {
-                            results: data.map(item => ({
-                                id: item.id,
-                                text: item.nama + ' - ' + item.harga_nonfornas,
-                                stok: item.stok, // Include stok in the data
-                            dosis: item.dosis, // Include dosis in the data
-                            satuan: item.satuan // Include satuan in the data
-                            }))
-                        };
-                    },
+                        processResults: function (data) {
+                            // Support both {results: [...]} and [...] response
+                            let items = Array.isArray(data.results) ? data.results : data;
+                            return {
+                                results: items.map(function(item) {
+                                    return {
+                                        id: item.id,
+                                        text: item.text || (item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : '')),
+                                        nama: item.nama,
+                                        dosis: item.dosis,
+                                        satuan: item.satuan,
+                                        stok: item.stok,
+                                        harga_nonfornas: item.harga_nonfornas
+                                    };
+                                })
+                            };
+                        },
                     cache: true
                 },
                 minimumInputLength: 3

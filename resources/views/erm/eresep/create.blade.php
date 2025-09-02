@@ -465,6 +465,19 @@
                 cache: true
             }
         });
+
+            // Show warning if selected obat has stock 0 (non-racikan)
+            $('.select2-obat').on('select2:select', function(e) {
+                var data = e.params.data;
+                if (data.stok !== undefined && parseInt(data.stok) === 0) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Stok Obat Kosong',
+                        text: 'Obat yang Anda pilih memiliki stok 0. Silakan pilih obat lain atau konfirmasi ke farmasi.',
+                        confirmButtonText: 'OK'
+                    });
+                }
+            });
         $('.select2-wadah-racikan').select2({
             placeholder: 'Search wadah...',
             ajax: {
