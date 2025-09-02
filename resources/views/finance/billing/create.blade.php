@@ -218,9 +218,9 @@
                         <button id="createInvoiceBtn" class="btn btn-primary btn-block">
                             <i class="fas fa-file-invoice mr-1"></i> Buat Invoice
                         </button>
-                        <button id="saveAllChangesBtn" class="btn btn-outline-secondary btn-block mt-2">
+                        {{--<button id="saveAllChangesBtn" class="btn btn-outline-secondary btn-block mt-2">
                             <i class="fas fa-save mr-1"></i> Simpan Billing
-                        </button>
+                        </button>--}}
                     </div>
                 </div>
             </div>
