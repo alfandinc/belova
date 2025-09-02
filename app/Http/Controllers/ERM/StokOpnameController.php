@@ -16,6 +16,26 @@ use App\Imports\StokOpnameImport;
 class StokOpnameController extends Controller
 {
     /**
+     * Get latest total nilai stok sistem and stok fisik for AJAX sync
+     */
+    public function getStokTotals($id)
+    {
+        $items = StokOpnameItem::with('obat')
+            ->where('stok_opname_id', $id)
+            ->get();
+        $totalStokSistem = 0;
+        $totalStokFisik = 0;
+        foreach ($items as $item) {
+            $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+            $totalStokSistem += $hppJual * ($item->stok_sistem ?? 0);
+            $totalStokFisik += $hppJual * ($item->stok_fisik ?? 0);
+        }
+        return response()->json([
+            'totalStokSistem' => $totalStokSistem,
+            'totalStokFisik' => $totalStokFisik,
+        ]);
+    }
+    /**
      * Inline update stok fisik and recalculate selisih
      */
     public function updateStokFisik(Request $request, $itemId)
@@ -77,7 +97,17 @@ class StokOpnameController extends Controller
         $items = StokOpnameItem::with('obat')
             ->where('stok_opname_id', $stokOpname->id)
             ->get();
-        return view('erm.stokopname.create', compact('stokOpname', 'items'));
+
+        // Calculate total nilai stok sistem and stok fisik (based on hpp_jual)
+        $totalStokSistem = 0;
+        $totalStokFisik = 0;
+        foreach ($items as $item) {
+            $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+            $totalStokSistem += $hppJual * ($item->stok_sistem ?? 0);
+            $totalStokFisik += $hppJual * ($item->stok_fisik ?? 0);
+        }
+
+        return view('erm.stokopname.create', compact('stokOpname', 'items', 'totalStokSistem', 'totalStokFisik'));
     }
 
     public function downloadExcel($id)

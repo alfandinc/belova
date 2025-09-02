@@ -126,7 +126,10 @@
     </div>
 </div>
     <div class="mt-4">
-        <h5>Hasil Stok Opname</h5>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Hasil Stok Opname</h5>
+            <button id="syncTotalsBtn" class="btn btn-outline-primary btn-sm"><i class="fa fa-sync"></i> Sync Total Nilai Stok</button>
+        </div>
         <table class="table table-bordered table-striped" id="stokOpnameItemsTable">
             <thead>
                 <tr>
@@ -140,10 +143,36 @@
             </thead>
             <tbody></tbody>
         </table>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="alert alert-info" id="totalStokSistemBox">
+                    <strong>Total Nilai Stok Sistem (HPP Jual x Stok Sistem):</strong><br>
+                    Rp <span id="totalStokSistemText">{{ number_format($totalStokSistem, 0, ',', '.') }}</span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="alert alert-success" id="totalStokFisikBox">
+                    <strong>Total Nilai Stok Fisik (HPP Jual x Stok Fisik):</strong><br>
+                    Rp <span id="totalStokFisikText">{{ number_format($totalStokFisik, 0, ',', '.') }}</span>
+                </div>
+            </div>
+        </div>
     </div>
 @push('scripts')
 <script>
 $(function () {
+    $('#syncTotalsBtn').click(function() {
+        var btn = $(this);
+        btn.prop('disabled', true);
+        btn.html('<i class="fa fa-sync fa-spin"></i> Syncing...');
+        $.get("{{ route('erm.stokopname.syncTotals', $stokOpname->id) }}", function(res) {
+            $('#totalStokSistemText').text(res.totalStokSistem.toLocaleString('id-ID'));
+            $('#totalStokFisikText').text(res.totalStokFisik.toLocaleString('id-ID'));
+        }).always(function() {
+            btn.prop('disabled', false);
+            btn.html('<i class="fa fa-sync"></i> Sync Total Nilai Stok');
+        });
+    });
     var table = $('#stokOpnameItemsTable').DataTable({
         processing: true,
         serverSide: true,
