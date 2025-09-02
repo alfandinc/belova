@@ -11,7 +11,20 @@
 	</style>
 </head>
 <body>
-	<h2>Surat Permintaan</h2>
+	<table style="width:100%; border:none; margin-bottom: 10px;">
+		<tr>
+			<td style="width:60px; border:none; vertical-align:top;">
+				<img src="{{ public_path('img/header-belova.png') }}" alt="Logo" style="height:80px;">
+			</td>
+			<td style="text-align:right; border:none; vertical-align:top;">
+				<div style="text-align:right;">
+					<span style="font-size:22px; font-weight:bold;">Surat Permintaan Pembelian</span><br>
+					<span style="font-size:14px; font-weight:500;">Klinik Pratama belova Skin &amp; Beauty Center.</span><br>
+					<span style="font-size:12px;">Jl. Melon raya No.29 RT 03 RW 07 Karangasem, Laweyan, Surakarta</span>
+				</div>
+			</td>
+		</tr>
+	</table>
 	<table>
 		<tr><th>No Permintaan</th><td>{{ $permintaan->no_permintaan }}</td></tr>
 		<tr><th>Tanggal Permintaan</th><td>{{ $permintaan->request_date }}</td></tr>
@@ -50,7 +63,8 @@
 		<div style="position: fixed; right: 0; bottom: 0; width: 320px; text-align: right;">
 			<div style="margin-bottom: 40px;">
 				<span style="font-size:15px;">Approved by:</span><br><br>
-				<div style="height: 50px;"></div>
+				{{-- <img src="{{ public_path('img/ttd-thesa.png') }}" alt="Signature Therese" style="height:50px; display:block; margin:0 auto 8px auto;"> --}}
+				<img src="{{ public_path('img/ttd-thesa.png') }}" alt="Signature Therese" style="height:90px; display:block; margin:0 auto 8px auto;">
 				<span style="display:inline-block; border-top:1.5px solid #333; width:200px; margin-bottom:2px;"></span><br>
 				<span style="font-size:18px; font-weight:bold;">{{ optional(App\Models\User::find($permintaan->approved_by))->name ?? 'User ID: '.$permintaan->approved_by }}</span><br>
 				<span style="font-size:12px;">{{ $permintaan->approved_date }}</span>

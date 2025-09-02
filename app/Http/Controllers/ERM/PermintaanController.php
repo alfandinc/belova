@@ -274,7 +274,7 @@ class PermintaanController extends Controller
     public function printSuratPermintaan($id)
     {
         $permintaan = \App\Models\ERM\Permintaan::with(['items', 'items.obat', 'items.pemasok'])->findOrFail($id);
-        $mpdf = new \Mpdf\Mpdf(['format' => 'A4']);
+    $mpdf = new \Mpdf\Mpdf(['format' => 'A4-L']);
         $html = view('erm.permintaan.print', compact('permintaan'))->render();
         $mpdf->WriteHTML($html);
         return response($mpdf->Output('', 'S'), 200, [
