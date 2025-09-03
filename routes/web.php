@@ -125,7 +125,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('insiden.dashboard');
 
     Route::get('/laporan', [LaporanDashboardController::class, 'index'])
-        ->middleware('role:Hrd|Manager|Admin|Finance')
+        ->middleware('role:Hrd|Manager|Admin|Kasir')
         ->name('laporan.dashboard');
 
 
