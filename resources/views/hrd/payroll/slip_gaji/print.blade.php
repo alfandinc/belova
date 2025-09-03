@@ -121,6 +121,7 @@
     <table style="width:100%; border:none; border-collapse:collapse;">
       <tr>
         <td style="width:50%; vertical-align:top; padding-right:12px;">
+            {{-- ...existing code... --}}
             <div class="section-title">Pendapatan</div>
             <table class="salary-table">
                 <tr><th>Komponen</th><th class="right">Nominal (Rp)</th></tr>
@@ -197,6 +198,12 @@
         <div style="margin-top:8px; font-size:0.95em; color:#c00; font-style:italic; text-align:left;">
             Catatan: Benefit adalah fasilitas dari perusahaan dan tidak termasuk dalam total gaji / take home pay.
         </div>
+        @if($slip->jasmed_file)
+            <div style="margin-top:32px; text-align:left;">
+                <strong>Lampiran:</strong><br>
+                <img src="{{ public_path('storage/' . $slip->jasmed_file) }}" alt="Lampiran Jasmed File" style="max-width:320px; max-height:320px; border:1px solid #ccc;">
+            </div>
+        @endif
     </div>
 </body>
 </html>

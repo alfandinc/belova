@@ -8,11 +8,14 @@ $(function() {
             // fallback: cari id dari input hidden jika ada
             id = form.find('input[name="id"]').val();
         }
-        var formData = form.serialize();
+        var formData = new FormData(form[0]);
+        formData.append('_token', '{{ csrf_token() }}');
         $.ajax({
             url: '/hrd/payroll/slip-gaji/update/' + id,
             type: 'POST',
-            data: formData + '&_token={{ csrf_token() }}',
+            data: formData,
+            processData: false,
+            contentType: false,
             success: function(res) {
                 if(res.success) {
                     Swal.fire('Sukses', 'Data slip gaji berhasil diupdate!', 'success');

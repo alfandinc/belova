@@ -86,11 +86,18 @@ class PrSlipGajiController extends Controller
         $slip->benefit_jht = $request->input('benefit_jht', $slip->benefit_jht);
         $slip->benefit_jkk = $request->input('benefit_jkk', $slip->benefit_jkk);
         $slip->benefit_jkm = $request->input('benefit_jkm', $slip->benefit_jkm);
-    $slip->total_benefit = $request->input('total_benefit', $slip->total_benefit);
+        $slip->total_benefit = $request->input('total_benefit', $slip->total_benefit);
+
+        // Handle jasmed_file upload
+        if ($request->hasFile('jasmed_file')) {
+            $file = $request->file('jasmed_file');
+            $path = $file->store('jasmed_files', 'public');
+            $slip->jasmed_file = $path;
+        }
+
         $slip->save();
 
-    // Removed autogenerate uang KPI logic. Now only updates slip fields.
-    return response()->json(['success' => true]);
+        return response()->json(['success' => true]);
     }
     // Return omset input fields for all available penghasil omset
     public function getOmsetInputs(Request $request)

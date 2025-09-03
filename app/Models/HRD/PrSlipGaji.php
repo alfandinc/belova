@@ -23,6 +23,7 @@ class PrSlipGaji extends Model
         'poin_marketing',
         'uang_kpi',
         'jasa_medis',
+        'jasmed_file',
         'total_jam_lembur',
         'uang_lembur',
         'potongan_pinjaman',

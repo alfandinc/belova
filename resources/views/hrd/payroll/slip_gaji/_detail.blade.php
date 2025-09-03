@@ -1,5 +1,5 @@
 
-<form id="formEditSlipGaji">
+<form id="formEditSlipGaji" enctype="multipart/form-data">
     <input type="hidden" name="id" id="slip_gaji_id" value="{{ $slip->id }}">
 <div class="row">
     <div class="col-md-6">
@@ -15,6 +15,17 @@
                     <option value="paid" {{ $slip->status_gaji == 'paid' ? 'selected' : '' }}>Paid</option>
                 </select>
             </td></tr>
+            <tr>
+                <th>Jasmed File (Image)</th>
+                <td>
+                    <input type="file" class="form-control" name="jasmed_file" accept="image/*">
+                    @if($slip->jasmed_file)
+                        <div class="mt-2">
+                            <img src="{{ asset('storage/' . $slip->jasmed_file) }}" alt="Jasmed File" style="max-width:120px; max-height:120px;">
+                        </div>
+                    @endif
+                </td>
+            </tr>
         </table>
     </div>
     <div class="col-md-6">
