@@ -54,14 +54,14 @@ class Invoice extends Model
     // Generate a unique invoice number
     public static function generateInvoiceNumber()
     {
-        $prefix = 'INV-' . date('Ymd');
-        $lastInvoice = self::where('invoice_number', 'like', $prefix . '%')->latest()->first();
-
-        if (!$lastInvoice) {
-            return $prefix . '-0001';
+        // Add hour, minute, second to prefix for uniqueness
+        $prefix = 'INV-' . date('Ymd-His');
+        // Check if invoice with this prefix already exists
+        $exists = self::where('invoice_number', $prefix)->exists();
+        if (!$exists) {
+            return $prefix;
         }
-
-        $lastNumber = intval(substr($lastInvoice->invoice_number, -4));
-        return $prefix . '-' . str_pad(($lastNumber + 1), 4, '0', STR_PAD_LEFT);
+        // If exists, append a random 3-digit number
+        return $prefix . '-' . str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
     }
 }
