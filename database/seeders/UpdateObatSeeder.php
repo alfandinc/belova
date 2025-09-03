@@ -10,7 +10,7 @@ class UpdateObatSeeder extends Seeder
 {
     public function run()
     {
-        $file = base_path('database/data/UpdateMasterObat.csv');
+        $file = base_path('database/data/UpdateMasterProduk.csv');
         if (!file_exists($file)) {
             echo "CSV file not found: $file\n";
             return;
