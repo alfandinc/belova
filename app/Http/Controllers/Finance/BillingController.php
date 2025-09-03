@@ -526,11 +526,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $changeAmount = $totals['changeAmount'] ?? 0;
             $paymentMethod = $totals['paymentMethod'] ?? 'cash';
 
-            // Check if invoice exists for this visitation
-            $invoice = Invoice::where('visitation_id', $request->visitation_id)->first();
-            if ($invoice) {
+            // Get existing invoice if it exists
+            $existingInvoice = Invoice::where('visitation_id', $request->visitation_id)->first();
+            $isUpdate = $existingInvoice !== null;
+
+            if ($isUpdate) {
                 // Update existing invoice
-                $invoice->update([
+                $existingInvoice->update([
                     'subtotal' => $subtotal,
                     'discount' => $discountAmount,
                     'tax' => $taxAmount,
@@ -545,7 +547,36 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'user_id' => Auth::id(),
                     'notes' => $request->notes ?? null,
                 ]);
-                // Remove old invoice items
+                $invoice = $existingInvoice;
+            } else {
+                // Create new invoice
+                $invoice = Invoice::create([
+                    'visitation_id' => $request->visitation_id,
+                    'invoice_number' => Invoice::generateInvoiceNumber(),
+                    'subtotal' => $subtotal,
+                    'discount' => $discountAmount,
+                    'tax' => $taxAmount,
+                    'discount_type' => $totals['discountType'] ?? null,
+                    'discount_value' => $totals['discountValue'] ?? 0,
+                    'tax_percentage' => $totals['taxPercentage'] ?? 0,
+                    'total_amount' => $grandTotal,
+                    'amount_paid' => $amountPaid,
+                    'change_amount' => $changeAmount,
+                    'payment_method' => $paymentMethod,
+                    'status' => 'issued',
+                    'user_id' => Auth::id(),
+                    'notes' => $request->notes ?? null,
+                ]);
+            }
+
+            // If updating, store old items for comparison and remove them
+            $oldInvoiceItems = [];
+            if ($isUpdate) {
+                $oldInvoiceItems = $invoice->items()
+                    ->get()
+                    ->keyBy(function($item) {
+                        return $item->billable_type . '-' . $item->billable_id;
+                    });
                 $invoice->items()->delete();
             } else {
                 // Create new invoice
@@ -599,32 +630,73 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
-            // Only reduce stock when creating a new invoice
-            if (!$invoice->wasRecentlyCreated) {
-                // Do nothing, stock already reduced
-            } else {
-                // NOW REDUCE STOCK for medication items
-                foreach ($billingItems as $item) {
+            // Process stock changes only for medication items
+            foreach ($billingItems as $item) {
+                $itemKey = $item->billable_type . '-' . $item->billable_id;
+                $newQty = intval($item->qty ?? 1);
+
+                if ($isUpdate) {
+                    // For updates, only adjust the difference
+                    $oldItem = $oldInvoiceItems[$itemKey] ?? null;
+                    $oldQty = $oldItem ? intval($oldItem->quantity) : 0;
+                    $qtyDiff = $newQty - $oldQty;
+
+                    // Skip if no quantity change
+                    if ($qtyDiff === 0) {
+                        continue;
+                    }
+                } else {
+                    // For new invoices, treat the full quantity as the difference
+                    $qtyDiff = $newQty;
+                }
                     // For ResepFarmasi items
                     if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                         $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                         if ($resep && $resep->obat) {
-                            $qty = intval($item->qty ?? 1);
                             $obat = $resep->obat;
                             $oldStok = $obat->stok ?? 0;
-                            $newStok = max(0, $oldStok - $qty);
-                            $obat->stok = $newStok;
-                            $obat->save();
-                            $this->reduceFakturStock($obat->id, $qty);
-                            \App\Models\ERM\KartuStok::create([
-                                'obat_id' => $obat->id,
-                                'tanggal' => now(),
-                                'tipe' => 'keluar',
-                                'qty' => $qty,
-                                'stok_setelah' => $newStok,
-                                'ref_type' => 'invoice',
-                                'ref_id' => $invoice->id,
-                            ]);
+                            
+                            if ($qtyDiff != 0) {
+                                // Calculate new stock
+                                $newStok = max(0, $oldStok - $qtyDiff);
+                                $obat->stok = $newStok;
+                                $obat->save();
+                                
+                                Log::info('Stock adjustment', [
+                                    'invoice_id' => $invoice->id,
+                                    'is_update' => $isUpdate,
+                                    'obat_id' => $obat->id,
+                                    'old_stok' => $oldStok,
+                                    'qty_diff' => $qtyDiff,
+                                    'new_stok' => $newStok
+                                ]);
+                                
+                                // If stock is being reduced (positive diff), reduce faktur stock
+                                if ($qtyDiff > 0) {
+                                    // Reduce stock from faktur for positive diff only
+                                    $this->reduceFakturStock($obat->id, $qtyDiff);
+                                    // Record stock reduction in KartuStok
+                                    \App\Models\ERM\KartuStok::create([
+                                        'obat_id' => $obat->id,
+                                        'tanggal' => now(),
+                                        'tipe' => 'keluar',
+                                        'qty' => $qtyDiff,
+                                        'stok_setelah' => $newStok,
+                                        'ref_type' => 'invoice_update',
+                                        'ref_id' => $invoice->id,
+                                    ]);
+                                } else if ($qtyDiff < 0) {
+                                    // Record stock return in KartuStok for negative diff
+                                    \App\Models\ERM\KartuStok::create([
+                                        'obat_id' => $obat->id,
+                                        'tanggal' => now(),
+                                        'tipe' => 'masuk',
+                                        'qty' => abs($qtyDiff),
+                                        'stok_setelah' => $newStok,
+                                        'ref_type' => 'invoice_update',
+                                        'ref_id' => $invoice->id,
+                                    ]);
+                                }
                             Log::info('Stock reduced via invoice (ResepFarmasi)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,
