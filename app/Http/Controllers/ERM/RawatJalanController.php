@@ -143,10 +143,17 @@ class RawatJalanController extends Controller
                 ->addColumn('nama_pasien', function ($v) {
                     $nama = $v->nama_pasien ?? '-';
                     $icons = '';
-                    $status = $v->status_pasien ?? 'Regular';
-                    if ($status !== 'Regular') {
-                        $icons .= '<span class="status-pasien-icon">' . $status . '</span>';
+                    
+                    // Check patient age
+                    if ($v->tanggal_lahir) {
+                        $birthDate = new \DateTime($v->tanggal_lahir);
+                        $today = new \DateTime();
+                        $age = $today->diff($birthDate)->y;
+                        if ($age < 17) {
+                            $icons .= '<span class="status-pasien-icon" style="background-color: #ff69b4; color: white; padding: 2px 5px; border-radius: 3px; margin-right: 5px;" title="Pasien di bawah 17 tahun"><i class="fas fa-baby-carriage"></i></span>';
+                        }
                     }
+                    
                     return $icons . $nama;
                 })
                 ->addColumn('tanggal', function ($v) {
