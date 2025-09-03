@@ -7,11 +7,39 @@ use App\Models\HRD\PrSlipGaji;
 use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanLembur;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use App\Helpers\TerbilangHelper;
 
 class PrSlipGajiController extends Controller
-
 {
+    // Get and print current user's latest slip gaji
+    public function mySlip()
+    {
+        $user = Auth::user();
+        $employee = $user ? $user->employee : null;
+        if (!$employee) {
+            return back()->with('error', 'Data karyawan tidak ditemukan.');
+        }
+
+        $slip = PrSlipGaji::where('employee_id', $employee->id)
+                         ->orderBy('bulan', 'desc')
+                         ->first();
+
+        if (!$slip) {
+            return back()->with('error', 'Slip gaji belum tersedia.');
+        }
+
+        $terbilang = function($angka) { return TerbilangHelper::terbilang($angka); };
+        $html = view('hrd.payroll.slip_gaji.print', compact('slip', 'terbilang'))->render();
+        
+        $mpdf = new \Mpdf\Mpdf(['format' => 'A4-L', 'margin_top' => 5, 'margin_bottom' => 5]);
+        $mpdf->WriteHTML($html);
+        
+        $filename = 'slip-gaji-' . $employee->nama . '-' . $slip->bulan . '.pdf';
+        return response($mpdf->Output($filename, 'I'))
+               ->header('Content-Type', 'application/pdf');
+    }
+
         // Batch generate uang KPI for all employees in selected month
     public function generateUangKpi(Request $request)
     {
