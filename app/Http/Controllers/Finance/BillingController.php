@@ -599,6 +599,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
 
+            // Track processed racikan items to avoid double processing
+            $processedRacikanObats = [];
+            
             // Group racikan items first
             $racikanGroups = [];
             $regularItems = [];
@@ -624,7 +627,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     if (!isset($racikanGroups[$racikanKey])) {
                         $racikanGroups[$racikanKey] = [];
                     }
+                    
+                    // Add to group and mark as processed
                     $racikanGroups[$racikanKey][] = $item;
+                    if ($item->billable && $item->billable->obat) {
+                        $processedRacikanObats[] = $item->billable->obat->id;
+                    }
                 } else {
                     $regularItems[] = $item;
                 }
@@ -653,6 +661,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                         $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                         if ($resep && $resep->obat) {
+                            // Skip if this obat was already processed as part of a racikan
+                            if (in_array($resep->obat->id, $processedRacikanObats)) {
+                                Log::info('Skipping already processed racikan item', [
+                                    'obat_id' => $resep->obat->id,
+                                    'racikan_ke' => $resep->racikan_ke,
+                                    'invoice_id' => $invoice->id
+                                ]);
+                                continue;
+                            }
+                            
+                            // Skip stock reduction for individual racikan items
+                            if ($resep->racikan_ke > 0) {
+                                continue;
+                            }
+                            
                             $obat = $resep->obat;
                             $oldStok = $obat->stok ?? 0;
                             
@@ -839,19 +862,66 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                 }
                 
-                // Format the description as a list
-                $formattedObatList = array_map(function($obat) {
-                    return "- " . $obat;
-                }, $obatList);
-                
-                $description = implode("\n", $formattedObatList);
-                
-                // For racikan, the unit price is the total price of all components per unit (bungkus)
-                // This calculation has to match what's shown in the UI (see harga_akhir column in DataTables)
-                $unitPrice = $totalPrice;  // Total price of all components is treated as unit price
-                $finalAmount = $totalPrice * $qty; // Final amount = total price × qty (bungkus)
-
-                // Create single invoice item for the racikan group
+                    // Format the description as a list
+                    $formattedObatList = array_map(function($obat) {
+                        return "- " . $obat;
+                    }, $obatList);
+                    
+                    $description = implode("\n", $formattedObatList);
+                    
+                    // Handle stock adjustments for racikan items only if quantity changed
+                    if ($qtyDiff != 0 && !$isUpdate) {
+                        foreach ($racikanItems as $racikanItem) {
+                            if (isset($racikanItem->billable) && $racikanItem->billable->obat) {
+                                $obat = $racikanItem->billable->obat;
+                                $oldStok = $obat->stok ?? 0;
+                                $newStok = max(0, $oldStok - $qtyDiff);
+                                
+                                Log::info('Adjusting racikan stock', [
+                                    'obat_id' => $obat->id,
+                                    'old_stok' => $oldStok,
+                                    'qty_diff' => $qtyDiff,
+                                    'new_stok' => $newStok,
+                                    'is_update' => $isUpdate,
+                                    'invoice_id' => $invoice->id
+                                ]);
+                                
+                                // Update stock
+                                $obat->stok = $newStok;
+                                $obat->save();
+                                
+                                // Reduce faktur stock if this is a new invoice
+                                if (!$isUpdate) {
+                                    $this->reduceFakturStock($obat->id, $qtyDiff);
+                                }
+                                
+                                // Record in KartuStok
+                                \App\Models\ERM\KartuStok::create([
+                                    'obat_id' => $obat->id,
+                                    'tanggal' => now(),
+                                    'tipe' => $qtyDiff > 0 ? 'keluar' : 'masuk',
+                                    'qty' => abs($qtyDiff),
+                                    'stok_setelah' => $newStok,
+                                    'ref_type' => 'invoice_update_racikan',
+                                    'ref_id' => $invoice->id,
+                                ]);
+                                
+                                Log::info('Racikan stock adjustment', [
+                                    'invoice_id' => $invoice->id,
+                                    'is_update' => $isUpdate,
+                                    'racikan_ke' => $racikanKey,
+                                    'obat_id' => $obat->id,
+                                    'old_stok' => $oldStok,
+                                    'qty_diff' => $qtyDiff,
+                                    'new_stok' => $newStok
+                                ]);
+                            }
+                        }
+                    }
+                    
+                    // For racikan, the unit price is the total price of all components per unit (bungkus)
+                    $unitPrice = $totalPrice;  // Total price of all components is treated as unit price
+                    $finalAmount = $totalPrice * $newQty; // Final amount = total price × qty (bungkus)                // Create single invoice item for the racikan group
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => 'Obat Racikan',
