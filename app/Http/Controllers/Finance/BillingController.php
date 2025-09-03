@@ -578,6 +578,25 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         return $item->billable_type . '-' . $item->billable_id;
                     });
                 $invoice->items()->delete();
+            } else {
+                // Create new invoice
+                $invoice = Invoice::create([
+                    'visitation_id' => $request->visitation_id,
+                    'invoice_number' => Invoice::generateInvoiceNumber(),
+                    'subtotal' => $subtotal,
+                    'discount' => $discountAmount,
+                    'tax' => $taxAmount,
+                    'discount_type' => $totals['discountType'] ?? null,
+                    'discount_value' => $totals['discountValue'] ?? 0,
+                    'tax_percentage' => $totals['taxPercentage'] ?? 0,
+                    'total_amount' => $grandTotal,
+                    'amount_paid' => $amountPaid,
+                    'change_amount' => $changeAmount,
+                    'payment_method' => $paymentMethod,
+                    'status' => 'issued',
+                    'user_id' => Auth::id(),
+                    'notes' => $request->notes ?? null,
+                ]);
             }
 
             // Track processed racikan items to avoid double processing
