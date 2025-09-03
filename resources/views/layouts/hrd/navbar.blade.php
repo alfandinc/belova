@@ -187,7 +187,8 @@
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="dollar-sign" class="align-self-center menu-icon"></i><span>Payroll</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji.my_slip') }}"><i class="ti-control-record"></i>Slip Gaji Saya</a></li>
+                            <li class="nav-item"><a class="nav-link" href="#" onclick="checkSlipGaji(event)"><i class="ti-control-record"></i>Slip Gaji Saya</a></li>
+
                             @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.master.index') }}"><i class="ti-control-record"></i>Master Payroll</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.insentif_omset.index') }}"><i class="ti-control-record"></i>Insentif Omset</a></li>
@@ -211,3 +212,104 @@
     </div>
 </div>
 <!-- end left-sidenav-->
+<!-- Password Verification Modal -->
+<div class="modal fade" id="passwordVerificationModal" tabindex="-1" role="dialog" aria-labelledby="passwordVerificationModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="passwordVerificationModalLabel">Verifikasi Password</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="passwordVerificationForm">
+                    <div class="form-group">
+                        <label for="password">Masukkan password Anda untuk melihat slip gaji:</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" onclick="verifyPasswordAndGetSlip()">Verifikasi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+function checkSlipGaji(e) {
+    e.preventDefault();
+    // Show password verification modal
+    $('#passwordVerificationModal').modal('show');
+}
+
+function verifyPasswordAndGetSlip() {
+    const password = $('#password').val();
+    
+    if (!password) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Password harus diisi'
+        });
+        return;
+    }
+
+    $.ajax({
+        url: '{{ route('hrd.payroll.slip_gaji.my_slip') }}',
+        type: 'POST',
+        data: {
+            password: password,
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
+            $('#passwordVerificationModal').modal('hide');
+            
+            if (!response.success) {
+                Swal.fire({
+                    icon: response.type,
+                    title: response.title,
+                    text: response.message
+                });
+            } else {
+                // Password is correct and slip is available
+                $('#passwordVerificationModal').modal('hide');
+                // Open the PDF in a new window
+                window.open(response.url, '_blank');
+            }
+            
+            // Clear the password field
+            $('#password').val('');
+        },
+        error: function(xhr) {
+            if (xhr.status === 401) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Password Salah',
+                    text: 'Password yang Anda masukkan tidak sesuai.'
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Terjadi kesalahan saat mengambil slip gaji.'
+                });
+            }
+            // Clear the password field
+            $('#password').val('');
+        }
+    });
+}
+
+// Handle enter key in password field
+$('#password').keypress(function(e) {
+    if (e.which == 13) {
+        e.preventDefault();
+        verifyPasswordAndGetSlip();
+    }
+});
+</script>
+@endpush

@@ -59,6 +59,7 @@
         @include('layouts.hrd.topbar')
 
         <div class="page-content">
+            @include('layouts.hrd.partials.flash-messages')
             @yield('content')
             @include('layouts.hrd.footer')
         </div>

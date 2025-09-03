@@ -8,17 +8,37 @@ use App\Models\HRD\Employee;
 use App\Models\HRD\PengajuanLembur;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use App\Helpers\TerbilangHelper;
 
 class PrSlipGajiController extends Controller
 {
     // Get and print current user's latest slip gaji
-    public function mySlip()
+    public function mySlip(Request $request)
     {
         $user = Auth::user();
         $employee = $user ? $user->employee : null;
+
+        // Check if this is a password verification request
+        if ($request->isMethod('post')) {
+            // Verify the password
+            if (!Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'type' => 'error',
+                    'title' => 'Password Salah',
+                    'message' => 'Password yang Anda masukkan tidak sesuai.'
+                ], 401);
+            }
+        }
+
         if (!$employee) {
-            return back()->with('error', 'Data karyawan tidak ditemukan.');
+            return response()->json([
+                'success' => false,
+                'type' => 'error',
+                'title' => 'Error',
+                'message' => 'Data karyawan tidak ditemukan.'
+            ]);
         }
 
         $slip = PrSlipGaji::where('employee_id', $employee->id)
@@ -26,7 +46,56 @@ class PrSlipGajiController extends Controller
                          ->first();
 
         if (!$slip) {
-            return back()->with('error', 'Slip gaji belum tersedia.');
+            return response()->json([
+                'success' => false,
+                'type' => 'error',
+                'title' => 'Error',
+                'message' => 'Slip gaji belum tersedia.'
+            ]);
+        }
+
+        // Check if the slip status is paid
+        if ($slip->status_gaji !== 'paid') {
+            return response()->json([
+                'success' => false,
+                'type' => 'warning',
+                'title' => 'Slip Belum Tersedia',
+                'message' => 'Slip gaji Anda masih dalam proses. Silahkan cek kembali nanti.'
+            ]);
+        }
+
+        if ($request->isMethod('post')) {
+            // Return success response with a URL to fetch the PDF
+            return response()->json([
+                'success' => true,
+                'url' => route('hrd.payroll.slip_gaji.download', ['id' => $slip->id])
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'type' => 'error',
+            'title' => 'Error',
+            'message' => 'Method not allowed'
+        ], 405);
+    }
+
+    // New method to handle PDF download after verification
+    public function downloadSlip($id)
+    {
+        $user = Auth::user();
+        $employee = $user ? $user->employee : null;
+        
+        if (!$employee) {
+            abort(403);
+        }
+
+        $slip = PrSlipGaji::where('id', $id)
+                         ->where('employee_id', $employee->id)
+                         ->first();
+
+        if (!$slip || $slip->status_gaji !== 'paid') {
+            abort(403);
         }
 
         $terbilang = function($angka) { return TerbilangHelper::terbilang($angka); };

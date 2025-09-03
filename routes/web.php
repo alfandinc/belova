@@ -1016,9 +1016,13 @@ Route::prefix('hrd/payroll/kpi')->middleware(['auth', 'role:Hrd|Admin|Manager|Ce
 });
 
 // Add personal slip gaji route before the admin routes
-Route::get('hrd/payroll/slip-gaji/my-slip', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'mySlip'])
+Route::match(['get', 'post'], 'hrd/payroll/slip-gaji/my-slip', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'mySlip'])
     ->middleware(['auth'])
     ->name('hrd.payroll.slip_gaji.my_slip');
+
+Route::get('hrd/payroll/slip-gaji/download/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'downloadSlip'])
+    ->middleware(['auth'])
+    ->name('hrd.payroll.slip_gaji.download');
 
 // Payroll Slip Gaji Routes
 Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
