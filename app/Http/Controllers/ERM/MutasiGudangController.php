@@ -390,7 +390,9 @@ class MutasiGudangController extends Controller
             
             // Untuk preview, pisahkan obat yang ada stok dan yang tidak ada stok
             $obatWithStock = $obatList->where('stok', '>', 0);
-            $obatWithoutStock = $obatList->where('stok', '<=', 0)->orWhereNull('stok');
+            $obatWithoutStock = $obatList->filter(function($obat) {
+                return $obat->stok <= 0 || is_null($obat->stok);
+            });
             
             return response()->json([
                 'success' => true,
