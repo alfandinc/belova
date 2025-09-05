@@ -46,7 +46,8 @@ use App\Http\Controllers\ERM\{
     ResepCatatanController,
     NotificationController,
     ObatKeluarController,
-    MutasiGudangController
+    MutasiGudangController,
+    GudangController
 };
 
 use App\Http\Controllers\HRD\{
@@ -207,6 +208,16 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/{id}', [MutasiGudangController::class, 'show'])->name('erm.mutasi-gudang.show');
     Route::post('/{id}/approve', [MutasiGudangController::class, 'approve'])->name('erm.mutasi-gudang.approve');
     Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
+    });
+
+    // Gudang Routes
+    Route::prefix('gudang')->group(function () {
+        Route::get('/', [GudangController::class, 'index'])->name('erm.gudang.index');
+        Route::get('/data', [GudangController::class, 'data'])->name('erm.gudang.data');
+        Route::post('/', [GudangController::class, 'store'])->name('erm.gudang.store');
+        Route::get('/{gudang}', [GudangController::class, 'show'])->name('erm.gudang.show');
+        Route::put('/{gudang}', [GudangController::class, 'update'])->name('erm.gudang.update');
+        Route::delete('/{gudang}', [GudangController::class, 'destroy'])->name('erm.gudang.destroy');
     });
 
     // Fill stok to 100 for all Obat with stok 0
