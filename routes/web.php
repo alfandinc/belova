@@ -514,6 +514,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/{id}/save-stok-fisik', [\App\Http\Controllers\ERM\StokOpnameController::class, 'saveStokFisik'])->name('erm.stokopname.saveStokFisik');
     // AJAX sync totals
     Route::get('/{id}/sync-totals', [\App\Http\Controllers\ERM\StokOpnameController::class, 'getStokTotals'])->name('erm.stokopname.syncTotals');
+    
+    // New multi-gudang stock opname routes
+    Route::post('/{id}/generate-items', [\App\Http\Controllers\ERM\StokOpnameController::class, 'generateStokOpnameItems'])->name('erm.stokopname.generateItems');
+    Route::post('/{id}/update-stock-from-opname', [\App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFromOpname'])->name('erm.stokopname.updateStockFromOpname');
     });
     
 });

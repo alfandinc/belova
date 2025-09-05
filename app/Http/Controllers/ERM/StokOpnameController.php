@@ -144,9 +144,13 @@ class StokOpnameController extends Controller
     {
         $items = StokOpnameItem::query()
             ->leftJoin('erm_obat', 'erm_stok_opname_items.obat_id', '=', 'erm_obat.id')
-            ->select('erm_stok_opname_items.*', 'erm_obat.nama as nama_obat')
+            ->select(
+                'erm_stok_opname_items.*', 
+                'erm_obat.nama as nama_obat'
+            )
             ->where('stok_opname_id', $id)
             ->orderByRaw('ABS(selisih) DESC');
+        
         return datatables()->of($items)
             ->filterColumn('nama_obat', function($query, $keyword) {
                 $query->where('erm_obat.nama', 'like', "%$keyword%");
@@ -188,5 +192,123 @@ class StokOpnameController extends Controller
             }
         }
         return response()->json(['success' => true, 'message' => "$updated stok obat berhasil diperbarui."]);
+    }
+
+    /**
+     * Generate stok opname items from current stock in selected gudang
+     */
+    public function generateStokOpnameItems($stokOpnameId)
+    {
+        try {
+            DB::beginTransaction();
+            
+            $stokOpname = StokOpname::findOrFail($stokOpnameId);
+            $gudangId = $stokOpname->gudang_id;
+            
+            // Delete existing items for regeneration
+            StokOpnameItem::where('stok_opname_id', $stokOpnameId)->delete();
+            
+            // Get all ObatStokGudang for this gudang with stock > 0
+            $stokList = \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
+                ->where('stok', '>', 0)
+                ->with('obat')
+                ->orderBy('obat_id')
+                ->orderBy('batch')
+                ->get();
+            
+            foreach ($stokList as $stokGudang) {
+                StokOpnameItem::create([
+                    'stok_opname_id' => $stokOpnameId,
+                    'obat_id' => $stokGudang->obat_id,
+                    'batch_id' => $stokGudang->id,
+                    'batch_name' => $stokGudang->batch,
+                    'expiration_date' => $stokGudang->expiration_date,
+                    'stok_sistem' => $stokGudang->stok,
+                    'stok_fisik' => 0, // Will be filled during opname process
+                    'selisih' => -$stokGudang->stok, // Initially negative (system - physical)
+                    'notes' => null,
+                ]);
+            }
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true, 
+                'message' => 'Generated ' . $stokList->count() . ' items for stock opname'
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false, 
+                'message' => 'Failed to generate items: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update stock fisik based on stock opname result using StokService
+     */
+    public function updateStokFromOpname($stokOpnameId)
+    {
+        try {
+            DB::beginTransaction();
+            
+            $stokOpname = StokOpname::findOrFail($stokOpnameId);
+            $stokService = app(\App\Services\ERM\StokService::class);
+            $updatedCount = 0;
+            
+            $items = StokOpnameItem::where('stok_opname_id', $stokOpnameId)
+                ->where('selisih', '!=', 0) // Only process items with difference
+                ->with(['obatStokGudang', 'obat'])
+                ->get();
+            
+            foreach ($items as $item) {
+                if (!$item->obatStokGudang) continue;
+                
+                $stokGudang = $item->obatStokGudang;
+                $selisih = $item->selisih; // positive = surplus, negative = shortage
+                
+                if ($selisih > 0) {
+                    // Add stock (found more than system)
+                    $stokService->tambahStok(
+                        $item->obat_id,
+                        $stokOpname->gudang_id,
+                        $selisih,
+                        $stokGudang->batch,
+                        $stokGudang->expiration_date,
+                        $stokGudang->harga_beli ?? 0,
+                        $stokGudang->harga_beli_jual ?? 0
+                    );
+                } else {
+                    // Reduce stock (found less than system)
+                    $stokService->kurangiStok(
+                        $item->obat_id,
+                        $stokOpname->gudang_id,
+                        abs($selisih),
+                        $stokGudang->batch
+                    );
+                }
+                
+                $updatedCount++;
+            }
+            
+            // Mark stock opname as completed
+            $stokOpname->update(['status' => 'selesai']);
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true, 
+                'message' => "Successfully updated {$updatedCount} stock adjustments from stock opname"
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false, 
+                'message' => 'Failed to update stock: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

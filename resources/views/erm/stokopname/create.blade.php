@@ -98,6 +98,22 @@
             <div class="card mb-3">
                 <div class="card-header"><strong>AKSI</strong></div>
                 <div class="card-body">
+                    <div class="d-flex align-items-center mb-2">
+                        <button type="button" class="btn btn-info mr-2" id="generateItemsBtn" 
+                            {{ $stokOpname->status === 'selesai' ? 'disabled' : '' }}>
+                            <i class="fa fa-magic"></i> Generate Items (Per Gudang)
+                        </button>
+                        @php
+                            $hasItems = $items->count() > 0;
+                            $isCompleted = $stokOpname->status === 'selesai';
+                            $updateStockEnabled = $hasItems && !$isCompleted;
+                        @endphp
+                        <button type="button" class="btn btn-success mr-2" id="updateStockBtn" 
+                            {{ !$updateStockEnabled ? 'disabled' : '' }}>
+                            <i class="fa fa-check"></i> Update Stock from Opname
+                        </button>
+                    </div>
+                    <hr>
                     <div class="d-flex align-items-center">
                         <a href="{{ route('erm.stokopname.downloadExcel', $stokOpname->id) }}" class="btn btn-warning mr-2"><i class="fa fa-download"></i> Download</a>
                         <form action="{{ route('erm.stokopname.uploadExcel', $stokOpname->id) }}" method="POST" enctype="multipart/form-data" role="form" class="d-flex align-items-center">
@@ -109,7 +125,7 @@
                                 </div>
                                 <div class="input-group-append">
                                     <button type="submit" class="btn btn-primary"><i class="fa fa-upload"></i> Upload Data</button>
-                                    <button type="button" class="btn btn-success ml-2" id="saveStokFisikBtn"><i class="fa fa-save"></i> Submit Stok</button>
+                                    <button type="button" class="btn btn-success ml-2" id="saveStokFisikBtn" style="display: none;"><i class="fa fa-save"></i> Submit Stok (Legacy)</button>
                                 </div>
                             </div>
                         </form>
@@ -135,6 +151,8 @@
                 <tr>
                     <th>Obat ID</th>
                     <th>Nama Obat</th>
+                    <th>Batch</th>
+                    <th>Exp Date</th>
                     <th>Stok Sistem</th>
                     <th>Stok Fisik</th>
                     <th>Selisih</th>
@@ -161,6 +179,21 @@
 @push('scripts')
 <script>
 $(function () {
+    // Check button states on page load
+    checkButtonStates();
+    
+    function checkButtonStates() {
+        var hasItems = {{ $items->count() > 0 ? 'true' : 'false' }};
+        var isCompleted = '{{ $stokOpname->status }}' === 'selesai';
+        
+        // Update button states based on current conditions
+        if (isCompleted) {
+            $('#generateItemsBtn').prop('disabled', true);
+            $('#updateStockBtn').prop('disabled', true);
+        } else if (hasItems) {
+            $('#updateStockBtn').prop('disabled', false);
+        }
+    }
     $('#syncTotalsBtn').click(function() {
         var btn = $(this);
         btn.prop('disabled', true);
@@ -180,6 +213,16 @@ $(function () {
         columns: [
             {data: 'obat_id', name: 'obat_id'},
             {data: 'nama_obat', name: 'nama_obat'},
+            {data: 'batch_name', name: 'batch_name', defaultContent: '-'},
+            {
+                data: 'expiration_date', 
+                name: 'expiration_date',
+                render: function(data, type, row) {
+                    if (!data) return '-';
+                    var date = new Date(data);
+                    return date.toLocaleDateString('id-ID');
+                }
+            },
             {data: 'stok_sistem', name: 'stok_sistem'},
                 {
                     data: 'stok_fisik',
@@ -227,9 +270,9 @@ $(function () {
                 success: function(res) {
                     input.removeClass('is-invalid').addClass('is-valid');
                     setTimeout(() => input.removeClass('is-valid'), 1000);
-                    // Update selisih cell in the same row
+                    // Update selisih cell in the same row (kolom ke-6: Obat ID, Nama, Batch, Exp, Stok Sistem, Stok Fisik, SELISIH)
                     var rowIdx = table.row(input.closest('tr')).index();
-                    var selisihCell = $(table.cell(rowIdx, 4).node());
+                    var selisihCell = $(table.cell(rowIdx, 6).node()); // Index 6 untuk kolom Selisih
                     var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
                     selisihCell.html(res.selisih + ' ' + icon);
                 },
@@ -367,6 +410,142 @@ $(function () {
             .always(function() {
                 btn.prop('disabled', false);
             });
+    });
+
+    // ========== MULTI-GUDANG STOCK OPNAME HANDLERS ==========
+    
+    // Generate stock opname items from current stock in gudang
+    $('#generateItemsBtn').click(function() {
+        Swal.fire({
+            title: 'Generate Items untuk Stok Opname?',
+            text: 'Ini akan mengambil semua stok aktif dari gudang {{ $stokOpname->gudang->nama ?? "ini" }} dan membuat items untuk stok opname.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Generate!',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (result.value) {
+                var btn = $('#generateItemsBtn');
+                btn.prop('disabled', true);
+                
+                Swal.fire({
+                    title: 'Generating items...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+                
+                $.post("{{ route('erm.stokopname.generateItems', $stokOpname->id) }}", {
+                    _token: '{{ csrf_token() }}'
+                })
+                .done(function(res) {
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Berhasil!',
+                            text: res.message,
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                        
+                        // Reload table and enable update stock button (only if not completed)
+                        table.ajax.reload();
+                        var isCompleted = '{{ $stokOpname->status }}' === 'selesai';
+                        if (!isCompleted) {
+                            $('#updateStockBtn').prop('disabled', false);
+                        }
+                        $('#syncTotalsBtn').click(); // Auto sync totals
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: res.message
+                        });
+                    }
+                })
+                .fail(function(xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error!',
+                        text: 'Failed to generate items: ' + (xhr.responseJSON?.message || 'Unknown error')
+                    });
+                })
+                .always(function() {
+                    btn.prop('disabled', false);
+                });
+            }
+        });
+    });
+    
+    // Update stock based on opname results using StokService
+    $('#updateStockBtn').click(function() {
+        Swal.fire({
+            title: 'Update Stock dari Hasil Opname?',
+            html: `
+                <p>Ini akan mengupdate stok fisik di gudang berdasarkan hasil stok opname menggunakan StokService:</p>
+                <ul style="text-align: left; margin: 10px 20px;">
+                    <li><strong>Surplus</strong> (stok fisik > sistem): Akan menambah stok</li>
+                    <li><strong>Shortage</strong> (stok fisik < sistem): Akan mengurangi stok</li>
+                    <li>Status akan diubah menjadi <strong>"selesai"</strong></li>
+                </ul>
+                <p><strong>Pastikan semua data stok fisik sudah benar!</strong></p>
+            `,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Update Stock!',
+            cancelButtonText: 'Batal',
+            confirmButtonColor: '#28a745',
+        }).then((result) => {
+            if (result.value) {
+                var btn = $('#updateStockBtn');
+                btn.prop('disabled', true);
+                
+                Swal.fire({
+                    title: 'Updating stock...',
+                    text: 'Sedang mengupdate stok berdasarkan hasil opname...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+                
+                $.post("{{ route('erm.stokopname.updateStockFromOpname', $stokOpname->id) }}", {
+                    _token: '{{ csrf_token() }}'
+                })
+                .done(function(res) {
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Stock Updated Successfully!',
+                            text: res.message,
+                            timer: 3000,
+                            showConfirmButton: false
+                        });
+                        
+                        // Update status display and disable buttons
+                        $('#status-text').text('SELESAI');
+                        $('#updateStockBtn').prop('disabled', true);
+                        $('#generateItemsBtn').prop('disabled', true);
+                        
+                        // Reload table
+                        table.ajax.reload();
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error!',
+                            text: res.message
+                        });
+                    }
+                })
+                .fail(function(xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error!',
+                        text: 'Failed to update stock: ' + (xhr.responseJSON?.message || 'Unknown error')
+                    });
+                })
+                .always(function() {
+                    btn.prop('disabled', false);
+                });
+            }
+        });
     });
 });
 </script>

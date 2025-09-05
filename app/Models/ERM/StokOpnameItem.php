@@ -12,6 +12,9 @@ class StokOpnameItem extends Model
     protected $fillable = [
         'stok_opname_id',
         'obat_id',
+        'batch_id', // Reference to ObatStokGudang
+        'batch_name',
+        'expiration_date',
         'stok_sistem',
         'stok_fisik',
         'selisih',
@@ -25,5 +28,10 @@ class StokOpnameItem extends Model
     public function obat()
     {
         return $this->belongsTo(Obat::class, 'obat_id');
+    }
+
+    public function obatStokGudang()
+    {
+        return $this->belongsTo(ObatStokGudang::class, 'batch_id');
     }
 }
