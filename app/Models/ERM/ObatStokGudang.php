@@ -31,8 +31,14 @@ class ObatStokGudang extends Model
         'max_stok' => 'decimal:2'
     ];
 
-    // Relasi ke Obat
+    // Relasi ke Obat (termasuk yang tidak aktif)
     public function obat()
+    {
+        return $this->belongsTo(Obat::class, 'obat_id')->withInactive();
+    }
+
+    // Relasi ke Obat (hanya yang aktif)
+    public function obatAktif()
     {
         return $this->belongsTo(Obat::class, 'obat_id');
     }

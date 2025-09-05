@@ -70,6 +70,18 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Additional Filter Row -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="hide_inactive_obat" checked>
+                                <label class="form-check-label" for="hide_inactive_obat">
+                                    <strong>Sembunyikan obat yang tidak aktif</strong>
+                                </label>
+                                <small class="form-text text-muted">Centang untuk hanya menampilkan obat yang aktif saja</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -134,6 +146,7 @@ $(document).ready(function() {
                 d.gudang_id = $('#filter_gudang').val();
                 d.search_obat = $('#search_obat').val();
                 d.filter_status = $('#filter_status').val();
+                d.hide_inactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
             }
         },
         columns: [
@@ -202,10 +215,16 @@ $(document).ready(function() {
         }
     });
 
+    // Reload table when checkbox filter changes
+    $('#hide_inactive_obat').change(function() {
+        table.ajax.reload();
+    });
+
     // Reset filter button
     $('#btn-reset-filter').click(function() {
         $('#search_obat').val('');
         $('#filter_status').val('');
+        $('#hide_inactive_obat').prop('checked', true); // Reset to default (checked)
         table.ajax.reload();
     });
 

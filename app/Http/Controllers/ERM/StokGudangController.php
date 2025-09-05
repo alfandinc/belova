@@ -22,7 +22,10 @@ class StokGudangController extends Controller
 
     public function getData(Request $request)
     {
-        $query = ObatStokGudang::with(['obat', 'gudang'])
+        // Determine which relation to use based on hide_inactive filter
+        $obatRelation = ($request->hide_inactive == 1) ? 'obatAktif' : 'obat';
+        
+        $query = ObatStokGudang::with([$obatRelation, 'gudang'])
             ->select(
                 'obat_id',
                 'gudang_id',
@@ -46,23 +49,75 @@ class StokGudangController extends Controller
         // Search obat by name or code
         if ($request->search_obat) {
             $searchTerm = $request->search_obat;
-            $query->whereHas('obat', function($q) use ($searchTerm) {
+            $query->whereHas('obat', function($q) use ($searchTerm, $request) {
+                if ($request->hide_inactive == 1) {
+                    // Default behavior - only show active obat
+                    $q->where('status_aktif', 1);
+                } else {
+                    // Include inactive obat
+                    $q->withInactive();
+                }
                 $q->where('nama', 'like', "%{$searchTerm}%")
                   ->orWhere('kode_obat', 'like', "%{$searchTerm}%");
             });
+        } else {
+            // Apply hide_inactive filter even when no search
+            if ($request->hide_inactive == 1) {
+                $query->whereHas('obat', function($q) {
+                    $q->where('status_aktif', 1);
+                });
+            }
         }
 
         return DataTables::of($query)
-            ->addColumn('nama_obat', function ($row) {
-                return $row->obat->nama ?? '-';
+            ->addColumn('nama_obat', function ($row) use ($request) {
+                // Use the appropriate relation based on filter
+                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
+                
+                if (!$obat) {
+                    if ($request->hide_inactive == 1) {
+                        return '<span class="text-muted">[Obat tidak aktif - disembunyikan]</span>';
+                    } else {
+                        return '<span class="text-danger">[Obat tidak ditemukan - ID: '.$row->obat_id.']</span>';
+                    }
+                }
+                
+                $nama = $obat->nama ?? '-';
+                
+                // Tambahkan badge untuk status obat (hanya jika menampilkan semua obat)
+                if ($request->hide_inactive != 1) {
+                    if ($obat->status_aktif == 0) {
+                        $nama .= ' <span class="badge badge-warning">Tidak Aktif</span>';
+                    } else {
+                        $nama .= ' <span class="badge badge-success">Aktif</span>';
+                    }
+                }
+                
+                return $nama;
             })
-            ->addColumn('kode_obat', function ($row) {
-                return $row->obat->kode_obat ?? '-';
+            ->addColumn('kode_obat', function ($row) use ($request) {
+                // Use the appropriate relation based on filter
+                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
+                
+                if (!$obat) {
+                    return '<span class="text-muted">-</span>';
+                }
+                
+                return $obat->kode_obat ?? '-';
             })
             ->addColumn('nama_gudang', function ($row) {
                 return $row->gudang->nama ?? '-';
             })
-            ->addColumn('actions', function ($row) {
+            ->addColumn('actions', function ($row) use ($request) {
+                // Use the appropriate relation based on filter
+                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
+                
+                if (!$obat) {
+                    return '<button class="btn btn-sm btn-secondary" disabled>
+                        <i class="fas fa-ban"></i> Obat tidak tersedia
+                    </button>';
+                }
+                
                 return '<button class="btn btn-sm btn-info show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'">
                     <i class="fas fa-list"></i> Detail Batch
                 </button>';
@@ -90,7 +145,7 @@ class StokGudangController extends Controller
             ->filterColumn('status_stok', function($query, $keyword) {
                 // Custom filter untuk status stok akan dihandle di client side
             })
-            ->rawColumns(['status_stok', 'actions'])
+            ->rawColumns(['nama_obat', 'kode_obat', 'status_stok', 'actions'])
             ->make(true);
     }
 
