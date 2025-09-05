@@ -97,13 +97,21 @@
                     <!-- Farmasi Section -->
                     @hasrole('Farmasi|Admin')
                         <li>
-                            <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat</span></a>
-                        </li>
-                        <li>
-                            <a href="/erm/pemasok"><i data-feather="truck" class="align-self-center menu-icon"></i><span>Master Pemasok</span></a>
-                        </li>
-                        <li>
-                            <a href="/erm/gudang"><i data-feather="archive" class="align-self-center menu-icon"></i><span>Master Gudang</span></a>
+                            <a href="javascript: void(0);"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Data</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                            <ul class="nav-second-level" aria-expanded="false">
+                                <li>
+                                    <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat</span></a>
+                                </li>
+                                <li>
+                                    <a href="/erm/pemasok"><i data-feather="truck" class="align-self-center menu-icon"></i><span>Master Pemasok</span></a>
+                                </li>
+                                <li>
+                                    <a href="/erm/gudang"><i data-feather="archive" class="align-self-center menu-icon"></i><span>Master Gudang</span></a>
+                                </li>
+                                <li>
+                                <a href="/erm/masterfaktur"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Master Pembelian</span></a>
+                            </li>
+                            </ul>
                         </li>
                     <li>
                         <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
@@ -119,9 +127,7 @@
                     <li>
                         <a href="javascript: void(0);"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Pembelian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li>
-                                <a href="/erm/masterfaktur"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Pembelian</span></a>
-                            </li>
+                            
                             <li>
                                 <a href="/erm/permintaan"><i data-feather="inbox" class="align-self-center menu-icon"></i><span>Permintaan Pembelian</span></a>
                             </li>
@@ -132,17 +138,17 @@
                     </li>
                     
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Obat</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <a href="javascript: void(0);"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Stok & Mutasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li>
+                            {{-- <li>
                                 <a href="/erm/obat-masuk"><i data-feather="log-in" class="align-self-center menu-icon"></i><span>Obat Masuk</span></a>
-                            </li>
+                            </li> --}}
                             {{-- <li>
                                 <a href="/erm/fakturpembelian/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span> Add Faktur Pembelian</span></a>
                             </li> --}}
-                            <li>
+                            {{-- <li>
                                 <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Obat Keluar</span></a>
-                            </li>
+                            </li> --}}
 
                             <li>
                                 <a href="/erm/kartu-stok"><i data-feather="credit-card" class="align-self-center menu-icon"></i><span>Kartu Stok</span></a>
@@ -156,6 +162,9 @@
                             <li>
                                 <a href="/erm/gudang-mapping"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Mapping Gudang</span></a>
                             </li>
+                            <li>
+                                <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
+                            </li>
                         </ul>
                     </li>
                                              
@@ -168,9 +177,9 @@
                             {{-- <li>
                                 <a href="/erm/obat/create"><i data-feather="plus-square" class="align-self-center menu-icon"></i><span>Add Obat</span></a>
                             </li> --}}
-                            <li>
+                            {{-- <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
-                            </li>
+                            </li> --}}
                   
                     @endhasrole
 
