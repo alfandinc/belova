@@ -9,6 +9,7 @@ use App\Models\ERM\Obat;
 use App\Models\ERM\Gudang;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class StokGudangController extends Controller
@@ -161,9 +162,12 @@ class StokGudangController extends Controller
 
         $details = $stokGudang->map(function ($item) {
             return [
+                'id' => $item->id,
                 'batch' => $item->batch,
-                'stok' => number_format($item->stok, 0),
+                'stok' => $item->stok, // Raw value for editing
+                'stok_display' => number_format($item->stok, 0), // Formatted for display
                 'expiration_date' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('d-m-Y') : '-',
+                'expiration_date_raw' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('Y-m-d') : '',
                 'status' => $this->getExpirationStatus($item->expiration_date)
             ];
         });
@@ -195,5 +199,62 @@ class StokGudangController extends Controller
         }
         
         return '<span class="badge badge-success">Aman</span>';
+    }
+
+    public function updateBatchStok(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|exists:erm_obat_stok_gudang,id',
+            'stok' => 'required|numeric|min:0'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $stokGudang = ObatStokGudang::findOrFail($request->id);
+            $stokLama = $stokGudang->stok;
+            $stokBaru = $request->stok;
+            
+            // Update stok
+            $stokGudang->update(['stok' => $stokBaru]);
+            
+            // Log perubahan ke kartu stok
+            $selisih = $stokBaru - $stokLama;
+            $keterangan = "Edit stok batch {$stokGudang->batch}: {$stokLama} → {$stokBaru}";
+            
+            if ($selisih != 0) {
+                \App\Models\ERM\KartuStok::create([
+                    'obat_id' => $stokGudang->obat_id,
+                    'gudang_id' => $stokGudang->gudang_id,
+                    'tanggal' => now(),
+                    'tipe' => $selisih > 0 ? 'masuk' : 'keluar', // Sesuaikan enum
+                    'qty' => abs($selisih),
+                    'stok_setelah' => $stokBaru,
+                    'keterangan' => $keterangan,
+                    'batch' => $stokGudang->batch,
+                    'ref_type' => 'manual_edit',
+                    'ref_id' => $stokGudang->id
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Stok batch berhasil diupdate',
+                'data' => [
+                    'stok_lama' => $stokLama,
+                    'stok_baru' => $stokBaru,
+                    'selisih' => $selisih
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal update stok batch: ' . $e->getMessage()
+            ], 422);
+        }
     }
 }

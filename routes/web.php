@@ -189,6 +189,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::get('/', [StokGudangController::class, 'index'])->name('erm.stok-gudang.index');
         Route::get('/data', [StokGudangController::class, 'getData'])->name('erm.stok-gudang.data');
         Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
+        Route::post('/update-batch-stok', [StokGudangController::class, 'updateBatchStok'])->name('erm.stok-gudang.update-batch-stok');
     });
     
     // Mutasi Gudang Routes

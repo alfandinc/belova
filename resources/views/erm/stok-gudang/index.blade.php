@@ -108,7 +108,7 @@
 
 <!-- Modal for Batch Details -->
 <div class="modal fade" id="batchDetailsModal" tabindex="-1" role="dialog" aria-labelledby="batchDetailsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="batchDetailsTitle">Detail Batch</h5>
@@ -122,6 +122,9 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="btn-save-batch-changes" style="display: none;">
+                    <i class="fas fa-save"></i> Simpan Perubahan
+                </button>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
@@ -242,24 +245,176 @@ $(document).ready(function() {
             },
             success: function(response) {
                 $('#batchDetailsTitle').text('Detail Batch - ' + response.obat + ' (' + response.gudang + ')');
-                var tableHtml = '<table class="table table-bordered">';
-                tableHtml += '<thead><tr><th>Batch</th><th>Stok</th><th>Tanggal Expired</th><th>Status</th></tr></thead><tbody>';
                 
-                response.data.forEach(function(item) {
-                    tableHtml += '<tr>';
+                var tableHtml = '<div class="table-responsive">';
+                tableHtml += '<table class="table table-bordered" id="batch-table">';
+                tableHtml += '<thead>';
+                tableHtml += '<tr>';
+                tableHtml += '<th width="20%">Batch</th>';
+                tableHtml += '<th width="20%">Stok</th>';
+                tableHtml += '<th width="20%">Tanggal Expired</th>';
+                tableHtml += '<th width="20%">Status</th>';
+                tableHtml += '<th width="20%">Aksi</th>';
+                tableHtml += '</tr>';
+                tableHtml += '</thead>';
+                tableHtml += '<tbody>';
+                
+                response.data.forEach(function(item, index) {
+                    tableHtml += '<tr data-id="' + item.id + '">';
                     tableHtml += '<td>' + item.batch + '</td>';
-                    tableHtml += '<td>' + item.stok + '</td>';
+                    tableHtml += '<td>';
+                    tableHtml += '<span class="stok-display">' + item.stok_display + '</span>';
+                    tableHtml += '<input type="number" class="form-control stok-input" value="' + item.stok + '" style="display:none;" step="0.01" min="0">';
+                    tableHtml += '</td>';
                     tableHtml += '<td>' + item.expiration_date + '</td>';
                     tableHtml += '<td>' + item.status + '</td>';
+                    tableHtml += '<td>';
+                    tableHtml += '<button class="btn btn-sm btn-primary btn-edit-stok" data-id="' + item.id + '">';
+                    tableHtml += '<i class="fas fa-edit"></i> Edit';
+                    tableHtml += '</button>';
+                    tableHtml += '<button class="btn btn-sm btn-success btn-save-stok" data-id="' + item.id + '" style="display:none;">';
+                    tableHtml += '<i class="fas fa-check"></i> Simpan';
+                    tableHtml += '</button>';
+                    tableHtml += '<button class="btn btn-sm btn-secondary btn-cancel-stok" data-id="' + item.id + '" style="display:none; margin-left: 5px;">';
+                    tableHtml += '<i class="fas fa-times"></i> Batal';
+                    tableHtml += '</button>';
+                    tableHtml += '</td>';
                     tableHtml += '</tr>';
                 });
                 
-                tableHtml += '</tbody></table>';
+                tableHtml += '</tbody></table></div>';
+                tableHtml += '<div class="alert alert-info">';
+                tableHtml += '<i class="fas fa-info-circle"></i> Klik tombol "Edit" untuk mengubah stok batch. Perubahan akan dicatat di kartu stok.';
+                tableHtml += '</div>';
+                
                 $('#batchDetailsContent').html(tableHtml);
+                $('#btn-save-batch-changes').hide();
                 $('#batchDetailsModal').modal('show');
             },
             error: function() {
                 alert('Terjadi kesalahan saat mengambil data batch');
+            }
+        });
+    });
+
+    // Handle edit stok button
+    $(document).on('click', '.btn-edit-stok', function() {
+        var row = $(this).closest('tr');
+        var stokDisplay = row.find('.stok-display');
+        var stokInput = row.find('.stok-input');
+        var btnEdit = row.find('.btn-edit-stok');
+        var btnSave = row.find('.btn-save-stok');
+        var btnCancel = row.find('.btn-cancel-stok');
+        
+        // Store original value for cancel
+        stokInput.data('original-value', stokInput.val());
+        
+        // Switch to edit mode
+        stokDisplay.hide();
+        stokInput.show().focus();
+        btnEdit.hide();
+        btnSave.show();
+        btnCancel.show();
+        
+        $('#btn-save-batch-changes').show();
+    });
+
+    // Handle cancel edit
+    $(document).on('click', '.btn-cancel-stok', function() {
+        var row = $(this).closest('tr');
+        var stokDisplay = row.find('.stok-display');
+        var stokInput = row.find('.stok-input');
+        var btnEdit = row.find('.btn-edit-stok');
+        var btnSave = row.find('.btn-save-stok');
+        var btnCancel = row.find('.btn-cancel-stok');
+        
+        // Restore original value
+        stokInput.val(stokInput.data('original-value'));
+        
+        // Switch back to display mode
+        stokDisplay.show();
+        stokInput.hide();
+        btnEdit.show();
+        btnSave.hide();
+        btnCancel.hide();
+        
+        // Hide save button if no more edits
+        if ($('.btn-save-stok:visible').length === 0) {
+            $('#btn-save-batch-changes').hide();
+        }
+    });
+
+    // Handle save individual stok
+    $(document).on('click', '.btn-save-stok', function() {
+        var button = $(this);
+        var row = button.closest('tr');
+        var id = button.data('id');
+        var stokBaru = row.find('.stok-input').val();
+        
+        if (stokBaru < 0) {
+            alert('Stok tidak boleh negatif');
+            return;
+        }
+        
+        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
+        
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.update-batch-stok") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                id: id,
+                stok: stokBaru
+            },
+            success: function(response) {
+                if (response.success) {
+                    var stokDisplay = row.find('.stok-display');
+                    var stokInput = row.find('.stok-input');
+                    var btnEdit = row.find('.btn-edit-stok');
+                    var btnSave = row.find('.btn-save-stok');
+                    var btnCancel = row.find('.btn-cancel-stok');
+                    
+                    // Update display
+                    var stokFormatted = parseFloat(stokBaru).toLocaleString('id-ID');
+                    stokDisplay.text(stokFormatted);
+                    
+                    // Switch back to display mode
+                    stokDisplay.show();
+                    stokInput.hide();
+                    btnEdit.show();
+                    btnSave.hide();
+                    btnCancel.hide();
+                    
+                    // Show success message
+                    var alertHtml = '<div class="alert alert-success alert-dismissible fade show" role="alert">';
+                    alertHtml += '<i class="fas fa-check-circle"></i> ' + response.message;
+                    alertHtml += '<button type="button" class="close" data-dismiss="alert" aria-label="Close">';
+                    alertHtml += '<span aria-hidden="true">&times;</span>';
+                    alertHtml += '</button>';
+                    alertHtml += '</div>';
+                    $('#batchDetailsContent').prepend(alertHtml);
+                    
+                    // Auto remove alert after 3 seconds
+                    setTimeout(function() {
+                        $('.alert-success').fadeOut();
+                    }, 3000);
+                    
+                    // Reload main table
+                    table.ajax.reload(null, false);
+                    
+                    // Hide save button if no more edits
+                    if ($('.btn-save-stok:visible').length === 0) {
+                        $('#btn-save-batch-changes').hide();
+                    }
+                } else {
+                    alert('Gagal menyimpan: ' + response.message);
+                }
+            },
+            error: function() {
+                alert('Terjadi kesalahan saat menyimpan');
+            },
+            complete: function() {
+                button.prop('disabled', false).html('<i class="fas fa-check"></i> Simpan');
             }
         });
     });
