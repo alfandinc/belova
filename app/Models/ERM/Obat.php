@@ -11,7 +11,30 @@ class Obat extends Model
 {
     use HasFactory;
 
+    /**
+     * Mendapatkan total stok obat di gudang tertentu
+     * @param int $gudangId
+     * @return float
+     */
+    public function getStokByGudang($gudangId)
+    {
+        return $this->stokGudang()->where('gudang_id', $gudangId)->sum('stok');
+    }
+    use HasFactory;
+
     protected $table = 'erm_obat';
+
+    // Relasi ke stok per gudang
+    public function stokGudang()
+    {
+        return $this->hasMany(ObatStokGudang::class, 'obat_id');
+    }
+
+    // Mendapatkan total stok dari semua gudang
+    public function getTotalStokAttribute()
+    {
+        return $this->stokGudang()->sum('stok');
+    }
 
     protected $fillable = [
         'nama',
@@ -70,4 +93,33 @@ class Obat extends Model
         {
             return $this->belongsToMany(Tindakan::class, 'erm_tindakan_obat', 'obat_id', 'tindakan_id');
         }
+
+    /**
+     * Recalculate weighted average HPP from all stock in all gudangs
+     * hpp = True cost (include diskon)
+     * hpp_jual = Base cost (exclude diskon)
+     */
+    public function recalculateHPP()
+    {
+        $totalValueHpp = 0;      // Total value untuk hpp (dengan diskon)
+        $totalValueHppJual = 0;  // Total value untuk hpp_jual (tanpa diskon)
+        $totalStock = 0;
+        
+        // Calculate weighted average dari semua batch di semua gudang
+        foreach($this->stokGudang as $stokGudang) {
+            $stock = $stokGudang->stok ?? 0;
+            $hargaBeli = $stokGudang->harga_beli ?? 0;
+            $hargaBeliJual = $stokGudang->harga_beli_jual ?? $hargaBeli; // Fallback ke harga_beli jika tidak ada
+            
+            $totalValueHpp += ($stock * $hargaBeli);
+            $totalValueHppJual += ($stock * $hargaBeliJual);
+            $totalStock += $stock;
+        }
+        
+        if ($totalStock > 0) {
+            $this->hpp = $totalValueHpp / $totalStock;
+            $this->hpp_jual = $totalValueHppJual / $totalStock;
+            $this->save();
+        }
+    }
 }

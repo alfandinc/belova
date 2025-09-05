@@ -20,6 +20,29 @@
             payment_method: @json($invoice->payment_method ?? ''),
             change_amount: @json($invoice->change_amount ?? '')
         };
+        
+        // Global variables for gudang data
+        window.gudangData = {
+            gudangs: [],
+            mappings: {},
+            loaded: false
+        };
+        
+        // Load gudang data on page load
+        function loadGudangData() {
+            return $.ajax({
+                url: '{{ route('finance.billing.gudang-data') }}',
+                type: 'GET',
+                success: function(response) {
+                    window.gudangData.gudangs = response.gudangs || [];
+                    window.gudangData.mappings = response.mappings || {};
+                    window.gudangData.loaded = true;
+                },
+                error: function(xhr, status, error) {
+                    console.error('Failed to load gudang data:', error);
+                }
+            });
+        }
     </script>
     <div class="row mb-4">
         <div class="col">
@@ -106,12 +129,13 @@
                             <thead class="thead-light">
                                 <tr>
                                     <th style="width: 5%">No.</th>
-                                    <th style="width: 20%">Nama Item</th>
-                                    <th style="width: 20%">Rincian Item</th>
-                                    <th style="width: 10%">Harga</th>
+                                    <th style="width: 18%">Nama Item</th>
+                                    <th style="width: 18%">Rincian Item</th>
+                                    <th style="width: 8%">Harga</th>
                                     <th style="width: 5%">Qty</th>
-                                    <th style="width: 10%">Diskon</th>
-                                    <th style="width: 10%">Total</th>
+                                    <th style="width: 12%">Gudang</th>
+                                    <th style="width: 8%">Diskon</th>
+                                    <th style="width: 8%">Total</th>
                                     <th style="width: 10%">Aksi</th>
                                 </tr>
                             </thead>
@@ -247,9 +271,45 @@
             if (window.oldInvoice.change_amount !== '') $('#change_amount').text('Rp ' + formatCurrency(window.oldInvoice.change_amount));
         }
         $('.select2').select2({ width: '100%' });
+        
+        // Load gudang data first
+        loadGudangData();
+        
         // Store all billing data (with changes) here
         let billingData = [];
         let deletedItems = [];
+        
+        // Helper function to get default gudang for an item
+        function getDefaultGudangForItem(item) {
+            // Determine transaction type based on item
+            let transactionType = 'tindakan'; // default
+            
+            // Check if this is an obat/resep item
+            if (item.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || 
+                item.billable_type === 'App\\Models\\ERM\\Racikan' ||
+                (item.deskripsi && item.deskripsi.toLowerCase().includes('obat')) ||
+                (item.nama_item && item.nama_item.toLowerCase().includes('obat'))) {
+                transactionType = 'resep';
+            }
+            
+            return window.gudangData.mappings[transactionType] || 
+                   (window.gudangData.gudangs.length ? window.gudangData.gudangs[0].id : null);
+        }
+        
+        // Function to collect gudang selections for invoice creation
+        function collectGudangSelections() {
+            const selections = {};
+            
+            $('.gudang-selector').each(function() {
+                const itemId = $(this).data('item-id');
+                const gudangId = $(this).val();
+                if (itemId && gudangId) {
+                    selections[itemId] = gudangId;
+                }
+            });
+            
+            return selections;
+        }
         
         // Initialize DataTable
         const table = $('#billingTable').DataTable({
@@ -343,12 +403,49 @@
                         return meta.row + meta.settings._iDisplayStart + 1;
                     }
                 },
-                { data: 'nama_item', name: 'nama_item', width: "20%" },
-                { data: 'deskripsi', name: 'deskripsi', width: "20%" },
-                { data: 'jumlah', name: 'jumlah', width: "10%" },
+                { data: 'nama_item', name: 'nama_item', width: "18%" },
+                { data: 'deskripsi', name: 'deskripsi', width: "18%" },
+                { data: 'jumlah', name: 'jumlah', width: "8%" },
                 { data: 'qty', name: 'qty', width: "5%" },
-                { data: 'diskon', name: 'diskon', width: "10%" },
-                { data: 'harga_akhir', name: 'harga_akhir', width: "10%",
+                { 
+                    data: null,
+                    orderable: false,
+                    searchable: false,
+                    width: "12%",
+                    render: function(data, type, row, meta) {
+                        // Only show gudang dropdown for obat items (not tindakan)
+                        const isObatItem = row.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || 
+                                         row.billable_type === 'App\\Models\\ERM\\Racikan' ||
+                                         (row.deskripsi && row.deskripsi.toLowerCase().includes('obat')) ||
+                                         (row.nama_item && row.nama_item.toLowerCase().includes('obat'));
+                        
+                        if (!isObatItem) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        
+                        if (!window.gudangData.loaded || !window.gudangData.gudangs.length) {
+                            return '<span class="text-muted">Loading...</span>';
+                        }
+                        
+                        // Get default gudang for this item type
+                        const defaultGudangId = getDefaultGudangForItem(row);
+                        const selectedGudangId = row.selected_gudang_id || defaultGudangId;
+                        
+                        let selectHtml = `<select class="form-control form-control-sm gudang-selector" 
+                                               data-row-index="${meta.row}" 
+                                               data-item-id="${row.id}">`;
+                        
+                        window.gudangData.gudangs.forEach(function(gudang) {
+                            const selected = gudang.id == selectedGudangId ? 'selected' : '';
+                            selectHtml += `<option value="${gudang.id}" ${selected}>${gudang.nama}</option>`;
+                        });
+                        
+                        selectHtml += '</select>';
+                        return selectHtml;
+                    }
+                },
+                { data: 'diskon', name: 'diskon', width: "8%" },
+                { data: 'harga_akhir', name: 'harga_akhir', width: "8%",
                   render: function(data, type, row) {
                       // Always calculate as harga (unit price) * qty
                       // Use jumlah_raw as the true unit price, and qty
@@ -397,13 +494,14 @@
             ],
             columnDefs: [
                 { width: "5%", targets: 0 },
-                { width: "20%", targets: 1 },
-                { width: "20%", targets: 2 },
-                { width: "10%", targets: 3, className: 'text-right' }, // Right-align price column
+                { width: "18%", targets: 1 },
+                { width: "18%", targets: 2 },
+                { width: "8%", targets: 3, className: 'text-right' }, // Right-align price column
                 { width: "5%", targets: 4 },
-                { width: "10%", targets: 5, className: 'text-right' }, // Right-align discount column
-                { width: "10%", targets: 6, className: 'text-right' }, // Right-align total column
-                { width: "10%", targets: 7 }
+                { width: "12%", targets: 5 }, // Gudang column
+                { width: "8%", targets: 6, className: 'text-right' }, // Right-align discount column
+                { width: "8%", targets: 7, className: 'text-right' }, // Right-align total column
+                { width: "10%", targets: 8 }
             ],
             language: {
                 emptyTable: "Tidak ada item billing untuk kunjungan ini",
@@ -428,6 +526,40 @@
         $(window).resize(function() {
             table.columns.adjust();
         });
+        
+        // Event handler for gudang selector changes
+        $(document).on('change', '.gudang-selector', function() {
+            const itemId = $(this).data('item-id');
+            const selectedGudangId = $(this).val();
+            const rowIndex = $(this).data('row-index');
+            
+            // Update the billingData with selected gudang
+            if (billingData[rowIndex]) {
+                billingData[rowIndex].selected_gudang_id = selectedGudangId;
+            }
+            
+            console.log('Gudang selection updated for item', itemId, 'to gudang', selectedGudangId);
+        });
+        
+        // Refresh table when gudang data is loaded
+        function refreshTableAfterGudangLoad() {
+            if (window.gudangData.loaded) {
+                table.ajax.reload(null, false); // Don't reset paging
+            }
+        }
+        
+        // Check if gudang data is loaded, if not wait for it
+        if (window.gudangData.loaded) {
+            refreshTableAfterGudangLoad();
+        } else {
+            // Poll until loaded
+            const checkInterval = setInterval(function() {
+                if (window.gudangData.loaded) {
+                    clearInterval(checkInterval);
+                    refreshTableAfterGudangLoad();
+                }
+            }, 100);
+        }
         
         // Fix: Directly attach event handlers using document delegation
         $(document).on('click', '.edit-btn', function() {
@@ -923,7 +1055,8 @@ $('#saveAllChangesBtn').on('click', function() {
                                     _token: "{{ csrf_token() }}",
                                     visitation_id: correctVisitationId,
                                     items: items,
-                                    totals: window.billingTotals
+                                    totals: window.billingTotals,
+                                    gudang_selections: collectGudangSelections()
                                 },
                                 success: function(invoiceResponse) {
                                     Swal.fire({

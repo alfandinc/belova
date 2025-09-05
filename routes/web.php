@@ -11,6 +11,7 @@ use App\Http\Controllers\{
     AkreditasiDashboardController,
     CustSurveyController
 };
+use App\Http\Controllers\ERM\StokGudangController;
 use App\Http\Controllers\Admin\{
     UserController,
     RoleController
@@ -44,7 +45,8 @@ use App\Http\Controllers\ERM\{
     SuratMondokController,
     ResepCatatanController,
     NotificationController,
-    ObatKeluarController
+    ObatKeluarController,
+    MutasiGudangController
 };
 
 use App\Http\Controllers\HRD\{
@@ -180,6 +182,33 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat/total-nilai-stok', [App\Http\Controllers\ERM\ObatController::class, 'totalNilaiStok'])->name('erm.obat.total-nilai-stok');
     // AJAX: Get allow_post value for InformConsent
     Route::get('/inform-consent/{id}/get', [App\Http\Controllers\ERM\TindakanController::class, 'getInformConsentAllowPost']);
+    
+    // Warehouse Stock Management
+    Route::prefix('stok-gudang')->group(function () {
+        Route::get('/', [StokGudangController::class, 'index'])->name('erm.stok-gudang.index');
+        Route::get('/data', [StokGudangController::class, 'getData'])->name('erm.stok-gudang.data');
+        Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
+    });
+    
+    // Mutasi Gudang Routes
+    Route::prefix('mutasi-gudang')->group(function () {
+    Route::get('/', [MutasiGudangController::class, 'index'])->name('erm.mutasi-gudang.index');
+    Route::get('/data', [MutasiGudangController::class, 'data'])->name('erm.mutasi-gudang.data');
+    Route::post('/', [MutasiGudangController::class, 'store'])->name('erm.mutasi-gudang.store');
+    // Route baru: get data obat sesuai stok di gudang asal
+    Route::get('/obat', [MutasiGudangController::class, 'getObatGudang'])->name('erm.mutasi-gudang.obat');
+    
+    // Migration routes - untuk migrasi stok dari field stok obat ke gudang (HARUS SEBELUM {id})
+    Route::get('/migration-preview', [MutasiGudangController::class, 'getMigrationPreview'])->name('erm.mutasi-gudang.migration-preview');
+    Route::post('/migrate-stok', [MutasiGudangController::class, 'migrateStokToGudang'])->name('erm.mutasi-gudang.migrate-stok');
+    Route::post('/cleanup-field-stok', [MutasiGudangController::class, 'cleanupFieldStok'])->name('erm.mutasi-gudang.cleanup-field-stok');
+    
+    // Route dengan parameter {id} HARUS DI AKHIR
+    Route::get('/{id}', [MutasiGudangController::class, 'show'])->name('erm.mutasi-gudang.show');
+    Route::post('/{id}/approve', [MutasiGudangController::class, 'approve'])->name('erm.mutasi-gudang.approve');
+    Route::post('/{id}/reject', [MutasiGudangController::class, 'reject'])->name('erm.mutasi-gudang.reject');
+    });
+
     // Fill stok to 100 for all Obat with stok 0
     Route::post('/obat/fill-stok', [App\Http\Controllers\ERM\ObatController::class, 'fillStok'])->name('erm.obat.fill-stok');
     Route::get('/obat-masuk/detail', [App\Http\Controllers\ERM\ObatMasukController::class, 'detail'])->name('erm.obatmasuk.detail');
@@ -204,6 +233,15 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::get('/kartu-stok', [App\Http\Controllers\ERM\KartuStokController::class, 'index'])->name('erm.kartustok.index');
         Route::get('/kartu-stok/data', [App\Http\Controllers\ERM\KartuStokController::class, 'data'])->name('erm.kartustok.data');
         Route::get('/kartu-stok/detail', [App\Http\Controllers\ERM\KartuStokController::class, 'detail'])->name('erm.kartustok.detail');
+
+        // Gudang Mapping Management
+        Route::get('/gudang-mapping', [App\Http\Controllers\ERM\GudangMappingController::class, 'index'])->name('erm.gudang-mapping.index');
+        Route::post('/gudang-mapping', [App\Http\Controllers\ERM\GudangMappingController::class, 'store'])->name('erm.gudang-mapping.store');
+        Route::get('/gudang-mapping/{id}', [App\Http\Controllers\ERM\GudangMappingController::class, 'show'])->name('erm.gudang-mapping.show');
+        Route::put('/gudang-mapping/{id}', [App\Http\Controllers\ERM\GudangMappingController::class, 'update'])->name('erm.gudang-mapping.update');
+        Route::delete('/gudang-mapping/{id}', [App\Http\Controllers\ERM\GudangMappingController::class, 'destroy'])->name('erm.gudang-mapping.destroy');
+        Route::get('/gudang-mapping-active', [App\Http\Controllers\ERM\GudangMappingController::class, 'getActiveMappings'])->name('erm.gudang-mapping.active');
+        Route::get('/gudang-mapping-default/{transactionType}', [App\Http\Controllers\ERM\GudangMappingController::class, 'getDefaultGudang'])->name('erm.gudang-mapping.default');
     // Pasien Management
     // Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
     Route::get('/pasiens/create', [PasienController::class, 'create'])->name('erm.pasiens.create');
@@ -547,6 +585,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin')->group(function () {
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
         Route::get('/billing/filters', [BillingController::class, 'filters'])->name('finance.billing.filters');
+        Route::get('/billing/gudang-data', [BillingController::class, 'getGudangData'])->name('finance.billing.gudang-data');
 
         // Invoice routes
         // Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('billing.createInvoice');

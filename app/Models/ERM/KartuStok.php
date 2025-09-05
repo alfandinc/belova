@@ -9,16 +9,24 @@ class KartuStok extends Model
 
     protected $fillable = [
         'obat_id',
+        'gudang_id',
         'tanggal',
         'tipe',
         'qty',
         'stok_setelah',
         'ref_type',
         'ref_id',
+        'batch',
+        'keterangan'
     ];
 
     public function obat()
     {
         return $this->belongsTo(Obat::class, 'obat_id');
+    }
+
+    public function gudang()
+    {
+        return $this->belongsTo(Gudang::class, 'gudang_id');
     }
 }

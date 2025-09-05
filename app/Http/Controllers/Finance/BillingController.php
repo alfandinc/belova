@@ -12,6 +12,9 @@ use App\Models\Finance\InvoiceItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use App\Models\ERM\Gudang;
+use App\Models\ERM\GudangMapping;
+use App\Services\ERM\StokService;
 
 
 class BillingController extends Controller
@@ -452,7 +455,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     $visitation = Visitation::with('pasien')->findOrFail($visitation_id);
     // Fetch latest invoice for this visitation (if exists)
     $invoice = \App\Models\Finance\Invoice::where('visitation_id', $visitation_id)->latest()->first();
-    return view('finance.billing.create', compact('visitation', 'invoice'));
+    
+    // Get all available gudangs for dropdown
+    $gudangs = Gudang::orderBy('nama')->get();
+    
+    // Get active gudang mappings for auto-selection
+    $gudangMappings = [
+        'resep' => GudangMapping::getDefaultGudangId('resep'),
+        'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
+    ];
+    
+    return view('finance.billing.create', compact('visitation', 'invoice', 'gudangs', 'gudangMappings'));
 }
 
     public function createInvoice(Request $request)
@@ -460,13 +473,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
             'totals' => 'required|array',
+            'gudang_selections' => 'nullable|array', // Array of item_key => gudang_id
         ]);
 
-        // Start a transaction
         DB::beginTransaction();
 
         try {
-            // Double-check the visitation exists
+            // Check if visitation exists
             $visitation = Visitation::find($request->visitation_id);
             if (!$visitation) {
                 return response()->json([
@@ -474,6 +487,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'message' => 'Visitation not found with ID: ' . $request->visitation_id
                 ], 404);
             }
+
+            // Get existing invoice if it exists
+            $existingInvoice = Invoice::where('visitation_id', $request->visitation_id)->first();
 
             // Fetch all billing items for this visitation
             $billingItems = Billing::where('visitation_id', $request->visitation_id)->get();
@@ -526,13 +542,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $changeAmount = $totals['changeAmount'] ?? 0;
             $paymentMethod = $totals['paymentMethod'] ?? 'cash';
 
-            // Get existing invoice if it exists
-            $existingInvoice = Invoice::where('visitation_id', $request->visitation_id)->first();
-            $isUpdate = $existingInvoice !== null;
-
-            if ($isUpdate) {
-                // Update existing invoice
-                $existingInvoice->update([
+            // Use updateOrCreate untuk invoice
+            $invoice = Invoice::updateOrCreate(
+                ['visitation_id' => $request->visitation_id],
+                [
+                    'invoice_number' => $existingInvoice ? $existingInvoice->invoice_number : Invoice::generateInvoiceNumber(),
                     'subtotal' => $subtotal,
                     'discount' => $discountAmount,
                     'tax' => $taxAmount,
@@ -547,65 +561,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'user_id' => Auth::id(),
                     'notes' => $request->notes ?? null,
                 ]);
-                $invoice = $existingInvoice;
-            } else {
-                // Create new invoice
-                $invoice = Invoice::create([
-                    'visitation_id' => $request->visitation_id,
-                    'invoice_number' => Invoice::generateInvoiceNumber(),
-                    'subtotal' => $subtotal,
-                    'discount' => $discountAmount,
-                    'tax' => $taxAmount,
-                    'discount_type' => $totals['discountType'] ?? null,
-                    'discount_value' => $totals['discountValue'] ?? 0,
-                    'tax_percentage' => $totals['taxPercentage'] ?? 0,
-                    'total_amount' => $grandTotal,
-                    'amount_paid' => $amountPaid,
-                    'change_amount' => $changeAmount,
-                    'payment_method' => $paymentMethod,
-                    'status' => 'issued',
-                    'user_id' => Auth::id(),
-                    'notes' => $request->notes ?? null,
-                ]);
-            }
 
-            // If updating, store old items for comparison and remove them
+            // Get old items for comparison if invoice exists
             $oldInvoiceItems = [];
-            if ($isUpdate) {
+            if ($existingInvoice) {
                 $oldInvoiceItems = $invoice->items()
                     ->get()
                     ->keyBy(function($item) {
                         return $item->billable_type . '-' . $item->billable_id;
                     });
                 $invoice->items()->delete();
-            } else {
-                // Create new invoice
-                $invoice = Invoice::create([
-                    'visitation_id' => $request->visitation_id,
-                    'invoice_number' => Invoice::generateInvoiceNumber(),
-                    'subtotal' => $subtotal,
-                    'discount' => $discountAmount,
-                    'tax' => $taxAmount,
-                    'discount_type' => $totals['discountType'] ?? null,
-                    'discount_value' => $totals['discountValue'] ?? 0,
-                    'tax_percentage' => $totals['taxPercentage'] ?? 0,
-                    'total_amount' => $grandTotal,
-                    'amount_paid' => $amountPaid,
-                    'change_amount' => $changeAmount,
-                    'payment_method' => $paymentMethod,
-                    'status' => 'issued',
-                    'user_id' => Auth::id(),
-                    'notes' => $request->notes ?? null,
-                ]);
             }
-
-            // Track processed racikan items to avoid double processing
-            $processedRacikanObats = [];
             
-            // Group racikan items first
+            // Initialize arrays for grouping items
             $racikanGroups = [];
             $regularItems = [];
             $pharmacyFeeItems = [];
+            $processedRacikanObats = [];
 
             foreach ($billingItems as $item) {
                 // Identify pharmacy fee items
@@ -643,7 +615,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $itemKey = $item->billable_type . '-' . $item->billable_id;
                 $newQty = intval($item->qty ?? 1);
 
-                if ($isUpdate) {
+                if ($existingInvoice) {
                     // For updates, only adjust the difference
                     $oldItem = $oldInvoiceItems[$itemKey] ?? null;
                     $oldQty = $oldItem ? intval($oldItem->quantity) : 0;
@@ -687,7 +659,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 
                                 Log::info('Stock adjustment', [
                                     'invoice_id' => $invoice->id,
-                                    'is_update' => $isUpdate,
+                                    'is_update' => (bool)$existingInvoice,
                                     'obat_id' => $obat->id,
                                     'old_stok' => $oldStok,
                                     'qty_diff' => $qtyDiff,
@@ -696,29 +668,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 
                                 // If stock is being reduced (positive diff), reduce faktur stock
                                 if ($qtyDiff > 0) {
-                                    // Reduce stock from faktur for positive diff only
-                                    $this->reduceFakturStock($obat->id, $qtyDiff);
+                                    // Get gudang selection from frontend or use default mapping
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    
+                                    // Reduce stock from selected gudang
+                                    $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId);
                                     // Record stock reduction in KartuStok
-                                    \App\Models\ERM\KartuStok::create([
-                                        'obat_id' => $obat->id,
-                                        'tanggal' => now(),
-                                        'tipe' => 'keluar',
-                                        'qty' => $qtyDiff,
-                                        'stok_setelah' => $newStok,
-                                        'ref_type' => 'invoice_update',
-                                        'ref_id' => $invoice->id,
-                                    ]);
+                                    $this->recordKartuStok($obat->id, 'keluar', $qtyDiff, $newStok, 'invoice_update', $invoice->id);
                                 } else if ($qtyDiff < 0) {
-                                    // Record stock return in KartuStok for negative diff
-                                    \App\Models\ERM\KartuStok::create([
-                                        'obat_id' => $obat->id,
-                                        'tanggal' => now(),
-                                        'tipe' => 'masuk',
-                                        'qty' => abs($qtyDiff),
-                                        'stok_setelah' => $newStok,
-                                        'ref_type' => 'invoice_update',
-                                        'ref_id' => $invoice->id,
-                                    ]);
+                                    // Get gudang selection for stock return
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    
+                                    // Return stock to selected gudang
+                                    $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId);
+                                    // Record stock return in KartuStok
+                                    $this->recordKartuStok($obat->id, 'masuk', abs($qtyDiff), $newStok, 'invoice_update', $invoice->id);
                                 }
                             Log::info('Stock reduced via invoice (ResepFarmasi)', [
                                 'obat_id' => $obat->id,
@@ -745,16 +709,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $newStok = max(0, $oldStok - $qty);
                             $obat->stok = $newStok;
                             $obat->save();
-                            $this->reduceFakturStock($obat->id, $qty);
-                            \App\Models\ERM\KartuStok::create([
-                                'obat_id' => $obat->id,
-                                'tanggal' => now(),
-                                'tipe' => 'keluar',
-                                'qty' => $qty,
-                                'stok_setelah' => $newStok,
-                                'ref_type' => 'invoice',
-                                'ref_id' => $invoice->id,
-                            ]);
+                            
+                            // Get gudang selection for bundled obat
+                            $gudangId = $this->getGudangForItem($request, $obat->id, 'tindakan');
+                            
+                            $this->reduceGudangStock($obat->id, $qty, $gudangId);
+                            $this->recordKartuStok($obat->id, 'keluar', $qty, $newStok, 'invoice', $invoice->id);
                             Log::info('Stock reduced via invoice (Bundled Obat)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,
@@ -870,7 +830,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $description = implode("\n", $formattedObatList);
                     
                     // Handle stock adjustments for racikan items only if quantity changed
-                    if ($qtyDiff != 0 && !$isUpdate) {
+                    if ($qtyDiff != 0) {
                         foreach ($racikanItems as $racikanItem) {
                             if (isset($racikanItem->billable) && $racikanItem->billable->obat) {
                                 $obat = $racikanItem->billable->obat;
@@ -882,7 +842,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     'old_stok' => $oldStok,
                                     'qty_diff' => $qtyDiff,
                                     'new_stok' => $newStok,
-                                    'is_update' => $isUpdate,
+                                    'is_update' => (bool)$existingInvoice,
                                     'invoice_id' => $invoice->id
                                 ]);
                                 
@@ -891,24 +851,25 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 $obat->save();
                                 
                                 // Reduce faktur stock if this is a new invoice
-                                if (!$isUpdate) {
-                                    $this->reduceFakturStock($obat->id, $qtyDiff);
+                                if (!$existingInvoice) {
+                                    // Get gudang selection for racikan obat
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId);
                                 }
                                 
-                                // Record in KartuStok
-                                \App\Models\ERM\KartuStok::create([
-                                    'obat_id' => $obat->id,
-                                    'tanggal' => now(),
-                                    'tipe' => $qtyDiff > 0 ? 'keluar' : 'masuk',
-                                    'qty' => abs($qtyDiff),
-                                    'stok_setelah' => $newStok,
-                                    'ref_type' => 'invoice_update_racikan',
-                                    'ref_id' => $invoice->id,
-                                ]);
+                                // Record in KartuStok via helper method
+                                $this->recordKartuStok(
+                                    $obat->id, 
+                                    $qtyDiff > 0 ? 'keluar' : 'masuk', 
+                                    abs($qtyDiff), 
+                                    $newStok, 
+                                    'invoice_update_racikan', 
+                                    $invoice->id
+                                );
                                 
                                 Log::info('Racikan stock adjustment', [
                                     'invoice_id' => $invoice->id,
-                                    'is_update' => $isUpdate,
+                                    'is_update' => (bool)$existingInvoice,
                                     'racikan_ke' => $racikanKey,
                                     'obat_id' => $obat->id,
                                     'old_stok' => $oldStok,
@@ -1280,38 +1241,192 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     }
 
     /**
-     * Reduce stock in faktur beli items using FIFO (First Expiry First Out)
+     * Get gudang mappings and available gudangs for billing
+     */
+    public function getGudangData()
+    {
+        $gudangs = Gudang::orderBy('nama')->get();
+        $gudangMappings = [
+            'resep' => GudangMapping::getDefaultGudangId('resep'),
+            'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
+        ];
+
+        return response()->json([
+            'gudangs' => $gudangs,
+            'mappings' => $gudangMappings,
+        ]);
+    }
+
+    /**
+     * Reduce stock using StokService with FIFO logic
+     */
+    private function reduceGudangStock($obatId, $qty, $gudangId = null)
+    {
+        // Default gudang ID jika tidak dispesifikasikan
+        if (!$gudangId) {
+            $defaultGudang = \App\Models\ERM\Gudang::first();
+            $gudangId = $defaultGudang ? $defaultGudang->id : null;
+        }
+
+        if (!$gudangId) {
+            Log::error("Tidak ada gudang yang tersedia untuk pengurangan stok obat ID: " . $obatId);
+            return false;
+        }
+
+        // Gunakan StokService untuk pengurangan stok dengan FIFO logic
+        $stokService = new StokService();
+
+        try {
+            // Ambil stok dari gudang berdasarkan FIFO (tanggal expired terlama)
+            $stokList = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)
+                ->where('gudang_id', $gudangId)
+                ->where('stok', '>', 0)
+                ->orderBy('expiration_date', 'asc')
+                ->get();
+
+            $remainingQty = $qty;
+
+            foreach ($stokList as $stok) {
+                if ($remainingQty <= 0) break;
+
+                $qtyToReduce = min($remainingQty, $stok->stok);
+                
+                // Kurangi stok menggunakan StokService
+                $stokService->kurangiStok($obatId, $gudangId, $qtyToReduce, $stok->batch);
+                
+                Log::info("Stok berkurang dari gudang", [
+                    'obat_id' => $obatId,
+                    'gudang_id' => $gudangId,
+                    'batch' => $stok->batch,
+                    'qty' => $qtyToReduce,
+                    'before_stock' => $stok->stok,
+                    'expiration_date' => $stok->expiration_date
+                ]);
+
+                $remainingQty -= $qtyToReduce;
+            }
+
+            if ($remainingQty > 0) {
+                Log::error("Stok tidak cukup untuk obat ID: " . $obatId . " di gudang ID: " . $gudangId . ". Kurang: " . $remainingQty);
+                return false;
+            }
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("Gagal mengurangi stok obat ID: " . $obatId . " dari gudang ID: " . $gudangId . ". Error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Legacy method kept for backwards compatibility
+     * Now delegates to reduceGudangStock
      */
     private function reduceFakturStock($obatId, $qty)
     {
-        $remaining = $qty;
-        $fakturItems = \App\Models\ERM\FakturBeliItem::where('obat_id', $obatId)
-            ->where('sisa', '>', 0)
-            ->whereNotNull('expiration_date')
-            ->orderBy('expiration_date', 'asc')
-            ->get();
-            
-        foreach ($fakturItems as $item) {
-            if ($remaining <= 0) break;
-            $take = min($item->sisa, $remaining);
-            $item->sisa -= $take;
-            $item->save();
-            $remaining -= $take;
-            
-            Log::info('Faktur stock reduced', [
-                'faktur_item_id' => $item->id,
-                'obat_id' => $obatId,
-                'qty_reduced' => $take,
-                'remaining_sisa' => $item->sisa,
-                'remaining_to_reduce' => $remaining
-            ]);
+        return $this->reduceGudangStock($obatId, $qty);
+    }
+
+    /**
+     * Get gudang ID for specific item based on frontend selection or mapping
+     */
+    private function getGudangForItem($request, $obatId, $transactionType)
+    {
+        // Check if frontend sent specific gudang selection for this item
+        $gudangSelections = $request->input('gudang_selections', []);
+        $itemKey = $transactionType . '_' . $obatId;
+        
+        if (isset($gudangSelections[$itemKey])) {
+            return $gudangSelections[$itemKey];
         }
         
-        if ($remaining > 0) {
-            Log::warning('Could not reduce all faktur stock', [
+        // Fallback to mapping default
+        $defaultGudangId = GudangMapping::getDefaultGudangId($transactionType);
+        
+        if ($defaultGudangId) {
+            return $defaultGudangId;
+        }
+        
+        // Last resort: use first available gudang
+        $defaultGudang = \App\Models\ERM\Gudang::first();
+        return $defaultGudang ? $defaultGudang->id : null;
+    }
+
+    /**
+     * Record stock changes in KartuStok with safe gudang handling
+     */
+    private function recordKartuStok($obatId, $tipe, $qty, $stokSetelah, $refType, $refId)
+    {
+        // Get default gudang safely
+        $defaultGudang = \App\Models\ERM\Gudang::first();
+        
+        if (!$defaultGudang) {
+            Log::error("Tidak ada gudang yang tersedia untuk pencatatan kartu stok obat ID: " . $obatId);
+            return false;
+        }
+        
+        try {
+            \App\Models\ERM\KartuStok::create([
                 'obat_id' => $obatId,
-                'remaining_unreduced' => $remaining
+                'gudang_id' => $defaultGudang->id,
+                'tanggal' => now(),
+                'tipe' => $tipe,
+                'qty' => $qty,
+                'stok_setelah' => $stokSetelah,
+                'ref_type' => $refType,
+                'ref_id' => $refId,
             ]);
+            return true;
+        } catch (\Exception $e) {
+            Log::error("Gagal mencatat kartu stok: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Return stock to gudang using StokService
+     */
+    private function returnToGudangStock($obatId, $qty, $gudangId = null)
+    {
+        if (!$gudangId) {
+            $defaultGudang = Gudang::first();
+            $gudangId = $defaultGudang ? $defaultGudang->id : null;
+        }
+
+        if (!$gudangId) {
+            Log::error("Tidak ada gudang yang tersedia untuk pengembalian stok obat ID: " . $obatId);
+            return false;
+        }
+
+        // Gunakan StokService untuk penambahan stok
+        $stokService = new StokService();
+
+        try {
+            // Get the most recent batch for return reference
+            $lastBatch = \App\Models\ERM\ObatStokGudang::where('obat_id', $obatId)
+                ->where('gudang_id', $gudangId)
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            $batchName = $lastBatch ? $lastBatch->batch : 'RETURN-' . date('YmdHis');
+            $expDate = $lastBatch ? $lastBatch->expiration_date : now()->addYears(1);
+
+            // Tambah stok menggunakan StokService
+            $stokService->tambahStok($obatId, $gudangId, $qty, $batchName, $expDate);
+
+            Log::info("Stok dikembalikan ke gudang menggunakan StokService", [
+                'obat_id' => $obatId,
+                'gudang_id' => $gudangId,
+                'batch' => $batchName,
+                'qty_returned' => $qty
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("Gagal mengembalikan stok obat ID: " . $obatId . " ke gudang ID: " . $gudangId . ". Error: " . $e->getMessage());
+            return false;
         }
     }
 }

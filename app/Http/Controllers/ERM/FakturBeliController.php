@@ -9,12 +9,20 @@ use App\Models\ERM\FakturBeliItem;
 use App\Models\ERM\Pemasok;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
+use App\Services\ERM\StokService;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class FakturBeliController extends Controller
 {
+    protected $stokService;
+
+    public function __construct(StokService $stokService)
+    {
+        $this->stokService = $stokService;
+    }
 
     public function index(Request $request)
     {
@@ -390,32 +398,41 @@ class FakturBeliController extends Controller
                     $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
                     $globalTaxPortion = $invoiceSubtotal > 0 ? ($itemSubtotal / $invoiceSubtotal) * ($faktur->global_pajak ?? 0) : 0;
                 }
+                
+                // Calculate HPP (include diskon) dan HPP Jual (exclude diskon)
                 $purchaseCost = $itemSubtotal + $globalTaxPortion; // HPP (dengan diskon)
                 $purchaseCostJual = $base + $taxValue + $globalTaxPortion; // HPP Jual (tanpa diskon)
+                
                 $obat = $item->obat;
                 $oldHpp = $obat->hpp ?? 0;
-                $oldStok = $obat->stok ?? 0;
-                $newStok = $oldStok + $qty;
-                $newHpp = ($oldHpp * $oldStok + $purchaseCost) / ($oldStok + $qty > 0 ? $oldStok + $qty : 1);
                 $oldHppJual = $obat->hpp_jual ?? 0;
-                $newHppJual = ($oldHppJual * $oldStok + $purchaseCostJual) / ($oldStok + $qty > 0 ? $oldStok + $qty : 1);
+                $oldStok = $obat->total_stok ?? 0; // Use total_stok attribute
+                
+                // Calculate new weighted average HPP
+                $newStok = $oldStok + $qty;
+                $newHpp = $newStok > 0 ? (($oldHpp * $oldStok) + $purchaseCost) / $newStok : 0;
+                $newHppJual = $newStok > 0 ? (($oldHppJual * $oldStok) + $purchaseCostJual) / $newStok : 0;
                 $debugInfo[] = [
                     'obat_id' => $item->obat_id,
                     'obat_nama' => $obat->nama ?? 'Unknown',
                     'qty' => $qty,
                     'harga' => $harga,
-                    'itemValue' => $itemSubtotal, // Sudah diskon dan pajak
-                    'itemTax' => $taxValue,
+                    'diskon_value' => $diskonValue,
+                    'tax_value' => $taxValue,
+                    'itemSubtotal' => $itemSubtotal, // Sudah include diskon dan pajak item
                     'globalTaxPortion' => $globalTaxPortion,
+                    'purchaseCost' => $purchaseCost, // HPP dengan diskon
+                    'purchaseCostJual' => $purchaseCostJual, // HPP tanpa diskon  
                     'oldHpp' => $oldHpp,
-                    'oldStok' => $oldStok,
-                    'purchaseCost' => $purchaseCost,
-                    'newStok' => $newStok,
-                    'newHpp' => $newHpp,
                     'oldHppJual' => $oldHppJual,
-                    'purchaseCostJual' => $purchaseCostJual,
-                    'newHppJual' => $newHppJual,
-                    'hasTax' => ($taxValue > 0 || $globalTaxPortion > 0),
+                    'oldStok' => $oldStok,
+                    'newStok' => $newStok,
+                    'newHpp' => $newHpp, // Weighted average HPP dengan diskon
+                    'newHppJual' => $newHppJual, // Weighted average HPP tanpa diskon
+                    'hppPerUnit' => $qty > 0 ? $purchaseCost / $qty : 0,
+                    'hppJualPerUnit' => $qty > 0 ? $purchaseCostJual / $qty : 0,
+                    'selisihHpp' => $newHpp - $oldHpp,
+                    'selisihHppJual' => $newHppJual - $oldHppJual,
                 ];
             }
         }
@@ -440,96 +457,89 @@ class FakturBeliController extends Controller
      */
     public function approveFaktur($id)
     {
-        $faktur = FakturBeli::with('items.obat')->findOrFail($id);
+        $faktur = FakturBeli::with(['items.obat', 'pemasok'])->findOrFail($id);
         
         if ($faktur->status !== 'diterima') {
             return response()->json([
                 'success' => false,
-                'message' => 'Faktur tidak dalam status diterima'
-            ]);
+                'message' => 'Faktur harus berstatus diterima untuk bisa diapprove'
+            ], 400);
         }
         
         // Begin transaction
         DB::beginTransaction();
         try {
-            // Update faktur status and approved_by
+            // Calculate subtotal for proper tax distribution
+            $invoiceSubtotal = 0;
+            foreach ($faktur->items as $item) {
+                $base = $item->qty * $item->harga;
+                $diskonValue = $item->diskon_type === 'percent' ? ($base * $item->diskon / 100) : ($item->diskon ?? 0);
+                $taxValue = $item->tax_type === 'percent' ? ($base * $item->tax / 100) : ($item->tax ?? 0);
+                $itemSubtotal = $base - $diskonValue + $taxValue;
+                $invoiceSubtotal += $itemSubtotal;
+            }
+
+            foreach ($faktur->items as $item) {
+                // Calculate HPP per unit untuk batch ini
+                $qty = $item->qty ?? 0;
+                $harga = $item->harga ?? 0;
+                $diskon = $item->diskon ?? 0;
+                $diskonType = $item->diskon_type ?? 'nominal';
+                $itemTax = $item->tax ?? 0;
+                $taxType = $item->tax_type ?? 'nominal';
+                
+                $base = $qty * $harga;
+                $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
+                $taxValue = $taxType === 'percent' ? ($base * $itemTax / 100) : $itemTax;
+                $itemSubtotal = $base - $diskonValue + $taxValue;
+                
+                // Distribute global tax proportionally
+                $globalPajakValue = $faktur->global_pajak ?? 0;
+                $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
+                $globalPajakItem = $globalPajakValue * $prop;
+                
+                // Calculate HPP per unit untuk batch ini
+                $hppPerUnit = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;        // Include diskon
+                $hppJualPerUnit = $qty > 0 ? ($base + $taxValue + $globalPajakItem) / $qty : 0; // Exclude diskon
+                
+                // Update stok menggunakan StokService dengan HPP yang sudah dihitung
+                $this->stokService->tambahStok(
+                    $item->obat_id,
+                    $item->gudang_id,
+                    $qty,
+                    $item->batch,
+                    $item->expiration_date,
+                    $item->rak ?? null,           // rak
+                    $item->lokasi ?? null,        // lokasi
+                    $hppPerUnit,                  // harga_beli (HPP dengan diskon)
+                    $hppJualPerUnit               // harga_beli_jual (HPP tanpa diskon)
+                );
+
+                // Recalculate weighted average HPP di master obat
+                $item->obat->recalculateHPP();
+            }
+
+            // Update status faktur
             $faktur->update([
                 'status' => 'diapprove',
-                'approved_by' => \Illuminate\Support\Facades\Auth::id()
+                'approved_by' => Auth::id()
             ]);
-
-            // Calculate subtotal for proper global tax distribution
-            $invoiceSubtotal = 0;
-            foreach ($faktur->items as $invoiceItem) {
-                $invoiceSubtotal += ($invoiceItem->harga ?? 0) * ($invoiceItem->qty ?? 0);
-            }
-
-            // Update stock for each obat
-            foreach ($faktur->items as $item) {
-                if ($item->obat) {
-                    // Moving Average HPP Calculation (match debug logic)
-                    $qty = $item->qty ?? 0;
-                    $harga = $item->harga ?? 0;
-                    $diskon = $item->diskon ?? 0;
-                    $diskonType = $item->diskon_type ?? 'nominal';
-                    $itemTax = $item->tax ?? 0;
-                    $taxType = $item->tax_type ?? 'nominal';
-                    $base = $qty * $harga;
-                    $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
-                    $taxValue = $taxType === 'percent' ? ($base * $itemTax / 100) : $itemTax;
-                    $itemSubtotal = $base - $diskonValue + $taxValue;
-                    // Distribute global pajak proportionally
-                    if (count($faktur->items) === 1) {
-                        $globalTaxPortion = $faktur->global_pajak ?? 0;
-                    } else {
-                        $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
-                        $globalTaxPortion = $invoiceSubtotal > 0 ? ($itemSubtotal / $invoiceSubtotal) * ($faktur->global_pajak ?? 0) : 0;
-                    }
-                    $purchaseCost = $itemSubtotal + $globalTaxPortion; // HPP (dengan diskon)
-                    $purchaseCostJual = $base + $taxValue + $globalTaxPortion; // HPP Jual (tanpa diskon)
-                    $obat = $item->obat;
-                    $oldHpp = $obat->hpp ?? 0;
-                    $oldStok = $obat->stok ?? 0;
-                    $newStok = $oldStok + $qty;
-                    $newHpp = ($oldHpp * $oldStok + $purchaseCost) / (($oldStok + $qty) > 0 ? ($oldStok + $qty) : 1);
-                    $oldHppJual = $obat->hpp_jual ?? 0;
-                    $newHppJual = ($oldHppJual * $oldStok + $purchaseCostJual) / (($oldStok + $qty) > 0 ? ($oldStok + $qty) : 1);
-                    $obat->update([
-                        'stok' => $newStok,
-                        'hpp' => $newHpp,
-                        'hpp_jual' => $newHppJual
-                    ]);
-
-                    // Insert KartuStok row (obat masuk)
-                    \App\Models\ERM\KartuStok::create([
-                        'obat_id' => $item->obat_id,
-                        'tanggal' => now(),
-                        'tipe' => 'masuk',
-                        'qty' => $qty,
-                        'stok_setelah' => $newStok,
-                        'ref_type' => 'faktur',
-                        'ref_id' => $faktur->id,
-                    ]);
-                }
-            }
 
             DB::commit();
-
+            
             return response()->json([
                 'success' => true,
-                'message' => 'Faktur berhasil diapprove dan stok obat diperbarui'
+                'message' => 'Faktur berhasil diapprove dan stok telah diupdate'
             ]);
+
         } catch (\Exception $e) {
             DB::rollback();
-
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal approve faktur: ' . $e->getMessage()
-            ]);
+                'message' => 'Error: ' . $e->getMessage()
+            ], 500);
         }
-    }
-    
-    // New methods for purchase request functionality
+    }    // New methods for purchase request functionality
     public function createPermintaan()
     {
         $pemasoks = Pemasok::all();

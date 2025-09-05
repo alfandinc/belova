@@ -144,7 +144,15 @@
                             <li>
                                 <a href="/erm/kartu-stok"><i data-feather="credit-card" class="align-self-center menu-icon"></i><span>Kartu Stok</span></a>
                             </li>
-
+                            <li>
+                                <a href="/erm/stok-gudang"><i data-feather="database" class="align-self-center menu-icon"></i><span>Stok per Gudang</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/mutasi-gudang"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Antar Gudang</span></a>
+                            </li>
+                            <li>
+                                <a href="/erm/gudang-mapping"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Mapping Gudang</span></a>
+                            </li>
                         </ul>
                     </li>
                                              
