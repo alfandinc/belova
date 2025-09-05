@@ -32,6 +32,7 @@ class StokGudangController extends Controller
             )
             ->groupBy('obat_id', 'gudang_id');
 
+        // Filter by gudang
         if ($request->gudang_id) {
             $query->where('gudang_id', $request->gudang_id);
         } else {
@@ -40,6 +41,15 @@ class StokGudangController extends Controller
             if ($defaultGudang) {
                 $query->where('gudang_id', $defaultGudang->id);
             }
+        }
+
+        // Search obat by name or code
+        if ($request->search_obat) {
+            $searchTerm = $request->search_obat;
+            $query->whereHas('obat', function($q) use ($searchTerm) {
+                $q->where('nama', 'like', "%{$searchTerm}%")
+                  ->orWhere('kode_obat', 'like', "%{$searchTerm}%");
+            });
         }
 
         return DataTables::of($query)
@@ -58,15 +68,27 @@ class StokGudangController extends Controller
                 </button>';
             })
             ->addColumn('status_stok', function ($row) {
+                $status = '';
+                $statusClass = '';
+                
                 if ($row->total_stok <= $row->min_stok) {
-                    return '<span class="badge badge-danger">Stok Minimum</span>';
+                    $status = 'minimum';
+                    $statusClass = '<span class="badge badge-danger">Stok Minimum</span>';
                 } elseif ($row->total_stok >= $row->max_stok) {
-                    return '<span class="badge badge-warning">Stok Maksimum</span>';
+                    $status = 'maksimum';
+                    $statusClass = '<span class="badge badge-warning">Stok Maksimum</span>';
+                } else {
+                    $status = 'normal';
+                    $statusClass = '<span class="badge badge-success">Normal</span>';
                 }
-                return '<span class="badge badge-success">Normal</span>';
+                
+                return $statusClass;
             })
             ->editColumn('total_stok', function ($row) {
                 return number_format($row->total_stok, 0);
+            })
+            ->filterColumn('status_stok', function($query, $keyword) {
+                // Custom filter untuk status stok akan dihandle di client side
             })
             ->rawColumns(['status_stok', 'actions'])
             ->make(true);

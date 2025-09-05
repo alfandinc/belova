@@ -493,23 +493,30 @@ $(document).ready(function() {
                     $('#preview-total-obat').text(response.data.total_obat);
                     $('#preview-total-stok').text(response.data.total_stok);
                     
+                    // Tampilkan info breakdown obat dengan dan tanpa stok
+                    var infoHtml = '<div class="alert alert-info mt-2"><small>';
+                    infoHtml += '<strong>Breakdown:</strong><br>';
+                    infoHtml += '• Obat dengan stok > 0: ' + response.data.obat_with_stock_count + '<br>';
+                    infoHtml += '• Obat dengan stok 0/null: ' + response.data.obat_without_stock_count + '<br>';
+                    infoHtml += '<em>' + response.data.message + '</em>';
+                    infoHtml += '</small></div>';
+                    
                     var obatListHtml = '<ul class="list-unstyled small mt-1">';
-                    response.data.obat_list.forEach(function(obat) {
-                        obatListHtml += '<li>' + obat.nama + ' - Stok: ' + obat.stok + ' ' + (obat.satuan || '') + '</li>';
+                    response.data.obat_list_preview.forEach(function(obat) {
+                        var stokDisplay = obat.stok || '0';
+                        obatListHtml += '<li>' + obat.nama + ' - Stok: ' + stokDisplay + ' ' + (obat.satuan || '') + '</li>';
                     });
+                    if (response.data.total_obat > 10) {
+                        obatListHtml += '<li><em>... dan ' + (response.data.total_obat - 10) + ' obat lainnya</em></li>';
+                    }
                     obatListHtml += '</ul>';
                     
-                    $('#preview-obat-list').html(obatListHtml);
+                    $('#preview-obat-list').html(infoHtml + obatListHtml);
                     $('#migration-preview').show();
                     
-                    if (response.data.total_obat > 0) {
-                        $('#btn-migrate').prop('disabled', false);
-                        $('#btn-cleanup').show();
-                    } else {
-                        $('#btn-migrate').prop('disabled', true);
-                        $('#btn-cleanup').hide();
-                        alert('Tidak ada obat dengan stok > 0 di field stok untuk dimigrasi');
-                    }
+                    // Selalu enable migrate button karena sekarang migrasi semua obat
+                    $('#btn-migrate').prop('disabled', false);
+                    $('#btn-cleanup').show();
                 } else {
                     alert('Error: ' + response.message);
                 }

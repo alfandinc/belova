@@ -277,14 +277,13 @@ class MutasiGudangController extends Controller
             $migratedCount = 0;
             $totalStokMigrated = 0;
             
-            // Get all obat yang memiliki stok > 0 di field stok
+            // Get ALL obat (termasuk yang stok 0 atau null) untuk migrasi yang aman
             $obatList = Obat::withInactive()
-                ->where('stok', '>', 0)
                 ->get();
             
             foreach ($obatList as $obat) {
-                $stokToMigrate = $obat->stok;
-                if ($stokToMigrate <= 0) continue;
+                // Ambil stok dari field stok, default ke 0 jika null
+                $stokToMigrate = $obat->stok ?? 0;
                 
                 // Generate batch name berdasarkan tanggal sekarang
                 $batchName = 'MIGRATE-' . date('Ymd') . '-' . $obat->id;
@@ -292,7 +291,8 @@ class MutasiGudangController extends Controller
                 // Set expiration date 3 bulan dari sekarang
                 $expirationDate = now()->addMonths(3)->format('Y-m-d');
                 
-                // Add stok ke gudang tujuan dengan batch dan ED
+                // Add stok ke gudang tujuan dengan batch dan ED (bahkan jika stok 0)
+                // Ini memastikan semua obat memiliki record di sistem gudang
                 $stokService->tambahStok(
                     $obat->id,
                     $gudangId,
@@ -314,7 +314,7 @@ class MutasiGudangController extends Controller
             
             return response()->json([
                 'success' => true,
-                'message' => "Berhasil migrasi {$migratedCount} obat dengan total stok {$totalStokMigrated} ke gudang yang dipilih"
+                'message' => "Berhasil migrasi SEMUA {$migratedCount} obat (dengan total stok aktual {$totalStokMigrated}) ke gudang yang dipilih. Termasuk obat dengan stok 0/null untuk keamanan data."
             ]);
             
         } catch (\Exception $e) {
@@ -382,19 +382,25 @@ class MutasiGudangController extends Controller
             ]);
             
             $obatList = Obat::withInactive()
-                ->where('stok', '>', 0)
                 ->select('id', 'nama', 'stok', 'satuan')
                 ->get();
                 
             $totalObat = $obatList->count();
-            $totalStok = $obatList->sum('stok');
+            $totalStok = $obatList->sum('stok'); // Sum akan mengabaikan null values
+            
+            // Untuk preview, pisahkan obat yang ada stok dan yang tidak ada stok
+            $obatWithStock = $obatList->where('stok', '>', 0);
+            $obatWithoutStock = $obatList->where('stok', '<=', 0)->orWhereNull('stok');
             
             return response()->json([
                 'success' => true,
                 'data' => [
                     'total_obat' => $totalObat,
                     'total_stok' => $totalStok,
-                    'obat_list' => $obatList->take(10) // Show first 10 for preview
+                    'obat_with_stock_count' => $obatWithStock->count(),
+                    'obat_without_stock_count' => $obatWithoutStock->count(),
+                    'obat_list_preview' => $obatList->take(10), // Show first 10 for preview
+                    'message' => "Akan migrasi SEMUA {$totalObat} obat ke gudang (termasuk yang stok 0/null untuk keamanan)"
                 ]
             ]);
             

@@ -26,12 +26,16 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <div class="row align-items-center">
+                    <div class="row align-items-center mb-3">
                         <div class="col">
                             <h4 class="card-title">Data Stok Obat per Gudang</h4>
                         </div>
-                        <div class="col-auto">
-                            <div class="form-group mb-0">
+                    </div>
+                    <!-- Filter Row -->
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filter_gudang">Pilih Gudang:</label>
                                 <select class="form-control select2" id="filter_gudang">
                                     @foreach($gudangs as $gudang)
                                         <option value="{{ $gudang->id }}" {{ $gudang->id === $defaultGudang->id ? 'selected' : '' }}>
@@ -39,6 +43,30 @@
                                         </option>
                                     @endforeach
                                 </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="search_obat">Cari Obat:</label>
+                                <input type="text" class="form-control" id="search_obat" placeholder="Ketik nama obat atau kode obat...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filter_status">Filter Status:</label>
+                                <select class="form-control" id="filter_status">
+                                    <option value="">Semua Status</option>
+                                    <option value="minimum">Stok Minimum</option>
+                                    <option value="maksimum">Stok Maksimum</option>
+                                    <option value="normal">Normal</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <div class="form-group">
+                                <button type="button" class="btn btn-secondary" id="btn-reset-filter">
+                                    <i class="fas fa-undo"></i> Reset Filter
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -99,22 +127,26 @@ $(document).ready(function() {
     var table = $('#stok-table').DataTable({
         processing: true,
         serverSide: true,
+        searching: false, // Disable built-in search
         ajax: {
             url: '{{ route("erm.stok-gudang.data") }}',
             data: function(d) {
                 d.gudang_id = $('#filter_gudang').val();
+                d.search_obat = $('#search_obat').val();
+                d.filter_status = $('#filter_status').val();
             }
         },
         columns: [
-            { data: 'kode_obat', name: 'kode_obat' },
-            { data: 'nama_obat', name: 'nama_obat' },
-            { data: 'nama_gudang', name: 'nama_gudang' },
-            { data: 'total_stok', name: 'total_stok' },
-            { data: 'min_stok', name: 'min_stok' },
-            { data: 'max_stok', name: 'max_stok' },
+            { data: 'kode_obat', name: 'kode_obat', searchable: false },
+            { data: 'nama_obat', name: 'nama_obat', searchable: false },
+            { data: 'nama_gudang', name: 'nama_gudang', searchable: false },
+            { data: 'total_stok', name: 'total_stok', searchable: false },
+            { data: 'min_stok', name: 'min_stok', searchable: false },
+            { data: 'max_stok', name: 'max_stok', searchable: false },
             { 
                 data: 'status_stok', 
                 name: 'status_stok',
+                searchable: true,
                 render: function(data) {
                     return data;
                 }
@@ -138,6 +170,42 @@ $(document).ready(function() {
 
     // Reload table when warehouse filter changes
     $('#filter_gudang').change(function() {
+        table.ajax.reload();
+    });
+
+    // Search obat with delay
+    var searchTimeout;
+    $('#search_obat').on('keyup', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+            table.ajax.reload();
+        }, 500); // 500ms delay
+    });
+
+    // Filter status change - client side filtering
+    $('#filter_status').change(function() {
+        var status = $(this).val();
+        if (status === '') {
+            // Show all rows
+            table.column(6).search('').draw();
+        } else {
+            // Filter by status
+            var searchTerm = '';
+            if (status === 'minimum') {
+                searchTerm = 'Stok Minimum';
+            } else if (status === 'maksimum') {
+                searchTerm = 'Stok Maksimum';
+            } else if (status === 'normal') {
+                searchTerm = 'Normal';
+            }
+            table.column(6).search(searchTerm).draw();
+        }
+    });
+
+    // Reset filter button
+    $('#btn-reset-filter').click(function() {
+        $('#search_obat').val('');
+        $('#filter_status').val('');
         table.ajax.reload();
     });
 
