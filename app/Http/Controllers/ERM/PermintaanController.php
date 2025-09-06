@@ -9,6 +9,8 @@ use App\Models\ERM\Obat;
 use App\Models\ERM\Pemasok;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class PermintaanController extends Controller
 {
@@ -59,17 +61,29 @@ class PermintaanController extends Controller
     // DataTables AJAX endpoint
     public function data(Request $request)
     {
-        $query = Permintaan::with('items')->orderBy('created_at', 'desc');
+        $query = Permintaan::with(['items.obat', 'items.pemasok'])->orderBy('created_at', 'desc');
         $total = $query->count();
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
         $search = $request->input('search.value');
         if ($search) {
             $query->where(function($q) use ($search) {
-                $q->where('id', 'like', "%$search%")
+                $q->where('no_permintaan', 'like', "%$search%")
                   ->orWhere('status', 'like', "%$search%")
-                  ->orWhere('request_date', 'like', "%$search%");
+                  ->orWhere('request_date', 'like', "%$search%")
+                  ->orWhereHas('items.pemasok', function($subq) use ($search) {
+                      $subq->where('nama', 'like', "%$search%");
+                  })
+                  ->orWhereHas('items.obat', function($subq) use ($search) {
+                      $subq->where('nama', 'like', "%$search%");
+                  });
             });
+            
+            // Log search for debugging
+            Log::info('Permintaan search query', [
+                'search_term' => $search,
+                'query_count' => $query->count()
+            ]);
         }
         $filtered = $query->count();
         $data = $query->skip($start)->take($length)->get()->values()->map(function($p, $i) use ($start) {
@@ -223,7 +237,7 @@ class PermintaanController extends Controller
         if ($permintaan->status !== 'waiting_approval') {
             return redirect()->back()->with('error', 'Permintaan sudah diproses.');
         }
-        $userId = auth()->id();
+        $userId = Auth::id();
         $now = now();
         DB::transaction(function () use ($permintaan, $userId, $now) {
             // Group items by pemasok

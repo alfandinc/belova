@@ -502,7 +502,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                     if ($resep && $resep->obat) {
                         $qty = intval($item->qty ?? 1);
-                        $currentStock = $resep->obat->stok ?? 0;
+                        
+                        // Skip racikan items for individual stock validation (will be handled in bulk)
+                        if ($resep->racikan_ke > 0) {
+                            continue;
+                        }
+                        
+                        // Get total stock from all gudang using ObatStokGudang
+                        $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
+                            ->sum('stok');
+                        
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
                         }
@@ -518,7 +527,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $obat = \App\Models\ERM\Obat::find($item->billable_id);
                     if ($obat) {
                         $qty = intval($item->qty ?? 1);
-                        $currentStock = $obat->stok ?? 0;
+                        
+                        // Get total stock from all gudang using ObatStokGudang
+                        $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                            ->sum('stok');
+                            
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$obat->nama} (bundled) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
                         }
@@ -649,21 +662,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             }
                             
                             $obat = $resep->obat;
-                            $oldStok = $obat->stok ?? 0;
                             
                             if ($qtyDiff != 0) {
-                                // Calculate new stock
-                                $newStok = max(0, $oldStok - $qtyDiff);
-                                $obat->stok = $newStok;
-                                $obat->save();
-                                
                                 Log::info('Stock adjustment', [
                                     'invoice_id' => $invoice->id,
                                     'is_update' => (bool)$existingInvoice,
                                     'obat_id' => $obat->id,
-                                    'old_stok' => $oldStok,
                                     'qty_diff' => $qtyDiff,
-                                    'new_stok' => $newStok
+                                    'obat_nama' => $obat->nama
                                 ]);
                                 
                                 // If stock is being reduced (positive diff), reduce faktur stock
@@ -680,11 +686,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     // Return stock to selected gudang
                                     $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
                                 }
-                            Log::info('Stock reduced via invoice (ResepFarmasi)', [
+                            Log::info('Stock processed via invoice (ResepFarmasi)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,
-                                'qty_reduced' => $qty,
-                                'remaining_stock' => $obat->stok,
+                                'qty_diff' => $qtyDiff,
                                 'invoice_id' => $invoice->id,
                                 'visitation_id' => $request->visitation_id,
                                 'user_id' => Auth::id()
@@ -701,20 +706,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $obat = \App\Models\ERM\Obat::find($item->billable_id);
                         if ($obat) {
                             $qty = intval($item->qty ?? 1);
-                            $oldStok = $obat->stok ?? 0;
-                            $newStok = max(0, $oldStok - $qty);
-                            $obat->stok = $newStok;
-                            $obat->save();
                             
                             // Get gudang selection for bundled obat
                             $gudangId = $this->getGudangForItem($request, $obat->id, 'tindakan');
                             
                             $this->reduceGudangStock($obat->id, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
-                            Log::info('Stock reduced via invoice (Bundled Obat)', [
+                            Log::info('Stock processed via invoice (Bundled Obat)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,
                                 'qty_reduced' => $qty,
-                                'remaining_stock' => $obat->stok,
                                 'invoice_id' => $invoice->id,
                                 'visitation_id' => $request->visitation_id,
                                 'user_id' => Auth::id(),
@@ -829,37 +829,31 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         foreach ($racikanItems as $racikanItem) {
                             if (isset($racikanItem->billable) && $racikanItem->billable->obat) {
                                 $obat = $racikanItem->billable->obat;
-                                $oldStok = $obat->stok ?? 0;
-                                $newStok = max(0, $oldStok - $qtyDiff);
                                 
-                                Log::info('Adjusting racikan stock', [
+                                Log::info('Processing racikan stock adjustment', [
                                     'obat_id' => $obat->id,
-                                    'old_stok' => $oldStok,
                                     'qty_diff' => $qtyDiff,
-                                    'new_stok' => $newStok,
                                     'is_update' => (bool)$existingInvoice,
                                     'invoice_id' => $invoice->id
                                 ]);
                                 
-                                // Update stock
-                                $obat->stok = $newStok;
-                                $obat->save();
-                                
-                                // Reduce faktur stock if this is a new invoice
-                                if (!$existingInvoice) {
+                                // For racikan, we need to handle stock operations via StokService only
+                                if ($qtyDiff > 0) {
                                     // Get gudang selection for racikan obat
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
                                     $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
+                                } else if ($qtyDiff < 0) {
+                                    // Return stock for negative diff (quantity reduction)
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
                                 }
                                 
-                                Log::info('Racikan stock adjustment', [
+                                Log::info('Racikan stock processed', [
                                     'invoice_id' => $invoice->id,
                                     'is_update' => (bool)$existingInvoice,
                                     'racikan_ke' => $racikanKey,
                                     'obat_id' => $obat->id,
-                                    'old_stok' => $oldStok,
-                                    'qty_diff' => $qtyDiff,
-                                    'new_stok' => $newStok
+                                    'qty_diff' => $qtyDiff
                                 ]);
                             }
                         }

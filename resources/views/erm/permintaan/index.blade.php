@@ -70,11 +70,14 @@ $(document).ready(function() {
         processing: true,
         serverSide: true,
         ajax: '{{ route('erm.permintaan.data') }}',
+        search: {
+            return: true
+        },
         columns: [
-            { data: 'no', name: 'no' },
+            { data: 'no', name: 'no', orderable: false, searchable: false },
             { data: 'no_permintaan', name: 'no_permintaan' },
             { data: 'pemasok', name: 'pemasok' },
-            { data: 'obats', name: 'obats', orderable: false, searchable: false },
+            { data: 'obats', name: 'obats', orderable: false },
             { data: 'request_date', name: 'request_date' },
             { 
                 data: 'status', 
@@ -95,7 +98,22 @@ $(document).ready(function() {
             },
             { data: 'jumlah_item', name: 'jumlah_item', orderable: false, searchable: false },
             { data: 'aksi', name: 'aksi', orderable: false, searchable: false },
-        ]
+        ],
+        language: {
+            search: "Cari:",
+            searchPlaceholder: "Cari no permintaan, pemasok, obat, dll...",
+            processing: "Sedang memproses...",
+            lengthMenu: "Tampilkan _MENU_ data",
+            info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ data",
+            infoEmpty: "Menampilkan 0 sampai 0 dari 0 data",
+            infoFiltered: "(difilter dari _MAX_ total data)",
+            paginate: {
+                first: "Pertama",
+                last: "Terakhir", 
+                next: "Selanjutnya",
+                previous: "Sebelumnya"
+            }
+        }
     });
 
     // Approve button AJAX
