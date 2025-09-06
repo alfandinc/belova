@@ -6,6 +6,11 @@
 @section('content')
 <div class="container-fluid">
     <h2>Rekap Absensi</h2>
+
+    <!-- Download Rekap Absensi Excel Button -->
+    <a href="{{ route('hrd.absensi_rekap.export_excel') }}" class="btn btn-success mb-3">
+        <i class="fas fa-file-excel"></i> Download Rekap Excel
+    </a>
     
     <!-- Statistics Cards -->
     <div class="row mb-4" id="statisticsCards">

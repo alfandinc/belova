@@ -174,6 +174,7 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function (
     Route::get('/laboratorium/print-pdf', [\App\Http\Controllers\Laporan\LabController::class, 'printPdf'])->name('laporan.laboratorium.printPdf');
 });
 
+Route::get('/hrd/absensi-rekap/export-excel', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'exportExcel'])->name('hrd.absensi_rekap.export_excel');
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
     // Dokter to Perawat notification

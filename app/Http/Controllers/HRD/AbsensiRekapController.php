@@ -63,10 +63,23 @@ use Illuminate\Support\Facades\DB;
     // }
 
 class AbsensiRekapController extends Controller
+
 {
     /**
      * Submit lateness recap for the selected month
      */
+
+        /**
+     * Export Rekap Absensi to Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        // Optionally filter by date/employee
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\AttendanceRekapExport,
+            'rekap_absensi.xlsx'
+        );
+    }
     public function submitLatenessRecap(Request $request)
     {
         $dateRange = $request->input('date_range');
