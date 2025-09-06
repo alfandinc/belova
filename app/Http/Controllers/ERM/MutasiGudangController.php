@@ -206,9 +206,37 @@ class MutasiGudangController extends Controller
             foreach ($stokGudangList as $stokGudang) {
                 if ($jumlahMutasi <= 0) break;
                 $ambil = min($stokGudang->stok, $jumlahMutasi);
-                // Mutasi stok per batch, batch dan exp date ikut dipindahkan
-                $stokService->kurangiStok($mutasi->obat_id, $mutasi->gudang_asal_id, $ambil, $stokGudang->batch);
-                $stokService->tambahStok($mutasi->obat_id, $mutasi->gudang_tujuan_id, $ambil, $stokGudang->batch, $stokGudang->expiration_date);
+                
+                // Get gudang names for better keterangan
+                $gudangAsal = $mutasi->gudangAsal->nama;
+                $gudangTujuan = $mutasi->gudangTujuan->nama;
+                
+                // Mutasi stok per batch, batch dan exp date ikut dipindahkan dengan referensi lengkap
+                $stokService->kurangiStok(
+                    $mutasi->obat_id, 
+                    $mutasi->gudang_asal_id, 
+                    $ambil, 
+                    $stokGudang->batch,
+                    'mutasi_gudang',
+                    $mutasi->id,
+                    "Mutasi {$mutasi->nomor_mutasi} ke {$gudangTujuan}"
+                );
+                
+                $stokService->tambahStok(
+                    $mutasi->obat_id, 
+                    $mutasi->gudang_tujuan_id, 
+                    $ambil, 
+                    $stokGudang->batch, 
+                    $stokGudang->expiration_date,
+                    null, // rak
+                    null, // lokasi
+                    null, // hargaBeli
+                    null, // hargaBeliJual
+                    'mutasi_gudang',
+                    $mutasi->id,
+                    "Mutasi {$mutasi->nomor_mutasi} dari {$gudangAsal}"
+                );
+                
                 $jumlahMutasi -= $ambil;
             }
 

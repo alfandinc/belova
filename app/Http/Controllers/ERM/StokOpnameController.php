@@ -9,6 +9,7 @@ use App\Models\ERM\StokOpnameItem;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\Obat;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StokOpnameTemplateExport;
 use App\Imports\StokOpnameImport;
@@ -179,8 +180,14 @@ class StokOpnameController extends Controller
         $stokOpname->save();
         return response()->json(['success' => true, 'status' => $stokOpname->status]);
     }
-        public function saveStokFisik($id)
+    /**
+     * @deprecated Use updateStokFromOpname instead for proper audit trail
+     * Legacy method - directly updates obat.stok field without StokService
+     */
+    public function saveStokFisik($id)
     {
+        Log::warning('Using deprecated saveStokFisik method. Use updateStokFromOpname instead for proper kartu stok recording.');
+        
         $items = StokOpnameItem::where('stok_opname_id', $id)->get();
         $updated = 0;
         foreach ($items as $item) {
@@ -191,7 +198,11 @@ class StokOpnameController extends Controller
                 $updated++;
             }
         }
-        return response()->json(['success' => true, 'message' => "$updated stok obat berhasil diperbarui."]);
+        return response()->json([
+            'success' => true, 
+            'message' => "$updated stok obat berhasil diperbarui.",
+            'warning' => 'Method ini deprecated. Gunakan updateStokFromOpname untuk pencatatan kartu stok yang benar.'
+        ]);
     }
 
     /**
@@ -269,16 +280,24 @@ class StokOpnameController extends Controller
                 $stokGudang = $item->obatStokGudang;
                 $selisih = $item->selisih; // positive = surplus, negative = shortage
                 
+                // Generate stok opname reference number
+                $opnameRef = "OPNAME-{$stokOpname->periode_bulan}-{$stokOpname->periode_tahun}";
+                
                 if ($selisih > 0) {
-                    // Add stock (found more than system)
+                    // Add stock (found more than system) - TANPA mengubah HPP
                     $stokService->tambahStok(
                         $item->obat_id,
                         $stokOpname->gudang_id,
                         $selisih,
                         $stokGudang->batch,
                         $stokGudang->expiration_date,
-                        $stokGudang->harga_beli ?? 0,
-                        $stokGudang->harga_beli_jual ?? 0
+                        null, // rak
+                        null, // lokasi
+                        null, // hargaBeli - TIDAK DIISI agar HPP tidak berubah
+                        null, // hargaBeliJual - TIDAK DIISI agar HPP tidak berubah
+                        'stok_opname', // refType
+                        $stokOpname->id, // refId
+                        "Adjustment Stok Opname {$opnameRef} - Surplus {$selisih}" // keterangan
                     );
                 } else {
                     // Reduce stock (found less than system)
@@ -286,7 +305,10 @@ class StokOpnameController extends Controller
                         $item->obat_id,
                         $stokOpname->gudang_id,
                         abs($selisih),
-                        $stokGudang->batch
+                        $stokGudang->batch,
+                        'stok_opname', // refType
+                        $stokOpname->id, // refId
+                        "Adjustment Stok Opname {$opnameRef} - Shortage " . abs($selisih) // keterangan
                     );
                 }
                 

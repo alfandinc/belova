@@ -11,8 +11,14 @@
     <div class="card">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
             <h4>Kartu Stok</h4>
-            <div>
-                <input type="text" id="mainDateRange" class="form-control" style="min-width:220px;display:inline-block;" readonly />
+            <div class="d-flex align-items-center">
+                <div class="form-check mr-3">
+                    <input class="form-check-input" type="checkbox" id="onlyWithTransactions">
+                    <label class="form-check-label" for="onlyWithTransactions">
+                        Hanya yang ada transaksi
+                    </label>
+                </div>
+                <input type="text" id="mainDateRange" class="form-control" style="min-width:220px;" readonly />
             </div>
         </div>
         <div class="card-body">
@@ -22,30 +28,43 @@
                         <th>Nama Obat</th>
                         <th>Masuk</th>
                         <th>Keluar</th>
-                        <th>Stok</th>
                         <th>Detail</th>
                     </tr>
                 </thead>
             </table>
             <!-- Modal -->
-                                    <div class="modal fade" id="detailModal" tabindex="-1" role="dialog" aria-labelledby="detailModalLabel" aria-hidden="true">
-                                        <div class="modal-dialog modal-lg" role="document">
-                                            <div class="modal-content">
-                                                <div class="modal-header">
-                                                    <h5 class="modal-title" id="detailModalLabel">Detail Kartu Stok</h5>
-                                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                                        <span aria-hidden="true">&times;</span>
-                                                    </button>
-                                                </div>
-                                                <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-                                                    <!-- Removed modal date filter -->
-                                                    <div id="detailModalContent">
-                                                            <div class="text-center"><span class="spinner-border"></span> Loading...</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+            <div class="modal fade" id="detailModal" tabindex="-1" role="dialog" aria-labelledby="detailModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header bg-light">
+                            <div>
+                                <h5 class="modal-title mb-1" id="detailModalLabel">Detail Kartu Stok</h5>
+                                <small class="text-muted" id="detailModalSubtitle">Riwayat transaksi stok dalam periode yang dipilih</small>
+                            </div>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                            <div id="detailModalContent">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="sr-only">Loading...</span>
                                     </div>
+                                    <p class="mt-2 text-muted">Memuat data transaksi...</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light">
+                            <small class="text-muted mr-auto">
+                                <i class="fas fa-info-circle"></i> 
+                                Transaksi diurutkan berdasarkan tanggal (terbaru ke terlama)
+                            </small>
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -82,6 +101,7 @@ $(function() {
                 var drp = mainDateRange.data('daterangepicker');
                 d.start = drp.startDate.format('YYYY-MM-DD');
                 d.end = drp.endDate.format('YYYY-MM-DD');
+                d.only_with_transactions = $('#onlyWithTransactions').is(':checked') ? 1 : 0;
             },
             dataSrc: 'data'
         },
@@ -89,12 +109,15 @@ $(function() {
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'masuk', name: 'masuk' },
             { data: 'keluar', name: 'keluar' },
-            { data: 'stok', name: 'stok' },
             { data: 'detail', name: 'detail', orderable: false, searchable: false }
         ]
     });
 
     mainDateRange.on('apply.daterangepicker', function(ev, picker) {
+        table.ajax.reload();
+    });
+
+    $('#onlyWithTransactions').on('change', function() {
         table.ajax.reload();
     });
 
@@ -121,6 +144,12 @@ $(function() {
 
     $('#kartuStokTable').on('click', '.btn-detail', function() {
         lastObatId = $(this).data('obat-id');
+        var namaObat = $(this).closest('tr').find('td:first').text();
+        var drp = mainDateRange.data('daterangepicker');
+        var periode = drp.startDate.format('DD/MM/YYYY') + ' - ' + drp.endDate.format('DD/MM/YYYY');
+        
+        $('#detailModalLabel').html('<i class="fas fa-pills"></i> Detail Kartu Stok: ' + namaObat);
+        $('#detailModalSubtitle').text('Periode: ' + periode);
         $('#detailModal').modal('show');
         loadDetailKartuStok(lastObatId);
     });

@@ -502,21 +502,22 @@ class FakturBeliController extends Controller
                 $hppPerUnit = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;        // Include diskon
                 $hppJualPerUnit = $qty > 0 ? ($base + $taxValue + $globalPajakItem) / $qty : 0; // Exclude diskon
                 
-                // Update stok menggunakan StokService dengan HPP yang sudah dihitung
-                $this->stokService->tambahStok(
+                // Update stok menggunakan method khusus untuk faktur pembelian
+                $this->stokService->masukViaFaktur(
                     $item->obat_id,
                     $item->gudang_id,
                     $qty,
+                    $faktur->id,
+                    $faktur->no_faktur,
                     $item->batch,
                     $item->expiration_date,
-                    $item->rak ?? null,           // rak
-                    $item->lokasi ?? null,        // lokasi
                     $hppPerUnit,                  // harga_beli (HPP dengan diskon)
-                    $hppJualPerUnit               // harga_beli_jual (HPP tanpa diskon)
+                    $hppJualPerUnit,              // harga_beli_jual (HPP tanpa diskon)
+                    $faktur->pemasok->nama        // nama pemasok
                 );
 
-                // Recalculate weighted average HPP di master obat
-                $item->obat->recalculateHPP();
+                // HPP calculation now handled automatically in StokService
+                // No need to call recalculateHPP() as it's done in masukViaFaktur()
             }
 
             // Update status faktur

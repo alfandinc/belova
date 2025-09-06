@@ -4,8 +4,9 @@ namespace App\Models\ERM;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\ERM\Supplier;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Log;
+use App\Models\ERM\Supplier;
 
 class Obat extends Model
 {
@@ -95,31 +96,16 @@ class Obat extends Model
         }
 
     /**
-     * Recalculate weighted average HPP from all stock in all gudangs
-     * hpp = True cost (include diskon)
-     * hpp_jual = Base cost (exclude diskon)
+     * @deprecated HPP calculation now handled directly in StokService
+     * This method assumes harga_beli is stored per batch, but it's not in current design
+     * HPP is calculated as weighted average in StokService when adding stock with price
      */
     public function recalculateHPP()
     {
-        $totalValueHpp = 0;      // Total value untuk hpp (dengan diskon)
-        $totalValueHppJual = 0;  // Total value untuk hpp_jual (tanpa diskon)
-        $totalStock = 0;
+        Log::warning('recalculateHPP() is deprecated. HPP calculation now handled in StokService.');
         
-        // Calculate weighted average dari semua batch di semua gudang
-        foreach($this->stokGudang as $stokGudang) {
-            $stock = $stokGudang->stok ?? 0;
-            $hargaBeli = $stokGudang->harga_beli ?? 0;
-            $hargaBeliJual = $stokGudang->harga_beli_jual ?? $hargaBeli; // Fallback ke harga_beli jika tidak ada
-            
-            $totalValueHpp += ($stock * $hargaBeli);
-            $totalValueHppJual += ($stock * $hargaBeliJual);
-            $totalStock += $stock;
-        }
-        
-        if ($totalStock > 0) {
-            $this->hpp = $totalValueHpp / $totalStock;
-            $this->hpp_jual = $totalValueHppJual / $totalStock;
-            $this->save();
-        }
+        // Legacy method - no longer functional with current database design
+        // HPP calculation is now done in StokService->tambahStok() when hargaBeli is provided
+        return false;
     }
 }
