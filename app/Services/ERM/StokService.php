@@ -9,8 +9,36 @@ use App\Models\ERM\KartuStok;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
-class StokService
-{
+class StokService {
+    /**
+     * Hitung nilai stok gudang tertentu (stok * hpp_jual per obat di gudang)
+     * @param int $gudangId
+     * @return float
+     */
+    public function getNilaiStokGudang($gudangId)
+    {
+        return ObatStokGudang::with('obat')
+            ->where('gudang_id', $gudangId)
+            ->get()
+            ->sum(function ($item) {
+                $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+                return ($item->stok ?? 0) * $hppJual;
+            });
+    }
+
+    /**
+     * Hitung nilai stok keseluruhan (stok * hpp_jual per obat di semua gudang)
+     * @return float
+     */
+    public function getNilaiStokKeseluruhan()
+    {
+        return ObatStokGudang::with('obat')
+            ->get()
+            ->sum(function ($item) {
+                $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+                return ($item->stok ?? 0) * $hppJual;
+            });
+    }
     /**
      * Menambah stok obat ke gudang tertentu
      *

@@ -12,8 +12,19 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
-class StokGudangController extends Controller
-{
+class StokGudangController extends Controller {
+    // AJAX: Get nilai stok gudang dan keseluruhan
+    public function getNilaiStok(Request $request)
+    {
+        $gudangId = $request->gudang_id;
+        $stokService = app(\App\Services\ERM\StokService::class);
+        $nilaiGudang = $gudangId ? $stokService->getNilaiStokGudang($gudangId) : 0;
+        $nilaiKeseluruhan = $stokService->getNilaiStokKeseluruhan();
+        return response()->json([
+            'nilai_gudang' => $nilaiGudang,
+            'nilai_keseluruhan' => $nilaiKeseluruhan
+        ]);
+    }
     public function index()
     {
         $gudangs = Gudang::all();

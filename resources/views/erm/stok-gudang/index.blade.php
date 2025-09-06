@@ -106,6 +106,36 @@
     </div>
 </div>
 
+<!-- Nilai Stok Gudang & Keseluruhan -->
+<div class="row mt-3">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-left-primary">
+            <div class="card-body d-flex align-items-center">
+                <div class="mr-3">
+                    <i class="fas fa-warehouse fa-2x text-primary"></i>
+                </div>
+                <div>
+                    <div class="text-muted small">Nilai Stok Gudang Terpilih</div>
+                    <div class="h4 mb-0 font-weight-bold" id="nilai-stok-gudang">Rp 0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm border-left-success">
+            <div class="card-body d-flex align-items-center">
+                <div class="mr-3">
+                    <i class="fas fa-coins fa-2x text-success"></i>
+                </div>
+                <div>
+                    <div class="text-muted small">Nilai Stok Keseluruhan</div>
+                    <div class="h4 mb-0 font-weight-bold" id="nilai-stok-keseluruhan">Rp 0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal for Batch Details -->
 <div class="modal fade" id="batchDetailsModal" tabindex="-1" role="dialog" aria-labelledby="batchDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
@@ -184,10 +214,37 @@ $(document).ready(function() {
         }
     });
 
-    // Reload table when warehouse filter changes
+
+    // Reload table and update nilai stok when warehouse filter changes
     $('#filter_gudang').change(function() {
         table.ajax.reload();
+        updateNilaiStok();
     });
+
+    // Initial load of nilai stok
+    updateNilaiStok();
+
+    function updateNilaiStok() {
+        var gudangId = $('#filter_gudang').val();
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.nilai-stok") }}',
+            type: 'GET',
+            data: { gudang_id: gudangId },
+            success: function(response) {
+                $('#nilai-stok-gudang').text('Rp ' + numberFormat(response.nilai_gudang));
+                $('#nilai-stok-keseluruhan').text('Rp ' + numberFormat(response.nilai_keseluruhan));
+            },
+            error: function() {
+                $('#nilai-stok-gudang').text('Rp 0');
+                $('#nilai-stok-keseluruhan').text('Rp 0');
+            }
+        });
+    }
+
+    function numberFormat(x) {
+        if (!x) return '0';
+        return parseFloat(x).toLocaleString('id-ID', { minimumFractionDigits: 0 });
+    }
 
     // Search obat with delay
     var searchTimeout;
