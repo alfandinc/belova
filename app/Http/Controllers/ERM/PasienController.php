@@ -48,7 +48,8 @@ class PasienController extends Controller
                     $statusConfig = [
                         'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
                         'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
-                        'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member']
+                        'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member'],
+                        'Red Flag' => ['color' => '#FF0000', 'icon' => 'fas fa-exclamation-triangle', 'title' => 'Red Flag']
                     ];
                     
                     $status = $user->status_pasien ?? 'Regular';
@@ -324,7 +325,7 @@ class PasienController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status_pasien' => 'required|in:Regular,VIP,Familia,Black Card'
+            'status_pasien' => 'required|in:Regular,VIP,Familia,Black Card,Red Flag'
         ]);
 
         if ($validator->fails()) {
@@ -394,7 +395,7 @@ class PasienController extends Controller
     public function updateStatusCombined(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'status_pasien' => 'required|in:Regular,VIP,Familia,Black Card',
+            'status_pasien' => 'required|in:Regular,VIP,Familia,Black Card,Red Flag',
             'status_akses' => 'required|in:normal,akses cepat'
         ]);
 

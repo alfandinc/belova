@@ -56,6 +56,7 @@
                             <option value="VIP">VIP</option>
                             <option value="Familia">Familia</option>
                             <option value="Black Card">Black Card</option>
+                            <option value="Red Flag">Red Flag</option>
                         </select>
                     </div>
                 </form>
@@ -146,6 +147,7 @@
             <option value="VIP">VIP</option>
             <option value="Familia">Familia</option>
             <option value="Black Card">Black Card</option>
+            <option value="Red Flag">Red Flag</option>
         </select>
     </div>
     <div class="col-md-2">
