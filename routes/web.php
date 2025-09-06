@@ -179,8 +179,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Dokter to Perawat notification
     Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
-    // Total nilai stok (HPP x Stok) for all active obat
-    Route::get('/obat/total-nilai-stok', [App\Http\Controllers\ERM\ObatController::class, 'totalNilaiStok'])->name('erm.obat.total-nilai-stok');
     // AJAX: Get allow_post value for InformConsent
     Route::get('/inform-consent/{id}/get', [App\Http\Controllers\ERM\TindakanController::class, 'getInformConsentAllowPost']);
     
@@ -221,8 +219,6 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::delete('/{gudang}', [GudangController::class, 'destroy'])->name('erm.gudang.destroy');
     });
 
-    // Fill stok to 100 for all Obat with stok 0
-    Route::post('/obat/fill-stok', [App\Http\Controllers\ERM\ObatController::class, 'fillStok'])->name('erm.obat.fill-stok');
     Route::get('/obat-masuk/detail', [App\Http\Controllers\ERM\ObatMasukController::class, 'detail'])->name('erm.obatmasuk.detail');
     Route::get('/fakturpembelian/{id}/print', [App\Http\Controllers\ERM\FakturBeliController::class, 'printFaktur'])->name('erm.fakturbeli.print');
     // DataTables AJAX for Mutasi Obat Masuk

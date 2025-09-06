@@ -208,6 +208,9 @@
                     </div>
                     <div class="row mt-2">
                         <div class="col-md-12">
+                            <button id="fill-stok-btn" class="btn btn-warning btn-sm">
+                                <i class="fas fa-plus"></i> Isi Stok 100 (untuk yang 0)
+                            </button>
                             <button id="reload-table" class="btn btn-info btn-sm">
                                 <i class="fas fa-sync"></i> Reload
                             </button>
@@ -240,7 +243,45 @@
             </table>
         </div>
     </div>
+
+    <div class="card mt-3">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+                <span class="font-weight-bold">Total Nilai Stok (HPP × Stok):</span>
+                <span id="total-hpp-stok" style="font-size:1.5rem;font-weight:bold;color:#155724;">Rp 0</span>
+            </div>
+            <div class="mt-2 text-right" style="font-style:italic;color:#444;">
+                <span id="terbilang-hpp-stok">-</span>
+            </div>
+        </div>
+    </div>
 </div>
+    <!-- Batch Info Modal -->
+    <div class="modal fade" id="batchInfoModal" tabindex="-1" role="dialog" aria-labelledby="batchInfoModalLabel" aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="batchInfoModalLabel">Batch, Exp Date & Sisa</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th>Batch</th>
+                  <th>Exp Date</th>
+                  <th>Sisa</th>
+                </tr>
+              </thead>
+              <tbody id="batchInfoTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
     
 @endsection
 
@@ -311,19 +352,16 @@
         $('#zat_aktif_id').val(null).trigger('change');
         $('#metode_bayar_id').val('').trigger('change');
         $('#kategori').val('').trigger('change');
-        $('#status_aktif').val('1'); // Set default to Aktif
         $('#obatModal').modal('show');
     });
 
     // Buka modal edit obat
     $(document).on('click', '.btn-edit-obat', function() {
         var id = $(this).data('id');
-        console.log('Edit button clicked for ID:', id);
         $.ajax({
             url: '/erm/obat/' + id + '/edit',
             type: 'GET',
             success: function(data) {
-                console.log('Edit data received:', data);
                 $('#formObat')[0].reset();
                 $('#obat_id').val(data.id);
                 $('#kode_obat').val(data.kode_obat);
@@ -336,13 +374,12 @@
                 $('#kategori').val(data.kategori).trigger('change');
                 $('#zat_aktif_id').val(data.zataktif_id).trigger('change');
                 $('#dosis').val(data.dosis);
-                $('#satuan').val(data.satuan).trigger('change');
+                $('#satuan').val(data.satuan);
                 $('#status_aktif').val(data.status_aktif);
                 $('#obatModalLabel').text('Edit Obat');
                 $('#obatModal').modal('show');
             },
             error: function(xhr) {
-                console.log('Edit AJAX error:', xhr);
                 alert('Gagal mengambil data obat: ' + xhr.responseText);
             }
         });
@@ -358,6 +395,26 @@
             width: '100%',
             minimumInputLength: 2,
             placeholder: 'Cari zat aktif...'
+        });
+
+        // Handle fill stok button click
+        $('#fill-stok-btn').on('click', function() {
+            if (confirm('Isi stok 100 untuk semua obat dengan stok 0?')) {
+                $.ajax({
+                    url: '/erm/obat/fill-stok',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        table.ajax.reload();
+                        alert(response.message);
+                    },
+                    error: function(xhr) {
+                        alert('Terjadi kesalahan: ' + xhr.responseText);
+                    }
+                });
+            }
         });
         
         // Set filter_status to 'Aktif' by default
@@ -446,7 +503,6 @@
             var formData = $(this).serializeArray();
             // Ambil value status_aktif langsung dari select
             var statusAktifVal = $('#status_aktif').val();
-            console.log('Status aktif value from form:', statusAktifVal);
             formData = formData.filter(function(item){ return item.name !== 'status_aktif'; });
             formData.push({name: 'status_aktif', value: statusAktifVal});
             
@@ -488,6 +544,30 @@
                     }
                 }
             });
+        });
+
+        // Handle batch info button click
+        $(document).on('click', '.batch-info-btn', function() {
+            var batchData = $(this).data('batchinfo');
+            var tbody = '';
+            var now = new Date();
+            var threeMonths = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+            if (Array.isArray(batchData) && batchData.length > 0) {
+                batchData.forEach(function(item) {
+                    var expDate = item.expiration_date ? new Date(item.expiration_date) : null;
+                    var isExpSoon = expDate && expDate < threeMonths;
+                    var rowClass = isExpSoon ? ' style="background-color:#f8d7da;color:#721c24;"' : '';
+                    tbody += '<tr'+rowClass+'>' +
+                        '<td>' + (item.batch || '-') + '</td>' +
+                        '<td>' + (item.expiration_date || '-') + '</td>' +
+                        '<td>' + (item.sisa !== null ? item.sisa : '-') + '</td>' +
+                        '</tr>';
+                });
+            } else {
+                tbody = '<tr><td colspan="3">Tidak ada data batch</td></tr>';
+            }
+            $('#batchInfoTableBody').html(tbody);
+            $('#batchInfoModal').modal('show');
         });
 
         // Apply filter when select changes (no button needed)

@@ -15,37 +15,6 @@ use Yajra\DataTables\Facades\DataTables;
 class ObatController extends Controller
 {
     /**
-     * Get total nilai stok (HPP x Stok) for all active obat, with optional filters.
-     */
-    public function totalNilaiStok(Request $request)
-    {
-        $query = Obat::withInactive();
-        // Only count active obat
-        $query->where('status_aktif', 1);
-        // Apply filters if provided
-        if ($request->has('kategori') && !empty($request->kategori)) {
-            $query->where('kategori', $request->kategori);
-        }
-        if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
-            $query->where('metode_bayar_id', $request->metode_bayar_id);
-        }
-        $total = $query->get()->sum(function($obat) {
-            return (float)$obat->hpp_jual * (float)$obat->stok;
-        });
-        return response()->json(['total' => $total]);
-    }
-    /**
-     * Fill stok to 100 for all Obat where stok is 0.
-     */
-    public function fillStok(Request $request)
-    {
-        $updated = \App\Models\ERM\Obat::withInactive()->where('stok', 0)->update(['stok' => 100]);
-        return response()->json([
-            'success' => true,
-            'message' => $updated > 0 ? "Stok berhasil diisi untuk $updated obat." : "Tidak ada obat dengan stok 0."
-        ]);
-    }
-    /**
      * Update harga_nonfornas (harga jual) via AJAX.
      */
     public function updateHargaJual(Request $request, $id)
@@ -122,119 +91,56 @@ class ObatController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            // Debug the incoming status_aktif parameter
-            \Illuminate\Support\Facades\Log::info('Obat status filter: ' . $request->status_aktif);
-            
-            // Always get all medications (both active and inactive)
-            // This completely bypasses the global scope in the Obat model
-            $query = Obat::withoutGlobalScope('active')->with(['zatAktifs', 'metodeBayar']);
+            // Log the status filter being used
+            if ($request->filled('status_aktif')) {
+                \Illuminate\Support\Facades\Log::info('Status filter applied:', ['status' => $request->status_aktif]);
+            } else {
+                \Illuminate\Support\Facades\Log::info('No status filter applied, showing all medications');
+            }
+
+            // Simple query without batch/expiration complexity
+            $query = \App\Models\ERM\Obat::withoutGlobalScope('active')
+                ->with(['zatAktifs', 'metodeBayar']);
 
             // Apply filters if provided
             if ($request->has('kategori') && !empty($request->kategori)) {
                 $query->where('kategori', $request->kategori);
             }
-
             if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
                 $query->where('metode_bayar_id', $request->metode_bayar_id);
             }
-            
-            // Filter by status if provided
             if ($request->filled('status_aktif')) {
-                \Illuminate\Support\Facades\Log::info('Applying status filter: ' . $request->status_aktif);
                 $query->where('status_aktif', $request->status_aktif);
-            } else {
-                \Illuminate\Support\Facades\Log::info('No status filter applied, showing all medications');
             }
-            // When no status filter is applied or empty string is passed, 
-            // we want to show all medications (both active and inactive)
 
-                // Always use a subquery to provide min_exp_date for ordering and counting
-                $obatTable = (new \App\Models\ERM\Obat)->getTable();
-                $sub = \App\Models\ERM\Obat::withoutGlobalScope('active')
-                    ->leftJoin('erm_fakturbeli_items as fbi', $obatTable.'.id', '=', 'fbi.obat_id')
-                    ->select($obatTable.'.*', DB::raw('MIN(fbi.expiration_date) as min_exp_date'))
-                    ->groupBy($obatTable.'.id');
-
-                $query = DB::query()->fromSub($sub, $obatTable);
-
-                // Apply filters if provided
-                if ($request->has('kategori') && !empty($request->kategori)) {
-                    $query->where('kategori', $request->kategori);
-                }
-                if ($request->has('metode_bayar_id') && !empty($request->metode_bayar_id)) {
-                    $query->where('metode_bayar_id', $request->metode_bayar_id);
-                }
-                if ($request->filled('status_aktif')) {
-                    $query->where('status_aktif', $request->status_aktif);
-                }
-
-                // Handle ordering
-                if ($request->has('order') && !empty($request->order)) {
-                    foreach ($request->order as $order) {
-                        $columnIndex = $order['column'];
-                        $direction = $order['dir'];
-                        $columnName = $request->columns[$columnIndex]['name'];
-                        if ($columnName === 'min_exp_date') {
-                            // NULLs last for ascending, NULLs first for descending
-                            if (strtolower($direction) === 'asc') {
-                                $query->orderByRaw('min_exp_date IS NULL, min_exp_date ASC');
-                            } else {
-                                $query->orderByRaw('min_exp_date IS NOT NULL, min_exp_date DESC');
-                            }
-                        } else if (!empty($columnName)) {
-                            $query->orderBy($columnName, $direction);
-                        }
+            return DataTables::of($query)
+                ->addColumn('metode_bayar', function ($obat) {
+                    return $obat->metodeBayar ? $obat->metodeBayar->nama : '-';
+                })
+                ->addColumn('zat_aktif', function ($obat) {
+                    $zats = [];
+                    foreach ($obat->zatAktifs as $zat) {
+                        $zats[] = '<span class="badge badge-zat-aktif">' . $zat->nama . '</span>';
                     }
-                } else {
-                    // Default: NULLs last
-                    $query->orderByRaw('min_exp_date IS NULL, min_exp_date ASC');
-                }
-
-                // Eager load relationships after subquery
-                $obatIds = $query->pluck('id');
-                $obatModels = \App\Models\ERM\Obat::with(['zatAktifs', 'metodeBayar'])->whereIn('id', $obatIds)->get()->keyBy('id');
-
-                return DataTables::of($query)
-                    ->addColumn('zat_aktif', function ($obat) use ($obatModels) {
-                        $model = $obatModels[$obat->id] ?? null;
-                        $zats = [];
-                        if ($model) {
-                            foreach ($model->zatAktifs as $zat) {
-                                $zats[] = '<span class="badge bg-secondary">' . $zat->nama . '</span>';
-                            }
-                        }
-                        return implode(' ', $zats);
-                    })
-                    // Add warning icon if dosis or satuan is null
-                    ->editColumn('nama', function ($obat) {
-                        $warning = '';
-                        if (empty($obat->dosis) || empty($obat->satuan)) {
-                            $warning = '<span class="text-warning" style="margin-left:5px;" title="Dosis atau satuan belum diisi"><i class="fas fa-exclamation-triangle" style="color:orange;"></i></span>';
-                        }
-                        return e($obat->nama) . $warning;
-                    })
-                    ->addColumn('batch_info', function ($obat) {
-                        $items = \App\Models\ERM\FakturBeliItem::where('obat_id', $obat->id)
-                            ->orderBy('expiration_date', 'asc')
-                            ->get(['batch', 'expiration_date', 'sisa']);
-                        $data = $items->map(function($item) {
-                            return [
-                                'batch' => $item->batch,
-                                'expiration_date' => $item->expiration_date,
-                                'sisa' => $item->sisa
-                            ];
-                        });
-                        return '<button class="btn btn-sm btn-primary batch-info-btn" data-batchinfo="' . htmlspecialchars(json_encode($data), ENT_QUOTES, 'UTF-8') . '"><i class="fas fa-list"></i> Batch</button>';
-                    })
-                    ->addColumn('status_aktif', function ($obat) {
-                        return $obat->status_aktif;
-                    })
-                    ->addColumn('action', function ($obat) {
-                        $editBtn = '<a href="' . route('erm.obat.edit', $obat->id) . '" class="btn btn-sm btn-info"><i class="fas fa-edit"></i></a>';
-                        $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
-                        return $editBtn . ' ' . $deleteBtn;
-                    })
-                    ->rawColumns(['zat_aktif', 'action', 'batch_info', 'nama'])
+                    return implode(' ', $zats);
+                })
+                // Add warning icon if dosis or satuan is null
+                ->editColumn('nama', function ($obat) {
+                    $warning = '';
+                    if (empty($obat->dosis) || empty($obat->satuan)) {
+                        $warning = '<span class="text-warning" style="margin-left:5px;" title="Dosis atau satuan belum diisi"><i class="fas fa-exclamation-triangle" style="color:orange;"></i></span>';
+                    }
+                    return e($obat->nama) . $warning;
+                })
+                ->addColumn('status_aktif', function ($obat) {
+                    return $obat->status_aktif;
+                })
+                ->addColumn('action', function ($obat) {
+                    $editBtn = '<button type="button" class="btn btn-sm btn-info btn-edit-obat" data-id="' . $obat->id . '"><i class="fas fa-edit"></i></button>';
+                    $deleteBtn = '<button data-id="' . $obat->id . '" class="btn btn-sm btn-danger delete-btn"><i class="fas fa-trash"></i></button>';
+                    return $editBtn . ' ' . $deleteBtn;
+                })
+                ->rawColumns(['zat_aktif', 'action', 'nama'])
                     ->make(true);
         }
 
@@ -285,8 +191,13 @@ class ObatController extends Controller
             // Log the ID being used for update
             \Illuminate\Support\Facades\Log::info('Obat update/create with ID: ' . ($request->id ?? 'null'));
             
-            // The status_aktif value to be used
-            $statusAktif = ($request->has('status_aktif_submitted') && $request->has('status_aktif')) ? 1 : 0;
+            // Debug: Log the status_aktif value received
+            \Illuminate\Support\Facades\Log::info('Status aktif received: ' . $request->input('status_aktif'));
+            
+            // The status_aktif value to be used - directly from the request
+            $statusAktif = $request->input('status_aktif', 1); // Default to 1 (active) if not provided
+            
+            \Illuminate\Support\Facades\Log::info('Status aktif processed: ' . $statusAktif);
             
             // Check if we're updating an existing record or creating a new one
             if ($request->filled('id')) {
@@ -334,10 +245,16 @@ class ObatController extends Controller
             DB::commit();
 
             $message = $request->id ? 'Obat berhasil diperbarui' : 'Obat berhasil ditambahkan';
+                if ($request->ajax()) {
+                    return response()->json(['success' => true, 'message' => $message]);
+                }
             return redirect()->route('erm.obat.index')->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
-            return redirect()->back()->with('error', 'Gagal menyimpan obat: ' . $e->getMessage());
+                if ($request->ajax()) {
+                    return response()->json(['success' => false, 'message' => 'Gagal menyimpan obat: ' . $e->getMessage()], 500);
+                }
+            // return redirect()->back()->with('error', 'Gagal menyimpan obat: ' . $e->getMessage());
         }
     }
 
@@ -352,6 +269,27 @@ class ObatController extends Controller
             'status_aktif' => $obat->status_aktif
         ]);
         
+        // If this is an AJAX request, return JSON data for the modal
+        if (request()->ajax()) {
+            return response()->json([
+                'id' => $obat->id,
+                'kode_obat' => $obat->kode_obat,
+                'nama' => $obat->nama,
+                'hpp' => $obat->hpp,
+                'hpp_jual' => $obat->hpp_jual,
+                'harga_net' => $obat->harga_net,
+                'harga_nonfornas' => $obat->harga_nonfornas,
+                'metode_bayar_id' => $obat->metode_bayar_id,
+                'kategori' => $obat->kategori,
+                'zataktif_id' => $obat->zatAktifs->pluck('id')->toArray(),
+                'dosis' => $obat->dosis,
+                'satuan' => $obat->satuan,
+                'status_aktif' => $obat->status_aktif,
+                'stok' => $obat->stok
+            ]);
+        }
+        
+        // For regular requests, return the view (for non-modal edit page)
         $zatAktif = ZatAktif::all();
         $supplier = Supplier::all();
         $metodeBayars = MetodeBayar::all();
