@@ -536,11 +536,20 @@ class EresepController extends Controller
 
         // Load relasi obat agar bisa diakses dari JS
         $resep->load('obat');
+        // Get mapped gudang for resep
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+        // Add stok_gudang to obat data
+        $obatData = $resep->obat->toArray();
+        $obatData['stok_gudang'] = (int) $stokGudang;
+
+        $responseData = $resep->toArray();
+        $responseData['obat'] = $obatData;
 
         return response()->json([
             'success' => true,
             'message' => 'Obat non-racikan berhasil disimpan.',
-            'data' => $resep
+            'data' => $responseData
         ]);
     }
 
@@ -576,6 +585,8 @@ class EresepController extends Controller
             $dosisRatio = $prescribedDosis / $baseDosis;
             $harga = $basePrice * $dosisRatio;
         }
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stokGudang = $gudangId ? $obatModel->getStokByGudang($gudangId) : 0;
         $created = ResepFarmasi::create([
             'id' => $customId,
             'visitation_id' => $validated['visitation_id'],
@@ -593,7 +604,8 @@ class EresepController extends Controller
             'id' => $created->id,
             'obat_id' => $created->obat_id,
             'dosis' => $created->dosis,
-            'jumlah' => $created->jumlah ?? 1
+            'jumlah' => $created->jumlah ?? 1,
+            'stok_gudang' => (int) $stokGudang
         ];
     }
     return response()->json([

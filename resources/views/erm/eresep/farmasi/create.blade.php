@@ -144,7 +144,13 @@
                                     <td>Rp. {{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->diskon ?? '0'}} %</td>
                                     
-                                    <td>{{ $resep->obat->stok ?? 0 }}</td>
+                                    @php
+                                        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+                                        $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+                                    @endphp
+                                    <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
+                                        {{ (int) $stokGudang }}
+                                    </td>
                                     <td>{{ $resep->aturan_pakai }}</td>
                                     <td><button class="btn btn-success btn-sm edit" data-id="{{ $resep->id }}">Edit</button>
                                         <button class="btn btn-danger btn-sm hapus" data-id="{{ $resep->id }}">Hapus</button> </td>
@@ -186,7 +192,13 @@
                                     <tr data-id="{{ $resep->id }}" data-obat-id="{{ $resep->obat_id }}" data-dosis="{{ $resep->dosis }}" data-jumlah="{{ $resep->jumlah }}">
                                         <td>{{ $resep->obat->nama ?? '-' }}</td>
                                         <td>{{ $resep->dosis }}</td>
-                                        <td>{{ $resep->obat->stok ?? 0 }}</td>
+                                        @php
+                                            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+                                            $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+                                        @endphp
+                                        <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
+                                            {{ (int) $stokGudang }}
+                                        </td>
                                         <td>
                                             <button class="btn btn-warning btn-sm edit-obat" disabled>Edit</button>
                                             <button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button>
@@ -340,13 +352,15 @@
                 success: function (res) {
                     // const resep = res.data;
                     $('#resep-table-body .no-data').remove();
+                    const stokGudang = res.data.obat.stok_gudang !== undefined ? parseInt(res.data.obat.stok_gudang) : 0;
+                    const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
                     $('#resep-table-body').append(`
                         <tr data-id="${res.data.id}">
                             <td>${res.data.obat.nama}</td>
                             <td>${res.data.jumlah}</td>
                             <td>${res.data.obat.harga_nonfornas}</td>
                             <td>${res.data.diskon} %</td>                           
-                            <td>${res.data.obat.stok}</td>
+                            <td style="color: ${stokColor};">${stokGudang}</td>
                             <td>${res.data.aturan_pakai}</td>
                             <td>
                                 <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
@@ -526,6 +540,7 @@
                                         dosis: item.dosis,
                                         satuan: item.satuan,
                                         stok: item.stok,
+                                        stok_gudang: typeof item.stok_gudang !== 'undefined' ? item.stok_gudang : item.stok,
                                         harga_nonfornas: item.harga_nonfornas
                                     };
                                 })
@@ -654,7 +669,9 @@
 
             // Retrieve custom data attributes from the selected option
             const selectedOption = obatSelect.select2('data')[0]; // Get the selected option's data
-            const stok = selectedOption.stok || 0; // Default to 0 if undefined
+            // Use stok_gudang if available, fallback to stok
+            const stokGudang = typeof selectedOption.stok_gudang !== 'undefined' ? parseInt(selectedOption.stok_gudang) : (selectedOption.stok || 0);
+            const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
             const defaultDosis = parseFloat(selectedOption.dosis) || 0; // Ensure it's a number
             const satuan = selectedOption.satuan || ''; // Default to empty string if undefined
 
@@ -677,7 +694,7 @@
                 <tr data-id="" data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-jumlah="1">
                     <td data-id="${obatId}">${obatText}</td>
                     <td>${dosisAkhir} ${satuan}</td>
-                    <td>${stok}</td>
+                    <td><span style="color: ${stokColor};">${stokGudang}</span></td>
                     <td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
                 </tr>
             `);
@@ -734,17 +751,21 @@
                     } else {
                         card.find('.update-resepracikan').addClass('d-none');
                     }
-                    // PATCH: Update each obat row with the correct data-id from backend
-                    if (res.obats && Array.isArray(res.obats)) {
-                        let rows = card.find('.resep-table-body tr');
-                        res.obats.forEach(function(obat, idx) {
-                            let row = rows.eq(idx);
-                            row.attr('data-id', obat.id);
-                            row.attr('data-obat-id', obat.obat_id);
-                            row.attr('data-dosis', obat.dosis);
-                            row.attr('data-jumlah', obat.jumlah || 1);
-                        });
-                    }
+                        // PATCH: Update each obat row with the correct data-id and stok_gudang from backend
+                        if (res.obats && Array.isArray(res.obats)) {
+                            let rows = card.find('.resep-table-body tr');
+                            res.obats.forEach(function(obat, idx) {
+                                let row = rows.eq(idx);
+                                row.attr('data-id', obat.id);
+                                row.attr('data-obat-id', obat.obat_id);
+                                row.attr('data-dosis', obat.dosis);
+                                row.attr('data-jumlah', obat.jumlah || 1);
+                                // Update stok column and color
+                                let stokGudang = typeof obat.stok_gudang !== 'undefined' ? parseInt(obat.stok_gudang) : 0;
+                                let stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
+                                row.find('td').eq(2).html(`<span style="color: ${stokColor};">${stokGudang}</span>`);
+                            });
+                        }
                 }
             });
             });
