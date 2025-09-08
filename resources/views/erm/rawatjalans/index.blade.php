@@ -807,14 +807,13 @@ Terima kasih.
         </div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="filter_tanggal">Periode Tanggal Kunjungan</label>
-                    <div class="input-group">
-                        <input type="text" id="filter_tanggal" class="form-control" placeholder="Pilih Rentang Tanggal">
-                        <div class="input-group-append">
-                            <span class="input-group-text"><i class="fas fa-calendar"></i></span>
-                        </div>
-                    </div>
+                <div class="col-md-2">
+                    <label for="filter_start_date">Start Date</label>
+                    <input type="date" id="filter_start_date" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                    <label for="filter_end_date">End Date</label>
+                    <input type="date" id="filter_end_date" class="form-control" />
                 </div>
                 @if ($role !== 'Dokter')
                 <div class="col-md-4">
@@ -945,42 +944,10 @@ $(document).ready(function () {
     $('.select2').select2({
         width: '100%' 
     });
-    // Initialize daterangepicker
-    $('#filter_tanggal').daterangepicker({
-        locale: {
-            format: 'DD-MM-YYYY',
-            separator: ' s/d ',
-            applyLabel: 'Pilih',
-            cancelLabel: 'Batal',
-            fromLabel: 'Dari',
-            toLabel: 'Hingga',
-            customRangeLabel: 'Kustom',
-            weekLabel: 'M',
-            daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
-            monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
-            firstDay: 1
-        },
-        opens: 'left',
-        autoUpdateInput: false
-    });
-    
-    // Set default value to today
-    var today = moment().format('DD-MM-YYYY');
-    $('#filter_tanggal').val(today + ' s/d ' + today);
-    
-    // Handle apply event
-    $('#filter_tanggal').on('apply.daterangepicker', function(ev, picker) {
-        $(this).val(picker.startDate.format('DD-MM-YYYY') + ' s/d ' + picker.endDate.format('DD-MM-YYYY'));
-        table.ajax.reload();
-        updateStats();
-    });
-    
-    // Handle cancel event
-    $('#filter_tanggal').on('cancel.daterangepicker', function(ev, picker) {
-        $(this).val('');
-        table.ajax.reload();
-        updateStats();
-    });
+    // Set default value to today for both start and end date
+    var today = moment().format('YYYY-MM-DD');
+    $('#filter_start_date').val(today);
+    $('#filter_end_date').val(today);
 
     $.fn.dataTable.ext.order['antrian-number'] = function(settings, col) {
         return this.api().column(col, {order: 'index'}).nodes().map(function(td, i) {
@@ -996,9 +963,8 @@ var userRole = "{{ $role }}";
         ajax: {
             url: '{{ route("erm.rawatjalans.index") }}',
             data: function(d) {
-                var dateRange = $('#filter_tanggal').val().split(' s/d ');
-                d.start_date = dateRange[0] ? moment(dateRange[0], 'DD-MM-YYYY').format('YYYY-MM-DD') : '';
-                d.end_date = dateRange[1] ? moment(dateRange[1], 'DD-MM-YYYY').format('YYYY-MM-DD') : '';
+                d.start_date = $('#filter_start_date').val();
+                d.end_date = $('#filter_end_date').val();
                 d.dokter_id = $('#filter_dokter').val();
                 d.klinik_id = $('#filter_klinik').val();
             }
@@ -1072,7 +1038,7 @@ var userRole = "{{ $role }}";
         updateStats(); // Also update statistics
     }, 10000);
 
-    $('#filter_dokter, #filter_klinik').on('change', function () {
+    $('#filter_dokter, #filter_klinik, #filter_start_date, #filter_end_date').on('change', function () {
         table.ajax.reload();
         updateStats();
     });
@@ -1080,18 +1046,10 @@ var userRole = "{{ $role }}";
     // Stat card click handler
     $('.stat-card-clickable').on('click', function() {
         var status = $(this).data('status');
-        let filterTanggal = $('#filter_tanggal').val();
+        let startDate = $('#filter_start_date').val();
+        let endDate = $('#filter_end_date').val();
         let filterDokter = $('#filter_dokter').val();
         let filterKlinik = $('#filter_klinik').val();
-        let startDate = '';
-        let endDate = '';
-        if (filterTanggal) {
-            let dates = filterTanggal.split(' s/d ');
-            if (dates.length === 2) {
-                startDate = moment(dates[0], 'DD-MM-YYYY').format('YYYY-MM-DD');
-                endDate = moment(dates[1], 'DD-MM-YYYY').format('YYYY-MM-DD');
-            }
-        }
         $('#modalVisitationList').modal('show');
         $('#visitation-list-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat data...</div>');
         $.ajax({
@@ -1212,21 +1170,11 @@ var userRole = "{{ $role }}";
 // Function to update statistics
 function updateStats() {
     // Get current filter values
-    let filterTanggal = $('#filter_tanggal').val();
+    let startDate = $('#filter_start_date').val();
+    let endDate = $('#filter_end_date').val();
     let filterDokter = $('#filter_dokter').val();
     let filterKlinik = $('#filter_klinik').val();
-    
-    // Parse date range
-    let startDate = '';
-    let endDate = '';
-    if (filterTanggal) {
-        let dates = filterTanggal.split(' s/d ');
-        if (dates.length === 2) {
-            startDate = moment(dates[0], 'DD-MM-YYYY').format('YYYY-MM-DD');
-            endDate = moment(dates[1], 'DD-MM-YYYY').format('YYYY-MM-DD');
-        }
-    }
-    
+
     // Make AJAX request to get updated stats
     $.get('{{ route("erm.rawatjalans.stats") }}', {
         start_date: startDate,
