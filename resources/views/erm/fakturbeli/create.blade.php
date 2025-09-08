@@ -166,7 +166,7 @@
                                             <div class="input-group">
                                                 <input type="number" id="global-diskon" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_diskon !== null ? $faktur->global_diskon : 0 }}" step="0.01" min="0">
                                                 <select id="global-diskon-type" class="form-control form-control-sm" style="max-width:60px">
-                                                    <option value="nominal">Rp</option>
+                                                    <option value="nominal" selected>Rp</option>
                                                     <option value="percent">%</option>
                                                 </select>
                                             </div>
@@ -180,8 +180,8 @@
                                             <div class="input-group">
                                                 <input type="number" id="global-tax" class="form-control form-control-sm" value="{{ isset($faktur) && $faktur->global_pajak !== null ? $faktur->global_pajak : 11 }}" step="0.01" min="0">
                                                 <select id="global-tax-type" class="form-control form-control-sm" style="max-width:60px">
-                                                    <option value="nominal" {{ (isset($faktur) && isset($faktur->global_pajak_type) && $faktur->global_pajak_type == 'nominal') ? 'selected' : '' }}>Rp</option>
-                                                    <option value="percent" {{ (!isset($faktur) || (isset($faktur->global_pajak_type) && $faktur->global_pajak_type == 'percent') || !isset($faktur->global_pajak_type)) ? 'selected' : '' }}>%</option>
+                                                    <option value="nominal" selected>Rp</option>
+                                                    <option value="percent">%</option>
                                                 </select>
                                             </div>
                                         </div>
