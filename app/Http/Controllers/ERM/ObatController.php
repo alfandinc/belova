@@ -319,10 +319,11 @@ class ObatController extends Controller
         $obats = $obatsQuery->limit(10)->get();
 
         // Return the data in Select2 format (with 'results' key)
-        $results = $obats->map(function ($obat) {
-            // Show zat aktif names in the text for better UX, format to title case
+        // Get mapped gudang for resep
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+
+        $results = $obats->map(function ($obat) use ($gudangId) {
             $zatAktifNames = $obat->zatAktifs->pluck('nama')->map(function($nama) {
-                // Convert to lowercase then uppercase first letter of each word
                 return ucwords(strtolower($nama));
             })->implode(', ');
             $text = $obat->nama;
@@ -330,6 +331,10 @@ class ObatController extends Controller
                 $text .= ' [' . $zatAktifNames . ']';
             }
             $text .= ' - ' . $obat->dosis . ' ' . $obat->satuan;
+
+            // Get stok for mapped gudang
+            $stokGudang = $gudangId ? (int) $obat->getStokByGudang($gudangId) : 0;
+
             return [
                 'id' => $obat->id,
                 'text' => $text,
@@ -337,6 +342,7 @@ class ObatController extends Controller
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
                 'stok' => $obat->stok,
+                'stok_gudang' => $stokGudang,
                 'harga_nonfornas' => $obat->harga_nonfornas,
             ];
         })->values();

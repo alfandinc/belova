@@ -147,8 +147,12 @@
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
                                     <td>{{ $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->jumlah }}</td>
-                                    <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 100 ? 'yellow' : 'green') }};">
-                                        {{ $resep->obat->stok ?? 0 }}
+                                    @php
+                                        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+                                        $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+                                    @endphp
+                                    <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
+                                        {{ (int) $stokGudang }}
                                     </td>
                                     <td>{{ ($resep->jumlah ?? 0) * ($resep->obat->harga_nonfornas ?? 0) }}</td>
                                     <td>{{ $resep->aturan_pakai }}</td>
@@ -410,6 +414,8 @@
     }
 
     $(document).ready(function () {
+    // Get gudangId for resep transaction type from Blade
+    const gudangId = {{ \App\Models\ERM\GudangMapping::getDefaultGudangId('resep') ?? 'null' }};
         // Always disable hapus-obat buttons in racikan on page load
         $('#racikan-container .hapus-obat').prop('disabled', true).addClass('disabled');
 
@@ -850,7 +856,7 @@
                         };
                     },
                     processResults: function (data) {
-                        // Ensure zat aktif is shown in dropdown
+                        // Ensure zat aktif and stok_gudang are shown in dropdown
                         if (Array.isArray(data.results)) {
                             return {
                                 results: data.results.map(function(item) {
@@ -861,6 +867,7 @@
                                         dosis: item.dosis,
                                         satuan: item.satuan,
                                         stok: item.stok,
+                                        stok_gudang: item.stok_gudang,
                                         harga_nonfornas: item.harga_nonfornas
                                     };
                                 })
@@ -876,6 +883,7 @@
                                         dosis: item.dosis,
                                         satuan: item.satuan,
                                         stok: item.stok,
+                                        stok_gudang: item.stok_gudang,
                                         harga_nonfornas: item.harga_nonfornas
                                     };
                                 })
@@ -940,18 +948,21 @@
             // Calculate harga akhir
             let hargaAkhir = (defaultDosis > 0) ? (dosisAkhir / defaultDosis) * hargaNonfornas : 0;
 
+            // Calculate stokGudang for mapped gudang
+            const stokGudang = gudangId && selectedOption.stok_gudang ? parseInt(selectedOption.stok_gudang) : 0;
+
             // Check if this medication exists in farmasi racikan prescriptions
             checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
                 const rowClass = existsInFarmasi ? 'text-success row-in-farmasi' : '';
                 // Append the new row to the table
-                tbody .prepend(`
+                tbody.prepend(`
                     <tr data-obat-id="${obatId}" class="${rowClass}">
                         <td data-id="" data-obat-id="${obatId}">${obatText}</td>
                         <td>${selectedOption.dosis || '-'}</td>
                         <td>${dosisAkhir} ${satuan}</td>
                         <td>${hargaNonfornas}</td>
                         <td>${hargaAkhir}</td>
-                        <td style="color: ${(stok < 10) ? 'red' : (stok < 100 ? 'yellow' : 'green')}">${stok}</td>
+                        <td style="color: ${(stokGudang < 10) ? 'red' : (stokGudang < 100 ? 'yellow' : 'green')}">${stokGudang}</td>
                         <td>
                             <button class="btn btn-success btn-sm edit-obat disabled" disabled>Edit</button>
                             <button class="btn btn-danger btn-sm hapus-obat disabled" disabled>Hapus</button>
