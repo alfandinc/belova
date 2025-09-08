@@ -450,11 +450,15 @@
                                             <!-- Karyawan Tab -->
                                             <div class="tab-pane fade show active" id="karyawan" role="tabpanel" aria-labelledby="karyawan-tab">
                                                 <div class="form-row mb-3">
-                                                    <div class="col-md-4">
-                                                        <label for="jadwal-week">Periode (Minggu)</label>
-                                                        <input type="week" class="form-control" id="jadwal-week" value="{{ date('Y-\WW') }}">
+                                                    <div class="col-md-4 d-flex align-items-end">
+                                                        <div style="width:100%">
+                                                            <label for="jadwal-week">Periode (Minggu)</label>
+                                                            <input type="week" class="form-control" id="jadwal-week" value="{{ date('Y-\WW') }}">
+                                                        </div>
+                                                        <button id="downloadJadwalImageBtn" class="btn btn-primary ml-2 mb-1" style="height:38px; white-space:nowrap;">Download Jadwal (Gambar)</button>
                                                     </div>
                                                 </div>
+                                                <canvas id="jadwalPdfCanvas" style="display:none;"></canvas>
                                                 <div id="jadwal-karyawan-pdf" style="height:600px; width:100%; border:1px solid #eee; background:#fafafa; display:flex; align-items:center; justify-content:center;">
                                                     <span>Pilih klinik dan periode untuk melihat jadwal karyawan.</span>
                                                 </div>
@@ -466,11 +470,15 @@
                                                         <label for="jadwal-klinik-dokter">Klinik</label>
                                                         <select class="form-control" id="jadwal-klinik-dokter"></select>
                                                     </div>
-                                                    <div class="col-md-4">
-                                                        <label for="jadwal-month">Periode (Bulan)</label>
-                                                        <input type="month" class="form-control" id="jadwal-month" value="{{ date('Y-m') }}">
+                                                    <div class="col-md-4 d-flex align-items-end">
+                                                        <div style="width:100%">
+                                                            <label for="jadwal-month">Periode (Bulan)</label>
+                                                            <input type="month" class="form-control" id="jadwal-month" value="{{ date('Y-m') }}">
+                                                        </div>
+                                                        <button id="downloadJadwalDokterImageBtn" class="btn btn-primary ml-2 mb-1" style="height:38px; white-space:nowrap;">Download Jadwal Dokter (Gambar)</button>
                                                     </div>
                                                 </div>
+                                                <canvas id="jadwalDokterPdfCanvas" style="display:none;"></canvas>
                                                 <div id="jadwal-dokter-pdf" style="height:600px; width:100%; border:1px solid #eee; background:#fafafa; display:flex; align-items:center; justify-content:center;">
                                                     <span>Pilih klinik dan periode untuk melihat jadwal dokter.</span>
                                                 </div>
@@ -498,6 +506,7 @@
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js')}}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
     function showRoleWarning(e, modul) {
         e.preventDefault();
@@ -594,6 +603,38 @@
     </script>
     <script>
     $(document).ready(function() {
+        // Download Jadwal Dokter (Gambar) button logic
+        $('#downloadJadwalDokterImageBtn').on('click', function() {
+            var clinicId = $('#jadwal-klinik-dokter').val();
+            var month = $('#jadwal-month').val();
+            if (!month) {
+                Swal.fire({icon:'warning',text:'Pilih periode bulan terlebih dahulu.'});
+                return;
+            }
+            var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
+            var canvas = document.getElementById('jadwalDokterPdfCanvas');
+            var loadingTask = pdfjsLib.getDocument(url);
+            loadingTask.promise.then(function(pdf) {
+                pdf.getPage(1).then(function(page) {
+                    var viewport = page.getViewport({scale: 1.5});
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    var renderContext = {
+                        canvasContext: canvas.getContext('2d'),
+                        viewport: viewport
+                    };
+                    page.render(renderContext).promise.then(function() {
+                        var imgData = canvas.toDataURL('image/png');
+                        var link = document.createElement('a');
+                        link.href = imgData;
+                        link.download = 'jadwal_dokter_' + month + '.png';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    });
+                });
+            });
+        });
         // System update modal
         if (!localStorage.getItem('systemUpdateModalShown')) {
             $('#systemUpdateModal').modal('show');
@@ -613,6 +654,39 @@
                     loadDokterPDF();
                 }
             }, 300); // Wait for modal animation
+        });
+
+        // Download Jadwal (Gambar) button logic
+        $('#downloadJadwalImageBtn').on('click', function() {
+            var week = $('#jadwal-week').val();
+            if (!week) {
+                Swal.fire({icon:'warning',text:'Pilih periode minggu terlebih dahulu.'});
+                return;
+            }
+            var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
+            var url = '/hrd/schedule/print?start_date='+startDate;
+            var canvas = document.getElementById('jadwalPdfCanvas');
+            var loadingTask = pdfjsLib.getDocument(url);
+            loadingTask.promise.then(function(pdf) {
+                pdf.getPage(1).then(function(page) {
+                    var viewport = page.getViewport({scale: 1.5});
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    var renderContext = {
+                        canvasContext: canvas.getContext('2d'),
+                        viewport: viewport
+                    };
+                    page.render(renderContext).promise.then(function() {
+                        var imgData = canvas.toDataURL('image/png');
+                        var link = document.createElement('a');
+                        link.href = imgData;
+                        link.download = 'jadwal_karyawan_' + startDate + '.png';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    });
+                });
+            });
         });
 
         // Fetch klinik list for both selectors (AJAX, replace with your endpoint)
