@@ -9,8 +9,8 @@
         </button>
       </div>
       <div class="modal-body">
-        <strong>List :</strong>
-        <ul>
+        <strong>UPDATENYA BANYAK PAKAI BANGET, TOLONG CEK SISTEM MANDIRI SECARA BERKALA</strong>
+        {{-- <ul>
           <li><b>Pendaftaran :</b>
             <ul>
               <li>Fix Bug NIK Pasien (Required Error)</li>
@@ -40,8 +40,8 @@
               <li>Fix Bug Edit Resep Racikan</li>
               <li>Update Notifikasi Dokter selesai buat Resep</li>
             </ul>
-        </ul>
-        <strong>*Update akan terus dilakukan secara berkala.</strong>
+        </ul> --}}
+        {{-- <strong>*Update akan terus dilakukan secara berkala.</strong> --}}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
