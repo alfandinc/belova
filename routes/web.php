@@ -566,6 +566,11 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::get('/notulensi-rapat/create', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'create'])->name('workdoc.notulensi-rapat.create');
     Route::post('/notulensi-rapat', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'store'])->name('workdoc.notulensi-rapat.store');
     Route::get('/notulensi-rapat/{id}', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'show'])->name('workdoc.notulensi-rapat.show');
+    // To-Do routes for Notulensi Rapat
+    Route::get('/notulensi-rapat/{id}/todos', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'todos'])->name('workdoc.notulensi-rapat.todos');
+    Route::post('/notulensi-rapat/{id}/todos', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'storeTodo'])->name('workdoc.notulensi-rapat.todos.store');
+    Route::delete('/notulensi-rapat/{notulensiId}/todos/{todoId}', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'deleteTodo'])->name('workdoc.notulensi-rapat.todos.delete');
+    Route::post('/notulensi-rapat/{notulensiId}/todos/{todoId}/approve', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'approveTodo'])->name('workdoc.notulensi-rapat.todos.approve');
 });
 
 

@@ -14,5 +14,12 @@ class NotulensiRapat extends Model
         'title',
         'date',
         'notulen',
+        'memo',
     ];
+
+        public function todos()
+    {
+        return $this->hasMany(NotulensiRapatTodo::class);
+    }
+
 }
