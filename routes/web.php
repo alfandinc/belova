@@ -561,6 +561,11 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::put('/documents/{document}', [App\Http\Controllers\Workdoc\DocumentController::class, 'rename'])->name('documents.rename');
     // Optionally, add a preview route if you want to serve files securely
     // Route::get('/documents/{document}/preview', [App\Http\Controllers\Workdoc\DocumentController::class, 'preview'])->name('documents.preview');
+    // Notulensi Rapat routes
+    Route::get('/notulensi-rapat', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'index'])->name('workdoc.notulensi-rapat.index');
+    Route::get('/notulensi-rapat/create', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'create'])->name('workdoc.notulensi-rapat.create');
+    Route::post('/notulensi-rapat', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'store'])->name('workdoc.notulensi-rapat.store');
+    Route::get('/notulensi-rapat/{id}', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'show'])->name('workdoc.notulensi-rapat.show');
 });
 
 
