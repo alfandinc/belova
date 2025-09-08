@@ -223,11 +223,20 @@ class EresepController extends Controller
         ]);
 
         $resep->load('obat'); // ✅ load the obat relation here
+        // Get mapped gudang for resep
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+        // Add stok_gudang to obat data
+        $obatData = $resep->obat->toArray();
+        $obatData['stok_gudang'] = (int) $stokGudang;
+
+        $responseData = $resep->toArray();
+        $responseData['obat'] = $obatData;
 
         return response()->json([
             'success' => true,
             'message' => 'Obat non-racikan berhasil disimpan.',
-            'data' => $resep
+            'data' => $responseData
         ]);
     }
 

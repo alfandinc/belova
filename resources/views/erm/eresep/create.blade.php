@@ -588,14 +588,12 @@
                                 <td>${res.data.obat.nama}</td>
                                 <td>${res.data.obat.harga_nonfornas || 0}</td>
                                 <td>${res.data.jumlah}</td>
-                                
-                                <td>${res.data.obat.stok || 0}</td>
+                                <td style="color: ${parseInt(res.data.obat.stok_gudang) < 10 ? 'red' : (parseInt(res.data.obat.stok_gudang) < 100 ? 'yellow' : 'green')}">${res.data.obat.stok_gudang !== undefined ? parseInt(res.data.obat.stok_gudang) : 0}</td>
                                 <td>${(res.data.obat.harga_nonfornas || 0) * (res.data.jumlah || 0)}</td>
                                 <td>${res.data.aturan_pakai}</td>
                                 <td>
                                     <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
                                     <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
-
                                 </td>
                             </tr>
                         `);
