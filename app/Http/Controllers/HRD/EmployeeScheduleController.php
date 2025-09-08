@@ -10,6 +10,24 @@ use Carbon\Carbon;
 
 class EmployeeScheduleController extends Controller
 {
+    /**
+     * Delete a schedule entry for an employee and date
+     */
+    public function delete(Request $request)
+    {
+        $employeeId = $request->input('employee_id');
+        $date = $request->input('date');
+        if (!$employeeId || !$date) {
+            return response()->json(['success' => false, 'message' => 'Missing employee_id or date'], 400);
+        }
+        $deleted = EmployeeSchedule::where('employee_id', $employeeId)
+            ->where('date', $date)
+            ->delete();
+        if ($request->ajax()) {
+            return response()->json(['success' => $deleted > 0]);
+        }
+        return redirect()->back()->with('success', $deleted ? 'Jadwal dihapus' : 'Jadwal tidak ditemukan');
+    }
     // Display schedule table for a week
     public function index(Request $request)
     {

@@ -89,6 +89,64 @@ function updateWeekNav() {
 }
 document.addEventListener('DOMContentLoaded', function() {
     reapplyShiftColors();
+    // Handle delete schedule button click
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('delete-schedule-btn') || (e.target.closest && e.target.closest('.delete-schedule-btn'))) {
+            var btn = e.target.classList.contains('delete-schedule-btn') ? e.target : e.target.closest('.delete-schedule-btn');
+            var employeeId = btn.getAttribute('data-employee-id');
+            var date = btn.getAttribute('data-date');
+            if (!employeeId || !date) return;
+            swal.fire({
+                title: 'Hapus jadwal karyawan?',
+                text: 'Jadwal untuk tanggal ini akan dihapus. Lanjutkan?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, hapus!',
+                cancelButtonText: 'Batal',
+                reverseButtons: true
+            }).then(function(result) {
+                if (result.value) {
+                    showLoading(true);
+                    fetch("{{ route('hrd.schedule.delete') }}", {
+                        method: 'POST',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
+                        },
+                        body: JSON.stringify({ employee_id: employeeId, date: date })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.success){
+                            showAlert('success', 'Jadwal berhasil dihapus!');
+                            // Reload the schedule table via AJAX
+                            var weekStart = document.getElementById('week-start').value;
+                            showLoading(true);
+                            fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            })
+                            .then(res => res.text())
+                            .then(html => {
+                                document.getElementById('jadwal-wrapper').innerHTML = html;
+                                reapplyShiftColors();
+                                updateWeekNav();
+                                attachNavEvents();
+                                showLoading(false);
+                            });
+                        }else{
+                            showAlert('danger', 'Gagal menghapus jadwal!');
+                            showLoading(false);
+                        }
+                    })
+                    .catch(() => {
+                        showAlert('danger', 'Gagal menghapus jadwal!');
+                        showLoading(false);
+                    });
+                }
+            });
+        }
+    });
     function attachNavEvents() {
         // Detach event listener lama dengan cloneNode agar event lama benar-benar hilang
         var prevForm = document.getElementById('prev-week-form');

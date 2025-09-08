@@ -59,14 +59,21 @@
                                     @if($isLibur)
                                         <span style="font-weight:bold;">{{ $schedule->label ?? 'Libur/Cuti' }}</span>
                                     @else
-                                        <select name="schedule[{{ $employee->id }}][{{ $date }}]" class="form-control shift-select">
-                                            <option value="">-</option>
-                                            @foreach($shifts as $shift)
-                                                <option value="{{ $shift->id }}" data-shift-name="{{ strtolower($shift->name) }}" {{ ($shiftId == $shift->id) ? 'selected' : '' }}>
-                                                    {{ $shift->name }}
-                                                </option>
-                                            @endforeach
-                                        </select>
+                                        <div class="d-flex align-items-center">
+                                            <select name="schedule[{{ $employee->id }}][{{ $date }}]" class="form-control shift-select">
+                                                <option value="">-</option>
+                                                @foreach($shifts as $shift)
+                                                    <option value="{{ $shift->id }}" data-shift-name="{{ strtolower($shift->name) }}" {{ ($shiftId == $shift->id) ? 'selected' : '' }}>
+                                                        {{ $shift->name }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            @if($schedule)
+                                                <button type="button" class="btn btn-sm btn-danger ml-2 delete-schedule-btn" data-employee-id="{{ $employee->id }}" data-date="{{ $date }}" title="Hapus Jadwal">
+                                                    <i class="fa fa-trash"></i>
+                                                </button>
+                                            @endif
+                                        </div>
                                     @endif
                                 </td>
                             @endforeach
