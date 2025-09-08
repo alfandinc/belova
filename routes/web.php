@@ -179,7 +179,12 @@ Route::get('/hrd/absensi-rekap/export-excel', [\App\Http\Controllers\HRD\Absensi
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
     // Dokter to Perawat notification
         Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
-        // ...existing ERM routes...
+            // ...existing ERM routes...
+        Route::get('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'index'])->name('erm.fakturretur.index');
+        Route::get('fakturretur/create', [\App\Http\Controllers\ERM\FakturReturController::class, 'create'])->name('erm.fakturretur.create');
+        Route::post('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'store'])->name('erm.fakturretur.store');
+        Route::get('fakturretur/{id}', [\App\Http\Controllers\ERM\FakturReturController::class, 'show'])->name('erm.fakturretur.show');
+        Route::post('fakturretur/{id}/approve', [\App\Http\Controllers\ERM\FakturReturController::class, 'approve'])->name('erm.fakturretur.approve');
     
 
     // AJAX endpoint for nilai stok gudang & keseluruhan
