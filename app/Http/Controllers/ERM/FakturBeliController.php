@@ -28,21 +28,39 @@ class FakturBeliController extends Controller
     {
         if ($request->ajax()) {
             $data = FakturBeli::with(['pemasok', 'items.obat'])->select('erm_fakturbeli.*');
-                // Filter by received_date range if provided
-                if ($request->filled('tanggal_terima_range')) {
-                    $range = explode(' - ', $request->input('tanggal_terima_range'));
-                    if (count($range) === 2) {
-                        $start = $range[0];
-                        $end = $range[1];
-                        $data = $data->whereDate('received_date', '>=', $start)
-                                     ->whereDate('received_date', '<=', $end);
-                    }
+            // Filter by received_date range if provided
+            if ($request->filled('tanggal_terima_range')) {
+                $range = explode(' - ', $request->input('tanggal_terima_range'));
+                if (count($range) === 2) {
+                    $start = $range[0];
+                    $end = $range[1];
+                    $data = $data->whereDate('received_date', '>=', $start)
+                                 ->whereDate('received_date', '<=', $end);
                 }
-                    // Filter by status if provided
-                    if ($request->filled('status')) {
-                        $data = $data->where('status', $request->input('status'));
-                    }
-                return DataTables::of($data)
+            }
+            // Filter by status if provided
+            if ($request->filled('status')) {
+                $data = $data->where('status', $request->input('status'));
+            }
+            // Hide diretur if requested
+            if ($request->input('hide_diretur') == 1) {
+                $data = $data->where('status', '!=', 'diretur');
+            }
+            // Filter by nama obat
+            if ($request->filled('search_nama_obat')) {
+                $searchNamaObat = $request->input('search_nama_obat');
+                $data = $data->whereHas('items.obat', function($q) use ($searchNamaObat) {
+                    $q->where('nama', 'like', "%$searchNamaObat%");
+                });
+            }
+            // Filter by pemasok
+            if ($request->filled('search_pemasok')) {
+                $searchPemasok = $request->input('search_pemasok');
+                $data = $data->whereHas('pemasok', function($q) use ($searchPemasok) {
+                    $q->where('nama', 'like', "%$searchPemasok%");
+                });
+            }
+            return DataTables::of($data)
                 ->addColumn('pemasok', function($row) {
                     return $row->pemasok ? $row->pemasok->nama : '-';
                 })

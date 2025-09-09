@@ -45,6 +45,9 @@
                         <input class="form-check-input" type="checkbox" id="hideDireturCheckbox" checked>
                         <label class="form-check-label" for="hideDireturCheckbox">Sembunyikan Faktur Diretur</label>
                     </div>
+                        <!-- Custom search inputs -->
+                        <input type="text" id="searchNamaObat" class="form-control ml-4" style="width:180px;" placeholder="Cari Nama Obat">
+                        <input type="text" id="searchPemasok" class="form-control ml-2" style="width:180px;" placeholder="Cari Pemasok">
                 </div>
         </div>
         <!-- Modal Cari Permintaan -->
@@ -119,15 +122,18 @@ $(function() {
             }
         });
     });
-    $('#fakturbeli-table').DataTable({
-        processing: true,
-        serverSide: true,
-            ajax: {
+    var fakturTable = $('#fakturbeli-table').DataTable({
+    processing: true,
+    serverSide: true,
+    dom: 'lrtip', // Remove default search input
+    ajax: {
             url: '{{ route('erm.fakturbeli.index') }}',
             data: function(d) {
                 d.tanggal_terima_range = $('#tanggalTerimaRange').val();
                 d.status = $('#statusFilter').val();
                 d.hide_diretur = $('#hideDireturCheckbox').is(':checked') ? 1 : 0;
+                    d.search_nama_obat = $('#searchNamaObat').val();
+                    d.search_pemasok = $('#searchPemasok').val();
                 }
             },
         order: [[4, 'desc']], // received_date column (index 4)
@@ -190,27 +196,31 @@ $(function() {
             }
         });
 
-        $('#tanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
-            $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-            $('#fakturbeli-table').DataTable().ajax.reload();
-        });
-        $('#tanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
-            $(this).val('');
-            $('#fakturbeli-table').DataTable().ajax.reload();
-        });
-        $('#resetTanggalTerima').on('click', function() {
-            $('#tanggalTerimaRange').val('');
-            $('#fakturbeli-table').DataTable().ajax.reload();
-        });
+    $('#tanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
+        $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
+        fakturTable.ajax.reload();
+    });
+    $('#tanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
+        $(this).val('');
+        fakturTable.ajax.reload();
+    });
+    $('#resetTanggalTerima').on('click', function() {
+        $('#tanggalTerimaRange').val('');
+        fakturTable.ajax.reload();
+    });
 
-            // Status filter handler
-            $('#statusFilter').on('change', function() {
-                $('#fakturbeli-table').DataTable().ajax.reload();
-            });
-            // Hide diretur filter handler
-            $('#hideDireturCheckbox').on('change', function() {
-                $('#fakturbeli-table').DataTable().ajax.reload();
-            });
+    // Status filter handler
+    $('#statusFilter').on('change', function() {
+        fakturTable.ajax.reload();
+    });
+    // Hide diretur filter handler
+    $('#hideDireturCheckbox').on('change', function() {
+        fakturTable.ajax.reload();
+    });
+    // Custom search handlers
+    $('#searchNamaObat, #searchPemasok').on('input', function() {
+        fakturTable.ajax.reload();
+    });
     // Delete handler
     $('#fakturbeli-table').on('click', '.btn-delete-faktur', function() {
         if(confirm('Yakin ingin menghapus faktur ini?')) {
@@ -224,7 +234,7 @@ $(function() {
                 success: function(res) {
                     if(res.success) {
                         alert(res.message);
-                        $('#fakturbeli-table').DataTable().ajax.reload();
+                        fakturTable.ajax.reload();
                     }
                 },
                 error: function() {
@@ -255,7 +265,7 @@ $(function() {
                     success: function(res) {
                         if(res.success) {
                             Swal.fire('Berhasil', res.message, 'success');
-                            $('#fakturbeli-table').DataTable().ajax.reload();
+                            fakturTable.ajax.reload();
                         } else {
                             Swal.fire('Gagal', res.message || 'Terjadi kesalahan', 'error');
                         }
@@ -285,8 +295,6 @@ $(function() {
                     debugInfo += `<p>Global Pajak: Rp${parseFloat(res.faktur.global_pajak || 0).toLocaleString('id-ID')}</p>`;
                     debugInfo += `<p>Total: Rp${parseFloat(res.faktur.total || 0).toLocaleString('id-ID')}</p>`;
                     debugInfo += `<p>Calculated Subtotal: Rp${parseFloat(res.faktur.invoiceSubtotalCalculated || 0).toLocaleString('id-ID')}</p>`;
-                    
-
                     debugInfo += `<h4>Items Info</h4>`;
                     debugInfo += `<table class="table table-bordered">
                         <thead>
@@ -306,7 +314,6 @@ $(function() {
                             </tr>
                         </thead>
                         <tbody>`;
-
                     res.items.forEach(item => {
                         let formula = `New HPP = (Old HPP × Old Stok + Purchase Cost) / (Old Stok + Qty)<br>
                             = (${item.oldHpp} × ${item.oldStok} + ${item.purchaseCost}) / (${item.oldStok} + ${item.qty})<br>
@@ -330,10 +337,9 @@ $(function() {
                         </tr>`;
                     });
                     debugInfo += `</tbody></table>`;
-                    
                     // Create modal to display the debug info
-                    let modal = $(`
-                        <div class="modal fade" id="debugHppModal" tabindex="-1" role="dialog">
+                    let modal = $(
+                        `<div class="modal fade" id="debugHppModal" tabindex="-1" role="dialog">
                             <div class="modal-dialog modal-xl" role="document">
                                 <div class="modal-content">
                                     <div class="modal-header">
@@ -350,9 +356,8 @@ $(function() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    `);
-                    
+                        </div>`
+                    );
                     // Append to body, show and then remove on close
                     $('body').append(modal);
                     modal.modal('show');
