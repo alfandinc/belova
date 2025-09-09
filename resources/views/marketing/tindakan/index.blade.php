@@ -181,9 +181,24 @@
                     </div> --}}
                     
                     <div class="form-group">
-                        <label for="harga">Price (Rp) <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control" id="harga" name="harga" step="0.01" required>
-                        <div class="invalid-feedback" id="harga-error"></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="harga">Harga <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="harga" name="harga" step="0.01" required>
+                            <div class="invalid-feedback" id="harga-error"></div>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="harga_diskon">Harga Diskon</label>
+                            <input type="number" class="form-control" id="harga_diskon" name="harga_diskon" step="0.01">
+                            <div class="invalid-feedback" id="harga_diskon-error"></div>
+                            <div class="form-group mt-2">
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="diskon_active" name="diskon_active" value="1">
+                                    <label class="form-check-label" for="diskon_active">Diskon Active</label>
+                                </div>
+                                <div class="invalid-feedback" id="diskon_active-error"></div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -661,6 +676,12 @@
                     $('#nama').val(data.nama);
                     $('#deskripsi').val(data.deskripsi);
                     $('#harga').val(data.harga);
+                       $('#harga_diskon').val(data.harga_diskon || '');
+                       if (data.diskon_active && (data.diskon_active == 1 || data.diskon_active === true)) {
+                           $('#diskon_active').prop('checked', true);
+                       } else {
+                           $('#diskon_active').prop('checked', false);
+                       }
                     $('#spesialis_id').val(data.spesialis_id).trigger('change');
                     // Populate bundled obat
                     if (data.obat_ids && Array.isArray(data.obat_ids)) {

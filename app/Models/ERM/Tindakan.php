@@ -15,7 +15,7 @@ class Tindakan extends Model
         return $this->belongsToMany(KodeTindakan::class, 'erm_tindakan_kode_tindakan', 'tindakan_id', 'kode_tindakan_id');
     }
     protected $table = 'erm_tindakan';
-    protected $fillable = ['nama', 'deskripsi', 'harga', 'spesialis_id'];
+    protected $fillable = ['nama', 'deskripsi', 'harga', 'spesialis_id', 'harga_diskon', 'diskon_active'];
 
     public function paketTindakan()
     {

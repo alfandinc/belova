@@ -206,6 +206,8 @@ class TindakanController extends Controller
                 Rule::unique('erm_tindakan')->ignore($request->id)],
             'deskripsi' => 'nullable|string',
             'harga' => 'required|numeric|min:0',
+            'harga_diskon' => 'nullable|numeric|min:0',
+            'diskon_active' => 'nullable|boolean',
             'spesialis_id' => 'required|exists:erm_spesialisasis,id',
             'obat_ids' => 'array',
             'obat_ids.*' => 'exists:erm_obat,id',
@@ -221,6 +223,8 @@ class TindakanController extends Controller
                     'nama' => $request->nama,
                     'deskripsi' => $request->deskripsi,
                     'harga' => $request->harga,
+                    'harga_diskon' => $request->harga_diskon,
+                    'diskon_active' => $request->diskon_active ?? 0,
                     'spesialis_id' => $request->spesialis_id,
                 ]
             );
