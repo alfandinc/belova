@@ -348,7 +348,7 @@
                     <div class="menu-label">INVENTORY</div>
                 </a>
                 <!-- Marketing Tile -->
-                <a href="/marketing" class="menu-tile tile-marketing animate-item delay-4"
+                <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-4"
                    @if(!array_intersect($userRoles, ['Marketing','Admin']))
                        onclick="showRoleWarning(event, 'Marketing')"
                    @endif>

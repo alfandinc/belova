@@ -879,7 +879,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function (
     // AJAX: Get obats for kode tindakan (for tindakan modal)
     Route::get('/kode-tindakan/{id}/obats', [App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
 
-    // Main dashboard and analytics
+    // // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     
