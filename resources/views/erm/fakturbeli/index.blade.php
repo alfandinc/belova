@@ -41,6 +41,10 @@
                             <option value="diterima">Diterima</option>
                             <option value="diapprove">Diapprove</option>
                         </select>
+                    <div class="form-check ml-4">
+                        <input class="form-check-input" type="checkbox" id="hideDireturCheckbox" checked>
+                        <label class="form-check-label" for="hideDireturCheckbox">Sembunyikan Faktur Diretur</label>
+                    </div>
                 </div>
         </div>
         <!-- Modal Cari Permintaan -->
@@ -119,10 +123,11 @@ $(function() {
         processing: true,
         serverSide: true,
             ajax: {
-                url: '{{ route('erm.fakturbeli.index') }}',
-                data: function(d) {
-                    d.tanggal_terima_range = $('#tanggalTerimaRange').val();
-                        d.status = $('#statusFilter').val();
+            url: '{{ route('erm.fakturbeli.index') }}',
+            data: function(d) {
+                d.tanggal_terima_range = $('#tanggalTerimaRange').val();
+                d.status = $('#statusFilter').val();
+                d.hide_diretur = $('#hideDireturCheckbox').is(':checked') ? 1 : 0;
                 }
             },
         order: [[4, 'desc']], // received_date column (index 4)
@@ -152,11 +157,11 @@ $(function() {
                     case 'diminta': badgeClass = 'badge-warning'; break;
                     case 'diterima': badgeClass = 'badge-info'; break;
                     case 'diapprove': badgeClass = 'badge-success';
-                        // Try to get approved_by_user_name from row if available
                         if (row.approved_by_user_name) {
                             approvedBy = `<br><small class='text-success'>Approved by: ${row.approved_by_user_name}</small>`;
                         }
                         break;
+                    case 'diretur': badgeClass = 'badge-danger'; break;
                     default: badgeClass = 'badge-secondary'; break;
                 }
                 return `<span class="badge ${badgeClass}">${data}</span>${approvedBy}`;
@@ -164,7 +169,12 @@ $(function() {
             { data: 'bukti', name: 'bukti', render: function(data) {
                 return data ? `<a href='/storage/${data}' target='_blank'>Lihat</a>` : '-';
             }},
-            { data: 'action', name: 'action', orderable: false, searchable: false },
+            { data: 'action', name: 'action', orderable: false, searchable: false, render: function(data, type, row) {
+                if (row.status === 'diretur') {
+                    return '';
+                }
+                return data;
+            } },
         ],
         columnDefs: [
             { targets: -1, width: '280px' }
@@ -195,6 +205,10 @@ $(function() {
 
             // Status filter handler
             $('#statusFilter').on('change', function() {
+                $('#fakturbeli-table').DataTable().ajax.reload();
+            });
+            // Hide diretur filter handler
+            $('#hideDireturCheckbox').on('change', function() {
                 $('#fakturbeli-table').DataTable().ajax.reload();
             });
     // Delete handler

@@ -131,8 +131,15 @@ class FakturReturController extends Controller
                 'status' => 'diapprove',
                 'approved_by' => Auth::id()
             ]);
+
+            // Update FakturBeli status to 'diretur'
+            if ($retur->fakturbeli_id) {
+                \App\Models\ERM\FakturBeli::where('id', $retur->fakturbeli_id)
+                    ->update(['status' => 'diretur']);
+            }
+
             DB::commit();
-            return response()->json(['success' => true, 'message' => 'Retur berhasil diapprove dan stok telah dikurangi']);
+            return response()->json(['success' => true, 'message' => 'Retur berhasil diapprove, stok dikurangi, dan status faktur beli diubah menjadi diretur']);
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
