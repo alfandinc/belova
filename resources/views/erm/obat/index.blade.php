@@ -52,13 +52,13 @@
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="harga_net">Harga Net</label>
-                                                        <input type="number" class="form-control" id="harga_net" name="harga_net" min="0">
+                                                        <input type="number" class="form-control" id="harga_net" name="harga_net" min="0" step="any">
                                                     </div>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="harga_nonfornas">Harga Non-Fornas</label>
-                                                        <input type="number" class="form-control" id="harga_nonfornas" name="harga_nonfornas" min="0">
+                                                        <input type="number" class="form-control" id="harga_nonfornas" name="harga_nonfornas" min="0" step="any">
                                                     </div>
                                                 </div>
                                             </div>

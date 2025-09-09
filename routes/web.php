@@ -238,6 +238,9 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat-masuk', [App\Http\Controllers\ERM\ObatMasukController::class, 'index'])->name('erm.obatmasuk.index');
     // Update harga jual (nonfornas) via AJAX
     Route::post('/obat/{id}/update-harga', [App\Http\Controllers\ERM\ObatController::class, 'updateHargaJual'])->name('erm.obat.update-harga');
+    // Add PUT/PATCH route for updating Obat
+    Route::put('/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'update'])->name('erm.obat.update');
+    Route::patch('/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'update']);
     // Export Obat data to Excel
     Route::get('/obat/export-excel', [App\Http\Controllers\ERM\ObatController::class, 'exportExcel'])->name('erm.obat.export-excel');
     // Monitor Profit

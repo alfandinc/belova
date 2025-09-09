@@ -15,6 +15,55 @@ use Yajra\DataTables\Facades\DataTables;
 class ObatController extends Controller
 {
     /**
+     * Update the specified Obat in storage.
+     */
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'nama' => 'required|string',
+            'kode_obat' => 'nullable|string',
+            'dosis' => 'nullable|string',
+            'satuan' => 'nullable|string',
+            'kategori' => 'nullable|string',
+            'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
+            'harga_net' => 'nullable|numeric',
+            'harga_fornas' => 'nullable|numeric',
+            'harga_nonfornas' => 'required|numeric',
+            'stok' => 'nullable|integer|min:0',
+            'hpp' => 'nullable|numeric',
+            'hpp_jual' => 'nullable|numeric',
+            'status_aktif' => 'nullable|integer',
+        ]);
+
+        try {
+            $obat = Obat::withInactive()->findOrFail($id);
+            $obat->update([
+                'nama' => $request->nama,
+                'kode_obat' => $request->kode_obat,
+                'dosis' => $request->dosis,
+                'satuan' => $request->satuan,
+                'harga_net' => $request->harga_net,
+                'harga_fornas' => $request->harga_fornas,
+                'harga_nonfornas' => $request->harga_nonfornas,
+                'stok' => $request->stok ?? 0,
+                'kategori' => $request->kategori,
+                'metode_bayar_id' => $request->metode_bayar_id,
+                'status_aktif' => $request->input('status_aktif', 1),
+                'hpp' => $request->hpp,
+                'hpp_jual' => $request->hpp_jual,
+            ]);
+
+            // Sync zat aktif if provided
+            if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
+                $obat->zatAktifs()->sync($request->zataktif_id);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Obat berhasil diperbarui']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal memperbarui obat: ' . $e->getMessage()], 500);
+        }
+    }
+    /**
      * Update harga_nonfornas (harga jual) via AJAX.
      */
     public function updateHargaJual(Request $request, $id)
