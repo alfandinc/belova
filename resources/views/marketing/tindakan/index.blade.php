@@ -82,6 +82,9 @@
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body" id="galeriBeforeAfterContent">
+            // Clear kode tindakan table first
+            $('#kodeTindakanTable tbody').empty();
+            
                 <!-- Content will be loaded via JS -->
                 <style>
                 #galeriBeforeAfterContent {
@@ -155,18 +158,27 @@
                 <div class="modal-body">
                     <input type="hidden" id="tindakan_id" name="id">
                     <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                    
-                    <div class="form-group">
-                        <label for="nama">Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="nama" name="nama" required>
-                        <div class="invalid-feedback" id="nama-error"></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="nama">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="nama" name="nama" required>
+                            <div class="invalid-feedback" id="nama-error"></div>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="spesialis_id">Specialist <span class="text-danger">*</span></label>
+                            <select class="form-control select2" id="spesialis_id" name="spesialis_id" required>
+                                <option value="">Select Specialist</option>
+                                <!-- Specialist options will be loaded via Ajax -->
+                            </select>
+                            <div class="invalid-feedback" id="spesialis_id-error"></div>
+                        </div>
                     </div>
                     
-                    <div class="form-group">
+                    {{-- <div class="form-group">
                         <label for="deskripsi">Description</label>
                         <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3"></textarea>
                         <div class="invalid-feedback" id="deskripsi-error"></div>
-                    </div>
+                    </div> --}}
                     
                     <div class="form-group">
                         <label for="harga">Price (Rp) <span class="text-danger">*</span></label>
@@ -175,18 +187,25 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="spesialis_id">Specialist <span class="text-danger">*</span></label>
-                        <select class="form-control select2" id="spesialis_id" name="spesialis_id" required>
-                            <option value="">Select Specialist</option>
-                            <!-- Specialist options will be loaded via Ajax -->
-                        </select>
-                        <div class="invalid-feedback" id="spesialis_id-error"></div>
+                        <label>Kode Tindakan</label>
+                        <div class="table-responsive">
+                            <table class="table table-bordered" id="kodeTindakanTable">
+                                <thead>
+                                    <tr>
+                                        <th>Kode Tindakan</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                            <button type="button" class="btn btn-sm btn-success" id="addKodeTindakanRow">Add Kode Tindakan</button>
+                        </div>
                     </div>
-                    <div class="form-group">
+                    {{-- <div class="form-group">
                         <label for="obat_ids">Bundled Obat/BHP</label>
                         <select class="form-control select2" id="obat_ids" name="obat_ids[]" multiple></select>
                         <div class="invalid-feedback" id="obat_ids-error"></div>
-                    </div>
+                    </div> --}}
                     <div class="form-group">
                         <label>SOP List (Order with Up/Down, remove with X, add with text input)</label>
                         <ul id="tindakanSopList" class="list-group mb-2"></ul>
@@ -291,6 +310,112 @@
             });
         }
     $(document).ready(function() {
+        // Add row to kode tindakan table
+        $('#addKodeTindakanRow').click(function() {
+            var rowIdx = $('#kodeTindakanTable tbody tr').length;
+            var row = `<tr>
+                <td>
+                    <select class="form-control kode-tindakan-search" style="width:100%"></select>
+                    <input type="hidden" class="kode-tindakan-id" name="kode_tindakan_ids[]" />
+                </td>
+                <td class="kode-tindakan-obat-cell"><span class="text-muted">No obat connected</span></td>
+                <td><button type="button" class="btn btn-danger btn-sm remove-kode-tindakan-row">Remove</button></td>
+            </tr>`;
+            var $row = $(row);
+            $('#kodeTindakanTable tbody').append($row);
+            // Initialize Select2 for the new row
+            $row.find('.kode-tindakan-search').select2({
+                width: '100%',
+                placeholder: 'Search kode tindakan...',
+                minimumInputLength: 2,
+                ajax: {
+                    url: '/marketing/kode-tindakan/search',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        return { q: params.term };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: data.results.map(function(kode) {
+                                return { id: kode.id, text: kode.text };
+                            })
+                        };
+                    },
+                    cache: true
+                },
+                dropdownParent: $('#tindakanModal')
+            }).on('select2:select', function(e) {
+                var kodeId = e.params.data.id;
+                var kodeText = e.params.data.text;
+                $(this).closest('td').find('.kode-tindakan-id').val(kodeId);
+                var $obatCell = $(this).closest('tr').find('.kode-tindakan-obat-cell');
+                // Fetch connected obats for selected kode tindakan
+                $.ajax({
+                    url: '/marketing/kode-tindakan/' + kodeId + '/obats',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
+                        if (data && data.length > 0) {
+                            var obatsHtml = '<ul class="list-group">';
+                            data.forEach(function(obat) {
+                                obatsHtml += `<li class="list-group-item p-1">${obat.nama} <span class="badge badge-info ml-1">${obat.qty || ''} ${obat.satuan_dosis || ''}</span> <span class="text-muted ml-1">${obat.dosis ? 'Dosis: '+obat.dosis : ''}</span></li>`;
+                            });
+                            obatsHtml += '</ul>';
+                            $obatCell.html(obatsHtml);
+                        } else {
+                            $obatCell.html('<span class="text-muted">No obat connected</span>');
+                        }
+                    },
+                    error: function() {
+                        $obatCell.html('<span class="text-danger">Failed to load obat</span>');
+                    }
+                });
+            });
+        });
+        // });
+
+        // Remove row from kode tindakan table
+        $(document).on('click', '.remove-kode-tindakan-row', function() {
+            $(this).closest('tr').remove();
+        });
+
+        // Autocomplete for kode tindakan search
+        $(document).on('input', '.kode-tindakan-search', function() {
+            var $input = $(this);
+            var term = $input.val();
+            if (term.length < 2) return;
+            $.ajax({
+                url: '/marketing/kode-tindakan/search',
+                data: { q: term },
+                success: function(data) {
+                    var results = data.results || [];
+                    var $list = $('<ul class="list-group position-absolute w-100" style="z-index:9999;"></ul>');
+                    results.forEach(function(item) {
+                        $list.append('<li class="list-group-item list-group-item-action kode-tindakan-autocomplete" data-id="'+item.id+'" data-text="'+item.text+'">'+item.text+'</li>');
+                    });
+                    $input.nextAll('.autocomplete-list').remove();
+                    $input.after($list.addClass('autocomplete-list'));
+                }
+            });
+        });
+
+        // Select kode tindakan from autocomplete
+        $(document).on('click', '.kode-tindakan-autocomplete', function() {
+            var $li = $(this);
+            var $input = $li.closest('td').find('.kode-tindakan-search');
+            var $hidden = $li.closest('td').find('.kode-tindakan-id');
+            $input.val($li.data('text'));
+            $hidden.val($li.data('id'));
+            $input.nextAll('.autocomplete-list').remove();
+        });
+
+        // Hide autocomplete when clicking outside
+        $(document).on('click', function(e) {
+            if (!$(e.target).hasClass('kode-tindakan-search')) {
+                $('.autocomplete-list').remove();
+            }
+        });
         // Set up CSRF token for all AJAX requests
         $.ajaxSetup({
             headers: {
@@ -516,6 +641,7 @@
             resetForm();
             $('#tindakanModalLabel').text('Add New Tindakan');
             $('#tindakanSopList').empty(); // Clear SOP list when adding new tindakan
+            $('#kodeTindakanTable tbody').empty(); // Clear kode tindakan table rows
             $('#tindakanModal').modal('show');
         });
         
@@ -543,6 +669,58 @@
                             obatOptions.push(id);
                         });
                         $('#obat_ids').val(obatOptions).trigger('change');
+                    }
+                    // Populate kode tindakan table rows using kode_tindakans array
+                    $('#kodeTindakanTable tbody').empty();
+                    if (data.kode_tindakans && Array.isArray(data.kode_tindakans)) {
+                        data.kode_tindakans.forEach(function(kode) {
+                            var obatsHtml = '';
+                            if (kode.obats && kode.obats.length > 0) {
+                                obatsHtml = '<ul class="list-group">';
+                                kode.obats.forEach(function(obat) {
+                                    obatsHtml += `<li class="list-group-item p-1">${obat.nama} <span class="badge badge-info ml-1">${obat.qty || ''} ${obat.satuan_dosis || ''}</span> <span class="text-muted ml-1">${obat.dosis ? 'Dosis: '+obat.dosis : ''}</span></li>`;
+                                });
+                                obatsHtml += '</ul>';
+                            } else {
+                                obatsHtml = '<span class="text-muted">No obat connected</span>';
+                            }
+                            var row = `<tr>
+                                <td>
+                                    <select class="form-control kode-tindakan-search" style="width:100%"></select>
+                                    <input type="hidden" class="kode-tindakan-id" name="kode_tindakan_ids[]" value="${kode.id}" />
+                                </td>
+                                <td>${obatsHtml}</td>
+                                <td><button type="button" class="btn btn-danger btn-sm remove-kode-tindakan-row">Remove</button></td>
+                            </tr>`;
+                            var $row = $(row);
+                            $('#kodeTindakanTable tbody').append($row);
+                            // Initialize Select2 for the row, set value
+                            $row.find('.kode-tindakan-search').select2({
+                                width: '100%',
+                                placeholder: 'Search kode tindakan...',
+                                minimumInputLength: 2,
+                                ajax: {
+                                    url: '/marketing/kode-tindakan/search',
+                                    dataType: 'json',
+                                    delay: 250,
+                                    data: function(params) {
+                                        return { q: params.term };
+                                    },
+                                    processResults: function(data) {
+                                        return {
+                                            results: data.results.map(function(kode) {
+                                                return { id: kode.id, text: kode.text };
+                                            })
+                                        };
+                                    },
+                                    cache: true
+                                },
+                                dropdownParent: $('#tindakanModal')
+                            });
+                            // Set initial value (id & text)
+                            var option = new Option(kode.text, kode.id, true, true);
+                            $row.find('.kode-tindakan-search').append(option).trigger('change');
+                        });
                     }
                     // Populate SOPs if available (ordered by urutan if present)
                     if (data.sop && Array.isArray(data.sop)) {
@@ -627,6 +805,13 @@
                     formData.push({name: 'obat_ids[]', value: id});
                 });
             }
+                // Collect kode tindakan from table rows
+                $('#kodeTindakanTable tbody tr').each(function() {
+                    var kodeId = $(this).find('.kode-tindakan-id').val();
+                    if (kodeId) {
+                        formData.push({name: 'kode_tindakan_ids[]', value: kodeId});
+                    }
+                });
             var url = "{{ route('marketing.tindakan.store') }}";
             $.ajax({
                 url: url,
@@ -676,6 +861,7 @@
             resetErrors();
             $('#tindakan_id').val('');
             $('.select2').val('').trigger('change');
+                $('#kode_tindakan_ids').val('').trigger('change');
         }
         
         // Show error alert

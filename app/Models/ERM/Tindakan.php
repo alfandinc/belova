@@ -7,6 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Tindakan extends Model
 {
+    /**
+     * Many-to-many relationship to KodeTindakan
+     */
+    public function kodeTindakans()
+    {
+        return $this->belongsToMany(KodeTindakan::class, 'erm_tindakan_kode_tindakan', 'tindakan_id', 'kode_tindakan_id');
+    }
     protected $table = 'erm_tindakan';
     protected $fillable = ['nama', 'deskripsi', 'harga', 'spesialis_id'];
 

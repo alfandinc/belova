@@ -864,6 +864,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
 );
 
 Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function () {
+    // AJAX search for kode tindakan (for Select2 in tindakan modal)
+    Route::get('kode-tindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
     // Galeri Before After gallery for tindakan
     Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
 
@@ -874,6 +876,9 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function (
     Route::get('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
     Route::put('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'update']);
     Route::delete('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'destroy']);
+    // AJAX: Get obats for kode tindakan (for tindakan modal)
+    Route::get('/kode-tindakan/{id}/obats', [App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
+
     // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');

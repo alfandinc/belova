@@ -7,6 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class KodeTindakan extends Model
 {
+    /**
+     * Many-to-many relationship to Tindakan
+     */
+    public function tindakans()
+    {
+        return $this->belongsToMany(Tindakan::class, 'erm_tindakan_kode_tindakan', 'kode_tindakan_id', 'tindakan_id');
+    }
     use HasFactory;
 
     protected $table = 'erm_kode_tindakan';

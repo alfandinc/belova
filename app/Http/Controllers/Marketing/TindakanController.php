@@ -209,6 +209,8 @@ class TindakanController extends Controller
             'spesialis_id' => 'required|exists:erm_spesialisasis,id',
             'obat_ids' => 'array',
             'obat_ids.*' => 'exists:erm_obat,id',
+            'kode_tindakan_ids' => 'array',
+            'kode_tindakan_ids.*' => 'exists:erm_kode_tindakan,id',
         ]);
 
         try {
@@ -271,6 +273,10 @@ class TindakanController extends Controller
             $obatIds = $request->input('obat_ids', []);
             $tindakan->obats()->sync($obatIds);
 
+            // Sync kode tindakan
+            $kodeTindakanIds = $request->input('kode_tindakan_ids', []);
+            $tindakan->kodeTindakans()->sync($kodeTindakanIds);
+
             DB::commit();
 
             return response()->json([
@@ -292,8 +298,7 @@ class TindakanController extends Controller
      */
     public function getTindakan($id)
     {
-        $tindakan = Tindakan::with(['spesialis', 'sop' => function($q) { $q->orderBy('urutan'); }, 'obats'])->findOrFail($id);
-        // Return SOPs as array for JS
+        $tindakan = Tindakan::with(['spesialis', 'sop' => function($q) { $q->orderBy('urutan'); }, 'obats', 'kodeTindakans'])->findOrFail($id);
         $result = $tindakan->toArray();
         $result['sop'] = $tindakan->sop->map(function($sop) {
             return [
@@ -302,6 +307,26 @@ class TindakanController extends Controller
             ];
         })->toArray();
         $result['obat_ids'] = $tindakan->obats->pluck('id')->toArray();
+        $result['kode_tindakan_ids'] = $tindakan->kodeTindakans->pluck('id')->toArray();
+        // Add kode_tindakans array for Select2 population
+        $result['kode_tindakans'] = $tindakan->kodeTindakans->map(function($kt) {
+            // Get connected obats for this kode tindakan
+            $obats = $kt->obats->map(function($obat) {
+                return [
+                    'id' => $obat->id,
+                    'nama' => $obat->nama,
+                    'kode' => $obat->kode ?? '',
+                    'qty' => $obat->pivot->qty ?? null,
+                    'dosis' => $obat->pivot->dosis ?? null,
+                    'satuan_dosis' => $obat->pivot->satuan_dosis ?? null
+                ];
+            })->toArray();
+            return [
+                'id' => $kt->id,
+                'text' => $kt->nama ? ($kt->kode ? $kt->kode.' - '.$kt->nama : $kt->nama) : ($kt->kode ?? ''),
+                'obats' => $obats
+            ];
+        })->toArray();
         return response()->json($result);
     }
 
