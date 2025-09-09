@@ -865,7 +865,15 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
 
 Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function () {
     // Galeri Before After gallery for tindakan
-Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
+    Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
+
+    // Kode Tindakan CRUD & DataTable
+    Route::get('kode-tindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'index'])->name('marketing.kode_tindakan.index');
+    Route::get('kode-tindakan/data', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'data'])->name('marketing.kode_tindakan.data');
+    Route::post('kode-tindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'store']);
+    Route::get('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
+    Route::put('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'update']);
+    Route::delete('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'destroy']);
     // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
