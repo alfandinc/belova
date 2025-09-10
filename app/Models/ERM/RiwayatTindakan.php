@@ -19,6 +19,14 @@ class RiwayatTindakan extends Model
         'tanggal_tindakan' => 'date'
     ];
 
+        /**
+         * Get kode tindakans for this riwayat via tindakan
+         */
+        public function kodeTindakans()
+        {
+            return $this->tindakan ? $this->tindakan->kodeTindakans() : collect([]);
+        }
+
     public function visitation()
     {
         return $this->belongsTo(Visitation::class, 'visitation_id');

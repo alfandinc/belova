@@ -120,6 +120,26 @@
         </div> --}}
     </div>
 </div>
+<!-- Riwayat Tindakan Detail Modal -->
+<div class="modal fade" id="modalRiwayatDetail" tabindex="-1" aria-labelledby="modalRiwayatDetailLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRiwayatDetailLabel">Detail Riwayat Tindakan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="riwayatDetailContent">
+                <!-- Kode Tindakan and Obat list will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <!-- Removed Save Changes button, use Simpan Perubahan in modal body -->
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- SOP Detail Modal -->
 <div class="modal fade" id="modalSopDetail" tabindex="-1" aria-labelledby="modalSopDetailLabel" aria-hidden="true">
@@ -266,6 +286,7 @@
                                 <a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>
                                 <button class="btn ${fotoBtnClass} btn-sm foto-hasil-btn mr-1" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">${fotoBtnIcon}${fotoBtnText}</button>
                                 <button class="btn btn-warning btn-sm spk-btn mr-1" data-riwayat-id="${row.id}">SPK</button>
+                                <button class="btn btn-info btn-sm detail-riwayat-btn mr-1" data-id="${row.id}"><i class="fas fa-list mr-1"></i>Detail</button>
                             `;
                         } else {
                             buttons += '<span class="text-muted">Belum ada inform consent</span>';
@@ -918,6 +939,21 @@ $(document).on('click', '.detail-sop-btn', function() {
         $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Gagal memuat SOP</td></tr>');
     });
 });
+
+
+    // Handler for detail button in riwayat tindakan datatable
+    $(document).on('click', '.detail-riwayat-btn', function() {
+        var riwayatId = $(this).data('id');
+        $('#riwayatDetailContent').html('<div class="text-center py-4">Loading...</div>');
+        $('#modalRiwayatDetail').modal('show');
+        $.get(`/erm/riwayat-tindakan/${riwayatId}/detail`, function(response) {
+            // response should contain kode tindakan and obat list
+            $('#riwayatDetailContent').html(response.html);
+        }).fail(function() {
+            $('#riwayatDetailContent').html('<div class="alert alert-danger">Failed to load detail.</div>');
+        });
+    });
+
     });
 </script>
 

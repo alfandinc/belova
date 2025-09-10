@@ -1027,7 +1027,6 @@ Route::get('/get-apotekers', [EresepController::class, 'getApotekers'])->name('e
 Route::get('/tindakan/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchTindakan'])->name('marketing.tindakan.search');
 Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\VisitationController::class, 'generateMissingResepDetails']);
 
-// AJAX route for most frequent patient
 Route::get('/erm/dashboard/most-frequent-patient', [\App\Http\Controllers\ERMDashboardAjaxController::class, 'mostFrequentPatient'])->name('erm.dashboard.most-frequent-patient');
 
 // AJAX route for visitation count (dashboard box)
@@ -1037,6 +1036,11 @@ Route::get('/erm/dashboard/visitation-count', [App\Http\Controllers\ERMDashboard
 Route::get('/erm/dashboard/visitation-detail', [App\Http\Controllers\ERMDashboardController::class, 'visitationDetail'])->name('erm.dashboard.visitation-detail');
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
+
+// AJAX route for riwayat tindakan detail modal (obat substitution)
+Route::get('/erm/riwayat-tindakan/{id}/detail', [App\Http\Controllers\ERM\TindakanController::class, 'getRiwayatDetail']);
+// POST route for saving substituted obat
+Route::post('/erm/riwayat-tindakan/{id}/obat', [App\Http\Controllers\ERM\TindakanController::class, 'updateRiwayatObat']);
 
 // AJAX: Get ruangan by gedung for filter (move to RuanganController for consistency)
 Route::get('/inventory/ruangan/by-gedung/{gedungId}', [App\Http\Controllers\Inventory\RuanganController::class, 'getRuanganByGedung']);

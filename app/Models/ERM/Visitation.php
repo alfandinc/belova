@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Visitation extends Model
 {
+
     
     protected $table = 'erm_visitations';
     public $incrementing = false; // non auto-increment
@@ -26,6 +27,16 @@ class Visitation extends Model
         'no_antrian',
 
     ];
+
+        public function riwayatTindakanObats()
+    {
+        return $this->belongsToMany(
+            Obat::class,
+            'erm_riwayat_tindakan_obat',
+            'riwayat_tindakan_id',
+            'obat_id'
+        )->withPivot('kode_tindakan_id', 'qty', 'dosis', 'satuan_dosis')->withTimestamps();
+    }
 
     public function pasien()
     {

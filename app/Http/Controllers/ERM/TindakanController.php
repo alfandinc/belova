@@ -23,7 +23,68 @@ use Carbon\Carbon;
 
 
 class TindakanController extends Controller
+    /**
+     * Update obat for a riwayat tindakan (substitution from modal)
+     */
+
 {
+        public function updateRiwayatObat(Request $request, $id)
+    {
+        $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
+        $obats = $request->input('obats', []); // [kode_tindakan_id => [obat_id, ...]]
+        $qty = $request->input('qty', []); // [kode_tindakan_id][obat_id] => value
+        $dosis = $request->input('dosis', []); // [kode_tindakan_id][obat_id] => value
+        $satuanDosis = $request->input('satuan_dosis', []); // [kode_tindakan_id][obat_id] => value
+
+        // Remove all existing pivot entries for this riwayat tindakan
+        \DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $id)->delete();
+
+        // Insert new pivot entries with qty, dosis, satuan_dosis
+        foreach ($obats as $kodeTindakanId => $obatIds) {
+            if (!is_array($obatIds)) continue;
+            foreach ($obatIds as $obatId) {
+                \DB::table('erm_riwayat_tindakan_obat')->insert([
+                    'riwayat_tindakan_id' => $id,
+                    'kode_tindakan_id' => $kodeTindakanId,
+                    'obat_id' => $obatId,
+                    'qty' => isset($qty[$kodeTindakanId][$obatId]) ? $qty[$kodeTindakanId][$obatId] : 1,
+                    'dosis' => isset($dosis[$kodeTindakanId][$obatId]) ? $dosis[$kodeTindakanId][$obatId] : null,
+                    'satuan_dosis' => isset($satuanDosis[$kodeTindakanId][$obatId]) ? $satuanDosis[$kodeTindakanId][$obatId] : null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        }
+
+        return response()->json(['success' => true, 'message' => 'Obat berhasil disimpan']);
+    }
+    /**
+     * Show detail for riwayat tindakan (kode tindakan & obat list, substitution UI)
+     */
+    public function getRiwayatDetail($id)
+    {
+        $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::with(['tindakan.kodeTindakans.obats', 'tindakan', 'tindakan.kodeTindakans', 'tindakan.obats'])->find($id);
+        if (!$riwayatTindakan) {
+            $riwayatTindakan = new \stdClass();
+            $riwayatTindakan->kodeTindakans = [];
+        }
+        $pivotObats = DB::table('erm_riwayat_tindakan_obat')
+            ->where('riwayat_tindakan_id', $id)
+            ->get();
+
+        $riwayatObat = [];
+        if ($pivotObats) {
+            foreach ($pivotObats as $pivot) {
+                $riwayatObat[$pivot->kode_tindakan_id][] = $pivot->obat_id;
+            }
+        }
+
+        $html = view('erm.partials.riwayat-detail', [
+            'riwayatTindakan' => $riwayatTindakan,
+            'riwayatObat' => $riwayatObat ?: []
+        ])->render();
+        return response()->json(['html' => $html]);
+    }
     /**
      * Get allow_post value for InformConsent (AJAX).
      */
@@ -237,9 +298,11 @@ class TindakanController extends Controller
         } else {
             $billingData = [
                 'visitation_id' => $data['visitation_id'],
-                'billable_id' => $data['tindakan_id'],
-                'billable_type' => 'App\\Models\\ERM\\Tindakan',
+                'billable_id' => $riwayatTindakan->id,
+                'billable_type' => 'App\\Models\\ERM\\RiwayatTindakan',
                 'jumlah' => $tindakan->harga,
+                'diskon' => $tindakan->diskon_active ? ($tindakan->harga - $tindakan->harga_diskon) : 0,
+                'diskon_type' => $tindakan->diskon_active ? ($tindakan->diskon_type ?? 'nominal') : null,
                 'keterangan' => 'Tindakan: ' . $tindakan->nama
             ];
             if (!empty($data['jumlah'])) {
@@ -249,6 +312,22 @@ class TindakanController extends Controller
                 $billingData['keterangan'] = $data['keterangan'];
             }
             $billing = Billing::create($billingData);
+        }
+        // Copy obat from kode tindakan to riwayat tindakan obat pivot table
+        $kodeTindakans = $tindakan->kodeTindakans;
+        foreach ($kodeTindakans as $kodeTindakan) {
+            foreach ($kodeTindakan->obats as $obat) {
+                DB::table('erm_riwayat_tindakan_obat')->insert([
+                    'riwayat_tindakan_id' => $riwayatTindakan->id,
+                    'kode_tindakan_id' => $kodeTindakan->id,
+                    'obat_id' => $obat->id,
+                    'qty' => $obat->pivot->qty ?? 1,
+                    'dosis' => $obat->pivot->dosis ?? null,
+                    'satuan_dosis' => $obat->pivot->satuan_dosis ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
         }
 
         // Create billing for bundled obats
