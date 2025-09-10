@@ -330,6 +330,30 @@ class TindakanController extends Controller
             }
         }
 
+        // Create SPK Tindakan (new detailed SPK system)
+        $spkTindakan = \App\Models\ERM\SpkTindakan::create([
+            'riwayat_tindakan_id' => $riwayatTindakan->id,
+            'tanggal_tindakan' => $data['tanggal'],
+            'status' => 'pending',
+        ]);
+
+        // Create SPK Tindakan Items for each kode tindakan
+        $spkTindakanItems = [];
+        foreach ($kodeTindakans as $kodeTindakan) {
+            $spkTindakanItem = \App\Models\ERM\SpkTindakanItem::create([
+                'spk_tindakan_id' => $spkTindakan->id,
+                'kode_tindakan_id' => $kodeTindakan->id,
+                'penanggung_jawab' => null, // Will be filled later by staff
+                'sbk' => null,
+                'sba' => null,
+                'sdc' => null,
+                'sdk' => null,
+                'sdl' => null,
+                'notes' => null,
+            ]);
+            $spkTindakanItems[] = $spkTindakanItem;
+        }
+
         // Create billing for bundled obats
         $obatBillings = [];
         foreach ($tindakan->obats as $obat) {
@@ -349,6 +373,8 @@ class TindakanController extends Controller
             'message' => 'Riwayat tindakan dan billing berhasil disimpan. Inform consent akan dibuat jika tersedia.',
             'informConsent' => $informConsent,
             'spk' => $spk,
+            'spkTindakan' => $spkTindakan,
+            'spkTindakanItems' => $spkTindakanItems,
             'billing' => $billing,
             'obatBillings' => $obatBillings,
             'riwayatTindakan' => $riwayatTindakan

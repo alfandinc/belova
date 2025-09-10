@@ -72,7 +72,7 @@
                 <a href="/marketing/tindakan"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Tindakan</span></a>
             </li>
             <li>
-                <a href="/marketing/kode-tindakan"> <i data-feather="key" class="align-self-center menu-icon"></i><span>Kode Tindakan</span></a>
+                <a href="/marketing/kodetindakan"> <i data-feather="key" class="align-self-center menu-icon"></i><span>Kode Tindakan</span></a>
             </li>
             <li>
                 <a href="/marketing/survey-questions"> <i data-feather="edit-3" class="align-self-center menu-icon"></i><span>Survey Questions</span></a>

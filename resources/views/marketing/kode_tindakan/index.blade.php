@@ -203,7 +203,7 @@ $(document).ready(function() {
     // Show modal for edit
     $('#kodeTindakanTable').on('click', '.btn-edit', function() {
         var id = $(this).data('id');
-        $.get('/marketing/kode-tindakan/' + id, function(data) {
+        $.get('/marketing/kodetindakan/' + id, function(data) {
             $('#kodeTindakanId').val(data.id);
             $('#kode').val(data.kode);
             $('#nama').val(data.nama);
@@ -226,7 +226,7 @@ $(document).ready(function() {
     $('#kodeTindakanForm').submit(function(e) {
         e.preventDefault();
         var id = $('#kodeTindakanId').val();
-        var url = id ? '/marketing/kode-tindakan/' + id : '/marketing/kode-tindakan';
+        var url = id ? '/marketing/kodetindakan/' + id : '/marketing/kodetindakan';
         var method = id ? 'PUT' : 'POST';
         var formData = $(this).serialize();
         $.ajax({
@@ -257,7 +257,7 @@ $(document).ready(function() {
         }).then((result) => {
             if (result.isConfirmed) {
                 $.ajax({
-                    url: '/marketing/kode-tindakan/' + id,
+                    url: '/marketing/kodetindakan/' + id,
                     type: 'DELETE',
                     data: {_token: '{{ csrf_token() }}'},
                     success: function(res) {

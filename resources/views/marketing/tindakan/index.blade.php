@@ -344,7 +344,7 @@
                 placeholder: 'Search kode tindakan...',
                 minimumInputLength: 2,
                 ajax: {
-                    url: '/marketing/kode-tindakan/search',
+                    url: '/marketing/kodetindakan/search',
                     dataType: 'json',
                     delay: 250,
                     data: function(params) {
@@ -367,7 +367,7 @@
                 var $obatCell = $(this).closest('tr').find('.kode-tindakan-obat-cell');
                 // Fetch connected obats for selected kode tindakan
                 $.ajax({
-                    url: '/marketing/kode-tindakan/' + kodeId + '/obats',
+                    url: '/marketing/kodetindakan/' + kodeId + '/obats',
                     type: 'GET',
                     dataType: 'json',
                     success: function(data) {
@@ -401,7 +401,7 @@
             var term = $input.val();
             if (term.length < 2) return;
             $.ajax({
-                url: '/marketing/kode-tindakan/search',
+                url: '/marketing/kodetindakan/search',
                 data: { q: term },
                 success: function(data) {
                     var results = data.results || [];
@@ -721,7 +721,7 @@
                                 placeholder: 'Search kode tindakan...',
                                 minimumInputLength: 2,
                                 ajax: {
-                                    url: '/marketing/kode-tindakan/search',
+                                    url: '/marketing/kodetindakan/search',
                                     dataType: 'json',
                                     delay: 250,
                                     data: function(params) {

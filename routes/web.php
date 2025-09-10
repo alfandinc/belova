@@ -864,24 +864,26 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
 );
 
 Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function () {
-    // AJAX search for kode tindakan (for Select2 in tindakan modal)
-    Route::get('kode-tindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
-    // Galeri Before After gallery for tindakan
-    Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
-
-    // Kode Tindakan CRUD & DataTable
-    Route::get('kode-tindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'index'])->name('marketing.kode_tindakan.index');
-    Route::get('kode-tindakan/data', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'data'])->name('marketing.kode_tindakan.data');
-    Route::post('kode-tindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'store']);
-    Route::get('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
-    Route::put('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'update']);
-    Route::delete('kode-tindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'destroy']);
-    // AJAX: Get obats for kode tindakan (for tindakan modal)
-    Route::get('/kode-tindakan/{id}/obats', [App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
 
     // // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
+    // AJAX search for kode tindakan (for Select2 in tindakan modal)
+    Route::get('kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
+    // Galeri Before After gallery for tindakan
+    Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
+
+    // Kode Tindakan CRUD & DataTable
+    Route::get('/kodetindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'index'])->name('marketing.kode_tindakan.index');
+    Route::get('/kodetindakan/data', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'data'])->name('marketing.kode_tindakan.data');
+    Route::post('/kodetindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'store']);
+    Route::get('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
+    Route::put('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'update']);
+    Route::delete('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'destroy']);
+    // AJAX: Get obats for kode tindakan (for tindakan modal)
+    Route::get('/kodetindakan/{id}/obats', [App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
+
+    
     
     // Analytics pages  
     Route::get('/revenue', [MarketingController::class, 'revenue'])->name('marketing.revenue');
