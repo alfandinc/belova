@@ -620,7 +620,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             // Get old items for comparison if invoice exists
             $oldInvoiceItems = [];
+            $hadPreviousPayment = false;
             if ($existingInvoice) {
+                $hadPreviousPayment = ($existingInvoice->amount_paid > 0);
                 $oldInvoiceItems = $invoice->items()
                     ->get()
                     ->keyBy(function($item) {
@@ -666,7 +668,27 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
-            // Process stock changes only for medication items
+            // Process stock changes only for medication items WHEN PAYMENT IS MADE
+            $shouldReduceStock = ($amountPaid > 0) && (!$existingInvoice || !$hadPreviousPayment);
+            
+            if ($shouldReduceStock) {
+                Log::info('Processing stock reduction - payment detected', [
+                    'invoice_id' => $invoice->id,
+                    'amount_paid' => $amountPaid,
+                    'is_new_invoice' => !$existingInvoice,
+                    'had_previous_payment' => $hadPreviousPayment,
+                    'visitation_id' => $request->visitation_id
+                ]);
+            } else {
+                Log::info('Skipping stock reduction - no payment or already paid', [
+                    'invoice_id' => $invoice->id,
+                    'amount_paid' => $amountPaid,
+                    'is_new_invoice' => !$existingInvoice,
+                    'had_previous_payment' => $hadPreviousPayment,
+                    'visitation_id' => $request->visitation_id
+                ]);
+            }
+            
             foreach ($billingItems as $item) {
                 $itemKey = $item->billable_type . '-' . $item->billable_id;
                 $newQty = intval($item->qty ?? 1);
@@ -685,6 +707,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // For new invoices, treat the full quantity as the difference
                     $qtyDiff = $newQty;
                 }
+                
+                // Only process stock changes if payment is made
+                if ($shouldReduceStock) {
                     // For ResepFarmasi items
                     if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                         $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
@@ -766,10 +791,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         }
                     }
                 }
+                } // Close the main shouldReduceStock if block
             }
             
-            // Process kode tindakan medications stock reduction (only for NEW invoices)
-            if (!$existingInvoice) {
+            // Process kode tindakan medications stock reduction (only when payment is made)
+            if ($shouldReduceStock) {
                 foreach ($kodeTindakanObats as $kodeTindakanObat) {
                     $obatId = $kodeTindakanObat['obat_id'];
                     $qty = $kodeTindakanObat['qty'];
@@ -789,14 +815,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         'user_id' => Auth::id(),
                         'riwayat_tindakan_id' => $kodeTindakanObat['riwayat_tindakan_id'],
                         'kode_tindakan_id' => $kodeTindakanObat['kode_tindakan_id'],
-                        'is_new_invoice' => true
+                        'payment_triggered' => true
                     ]);
                 }
             } else {
-                Log::info('Skipped kode tindakan stock reduction - invoice already exists', [
+                Log::info('Skipped kode tindakan stock reduction - no payment made', [
                     'invoice_id' => $invoice->id,
                     'visitation_id' => $request->visitation_id,
-                    'kode_tindakan_count' => count($kodeTindakanObats)
+                    'kode_tindakan_count' => count($kodeTindakanObats),
+                    'amount_paid' => $amountPaid
                 ]);
             }
 
