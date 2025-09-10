@@ -291,6 +291,16 @@
                 (item.nama_item && item.nama_item.toLowerCase().includes('obat'))) {
                 transactionType = 'resep';
             }
+            // Check if this is a RiwayatTindakan with kode tindakan obat
+            else if (item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
+                // For riwayat tindakan, use kode_tindakan transaction type for obat stock
+                transactionType = 'kode_tindakan';
+            }
+            // Check if this is a bundled obat from tindakan
+            else if (item.billable_type === 'App\\Models\\ERM\\Obat' && 
+                     item.keterangan && item.keterangan.includes('Obat Bundled:')) {
+                transactionType = 'tindakan';
+            }
             
             return window.gudangData.mappings[transactionType] || 
                    (window.gudangData.gudangs.length ? window.gudangData.gudangs[0].id : null);

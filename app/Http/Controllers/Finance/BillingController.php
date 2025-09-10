@@ -463,6 +463,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     $gudangMappings = [
         'resep' => GudangMapping::getDefaultGudangId('resep'),
         'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
+        'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
     ];
     
     return view('finance.billing.create', compact('visitation', 'invoice', 'gudangs', 'gudangMappings'));
@@ -496,6 +497,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             // Check stock availability for medication items BEFORE creating invoice
             $stockErrors = [];
+            $kodeTindakanObats = [];
+            
             foreach ($billingItems as $item) {
                 // Check ResepFarmasi items
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
@@ -534,6 +537,46 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$obat->nama} (bundled) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                        }
+                    }
+                }
+            }
+            
+            // Check stock for kode tindakan medications
+            foreach ($billingItems as $item) {
+                if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
+                    $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::find($item->billable_id);
+                    if ($riwayatTindakan) {
+                        // Get medications from kode tindakan for this riwayat tindakan
+                        $kodeTindakanMeds = DB::table('erm_riwayat_tindakan_obat')
+                            ->where('riwayat_tindakan_id', $riwayatTindakan->id)
+                            ->get();
+                            
+                        Log::info('Processing kode tindakan medications', [
+                            'riwayat_tindakan_id' => $riwayatTindakan->id,
+                            'medication_count' => $kodeTindakanMeds->count(),
+                            'visitation_id' => $request->visitation_id
+                        ]);
+                            
+                        foreach ($kodeTindakanMeds as $kodeTindakanMed) {
+                            $obat = \App\Models\ERM\Obat::find($kodeTindakanMed->obat_id);
+                            if ($obat) {
+                                $qty = intval($kodeTindakanMed->qty ?? 1);
+                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                    ->sum('stok');
+                                    
+                                if ($qty > $currentStock) {
+                                    $stockErrors[] = "Stok {$obat->nama} (kode tindakan) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                                }
+                                
+                                // Store for later stock reduction
+                                $kodeTindakanObats[] = [
+                                    'obat_id' => $obat->id,
+                                    'qty' => $qty,
+                                    'riwayat_tindakan_id' => $riwayatTindakan->id,
+                                    'kode_tindakan_id' => $kodeTindakanMed->kode_tindakan_id
+                                ];
+                            }
                         }
                     }
                 }
@@ -723,6 +766,38 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         }
                     }
                 }
+            }
+            
+            // Process kode tindakan medications stock reduction (only for NEW invoices)
+            if (!$existingInvoice) {
+                foreach ($kodeTindakanObats as $kodeTindakanObat) {
+                    $obatId = $kodeTindakanObat['obat_id'];
+                    $qty = $kodeTindakanObat['qty'];
+                    
+                    // Get gudang selection for kode tindakan obat
+                    $gudangId = $this->getGudangForItem($request, $obatId, 'kode_tindakan');
+                    
+                    $this->reduceGudangStock($obatId, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
+                    
+                    $obat = \App\Models\ERM\Obat::find($obatId);
+                    Log::info('Stock processed via invoice (Kode Tindakan Obat)', [
+                        'obat_id' => $obatId,
+                        'obat_nama' => $obat ? $obat->nama : 'Unknown',
+                        'qty_reduced' => $qty,
+                        'invoice_id' => $invoice->id,
+                        'visitation_id' => $request->visitation_id,
+                        'user_id' => Auth::id(),
+                        'riwayat_tindakan_id' => $kodeTindakanObat['riwayat_tindakan_id'],
+                        'kode_tindakan_id' => $kodeTindakanObat['kode_tindakan_id'],
+                        'is_new_invoice' => true
+                    ]);
+                }
+            } else {
+                Log::info('Skipped kode tindakan stock reduction - invoice already exists', [
+                    'invoice_id' => $invoice->id,
+                    'visitation_id' => $request->visitation_id,
+                    'kode_tindakan_count' => count($kodeTindakanObats)
+                ]);
             }
 
             // Process regular items
@@ -1228,6 +1303,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $gudangMappings = [
             'resep' => GudangMapping::getDefaultGudangId('resep'),
             'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
+            'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
         ];
 
         return response()->json([

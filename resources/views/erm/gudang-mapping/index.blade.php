@@ -66,8 +66,9 @@
                         <label for="transactionType">Tipe Transaksi <span class="text-danger">*</span></label>
                         <select class="form-control" id="transactionType" name="transaction_type" required>
                             <option value="">Pilih Tipe Transaksi</option>
-                            <option value="resep">Resep Farmasi</option>
-                            <option value="tindakan">Tindakan Medis</option>
+                            @foreach($transactionTypes as $key => $label)
+                                <option value="{{ $key }}">{{ $label }}</option>
+                            @endforeach
                         </select>
                     </div>
                     

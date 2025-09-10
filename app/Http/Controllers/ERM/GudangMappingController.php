@@ -57,8 +57,10 @@ class GudangMappingController extends Controller
      */
     public function store(Request $request)
     {
+        $validTransactionTypes = implode(',', array_keys(GudangMapping::getTransactionTypes()));
+        
         $request->validate([
-            'transaction_type' => 'required|string|in:resep,tindakan',
+            'transaction_type' => 'required|string|in:' . $validTransactionTypes,
             'gudang_id' => 'required|exists:erm_gudang,id',
         ]);
 
@@ -94,8 +96,10 @@ class GudangMappingController extends Controller
      */
     public function update(Request $request, $id)
     {
+        $validTransactionTypes = implode(',', array_keys(GudangMapping::getTransactionTypes()));
+        
         $request->validate([
-            'transaction_type' => 'required|string|in:resep,tindakan',
+            'transaction_type' => 'required|string|in:' . $validTransactionTypes,
             'gudang_id' => 'required|exists:erm_gudang,id',
         ]);
 

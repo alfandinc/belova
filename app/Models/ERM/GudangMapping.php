@@ -86,6 +86,7 @@ class GudangMapping extends Model
         return [
             'resep' => 'Resep Farmasi',
             'tindakan' => 'Tindakan Medis',
+            'kode_tindakan' => 'Kode Tindakan Obat',
         ];
     }
 }
