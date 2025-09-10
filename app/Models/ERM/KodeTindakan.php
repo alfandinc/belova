@@ -26,6 +26,14 @@ class KodeTindakan extends Model
     ];
 
     /**
+     * The attributes that should be cast.
+     */
+    protected $casts = [
+        'hpp' => 'decimal:2',
+        'harga_jasmed' => 'decimal:2',
+    ];
+
+    /**
      * Many-to-many relationship to Obat
      */
     public function obats()
