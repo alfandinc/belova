@@ -216,11 +216,11 @@
                             <button type="button" class="btn btn-sm btn-success" id="addKodeTindakanRow">Add Kode Tindakan</button>
                         </div>
                     </div>
-                    {{-- <div class="form-group">
+                    <div class="form-group">
                         <label for="obat_ids">Bundled Obat/BHP</label>
                         <select class="form-control select2" id="obat_ids" name="obat_ids[]" multiple></select>
                         <div class="invalid-feedback" id="obat_ids-error"></div>
-                    </div> --}}
+                    </div>
                     <div class="form-group">
                         <label>SOP List (Order with Up/Down, remove with X, add with text input)</label>
                         <ul id="tindakanSopList" class="list-group mb-2"></ul>
