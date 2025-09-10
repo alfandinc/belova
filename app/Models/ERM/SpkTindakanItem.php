@@ -20,6 +20,14 @@ class SpkTindakanItem extends Model
         'notes',
     ];
 
+    protected $casts = [
+        'sbk' => 'boolean',
+        'sba' => 'boolean',
+        'sdc' => 'boolean',
+        'sdk' => 'boolean',
+        'sdl' => 'boolean',
+    ];
+
     /**
      * Relationship to SpkTindakan
      */

@@ -32,6 +32,7 @@ use App\Http\Controllers\ERM\{
     EradiologiController,
     ElabController,
     TindakanController,
+    SpkTindakanController,
     AsesmenController,
     AsesmenPerawatController,
     BirthdayController,
@@ -440,13 +441,18 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     Route::post('/tindakan/upload-foto/{id}', [TindakanController::class, 'uploadFoto'])->name('erm.tindakan.upload-foto');
     
-    // SPK Routes
+    // SPK Routes (Old system - keep for backward compatibility)
     Route::get('/tindakan/spk/by-riwayat/{riwayat_id}', [TindakanController::class, 'getSpkDataByRiwayat'])->name('erm.tindakan.spk.byriwayat');
     Route::post('/tindakan/spk/save', [TindakanController::class, 'saveSpk'])->name('erm.tindakan.spk.save');
-    Route::get('/spk', [TindakanController::class, 'spkIndex'])->name('erm.spk.index');
     Route::get('/spk/create', [TindakanController::class, 'spkCreate'])->name('erm.spk.create');
     Route::get('/spk/modal', [TindakanController::class, 'spkModal'])->name('erm.spk.modal');
     Route::get('/spk/print/{riwayatId}', [TindakanController::class, 'printSpk'])->name('erm.spk.print');
+
+    // SPK Tindakan Routes (New detailed system)
+    Route::get('/spktindakan', [SpkTindakanController::class, 'index'])->name('erm.spktindakan.index');
+    Route::get('/spktindakan/{id}/items', [SpkTindakanController::class, 'showItems'])->name('erm.spktindakan.items');
+    Route::post('/spktindakan/{id}/items', [SpkTindakanController::class, 'updateItems'])->name('erm.spktindakan.items.update');
+    Route::post('/spktindakan/{id}/status', [SpkTindakanController::class, 'updateStatus'])->name('erm.spktindakan.status.update');
 
     //Riwayat Kunjungan
     Route::get('/riwayat-kunjungan/{pasien}', [RiwayatKunjunganController::class, 'index'])->name('erm.riwayatkunjungan.index');
