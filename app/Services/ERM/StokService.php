@@ -56,6 +56,11 @@ class StokService {
     public function tambahStok($obatId, $gudangId, $jumlah, $batch = null, $expDate = null, $rak = null, $lokasi = null, $hargaBeli = null, $hargaBeliJual = null, $refType = null, $refId = null, $keterangan = null)
     {
         return DB::transaction(function () use ($obatId, $gudangId, $jumlah, $batch, $expDate, $rak, $lokasi, $hargaBeli, $hargaBeliJual, $refType, $refId, $keterangan) {
+            // Ensure numeric values are properly cast
+            $jumlah = (float) $jumlah;
+            $hargaBeli = $hargaBeli !== null ? (float) $hargaBeli : null;
+            $hargaBeliJual = $hargaBeliJual !== null ? (float) $hargaBeliJual : null;
+            
             $stok = ObatStokGudang::where('obat_id', $obatId)
                 ->where('gudang_id', $gudangId)
                 ->where('batch', $batch)
@@ -81,19 +86,19 @@ class StokService {
                 $obat = Obat::find($obatId);
                 if ($obat) {
                     // Update HPP menggunakan weighted average
-                    $totalStok = $obat->getTotalStokAttribute();
+                    $totalStok = (float) $obat->getTotalStokAttribute();
                     
                     if ($totalStok > 0) {
                         if ($hargaBeli !== null) {
                             // Weighted average untuk HPP (include diskon)
-                            $oldValue = ($totalStok - $jumlah) * ($obat->hpp ?? 0);
+                            $oldValue = ($totalStok - $jumlah) * ((float) ($obat->hpp ?? 0));
                             $newValue = $jumlah * $hargaBeli;
                             $obat->hpp = ($oldValue + $newValue) / $totalStok;
                         }
                         
                         if ($hargaBeliJual !== null) {
                             // Weighted average untuk HPP jual (exclude diskon)
-                            $oldValueJual = ($totalStok - $jumlah) * ($obat->hpp_jual ?? 0);
+                            $oldValueJual = ($totalStok - $jumlah) * ((float) ($obat->hpp_jual ?? 0));
                             $newValueJual = $jumlah * $hargaBeliJual;
                             $obat->hpp_jual = ($oldValueJual + $newValueJual) / $totalStok;
                         }

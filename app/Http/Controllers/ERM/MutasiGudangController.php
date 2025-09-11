@@ -441,4 +441,231 @@ class MutasiGudangController extends Controller
             ], 422);
         }
     }
+
+    /**
+     * Get obat aktif yang belum memiliki stok di gudang manapun
+     */
+    public function getObatWithoutStock(Request $request)
+    {
+        $search = $request->get('q');
+        
+        try {
+            // Ambil obat aktif yang tidak ada di stok gudang manapun
+            $query = Obat::whereDoesntHave('stokGudang')
+                ->select('id', 'nama', 'satuan', 'kode_obat')
+                ->orderBy('nama');
+            
+            if ($search) {
+                $query->where('nama', 'like', "%$search%");
+            }
+            
+            $obatList = $query->get();
+            
+            $results = $obatList->map(function($obat) {
+                return [
+                    'id' => $obat->id,
+                    'nama' => $obat->nama,
+                    'text' => $obat->nama . ($obat->kode_obat ? ' (' . $obat->kode_obat . ')' : ''),
+                    'satuan' => $obat->satuan
+                ];
+            });
+            
+            return response()->json(['results' => $results]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'results' => [],
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Get preview of all obat without stock for bulk operation
+     */
+    public function getBulkObatPreview(Request $request)
+    {
+        try {
+            $obatList = Obat::whereDoesntHave('stokGudang')
+                ->select('id', 'nama', 'satuan', 'kode_obat')
+                ->orderBy('nama')
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_obat' => $obatList->count(),
+                    'obat_list_preview' => $obatList->take(10)->map(function($obat) {
+                        return [
+                            'nama' => $obat->nama,
+                            'satuan' => $obat->satuan,
+                            'kode_obat' => $obat->kode_obat
+                        ];
+                    }),
+                    'message' => "Akan menambahkan {$obatList->count()} obat ke gudang yang dipilih"
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Store bulk obat baru - add all obat without stock to target gudang
+     */
+    public function storeBulkObatBaru(Request $request)
+    {
+        $request->validate([
+            'gudang_id' => 'required|exists:erm_gudang,id',
+            'jumlah' => 'required|numeric|min:0.01',
+            'batch' => 'nullable|string|max:100',
+            'expiration_date' => 'nullable|date|after:today',
+            'rak' => 'nullable|string|max:50',
+            'keterangan' => 'nullable|string|max:255'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Get all obat that don't have stock in any gudang
+            $obatList = Obat::whereDoesntHave('stokGudang')
+                ->select('id', 'nama', 'satuan')
+                ->get();
+
+            if ($obatList->isEmpty()) {
+                throw new \Exception('Tidak ada obat yang perlu ditambahkan stoknya.');
+            }
+
+            $gudang = Gudang::findOrFail($request->gudang_id);
+            $stokService = app(\App\Services\ERM\StokService::class);
+            
+            $batchPrefix = $request->batch ?: 'BULK-' . date('Ymd');
+            $expirationDate = $request->expiration_date ? $request->expiration_date : null;
+            $keterangan = 'Bulk stok awal' . ($request->keterangan ? ' - ' . $request->keterangan : '');
+            
+            $successCount = 0;
+            $errors = [];
+
+            foreach ($obatList as $obat) {
+                try {
+                    // Double-check this obat doesn't have stock (race condition safety)
+                    $existingStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)->exists();
+                    if ($existingStock) {
+                        $errors[] = "Obat {$obat->nama} sudah memiliki stok, dilewati";
+                        continue;
+                    }
+
+                    $batch = $batchPrefix . '-' . $obat->id;
+                    
+                    $stokService->tambahStok(
+                        $obat->id,
+                        $request->gudang_id, 
+                        (float) $request->jumlah,  // Cast to float to prevent string multiplication error
+                        $batch,
+                        $expirationDate,
+                        $request->rak,
+                        null, // harga beli - optional
+                        $keterangan
+                    );
+                    
+                    $successCount++;
+                    
+                } catch (\Exception $e) {
+                    $errors[] = "Error untuk obat {$obat->nama}: " . $e->getMessage();
+                }
+            }
+
+            DB::commit();
+
+            $message = "Berhasil menambahkan stok awal untuk {$successCount} obat ke gudang {$gudang->nama} dengan jumlah {$request->jumlah} per obat.";
+            
+            if (!empty($errors)) {
+                $message .= "\n\nCatatan:\n- " . implode("\n- ", array_slice($errors, 0, 5)); // Show max 5 errors
+                if (count($errors) > 5) {
+                    $message .= "\n- Dan " . (count($errors) - 5) . " error lainnya...";
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'details' => [
+                    'total_processed' => $obatList->count(),
+                    'success_count' => $successCount,
+                    'error_count' => count($errors)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Tambah stok baru untuk obat yang belum ada di gudang
+     */
+    public function storeObatBaru(Request $request)
+    {
+        $request->validate([
+            'obat_id' => 'required|exists:erm_obat,id',
+            'gudang_id' => 'required|exists:erm_gudang,id',
+            'jumlah' => 'required|numeric|min:0.01',
+            'batch' => 'nullable|string|max:100',
+            'expiration_date' => 'nullable|date|after:today',
+            'rak' => 'nullable|string|max:50',
+            'keterangan' => 'nullable|string|max:255'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Cek apakah obat sudah ada stok di gudang manapun
+            $existingStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $request->obat_id)->exists();
+            if ($existingStock) {
+                throw new \Exception('Obat ini sudah memiliki stok di gudang. Gunakan fitur mutasi biasa.');
+            }
+
+            $obat = Obat::findOrFail($request->obat_id);
+            $gudang = Gudang::findOrFail($request->gudang_id);
+
+            // Gunakan StokService untuk menambah stok
+            $stokService = app(\App\Services\ERM\StokService::class);
+            
+            $batch = $request->batch ?: 'INITIAL-' . date('Ymd') . '-' . $request->obat_id;
+            $expirationDate = $request->expiration_date ? $request->expiration_date : null;
+
+            $stokService->tambahStok(
+                $request->obat_id,
+                $request->gudang_id, 
+                (float) $request->jumlah,  // Cast to float to prevent string multiplication error
+                $batch,
+                $expirationDate,
+                $request->rak,
+                null, // harga beli - optional
+                'Stok awal obat baru' . ($request->keterangan ? ' - ' . $request->keterangan : '')
+            );
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Berhasil menambahkan stok awal {$request->jumlah} {$obat->satuan} untuk obat {$obat->nama} di gudang {$gudang->nama}."
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
 }

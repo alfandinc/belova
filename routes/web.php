@@ -215,6 +215,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/migrate-stok', [MutasiGudangController::class, 'migrateStokToGudang'])->name('erm.mutasi-gudang.migrate-stok');
     Route::post('/cleanup-field-stok', [MutasiGudangController::class, 'cleanupFieldStok'])->name('erm.mutasi-gudang.cleanup-field-stok');
     
+    // Obat Baru routes - untuk menambah obat yang belum ada stok di gudang manapun
+    Route::get('/obat-without-stock', [MutasiGudangController::class, 'getObatWithoutStock'])->name('erm.mutasi-gudang.obat-without-stock');
+    Route::get('/bulk-obat-preview', [MutasiGudangController::class, 'getBulkObatPreview'])->name('erm.mutasi-gudang.bulk-obat-preview');
+    Route::post('/obat-baru', [MutasiGudangController::class, 'storeObatBaru'])->name('erm.mutasi-gudang.store-obat-baru');
+    Route::post('/bulk-obat-baru', [MutasiGudangController::class, 'storeBulkObatBaru'])->name('erm.mutasi-gudang.store-bulk-obat-baru');
+    
     // Route dengan parameter {id} HARUS DI AKHIR
     Route::get('/{id}', [MutasiGudangController::class, 'show'])->name('erm.mutasi-gudang.show');
     Route::post('/{id}/approve', [MutasiGudangController::class, 'approve'])->name('erm.mutasi-gudang.approve');

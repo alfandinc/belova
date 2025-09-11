@@ -12,6 +12,9 @@
                     <button type="button" class="btn btn-warning mr-2" data-toggle="modal" data-target="#modalMigrateStok">
                         <i class="fas fa-database"></i> Migrasi Stok Obat
                     </button>
+                    <button type="button" class="btn btn-success mr-2" data-toggle="modal" data-target="#modalObatBaru">
+                        <i class="fas fa-plus-circle"></i> Mutasi Obat Baru
+                    </button>
                     <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalMutasi">
                         <i class="fas fa-plus"></i> Buat Permintaan
                     </button>
@@ -236,6 +239,148 @@
                 </button>
                 <button type="button" class="btn btn-warning" id="btn-migrate" disabled>
                     <i class="fas fa-database"></i> Migrate Stok
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Obat Baru -->
+<div class="modal fade" id="modalObatBaru" tabindex="-1" role="dialog" aria-labelledby="modalObatBaruLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalObatBaruLabel">Mutasi Obat Baru</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 
+                    Fitur ini memungkinkan Anda menambahkan stok gudang untuk obat yang sudah ada di master data tapi belum ada stok di gudang manapun.
+                </div>
+                
+                <!-- Bulk Mode Toggle -->
+                <div class="form-group">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="bulk_mode">
+                        <label class="custom-control-label" for="bulk_mode">
+                            <strong>Mode Bulk - Tambahkan SEMUA obat sekaligus</strong>
+                        </label>
+                    </div>
+                    <small class="text-muted">Centang untuk menambahkan semua obat yang belum ada stoknya ke gudang tujuan sekaligus</small>
+                </div>
+                
+                <!-- Bulk Preview -->
+                <div id="bulk-preview" class="mb-3" style="display: none;">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6>Preview Bulk Mode:</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Total Obat:</strong> <span id="bulk-total-obat">0</span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Default Stok per Obat:</strong> <span id="bulk-default-stok">0</span>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <strong>Sample Obat (10 pertama):</strong>
+                                <div id="bulk-obat-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="form-obat-baru">
+                    <!-- Individual Mode Fields -->
+                    <div id="individual-mode-fields">
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label for="obat_baru_id">Pilih Obat <span class="text-danger">*</span></label>
+                                    <select name="obat_id" id="obat_baru_id" class="form-control" required>
+                                        <option value="">Pilih Obat</option>
+                                    </select>
+                                    <small class="text-muted">Hanya menampilkan obat aktif yang belum memiliki stok di gudang manapun</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Common Fields (for both modes) -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="gudang_baru_id">Gudang Tujuan <span class="text-danger">*</span></label>
+                                <select name="gudang_id" id="gudang_baru_id" class="form-control" required>
+                                    <option value="">Pilih Gudang</option>
+                                    @foreach($gudangs as $gudang)
+                                        <option value="{{ $gudang->id }}">{{ $gudang->nama }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="jumlah_baru">
+                                    <span id="label-jumlah">Jumlah Stok</span> <span class="text-danger">*</span>
+                                </label>
+                                <input type="number" class="form-control" name="jumlah" id="jumlah_baru" required min="1" step="0.01" value="1">
+                                <small class="text-muted">
+                                    <span id="help-jumlah">Jumlah stok untuk obat yang dipilih</span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bulk Mode Fields -->
+                    <div id="bulk-mode-fields" style="display: none;">
+                        <div class="text-center mb-3">
+                            <button type="button" class="btn btn-info" id="btn-preview-bulk">
+                                <i class="fas fa-eye"></i> Preview Semua Obat
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Optional Fields (for both modes) -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="batch_baru">Batch</label>
+                                <input type="text" class="form-control" name="batch" id="batch_baru" placeholder="Auto-generate jika kosong">
+                                <small class="text-muted">Format: INITIAL-YYYYMMDD-ObatID (jika individual) atau BULK-YYYYMMDD (jika bulk)</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="expiration_date_baru">Tanggal Kadaluarsa</label>
+                                <input type="date" class="form-control" name="expiration_date" id="expiration_date_baru">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="rak_baru">Rak/Lokasi</label>
+                                <input type="text" class="form-control" name="rak" id="rak_baru" placeholder="Opsional">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="keterangan_baru">Keterangan</label>
+                                <textarea name="keterangan" id="keterangan_baru" rows="3" class="form-control" placeholder="Opsional"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btn-simpan-obat-baru">
+                    <i class="fas fa-save"></i> <span id="btn-text-simpan">Simpan</span>
                 </button>
             </div>
         </div>
@@ -617,6 +762,269 @@ $(document).ready(function() {
                 $('#btn-cleanup').prop('disabled', false).html('<i class="fas fa-trash"></i> Cleanup Field Stok');
             }
         });
+    });
+    
+    // ========== OBAT BARU FUNCTIONALITY ==========
+    
+    // Initialize select2 for obat baru modal
+    $('#obat_baru_id').select2({
+        dropdownParent: $('#modalObatBaru'),
+        width: '100%',
+        ajax: {
+            url: "{{ route('erm.mutasi-gudang.obat-without-stock') }}",
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function(data, params) {
+                return {
+                    results: data.results
+                };
+            },
+            cache: true
+        },
+        placeholder: 'Cari obat yang belum ada stok...',
+        minimumInputLength: 1,
+        templateResult: function(obat) {
+            if (obat.loading) return obat.text;
+            return $('<div>' + obat.nama + '</div>');
+        },
+        templateSelection: function(obat) {
+            return obat.nama || obat.text;
+        }
+    });
+    
+    // Initialize select2 for gudang in obat baru modal
+    $('#gudang_baru_id').select2({
+        dropdownParent: $('#modalObatBaru'),
+        width: '100%'
+    });
+    
+    // Handle bulk mode toggle
+    $('#bulk_mode').change(function() {
+        var isBulkMode = $(this).is(':checked');
+        
+        if (isBulkMode) {
+            // Show bulk fields, hide individual fields
+            $('#individual-mode-fields').hide();
+            $('#bulk-mode-fields').show();
+            $('#label-jumlah').text('Jumlah Stok per Obat');
+            $('#help-jumlah').text('Jumlah stok yang akan ditambahkan ke setiap obat');
+            $('#btn-text-simpan').text('Simpan Semua Obat');
+            
+            // Make obat selection not required in bulk mode
+            $('#obat_baru_id').removeAttr('required');
+        } else {
+            // Show individual fields, hide bulk fields  
+            $('#individual-mode-fields').show();
+            $('#bulk-mode-fields').hide();
+            $('#bulk-preview').hide();
+            $('#label-jumlah').text('Jumlah Stok');
+            $('#help-jumlah').text('Jumlah stok untuk obat yang dipilih');
+            $('#btn-text-simpan').text('Simpan');
+            
+            // Make obat selection required in individual mode
+            $('#obat_baru_id').attr('required', 'required');
+        }
+    });
+    
+    // Handle bulk preview
+    $('#btn-preview-bulk').click(function() {
+        $.ajax({
+            url: "{{ route('erm.mutasi-gudang.bulk-obat-preview') }}",
+            type: 'GET',
+            beforeSend: function() {
+                $('#btn-preview-bulk').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+            },
+            success: function(response) {
+                if (response.success) {
+                    $('#bulk-total-obat').text(response.data.total_obat);
+                    $('#bulk-default-stok').text($('#jumlah_baru').val() || '1');
+                    
+                    // Show preview list
+                    var previewHtml = '<div class="list-group list-group-flush">';
+                    response.data.obat_list_preview.forEach(function(obat, index) {
+                        previewHtml += '<div class="list-group-item py-1 px-2 small">' + 
+                            (index + 1) + '. ' + obat.nama + 
+                            (obat.satuan ? ' (' + obat.satuan + ')' : '') +
+                            (obat.kode_obat ? ' - ' + obat.kode_obat : '') + 
+                            '</div>';
+                    });
+                    if (response.data.total_obat > 10) {
+                        previewHtml += '<div class="list-group-item py-1 px-2 small text-muted">... dan ' + 
+                            (response.data.total_obat - 10) + ' obat lainnya</div>';
+                    }
+                    previewHtml += '</div>';
+                    $('#bulk-obat-list').html(previewHtml);
+                    
+                    $('#bulk-preview').show();
+                } else {
+                    alert('Error: ' + response.message);
+                }
+            },
+            error: function(xhr) {
+                alert('Terjadi kesalahan: ' + (xhr.responseJSON ? xhr.responseJSON.message : 'Unknown error'));
+            },
+            complete: function() {
+                $('#btn-preview-bulk').prop('disabled', false).html('<i class="fas fa-eye"></i> Preview Semua Obat');
+            }
+        });
+    });
+    
+    // Handle save obat baru (both individual and bulk mode)
+    $('#btn-simpan-obat-baru').click(function() {
+        var isBulkMode = $('#bulk_mode').is(':checked');
+        var gudangId = $('#gudang_baru_id').val();
+        var jumlah = $('#jumlah_baru').val();
+        var batch = $('#batch_baru').val();
+        var expirationDate = $('#expiration_date_baru').val();
+        var rak = $('#rak_baru').val();
+        var keterangan = $('#keterangan_baru').val();
+
+        // Common validation
+        if (!gudangId || !jumlah) {
+            alert('Mohon lengkapi gudang tujuan dan jumlah stok');
+            return;
+        }
+
+        if (parseFloat(jumlah) <= 0) {
+            alert('Jumlah stok harus lebih dari 0');
+            return;
+        }
+
+        if (isBulkMode) {
+            // Bulk mode - process all obat
+            if (!confirm('Apakah Anda yakin ingin menambahkan stok untuk SEMUA obat yang belum memiliki stok?\n\nProses ini akan menambahkan ' + jumlah + ' stok per obat ke gudang yang dipilih.')) {
+                return;
+            }
+            
+            $.ajax({
+                url: "{{ route('erm.mutasi-gudang.store-bulk-obat-baru') }}",
+                type: 'POST',
+                data: {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    gudang_id: gudangId,
+                    jumlah: jumlah,
+                    batch: batch,
+                    expiration_date: expirationDate,
+                    rak: rak,
+                    keterangan: keterangan
+                },
+                beforeSend: function() {
+                    $('#btn-simpan-obat-baru').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var message = response.message;
+                        if (response.details) {
+                            message += '\n\nDetail:\n';
+                            message += '- Total diproses: ' + response.details.total_processed + '\n';
+                            message += '- Berhasil: ' + response.details.success_count + '\n';
+                            message += '- Error: ' + response.details.error_count;
+                        }
+                        alert('Berhasil!\n\n' + message);
+                        $('#modalObatBaru').modal('hide');
+                        
+                        // Reset form
+                        $('#form-obat-baru')[0].reset();
+                        $('#bulk_mode').prop('checked', false).trigger('change');
+                        $('#gudang_baru_id').val('').trigger('change');
+                        
+                        // Refresh table
+                        table.draw();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function(xhr) {
+                    var errorMsg = 'Terjadi kesalahan';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg += ': ' + xhr.responseJSON.message;
+                    } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                        var errors = [];
+                        for (var field in xhr.responseJSON.errors) {
+                            errors = errors.concat(xhr.responseJSON.errors[field]);
+                        }
+                        errorMsg += ':\n- ' + errors.join('\n- ');
+                    }
+                    alert(errorMsg);
+                },
+                complete: function() {
+                    $('#btn-simpan-obat-baru').prop('disabled', false).html('<i class="fas fa-save"></i> Simpan Semua Obat');
+                }
+            });
+            
+        } else {
+            // Individual mode - process single obat
+            var obatId = $('#obat_baru_id').val();
+            
+            if (!obatId) {
+                alert('Mohon pilih obat terlebih dahulu');
+                return;
+            }
+
+            $.ajax({
+                url: "{{ route('erm.mutasi-gudang.store-obat-baru') }}",
+                type: 'POST',
+                data: {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    obat_id: obatId,
+                    gudang_id: gudangId,
+                    jumlah: jumlah,
+                    batch: batch,
+                    expiration_date: expirationDate,
+                    rak: rak,
+                    keterangan: keterangan
+                },
+                beforeSend: function() {
+                    $('#btn-simpan-obat-baru').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert('Berhasil! ' + response.message);
+                        $('#modalObatBaru').modal('hide');
+                        
+                        // Reset form
+                        $('#form-obat-baru')[0].reset();
+                        $('#obat_baru_id').val('').trigger('change');
+                        $('#gudang_baru_id').val('').trigger('change');
+                        
+                        // Refresh table
+                        table.draw();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                },
+                error: function(xhr) {
+                    var errorMsg = 'Terjadi kesalahan';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMsg += ': ' + xhr.responseJSON.message;
+                    } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                        var errors = [];
+                        for (var field in xhr.responseJSON.errors) {
+                            errors = errors.concat(xhr.responseJSON.errors[field]);
+                        }
+                        errorMsg += ':\n- ' + errors.join('\n- ');
+                    }
+                    alert(errorMsg);
+                },
+                complete: function() {
+                    $('#btn-simpan-obat-baru').prop('disabled', false).html('<i class="fas fa-save"></i> Simpan');
+                }
+            });
+        }
+    });
+    
+    // Reset obat baru modal when closed
+    $('#modalObatBaru').on('hidden.bs.modal', function() {
+        $('#form-obat-baru')[0].reset();
+        $('#obat_baru_id').val('').trigger('change');
+        $('#gudang_baru_id').val('').trigger('change');
+        $('#bulk_mode').prop('checked', false).trigger('change');
+        $('#bulk-preview').hide();
     });
     
     // Reset modal when closed
