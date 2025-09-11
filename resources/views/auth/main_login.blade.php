@@ -7,6 +7,7 @@
     <link href="{{ asset('dastone/default/assets/css/bootstrap-dark.min.css') }}" rel="stylesheet" />
     <link href="{{ asset('dastone/default/assets/css/app-dark.min.css') }}" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+     <link href="{{ asset('dastone/default/assets/css/fontawesome.min.css') }}" rel="stylesheet" />
     <style>
         body {
             background: linear-gradient(45deg, #3a4b5c, #1e2430);
