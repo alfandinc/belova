@@ -1382,4 +1382,88 @@ class EresepController extends Controller
             'message' => 'Paket racikan berhasil dihapus.'
         ]);
     }
+
+    // ETIKET BIRU METHODS
+    
+    /**
+     * Get obat list for current visitation (for Etiket Biru modal)
+     */
+    public function getVisitationObat($visitationId)
+    {
+        try {
+            // Get unique obat from both resep dokter and farmasi for this visitation
+            $resepFarmasi = ResepFarmasi::with('obat')
+                ->where('visitation_id', $visitationId)
+                ->get();
+            
+            $result = $resepFarmasi->map(function ($resep) {
+                return [
+                    'obat_id' => $resep->obat_id,
+                    'obat_nama' => $resep->obat->nama ?? 'Unknown',
+                    'racikan_ke' => $resep->racikan_ke,
+                    'dosis' => $resep->dosis,
+                    'aturan_pakai' => $resep->aturan_pakai
+                ];
+            })->unique('obat_id');
+
+            return response()->json($result->values()->all());
+        } catch (\Exception $e) {
+            Log::error('Error getting visitation obat: ' . $e->getMessage());
+            return response()->json([]);
+        }
+    }
+
+    /**
+     * Print Etiket Biru PDF
+     */
+    public function printEtiketBiru(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'visitation_id' => 'required|string',
+                'obat_id' => 'required|integer',
+                'expire_date' => 'required|date',
+            ]);
+
+            $visitation = Visitation::with(['pasien', 'dokter.user'])->findOrFail($validated['visitation_id']);
+            $obat = Obat::findOrFail($validated['obat_id']);
+            
+            // Get the resep details for this obat in this visitation
+            $resepFarmasi = ResepFarmasi::where('visitation_id', $validated['visitation_id'])
+                ->where('obat_id', $validated['obat_id'])
+                ->first();
+
+            $data = [
+                'pasien' => $visitation->pasien,
+                'obat' => $obat,
+                'expire_date' => Carbon::parse($validated['expire_date']),
+                'resep' => $resepFarmasi,
+                'visitation' => $visitation,
+                'print_date' => now()->format('d/m/Y')
+            ];
+
+            // Render Blade view to HTML
+            $html = view('erm.eresep.farmasi.etiket-biru-print', $data)->render();
+            // Use mPDF for PDF generation
+            $mpdf = new \Mpdf\Mpdf([
+                'format' => [80, 15], // 8cm x 1.5cm in mm
+                'margin_left' => 0,
+                'margin_right' => 0,
+                'margin_top' => 0,
+                'margin_bottom' => 0,
+            ]);
+            $mpdf->SetAutoPageBreak(false);
+            $mpdf->WriteHTML($html);
+            // Output inline PDF
+            return response($mpdf->Output('etiket-biru-' . $visitation->pasien->nama . '-' . $obat->nama . '.pdf', 'I'))
+                ->header('Content-Type', 'application/pdf');
+            
+        } catch (\Exception $e) {
+            Log::error('Error printing Etiket Biru: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mencetak Etiket Biru: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

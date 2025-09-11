@@ -386,6 +386,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::delete('/paket-racikan/{id}', [EresepController::class, 'deletePaketRacikan'])->name('erm.paket-racikan.delete');
     
     Route::get('/eresepfarmasi/{visitation_id}/print-etiket', [EresepController::class, 'printEtiket'])->name('erm.eresepfarmasi.print-etiket');
+    
+    // Etiket Biru Routes
+    Route::get('/eresepfarmasi/{visitation_id}/get-obat', [EresepController::class, 'getVisitationObat'])->name('erm.eresepfarmasi.get-visitation-obat');
+    Route::post('/eresepfarmasi/etiket-biru/print', [EresepController::class, 'printEtiketBiru'])->name('erm.eresepfarmasi.etiket-biru.print');
 
     // Statistik Farmasi Routes
     Route::get('/statistic', [StatisticController::class, 'index'])->name('erm.statistic.index');

@@ -37,6 +37,47 @@
     </div>
   </div>
 </div>
+
+<!-- Modal Etiket Biru -->
+<div class="modal fade" id="etiketBiruModal" tabindex="-1" role="dialog" aria-labelledby="etiketBiruModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="etiketBiruModalLabel">Etiket Biru</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="etiket-biru-form">
+          <input type="hidden" id="etiket-visitation-id" value="{{ $visitation->id }}">
+          
+          <div class="form-group">
+            <label for="etiket-pasien">Pasien</label>
+            <input type="text" class="form-control" id="etiket-pasien" value="{{ $pasien->nama }}" readonly>
+          </div>
+          
+          <div class="form-group">
+            <label for="etiket-obat">Obat</label>
+            <select class="form-control select2-etiket-obat" id="etiket-obat" required>
+              <option value="">Pilih Obat...</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="etiket-expire">Tanggal Kedaluwarsa</label>
+            <input type="date" class="form-control" id="etiket-expire" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary" id="print-etiket-biru-btn">Print Etiket Biru</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="container-fluid">
     <div class="d-flex align-items-center mb-0 mt-2">
         <h3 class="mb-0 mr-2">E-Resep Farmasi Pasien</h3>
@@ -74,6 +115,7 @@
                         <button class="btn btn-primary btn-sm btn-cetakresep" >Cetak Resep</button>
                         <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
                         <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
+                        <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal">Etiket Biru</button>
                         <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}">
                             Riwayat Dokter
                         </button>
@@ -1069,6 +1111,84 @@
             const visitationId = $('#visitation_id').val();
             // Open the etiket print route in a new tab
             window.open(`/erm/eresepfarmasi/${visitationId}/print-etiket`, '_blank');
+        });
+
+        // Initialize Select2 for Etiket Biru modal
+        $('#etiketBiruModal').on('shown.bs.modal', function () {
+            $('.select2-etiket-obat').select2({
+                width: '100%',
+                placeholder: 'Pilih Obat...',
+                dropdownParent: $('#etiketBiruModal'),
+                ajax: {
+                    url: '{{ route("erm.eresepfarmasi.get-visitation-obat", ":visitationId") }}'.replace(':visitationId', $('#visitation_id').val()),
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { q: params.term };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data.map(function(item) {
+                                return {
+                                    id: item.obat_id,
+                                    text: item.obat_nama + (item.racikan_ke ? ' (Racikan ' + item.racikan_ke + ')' : '')
+                                };
+                            })
+                        };
+                    },
+                    cache: true
+                }
+            });
+        });
+
+        // Handle Print Etiket Biru button click
+        $('#print-etiket-biru-btn').on('click', function() {
+            const visitationId = $('#etiket-visitation-id').val();
+            const obatId = $('#etiket-obat').val();
+            const expireDate = $('#etiket-expire').val();
+            
+            if (!obatId || !expireDate) {
+                Swal.fire('Peringatan', 'Semua field wajib diisi.', 'warning');
+                return;
+            }
+
+            // Create form data
+            const formData = new FormData();
+            formData.append('_token', '{{ csrf_token() }}');
+            formData.append('visitation_id', visitationId);
+            formData.append('obat_id', obatId);
+            formData.append('expire_date', expireDate);
+
+            // Submit form to generate PDF
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/erm/eresepfarmasi/etiket-biru/print';
+            form.target = '_blank';
+            
+            // Add CSRF token
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '_token';
+            tokenInput.value = '{{ csrf_token() }}';
+            form.appendChild(tokenInput);
+            
+            // Add other fields
+            for (let [key, value] of formData.entries()) {
+                if (key !== '_token') {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = key;
+                    input.value = value;
+                    form.appendChild(input);
+                }
+            }
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+            
+            // Close modal
+            $('#etiketBiruModal').modal('hide');
         });
            
         updateTotalPrice(); // <--- Tambahkan ini
