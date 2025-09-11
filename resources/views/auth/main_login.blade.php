@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <link href="{{ asset('dastone/default/assets/css/bootstrap-dark.min.css') }}" rel="stylesheet" />
     <link href="{{ asset('dastone/default/assets/css/app-dark.min.css') }}" rel="stylesheet" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
      <link href="{{ asset('dastone/default/assets/css/fontawesome.min.css') }}" rel="stylesheet" />
     <style>
         body {
@@ -111,14 +110,16 @@
 
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
     <link href="{{ asset('dastone/plugins/datatables/dataTables.bootstrap4.min.css') }}" rel="stylesheet" />
+        <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
+    <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
     <script>
     $(document).ready(function() {
         // Show modal on page load
         $('#clinicChoiceModal').modal({backdrop: 'static', keyboard: false});
         $('#clinicChoiceModal').modal('show');
 
-        // Disable login until choice is made
-        $('#login-btn').prop('disabled', true);
+        // // Disable login until choice is made
+        // $('#login-btn').prop('disabled', true);
 
         $('#choose-skin').on('click', function() {
             setClinicChoice('skin');
