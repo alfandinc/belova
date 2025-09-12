@@ -62,9 +62,14 @@
             border: 1px solid #3498db;
             border-radius: 3px;
             font-size: 8pt;
-            color: #3498db;
             font-weight: bold;
         }
+        .status-badge.paid {
+            color: #27ae60 !important;
+            border-color: #27ae60 !important;
+            background-color: #eafaf1 !important;
+        }
+
         .info-section {
             width: 100%;
             display: table;
@@ -274,7 +279,7 @@
                     <div class="invoice-title">INVOICE</div>
                     <div class="invoice-number-row">
                         <div class="invoice-number">{{ $invoice->invoice_number }}</div>
-                        <div class="status-badge">{{ strtoupper($invoice->status) }}</div>
+                        <div class="status-badge{{ strtolower($invoice->status) == 'paid' ? ' paid' : '' }}">{{ strtoupper($invoice->status) }}</div>
                     </div>
                 </td>
             </tr>

@@ -104,10 +104,13 @@ class InvoiceController extends Controller
         ]);
 
         $invoice = Invoice::findOrFail($id);
-        $invoice->status = $request->status;
 
-        if ($request->status === 'paid' && !$invoice->payment_date) {
-            $invoice->payment_date = now();
+        // Ignore requested status, only set to 'paid' if amount_paid > 0
+        if ($invoice->amount_paid > 0) {
+            $invoice->status = 'paid';
+            if (!$invoice->payment_date) {
+                $invoice->payment_date = now();
+            }
         }
 
         $invoice->save();
@@ -125,7 +128,14 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
-
+        // Set status to 'paid' if amount_paid > 0
+        if ($invoice->amount_paid > 0 && $invoice->status !== 'paid') {
+            $invoice->status = 'paid';
+            if (!$invoice->payment_date) {
+                $invoice->payment_date = now();
+            }
+            $invoice->save();
+        }
         $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'))
             ->setPaper('a5', 'landscape')
             ->setOptions([
@@ -156,7 +166,14 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
-
+        // Set status to 'paid' if amount_paid > 0
+        if ($invoice->amount_paid > 0 && $invoice->status !== 'paid') {
+            $invoice->status = 'paid';
+            if (!$invoice->payment_date) {
+                $invoice->payment_date = now();
+            }
+            $invoice->save();
+        }
         // Convert logo to base64 for reliable PDF rendering
         $logoPath = public_path('img/favicon-premiere.png');
         $logoBase64 = '';
@@ -196,7 +213,14 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
-        
+        // Set status to 'paid' if amount_paid > 0
+        if ($invoice->amount_paid > 0 && $invoice->status !== 'paid') {
+            $invoice->status = 'paid';
+            if (!$invoice->payment_date) {
+                $invoice->payment_date = now();
+            }
+            $invoice->save();
+        }
         // Prepare logo paths for the PDF
         $premiereLogo = public_path('img/header-premiere.png');
         $belovaLogo = public_path('img/header-belova.png');
