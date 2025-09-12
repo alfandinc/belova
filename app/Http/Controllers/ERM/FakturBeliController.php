@@ -485,51 +485,60 @@ class FakturBeliController extends Controller
     public function approveFaktur($id)
     {
         $faktur = FakturBeli::with(['items.obat', 'pemasok'])->findOrFail($id);
-        
         if ($faktur->status !== 'diterima') {
             return response()->json([
                 'success' => false,
                 'message' => 'Faktur harus berstatus diterima untuk bisa diapprove'
             ], 400);
         }
-        
-        // Begin transaction
+
         DB::beginTransaction();
         try {
-            // Calculate subtotal for proper tax distribution
-            $invoiceSubtotal = 0;
+            // Pisahkan item yang diterima dan yang tidak
+            $itemsDiterima = [];
+            $itemsBelumDikirim = [];
             foreach ($faktur->items as $item) {
-                $base = $item->qty * $item->harga;
-                $diskonValue = $item->diskon_type === 'percent' ? ($base * $item->diskon / 100) : ($item->diskon ?? 0);
-                $taxValue = $item->tax_type === 'percent' ? ($base * $item->tax / 100) : ($item->tax ?? 0);
+                if (($item->qty ?? 0) > 0) {
+                    $itemsDiterima[] = $item;
+                } else {
+                    $itemsBelumDikirim[] = $item;
+                }
+            }
+
+            // Proses item yang diterima (qty > 0)
+            $invoiceSubtotal = 0;
+            foreach ($itemsDiterima as $item) {
+                $qty = $item->qty ?? 0;
+                $harga = $item->harga ?? 0;
+                $diskon = $item->diskon ?? 0;
+                $diskonType = $item->diskon_type ?? 'nominal';
+                $tax = $item->tax ?? 0;
+                $taxType = $item->tax_type ?? 'nominal';
+                $base = $qty * $harga;
+                $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
+                $taxValue = $taxType === 'percent' ? ($base * $tax / 100) : $tax;
                 $itemSubtotal = $base - $diskonValue + $taxValue;
                 $invoiceSubtotal += $itemSubtotal;
             }
 
-            foreach ($faktur->items as $item) {
-                // Calculate HPP per unit untuk batch ini
+            foreach ($itemsDiterima as $item) {
                 $qty = $item->qty ?? 0;
                 $harga = $item->harga ?? 0;
                 $diskon = $item->diskon ?? 0;
                 $diskonType = $item->diskon_type ?? 'nominal';
                 $itemTax = $item->tax ?? 0;
                 $taxType = $item->tax_type ?? 'nominal';
-                
                 $base = $qty * $harga;
                 $diskonValue = $diskonType === 'percent' ? ($base * $diskon / 100) : $diskon;
                 $taxValue = $taxType === 'percent' ? ($base * $itemTax / 100) : $itemTax;
                 $itemSubtotal = $base - $diskonValue + $taxValue;
-                
-                // Distribute global tax proportionally
                 $globalPajakValue = $faktur->global_pajak ?? 0;
                 $prop = $invoiceSubtotal > 0 ? $itemSubtotal / $invoiceSubtotal : 0;
                 $globalPajakItem = $globalPajakValue * $prop;
-                
-                // Calculate HPP per unit untuk batch ini
-                $hppPerUnit = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;        // Include diskon
-                $hppJualPerUnit = $qty > 0 ? ($base + $taxValue + $globalPajakItem) / $qty : 0; // Exclude diskon
-                
-                // Update stok menggunakan method khusus untuk faktur pembelian
+                $hppPerUnit = $qty > 0 ? ($itemSubtotal + $globalPajakItem) / $qty : 0;
+                $hppJualPerUnit = $qty > 0 ? ($base + $taxValue + $globalPajakItem) / $qty : 0;
+
+                // Update stock using StokService
                 $this->stokService->masukViaFaktur(
                     $item->obat_id,
                     $item->gudang_id,
@@ -538,13 +547,10 @@ class FakturBeliController extends Controller
                     $faktur->no_faktur,
                     $item->batch,
                     $item->expiration_date,
-                    $hppPerUnit,                  // harga_beli (HPP dengan diskon)
-                    $hppJualPerUnit,              // harga_beli_jual (HPP tanpa diskon)
-                    $faktur->pemasok->nama        // nama pemasok
+                    $hppPerUnit, // hargaBeli (include diskon/tax)
+                    $hppJualPerUnit, // hargaBeliJual (exclude diskon/tax)
+                    $faktur->pemasok->nama ?? null
                 );
-
-                // HPP calculation now handled automatically in StokService
-                // No need to call recalculateHPP() as it's done in masukViaFaktur()
             }
 
             // Update status faktur
@@ -553,13 +559,49 @@ class FakturBeliController extends Controller
                 'approved_by' => Auth::id()
             ]);
 
+            // Jika ada item yang belum dikirim (qty == 0), buat faktur baru dengan status 'diminta'
+            if (count($itemsBelumDikirim) > 0) {
+                // Generate no_faktur baru (bisa disesuaikan dengan format yang diinginkan)
+                $newNoFaktur = $faktur->no_faktur . '-NEXT-' . date('YmdHis');
+                $newFaktur = FakturBeli::create([
+                    'pemasok_id' => $faktur->pemasok_id,
+                    'no_faktur' => $newNoFaktur,
+                    'received_date' => $faktur->received_date,
+                    'requested_date' => $faktur->requested_date,
+                    'due_date' => $faktur->due_date,
+                    'ship_date' => $faktur->ship_date,
+                    'notes' => $faktur->notes,
+                    'bukti' => $faktur->bukti,
+                    'subtotal' => null,
+                    'global_diskon' => null,
+                    'global_pajak' => null,
+                    'total' => null,
+                    'status' => 'diminta',
+                ]);
+                foreach ($itemsBelumDikirim as $item) {
+                    $newFaktur->items()->create([
+                        'obat_id' => $item->obat_id,
+                        'qty' => 0,
+                        'diminta' => $item->diminta,
+                        'sisa' => 0,
+                        'harga' => $item->harga,
+                        'diskon' => $item->diskon,
+                        'diskon_type' => $item->diskon_type,
+                        'tax' => $item->tax,
+                        'tax_type' => $item->tax_type,
+                        'gudang_id' => $item->gudang_id,
+                        'batch' => $item->batch,
+                        'expiration_date' => $item->expiration_date,
+                        'total_amount' => 0,
+                    ]);
+                }
+            }
+
             DB::commit();
-            
             return response()->json([
                 'success' => true,
-                'message' => 'Faktur berhasil diapprove dan stok telah diupdate'
+                'message' => 'Faktur berhasil diapprove dan stok telah diupdate. Faktur baru dibuat untuk item yang belum dikirim.'
             ]);
-
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([

@@ -85,26 +85,17 @@ class StokService {
             if ($hargaBeli !== null || $hargaBeliJual !== null) {
                 $obat = Obat::find($obatId);
                 if ($obat) {
-                    // Update HPP menggunakan weighted average
-                    $totalStok = (float) $obat->getTotalStokAttribute();
-                    
-                    if ($totalStok > 0) {
-                        if ($hargaBeli !== null) {
-                            // Weighted average untuk HPP (include diskon)
-                            $oldValue = ($totalStok - $jumlah) * ((float) ($obat->hpp ?? 0));
-                            $newValue = $jumlah * $hargaBeli;
-                            $obat->hpp = ($oldValue + $newValue) / $totalStok;
-                        }
-                        
-                        if ($hargaBeliJual !== null) {
-                            // Weighted average untuk HPP jual (exclude diskon)
-                            $oldValueJual = ($totalStok - $jumlah) * ((float) ($obat->hpp_jual ?? 0));
-                            $newValueJual = $jumlah * $hargaBeliJual;
-                            $obat->hpp_jual = ($oldValueJual + $newValueJual) / $totalStok;
-                        }
-                        
-                        $obat->save();
+                    // Simple average for HPP (include diskon)
+                    if ($hargaBeli !== null) {
+                        $oldHpp = (float) ($obat->hpp ?? 0);
+                        $obat->hpp = ($oldHpp + $hargaBeli) / 2;
                     }
+                    // Simple average for HPP Jual (exclude diskon)
+                    if ($hargaBeliJual !== null) {
+                        $oldHppJual = (float) ($obat->hpp_jual ?? 0);
+                        $obat->hpp_jual = ($oldHppJual + $hargaBeliJual) / 2;
+                    }
+                    $obat->save();
                 }
             }
 

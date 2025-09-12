@@ -103,7 +103,7 @@
                                     <td>
                                         <input type="number" name="items[{{ $i }}][diminta]" class="form-control diminta-field" readonly value="{{ $item->diminta }}" {{ isset($faktur) && $faktur->status == 'diminta' ? 'readonly' : '' }}>
                                     </td>
-                                    <td><input type="number" name="items[{{ $i }}][qty]" class="form-control item-qty" min="1" required value="{{ $item->qty }}"></td>
+                                    <td><input type="number" name="items[{{ $i }}][qty]" class="form-control item-qty" min="0" required value="{{ $item->qty }}"></td>
                                     <td><input type="number" name="items[{{ $i }}][harga]" class="form-control item-harga" step="0.01" required value="{{ $item->harga }}" placeholder="Fill"></td>
                                     <td>
                                         <div class="input-group">
@@ -239,7 +239,7 @@ function itemRow(idx) {
     return `<tr data-item-index="${idx}">
         <td><select name="items[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select><span class="text-danger">*</span></td>
         <td><input type="number" name="items[${idx}][diminta]" class="form-control diminta-field" readonly value="0"></td>
-        <td><input type="number" name="items[${idx}][qty]" class="form-control item-qty" min="1" required><span class="text-danger">*</span></td>
+    <td><input type="number" name="items[${idx}][qty]" class="form-control item-qty" required><span class="text-danger">*</span></td>
         <td><input type="number" name="items[${idx}][harga]" class="form-control item-harga" step="0.01" required placeholder="Fill"><span class="text-danger">*</span></td>
         <td>
             <div class="input-group">
