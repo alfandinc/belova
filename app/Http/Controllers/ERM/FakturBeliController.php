@@ -143,11 +143,11 @@ class FakturBeliController extends Controller
             'due_date' => 'nullable|date',
             'ship_date' => 'nullable|date',
             'notes' => 'nullable|string',
-            'bukti' => 'nullable|image|max:2048',
+            'bukti' => 'nullable|image|max:10240',
             'items' => 'required|array',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.qty' => 'required|integer|min:1',
-            'items.*.diminta' => 'nullable|integer|min:1',
+            'items.*.diminta' => 'nullable|integer|min:0',
             'items.*.harga' => 'required|numeric',
             'items.*.diskon' => 'nullable|numeric',
             'items.*.diskon_type' => 'nullable|string|in:nominal,percent',
@@ -264,11 +264,11 @@ class FakturBeliController extends Controller
             'due_date' => 'nullable|date',
             'ship_date' => 'nullable|date',
             'notes' => 'nullable|string',
-            'bukti' => 'nullable|image|max:2048',
+            'bukti' => 'nullable|image|max:10240',
             'items' => 'required|array',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
-            'items.*.qty' => 'required|integer|min:1',
-            'items.*.diminta' => 'nullable|integer|min:1',
+            'items.*.qty' => 'required|integer|min:0',
+            'items.*.diminta' => 'nullable|integer|min:0',
             'items.*.harga' => 'required|numeric',
             'items.*.diskon' => 'nullable|numeric',
             'items.*.diskon_type' => 'nullable|string|in:nominal,percent',
@@ -288,6 +288,8 @@ class FakturBeliController extends Controller
             $buktiPath = $request->file('bukti')->store('fakturbeli_bukti', 'public');
         }
 
+        DB::beginTransaction();
+        try {
         $faktur->update([
             'pemasok_id' => $validated['pemasok_id'],
             'no_faktur' => $validated['no_faktur'],
@@ -335,7 +337,14 @@ class FakturBeliController extends Controller
             ]);
         }
 
-        return response()->json(['success' => true, 'message' => 'Faktur berhasil diupdate']);
+            DB::commit();
+            return response()->json(['success' => true, 'message' => 'Faktur berhasil diupdate']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            // Log error for debugging
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan faktur', 'error' => $e->getMessage()]);
+        }
+    // ...existing code...
     }
 
         public function destroy($id)

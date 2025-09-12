@@ -141,9 +141,7 @@
                             @endif
                         </tbody>
                     </table>
-                    @if(!isset($faktur))
                     <button type="button" class="btn btn-sm btn-info" id="add-item">Tambah Item</button>
-                    @endif
                     <button type="button" class="btn btn-sm btn-warning ml-2" id="debug-hpp">Debug HPP</button>
 
                     <div class="row justify-content-end mt-3">
