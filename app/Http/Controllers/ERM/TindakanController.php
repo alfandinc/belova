@@ -994,14 +994,24 @@ class TindakanController extends Controller
     {
         $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
 
-        // Delete associated billing (for tindakan, not paket) if exists
-        $billing = \App\Models\Finance\Billing::where('billable_id', $riwayat->tindakan_id)
+        // Delete all related billing records for this tindakan, riwayat tindakan, and bundled obats
+        // 1. Billing for tindakan
+        \App\Models\Finance\Billing::where('billable_id', $riwayat->tindakan_id)
             ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
             ->where('visitation_id', $riwayat->visitation_id)
-            ->first();
-        if ($billing) {
-            $billing->delete();
-        }
+            ->delete();
+
+        // 2. Billing for riwayat tindakan
+        \App\Models\Finance\Billing::where('billable_id', $riwayat->id)
+            ->where('billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+            ->where('visitation_id', $riwayat->visitation_id)
+            ->delete();
+
+        // 3. Billing for bundled obats
+        \App\Models\Finance\Billing::where('visitation_id', $riwayat->visitation_id)
+            ->where('billable_type', 'App\\Models\\ERM\\Obat')
+            ->where('keterangan', 'like', '%Obat Bundled%')
+            ->delete();
         // Delete associated InformConsent if exists
         $informConsent = \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->first();
         if ($informConsent) {

@@ -285,7 +285,6 @@
                             buttons += `
                                 <a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>
                                 <button class="btn ${fotoBtnClass} btn-sm foto-hasil-btn mr-1" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">${fotoBtnIcon}${fotoBtnText}</button>
-                                <button class="btn btn-warning btn-sm spk-btn mr-1" data-riwayat-id="${row.id}">SPK</button>
                                 <button class="btn btn-info btn-sm detail-riwayat-btn mr-1" data-id="${row.id}"><i class="fas fa-list mr-1"></i>Detail</button>
                             `;
                         } else {
