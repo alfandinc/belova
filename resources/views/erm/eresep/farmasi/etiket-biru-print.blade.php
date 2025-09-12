@@ -12,26 +12,34 @@
         }
         @page {
             margin: 0;
-            size: 8cm 1.5cm;
+            size: 8cm 3.5cm;
             background-color: #ADD8E6;
         }
         html, body {
             box-sizing: border-box;
-            width: 80mm;
-            height: 15mm;
+            width: 8cm;
+            height: 3.5cm;
             margin: 0;
             padding: 0;
         }
         body {
             font-family: Arial, sans-serif;
-            width: 80mm;
-            height: 15mm;
+            width: 8cm;
+            height: 3.5cm;
             overflow: hidden;
-            background-color: #ADD8E6 !important;
+            background-color: #ffffff !important; /* page default white */
+        }
+        /* main label area stays blue */
+        .main-table {
+            width: 8cm;
+            height: 1.5cm;
+            border-collapse: collapse;
+            table-layout: fixed;
+            background-color: #ADD8E6;
         }
         .main-table {
-            width: 80mm;
-            height: 15mm;
+            width: 8cm;
+            height: 1.5cm;
             border-collapse: collapse;
             table-layout: fixed;
         }
@@ -143,7 +151,8 @@
     </style>
 </head>
 <body>
-    <table class="main-table" style="width:100%;height:100%;border-collapse:collapse;">
+    <div style="height:2cm; background-color:#ffffff; width:100%;"></div>
+    <table class="main-table" style="width:100%;height:1.5cm;border-collapse:collapse;">
         <tr>
             <td class="left-column">
                 <div class="no-tanggal">No. ___ Tanggal ___/___/___</div>
@@ -153,13 +162,10 @@
                 </div>
             </td>
             <td class="middle-column">
-                
                 <div class="obat-name">{{ strtoupper($obat->nama ?? 'OBAT LUAR') }}</div>
                 <div class="aturan-pakai-title">OBAT LUAR</div>
                 <div class="usage-text">
-                    
                         Oles tipis tipis pada wajah/kulit setiap
-                    
                 </div>
                 <div class="checkbox-container">
                     <table style="width:100%; margin:0 auto; border-collapse:collapse;">
