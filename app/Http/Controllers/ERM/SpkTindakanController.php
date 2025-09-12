@@ -18,100 +18,102 @@ class SpkTindakanController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            // Group SPK Tindakan by visitation
-            $visitationGroups = SpkTindakan::with([
+            // Date filter
+            $tanggalStart = $request->input('tanggal_start');
+            $tanggalEnd = $request->input('tanggal_end');
+
+            $query = SpkTindakan::with([
                 'riwayatTindakan.tindakan',
                 'riwayatTindakan.visitation.pasien',
-                'riwayatTindakan.visitation.dokter.user' // Add user relationship for dokter
-            ])
-            ->get()
-            ->groupBy('riwayatTindakan.visitation_id')
-            ->map(function($spkGroup) {
-                $firstSpk = $spkGroup->first();
-                $tindakanList = $spkGroup->pluck('riwayatTindakan.tindakan.nama')->filter()->toArray();
-                $spkIds = $spkGroup->pluck('id')->toArray();
-                
-                // Determine overall status based on completion logic
-                $statuses = $spkGroup->pluck('status')->toArray();
-                $totalTindakan = count($statuses);
-                $completedCount = count(array_filter($statuses, function($status) {
-                    return $status === 'completed';
-                }));
-                $inProgressCount = count(array_filter($statuses, function($status) {
-                    return $status === 'in_progress';
-                }));
-                
-                // Status logic:
-                // - completed: ALL tindakan are completed
-                // - in_progress: NOT ALL completed but at least one is completed or in_progress
-                // - pending: NO tindakan is completed or in_progress
-                if ($completedCount === $totalTindakan) {
-                    $overallStatus = 'completed'; // All completed
-                } elseif ($completedCount > 0 || $inProgressCount > 0) {
-                    $overallStatus = 'in_progress'; // Some completed or in progress
-                } else {
-                    $overallStatus = 'pending'; // None completed or in progress
-                }
-                
-                return (object) [
-                    'visitation_id' => $firstSpk->riwayatTindakan->visitation_id,
-                    'spk_ids' => $spkIds,
-                    'pasien_nama' => $firstSpk->riwayatTindakan->visitation->pasien->nama ?? '-',
-                    'rm' => $firstSpk->riwayatTindakan->visitation->pasien_id ?? '-', // Use pasien_id as RM
-                    'dokter_nama' => $firstSpk->riwayatTindakan->visitation->dokter->user->name ?? '-', // Get name through user relationship
-                    'tindakan_names' => $tindakanList,
-                    'tindakan_count' => count($tindakanList),
-                    'tanggal_tindakan' => $firstSpk->tanggal_tindakan,
-                    'status' => $overallStatus
-                ];
-            })
-            ->values();
+                'riwayatTindakan.visitation.dokter.user'
+            ]);
+
+            // If date filter provided, filter by tanggal_tindakan
+            if ($tanggalStart && $tanggalEnd) {
+                $query->whereBetween('tanggal_tindakan', [$tanggalStart, $tanggalEnd]);
+            } else {
+                // Default: today
+                $today = now()->format('Y-m-d');
+                $query->whereDate('tanggal_tindakan', $today);
+            }
+
+            $spkTindakans = $query->get();
+
+            // Group by visitation
+            $visitationGroups = $spkTindakans
+                ->groupBy('riwayatTindakan.visitation_id')
+                ->map(function($spkGroup) {
+                    $firstSpk = $spkGroup->first();
+                    $tindakanList = $spkGroup->pluck('riwayatTindakan.tindakan.nama')->filter()->toArray();
+                    $spkIds = $spkGroup->pluck('id')->toArray();
+
+                    // Determine overall status based on completion logic
+                    $statuses = $spkGroup->pluck('status')->toArray();
+                    $totalTindakan = count($statuses);
+                    $completedCount = count(array_filter($statuses, function($status) {
+                        return $status === 'completed';
+                    }));
+                    $inProgressCount = count(array_filter($statuses, function($status) {
+                        return $status === 'in_progress';
+                    }));
+
+                    // Status logic:
+                    // - completed: ALL tindakan are completed
+                    // - in_progress: NOT ALL completed but at least one is completed or in_progress
+                    // - pending: NO tindakan is completed or in_progress
+                    if ($completedCount === $totalTindakan) {
+                        $overallStatus = 'completed';
+                    } elseif ($completedCount > 0 || $inProgressCount > 0) {
+                        $overallStatus = 'in_progress';
+                    } else {
+                        $overallStatus = 'pending';
+                    }
+
+                    return (object) [
+                        'visitation_id' => $firstSpk->riwayatTindakan->visitation_id,
+                        'spk_ids' => $spkIds,
+                        'pasien_nama' => $firstSpk->riwayatTindakan->visitation->pasien->nama ?? '-',
+                        'rm' => $firstSpk->riwayatTindakan->visitation->pasien_id ?? '-',
+                        'dokter_nama' => $firstSpk->riwayatTindakan->visitation->dokter->user->name ?? '-',
+                        'tindakan_names' => $tindakanList,
+                        'tindakan_count' => count($tindakanList),
+                        'tanggal_tindakan' => $firstSpk->tanggal_tindakan,
+                        'status' => $overallStatus
+                    ];
+                })
+                ->values();
 
             return DataTables::of($visitationGroups)
                 ->addColumn('tindakan_nama', function($row) {
-                    // Display all tindakan names, each on a new line
                     return implode('<br>', $row->tindakan_names);
                 })
                 ->addColumn('status_badge', function($row) {
-                    // Get detailed status information
                     $spkGroup = SpkTindakan::whereIn('id', $row->spk_ids)->get();
                     $statuses = $spkGroup->pluck('status')->toArray();
                     $totalTindakan = count($statuses);
                     $completedCount = count(array_filter($statuses, function($status) {
                         return $status === 'completed';
                     }));
-                    
                     $statusColors = [
                         'pending' => 'warning',
-                        'in_progress' => 'primary', 
-                        'completed' => 'success',
-                        'cancelled' => 'danger'
+                        /* Lines 86-89 omitted */
                     ];
-                    
                     $color = $statusColors[$row->status] ?? 'secondary';
                     $statusText = ucfirst(str_replace('_', ' ', $row->status));
-                    
-                    // Add completion progress for better visibility
                     if ($row->status === 'completed') {
                         $statusText = "✅ Completed ({$completedCount}/{$totalTindakan})";
                     } elseif ($row->status === 'in_progress') {
                         $statusText = "⏳ In Progress ({$completedCount}/{$totalTindakan})";
-                    } else {
-                        $statusText = "⏸️ Pending (0/{$totalTindakan})";
-                    }
-                    
+                    } else {/* Lines 100-101 omitted */}
                     return '<span class="badge badge-' . $color . '">' . $statusText . '</span>';
                 })
                 ->addColumn('action', function($row) {
                     $spkIdsString = implode(',', $row->spk_ids);
-                    return '<button type="button" class="btn btn-primary btn-sm" onclick="showSpkItems([' . $spkIdsString . '])">
-                                <i class="mdi mdi-eye"></i> Detail (' . $row->tindakan_count . ')
-                            </button>';
+                    return '<button type="button" class="btn btn-primary btn-sm" onclick="showSpkItems([' . $spkIdsString . '])">Detail</button>';
                 })
                 ->rawColumns(['tindakan_nama', 'status_badge', 'action'])
                 ->make(true);
         }
-
         return view('erm.spk-tindakan.index');
     }
 

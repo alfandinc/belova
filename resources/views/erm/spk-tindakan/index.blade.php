@@ -10,33 +10,24 @@
 <div class="page-content">
     <div class="container-fluid">
         <!-- start page title -->
-        <div class="row">
-            <div class="col-12">
-                <div class="page-title-box d-flex align-items-center justify-content-between">
-                    <h4 class="page-title mb-0 font-size-18">SPK Tindakan</h4>
-                    <div class="page-title-right">
-                        <ol class="breadcrumb m-0">
-                            <li class="breadcrumb-item"><a href="javascript: void(0);">ERM</a></li>
-                            <li class="breadcrumb-item active">SPK Tindakan</li>
-                        </ol>
-                    </div>
-                </div>
+        <!-- Title and Filter Row -->
+        <div class="row mb-3 align-items-center">
+            <div class="col-md-6">
+                <h4 class="page-title mb-0 font-size-18">SPK Tindakan</h4>
+            </div>
+            <div class="col-md-6 text-md-right mt-2 mt-md-0">
+                <label for="filterTanggal" class="mr-2 font-weight-bold">Tanggal Tindakan:</label>
+                <input type="text" id="filterTanggal" class="form-control d-inline-block" style="max-width: 220px; display: inline-block;" />
             </div>
         </div>
-        <!-- end page title -->
 
         <div class="row">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <div class="row align-items-center">
-                            <div class="col">
-                                <h4 class="card-title">Daftar SPK Tindakan</h4>
-                                <p class="card-title-desc">Kelola surat perintah kerja untuk tindakan medis</p>
-                            </div>
-                        </div>
+                        <span class="font-weight-bold">Daftar SPK Tindakan</span>
+                        <span class="text-muted ml-2">Kelola surat perintah kerja untuk tindakan medis</span>
                     </div>
-                    
                     <div class="card-body">
                         <div class="table-responsive">
                             <table id="spk-table" class="table table-bordered table-striped dt-responsive nowrap" style="width:100%">
@@ -93,11 +84,42 @@
 
     <script>
         $(document).ready(function() {
+            // Set default date range to today
+            var today = moment().format('YYYY-MM-DD');
+            $('#filterTanggal').val(today + ' - ' + today);
+
+            // Initialize daterangepicker
+            $('#filterTanggal').daterangepicker({
+                locale: {
+                    format: 'YYYY-MM-DD',
+                    separator: ' - ',
+                    applyLabel: 'Terapkan',
+                    cancelLabel: 'Batal',
+                    fromLabel: 'Dari',
+                    toLabel: 'Sampai',
+                    customRangeLabel: 'Custom',
+                    daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+                    monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+                    firstDay: 1
+                },
+                startDate: today,
+                endDate: today,
+                autoUpdateInput: true,
+                opens: 'left'
+            });
+
             // Initialize DataTable
-            $('#spk-table').DataTable({
+            var spkTable = $('#spk-table').DataTable({
                 processing: true,
                 serverSide: true,
-                ajax: "{{ route('erm.spktindakan.index') }}",
+                ajax: {
+                    url: "{{ route('erm.spktindakan.index') }}",
+                    data: function(d) {
+                        var tanggal = $('#filterTanggal').val().split(' - ');
+                        d.tanggal_start = tanggal[0];
+                        d.tanggal_end = tanggal[1];
+                    }
+                },
                 columns: [
                     { data: 'visitation_id', name: 'visitation_id' },
                     { data: 'rm', name: 'rm', orderable: false },
@@ -126,6 +148,11 @@
                         previous: "Sebelumnya"
                     }
                 }
+            });
+
+            // Reload table when date range changes
+            $('#filterTanggal').on('apply.daterangepicker change', function() {
+                spkTable.ajax.reload();
             });
         });
 
