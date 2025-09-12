@@ -131,7 +131,7 @@
             margin-bottom: 0.05cm;
         }
         .expire-text {
-            font-size: 4pt;
+            font-size: 6pt; /* increased from 4pt to 6pt */
             text-align: center;
             font-weight: bold;
             line-height: 1;
