@@ -1444,9 +1444,9 @@ class EresepController extends Controller
 
             // Render Blade view to HTML
             $html = view('erm.eresep.farmasi.etiket-biru-print', $data)->render();
-            // Use mPDF for PDF generation (8cm x 3.5cm -> 80mm x 35mm)
+            // Use mPDF for PDF generation (10cm x 3.5cm -> 100mm x 35mm)
             $mpdf = new \Mpdf\Mpdf([
-                'format' => [80, 35], // 8cm x 3.5cm in mm
+                'format' => [100, 35], // 10cm x 3.5cm in mm
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,

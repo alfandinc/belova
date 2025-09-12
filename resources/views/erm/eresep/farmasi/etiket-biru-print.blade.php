@@ -12,37 +12,40 @@
         }
         @page {
             margin: 0;
-            size: 8cm 3.5cm;
-            background-color: #ADD8E6;
+            size: 10cm 3.5cm;
         }
         html, body {
             box-sizing: border-box;
-            width: 8cm;
+            width: 10cm;
             height: 3.5cm;
             margin: 0;
             padding: 0;
         }
         body {
             font-family: Arial, sans-serif;
-            width: 8cm;
+            width: 10cm;
             height: 3.5cm;
             overflow: hidden;
             background-color: #ffffff !important; /* page default white */
         }
         /* main label area stays blue */
+        table { width: 100%; border-collapse: collapse; border-spacing: 0; }
         .main-table {
-            width: 8cm;
-            height: 1.5cm;
-            border-collapse: collapse;
+            position: fixed; /* fixed positions are respected by mPDF relative to the page */
+            left: 0;
+            top: 20mm; /* align below the white spacer */
+            width: 100%;
+            height: 15mm; /* 1.5cm */
             table-layout: fixed;
             background-color: #ADD8E6;
-        }
-        .main-table {
-            width: 8cm;
-            height: 1.5cm;
+            margin: 0;
+            padding: 0;
             border-collapse: collapse;
-            table-layout: fixed;
+            box-sizing: border-box; /* include borders in width */
         }
+    /* DEBUG: visible borders to show actual bounds (remove after inspect) */
+    body { border: 4px solid rgba(0,0,255,0.2) !important; box-sizing: border-box; }
+    .main-table { border: 3px dashed red !important; box-sizing: border-box; }
         .main-table tr {
             height: 100%;
         }
@@ -56,15 +59,19 @@
             vertical-align: top;
         }
         .left-column {
-            width: 30%;
-            border-right: 1px solid #000;
+            width: 26%;
+            border-right: 0.04cm solid #000; /* thin border in cm */
+            box-sizing: border-box;
         }
         .middle-column {
-            width: 45%;
-            border-right: 1px solid #000;
+            width: 44%;
+            border-right: 0.04cm solid #000;
+            box-sizing: border-box;
         }
         .right-column {
-            width: 25%;
+            width: 30%;
+            font-size: 5pt; /* larger for right column */
+            line-height: 1.05;
         }
         .no-tanggal {
             font-size: 4.5pt;
@@ -130,22 +137,23 @@
             line-height: 1;
         }
         .clinic-info {
-            font-size: 3.5pt;
+            font-size: 5.5pt; /* larger */
             font-weight: bold;
             line-height: 1;
             text-align: center;
-            margin-bottom: 0.3cm;
+            margin-bottom: 0.15cm;
         }
         .address-info {
-            font-size: 3pt;
+            font-size: 4.5pt; /* larger */
             line-height: 1;
-            margin-top: 0.9cm;
+            margin-top: 0.4cm;
             text-align: center;
         }
         .pharmacist-info {
-            font-size: 3pt;
+            font-size: 4.5pt; /* larger */
             line-height: 1;
-            margin-top: 0.5mm;
+            padding-top: 0.35cm; /* use padding to ensure spacing inside table cell */
+            display: block;
             text-align: center;
         }
     </style>
@@ -205,7 +213,8 @@
                     Laweyan, Surakarta 085100990319
                 </div>
                 <div class="pharmacist-info">
-                    apt. Noor HesthisaraHudana Reswar, S.Farm
+                    apt. Noor HesthisaraHudana Reswar, S.Farm <br>
+                    SIP : NR33722503003873
                 </div>
             </td>
         </tr>
