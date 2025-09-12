@@ -75,7 +75,7 @@
     </div>
     <!-- Modal for Galeri Before After -->
 <div class="modal fade" id="galeriBeforeAfterModal" tabindex="-1" role="dialog" aria-labelledby="galeriBeforeAfterModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Galeri Before After</h5>
@@ -142,11 +142,10 @@
         </div>
     </div>
 </div>
-</div>
 
 <!-- Modal for Create/Edit Tindakan -->
 <div class="modal fade" id="tindakanModal" tabindex="-1" role="dialog" aria-labelledby="tindakanModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="tindakanModalLabel">Add New Tindakan</h5>
@@ -155,7 +154,7 @@
                 </button>
             </div>            <form id="tindakanForm">
                 @csrf
-                <div class="modal-body">
+                <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
                     <input type="hidden" id="tindakan_id" name="id">
                     <input type="hidden" name="_token" value="{{ csrf_token() }}">
                     <div class="form-row">
