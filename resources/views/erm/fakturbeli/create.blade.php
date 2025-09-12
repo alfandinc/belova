@@ -260,7 +260,7 @@ function itemRow(idx) {
             </div>
         </td>
         <td><input type="number" name="items[${idx}][total]" class="form-control item-total" step="0.01" placeholder="Fill"></td>
-        <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"><option value="1" selected>Gudang Utama</option></select><span class="text-danger">*</span></td>
+        <td><select name="items[${idx}][gudang_id]" class="form-control gudang-select" required style="width:100%"></select><span class="text-danger">*</span></td>
         <td><input type="text" name="items[${idx}][batch]" class="form-control"></td>
         <td><input type="date" name="items[${idx}][expiration_date]" class="form-control"></td>
         <td><button type="button" class="btn btn-danger btn-sm remove-item">Hapus</button></td>
