@@ -22,6 +22,7 @@ class SpkTindakanController extends Controller
             $tanggalStart = $request->input('tanggal_start');
             $tanggalEnd = $request->input('tanggal_end');
 
+            $klinikId = $request->input('klinik_id');
             $query = SpkTindakan::with([
                 'riwayatTindakan.tindakan',
                 'riwayatTindakan.visitation.pasien',
@@ -35,6 +36,13 @@ class SpkTindakanController extends Controller
                 // Default: today
                 $today = now()->format('Y-m-d');
                 $query->whereDate('tanggal_tindakan', $today);
+            }
+
+            // Klinik filter
+            if ($klinikId) {
+                $query->whereHas('riwayatTindakan.visitation', function($q) use ($klinikId) {
+                    $q->where('klinik_id', $klinikId);
+                });
             }
 
             $spkTindakans = $query->get();
@@ -87,6 +95,13 @@ class SpkTindakanController extends Controller
                 ->addColumn('tindakan_nama', function($row) {
                     return implode('<br>', $row->tindakan_names);
                 })
+                ->addColumn('tanggal_tindakan', function($row) {
+                    if ($row->tanggal_tindakan) {
+                        \Carbon\Carbon::setLocale('id');
+                        return \Carbon\Carbon::parse($row->tanggal_tindakan)->translatedFormat('j F Y');
+                    }
+                    return '-';
+                })
                 ->addColumn('status_badge', function($row) {
                     $spkGroup = SpkTindakan::whereIn('id', $row->spk_ids)->get();
                     $statuses = $spkGroup->pluck('status')->toArray();
@@ -109,7 +124,7 @@ class SpkTindakanController extends Controller
                 })
                 ->addColumn('action', function($row) {
                     $spkIdsString = implode(',', $row->spk_ids);
-                    return '<button type="button" class="btn btn-primary btn-sm" onclick="showSpkItems([' . $spkIdsString . '])">Detail</button>';
+                    return '<button type="button" class="btn btn-primary btn-sm" onclick="showSpkItems([' . $spkIdsString . '])">Input SPK Tindakan</button>';
                 })
                 ->rawColumns(['tindakan_nama', 'status_badge', 'action'])
                 ->make(true);

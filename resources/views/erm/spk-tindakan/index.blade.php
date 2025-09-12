@@ -12,12 +12,8 @@
         <!-- start page title -->
         <!-- Title and Filter Row -->
         <div class="row mb-3 align-items-center">
-            <div class="col-md-6">
+            <div class="col-md-12">
                 <h4 class="page-title mb-0 font-size-18">SPK Tindakan</h4>
-            </div>
-            <div class="col-md-6 text-md-right mt-2 mt-md-0">
-                <label for="filterTanggal" class="mr-2 font-weight-bold">Tanggal Tindakan:</label>
-                <input type="text" id="filterTanggal" class="form-control d-inline-block" style="max-width: 220px; display: inline-block;" />
             </div>
         </div>
 
@@ -25,8 +21,23 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <span class="font-weight-bold">Daftar SPK Tindakan</span>
-                        <span class="text-muted ml-2">Kelola surat perintah kerja untuk tindakan medis</span>
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end">
+                            <div>
+                                <span class="font-weight-bold">Daftar SPK Tindakan</span>
+                                <span class="text-muted ml-2">Kelola surat perintah kerja untuk tindakan medis</span>
+                            </div>
+                            <div class="d-flex flex-row align-items-center mt-3 mt-md-0">
+                                <label for="filterKlinik" class="mr-2 font-weight-bold mb-0">Klinik:</label>
+                                <select id="filterKlinik" class="form-control mr-3" style="max-width: 180px;">
+                                    <option value="">Semua Klinik</option>
+                                    @foreach(App\Models\ERM\Klinik::all() as $klinik)
+                                        <option value="{{ $klinik->id }}" @if($klinik->id == 2) selected @endif>{{ $klinik->nama }}</option>
+                                    @endforeach
+                                </select>
+                                <label for="filterTanggal" class="mr-2 font-weight-bold mb-0">Tanggal Tindakan:</label>
+                                <input type="text" id="filterTanggal" class="form-control" style="max-width: 220px;" />
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -118,6 +129,7 @@
                         var tanggal = $('#filterTanggal').val().split(' - ');
                         d.tanggal_start = tanggal[0];
                         d.tanggal_end = tanggal[1];
+                        d.klinik_id = $('#filterKlinik').val();
                     }
                 },
                 columns: [
@@ -150,8 +162,11 @@
                 }
             });
 
-            // Reload table when date range changes
+            // Reload table when date range or klinik changes
             $('#filterTanggal').on('apply.daterangepicker change', function() {
+                spkTable.ajax.reload();
+            });
+            $('#filterKlinik').on('change', function() {
                 spkTable.ajax.reload();
             });
         });
