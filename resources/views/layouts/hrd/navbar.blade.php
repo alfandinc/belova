@@ -79,48 +79,167 @@
                 {{-- @endif --}}
             <!-- Catatan Dosa - New Feature -->
             @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
-            <li>
-                <a href="{{ route('hrd.catatan-dosa.index') }}">
-                    <i data-feather="alert-circle" class="align-self-center menu-icon"></i>
-                    <span>Catatan Pelanggaran</span>
-                </a>
-            </li>
+                @php
+                    // Query jumlah catatan dosa dengan status 'dalam proses'
+                    try {
+                        $catatanDosaProsesCount = \App\Models\HRD\CatatanDosa::where('status_tindaklanjut', 'dalam proses')->count();
+                    } catch (Exception $e) {
+                        $catatanDosaProsesCount = 0;
+                    }
+                @endphp
+                <li>
+                    <a href="{{ route('hrd.catatan-dosa.index') }}">
+                        <i data-feather="alert-circle" class="align-self-center menu-icon"></i>
+                        <span>Catatan Pelanggaran</span>
+                        @if($catatanDosaProsesCount > 0)
+                            <span class="badge badge-danger ml-1">{{ $catatanDosaProsesCount }}</span>
+                        @endif
+                    </a>
+                </li>
             @endif
             <li>
-                <a href="javascript: void(0);"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Pengajuan Cuti/Libur</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Pengajuan Saya</a></li>
-                    <!-- For Managers: Approval cuti team -->
-                    @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Admin'))
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=team"><i class="ti-control-record"></i>Persetujuan Tim</a></li>
-                    @endif
-                    <!-- For HRD: Full leave management -->
-                    @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=approval"><i class="ti-control-record"></i>Persetujuan HRD</a></li>
-                    @endif
-                </ul>
+                    @php
+                        use App\Models\HRD\PengajuanLibur;
+                        $pendingLiburHRD = 0;
+                        $pendingLiburManager = 0;
+                        if(Auth::check()) {
+                            if(Auth::user()->hasAnyRole('Hrd','Admin')) {
+                                $pendingLiburHRD = PengajuanLibur::where('status_manager', 'disetujui')
+                                    ->where('status_hrd', 'menunggu')->count();
+                            }
+                            if(Auth::user()->hasAnyRole('Manager','Admin')) {
+                                $pendingLiburManager = PengajuanLibur::where('status_manager', 'menunggu')->count();
+                            }
+                        }
+                    @endphp
+                    <a href="javascript: void(0);"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Pengajuan Cuti/Libur</span>
+                        @if($pendingLiburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
+                            <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
+                        @endif
+                        @if($pendingLiburManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                            <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
+                        @endif
+                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                    </a>
+                    <ul class="nav-second-level" aria-expanded="false">
+                        <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Pengajuan Saya</a></li>
+                        <!-- For Managers: Approval cuti team -->
+                        @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Admin'))
+                        <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=team"><i class="ti-control-record"></i>Persetujuan Tim
+                            @if($pendingLiburManager > 0)
+                                <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
+                            @endif
+                        </a></li>
+                        @endif
+                        <!-- For HRD: Full leave management -->
+                        @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
+                        <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=approval"><i class="ti-control-record"></i>Persetujuan HRD
+                            @if($pendingLiburHRD > 0)
+                                <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
+                            @endif
+                        </a></li>
+                        @endif
+                    </ul>
             </li>
 
             <!-- Pengajuan Tidak Masuk (Sakit/Izin) - Visible to all authenticated users -->
+            @php
+                use App\Models\HRD\PengajuanTidakMasuk;
+                $pendingTidakMasukHRD = 0;
+                $pendingTidakMasukManager = 0;
+                if(Auth::check()) {
+                    if(Auth::user()->hasAnyRole('Hrd','Admin')) {
+                        $pendingTidakMasukHRD = PengajuanTidakMasuk::where(function($q) {
+                            $q->whereNull('status_manager')->whereNull('status_hrd')
+                              ->orWhere(function($q2) {
+                                  $q2->where('status_manager', 'disetujui')->whereNull('status_hrd');
+                              });
+                        })->count();
+                    }
+                    if(Auth::user()->hasAnyRole('Manager','Admin')) {
+                        $pendingTidakMasukManager = PengajuanTidakMasuk::whereNull('status_manager')->count();
+                    }
+                }
+            @endphp
             <li>
                 <a href="{{ route('hrd.tidakmasuk.index') }}">
                     <i data-feather="user-x" class="align-self-center menu-icon"></i>
                     <span>Pengajuan Sakit/Izin</span>
+                    @if($pendingTidakMasukHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
+                        <span class="badge badge-warning ml-1">{{ $pendingTidakMasukHRD }}</span>
+                    @endif
+                    @if($pendingTidakMasukManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                        <span class="badge badge-info ml-1">{{ $pendingTidakMasukManager }}</span>
+                    @endif
                 </a>
             </li>
             <!-- Pengajuan Lembur - Visible to all authenticated users -->
+            @php
+                if (!class_exists('App\\Models\\HRD\\PengajuanLembur')) {
+                    // Only define if not already loaded
+                    eval('namespace App\\Models\\HRD; class PengajuanLembur extends \\Illuminate\\Database\\Eloquent\\Model {}');
+                }
+                $pendingLemburHRD = 0;
+                $pendingLemburManager = 0;
+                if(Auth::check()) {
+                    if(Auth::user()->hasAnyRole('Hrd','Admin')) {
+                        $pendingLemburHRD = \App\Models\HRD\PengajuanLembur::where(function($q) {
+                            $q->whereNull('status_manager')->whereNull('status_hrd')
+                              ->orWhere(function($q2) {
+                                  $q2->where('status_manager', 'disetujui')->whereNull('status_hrd');
+                              });
+                        })->count();
+                    }
+                    if(Auth::user()->hasAnyRole('Manager','Admin')) {
+                        $pendingLemburManager = \App\Models\HRD\PengajuanLembur::whereNull('status_manager')->count();
+                    }
+                }
+            @endphp
             <li>
                 <a href="{{ route('hrd.lembur.index') }}">
                     <i data-feather="clock" class="align-self-center menu-icon"></i>
                     <span>Pengajuan Lembur</span>
+                    @if($pendingLemburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
+                        <span class="badge badge-warning ml-1">{{ $pendingLemburHRD }}</span>
+                    @endif
+                    @if($pendingLemburManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                        <span class="badge badge-info ml-1">{{ $pendingLemburManager }}</span>
+                    @endif
                 </a>
             </li>
             
             <!-- Pengajuan Ganti Shift - Visible to all authenticated users -->
+            @php
+                if (!class_exists('App\\Models\\HRD\\PengajuanGantiShift')) {
+                    // Only define if not already loaded
+                    eval('namespace App\\Models\\HRD; class PengajuanGantiShift extends \\Illuminate\\Database\\Eloquent\\Model {}');
+                }
+                $pendingGantiShiftHRD = 0;
+                $pendingGantiShiftManager = 0;
+                if(Auth::check()) {
+                    if(Auth::user()->hasAnyRole('Hrd','Admin')) {
+                        $pendingGantiShiftHRD = \App\Models\HRD\PengajuanGantiShift::where(function($q) {
+                            $q->whereNull('status_manager')->whereNull('status_hrd')
+                              ->orWhere(function($q2) {
+                                  $q2->where('status_manager', 'disetujui')->whereNull('status_hrd');
+                              });
+                        })->count();
+                    }
+                    if(Auth::user()->hasAnyRole('Manager','Admin')) {
+                        $pendingGantiShiftManager = \App\Models\HRD\PengajuanGantiShift::whereNull('status_manager')->count();
+                    }
+                }
+            @endphp
             <li>
                 <a href="{{ route('hrd.gantishift.index') }}">
                     <i data-feather="refresh-cw" class="align-self-center menu-icon"></i>
                     <span>Pengajuan Ganti Shift</span>
+                    @if($pendingGantiShiftHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
+                        <span class="badge badge-warning ml-1">{{ $pendingGantiShiftHRD }}</span>
+                    @endif
+                    @if($pendingGantiShiftManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
+                        <span class="badge badge-info ml-1">{{ $pendingGantiShiftManager }}</span>
+                    @endif
                 </a>
             </li>
             
@@ -137,7 +256,22 @@
                     
                     <!-- For HRD and CEO: Full Performance Management -->
                     @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.periods.index') }}"><i class="ti-control-record"></i>Periode Penilaian</a></li>
+                    @php
+                        if (!class_exists('App\\Models\\HRD\\PerformanceEvaluationPeriod')) {
+                            eval('namespace App\\Models\\HRD; class PerformanceEvaluationPeriod extends \\Illuminate\\Database\\Eloquent\\Model {}');
+                        }
+                        $activePeriods = 0;
+                        try {
+                            $activePeriods = \App\Models\HRD\PerformanceEvaluationPeriod::where('status', 'Active')->count();
+                        } catch (Exception $e) {
+                            $activePeriods = 0;
+                        }
+                    @endphp
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.periods.index') }}"><i class="ti-control-record"></i>Periode Penilaian
+                        @if($activePeriods > 0)
+                            <span class="badge badge-success ml-1">{{ $activePeriods }}</span>
+                        @endif
+                    </a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.questions.index') }}"><i class="ti-control-record"></i>Kelola Pertanyaan</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.performance.results.index') }}"><i class="ti-control-record"></i>Hasil Penilaian</a></li>
                     @endif
