@@ -128,9 +128,9 @@
                                         <select name="items[{{ $i }}][gudang_id]" class="form-control gudang-select" required style="width:100%">
                                             @if($item->gudang)
                                                 <option value="{{ $item->gudang->id }}" selected>{{ $item->gudang->nama }}</option>
-                                            @else
+                                            {{-- @else
                                                 <option value="1" selected>Gudang Utama</option>
-                                            @endif
+                                            @endif --}}
                                         </select>
                                     </td>
                                     <td><input type="text" name="items[{{ $i }}][batch]" class="form-control" value="{{ $item->batch ?? '' }}"></td>
