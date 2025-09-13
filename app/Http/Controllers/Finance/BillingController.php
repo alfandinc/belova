@@ -847,6 +847,19 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     $name = $billableModel->nama;
                                 } elseif (isset($billableModel->name)) {
                                     $name = $billableModel->name;
+                                // Special-case: if this is a RiwayatTindakan, prefer the tindakan or paket name
+                                } elseif ($item->billable_type == 'App\\Models\\ERM\\RiwayatTindakan') {
+                                    // Try to load via relation fields if present
+                                    try {
+                                        $rt = $billableModel; // already loaded
+                                        if (isset($rt->tindakan) && isset($rt->tindakan->nama)) {
+                                            $name = $rt->tindakan->nama;
+                                        } elseif (isset($rt->paketTindakan) && isset($rt->paketTindakan->nama)) {
+                                            $name = $rt->paketTindakan->nama;
+                                        }
+                                    } catch (\Exception $ex) {
+                                        // swallow - we'll fallback below
+                                    }
                                 } elseif ($item->billable_type == 'App\\Models\\ERM\\ResepFarmasi' && isset($billableModel->obat)) {
                                     $name = $billableModel->obat->nama ?? 'Obat';
                                 }
