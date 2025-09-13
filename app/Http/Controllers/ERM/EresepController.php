@@ -394,9 +394,32 @@ class EresepController extends Controller
                 }
             }
 
+            // After update/create, return the current rows for this racikan so client can sync
+            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+
+            $updatedRows = \App\Models\ERM\ResepFarmasi::with('obat')
+                ->where('visitation_id', $visitationId)
+                ->where('racikan_ke', $racikanKe)
+                ->get()
+                ->map(function($r) use ($gudangId) {
+                    $gudang = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+                    $stokGudang = $gudang ? $r->obat->getStokByGudang($gudang) : 0;
+                    return [
+                        'id' => $r->id,
+                        'obat_id' => $r->obat_id,
+                        'dosis' => $r->dosis,
+                        'jumlah' => $r->jumlah ?? 1,
+                        'obat_nama' => $r->obat->nama ?? '',
+                        'stok_gudang' => (int) $stokGudang
+                    ];
+                });
+
             return response()->json([
                 'success' => true,
-                'message' => 'Racikan berhasil diupdate'
+                'message' => 'Racikan berhasil diupdate',
+                'created_ids' => $createdIds ?? [],
+                'updated_ids' => $updatedIds ?? [],
+                'obats' => $updatedRows
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -669,12 +692,18 @@ class EresepController extends Controller
     public function farmasiupdateRacikan(Request $request, $racikanKe)
     {
         try {
+            // Log incoming request for debugging
+            \Illuminate\Support\Facades\Log::info('farmasiupdateRacikan called', ['racikanKe' => $racikanKe, 'payload' => $request->all()]);
+
             $validated = $request->validate([
                 'visitation_id' => 'required',
                 'wadah' => 'nullable',
                 'bungkus' => 'required|integer',
                 'aturan_pakai' => 'required|string',
                 'obats' => 'required|array',
+                'obats.*.obat_id' => 'nullable',
+                'obats.*.dosis' => 'nullable',
+                'obats.*.jumlah' => 'nullable',
             ]);
 
             $visitationId = $validated['visitation_id'];
@@ -683,6 +712,7 @@ class EresepController extends Controller
             $aturanPakai = $validated['aturan_pakai'];
             $obats = $validated['obats'];
 
+            DB::beginTransaction();
             // Get all resep rows for this racikan_ke and visitation
             $existingReseps = \App\Models\ERM\ResepFarmasi::where('visitation_id', $visitationId)
                 ->where('racikan_ke', $racikanKe)
@@ -694,9 +724,13 @@ class EresepController extends Controller
             // Delete resep rows that are not present in the incoming obats
             foreach ($existingReseps as $resep) {
                 if (!in_array($resep->id, $incomingIds)) {
+                    \Illuminate\Support\Facades\Log::info('Deleting resep', ['id' => $resep->id]);
                     $resep->delete();
                 }
             }
+
+            $createdIds = [];
+            $updatedIds = [];
 
             // Update or create resep rows for each obat
             foreach ($obats as $obatData) {
@@ -712,13 +746,14 @@ class EresepController extends Controller
                             'bungkus' => $bungkus,
                             'aturan_pakai' => $aturanPakai,
                         ]);
+                        $updatedIds[] = $resep->id;
                     }
                 } else if (!empty($obatData['obat_id'])) {
                     // Create new
                     do {
                         $customId = now()->format('YmdHis') . strtoupper(\Illuminate\Support\Str::random(7));
                     } while (\App\Models\ERM\ResepFarmasi::where('id', $customId)->exists());
-                    \App\Models\ERM\ResepFarmasi::create([
+                    $new = \App\Models\ERM\ResepFarmasi::create([
                         'id' => $customId,
                         'visitation_id' => $visitationId,
                         'obat_id' => $obatData['obat_id'],
@@ -731,8 +766,12 @@ class EresepController extends Controller
                         'user_id' => Auth::id(),
                         'created_at' => now(),
                     ]);
+                    $createdIds[] = $new->id;
+                    \Illuminate\Support\Facades\Log::info('Created resep', ['id' => $new->id, 'obat_id' => $new->obat_id]);
                 }
             }
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,

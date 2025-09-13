@@ -654,18 +654,36 @@
             card.find('.resep-table-body tr').each(function () {
                 const row = $(this);
                 if (!row.hasClass('no-data')) {
-                    // Try to get id from data-id attribute, fallback to td data-id if needed
-                    let id = row.data('id');
+                    // Prefer explicit attributes; use attr to detect empty strings
+                    let id = row.attr('data-id');
                     if (!id) {
-                        id = row.find('td').eq(0).data('id');
+                        // maybe server id stored on first td
+                        id = row.find('td').eq(0).attr('data-id') || null;
                     }
-                    obats.push({
-                        id: id,
-                        obat_id: row.data('obat-id') || row.find('td').eq(0).data('id'),
-                        dosis: row.data('dosis') || row.find('td').eq(1).text(),
-                        jumlah: row.data('jumlah') || 1
-                    });
+                    const obatId = row.attr('data-obat-id') || row.find('td').eq(0).attr('data-id') || null;
+                    const dosis = row.attr('data-dosis') || row.find('td').eq(1).text();
+                    const jumlah = row.attr('data-jumlah') || 1;
+
+                    const entry = {
+                        obat_id: obatId,
+                        dosis: dosis,
+                        jumlah: jumlah
+                    };
+
+                    // Only include id if it's truthy (existing DB row)
+                    if (id) entry.id = id;
+
+                    obats.push(entry);
                 }
+            });
+
+            // Debug payload before sending
+            console.log('Updating racikan payload:', {
+                visitation_id: visitationId,
+                wadah: wadah,
+                bungkus: bungkus,
+                aturan_pakai: aturanPakai,
+                obats: obats
             });
 
             // Send AJAX request to update the racikan
@@ -691,6 +709,18 @@
                         card.find('.jumlah_bungkus, .bungkus').val(bungkus);
                         card.find('.aturan_pakai').val(aturanPakai);
                         card.attr('data-racikan-ke', originalRacikanKe);
+                        // Refresh the resaep list for this visitation to reflect DB state
+                        fetchFarmasiResep();
+                        // If controller returned obats, patch newly created rows with returned ids
+                        if (response.obats && Array.isArray(response.obats)) {
+                            // Replace rows inside this card with server data to ensure ids are present
+                            const tbody = card.find('.resep-table-body');
+                            tbody.empty();
+                            response.obats.forEach(function(ob){
+                                const stokColor = ob.stok_gudang < 10 ? 'red' : (ob.stok_gudang < 100 ? 'yellow' : 'green');
+                                tbody.append(`<tr data-id="${ob.id}" data-obat-id="${ob.obat_id}" data-dosis="${ob.dosis}" data-jumlah="${ob.jumlah}"><td data-id="${ob.obat_id}">${ob.obat_nama ?? ''}</td><td>${ob.dosis}</td><td><span style=\"color: ${stokColor};\">${ob.stok_gudang}</span></td><td><button class=\"btn btn-danger btn-sm hapus-obat\">Hapus</button></td></tr>`);
+                            });
+                        }
                     } else {
                         Swal.fire('Error', 'Terjadi kesalahan: ' + response.message, 'error');
                     }
@@ -731,13 +761,13 @@
             const tbody = card.find('.resep-table-body');
             tbody.find('.no-data').remove();
 
-            // Append the new row to the table
+            // Append the new row to the table (do NOT include empty data-id attribute)
             tbody.append(`
-                <tr data-id="" data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-jumlah="1">
+                <tr data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-jumlah="1">
                     <td data-id="${obatId}">${obatText}</td>
                     <td>${dosisAkhir} ${satuan}</td>
                     <td><span style="color: ${stokColor};">${stokGudang}</span></td>
-                    <td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
+                    <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
                 </tr>
             `);
         });
@@ -1319,7 +1349,77 @@ $(document).on('click', '.edit-racikan', function () {
     // Enable all Hapus and Edit buttons in this racikan card
     card.find('.hapus-obat, .edit-obat').prop('disabled', false);
     console.log('Edit racikan clicked - fields enabled, hapus-obat and edit-obat enabled');
+
+    // If the add-obat form doesn't exist in this card, insert it so user can add obat while editing
+    if (card.find('.add-obat-row').length === 0) {
+        const addRow = `
+            <div class="row add-obat-row mb-3">
+                <div class="col-md-6">
+                    <label>Nama Obat</label>
+                    <select class="form-control select2-obat-racikan" name="obat_id">
+                        <option value="">Search and select an obat...</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label>Dosis</label>
+                    <input type="number" class="form-control dosis_input">
+                </div>
+                <div class="col-md-2">
+                    <label>Satuan Dosis</label>
+                    <select class="form-control mode_dosis">
+                        <option value="normal">Normal</option>
+                        <option value="tablet">Tablet</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary btn-block tambah-obat">Tambah ke Racikan</button>
+                </div>
+            </div>
+        `;
+
+        // Insert the add row right above the table inside the card
+        card.find('table').before(addRow);
+
+        // Initialize select2 for the newly inserted select
+        card.find('.select2-obat-racikan').select2({
+            placeholder: 'Search obat...',
+            ajax: {
+                url: '{{ route("obat.search") }}',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { q: params.term };
+                },
+                processResults: function (data) {
+                    let items = Array.isArray(data.results) ? data.results : data;
+                    return {
+                        results: items.map(function(item) {
+                            return {
+                                id: item.id,
+                                text: item.text || (item.nama + (item.harga_nonfornas ? ' - ' + item.harga_nonfornas : '')),
+                                nama: item.nama,
+                                dosis: item.dosis,
+                                satuan: item.satuan,
+                                stok: item.stok,
+                                stok_gudang: typeof item.stok_gudang !== 'undefined' ? item.stok_gudang : item.stok,
+                                harga_nonfornas: item.harga_nonfornas
+                            };
+                        })
+                    };
+                },
+                cache: true
+            },
+            minimumInputLength: 3
+        });
+
+        // Enable the tambah-obat button we just inserted
+        card.find('.tambah-obat').prop('disabled', false);
+    } else {
+        // If the form exists, just ensure the add button is enabled
+        card.find('.tambah-obat').prop('disabled', false);
+    }
 });
+
 
 // Notification polling for farmasi create page
 @if(auth()->user()->hasRole('Farmasi'))
