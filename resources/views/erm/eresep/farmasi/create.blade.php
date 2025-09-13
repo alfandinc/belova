@@ -190,7 +190,7 @@
                                         $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
                                         $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
                                     @endphp
-                                    <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
+                                        <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
                                         {{ (int) $stokGudang }}
                                     </td>
                                     <td>{{ $resep->aturan_pakai }}</td>
@@ -464,22 +464,116 @@
 
         // UPDATE TOTAL HARGA
         function updateTotalPrice() {
-    let total = 0;
+            let total = 0;
 
-    // Iterate through each row in the table body
-    $('#resep-table-body tr').each(function () {
-        const harga = parseFloat($(this).find('td').eq(2).text().replace('Rp. ', '').replace(',', '').trim()) || 0; // Extract and parse the price
-        const jumlah = parseInt($(this).find('td').eq(1).text().trim()) || 0; // Extract and parse the quantity
-        const diskon = parseFloat($(this).find('td').eq(3).text().replace('%', '').trim()) || 0; // Extract and parse the discount
+            // Sum Non-Racikan (table layout: td[0]=nama, td[1]=jumlah, td[2]=harga, td[3]=diskon ...)
+            $('#resep-table-body tr').each(function () {
+                // Skip placeholder rows
+                if ($(this).hasClass('no-data')) return;
+                // Try to extract price and quantity robustly
+                const jumlah = parseFloat($(this).find('td').eq(1).text().replace(/[^\d.,-]/g, '').replace(',', '.').trim()) || 0;
+                // harga may be in different formats (with Rp. or plain number)
+                let hargaRaw = $(this).find('td').eq(2).text() || '';
+                hargaRaw = hargaRaw.replace(/Rp\.?\s*/gi, '').replace(/\./g, '').replace(/,/g, '.');
+                const harga = parseFloat(hargaRaw) || 0;
+                let diskonRaw = $(this).find('td').eq(3).text() || '';
+                diskonRaw = diskonRaw.toString().replace('%', '').trim();
+                const diskon = parseFloat(diskonRaw) || 0;
 
-        // Calculate the discounted price
-        const discountedPrice = harga * jumlah * (1 - diskon / 100);
-        total += discountedPrice;
-    });
+                const discountedPrice = harga * jumlah * (1 - diskon / 100);
+                total += discountedPrice;
+            });
 
-    // Update the total price display
-    $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
-}
+            // Collect unique obat ids present in all racikan cards
+            const obatIds = new Set();
+            $('#racikan-container .racikan-card').each(function () {
+                $(this).find('.resep-table-body tr').each(function () {
+                    if ($(this).hasClass('no-data') || $(this).hasClass('obat-deleted')) return;
+                    const obatId = $(this).data('obat-id') || $(this).find('td[data-id]').data('id');
+                    if (obatId) obatIds.add(obatId);
+                });
+            });
+
+            // If there are no racikan obat, we can finish immediately
+            if (obatIds.size === 0) {
+                $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
+                return;
+            }
+
+            // Fetch visitation JSON which contains obat details (harga_nonfornas and dosis)
+            const visitationId = $('#visitation_id').val();
+            $.get(`/erm/eresepfarmasi/${visitationId}/json`, function (res) {
+                try {
+                    // Build a lookup map obat_id -> { harga_nonfornas, dosis }
+                    const priceMap = {};
+                    if (res.non_racikans && Array.isArray(res.non_racikans)) {
+                        res.non_racikans.forEach(item => {
+                            if (item.obat && item.obat.id) {
+                                priceMap[item.obat.id] = {
+                                    harga: parseFloat(item.obat.harga_nonfornas) || 0,
+                                    dosis: item.obat.dosis || ''
+                                };
+                            }
+                        });
+                    }
+                    if (res.racikans) {
+                        Object.values(res.racikans).forEach(group => {
+                            group.forEach(item => {
+                                if (item.obat && item.obat.id) {
+                                    priceMap[item.obat.id] = {
+                                        harga: parseFloat(item.obat.harga_nonfornas) || (priceMap[item.obat.id]?.harga || 0),
+                                        dosis: item.obat.dosis || (priceMap[item.obat.id]?.dosis || '')
+                                    };
+                                }
+                            });
+                        });
+                    }
+
+                    // Now iterate racikan cards and compute racikan totals
+                    $('#racikan-container .racikan-card').each(function () {
+                        let racikanTotal = 0;
+                        const card = $(this);
+                        card.find('.resep-table-body tr').each(function () {
+                            if ($(this).hasClass('no-data') || $(this).hasClass('obat-deleted')) return;
+                            const row = $(this);
+                            const obatId = row.data('obat-id') || row.find('td[data-id]').data('id');
+                            const dosisStr = (row.data('dosis') || row.find('td').eq(1).text() || '').toString();
+                            // Extract numeric value from dosis string
+                            const dosisMatch = dosisStr.match(/(\d+(?:[.,]\d+)?)/);
+                            const dosisRacik = dosisMatch ? parseFloat(dosisMatch[0].replace(',', '.')) : 0;
+
+                            const obatInfo = priceMap[obatId] || { harga: 0, dosis: '' };
+                            const baseDosisStr = (obatInfo.dosis || '').toString();
+                            const baseMatch = baseDosisStr.match(/(\d+(?:[.,]\d+)?)/);
+                            const baseDosis = baseMatch ? parseFloat(baseMatch[0].replace(',', '.')) : 0;
+                            const hargaSatuan = parseFloat(obatInfo.harga) || 0;
+
+                            const hargaAkhir = (baseDosis > 0 && dosisRacik > 0) ? (dosisRacik / baseDosis) * hargaSatuan : 0;
+                            racikanTotal += hargaAkhir;
+                        });
+
+                        // Bungkus multiplier (check both class names)
+                        const bungkus = parseFloat(card.find('.jumlah_bungkus').val() || card.find('.bungkus').val()) || 1;
+                        // Update any UI display for racikan price if present
+                        const formattedRacikan = `(${new Intl.NumberFormat('id-ID').format(racikanTotal)} x ${bungkus} = ${new Intl.NumberFormat('id-ID').format(racikanTotal * bungkus)})`;
+                        card.find('.racikan-harga').text(formattedRacikan);
+                        card.find('.racikan-harga-detail').text(formattedRacikan);
+
+                        total += racikanTotal * bungkus;
+                    });
+
+                    // Finally update the total price display
+                    $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
+                } catch (e) {
+                    console.error('Error computing racikan prices', e);
+                    // fallback: still display non-racikan total
+                    $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
+                }
+            }).fail(function () {
+                // On fail, just show non-racikan total
+                $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
+            });
+        }
 
         // TAMBAH RACIKAN BARU
         $('#tambah-racikan').on('click', function () {
@@ -615,6 +709,9 @@
                 },
             });
 
+            // Update totals when a new (empty) racikan card is added
+            updateTotalPrice();
+
 
         });
         // UPDATE RACIKAN
@@ -720,6 +817,8 @@
                                 const stokColor = ob.stok_gudang < 10 ? 'red' : (ob.stok_gudang < 100 ? 'yellow' : 'green');
                                 tbody.append(`<tr data-id="${ob.id}" data-obat-id="${ob.obat_id}" data-dosis="${ob.dosis}" data-jumlah="${ob.jumlah}"><td data-id="${ob.obat_id}">${ob.obat_nama ?? ''}</td><td>${ob.dosis}</td><td><span style=\"color: ${stokColor};\">${ob.stok_gudang}</span></td><td><button class=\"btn btn-danger btn-sm hapus-obat\">Hapus</button></td></tr>`);
                             });
+                            // Ensure totals updated after injecting server-side obat rows
+                            updateTotalPrice();
                         }
                     } else {
                         Swal.fire('Error', 'Terjadi kesalahan: ' + response.message, 'error');
@@ -770,6 +869,8 @@
                     <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
                 </tr>
             `);
+            // Refresh totals after adding a racikan row
+            updateTotalPrice();
         });
         // STORE RACIKAN
         $('#racikan-container').on('click', '.tambah-resepracikan', function () {
@@ -838,6 +939,8 @@
                                 row.find('td').eq(2).html(`<span style="color: ${stokColor};">${stokGudang}</span>`);
                             });
                         }
+            // Refresh totals after racikan saved
+            updateTotalPrice();
                 }
             });
             });
@@ -873,6 +976,7 @@
             if (card.find('.resep-table-body tr').length === 0) {
                 card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="4" class="text-center text-muted">Belum ada data</td></tr>`);
             }
+            updateTotalPrice();
         });
         // DELETE RACIKAN
         $(document).on('click', '.hapus-racikan', function () {
@@ -886,6 +990,8 @@
             // Jika ada <tr> dengan class 'no data', langsung dihapus
             if (isNoData) {
                 card.remove();
+                // Recompute totals after removing an empty racikan card
+                updateTotalPrice();
                 return;
             }
 
@@ -914,6 +1020,8 @@
                 success: function (res) {
                     Swal.fire('Sukses', res.message, 'success'); // Notifikasi
                     card.remove(); // Hapus card racikan dari tampilan
+                    // Update totals after successful racikan delete
+                    updateTotalPrice();
                 },
                 error: function (err) {
                     Swal.fire('Error', 'Gagal menghapus racikan', 'error');
@@ -960,6 +1068,8 @@
                 row.find('td').eq(5).text(res.data.aturan_pakai);
 
                 $('#editResepModal').modal('hide');
+                // Update totals after editing non-racikan
+                updateTotalPrice();
             })
             .fail(function(xhr) {
                 Swal.fire('Error', 'Gagal menyimpan perubahan: ' + xhr.responseJSON.message, 'error');
@@ -1237,7 +1347,7 @@
         const tbody = $('#resep-table-body');
         tbody.empty();
 
-        res.non_racikans.forEach(item => {
+    res.non_racikans.forEach(item => {
             tbody.append(`
                 <tr data-id="${item.id}">
                     <td>${item.obat?.nama ?? '-'}</td>
@@ -1261,7 +1371,7 @@
         
         console.log('Racikan data from server:', res.racikans);
 
-        Object.entries(res.racikans).forEach(([ke, items]) => {
+    Object.entries(res.racikans).forEach(([ke, items]) => {
             console.log(`Processing racikan with ke=${ke}, items:`, items);
             
             if (ke === '0' || ke === 0) {
@@ -1335,6 +1445,8 @@
 
             racikanCount++;
         });
+        // After rebuilding the DOM from server response, update totals
+        updateTotalPrice();
     });
 }
 
