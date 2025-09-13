@@ -37,7 +37,7 @@
             width: 100%;
             height: 15mm; /* 1.5cm */
             table-layout: fixed;
-            background-color: #ADD8E6;
+            background-color: #003cff;
             margin: 0;
             padding: 0;
             border-collapse: collapse;
