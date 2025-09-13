@@ -87,8 +87,8 @@ class ObatController extends Controller
     {
         if ($request->ajax()) {
             $PPN = 11;
-            $obats = Obat::withInactive()
-                ->select(['id', 'kode_obat', 'nama', 'hpp', 'hpp_jual', 'harga_nonfornas'])
+            // Use default global scope (only active obat) so monitor profit shows active items only
+            $obats = Obat::select(['id', 'kode_obat', 'nama', 'hpp', 'hpp_jual', 'harga_nonfornas'])
                 // profit_percent_value: profit sebelum PPN
                 ->selectRaw('(CASE WHEN hpp_jual > 0 THEN (((harga_nonfornas / (1 + '.$PPN.'/100)) - hpp_jual) / hpp_jual) * 100 ELSE NULL END) as profit_percent_value')
                 // profit_percent_setelah_ppn: profit setelah PPN
