@@ -600,7 +600,7 @@
                 success: function(response) {
                     $('#editSopTindakanModal').modal('hide');
                     Swal.fire({ icon: 'success', title: 'Success', text: response.message });
-                    table.ajax.reload();
+                    table.ajax.reload(null, false); // don't reset paging
                 },
                 error: function(xhr) {
                     showError(xhr.responseJSON.message);
@@ -795,7 +795,7 @@
                                     response.message,
                                     'success'
                                 );
-                                table.ajax.reload();
+                                table.ajax.reload(null, false); // don't reset paging
                             } else {
                                 showError(response.message);
                             }
@@ -845,7 +845,7 @@
                             title: 'Success',
                             text: response.message
                         });
-                        table.ajax.reload();
+                        table.ajax.reload(null, false); // don't reset paging
                     }
                 },
                 error: function(xhr) {
