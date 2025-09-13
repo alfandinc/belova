@@ -21,8 +21,9 @@ class StokService {
             ->where('gudang_id', $gudangId)
             ->get()
             ->sum(function ($item) {
-                $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
-                return ($item->stok ?? 0) * $hppJual;
+                // Use master cost (`hpp`) for inventory valuation
+                $hpp = $item->obat ? ($item->obat->hpp ?? 0) : 0;
+                return ($item->stok ?? 0) * $hpp;
             });
     }
 
@@ -35,8 +36,9 @@ class StokService {
         return ObatStokGudang::with('obat')
             ->get()
             ->sum(function ($item) {
-                $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
-                return ($item->stok ?? 0) * $hppJual;
+                // Use master cost (`hpp`) for inventory valuation
+                $hpp = $item->obat ? ($item->obat->hpp ?? 0) : 0;
+                return ($item->stok ?? 0) * $hpp;
             });
     }
     /**

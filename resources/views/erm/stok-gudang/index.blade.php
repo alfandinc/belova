@@ -91,6 +91,7 @@
                                     <th>Kode Obat</th>
                                     <th>Nama Obat</th>
                                     <th>Gudang</th>
+                                    <th>Nilai Stok</th>
                                     <th>Total Stok</th>
                                     <th>Min Stok</th>
                                     <th>Max Stok</th>
@@ -186,6 +187,7 @@ $(document).ready(function() {
             { data: 'kode_obat', name: 'kode_obat', searchable: false },
             { data: 'nama_obat', name: 'nama_obat', searchable: false },
             { data: 'nama_gudang', name: 'nama_gudang', searchable: false },
+            { data: 'nilai_stok', name: 'nilai_stok', searchable: false },
             { data: 'total_stok', name: 'total_stok', searchable: false },
             { data: 'min_stok', name: 'min_stok', searchable: false },
             { data: 'max_stok', name: 'max_stok', searchable: false },
@@ -260,7 +262,7 @@ $(document).ready(function() {
         var status = $(this).val();
         if (status === '') {
             // Show all rows
-            table.column(6).search('').draw();
+            table.column(7).search('').draw();
         } else {
             // Filter by status
             var searchTerm = '';
@@ -271,7 +273,7 @@ $(document).ready(function() {
             } else if (status === 'normal') {
                 searchTerm = 'Normal';
             }
-            table.column(6).search(searchTerm).draw();
+            table.column(7).search(searchTerm).draw();
         }
     });
 

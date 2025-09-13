@@ -120,6 +120,13 @@ class StokGudangController extends Controller {
             ->addColumn('nama_gudang', function ($row) {
                 return $row->gudang->nama ?? '-';
             })
+            ->addColumn('nilai_stok', function ($row) use ($request) {
+                // Calculate nilai stok per row using master cost (hpp)
+                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
+                $hpp = $obat ? ($obat->hpp ?? 0) : 0;
+                $nilai = ($row->total_stok ?? 0) * $hpp;
+                return 'Rp ' . number_format($nilai, 0, ',', '.');
+            })
             ->addColumn('actions', function ($row) use ($request) {
                 // Use the appropriate relation based on filter
                 $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
