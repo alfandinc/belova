@@ -28,7 +28,19 @@
             overflow: hidden;
             background-color: #ffffff !important; /* page default white */
         }
-        /* main label area stays blue */
+        /* Force all text inside the blue label to white for contrast */
+        .main-table, .main-table * {
+            color: #ffffff !important;
+        }
+        /* Inputs should retain visible box (white fill, black border) */
+        input[type="checkbox"] {
+            background-color: #ffffff !important;
+            border: 1px solid #000 !important;
+            width: 0.4cm;
+            height: 0.4cm;
+            vertical-align: middle;
+        }
+    /* main label area stays blue */
         table { width: 100%; border-collapse: collapse; border-spacing: 0; }
         .main-table {
             position: fixed; /* fixed positions are respected by mPDF relative to the page */
@@ -37,15 +49,15 @@
             width: 100%;
             height: 15mm; /* 1.5cm */
             table-layout: fixed;
-            background-color: #003cff;
+            background-color: #2956eb;
             margin: 0;
             padding: 0;
             border-collapse: collapse;
             box-sizing: border-box; /* include borders in width */
         }
-    /* DEBUG: visible borders to show actual bounds (remove after inspect) */
-    body { border: 4px solid rgba(0,0,255,0.2) !important; box-sizing: border-box; }
-    .main-table { border: 3px dashed red !important; box-sizing: border-box; }
+    /* DEBUG borders removed for production */
+    body { box-sizing: border-box; }
+    .main-table { box-sizing: border-box; }
         .main-table tr {
             height: 100%;
         }
@@ -60,12 +72,12 @@
         }
         .left-column {
             width: 26%;
-            border-right: 0.04cm solid #000; /* thin border in cm */
+            border-right: 0.04cm solid #ffffff; /* thin border in cm */
             box-sizing: border-box;
         }
         .middle-column {
             width: 44%;
-            border-right: 0.04cm solid #000;
+            border-right: 0.04cm solid #ffffff;
             box-sizing: border-box;
         }
         .right-column {
