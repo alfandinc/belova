@@ -28,9 +28,9 @@
             overflow: hidden;
             background-color: #ffffff !important; /* page default white */
         }
-        /* Force all text inside the blue label to white for contrast */
+        /* Force all text inside the blue label to black */
         .main-table, .main-table * {
-            color: #ffffff !important;
+            color: #000000 !important;
         }
         /* Inputs should retain visible box (white fill, black border) */
         input[type="checkbox"] {
@@ -49,7 +49,7 @@
             width: 100%;
             height: 15mm; /* 1.5cm */
             table-layout: fixed;
-            background-color: #2956eb;
+            background-color: #26ccff;
             margin: 0;
             padding: 0;
             border-collapse: collapse;
@@ -175,7 +175,7 @@
     <table class="main-table" style="width:100%;height:1.5cm;border-collapse:collapse;">
         <tr>
             <td class="left-column">
-                <div class="no-tanggal">No. ___ Tanggal ___/___/___</div>
+                <div class="no-tanggal">No. ___ Tanggal {{ now()->format('d/m/Y') }}</div>
                 <hr style="margin: 0.05cm 0 0.3cm 0; border: none; border-top: 1px solid #000;">
                 <div class="patient-box">
                     {{ strtoupper($pasien->nama ?? 'PATIENT') }}
