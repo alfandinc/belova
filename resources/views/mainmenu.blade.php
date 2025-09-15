@@ -358,7 +358,7 @@
                     <div class="menu-label">MARKETING</div>
                 </a>
                 <!-- Finance Tile -->
-                <a href="/finance" class="menu-tile tile-finance animate-item delay-5"
+                <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-5"
                    @if(!array_intersect($userRoles, ['Kasir','Admin']))
                        onclick="showRoleWarning(event, 'Finance')"
                    @endif>
