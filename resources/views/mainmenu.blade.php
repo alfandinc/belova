@@ -644,6 +644,79 @@
             }
         }
 
+        // Helper to render all pages into a single tall image and download as PNG
+        async function renderPdfToSingleImage(url, baseFilename, canvasElement) {
+            try {
+                const loadingTask = pdfjsLib.getDocument(url);
+                const pdf = await loadingTask.promise;
+                const total = pdf.numPages;
+
+                // First, measure each page viewport to determine total height and max width
+                const viewports = [];
+                let totalHeight = 0;
+                let maxWidth = 0;
+                const scale = 1.5;
+                for (let i = 1; i <= total; i++) {
+                    const page = await pdf.getPage(i);
+                    const vp = page.getViewport({ scale });
+                    viewports.push(vp);
+                    totalHeight += Math.round(vp.height);
+                    maxWidth = Math.max(maxWidth, Math.round(vp.width));
+                }
+
+                // Safety: browsers have limits on canvas size. If too big, fallback to per-page downloads.
+                const MAX_CANVAS_DIMENSION = 32767; // conservative limit for many browsers
+                if (maxWidth > MAX_CANVAS_DIMENSION || totalHeight > MAX_CANVAS_DIMENSION) {
+                    console.warn('Combined image too large, falling back to per-page downloads');
+                    return renderAndDownloadPdfPages(url, baseFilename, canvasElement);
+                }
+
+                const canvas = canvasElement || document.createElement('canvas');
+                canvas.width = maxWidth;
+                canvas.height = totalHeight;
+                const ctx = canvas.getContext('2d');
+
+                // Render each page sequentially and draw to the combined canvas
+                let yOffset = 0;
+                for (let i = 1; i <= total; i++) {
+                    const page = await pdf.getPage(i);
+                    const vp = viewports[i - 1];
+
+                    // Render page to a temporary canvas to avoid needing different widths
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = Math.round(vp.width);
+                    tempCanvas.height = Math.round(vp.height);
+                    const tempCtx = tempCanvas.getContext('2d');
+                    await page.render({ canvasContext: tempCtx, viewport: vp }).promise;
+
+                    // Draw the temp canvas onto the big canvas at current offset
+                    ctx.drawImage(tempCanvas, 0, yOffset, tempCanvas.width, tempCanvas.height);
+                    yOffset += tempCanvas.height;
+                }
+
+                // Convert combined canvas to blob and download
+                await new Promise((resolve) => {
+                    canvas.toBlob(function(blob) {
+                        if (!blob) return resolve();
+                        const link = document.createElement('a');
+                        const filename = baseFilename + '.png';
+                        const urlBlob = URL.createObjectURL(blob);
+                        link.href = urlBlob;
+                        link.download = filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        setTimeout(() => URL.revokeObjectURL(urlBlob), 1000);
+                        resolve();
+                    }, 'image/png');
+                });
+            } catch (err) {
+                console.error('Error creating combined PDF image, falling back to per-page', err);
+                // Fallback to per-page download
+                return renderAndDownloadPdfPages(url, baseFilename, canvasElement);
+            }
+        }
+
         // Download Jadwal Dokter (Gambar) button logic (all pages)
         $('#downloadJadwalDokterImageBtn').on('click', function() {
             var clinicId = $('#jadwal-klinik-dokter').val();
@@ -654,7 +727,7 @@
             }
             var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
             var canvas = document.getElementById('jadwalDokterPdfCanvas');
-            renderAndDownloadPdfPages(url, 'jadwal_dokter_' + month, canvas);
+            renderPdfToSingleImage(url, 'jadwal_dokter_' + month, canvas);
         });
         // System update modal
         if (!localStorage.getItem('systemUpdateModalShown')) {
@@ -687,7 +760,7 @@
             var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
             var url = '/hrd/schedule/print?start_date='+startDate;
             var canvas = document.getElementById('jadwalPdfCanvas');
-            renderAndDownloadPdfPages(url, 'jadwal_karyawan_' + startDate, canvas);
+            renderPdfToSingleImage(url, 'jadwal_karyawan_' + startDate, canvas);
         });
 
         // Fetch klinik list for both selectors (AJAX, replace with your endpoint)
