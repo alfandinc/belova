@@ -61,7 +61,7 @@ class MutasiGudangController extends Controller
 
     public function data(Request $request)
     {
-        $query = MutasiGudang::with(['obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy']);
+        $query = MutasiGudang::with(['items.obat', 'obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy']);
 
         if ($request->gudang_id) {
             $gudangId = $request->gudang_id;
@@ -80,7 +80,22 @@ class MutasiGudangController extends Controller
                 return $mutasi->created_at->format('d/m/Y H:i');
             })
             ->addColumn('nama_obat', function ($mutasi) {
-                return $mutasi->obat->nama;
+                // Build a comma-separated list of obat names (limit to first 3)
+                if ($mutasi->items && $mutasi->items->count() > 0) {
+                    $names = $mutasi->items->map(function($it) {
+                        return $it->obat ? $it->obat->nama : ('Obat ID ' . $it->obat_id);
+                    })->filter()->values()->all();
+
+                    if (count($names) <= 3) {
+                        return implode(', ', $names);
+                    }
+                    $first = array_slice($names, 0, 3);
+                    $remaining = count($names) - 3;
+                    return implode(', ', $first) . " ... +{$remaining} more";
+                }
+
+                // Fallback to single obat
+                return $mutasi->obat ? $mutasi->obat->nama : '-';
             })
             ->addColumn('gudang_asal', function ($mutasi) {
                 return $mutasi->gudangAsal->nama;
@@ -118,35 +133,73 @@ class MutasiGudangController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        // Support multiple items: items = [{obat_id, jumlah, keterangan}, ...]
+        $rules = [
             'gudang_asal_id' => 'required|exists:erm_gudang,id',
             'gudang_tujuan_id' => 'required|exists:erm_gudang,id|different:gudang_asal_id',
-            'obat_id' => 'required|exists:erm_obat,id',
-            'jumlah' => 'required|integer|min:1'
-        ]);
+        ];
+
+        if ($request->has('items')) {
+            $rules['items'] = 'required|array|min:1';
+            $rules['items.*.obat_id'] = 'required|exists:erm_obat,id';
+            $rules['items.*.jumlah'] = 'required|integer|min:1';
+            $rules['items.*.keterangan'] = 'nullable|string|max:255';
+        } else {
+            $rules['obat_id'] = 'required|exists:erm_obat,id';
+            $rules['jumlah'] = 'required|integer|min:1';
+        }
+
+        $request->validate($rules);
 
         try {
             DB::beginTransaction();
 
-            // Check total stok di gudang asal
-            $totalStok = \App\Models\ERM\ObatStokGudang::where('obat_id', $request->obat_id)
-                ->where('gudang_id', $request->gudang_asal_id)
-                ->sum('stok');
-            if ($totalStok < $request->jumlah) {
-                throw new \Exception('Stok tidak mencukupi');
+            // If multiple items, validate stok per item (only check total available in gudang)
+            $items = [];
+            if ($request->has('items')) {
+                $items = $request->items;
+                // Validate stock per obat in gudang asal
+                foreach ($items as $it) {
+                    $stok = \App\Models\ERM\ObatStokGudang::where('obat_id', $it['obat_id'])
+                        ->where('gudang_id', $request->gudang_asal_id)
+                        ->sum('stok');
+                    if ($stok < $it['jumlah']) {
+                        throw new \Exception("Stok tidak mencukupi untuk obat ID {$it['obat_id']}");
+                    }
+                }
+            } else {
+                // Single item fallback
+                $items = [[
+                    'obat_id' => $request->obat_id,
+                    'jumlah' => $request->jumlah,
+                    'keterangan' => $request->keterangan ?? null
+                ]];
             }
 
-            // Create mutasi, stok belum diproses
-            $mutasi = MutasiGudang::create([
+            // Create mutasi
+            // If multiple items provided, do NOT populate parent obat_id/jumlah — keep those fields null
+            $mutasiData = [
                 'nomor_mutasi' => 'MUT-' . date('YmdHis'),
                 'gudang_asal_id' => $request->gudang_asal_id,
                 'gudang_tujuan_id' => $request->gudang_tujuan_id,
-                'obat_id' => $request->obat_id,
-                'jumlah' => $request->jumlah,
-                'keterangan' => $request->keterangan,
+                'keterangan' => $request->keterangan ?? null,
                 'status' => 'pending',
                 'requested_by' => Auth::id()
-            ]);
+            ];
+
+            // If only one item, you may optionally set parent obat_id/jumlah; but to respect user's request
+            // we keep parent fields null when items array is supplied.
+            $mutasi = MutasiGudang::create($mutasiData);
+
+            // Create related items
+            foreach ($items as $it) {
+                \App\Models\ERM\MutasiGudangItem::create([
+                    'mutasi_id' => $mutasi->id,
+                    'obat_id' => $it['obat_id'],
+                    'jumlah' => $it['jumlah'],
+                    'keterangan' => $it['keterangan'] ?? null
+                ]);
+            }
 
             DB::commit();
 
@@ -165,7 +218,7 @@ class MutasiGudangController extends Controller
 
     public function show($id)
     {
-        $mutasi = MutasiGudang::with(['obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy'])
+        $mutasi = MutasiGudang::with(['items.obat', 'obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy'])
             ->findOrFail($id);
         
         $html = view('erm.mutasi-gudang._detail', compact('mutasi'))->render();
@@ -190,54 +243,70 @@ class MutasiGudangController extends Controller
 
             // Pakai StokService untuk mutasi stok per batch (FIFO)
             $stokService = app(\App\Services\ERM\StokService::class);
-            $stokGudangList = \App\Models\ERM\ObatStokGudang::where('obat_id', $mutasi->obat_id)
-                ->where('gudang_id', $mutasi->gudang_asal_id)
-                ->where('stok', '>', 0)
-                ->orderBy('expiration_date', 'asc')
-                ->orderBy('batch', 'asc')
-                ->get();
 
-            $jumlahMutasi = $mutasi->jumlah;
-            $stokTersedia = $stokGudangList->sum('stok');
-            if ($stokTersedia < $jumlahMutasi) {
-                throw new \Exception('Stok tidak mencukupi');
+            // Jika ada items terkait, proses per item
+            $items = $mutasi->items()->get();
+            if ($items->isEmpty()) {
+                // Fallback to legacy single-item behavior
+                $items = collect([
+                    (object) [
+                        'obat_id' => $mutasi->obat_id,
+                        'jumlah' => $mutasi->jumlah,
+                        'keterangan' => $mutasi->keterangan
+                    ]
+                ]);
             }
 
-            foreach ($stokGudangList as $stokGudang) {
-                if ($jumlahMutasi <= 0) break;
-                $ambil = min($stokGudang->stok, $jumlahMutasi);
-                
-                // Get gudang names for better keterangan
-                $gudangAsal = $mutasi->gudangAsal->nama;
-                $gudangTujuan = $mutasi->gudangTujuan->nama;
-                
-                // Mutasi stok per batch, batch dan exp date ikut dipindahkan dengan referensi lengkap
-                $stokService->kurangiStok(
-                    $mutasi->obat_id, 
-                    $mutasi->gudang_asal_id, 
-                    $ambil, 
-                    $stokGudang->batch,
-                    'mutasi_gudang',
-                    $mutasi->id,
-                    "Mutasi {$mutasi->nomor_mutasi} ke {$gudangTujuan}"
-                );
-                
-                $stokService->tambahStok(
-                    $mutasi->obat_id, 
-                    $mutasi->gudang_tujuan_id, 
-                    $ambil, 
-                    $stokGudang->batch, 
-                    $stokGudang->expiration_date,
-                    null, // rak
-                    null, // lokasi
-                    null, // hargaBeli
-                    null, // hargaBeliJual
-                    'mutasi_gudang',
-                    $mutasi->id,
-                    "Mutasi {$mutasi->nomor_mutasi} dari {$gudangAsal}"
-                );
-                
-                $jumlahMutasi -= $ambil;
+            foreach ($items as $item) {
+                $stokGudangList = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                    ->where('gudang_id', $mutasi->gudang_asal_id)
+                    ->where('stok', '>', 0)
+                    ->orderBy('expiration_date', 'asc')
+                    ->orderBy('batch', 'asc')
+                    ->get();
+
+                $jumlahMutasi = $item->jumlah;
+                $stokTersedia = $stokGudangList->sum('stok');
+                if ($stokTersedia < $jumlahMutasi) {
+                    throw new \Exception("Stok tidak mencukupi untuk obat ID {$item->obat_id}");
+                }
+
+                foreach ($stokGudangList as $stokGudang) {
+                    if ($jumlahMutasi <= 0) break;
+                    $ambil = min($stokGudang->stok, $jumlahMutasi);
+
+                    // Get gudang names for better keterangan
+                    $gudangAsal = $mutasi->gudangAsal->nama;
+                    $gudangTujuan = $mutasi->gudangTujuan->nama;
+
+                    // Mutasi stok per batch, batch dan exp date ikut dipindahkan dengan referensi lengkap
+                    $stokService->kurangiStok(
+                        $item->obat_id,
+                        $mutasi->gudang_asal_id,
+                        $ambil,
+                        $stokGudang->batch,
+                        'mutasi_gudang',
+                        $mutasi->id,
+                        "Mutasi {$mutasi->nomor_mutasi} ke {$gudangTujuan}"
+                    );
+
+                    $stokService->tambahStok(
+                        $item->obat_id,
+                        $mutasi->gudang_tujuan_id,
+                        $ambil,
+                        $stokGudang->batch,
+                        $stokGudang->expiration_date,
+                        null, // rak
+                        null, // lokasi
+                        null, // hargaBeli
+                        null, // hargaBeliJual
+                        'mutasi_gudang',
+                        $mutasi->id,
+                        "Mutasi {$mutasi->nomor_mutasi} dari {$gudangAsal}"
+                    );
+
+                    $jumlahMutasi -= $ambil;
+                }
             }
 
             // Update status mutasi

@@ -51,5 +51,11 @@ class MutasiGudang extends Model
     {
         return $this->belongsTo(\App\Models\User::class, 'approved_by');
     }
+
+    // Jika sekarang mendukung banyak items per mutasi
+    public function items()
+    {
+        return $this->hasMany(MutasiGudangItem::class, 'mutasi_id');
+    }
 // ...existing code...
 }

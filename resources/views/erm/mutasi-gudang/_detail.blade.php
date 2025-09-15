@@ -10,7 +10,16 @@
         </tr>
         <tr>
             <td>Status</td>
-            <td>: {!! $mutasi->status_label !!}</td>
+            <td>:
+                @php
+                    $labels = [
+                        'pending' => '<span class="badge bg-warning">Pending</span>',
+                        'approved' => '<span class="badge bg-success">Disetujui</span>',
+                        'rejected' => '<span class="badge bg-danger">Ditolak</span>'
+                    ];
+                @endphp
+                {!! $labels[$mutasi->status] ?? $mutasi->status !!}
+            </td>
         </tr>
         <tr>
             <td>Diminta Oleh</td>
@@ -38,25 +47,40 @@
 
     <h5 class="mt-4">Detail Obat</h5>
     <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Nama Obat</th>
+                <th>Jumlah</th>
+                <th>Keterangan</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if($mutasi->items && $mutasi->items->count() > 0)
+                @foreach($mutasi->items as $item)
+                    <tr>
+                        <td>{{ $item->obat ? $item->obat->nama : ('Obat ID ' . $item->obat_id) }}</td>
+                        <td>{{ $item->jumlah }}</td>
+                        <td>{{ $item->keterangan ?: '-' }}</td>
+                    </tr>
+                @endforeach
+            @else
+                {{-- Fallback to legacy single-obat fields --}}
+                <tr>
+                    <td>{{ $mutasi->obat ? $mutasi->obat->nama : '-' }}</td>
+                    <td>{{ $mutasi->jumlah ?? '-' }}</td>
+                    <td>{{ $mutasi->keterangan ?: '-' }}</td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
+    <table class="table table-borderless mt-2">
         <tr>
-            <th>Nama Obat</th>
-            <td>{{ $mutasi->obat->nama }}</td>
-        </tr>
-        <tr>
-            <th>Jumlah</th>
-            <td>{{ $mutasi->jumlah }}</td>
-        </tr>
-        <tr>
-            <th>Dari Gudang</th>
-            <td>{{ $mutasi->gudangAsal->nama }}</td>
+            <th width="150">Dari Gudang</th>
+            <td>: {{ $mutasi->gudangAsal->nama }}</td>
         </tr>
         <tr>
             <th>Ke Gudang</th>
-            <td>{{ $mutasi->gudangTujuan->nama }}</td>
-        </tr>
-        <tr>
-            <th>Keterangan</th>
-            <td>{{ $mutasi->keterangan ?: '-' }}</td>
+            <td>: {{ $mutasi->gudangTujuan->nama }}</td>
         </tr>
     </table>
 </div>

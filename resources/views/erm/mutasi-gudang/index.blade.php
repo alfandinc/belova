@@ -54,7 +54,6 @@
                                     <th>Tanggal</th>
                                     <th>No Mutasi</th>
                                     <th>Obat</th>
-                                    <th>Jumlah</th>
                                     <th>Dari Gudang</th>
                                     <th>Ke Gudang</th>
                                     <th>Diminta Oleh</th>
@@ -110,28 +109,23 @@
 
                     <div class="row mt-3">
                         <div class="col-md-12">
-                            <div class="form-group">
-                                <label>Pilih Obat <span class="text-danger">*</span></label>
-                                <select name="obat_id" id="obat_id" class="form-control select2-modal" required>
-                                    <option value="">Pilih Obat</option>
-                                </select>
+                            <label>Pilih Obat (Bisa lebih dari 1)</label>
+                            <div class="table-responsive">
+                                <table class="table table-sm" id="mutasi-items-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:40%">Obat</th>
+                                            <th style="width:20%">Jumlah</th>
+                                            <th style="width:30%">Keterangan</th>
+                                            <th style="width:10%"><button type="button" id="add-item" class="btn btn-sm btn-primary">Tambah</button></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- rows added dynamically -->
+                                    </tbody>
+                                </table>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="row mt-3">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="jumlah">Jumlah <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" name="jumlah" id="jumlah" required min="1">
-                                <small class="text-muted">Stok tersedia: <span id="stok-tersedia">0</span></small>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="keterangan">Keterangan</label>
-                                <textarea name="keterangan" id="keterangan" rows="3" class="form-control"></textarea>
-                            </div>
+                            <small class="text-muted">Stok tersedia untuk setiap obat akan dilihat berdasarkan gudang asal.</small>
                         </div>
                     </div>
                 </div>
@@ -412,8 +406,7 @@ $(document).ready(function() {
         columns: [
             { data: 'tanggal', name: 'created_at' },
             { data: 'nomor_mutasi', name: 'nomor_mutasi' },
-            { data: 'nama_obat', name: 'obat.nama' },
-            { data: 'jumlah', name: 'jumlah' },
+            { data: 'nama_obat', name: 'items' },
             { data: 'gudang_asal', name: 'gudangAsal.nama' },
             { data: 'gudang_tujuan', name: 'gudangTujuan.nama' },
             { data: 'requested_by', name: 'requestedBy.name' },
@@ -471,6 +464,78 @@ $(document).ready(function() {
     function formatObatSelection(obat) {
         return obat.nama || obat.text;
     }
+
+    // --- Dynamic items management for multi-obat mutasi ---
+    function initItemSelect2($select) {
+        $select.select2({
+            dropdownParent: $('#modalMutasi'),
+            width: '100%',
+            ajax: {
+                url: "{{ route('erm.mutasi-gudang.obat') }}",
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return {
+                        q: params.term,
+                        gudang_id: $('#gudang_asal_id').val()
+                    };
+                },
+                processResults: function(data, params) {
+                    return { results: data.results };
+                },
+                cache: true
+            },
+            placeholder: 'Cari obat...',
+            minimumInputLength: 1,
+            templateResult: formatObat,
+            templateSelection: formatObatSelection
+        });
+    }
+
+    function addItemRow(data) {
+        var $tbody = $('#mutasi-items-table tbody');
+        var rowId = Date.now() + Math.floor(Math.random() * 1000);
+        var $tr = $('<tr data-row-id="' + rowId + '"></tr>');
+        var obatSelect = '<select name="items['+rowId+'][obat_id]" class="form-control item-obat" required><option value="">Pilih Obat</option></select>';
+        var jumlahInput = '<input type="number" min="1" name="items['+rowId+'][jumlah]" class="form-control item-jumlah" required value="1">';
+        var ketInput = '<input type="text" name="items['+rowId+'][keterangan]" class="form-control item-keterangan">';
+        var removeBtn = '<button type="button" class="btn btn-sm btn-danger btn-remove-item">Hapus</button>';
+
+        $tr.append('<td>'+obatSelect+'</td>');
+        $tr.append('<td>'+jumlahInput+'</td>');
+        $tr.append('<td>'+ketInput+'</td>');
+        $tr.append('<td>'+removeBtn+'</td>');
+        $tbody.append($tr);
+
+        var $newSelect = $tr.find('.item-obat');
+        initItemSelect2($newSelect);
+
+        if (data) {
+            // set selection if provided
+            var option = new Option(data.nama, data.id, true, true);
+            $newSelect.append(option).trigger('change');
+            $tr.find('.item-jumlah').val(data.jumlah || 1);
+            $tr.find('.item-keterangan').val(data.keterangan || '');
+        }
+    }
+
+    // Add initial row when modal opens
+    $('#modalMutasi').on('shown.bs.modal', function() {
+        // clear rows first
+        $('#mutasi-items-table tbody').empty();
+        // add one row by default
+        addItemRow();
+    });
+
+    // Add item button
+    $(document).on('click', '#add-item', function() {
+        addItemRow();
+    });
+
+    // Remove item
+    $(document).on('click', '.btn-remove-item', function() {
+        $(this).closest('tr').remove();
+    });
 
     // Fungsi untuk update stok tersedia
     function updateStokTersedia() {
@@ -574,17 +639,14 @@ $(document).ready(function() {
         }
     });
 
-    // Form mutasi submit via AJAX
+    // Form mutasi submit via AJAX (collect items table)
     $('#form-mutasi').submit(function(e) {
         e.preventDefault();
         var form = $(this);
         var gudangAsal = $('#gudang_asal_id').val();
         var gudangTujuan = $('#gudang_tujuan_id').val();
-        var obat = $('#obat_id').val();
-        var jumlah = $('#jumlah').val();
-        var stokTersedia = parseInt($('#stok-tersedia').text());
 
-        if (!gudangAsal || !gudangTujuan || !obat || !jumlah) {
+        if (!gudangAsal || !gudangTujuan) {
             alert('Semua field yang bertanda * harus diisi');
             return false;
         }
@@ -592,23 +654,45 @@ $(document).ready(function() {
             alert('Gudang tujuan tidak boleh sama dengan gudang asal');
             return false;
         }
-        if (parseInt(jumlah) > stokTersedia) {
-            alert('Jumlah mutasi tidak boleh melebihi stok tersedia');
+
+        // Collect items
+        var items = [];
+        var valid = true;
+        $('#mutasi-items-table tbody tr').each(function() {
+            var obatId = $(this).find('.item-obat').val();
+            var jumlah = $(this).find('.item-jumlah').val();
+            var keterangan = $(this).find('.item-keterangan').val();
+            if (!obatId || !jumlah || parseInt(jumlah) <= 0) {
+                valid = false;
+                return false; // break
+            }
+            items.push({ obat_id: obatId, jumlah: parseInt(jumlah), keterangan: keterangan });
+        });
+
+        if (!valid || items.length === 0) {
+            alert('Mohon lengkapi setidaknya satu item obat dengan jumlah valid');
             return false;
         }
+
+        // Optional: Client-side stock check (best-effort) - fetch stock list for gudang
+        // We'll send request directly and rely on server-side checks as authoritative
 
         $.ajax({
             url: form.attr('action'),
             type: 'POST',
-            data: form.serialize(),
+            data: {
+                _token: '{{ csrf_token() }}',
+                gudang_asal_id: gudangAsal,
+                gudang_tujuan_id: gudangTujuan,
+                items: items
+            },
             success: function(response) {
                 if (response.success) {
                     alert(response.message);
                     $('#modalMutasi').modal('hide');
                     table.draw();
                     form[0].reset();
-                    $('#stok-tersedia').text('0');
-                    $('#obat_id').val(null).trigger('change');
+                    $('#mutasi-items-table tbody').empty();
                 } else {
                     alert(response.message);
                 }
@@ -617,6 +701,12 @@ $(document).ready(function() {
                 var msg = 'Terjadi kesalahan';
                 if (xhr.responseJSON && xhr.responseJSON.message) {
                     msg = xhr.responseJSON.message;
+                } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    var errors = [];
+                    for (var field in xhr.responseJSON.errors) {
+                        errors = errors.concat(xhr.responseJSON.errors[field]);
+                    }
+                    msg = errors.join('\n');
                 }
                 alert(msg);
             }
