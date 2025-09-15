@@ -95,7 +95,7 @@
                     @endhasanyrole
 
                     <!-- Farmasi Section -->
-                    @hasrole('Farmasi|Admin')
+                    @hasrole('Farmasi|Admin|Beautician')
                         <li>
                             <a href="javascript: void(0);"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Data</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                             <ul class="nav-second-level" aria-expanded="false">
