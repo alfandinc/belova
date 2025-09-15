@@ -61,7 +61,7 @@
             font-size: 7pt;
             line-height: 0.4cm;
         }
-    /* main label area stays blue */
+        /* main label area stays blue */
         table { width: 100%; border-collapse: collapse; border-spacing: 0; }
         .main-table {
             position: fixed; /* fixed positions are respected by mPDF relative to the page */
@@ -71,6 +71,7 @@
             height: 15mm; /* 1.5cm */
             table-layout: fixed;
             background-color: #26ccff;
+            border: 1px solid #000000; /* outer border of the label */
             margin: 0;
             padding: 0;
             border-collapse: collapse;
@@ -93,12 +94,12 @@
         }
         .left-column {
             width: 26%;
-            border-right: 0.04cm solid #ffffff; /* thin border in cm */
+            border-right: 0.04cm solid #000000; /* thin black border between columns */
             box-sizing: border-box;
         }
         .middle-column {
             width: 44%;
-            border-right: 0.04cm solid #ffffff;
+            border-right: 0.04cm solid #000000; /* thin black border between columns */
             box-sizing: border-box;
         }
         .right-column {
