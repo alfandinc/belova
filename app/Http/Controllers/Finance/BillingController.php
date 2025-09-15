@@ -1261,14 +1261,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
             })
             ->addColumn('dokter', function ($visitation) {
-                // Show dokter name from related user
+                // Show dokter name combined with specialization if available, e.g. "dr Bambang (Penyakit Dalam)"
                 if ($visitation->dokter && $visitation->dokter->user) {
-                    return $visitation->dokter->user->name;
+                    $name = $visitation->dokter->user->name;
+                    if ($visitation->dokter->spesialisasi && $visitation->dokter->spesialisasi->nama) {
+                        return $name . ' (' . $visitation->dokter->spesialisasi->nama . ')';
+                    }
+                    return $name;
                 }
                 return '-';
-            })
-            ->addColumn('spesialisasi', function ($visitation) {
-                return $visitation->dokter && $visitation->dokter->spesialisasi ? $visitation->dokter->spesialisasi->nama : '-';
             })
             ->addColumn('jenis_kunjungan', function ($visitation) {
                 // Map numeric values to labels
@@ -1294,6 +1295,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             })
             ->addColumn('nama_klinik', function ($visitation) {
                 return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
+            })
+            ->addColumn('invoice_number', function ($visitation) {
+                // Return associated invoice number if exists, otherwise dash
+                if ($visitation->invoice && isset($visitation->invoice->invoice_number)) {
+                    return $visitation->invoice->invoice_number;
+                }
+                return '-';
             })
                 ->addColumn('status', function ($visitation) {
                     if ($visitation->invoice && $visitation->invoice->amount_paid > 0) {

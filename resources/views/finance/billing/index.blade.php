@@ -42,13 +42,35 @@
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table id="datatable-billing" class="table table-bordered table-hover table-striped dt-responsive nowrap" style="width:100%;">
+                                            <style>
+                                                /* Allow table cells with class .wrap-column to wrap into multiple lines */
+                                                .wrap-column {
+                                                    white-space: normal !important;
+                                                    word-wrap: break-word !important;
+                                                    overflow-wrap: break-word !important;
+                                                    max-width: 220px; /* sensible max width for dokter column */
+                                                    vertical-align: middle;
+                                                }
+                                                /* Keep action buttons aligned and prevent wrapping inside action cell */
+                                                .no-wrap-cell {
+                                                    white-space: nowrap !important;
+                                                }
+
+                                                /* Keep status column fixed width and prevent badge text from splitting */
+                                                .status-cell {
+                                                    white-space: nowrap !important;
+                                                    width: 120px; /* adjust as needed */
+                                                    text-align: center;
+                                                }
+                                            </style>
+
+                                            <table id="datatable-billing" class="table table-bordered table-hover table-striped dt-responsive" style="width:100%;">
                             <thead class="thead-light">
                                 <tr>
                                     <th>No. RM</th>
                                     <th>Nama Pasien</th>
+                                    <th>Nomor Invoice</th>
                                     <th>Dokter</th>
-                                    <th>Spesialisasi</th>
                                     <th>Jenis Kunjungan</th>
                                     <th>Tanggal Visit</th>
                                     <th>Klinik</th>
@@ -150,15 +172,59 @@
                     d.status_filter = statusFilter;
                 }
             },
+            columnDefs: [
+                // make the dokter column wrap and set a preferred width
+                { targets: 3, className: 'wrap-column', width: '220px' },
+                // keep action column compact and no-wrap
+                { targets: 7, className: 'no-wrap-cell', width: '140px' },
+                // keep status badges on one line and fix width
+                { targets: 8, className: 'status-cell', width: '120px' }
+            ],
+
             columns: [
                 { data: 'no_rm', name: 'no_rm' },
                 { data: 'nama_pasien', name: 'nama_pasien' },
+                { data: 'invoice_number', name: 'invoice_number' },
                 { data: 'dokter', name: 'dokter' },
-                { data: 'spesialisasi', name: 'spesialisasi' },
                 { data: 'jenis_kunjungan', name: 'jenis_kunjungan' },
                 { data: 'tanggal_visit', name: 'tanggal_visit' },
                 { data: 'nama_klinik', name: 'nama_klinik' },
-                { data: 'action', name: 'action', orderable: false, searchable: false, responsivePriority: 1 },
+                { data: 'action', name: 'action', orderable: false, searchable: false, responsivePriority: 1,
+                    render: function(data, type, row, meta) {
+                        if (type === 'display' && data) {
+                            // create a temporary container to manipulate the HTML safely
+                            var $container = $('<div>').html(data);
+                            $container.find('a, button').each(function() {
+                                var $el = $(this);
+                                var text = $el.text().trim();
+                                // map button text to icon classes (using Themify icons already used in project)
+                                if (/lihat\s*billing/i.test(text)) {
+                                    $el.html('<i class="ti-eye" aria-hidden="true"></i>');
+                                    $el.attr('title', 'Lihat Billing');
+                                } else if (/cetak\s*nota\s*v?2/i.test(text)) {
+                                    $el.html('<i class="ti-printer" aria-hidden="true"></i>');
+                                    $el.attr('title', 'Cetak Nota v2');
+                                } else if (/cetak\s*nota/i.test(text)) {
+                                    $el.html('<i class="ti-printer" aria-hidden="true"></i>');
+                                    $el.attr('title', 'Cetak Nota');
+                                } else if (/edit/i.test(text)) {
+                                    $el.html('<i class="ti-pencil" aria-hidden="true"></i>');
+                                    $el.attr('title', 'Edit');
+                                } else if (/hapus|delete|remove/i.test(text)) {
+                                    $el.html('<i class="ti-trash" aria-hidden="true"></i>');
+                                    $el.attr('title', 'Hapus');
+                                } else {
+                                    // fallback: keep original text but add a small icon
+                                    // do nothing or optionally shorten
+                                }
+                                // ensure buttons remain accessible
+                                $el.attr('aria-label', $el.attr('title') || text);
+                            });
+                            return $container.html();
+                        }
+                        return data;
+                    }
+                },
                 { data: 'status', name: 'status', orderable: false, searchable: false, responsivePriority: 2 }
             ],
             language: {
