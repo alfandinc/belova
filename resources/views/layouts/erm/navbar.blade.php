@@ -95,7 +95,7 @@
                     @endhasanyrole
 
                     <!-- Farmasi Section -->
-                    @hasrole('Farmasi|Admin|Beautician')
+                    @hasanyrole('Farmasi|Admin')
                         <li>
                             <a href="javascript: void(0);"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Data</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                             <ul class="nav-second-level" aria-expanded="false">
@@ -113,7 +113,8 @@
                             </li>
                             </ul>
                         </li>
-                        
+                    @endhasanyrole
+                    @hasanyrole('Farmasi|Admin')    
                     <li>
                         <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>E-Resep</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -125,6 +126,8 @@
                             </li>
                         </ul>
                     </li>
+                    @endhasanyrole
+                    @hasanyrole('Farmasi|Admin') 
                     <li>
                         <a href="javascript: void(0);"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Pembelian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -140,7 +143,8 @@
                         </li>
                         </ul>
                     </li>
-                    
+                    @endhasanyrole
+                    @hasanyrole('Farmasi|Admin|Beautician')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Stok & Mutasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
@@ -171,7 +175,8 @@
                             </li>
                         </ul>
                     </li>
-                                             
+                    @endhasanyrole
+                    @hasanyrole('Farmasi|Admin')                         
                             <li>
                                 <a href="/erm/monitor-profit"><i data-feather="percent" class="align-self-center menu-icon"></i><span>Monitor Profit</span></a>
                             </li>
@@ -184,8 +189,8 @@
                             {{-- <li>
                                 <a href="/erm/stokopname"><i data-feather="refresh-cw" class="align-self-center menu-icon"></i><span>Stok Opname</span></a>
                             </li> --}}
-                  
-                    @endhasrole
+
+                    @endhasanyrole
 
 
                     <!-- SPK / Riwayat Tindakan Section -->
