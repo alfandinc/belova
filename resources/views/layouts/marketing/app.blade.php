@@ -60,8 +60,9 @@
 
         <div class="page-content">
             @yield('content')
-            @include('layouts.erm.footer')
+            
         </div>
+        @include('layouts.erm.footer')
     </div>
 
     <!-- Scripts -->

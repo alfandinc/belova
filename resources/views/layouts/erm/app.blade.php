@@ -68,8 +68,9 @@
 
         <div class="page-content">
             @yield('content')
-            @include('layouts.erm.footer')
+            
         </div>
+        @include('layouts.erm.footer')
     </div>
     <!-- Scripts -->
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
