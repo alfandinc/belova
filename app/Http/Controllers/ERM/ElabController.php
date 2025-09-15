@@ -28,7 +28,18 @@ class ElabController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $visitations = Visitation::with(['pasien', 'metodeBayar'])->select('erm_visitations.*');
+            // Add a subquery to calculate total nominal (sum of lab test prices) per visitation
+            $subQuery = DB::table('erm_lab_permintaan')
+                ->join('erm_lab_test', 'erm_lab_permintaan.lab_test_id', '=', 'erm_lab_test.id')
+                ->selectRaw('erm_lab_permintaan.visitation_id, SUM(erm_lab_test.harga) as nominal')
+                ->groupBy('erm_lab_permintaan.visitation_id');
+
+            $visitations = Visitation::with(['pasien', 'metodeBayar'])
+                ->select('erm_visitations.*')
+                ->leftJoinSub($subQuery, 'lp', function($join) {
+                    $join->on('lp.visitation_id', '=', 'erm_visitations.id');
+                })
+                ->addSelect(DB::raw('COALESCE(lp.nominal, 0) as nominal'));
 
             // Support date range filter
             if ($request->filled('tanggal_start') && $request->filled('tanggal_end')) {

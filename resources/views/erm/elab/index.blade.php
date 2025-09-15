@@ -41,6 +41,7 @@
                     <tr>
                         <th>No RM</th>
                         <th>Nama Pasien</th>
+                        <th>Nominal</th>
                         <th>Tanggal Kunjungan</th>
                         <th>Metode Bayar</th>
                         <th>Lab</th>
@@ -93,7 +94,27 @@ $(document).ready(function () {
         columns: [
             { data: 'no_rm', searchable: false, orderable: false },
             { data: 'nama_pasien', searchable: false, orderable: false },
-            { data: 'tanggal_visitation', name: 'tanggal_periksa' },
+            { data: 'nominal', searchable: false, orderable: false, render: function(data, type, row) {
+                    // data is numeric nominal (sum of harga). Format to 'Rp 1.000'
+                    if (!data) return 'Rp 0';
+                    return 'Rp ' + Number(data).toLocaleString('id-ID');
+                }
+            },
+            // Format tanggal_visitation using moment.js to 'D MMMM YYYY' (e.g. '1 Januari 2025')
+            { data: 'tanggal_visitation', name: 'tanggal_periksa', render: function(data, type, row) {
+                    if (!data) return '-';
+                    // Ensure moment has Indonesian locale available; format and capitalize month
+                    try {
+                        moment.locale('id');
+                        let formatted = moment(data).format('D MMMM YYYY');
+                        // Capitalize first letter of month (moment with 'id' returns lowercase months)
+                        // e.g. '1 januari 2025' -> '1 Januari 2025'
+                        return formatted.replace(/\b([a-z])/g, function(m) { return m.toUpperCase(); });
+                    } catch (e) {
+                        return data;
+                    }
+                }
+            },
             { data: 'metode_bayar', searchable: false, orderable: false },
             { data: 'dokumen', searchable: false, orderable: false },
             { data: 'status_kunjungan', visible: false, searchable: false },
