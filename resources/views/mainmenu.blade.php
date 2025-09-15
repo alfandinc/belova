@@ -603,7 +603,48 @@
     </script>
     <script>
     $(document).ready(function() {
-        // Download Jadwal Dokter (Gambar) button logic
+        // Helper to render all pages of a PDF and download each as PNG
+        async function renderAndDownloadPdfPages(url, baseFilename, canvasElement) {
+            try {
+                const loadingTask = pdfjsLib.getDocument(url);
+                const pdf = await loadingTask.promise;
+                const total = pdf.numPages;
+                const canvas = canvasElement || document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                for (let pageNum = 1; pageNum <= total; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    canvas.width = Math.round(viewport.width);
+                    canvas.height = Math.round(viewport.height);
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+                    // Convert to blob to avoid memory/url size limits and trigger download
+                    await new Promise((resolve) => {
+                        canvas.toBlob(function(blob) {
+                            if (!blob) return resolve();
+                            const link = document.createElement('a');
+                            const pageSuffix = total > 1 ? ('_page' + pageNum) : '';
+                            const filename = baseFilename + pageSuffix + '.png';
+                            const urlBlob = URL.createObjectURL(blob);
+                            link.href = urlBlob;
+                            link.download = filename;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            // Revoke object URL after a small delay to ensure download started
+                            setTimeout(() => URL.revokeObjectURL(urlBlob), 1000);
+                            resolve();
+                        }, 'image/png');
+                    });
+                }
+            } catch (err) {
+                console.error('Error rendering PDF pages', err);
+                Swal.fire({ icon: 'error', title: 'Gagal', text: 'Terjadi kesalahan saat memproses PDF.' });
+            }
+        }
+
+        // Download Jadwal Dokter (Gambar) button logic (all pages)
         $('#downloadJadwalDokterImageBtn').on('click', function() {
             var clinicId = $('#jadwal-klinik-dokter').val();
             var month = $('#jadwal-month').val();
@@ -613,27 +654,7 @@
             }
             var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
             var canvas = document.getElementById('jadwalDokterPdfCanvas');
-            var loadingTask = pdfjsLib.getDocument(url);
-            loadingTask.promise.then(function(pdf) {
-                pdf.getPage(1).then(function(page) {
-                    var viewport = page.getViewport({scale: 1.5});
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    var renderContext = {
-                        canvasContext: canvas.getContext('2d'),
-                        viewport: viewport
-                    };
-                    page.render(renderContext).promise.then(function() {
-                        var imgData = canvas.toDataURL('image/png');
-                        var link = document.createElement('a');
-                        link.href = imgData;
-                        link.download = 'jadwal_dokter_' + month + '.png';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    });
-                });
-            });
+            renderAndDownloadPdfPages(url, 'jadwal_dokter_' + month, canvas);
         });
         // System update modal
         if (!localStorage.getItem('systemUpdateModalShown')) {
@@ -656,7 +677,7 @@
             }, 300); // Wait for modal animation
         });
 
-        // Download Jadwal (Gambar) button logic
+        // Download Jadwal (Gambar) button logic (all pages)
         $('#downloadJadwalImageBtn').on('click', function() {
             var week = $('#jadwal-week').val();
             if (!week) {
@@ -666,27 +687,7 @@
             var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
             var url = '/hrd/schedule/print?start_date='+startDate;
             var canvas = document.getElementById('jadwalPdfCanvas');
-            var loadingTask = pdfjsLib.getDocument(url);
-            loadingTask.promise.then(function(pdf) {
-                pdf.getPage(1).then(function(page) {
-                    var viewport = page.getViewport({scale: 1.5});
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    var renderContext = {
-                        canvasContext: canvas.getContext('2d'),
-                        viewport: viewport
-                    };
-                    page.render(renderContext).promise.then(function() {
-                        var imgData = canvas.toDataURL('image/png');
-                        var link = document.createElement('a');
-                        link.href = imgData;
-                        link.download = 'jadwal_karyawan_' + startDate + '.png';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    });
-                });
-            });
+            renderAndDownloadPdfPages(url, 'jadwal_karyawan_' + startDate, canvas);
         });
 
         // Fetch klinik list for both selectors (AJAX, replace with your endpoint)
