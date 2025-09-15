@@ -323,7 +323,8 @@ $(document).ready(function() {
                     tableHtml += '<td>' + item.batch + '</td>';
                     tableHtml += '<td>';
                     tableHtml += '<span class="stok-display">' + item.stok_display + '</span>';
-                    tableHtml += '<input type="number" class="form-control stok-input" value="' + item.stok + '" style="display:none;" step="0.01" min="0">';
+                    // Use integer step and enforce integer input by flooring on input
+                    tableHtml += '<input type="number" class="form-control stok-input" value="' + item.stok + '" style="display:none;" step="1" min="0" oninput="this.value = this.value ? Math.floor(this.value) : this.value;">';
                     tableHtml += '</td>';
                     tableHtml += '<td>' + item.expiration_date + '</td>';
                     tableHtml += '<td>' + item.status + '</td>';
@@ -347,6 +348,27 @@ $(document).ready(function() {
                 tableHtml += '</div>';
                 
                 $('#batchDetailsContent').html(tableHtml);
+                // Normalize stok input/display values to integers (strip formatting like "1,00" or thousand separators)
+                $('#batchDetailsContent').find('tr').each(function() {
+                    var row = $(this);
+                    var stokDisplayEl = row.find('.stok-display');
+                    var stokInputEl = row.find('.stok-input');
+                    if (stokDisplayEl.length && stokInputEl.length) {
+                        // Take the displayed text and remove non-digit characters except minus sign
+                        var displayed = stokDisplayEl.text().trim();
+                        // Replace comma decimals and non-digit separators (e.g., periods for thousands) and convert to number
+                        var numeric = displayed.replace(/[^0-9-]/g, '');
+                        var intVal = 0;
+                        if (numeric !== '') {
+                            intVal = parseInt(numeric, 10);
+                            if (isNaN(intVal)) intVal = 0;
+                        }
+                        // Update input value and display to integer formatted
+                        stokInputEl.val(intVal);
+                        stokDisplayEl.text(intVal.toLocaleString('id-ID'));
+                    }
+                });
+
                 $('#btn-save-batch-changes').hide();
                 $('#batchDetailsModal').modal('show');
             },
@@ -408,9 +430,11 @@ $(document).ready(function() {
         var button = $(this);
         var row = button.closest('tr');
         var id = button.data('id');
-        var stokBaru = row.find('.stok-input').val();
+        var stokBaruRaw = row.find('.stok-input').val();
+        // Parse as integer (floor) to enforce integer values
+        var stokBaru = parseInt(Math.floor(Number(stokBaruRaw || 0)));
         
-        if (stokBaru < 0) {
+        if (isNaN(stokBaru) || stokBaru < 0) {
             alert('Stok tidak boleh negatif');
             return;
         }
@@ -433,9 +457,10 @@ $(document).ready(function() {
                     var btnSave = row.find('.btn-save-stok');
                     var btnCancel = row.find('.btn-cancel-stok');
                     
-                    // Update display
-                    var stokFormatted = parseFloat(stokBaru).toLocaleString('id-ID');
+                    // Update display with integer formatting
+                    var stokFormatted = Number(stokBaru).toLocaleString('id-ID', { maximumFractionDigits: 0 });
                     stokDisplay.text(stokFormatted);
+                    stokInput.val(stokBaru);
                     
                     // Switch back to display mode
                     stokDisplay.show();
