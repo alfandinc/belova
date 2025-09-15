@@ -224,6 +224,51 @@
             border-top: 1px solid var(--border-color);
             color: var(--text-muted);
             width: 100%;
+            /* Reserve a fixed footer height so we can avoid content overlap */
+            height: 72px;
+            box-sizing: border-box;
+        }
+
+        /* Make sure page content leaves space for footer to avoid overlap */
+        .content-wrapper {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            padding-bottom: calc(72px + 20px); /* footer height + extra spacing */
+        }
+
+        /* Responsive styles for Jadwal modal and PDF iframe containers */
+        .jadwal-modal-iframe {
+            width: 100%;
+            height: 70vh; /* use viewport height for responsiveness */
+            border: 1px solid #eee;
+            background: #fafafa;
+            display: block;
+            align-items: flex-start;
+            justify-content: flex-start;
+            overflow: auto;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+
+        @media (max-width: 768px) {
+            .welcome-banner { padding: 12px; }
+            .menu-grid { gap: 12px; padding: 12px; }
+            .menu-tile { height: 140px; }
+            .jadwal-modal-iframe { height: 60vh; }
+            .modal-dialog { margin: 10px; width: calc(100% - 20px); }
+            .modal-content { border-radius: 8px; }
+        }
+
+        @media (max-width: 420px) {
+            .menu-grid { grid-template-columns: 1fr; }
+            .jadwal-modal-iframe { height: 55vh; }
+            .topbar { padding: 10px; }
+            .logo img { height: 32px; }
         }
         
         @keyframes fadeIn {
@@ -451,15 +496,19 @@
                                             <div class="tab-pane fade show active" id="karyawan" role="tabpanel" aria-labelledby="karyawan-tab">
                                                 <div class="form-row mb-3">
                                                     <div class="col-md-4 d-flex align-items-end">
-                                                        <div style="width:100%">
-                                                            <label for="jadwal-week">Periode (Minggu)</label>
-                                                            <input type="week" class="form-control" id="jadwal-week" value="{{ date('Y-\WW') }}">
-                                                        </div>
-                                                        <button id="downloadJadwalImageBtn" class="btn btn-primary ml-2 mb-1" style="height:38px; white-space:nowrap;">Download Jadwal (Gambar)</button>
+                                                            <div style="width:100%">
+                                                                <label for="jadwal-week">Periode (Minggu)</label>
+                                                                <div class="d-flex" style="gap:8px;">
+                                                                    <input type="hidden" id="jadwal-week" value="{{ date('Y-\WW') }}">
+                                                                    <button type="button" id="thisWeekBtn" class="btn btn-outline-light" style="height:38px; white-space:nowrap;">This Week</button>
+                                                                    <button type="button" id="nextWeekBtn" class="btn btn-outline-light" style="height:38px; white-space:nowrap;">Next Week</button>
+                                                                </div>
+                                                            </div>
+                                                            <button id="downloadJadwalImageBtn" class="btn btn-primary ml-2 mb-1" style="height:38px; white-space:nowrap;">Download Jadwal (Gambar)</button>
                                                     </div>
                                                 </div>
                                                 <canvas id="jadwalPdfCanvas" style="display:none;"></canvas>
-                                                <div id="jadwal-karyawan-pdf" style="height:600px; width:100%; border:1px solid #eee; background:#fafafa; display:flex; align-items:center; justify-content:center;">
+                                                <div id="jadwal-karyawan-pdf" class="jadwal-modal-iframe">
                                                     <span>Pilih klinik dan periode untuk melihat jadwal karyawan.</span>
                                                 </div>
                                             </div>
@@ -479,7 +528,7 @@
                                                     </div>
                                                 </div>
                                                 <canvas id="jadwalDokterPdfCanvas" style="display:none;"></canvas>
-                                                <div id="jadwal-dokter-pdf" style="height:600px; width:100%; border:1px solid #eee; background:#fafafa; display:flex; align-items:center; justify-content:center;">
+                                                <div id="jadwal-dokter-pdf" class="jadwal-modal-iframe">
                                                     <span>Pilih klinik dan periode untuk melihat jadwal dokter.</span>
                                                 </div>
                                             </div>
@@ -507,6 +556,12 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configure pdf.js worker to avoid deprecated API warning and enable worker usage
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
     <script>
     function showRoleWarning(e, modul) {
         e.preventDefault();
@@ -763,6 +818,51 @@
             renderPdfToSingleImage(url, 'jadwal_karyawan_' + startDate, canvas);
         });
 
+        // Helper: compute ISO week start (Monday) for a given Date or 'this'/'next'
+        function getIsoWeekStartDateFromDate(d) {
+            // clone
+            const date = new Date(d.getTime());
+            // ISO week starts Monday; getDay() returns 0-6 (Sun-Sat)
+            const day = (date.getDay() + 6) % 7; // 0=Mon, 6=Sun
+            date.setDate(date.getDate() - day);
+            return date;
+        }
+
+        function toWeekInputValue(date) {
+            // date is JS Date representing start of ISO week
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const isoWeekNumber = moment(date).isoWeek();
+            return year + '-W' + String(isoWeekNumber).padStart(2, '0');
+        }
+
+        // Provide fallback currentStartDate in case week input is unsupported on some phones
+        let currentStartDate = getIsoWeekStartDateFromDate(new Date());
+
+        $('#thisWeekBtn').on('click', function() {
+            currentStartDate = getIsoWeekStartDateFromDate(new Date());
+            $('#jadwal-week').val(toWeekInputValue(currentStartDate));
+            loadKaryawanPDF();
+        });
+
+        $('#nextWeekBtn').on('click', function() {
+            const next = new Date();
+            next.setDate(next.getDate() + 7);
+            currentStartDate = getIsoWeekStartDateFromDate(next);
+            $('#jadwal-week').val(toWeekInputValue(currentStartDate));
+            loadKaryawanPDF();
+        });
+
+        // On change of native week input, update currentStartDate and load PDF
+        $('#jadwal-week').on('change', function() {
+            const w = $(this).val();
+            if (!w) return;
+            // moment can parse 'YYYY-Www'
+            const start = moment(w, 'YYYY-\WW').startOf('isoWeek').toDate();
+            currentStartDate = getIsoWeekStartDateFromDate(start);
+            loadKaryawanPDF();
+        });
+
         // Fetch klinik list for both selectors (AJAX, replace with your endpoint)
         function fetchKlinikList(selectId) {
             $.get('/marketing/clinics', function(data) {
@@ -788,13 +888,52 @@
     fetchKlinikList('#jadwal-klinik-dokter');
     $('#jadwal-klinik-dokter').on('change', loadDokterPDF);
 
+        // Render PDF into a container using pdf.js (better than iframe embedding)
+        async function renderPdfIntoContainer(containerEl, url, filenameHint) {
+            const container = $(containerEl);
+            container.empty();
+            const loadingMessage = $('<div>').text('Memuat jadwal...').css({padding: '12px'});
+            container.append(loadingMessage);
+
+            try {
+                const loadingTask = pdfjsLib.getDocument(url);
+                const pdf = await loadingTask.promise;
+                container.empty();
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.2 });
+                    const canvas = document.createElement('canvas');
+                    canvas.style.display = 'block';
+                    canvas.style.marginBottom = '12px';
+                    canvas.width = Math.round(viewport.width);
+                    canvas.height = Math.round(viewport.height);
+                    const ctx = canvas.getContext('2d');
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+                    container.append(canvas);
+                }
+
+                // Add a small hint/fallback link to open the PDF in a new tab
+                const openLink = $('<a>').attr('href', url).attr('target', '_blank').text('Buka PDF di tab baru');
+                openLink.css({display: 'inline-block', marginTop: '8px'});
+                container.append(openLink);
+            } catch (err) {
+                console.error('Failed to render PDF into container', err);
+                container.empty();
+                const msg = $('<div>').text('Gagal menampilkan jadwal. ').css({padding:'12px'});
+                const openLink = $('<a>').attr('href', url).attr('target', '_blank').text('Buka PDF di tab baru');
+                msg.append(openLink);
+                container.append(msg);
+            }
+        }
+
         // Load PDF for karyawan
         function loadKaryawanPDF() {
             var week = $('#jadwal-week').val();
             if (!week) return;
             var startDate = moment(week, 'YYYY-\WW').startOf('isoWeek').format('YYYY-MM-DD');
             var url = '/hrd/schedule/print?start_date='+startDate;
-            $('#jadwal-karyawan-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
+            renderPdfIntoContainer('#jadwal-karyawan-pdf', url, 'jadwal_karyawan_' + startDate);
         }
         $('#jadwal-week').on('change', loadKaryawanPDF);
 
@@ -804,7 +943,7 @@
             var month = $('#jadwal-month').val();
             if (!month) return;
             var url = '/hrd/dokter-schedule/print?month='+month+(clinicId ? '&clinic_id='+clinicId : '');
-            $('#jadwal-dokter-pdf').html('<iframe src="'+url+'" style="width:100%;height:100%;border:none;"></iframe>');
+            renderPdfIntoContainer('#jadwal-dokter-pdf', url, 'jadwal_dokter_' + month);
         }
         $('#jadwal-month').on('change', loadDokterPDF);
 
