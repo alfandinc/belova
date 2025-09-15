@@ -68,6 +68,26 @@
             <label for="etiket-expire">Tanggal Kedaluwarsa</label>
             <input type="date" class="form-control" id="etiket-expire" required>
           </div>
+          
+                    <div class="form-group">
+                        <label>Waktu Pakai</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="etiket-pagi" name="pagi">
+                            <label class="form-check-label" for="etiket-pagi">Pagi</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="etiket-siang" name="siang">
+                            <label class="form-check-label" for="etiket-siang">Siang</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="etiket-sore" name="sore">
+                            <label class="form-check-label" for="etiket-sore">Sore</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" id="etiket-malam" name="malam">
+                            <label class="form-check-label" for="etiket-malam">Malam</label>
+                        </div>
+                    </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -1298,6 +1318,11 @@
             formData.append('visitation_id', visitationId);
             formData.append('obat_id', obatId);
             formData.append('expire_date', expireDate);
+            // Append checkbox values (1 if checked, 0 if not)
+            formData.append('pagi', $('#etiket-pagi').is(':checked') ? 1 : 0);
+            formData.append('siang', $('#etiket-siang').is(':checked') ? 1 : 0);
+            formData.append('sore', $('#etiket-sore').is(':checked') ? 1 : 0);
+            formData.append('malam', $('#etiket-malam').is(':checked') ? 1 : 0);
 
             // Submit form to generate PDF
             const form = document.createElement('form');

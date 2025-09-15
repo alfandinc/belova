@@ -1462,6 +1462,10 @@ class EresepController extends Controller
                 'visitation_id' => 'required|string',
                 'obat_id' => 'required|integer',
                 'expire_date' => 'required|date',
+                'pagi' => 'nullable|in:0,1',
+                'siang' => 'nullable|in:0,1',
+                'sore' => 'nullable|in:0,1',
+                'malam' => 'nullable|in:0,1',
             ]);
 
             $visitation = Visitation::with(['pasien', 'dokter.user'])->findOrFail($validated['visitation_id']);
@@ -1480,6 +1484,11 @@ class EresepController extends Controller
                 'visitation' => $visitation,
                 'print_date' => now()->format('d/m/Y')
             ];
+            // Include checkbox flags (convert to boolean)
+            $data['pagi'] = isset($validated['pagi']) && $validated['pagi'] == 1;
+            $data['siang'] = isset($validated['siang']) && $validated['siang'] == 1;
+            $data['sore'] = isset($validated['sore']) && $validated['sore'] == 1;
+            $data['malam'] = isset($validated['malam']) && $validated['malam'] == 1;
 
             // Render Blade view to HTML
             $html = view('erm.eresep.farmasi.etiket-biru-print', $data)->render();

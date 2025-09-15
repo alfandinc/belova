@@ -40,6 +40,27 @@
             height: 0.4cm;
             vertical-align: middle;
         }
+        /* Printable checkbox substitute for mPDF: use a span and show check mark when checked */
+        .etiket-checkbox {
+            display: inline-block;
+            width: 0.4cm;
+            height: 0.4cm;
+            border: 1px solid #000;
+            background-color: #ffffff;
+            vertical-align: middle;
+            text-align: center;
+            line-height: 0.4cm;
+            font-size: 6pt;
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+        }
+        .etiket-checkbox.checked::after {
+            content: '\2713'; /* check mark */
+            color: #000000;
+            display: inline-block;
+            font-size: 7pt;
+            line-height: 0.4cm;
+        }
     /* main label area stays blue */
         table { width: 100%; border-collapse: collapse; border-spacing: 0; }
         .main-table {
@@ -191,19 +212,19 @@
                     <table style="width:100%; margin:0 auto; border-collapse:collapse;">
                         <tr>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <input type="checkbox" style="width:0.4cm;height:0.4cm;vertical-align:middle;">
+                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($pagi) ? '&#x25A0;' : '&#x25A1;' !!}</span>
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Pagi</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <input type="checkbox" style="width:0.4cm;height:0.4cm;vertical-align:middle;">
+                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($siang) ? '&#x25A0;' : '&#x25A1;' !!}</span>
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Siang</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <input type="checkbox" style="width:0.4cm;height:0.4cm;vertical-align:middle;">
+                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($sore) ? '&#x25A0;' : '&#x25A1;' !!}</span>
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Sore</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <input type="checkbox" style="width:0.4cm;height:0.4cm;vertical-align:middle;">
+                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($malam) ? '&#x25A0;' : '&#x25A1;' !!}</span>
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Malam</span>
                             </td>
                         </tr>
