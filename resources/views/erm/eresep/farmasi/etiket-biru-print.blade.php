@@ -197,7 +197,7 @@
     <table class="main-table" style="width:100%;height:1.5cm;border-collapse:collapse;">
         <tr>
             <td class="left-column">
-                <div class="no-tanggal">No. ___ Tanggal {{ now()->format('d/m/Y') }}</div>
+                <div class="no-tanggal">No. {{ $pasien->id ?? '___' }} Tanggal {{ now()->format('d/m/Y') }}</div>
                 <hr style="margin: 0.05cm 0 0.3cm 0; border: none; border-top: 1px solid #000;">
                 <div class="patient-box">
                     {{ strtoupper($pasien->nama ?? 'PATIENT') }}
