@@ -322,7 +322,13 @@ class ObatController extends Controller
         if (request()->ajax()) {
             // Also provide stok_gudang (authoritative) and set 'stok' to that value for frontend
             $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-            $stokGudang = $gudangId ? (int) $obat->getStokByGudang($gudangId) : (int) $obat->getTotalStokAttribute();
+            // Guard: ensure $obat is present and method call is safe
+            $stokGudang = 0;
+            if ($gudangId) {
+                $stokGudang = $obat ? (int) $obat->getStokByGudang($gudangId) : 0;
+            } else {
+                $stokGudang = $obat ? (int) $obat->getTotalStokAttribute() : 0;
+            }
             return response()->json([
                 'id' => $obat->id,
                 'kode_obat' => $obat->kode_obat,
@@ -385,8 +391,8 @@ class ObatController extends Controller
             }
             $text .= ' - ' . $obat->dosis . ' ' . $obat->satuan;
 
-            // Get stok for mapped gudang
-            $stokGudang = $gudangId ? (int) $obat->getStokByGudang($gudangId) : 0;
+            // Get stok for mapped gudang (guard against missing relation)
+            $stokGudang = ($gudangId && $obat) ? (int) $obat->getStokByGudang($gudangId) : 0;
 
             return [
                 'id' => $obat->id,

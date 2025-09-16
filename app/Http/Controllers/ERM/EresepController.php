@@ -162,7 +162,7 @@ class EresepController extends Controller
         $gudangIdForResep = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
         if ($gudangIdForResep) {
             $obats = $obats->map(function ($obat) use ($gudangIdForResep) {
-                $stokGudang = (int) $obat->getStokByGudang($gudangIdForResep);
+                $stokGudang = $obat ? (int) $obat->getStokByGudang($gudangIdForResep) : 0;
                 // Override the model attribute 'stok' so frontend `obatData.stok` reflects gudang stock
                 $obat->setAttribute('stok', $stokGudang);
                 // Also expose stok_gudang explicitly for clarity
@@ -242,10 +242,11 @@ class EresepController extends Controller
             'user_id' => Auth::id(),
         ]);
 
-        $resep->load('obat'); // ✅ load the obat relation here
-        // Get mapped gudang for resep
-        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-        $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+    $resep->load('obat'); // ✅ load the obat relation here
+    // Get mapped gudang for resep
+    $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+    // Guard: $resep->obat may be null (relation missing or Obat inactive). Fall back to 0.
+    $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : 0;
         // Add stok_gudang to obat data
         $obatData = $resep->obat->toArray();
         $obatData['stok_gudang'] = (int) $stokGudang;
@@ -423,7 +424,8 @@ class EresepController extends Controller
                 ->get()
                 ->map(function($r) use ($gudangId) {
                     $gudang = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-                    $stokGudang = $gudang ? $r->obat->getStokByGudang($gudang) : 0;
+                    // Guard against missing obat relation
+                    $stokGudang = ($gudang && $r->obat) ? $r->obat->getStokByGudang($gudang) : 0;
                     return [
                         'id' => $r->id,
                         'obat_id' => $r->obat_id,
@@ -577,11 +579,12 @@ class EresepController extends Controller
             'user_id' => Auth::id(),
         ]);
 
-        // Load relasi obat agar bisa diakses dari JS
-        $resep->load('obat');
-        // Get mapped gudang for resep
-        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-        $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+    // Load relasi obat agar bisa diakses dari JS
+    $resep->load('obat');
+    // Get mapped gudang for resep
+    $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+    // Guard against missing obat relation
+    $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : 0;
         // Add stok_gudang to obat data
         $obatData = $resep->obat->toArray();
         $obatData['stok_gudang'] = (int) $stokGudang;

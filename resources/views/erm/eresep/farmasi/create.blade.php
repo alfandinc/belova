@@ -208,7 +208,7 @@
                                     
                                     @php
                                         $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-                                        $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+                                        $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : 0;
                                     @endphp
                                         <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
                                         {{ (int) $stokGudang }}
@@ -256,7 +256,7 @@
                                         <td>{{ $resep->dosis }}</td>
                                         @php
                                             $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
-                                            $stokGudang = $gudangId ? $resep->obat->getStokByGudang($gudangId) : 0;
+                                            $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : 0;
                                         @endphp
                                         <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
                                             {{ (int) $stokGudang }}
