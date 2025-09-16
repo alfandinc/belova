@@ -49,9 +49,25 @@ class ElabController extends Controller
                 $visitations->whereDate('tanggal_visitation', $request->tanggal);
             }
 
-            $visitations->whereIn('jenis_kunjungan', [3]);
+            // Include jenis_kunjungan = 3 OR jenis_kunjungan = 1 but only when
+            // there is at least one lab request (erm_lab_permintaan) for the visitation.
+            $visitations->where(function($q) {
+                $q->where('jenis_kunjungan', 3)
+                  ->orWhere(function($q2) {
+                      $q2->where('jenis_kunjungan', 1)
+                         ->whereExists(function($sub) {
+                             $sub->select(DB::raw(1))
+                                 ->from('erm_lab_permintaan')
+                                 ->whereColumn('erm_lab_permintaan.visitation_id', 'erm_visitations.id');
+                         });
+                  });
+            });
+
+            // Only include visitations with status_kunjungan 1 or 2 (open or in-progress)
+            $visitations->whereIn('status_kunjungan', [1, 2]);
 
             $user = Auth::user();
+            // Perawat should still see only status 2 (as before)
             if ($user->hasRole('Perawat')) {
                 $visitations->where('status_kunjungan', 2);
             }
