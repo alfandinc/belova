@@ -159,13 +159,25 @@ class EresepController extends Controller
         })->get();
 
         // Map obat collection to include per-gudang stock used by farmasi operations
+        // Optimize: avoid N+1 by fetching stok sums for all obat in one query
         $gudangIdForResep = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
         if ($gudangIdForResep) {
-            $obats = $obats->map(function ($obat) use ($gudangIdForResep) {
-                $stokGudang = $obat ? (int) $obat->getStokByGudang($gudangIdForResep) : 0;
-                // Override the model attribute 'stok' so frontend `obatData.stok` reflects gudang stock
+            // Get obat IDs list
+            $obatIds = $obats->pluck('id')->toArray();
+            // Aggregate stok per obat for the target gudang in one query
+            $stokRows = \App\Models\ERM\ObatStokGudang::selectRaw('obat_id, SUM(stok) as stok_sum')
+                ->whereIn('obat_id', $obatIds)
+                ->where('gudang_id', $gudangIdForResep)
+                ->groupBy('obat_id')
+                ->get()
+                ->keyBy('obat_id');
+
+            $obats = $obats->map(function ($obat) use ($stokRows) {
+                $stokGudang = 0;
+                if ($obat && isset($stokRows[$obat->id])) {
+                    $stokGudang = (int) $stokRows[$obat->id]->stok_sum;
+                }
                 $obat->setAttribute('stok', $stokGudang);
-                // Also expose stok_gudang explicitly for clarity
                 $obat->setAttribute('stok_gudang', $stokGudang);
                 return $obat;
             });
