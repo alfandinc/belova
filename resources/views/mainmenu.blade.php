@@ -145,11 +145,13 @@
         
         .menu-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            /* Force 5 items per row on wide screens while allowing tiles to shrink reasonably */
+            grid-template-columns: repeat(5, minmax(180px, 1fr));
             gap: 20px;
             padding: 20px;
             width: 100%;
-            max-width: 1200px;
+            max-width: 1400px;
+            margin: 0 auto;
         }
         
         .menu-tile {
@@ -206,18 +208,22 @@
             bottom: 15px;
         }
         
-        .tile-erm { background-color: #00B4DB; }
-        .tile-hrd { background-color: #50C878; }
-        .tile-inventory { background-color: #9B59B6; }
-        .tile-marketing { background-color: #FF7F50; }
-        .tile-finance { background-color: #FFC300; }
-        .tile-dokumen { background-color: #3498DB; }
-        .tile-lab { background-color: #E74C3C; }
-        .tile-akreditasi { background-color: #1ABC9C; }
-        .tile-kos { background-color: #d41886; }
-        .tile-insiden { background-color: #800000; }
-        .tile-laporan { background-color: #5309c9; }
-        .tile-jadwal { background-color: #882fb1; }
+        /* Harmonized palette: teal, green, purple, coral, pink, orange, yellow */
+        .tile-erm { background-color: #14b8a6; }          /* teal */
+        .tile-farmasi { background-color: #34d399; }      /* green */
+        .tile-laboratorium { background-color: #f472b6; } /* pink */
+        .tile-beautician { background-color: #fb7185; }    /* coral-pink */
+        .tile-lab { background-color: #f43f5e; }          /* warm red */
+        .tile-hrd { background-color: #60a5fa; }          /* sky blue */
+        .tile-dokumen { background-color: #3b82f6; }      /* blue */
+        .tile-laporan { background-color: #7c3aed; }      /* purple */
+        .tile-marketing { background-color: #fb923c; }    /* orange */
+        .tile-finance { background-color: #f59e0b; }      /* amber */
+        .tile-inventory { background-color: #a78bfa; }    /* soft purple */
+        .tile-akreditasi { background-color: #2dd4bf; }    /* teal-light */
+        .tile-kos { background-color: #ec4899; }          /* magenta */
+        .tile-insiden { background-color: #b91c1c; }      /* dark red */
+        .tile-jadwal { background-color: #8b5cf6; }       /* violet */
         .footer {
             text-align: center;
             padding: 20px;
@@ -255,20 +261,42 @@
             box-sizing: border-box;
         }
 
+        /* Tablet and small desktop */
+        @media (max-width: 992px) {
+            .menu-grid { grid-template-columns: repeat(4, 1fr); }
+        }
         @media (max-width: 768px) {
             .welcome-banner { padding: 12px; }
-            .menu-grid { gap: 12px; padding: 12px; }
+            /* On medium/smaller screens show 2 columns for better touch targets */
+            .menu-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; width: calc(100% - 24px); max-width: 100%; }
             .menu-tile { height: 140px; }
+            .menu-icon { font-size: 2.4rem; margin-bottom: 12px; }
+            .menu-label { font-size: 12px; }
             .jadwal-modal-iframe { height: 60vh; }
             .modal-dialog { margin: 10px; width: calc(100% - 20px); }
             .modal-content { border-radius: 8px; }
         }
 
+        /* Phones: keep 2 columns on most phones to match the visual layout; collapse to 1 on very small devices */
         @media (max-width: 420px) {
-            .menu-grid { grid-template-columns: 1fr; }
+            .menu-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; width: calc(100% - 20px); }
+            .menu-tile { height: 120px; border-radius: 8px; }
+            .menu-icon { font-size: 2rem; margin-bottom: 10px; }
+            .menu-label { font-size: 12px; bottom: 10px; }
             .jadwal-modal-iframe { height: 55vh; }
-            .topbar { padding: 10px; }
+            .topbar { padding: 8px; }
             .logo img { height: 32px; }
+        }
+
+        /* Very small screens (older phones) */
+        @media (max-width: 360px) {
+            .menu-grid { grid-template-columns: 1fr; }
+            .menu-tile { height: 110px; }
+        }
+
+        /* Hide the centered topbar greeting on very small screens to avoid overlap */
+        @media (max-width: 480px) {
+            .topbar-center { display: none; }
         }
         
         @keyframes fadeIn {
@@ -298,6 +326,9 @@
         .delay-10 { animation-delay: 1.0s; }
         .delay-11 { animation-delay: 1.1s; }
         .delay-12 { animation-delay: 1.2s; }
+        .delay-13 { animation-delay: 1.3s; }
+        .delay-14 { animation-delay: 1.4s; }
+        .delay-15 { animation-delay: 1.5s; }
     </style>
 </head>
 
@@ -362,112 +393,115 @@
                 @php
                     $userRoles = Auth::user()->roles->pluck('name')->toArray();
                 @endphp
-                <!-- ERM Tile -->
-                <a href="/erm" class="menu-tile tile-erm animate-item delay-1"
-                   @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin','Farmasi','Beautician','Lab']))
+
+                <!-- Row 1: ERM, Farmasi, Laboratorium, Beautician, Penilaian Pelanggan -->
+                <a href="/erm/rawatjalans" class="menu-tile tile-erm animate-item delay-1"
+                   @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin']))
                        onclick="showRoleWarning(event, 'ERM')"
                    @endif>
-                    <div class="menu-icon">
-                        <i class="fas fa-heartbeat"></i>
-                    </div>
+                    <div class="menu-icon"><i class="fas fa-heartbeat"></i></div>
                     <div class="menu-label">ERM</div>
                 </a>
-                <!-- HRD Tile -->
-                <a href="/hrd" class="menu-tile tile-hrd animate-item delay-2"
+
+                <a href="/erm/eresepfarmasi" class="menu-tile tile-farmasi animate-item delay-2"
+                   @if(!array_intersect($userRoles, ['Farmasi','Admin']))
+                       onclick="showRoleWarning(event, 'Farmasi')"
+                   @endif>
+                    <div class="menu-icon"><i class="fas fa-pills"></i></div>
+                    <div class="menu-label">FARMASI</div>
+                </a>
+
+                <a href="/erm/elab" class="menu-tile tile-laboratorium animate-item delay-3"
+                   @if(!array_intersect($userRoles, ['Lab','Admin']))
+                       onclick="showRoleWarning(event, 'Laboratorium')"
+                   @endif>
+                    <div class="menu-icon"><i class="fas fa-vials"></i></div>
+                    <div class="menu-label">LABORATORIUM</div>
+                </a>
+
+                <a href="/erm/spktindakan" class="menu-tile tile-beautician animate-item delay-4"
+                   @if(!array_intersect($userRoles, ['Beautician','Admin']))
+                       onclick="showRoleWarning(event, 'Beautician')"
+                   @endif>
+                    <div class="menu-icon"><i class="fas fa-spa"></i></div>
+                    <div class="menu-label">BEAUTICIAN</div>
+                </a>
+
+                <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-5">
+                    <div class="menu-icon"><i class="fas fa-star-half-alt"></i></div>
+                    <div class="menu-label">PENILAIAN PELANGGAN</div>
+                </a>
+
+                <!-- Row 2: HRD, Dokumen Kerja, Laporan, Marketing, Finance -->
+                <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee']))
                        onclick="showRoleWarning(event, 'HRD')"
                    @endif>
-                    <div class="menu-icon">
-                        <i class="fas fa-user-friends"></i>
-                    </div>
+                    <div class="menu-icon"><i class="fas fa-user-friends"></i></div>
                     <div class="menu-label">HRD</div>
                 </a>
-                <!-- Inventory Tile -->
-                <a href="/inventory" class="menu-tile tile-inventory animate-item delay-3"
-                   @if(!array_intersect($userRoles, ['Inventaris','Admin']))
-                       onclick="showRoleWarning(event, 'Inventory')"
-                   @endif>
-                    <div class="menu-icon">
-                        <i class="fas fa-box"></i>
-                    </div>
-                    <div class="menu-label">INVENTORY</div>
-                </a>
-                <!-- Marketing Tile -->
-                <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-4"
-                   @if(!array_intersect($userRoles, ['Marketing','Admin']))
-                       onclick="showRoleWarning(event, 'Marketing')"
-                   @endif>
-                    <div class="menu-icon">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <div class="menu-label">MARKETING</div>
-                </a>
-                <!-- Finance Tile -->
-                <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-5"
-                   @if(!array_intersect($userRoles, ['Kasir','Admin']))
-                       onclick="showRoleWarning(event, 'Finance')"
-                   @endif>
-                    <div class="menu-icon">
-                        <i class="fas fa-coins"></i>
-                    </div>
-                    <div class="menu-label">FINANCE</div>
-                </a>
-                <!-- Dokumen Kerja Tile -->
-                <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-6"
+
+                <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Dokumen Kerja')"
                    @endif>
-                    <div class="menu-icon">
-                        <i class="fas fa-folder-open"></i>
-                    </div>
+                    <div class="menu-icon"><i class="fas fa-folder-open"></i></div>
                     <div class="menu-label">DOKUMEN KERJA</div>
                 </a>
-                <!-- Cuatomer Tile -->
-                <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-7">
-                    <div class="menu-icon">
-                        <i class="fas fa-star-half-alt"></i>
-                    </div>
-                    <div class="menu-label">PENILAIAN PELANGGAN</div>
+
+                <a href="/laporan" class="menu-tile tile-laporan animate-item delay-8"
+                   @if(!array_intersect($userRoles, ['Manager','Hrd','Admin']))
+                       onclick="showRoleWarning(event, 'Laporan')"
+                   @endif>
+                    <div class="menu-icon"><i class="fas fa-file-alt"></i></div>
+                    <div class="menu-label">LAPORAN</div>
                 </a>
-                <!-- Akreditasi Tile -->
-                <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-8"
+
+                <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-9"
+                   @if(!array_intersect($userRoles, ['Marketing','Admin']))
+                       onclick="showRoleWarning(event, 'Marketing')"
+                   @endif>
+                    <div class="menu-icon"><i class="fas fa-chart-line"></i></div>
+                    <div class="menu-label">MARKETING</div>
+                </a>
+
+                <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-10"
+                   @if(!array_intersect($userRoles, ['Kasir','Admin']))
+                       onclick="showRoleWarning(event, 'Finance')"
+                   @endif>
+                    <div class="menu-icon"><i class="fas fa-coins"></i></div>
+                    <div class="menu-label">FINANCE</div>
+                </a>
+
+                <!-- Row 3: remaining tiles -->
+                <a href="/inventory" class="menu-tile tile-inventory animate-item delay-11"
+                   @if(!array_intersect($userRoles, ['Inventaris','Admin']))
+                       onclick="showRoleWarning(event, 'Inventory')"
+                   @endif>
+                    <div class="menu-icon"><i class="fas fa-box"></i></div>
+                    <div class="menu-label">INVENTORY</div>
+                </a>
+
+                <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-12"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Akreditasi')"
                    @endif>
-                    <div class="menu-icon">
-                        <i class="fas fa-medal"></i>
-                    </div>
+                    <div class="menu-icon"><i class="fas fa-medal"></i></div>
                     <div class="menu-label">AKREDITASI</div>
                 </a>
-                <!-- Insiden Tile -->
-                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-9">
-                    <div class="menu-icon">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
+
+                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13">
+                    <div class="menu-icon"><i class="fas fa-exclamation-triangle"></i></div>
                     <div class="menu-label">LAPORAN INSIDEN</div>
                 </a>
-                <a href="https://bcl.belova.id/login" class="menu-tile tile-kos animate-item delay-10" target="_blank">
-                    <div class="menu-icon">
-                        <i class="fas fa-building"></i>
-                    </div>
+
+                <a href="https://bcl.belova.id/login" class="menu-tile tile-kos animate-item delay-14" target="_blank">
+                    <div class="menu-icon"><i class="fas fa-building"></i></div>
                     <div class="menu-label">KOS BCL</div>
                 </a>
-                <!-- Laporan Tile -->
-                
-                    <a href="/laporan" class="menu-tile tile-laporan animate-item delay-11"
-                       @if(!array_intersect($userRoles, ['Manager','Hrd','Admin']))
-                           onclick="showRoleWarning(event, 'Laporan')"
-                       @endif>
-                        <div class="menu-icon">
-                            <i class="fas fa-file-alt"></i>
-                        </div>
-                        <div class="menu-label">LAPORAN</div>
-                    </a>
-                <!-- Jadwal Saya Tile -->
-                <a href="#" class="menu-tile tile-jadwal animate-item delay-12" id="jadwal-menu-tile">
-                    <div class="menu-icon">
-                        <i class="fas fa-calendar-check"></i>
-                    </div>
+
+                <a href="#" class="menu-tile tile-jadwal animate-item delay-15" id="jadwal-menu-tile">
+                    <div class="menu-icon"><i class="fas fa-calendar-check"></i></div>
                     <div class="menu-label">JADWAL</div>
                 </a>
             </div>

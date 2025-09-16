@@ -2,7 +2,7 @@
 
 @section('title', 'Stok Opname')
 @section('navbar')
-    @include('layouts.erm.navbar')
+    @include('layouts.erm.navbar-farmasi')
 @endsection
 
 @section('content')

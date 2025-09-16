@@ -1,7 +1,7 @@
 @extends('layouts.erm.app')
 @section('title', 'Master Pemasok')
 @section('navbar')
-    @include('layouts.erm.navbar')
+    @include('layouts.erm.navbar-farmasi')
 @endsection
 @section('content')
 <div class="container-fluid">

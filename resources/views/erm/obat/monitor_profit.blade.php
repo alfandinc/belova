@@ -2,7 +2,7 @@
 @extends('layouts.erm.app')
 @section('title', 'ERM | Master Faktur Pembelian')
 @section('navbar')
-    @include('layouts.erm.navbar')
+    @include('layouts.erm.navbar-farmasi')
 @endsection  
 
 

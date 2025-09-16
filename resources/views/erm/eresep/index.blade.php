@@ -1,7 +1,7 @@
 @extends('layouts.erm.app')
 @section('title', 'ERM | E-Resep Farmasi')
 @section('navbar')
-    @include('layouts.erm.navbar')
+    @include('layouts.erm.navbar-farmasi')
 @endsection  
 
 @section('content')

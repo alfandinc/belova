@@ -3,7 +3,7 @@
 @section('title', 'SPK Tindakan')
 
 @section('navbar')
-    @include('layouts.erm.navbar')
+    @include('layouts.erm.navbar-beautician')
 @endsection
 
 @section('content')

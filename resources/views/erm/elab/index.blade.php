@@ -1,8 +1,8 @@
 @extends('layouts.erm.app')
 @section('title', 'ERM | E-Laboratorium')
 @section('navbar')
-    @include('layouts.erm.navbar')
-@endsection  
+    @include('layouts.erm.navbar-lab')
+@endsection
 
 @section('content')
 
