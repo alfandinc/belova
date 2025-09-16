@@ -66,6 +66,10 @@
             box-sizing: border-box;
             transition: background-color 0.3s ease;
         }
+
+        /* Topbar datetime responsive tweaks */
+        .date-display { display:flex; flex-direction:column; align-items:flex-end; font-size:13px; }
+        .date-display .date-compact { font-weight:700; font-size:14px; }
         
         .logo img {
             height: 40px;
@@ -193,6 +197,17 @@
         }
 
         .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .avatar-initials {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display:flex; align-items:center; justify-content:center;
+            background: rgba(0,0,0,0.15);
+            color: var(--text-color);
+            font-weight:700;
+            font-size: 14px;
+        }
 
         .tiles {
             display: grid;
@@ -346,6 +361,25 @@
             .menu-tile { min-height: 110px; }
         }
 
+        /* Stack controls and tighten banner on small devices */
+        @media (max-width: 480px) {
+            .menu-controls { flex-direction: column; align-items: stretch; gap: 8px; }
+            .menu-search { order: 1; }
+            .user-area { order: 2; justify-content: space-between; }
+            .welcome-banner { padding: 14px 10px; border-radius: 10px; }
+            .welcome-banner h2 { font-size: 18px; line-height: 1.15; }
+            .welcome-banner p { display: none; } /* hide subtitle to reduce clutter */
+            .menu-search input { padding: 10px; font-size: 14px; }
+            /* make controls feel like a compact card */
+            .menu-controls { background: rgba(255,255,255,0.02); padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03); }
+            .user-area { display:flex; justify-content:space-between; align-items:center; }
+            .user-area .info { text-align:left; }
+            .menu-search { width:100%; }
+            /* On phones hide the long date and show compact time only */
+            .date-display .date-full { display: none; }
+            .date-display .date-compact { display: block; }
+        }
+
         /* Hide the centered topbar greeting on very small screens to avoid overlap */
         @media (max-width: 480px) {
             .topbar-center { display: none; }
@@ -408,7 +442,8 @@
             </div> --}}
             <div class="topbar-right">
                 <div class="date-display" id="date-time-display">
-                    {{ \Carbon\Carbon::now()->translatedFormat('l, d F Y H:i:s') }}
+                    <span class="date-full">{{ \Carbon\Carbon::now()->translatedFormat('l, d F Y H:i:s') }}</span>
+                    <span class="date-compact" style="display:none">{{ \Carbon\Carbon::now()->format('H:i') }}</span>
                 </div>
                 <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
                     <i class="fas fa-sun"></i>
@@ -445,16 +480,20 @@
                 <div class="menu-controls">
                     <div class="menu-search">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <input id="menuFilter" placeholder="Cari modul (tekan '/' untuk fokus)..." aria-label="Cari modul" />
+                        <input id="menuFilter" placeholder="Cari modul" aria-label="Cari modul" />
                     </div>
                     <div class="user-area">
-                        <div style="text-align:right; min-width:140px;">
+                        <div class="info" style="min-width:120px;">
                             <div style="font-size:13px; font-weight:700;">{{ Auth::user()->name ?? '' }}</div>
                             <div style="font-size:12px; opacity:0.8;">{{ Auth::user()->email ?? '' }}</div>
                         </div>
-                        {{-- <div class="avatar">
-                            <img src="{{ asset('img/avatar-default.png') }}" alt="avatar" />
-                        </div> --}}
+                        <div class="avatar-initials" title="{{ Auth::user()->name ?? '' }}">
+                            @php
+                                $name = trim(Auth::user()->name ?? '');
+                                $initials = collect(explode(' ', $name))->filter()->map(function($p){ return strtoupper(substr($p,0,1)); })->take(2)->join('');
+                            @endphp
+                            {{ $initials ?: 'U' }}
+                        </div>
                     </div>
                 </div>
                 <div class="tiles">
@@ -816,8 +855,15 @@
                 const hours = String(now.getHours()).padStart(2, '0');
                 const minutes = String(now.getMinutes()).padStart(2, '0');
                 const seconds = String(now.getSeconds()).padStart(2, '0');
-                const formatted = `${dayName}, ${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
-                document.getElementById('date-time-display').textContent = formatted;
+                const formattedFull = `${dayName}, ${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+                const formattedCompact = `${hours}:${minutes}`;
+                const el = document.getElementById('date-time-display');
+                if (el) {
+                    const full = el.querySelector('.date-full');
+                    const compact = el.querySelector('.date-compact');
+                    if (full) full.textContent = formattedFull;
+                    if (compact) compact.textContent = formattedCompact;
+                }
             }
             setInterval(updateDateTime, 1000);
             updateDateTime();
