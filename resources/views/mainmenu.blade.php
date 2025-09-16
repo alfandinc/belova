@@ -208,22 +208,25 @@
             bottom: 15px;
         }
         
-        /* Harmonized palette: teal, green, purple, coral, pink, orange, yellow */
-        .tile-erm { background-color: #14b8a6; }          /* teal */
-        .tile-farmasi { background-color: #34d399; }      /* green */
-        .tile-laboratorium { background-color: #f472b6; } /* pink */
-        .tile-beautician { background-color: #fb7185; }    /* coral-pink */
-        .tile-lab { background-color: #f43f5e; }          /* warm red */
-        .tile-hrd { background-color: #60a5fa; }          /* sky blue */
-        .tile-dokumen { background-color: #3b82f6; }      /* blue */
-        .tile-laporan { background-color: #7c3aed; }      /* purple */
-        .tile-marketing { background-color: #fb923c; }    /* orange */
-        .tile-finance { background-color: #f59e0b; }      /* amber */
-        .tile-inventory { background-color: #a78bfa; }    /* soft purple */
-        .tile-akreditasi { background-color: #2dd4bf; }    /* teal-light */
-        .tile-kos { background-color: #ec4899; }          /* magenta */
-        .tile-insiden { background-color: #b91c1c; }      /* dark red */
-        .tile-jadwal { background-color: #8b5cf6; }       /* violet */
+    /* Harmonized accessible palette (soft, friendly, good contrast for white icons) */
+    .tile-erm { background-color: #1fb6aa; }          /* teal */
+    .tile-farmasi { background-color: #3ac36d; }      /* green */
+    .tile-laboratorium { background-color: #f07ab8; } /* warm pink */
+    .tile-beautician { background-color: #ff8fa3; }   /* coral-pink */
+    .tile-lab { background-color: #ef6b6b; }          /* soft red */
+    .tile-hrd { background-color: #5bb0ff; }          /* light sky blue */
+    .tile-dokumen { background-color: #4f8ef7; }      /* blue */
+    .tile-laporan { background-color: #8b5cf6; }      /* violet */
+    .tile-marketing { background-color: #ffab66; }    /* warm orange */
+    .tile-finance { background-color: #f6b042; }      /* amber/gold */
+    .tile-inventory { background-color: #b794ff; }    /* soft purple */
+    .tile-akreditasi { background-color: #2dd4bf; }   /* teal-light */
+    .tile-kos { background-color: #ff6fb5; }          /* magenta */
+    .tile-insiden { background-color: #d9534f; }      /* alert red */
+    .tile-jadwal { background-color: #9b72ff; }       /* schedule violet */
+
+    /* Hover: subtly darken the existing background for depth */
+    .menu-tile:hover { filter: brightness(0.92); }
         .footer {
             text-align: center;
             padding: 20px;
