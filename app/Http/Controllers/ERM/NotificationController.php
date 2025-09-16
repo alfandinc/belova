@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 
 class NotificationController extends Controller
@@ -33,8 +34,33 @@ class NotificationController extends Controller
                 'hasNew' => true,
                 'message' => $notification['message'],
                 'type' => $notification['type'],
-                'timestamp' => $currentTime
+                'timestamp' => $currentTime,
+                'source' => 'cache'
             ]);
+        }
+
+        // FALLBACK: if no cache-notification found, check database unread notifications
+        try {
+            $dbNotif = Auth::user()->unreadNotifications()->latest()->first();
+            if ($dbNotif) {
+                // compare created_at timestamp with lastCheck
+                $notifTs = strtotime($dbNotif->created_at);
+                if ($notifTs > $lastCheck) {
+                    // mark as read so it's not returned again
+                    $dbNotif->markAsRead();
+                    Log::info('ERM NotificationController: returning DB notification for user ' . Auth::id() . ' notif_id: ' . $dbNotif->id);
+                    return response()->json([
+                        'hasNew' => true,
+                        'message' => $dbNotif->data['message'] ?? '',
+                        'type' => $dbNotif->data['title'] ?? 'notification',
+                        'timestamp' => $currentTime,
+                        'source' => 'database'
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            // if DB or notifications fail, just continue and return no new
+            Log::error('Error checking DB notifications for Farmasi: ' . $e->getMessage());
         }
         
         return response()->json([

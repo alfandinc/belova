@@ -12,6 +12,7 @@ use App\Models\Finance\InvoiceItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\GudangMapping;
 use App\Services\ERM\StokService;
@@ -167,6 +168,91 @@ class BillingController extends Controller
 
         // dd($visitations);
         return view('finance.billing.index', compact('visitations'));
+    }
+
+    /**
+     * Send notification from Billing view to all Farmasi users
+     */
+    public function sendNotifToFarmasi(Request $request)
+    {
+        // Only allow finance roles (Kasir or Admin) to send from billing view
+        $user = Auth::user();
+        if (!($user && ($user->hasRole('Kasir') || $user->hasRole('Admin')))) {
+            return response()->json(['success' => false], 403);
+        }
+
+        $request->validate([
+            'message' => 'required|string|max:255',
+        ]);
+
+        $message = $request->message;
+        $farmasis = \App\Models\User::role('Farmasi')->get();
+
+        Log::info('Billing -> sendNotifToFarmasi called by user: ' . ($user->id ?? 'unknown') . ' (' . ($user->name ?? '') . ')', ['farmasi_count' => $farmasis->count()]);
+
+        $sent = 0;
+        $failed = [];
+        foreach ($farmasis as $farmasi) {
+            try {
+                // Avoid duplicate unread notifications with same message
+                $already = false;
+                try {
+                    $already = $farmasi->unreadNotifications()->where('data->message', $message)->exists();
+                } catch (\Exception $ex) {
+                    // Fallback for DB that doesn't support JSON where: do a PHP-level check
+                    $already = $farmasi->unreadNotifications->contains(function($n) use ($message) {
+                        return isset($n->data['message']) && $n->data['message'] === $message;
+                    });
+                }
+
+                if (!$already) {
+                    $farmasi->notify(new \App\Notifications\BillingToFarmasiNotification($message));
+                    $sent++;
+                } else {
+                    Log::info('Skipping duplicate notification for Farmasi user ID: ' . $farmasi->id);
+                }
+
+                // Also set the cache keys used by ERM NotificationController so ERM pages pick it up
+                $indexKey = 'farmasi_notification_index_' . $farmasi->id;
+                Cache::put($indexKey, [
+                    'message' => $message,
+                    'type' => 'billing',
+                    'timestamp' => time()
+                ], 300);
+
+                $createKey = 'farmasi_notification_create_' . $farmasi->id;
+                Cache::put($createKey, [
+                    'message' => $message,
+                    'type' => 'billing_create',
+                    'timestamp' => time()
+                ], 300);
+
+            } catch (\Exception $e) {
+                Log::error('Failed to notify Farmasi user ID: ' . $farmasi->id . ' Error: ' . $e->getMessage());
+                $failed[] = $farmasi->id;
+            }
+        }
+
+        Log::info('Billing -> sendNotifToFarmasi result', ['total' => $farmasis->count(), 'sent' => $sent, 'failed' => $failed]);
+
+        return response()->json(['success' => true, 'total' => $farmasis->count(), 'sent' => $sent, 'failed' => $failed]);
+    }
+
+    /**
+     * Poll for unread notifications for Farmasi
+     */
+    public function getNotif(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->hasRole('Farmasi')) {
+            return response()->json(['new' => false]);
+        }
+        $notif = $user->unreadNotifications()->latest()->first();
+        if ($notif) {
+            $notif->markAsRead();
+            return response()->json(['new' => true, 'message' => $notif->data['message'] ?? '', 'sender' => $notif->data['sender'] ?? '']);
+        }
+        return response()->json(['new' => false]);
     }
 
     public function create(Request $request, $visitation_id)

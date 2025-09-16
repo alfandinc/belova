@@ -191,6 +191,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // AJAX endpoint for nilai stok gudang & keseluruhan
     Route::get('/stok-gudang/nilai-stok', [\App\Http\Controllers\ERM\StokGudangController::class, 'getNilaiStok'])->name('erm.stok-gudang.nilai-stok');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
+
     // AJAX: Get allow_post value for InformConsent
     Route::get('/inform-consent/{id}/get', [App\Http\Controllers\ERM\TindakanController::class, 'getInformConsentAllowPost']);
     
@@ -634,6 +635,9 @@ Route::prefix('finance')->middleware('role:Kasir|Admin')->group(function () {
         Route::put('/billing/{id}', [BillingController::class, 'update'])->name('finance.billing.update');
         Route::delete('/billing/{id}', [BillingController::class, 'destroy'])->name('finance.billing.destroy');
         Route::get('/billing/data', [BillingController::class, 'getVisitationsData'])->name('finance.billing.data');
+    // Billing -> Send notification to Farmasi
+    Route::post('/send-notif-farmasi', [BillingController::class, 'sendNotifToFarmasi'])->middleware('auth');
+    Route::get('/get-notif', [BillingController::class, 'getNotif'])->middleware('auth');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
         Route::get('/billing/filters', [BillingController::class, 'filters'])->name('finance.billing.filters');
@@ -1164,3 +1168,5 @@ Route::get('hrd/performance-evaluation-periods-for-month', [App\Http\Controllers
 Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'getKpiSummary']);
 // Generate Uang KPI for all employees in selected month
 Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'generateUangKpi'])->name('hrd.payroll.slip_gaji.generate_uang_kpi');
+// Public (auth) endpoint for Farmasi clients to poll finance notifications
+Route::get('/finance/get-notif', [App\Http\Controllers\Finance\BillingController::class, 'getNotif'])->middleware('auth');

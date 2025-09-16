@@ -11,6 +11,9 @@
                 <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
                     <h4 class="card-title mb-0">Daftar Billing</h4>
                     <div class="row g-2 flex-wrap">
+                        <div class="col-12 col-sm-6 col-md-3 mb-2 d-flex align-items-center justify-content-end">
+                            <button id="btn-send-farmasi-notif" class="btn btn-sm btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell"></i> Kirim Notif ke Farmasi</button>
+                        </div>
                         <div class="col-12 col-sm-6 col-md-3 mb-2">
                             <select id="filter-dokter" class="form-control w-100">
                                 <option value="">Semua Dokter</option>
@@ -249,6 +252,50 @@
         setInterval(function() {
             billingTable.ajax.reload(null, false); // false keeps current page position
         }, 15000); // 15000 milliseconds = 15 seconds
+
+        // Finance: Send notification to Farmasi
+        $('#btn-send-farmasi-notif').click(function() {
+            // Ask for a short message to send
+            Swal.fire({
+                title: 'Kirim notifikasi ke Farmasi',
+                input: 'text',
+                inputPlaceholder: 'Masukkan pesan singkat...',
+                showCancelButton: true,
+                confirmButtonText: 'Kirim',
+                cancelButtonText: 'Batal',
+                preConfirm: (value) => {
+                    if (!value) {
+                        Swal.showValidationMessage('Pesan tidak boleh kosong');
+                    }
+                    return value;
+                }
+            }).then(function(result) {
+                if (result.value && result.value) {
+                    var message = result.value;
+                    $.post("{{ url('/finance/send-notif-farmasi') }}", {
+                        message: message,
+                        _token: '{{ csrf_token() }}'
+                    }, function(res) {
+                        if (res && res.success) {
+                            var info = 'Notifikasi berhasil dikirim ke Farmasi.';
+                            if (res.total !== undefined) {
+                                info += "\nTerkirim: " + (res.sent || 0) + " dari " + (res.total || 0);
+                            }
+                            if (res.failed && res.failed.length > 0) {
+                                info += "\nGagal: " + res.failed.join(', ');
+                            }
+                            Swal.fire('Terkirim!', info, 'success');
+                            // set sound type so Farmasi page can play a sound
+                            localStorage.setItem('notifSoundType', 'notif');
+                        } else {
+                            Swal.fire('Gagal', 'Tidak dapat mengirim notifikasi.', 'error');
+                        }
+                    }).fail(function() {
+                        Swal.fire('Gagal', 'Terjadi kesalahan saat mengirim notifikasi.', 'error');
+                    });
+                }
+            });
+        });
     });
 </script>
 @endsection

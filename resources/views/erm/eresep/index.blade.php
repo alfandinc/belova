@@ -199,63 +199,7 @@ function openRescheduleModal(visitationId, namaPasien, pasienId) {
     $('#reschedule-nama-pasien').val(namaPasien);
 }
 
-// Notification polling for farmasi users
-@auth
-@if(auth()->user()->hasRole('Farmasi'))
-$(document).ready(function() {
-    let lastCheck = 0;
-    let isPolling = false;
-    
-    function checkForNewNotifications() {
-        if (isPolling) return;
-        isPolling = true;
-        
-        $.ajax({
-            url: '{{ route("erm.check.notifications") }}',
-            type: 'GET',
-            data: {
-                lastCheck: lastCheck,
-                page: 'index'
-            },
-            success: function(response) {
-                if (response.hasNew) {
-                    // Show SweetAlert notification
-                    Swal.fire({
-                        title: 'Pasien Keluar!',
-                        text: response.message,
-                        icon: 'info',
-                        confirmButtonText: 'OK',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false
-                    }).then((result) => {
-                        // Refresh the DataTable when user clicks "OK"
-                        $('#rawatjalan-table').DataTable().ajax.reload();
-                    });
-                }
-                lastCheck = response.timestamp;
-            },
-            error: function(xhr, status, error) {
-                console.error('Error checking for notifications:', error);
-            },
-            complete: function() {
-                isPolling = false;
-            }
-        });
-    }
-    
-    // Poll every 10 seconds for new notifications
-    setInterval(checkForNewNotifications, 10000);
-    
-    // Check immediately when page loads
-    checkForNewNotifications();
-    
-    // Optional: Check when user focuses on the tab
-    $(window).on('focus', function() {
-        checkForNewNotifications();
-    });
-});
-@endif
-@endauth
+// Notification polling moved to global partial (partials.farmasi-notif)
 </script>
 
 

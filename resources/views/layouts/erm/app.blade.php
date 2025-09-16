@@ -149,5 +149,6 @@
     @stack('scripts')  <!-- Add this line -->
 
     @include('erm.partials.perawat-notif')
+    @include('partials.farmasi-notif')
 </body>
 </html>
