@@ -143,70 +143,119 @@
             animation: fadeIn 1.2s ease;
         }
         
-        .menu-grid {
-            display: grid;
-            /* Force 5 items per row on wide screens while allowing tiles to shrink reasonably */
-            grid-template-columns: repeat(5, minmax(180px, 1fr));
-            gap: 20px;
-            padding: 20px;
+        /* Main menu grid and modern glass tiles */
+        .menu-grid-wrapper {
             width: 100%;
             max-width: 1400px;
             margin: 0 auto;
+            padding: 16px;
+            box-sizing: border-box;
         }
-        
+
+        .menu-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .menu-search {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .menu-search input {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: rgba(255,255,255,0.03);
+            color: var(--text-color);
+            outline: none;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+        }
+
+        .user-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            overflow: hidden;
+            display: inline-block;
+            border: 2px solid rgba(255,255,255,0.06);
+        }
+
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .tiles {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(160px, 1fr));
+            gap: 18px;
+            align-items: stretch;
+        }
+
         .menu-tile {
-            height: 180px;
-            border-radius: 8px;
+            min-height: 160px;
+            border-radius: 12px;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             color: #fff;
-            transition: all 0.3s ease;
+            transition: transform 0.28s ease, box-shadow 0.28s ease, filter 0.28s ease;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 12px var(--shadow-color);
+            padding: 18px;
+            box-shadow: 0 6px 18px rgba(2,6,23,0.35);
+            background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(0,0,0,0.06));
+            backdrop-filter: blur(6px) saturate(120%);
+            border: 1px solid rgba(255,255,255,0.04);
+            cursor: pointer;
+            text-decoration: none;
         }
-        
+
         .menu-tile:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 20px var(--shadow-color);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 14px 36px rgba(2,6,23,0.5);
+            filter: brightness(1.05);
         }
-        
-        .menu-tile:before {
-            content: '';
-            position: absolute;
+
+        .menu-tile .menu-top {
+            display: flex;
+            justify-content: space-between;
             width: 100%;
-            height: 100%;
-            background: rgba(255,255,255,0.1);
-            top: -100%;
-            left: -100%;
-            transition: all 0.5s;
+            align-items: flex-start;
         }
-        
-        .menu-tile:hover:before {
-            top: 0;
-            left: 0;
-        }
-        
+
         .menu-icon {
-            font-size: 3rem;
-            margin-bottom: 20px;
-            transition: transform 0.3s ease;
+            font-size: 2.6rem;
+            margin-bottom: 8px;
+            width: 48px;
+            height: 48px;
+            display:flex; align-items:center; justify-content:center;
+            background: rgba(255,255,255,0.06);
+            border-radius: 10px;
         }
-        
-        .menu-tile:hover .menu-icon {
-            transform: scale(1.1);
+
+        .menu-title {
+            font-weight:700;
+            font-size:15px;
+            letter-spacing:0.6px;
         }
-        
-        .menu-label {
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 600;
-            font-size: 14px;
-            position: absolute;
-            bottom: 15px;
-        }
+
+        .menu-sub { font-size:12px; opacity:0.85; margin-top:4px; }
+
+        .menu-badge { font-size:12px; padding:4px 8px; border-radius:999px; background: rgba(0,0,0,0.2); }
+
+        .menu-label { position: static; bottom: auto; }
+
         
     /* Harmonized accessible palette (soft, friendly, good contrast for white icons) */
     .tile-erm { background-color: #1fb6aa; }          /* teal */
@@ -266,13 +315,13 @@
 
         /* Tablet and small desktop */
         @media (max-width: 992px) {
-            .menu-grid { grid-template-columns: repeat(4, 1fr); }
+            .tiles { grid-template-columns: repeat(4, 1fr); }
         }
         @media (max-width: 768px) {
             .welcome-banner { padding: 12px; }
             /* On medium/smaller screens show 2 columns for better touch targets */
-            .menu-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; width: calc(100% - 24px); max-width: 100%; }
-            .menu-tile { height: 140px; }
+            .tiles { grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; width: calc(100% - 24px); max-width: 100%; }
+            .menu-tile { min-height: 140px; }
             .menu-icon { font-size: 2.4rem; margin-bottom: 12px; }
             .menu-label { font-size: 12px; }
             .jadwal-modal-iframe { height: 60vh; }
@@ -282,8 +331,8 @@
 
         /* Phones: keep 2 columns on most phones to match the visual layout; collapse to 1 on very small devices */
         @media (max-width: 420px) {
-            .menu-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; width: calc(100% - 20px); }
-            .menu-tile { height: 120px; border-radius: 8px; }
+            .tiles { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 10px; width: calc(100% - 20px); }
+            .menu-tile { min-height: 120px; border-radius: 8px; }
             .menu-icon { font-size: 2rem; margin-bottom: 10px; }
             .menu-label { font-size: 12px; bottom: 10px; }
             .jadwal-modal-iframe { height: 55vh; }
@@ -293,8 +342,8 @@
 
         /* Very small screens (older phones) */
         @media (max-width: 360px) {
-            .menu-grid { grid-template-columns: 1fr; }
-            .menu-tile { height: 110px; }
+            .tiles { grid-template-columns: 1fr; }
+            .menu-tile { min-height: 110px; }
         }
 
         /* Hide the centered topbar greeting on very small screens to avoid overlap */
@@ -354,9 +403,9 @@
                 @endphp
                 <img src="{{ asset($logoDark) }}" data-logo-dark="{{ asset($logoDark) }}" data-logo-light="{{ asset($logoLight) }}" alt="Belova Logo" id="logo-image">
             </div>
-            <div class="topbar-center" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:16px; font-weight:600; color:var(--text-color); white-space:nowrap;">
+            {{-- <div class="topbar-center" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-size:16px; font-weight:600; color:var(--text-color); white-space:nowrap;">
                 Hello, {{ Auth::user()->name ?? '' }}
-            </div>
+            </div> --}}
             <div class="topbar-right">
                 <div class="date-display" id="date-time-display">
                     {{ \Carbon\Carbon::now()->translatedFormat('l, d F Y H:i:s') }}
@@ -392,124 +441,202 @@
                 <p>Sistem Informasi Manajemen Terintegrasi</p>
             </div>
             
-            <div class="menu-grid">
+            <div class="menu-grid-wrapper">
+                <div class="menu-controls">
+                    <div class="menu-search">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input id="menuFilter" placeholder="Cari modul (tekan '/' untuk fokus)..." aria-label="Cari modul" />
+                    </div>
+                    <div class="user-area">
+                        <div style="text-align:right; min-width:140px;">
+                            <div style="font-size:13px; font-weight:700;">{{ Auth::user()->name ?? '' }}</div>
+                            <div style="font-size:12px; opacity:0.8;">{{ Auth::user()->email ?? '' }}</div>
+                        </div>
+                        {{-- <div class="avatar">
+                            <img src="{{ asset('img/avatar-default.png') }}" alt="avatar" />
+                        </div> --}}
+                    </div>
+                </div>
+                <div class="tiles">
                 @php
                     $userRoles = Auth::user()->roles->pluck('name')->toArray();
                 @endphp
 
                 <!-- Row 1: ERM, Farmasi, Laboratorium, Beautician, Penilaian Pelanggan -->
-                <a href="/erm/rawatjalans" class="menu-tile tile-erm animate-item delay-1"
+                <a href="/erm/rawatjalans" class="menu-tile tile-erm animate-item delay-1" data-filter="erm healthcare patient"
                    @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin']))
                        onclick="showRoleWarning(event, 'ERM')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-heartbeat"></i></div>
-                    <div class="menu-label">ERM</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-heartbeat"></i></div>
+                        <div class="menu-badge">Patient</div>
+                    </div>
+                    <div class="menu-title">Electronic Medical Record</div>
+                    <div class="menu-sub">ERM - Rawat Jalan</div>
                 </a>
 
-                <a href="/erm/eresepfarmasi" class="menu-tile tile-farmasi animate-item delay-2"
+                <a href="/erm/eresepfarmasi" class="menu-tile tile-farmasi animate-item delay-2" data-filter="farmasi resep obat pharmacy"
                    @if(!array_intersect($userRoles, ['Farmasi','Admin','Lab','Beautician']))
                        onclick="showRoleWarning(event, 'Farmasi')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-pills"></i></div>
-                    <div class="menu-label">FARMASI</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-pills"></i></div>
+                        <div class="menu-badge">Obat</div>
+                    </div>
+                    <div class="menu-title">Farmasi</div>
+                    <div class="menu-sub">e-Resep & Stok</div>
                 </a>
 
-                <a href="/erm/elab" class="menu-tile tile-laboratorium animate-item delay-3"
+                <a href="/erm/elab" class="menu-tile tile-laboratorium animate-item delay-3" data-filter="lab pemeriksaan hasil"
                    @if(!array_intersect($userRoles, ['Lab','Admin']))
                        onclick="showRoleWarning(event, 'Laboratorium')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-vials"></i></div>
-                    <div class="menu-label">LABORATORIUM</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-vials"></i></div>
+                        <div class="menu-badge">Lab</div>
+                    </div>
+                    <div class="menu-title">Laboratorium</div>
+                    <div class="menu-sub">Hasil & Sample</div>
                 </a>
 
-                <a href="/erm/spktindakan" class="menu-tile tile-beautician animate-item delay-4"
+                <a href="/erm/spktindakan" class="menu-tile tile-beautician animate-item delay-4" data-filter="beauty esthetic treatment"
                    @if(!array_intersect($userRoles, ['Beautician','Admin']))
                        onclick="showRoleWarning(event, 'Beautician')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-spa"></i></div>
-                    <div class="menu-label">BEAUTICIAN</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-spa"></i></div>
+                        <div class="menu-badge">Service</div>
+                    </div>
+                    <div class="menu-title">Beautician</div>
+                    <div class="menu-sub">Tindakan & Booking</div>
                 </a>
 
-                <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-5">
-                    <div class="menu-icon"><i class="fas fa-star-half-alt"></i></div>
-                    <div class="menu-label">PENILAIAN PELANGGAN</div>
+                <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-5" data-filter="survey feedback rating">
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-star-half-alt"></i></div>
+                        <div class="menu-badge">Feedback</div>
+                    </div>
+                    <div class="menu-title">Penilaian Pelanggan</div>
+                    <div class="menu-sub">Survey & Rating</div>
                 </a>
 
                 <!-- Row 2: HRD, Dokumen Kerja, Laporan, Marketing, Finance -->
-                <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6"
+                <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6" data-filter="hrd staff employee"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee']))
                        onclick="showRoleWarning(event, 'HRD')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-user-friends"></i></div>
-                    <div class="menu-label">HRD</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-user-friends"></i></div>
+                        <div class="menu-badge">Team</div>
+                    </div>
+                    <div class="menu-title">HRD</div>
+                    <div class="menu-sub">Manajemen Karyawan</div>
                 </a>
 
-                <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7"
+                <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Dokumen Kerja')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-folder-open"></i></div>
-                    <div class="menu-label">DOKUMEN KERJA</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-folder-open"></i></div>
+                        <div class="menu-badge">Docs</div>
+                    </div>
+                    <div class="menu-title">Dokumen Kerja</div>
+                    <div class="menu-sub">SOP & Template</div>
                 </a>
 
-                <a href="/laporan" class="menu-tile tile-laporan animate-item delay-8"
+                <a href="/laporan" class="menu-tile tile-laporan animate-item delay-8" data-filter="laporan reports analytics"
                    @if(!array_intersect($userRoles, ['Manager','Hrd','Admin']))
                        onclick="showRoleWarning(event, 'Laporan')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-file-alt"></i></div>
-                    <div class="menu-label">LAPORAN</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-file-alt"></i></div>
+                        <div class="menu-badge">Report</div>
+                    </div>
+                    <div class="menu-title">Laporan</div>
+                    <div class="menu-sub">Statistik & Export</div>
                 </a>
 
-                <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-9"
+                <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-9" data-filter="marketing campaign ads"
                    @if(!array_intersect($userRoles, ['Marketing','Admin']))
                        onclick="showRoleWarning(event, 'Marketing')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-chart-line"></i></div>
-                    <div class="menu-label">MARKETING</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-chart-line"></i></div>
+                        <div class="menu-badge">Growth</div>
+                    </div>
+                    <div class="menu-title">Marketing</div>
+                    <div class="menu-sub">Kampanye & Leads</div>
                 </a>
 
-                <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-10"
+                <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-10" data-filter="finance billing kasir"
                    @if(!array_intersect($userRoles, ['Kasir','Admin']))
                        onclick="showRoleWarning(event, 'Finance')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-coins"></i></div>
-                    <div class="menu-label">FINANCE</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-coins"></i></div>
+                        <div class="menu-badge">Billing</div>
+                    </div>
+                    <div class="menu-title">Finance</div>
+                    <div class="menu-sub">Tagihan & Pembayaran</div>
                 </a>
 
                 <!-- Row 3: remaining tiles -->
-                <a href="/inventory" class="menu-tile tile-inventory animate-item delay-11"
+                <a href="/inventory" class="menu-tile tile-inventory animate-item delay-11" data-filter="inventory stok gudang"
                    @if(!array_intersect($userRoles, ['Inventaris','Admin']))
                        onclick="showRoleWarning(event, 'Inventory')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-box"></i></div>
-                    <div class="menu-label">INVENTORY</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-box"></i></div>
+                        <div class="menu-badge">Stock</div>
+                    </div>
+                    <div class="menu-title">Inventory</div>
+                    <div class="menu-sub">Barang & Persediaan</div>
                 </a>
 
-                <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-12"
+                <a href="/akreditasi" class="menu-tile tile-akreditasi animate-item delay-12" data-filter="akreditasi quality compliance"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Akreditasi')"
                    @endif>
-                    <div class="menu-icon"><i class="fas fa-medal"></i></div>
-                    <div class="menu-label">AKREDITASI</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-medal"></i></div>
+                        <div class="menu-badge">Quality</div>
+                    </div>
+                    <div class="menu-title">Akreditasi</div>
+                    <div class="menu-sub">Compliance</div>
                 </a>
 
-                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13"
+                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13" data-filter="insiden laporan kecelakaan"
                     @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'INSIDEN')"
                     @endif>
-                    <div class="menu-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                    <div class="menu-label">LAPORAN INSIDEN</div>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="menu-badge">Alert</div>
+                    </div>
+                    <div class="menu-title">Laporan Insiden</div>
+                    <div class="menu-sub">Keamanan & Laporan</div>
                 </a>
 
-                <a href="https://bcl.belova.id/login" class="menu-tile tile-kos animate-item delay-14" target="_blank">
-                    <div class="menu-icon"><i class="fas fa-building"></i></div>
-                    <div class="menu-label">KOS BCL</div>
+                <a href="https://bcl.belova.id/login" class="menu-tile tile-kos animate-item delay-14" target="_blank" data-filter="bcl kos">
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-building"></i></div>
+                        <div class="menu-badge">External</div>
+                    </div>
+                    <div class="menu-title">KOS BCL</div>
+                    <div class="menu-sub">Portal Bisnis</div>
                 </a>
 
-                <a href="#" class="menu-tile tile-jadwal animate-item delay-15" id="jadwal-menu-tile">
-                    <div class="menu-icon"><i class="fas fa-calendar-check"></i></div>
-                    <div class="menu-label">JADWAL</div>
+                <a href="#" class="menu-tile tile-jadwal animate-item delay-15" id="jadwal-menu-tile" data-filter="jadwal schedule kalender">
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-calendar-check"></i></div>
+                        <div class="menu-badge">Jadwal</div>
+                    </div>
+                    <div class="menu-title">Jadwal</div>
+                    <div class="menu-sub">Cetak & Download</div>
                 </a>
+                </div>
+            </div>
             </div>
             <!-- Jadwal Modal -->
                         <!-- Jadwal Improved Modal -->
@@ -1002,6 +1129,50 @@
             $('#jadwalModal').modal('hide');
         });
     });
+    </script>
+    <script>
+    // Small client-side filter for the redesigned menu
+    (function(){
+        const input = document.getElementById('menuFilter');
+        if (!input) return;
+        const tiles = Array.from(document.querySelectorAll('.tiles .menu-tile'));
+
+        function normalize(s){ return (s||'').toString().toLowerCase(); }
+
+        function applyFilter() {
+            const q = normalize(input.value.trim());
+            if (!q) {
+                tiles.forEach(t => t.style.display = 'flex');
+                return;
+            }
+            tiles.forEach(t => {
+                const title = normalize(t.querySelector('.menu-title')?.textContent);
+                const sub = normalize(t.querySelector('.menu-sub')?.textContent);
+                const data = normalize(t.getAttribute('data-filter'));
+                if (title.includes(q) || sub.includes(q) || data.includes(q)) {
+                    t.style.display = 'flex';
+                } else {
+                    t.style.display = 'none';
+                }
+            });
+        }
+
+        input.addEventListener('input', applyFilter);
+
+        // Keyboard focus shortcut: '/' focuses the search input (unless typing in an input already)
+        document.addEventListener('keydown', function(e){
+            if (e.key === '/' && document.activeElement.tagName.toLowerCase() !== 'input' && document.activeElement.tagName.toLowerCase() !== 'textarea') {
+                e.preventDefault();
+                input.focus();
+                input.select();
+            }
+            if (e.key === 'Escape') {
+                if (document.activeElement === input) input.blur();
+                input.value = '';
+                applyFilter();
+            }
+        });
+    })();
     </script>
 </body>
 </html>
