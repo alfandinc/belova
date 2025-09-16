@@ -65,9 +65,10 @@
             margin-top: 0.1rem;
         }
         .doctor-entry {
-            background: #e3f2fd;
+            /* use translucent white so underlying cell color (solid or gradient) shows through */
+            background: rgba(255,255,255,0.85);
             border-radius: 6px;
-            box-shadow: 0 1px 2px rgba(25,118,210,0.07);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
             margin-bottom: 7px;
             padding: 6px 8px 6px 8px;
             display: flex;
@@ -77,7 +78,7 @@
         .doctor-name {
             font-weight: 600;
             font-size: 1em;
-            color: #1565c0;
+            color: #0d335b; /* darker for contrast */
             margin-bottom: 2px;
             white-space: pre-line;
             word-break: break-word;
@@ -135,7 +136,32 @@
                     $dateStr = sprintf('%04d-%02d-%02d', $y, $m, $d);
                     $jadwal = $schedules->where('date', $dateStr);
                 @endphp
-                <td>
+                @php
+                    // collect unique dokter models for this date
+                    $uniqueDokters = $jadwal->pluck('dokter')->filter()->unique('id')->values();
+                    $colors = $uniqueDokters->map(function($dok) {
+                        // deterministic hue based on dokter id (or 0 if missing)
+                        $id = $dok->id ?? 0;
+                        $h = ($id * 137) % 360; // pseudo-random spread
+                        // softer pastel-like color for cell backgrounds
+                        return "hsl({$h}deg, 65%, 92%)";
+                    })->toArray();
+
+                    $cellStyle = '';
+                    if(count($colors) === 1) {
+                        $cellStyle = "background: {$colors[0]};";
+                    } elseif(count($colors) > 1) {
+                        // build gradient stops evenly
+                        $n = count($colors);
+                        $stops = [];
+                        foreach($colors as $idx => $c) {
+                            $pos = (int) round(($idx / ($n - 1)) * 100);
+                            $stops[] = "$c $pos%";
+                        }
+                        $cellStyle = "background: linear-gradient(135deg, " . implode(', ', $stops) . ");";
+                    }
+                @endphp
+                <td style="{{ $cellStyle }}">
                     <div class="calendar-day-number">{{ $d }}</div>
                     <div class="doctor-list">
                         @foreach($jadwal as $j)
