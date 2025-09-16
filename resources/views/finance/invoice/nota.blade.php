@@ -223,13 +223,37 @@
 
     <div class="items-section">
         @foreach($invoice->items as $item)
+        @php
+            $qty = $item->quantity ?? 1;
+            $unit = $item->unit_price ?? 0;
+            $lineNoDisc = $unit * $qty;
+
+            // Determine per-item discount
+            $lineFinal = $item->final_amount ?? $lineNoDisc;
+            $lineDisc = $lineNoDisc - $lineFinal;
+
+            // Fallback to explicit discount fields if final_amount didn't show a discount
+            if (($lineDisc <= 0) && isset($item->discount) && $item->discount > 0) {
+                if (isset($item->discount_type) && $item->discount_type === 'percent') {
+                    $lineDisc = ($item->discount / 100) * $lineNoDisc;
+                } else {
+                    $lineDisc = $item->discount;
+                }
+            }
+        @endphp
         <div class="item-line">
             <div class="item-name">{{ $item->name }}</div>
             <table class="item-table">
                 <tr>
-                    <td class="qty-price">{{ $item->quantity }} x {{ number_format($item->unit_price, 0, ',', '.') }}</td>
-                    <td class="amount">{{ number_format($item->final_amount, 0, ',', '.') }}</td>
+                    <td class="qty-price">{{ $qty }} x {{ number_format($unit, 0, ',', '.') }}</td>
+                    <td class="amount">{{ number_format($lineFinal, 0, ',', '.') }}</td>
                 </tr>
+                @if($lineDisc > 0)
+                <tr>
+                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">Diskon: -{{ number_format($lineDisc, 0, ',', '.') }}</td>
+                    <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
+                </tr>
+                @endif
             </table>
         </div>
         @endforeach
@@ -241,10 +265,65 @@
                 <td class="total-label">Subtotal</td>
                 <td class="total-amount">{{ number_format($invoice->subtotal, 0, ',', '.') }}</td>
             </tr> --}}
-            @if($invoice->discount > 0)
+            @php
+                // Determine invoice-level discount amount to display.
+                $invoiceDiscountAmount = $invoice->discount ?? 0;
+                $invoiceDiscountLabel = 'Diskon';
+
+                // If invoice doesn't have a numeric discount but has discount_type/value, prepare label or amount
+                if (empty($invoiceDiscountAmount) && isset($invoice->discount_type) && isset($invoice->discount_value)) {
+                    if ($invoice->discount_type === 'percent') {
+                        $invoiceDiscountLabel = 'Diskon (' . rtrim(rtrim(number_format($invoice->discount_value, 2, ',', '.'), '0'), ',') . '%)';
+                    } else {
+                        // absolute discount value provided
+                        $invoiceDiscountAmount = $invoice->discount_value;
+                    }
+                }
+
+                // Sum per-item discounts as a fallback when invoice-level discount is not set.
+                $itemDiscountTotal = 0;
+                foreach ($invoice->items as $it) {
+                    $qty = $it->quantity ?? 1;
+                    $unit = $it->unit_price ?? 0;
+                    $lineNoDisc = $unit * $qty;
+
+                    // Preferred: if item has a final_amount field, derive discount from it
+                    if (isset($it->final_amount)) {
+                        $lineFinal = $it->final_amount;
+                        $lineDisc = $lineNoDisc - $lineFinal;
+                        if ($lineDisc > 0) {
+                            $itemDiscountTotal += $lineDisc;
+                            continue;
+                        }
+                    }
+
+                    // Fallback: if item has explicit discount fields
+                    if (isset($it->discount) && $it->discount > 0) {
+                        // If discount_type exists and is 'percent', compute percent of lineNoDisc
+                        if (isset($it->discount_type) && $it->discount_type === 'percent') {
+                            $lineDisc = ($it->discount / 100) * $lineNoDisc;
+                        } else {
+                            // absolute discount per line (assume discount is total for the line)
+                            $lineDisc = $it->discount;
+                        }
+                        if ($lineDisc > 0) $itemDiscountTotal += $lineDisc;
+                        continue;
+                    }
+
+                    // If no explicit fields but final_amount is missing or equal, assume no discount for this line
+                }
+            @endphp
+
+            {{-- Prefer invoice-level discount; otherwise show summed item-level discounts --}}
+            @if($invoiceDiscountAmount > 0)
+            <tr>
+                <td class="total-label">{{ $invoiceDiscountLabel }}</td>
+                <td class="total-amount">-{{ number_format($invoiceDiscountAmount, 0, ',', '.') }}</td>
+            </tr>
+            @elseif($itemDiscountTotal > 0)
             <tr>
                 <td class="total-label">Diskon</td>
-                <td class="total-amount">-{{ number_format($invoice->discount, 0, ',', '.') }}</td>
+                <td class="total-amount">-{{ number_format($itemDiscountTotal, 0, ',', '.') }}</td>
             </tr>
             @endif
             @if($invoice->tax > 0)
