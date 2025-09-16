@@ -373,19 +373,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         return DataTables::of($processedBillings)
             ->addIndexColumn()
             ->addColumn('nama_item', function ($row) {
-                if (isset($row->is_racikan) && $row->is_racikan) {
-                    return 'Obat Racikan';
-                } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
-                    return 'Jasa Farmasi';
-                } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
-                    return $row->billable->obat->nama ?? 'N/A';
-                } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
-                    return 'Lab: ' . ($row->billable->labTest->nama ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
-                } else if ($row->billable_type == 'App\Models\ERM\RadiologiPermintaan') {
-                    return 'Radiologi: ' . ($row->billable->radiologiTest->nama ?? preg_replace('/^Radiologi: /', '', $row->keterangan ?? 'Test'));
-                } else {
-                    return $row->nama_item ?? $row->billable->nama ?? $row->keterangan ?? '-';
-                }
+                    // Use optional() to avoid "property on null" errors when relations are missing
+                    if (isset($row->is_racikan) && $row->is_racikan) {
+                        return 'Obat Racikan';
+                    } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
+                        return 'Jasa Farmasi';
+                    } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
+                        return optional(optional($row->billable)->obat)->nama ?? 'N/A';
+                    } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
+                        $labName = optional(optional($row->billable)->labTest)->nama;
+                        return 'Lab: ' . ($labName ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
+                    } else if ($row->billable_type == 'App\Models\ERM\RadiologiPermintaan') {
+                        $radName = optional(optional($row->billable)->radiologiTest)->nama;
+                        return 'Radiologi: ' . ($radName ?? preg_replace('/^Radiologi: /', '', $row->keterangan ?? 'Test'));
+                    } else {
+                        return $row->nama_item ?? optional($row->billable)->nama ?? $row->keterangan ?? '-';
+                    }
             })
             ->addColumn('jumlah_raw', function ($row) {
                 if (isset($row->is_racikan) && $row->is_racikan) {
@@ -393,7 +396,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
                     return $row->fee_total_price;
                 }
-                return $row->jumlah;
+                return $row->jumlah ?? 0;
             })
             ->addColumn('diskon_raw', function ($row) {
                 return $row->diskon ?? '';
@@ -469,15 +472,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             })
             ->addColumn('qty', function ($row) {
                 if (isset($row->is_racikan) && $row->is_racikan) {
-                    return $row->racikan_bungkus;
+                    return $row->racikan_bungkus ?? 0;
                 } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
                     return 1; // Pharmacy fees are counted as single group
                 } else if (isset($row->qty)) {
                     return $row->qty;
-                } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
-                    return $row->billable->jumlah ?? 1;
+                } else if ($row->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
+                    return optional($row->billable)->jumlah ?? 1;
                 }
-                return $row->billable->qty ?? 1;
+                return optional($row->billable)->qty ?? 1;
             })
             ->addColumn('diskon', function ($row) {
                 if (!$row->diskon || $row->diskon == 0) {
@@ -495,25 +498,25 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // Format as a list with each item prefixed by a dash
                     $obatList = array_map(function ($item) {
                         return "- " . $item;
-                    }, $row->racikan_obat_list);
+                    }, $row->racikan_obat_list ?? []);
 
                     // Join with <br> for a line break between each item
                     return implode("<br>", $obatList);
                 } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
                     // Display the list of fee items
                     if (empty($row->fee_descriptions)) {
-                        return 'Biaya jasa farmasi (' . $row->fee_items_count . ' item)';
+                        return 'Biaya jasa farmasi (' . ($row->fee_items_count ?? 0) . ' item)';
                     }
                     
                     // Format fee descriptions with dash prefixes and line breaks
                     $formattedFees = array_map(function ($item) {
                         return "- " . $item;
-                    }, $row->fee_descriptions);
+                    }, $row->fee_descriptions ?? []);
                     
                     return implode("<br>", $formattedFees);
-                } else if ($row->billable_type == 'App\Models\ERM\PaketTindakan') {
+                } else if ($row->billable_type == 'App\\Models\\ERM\\PaketTindakan') {
                     // For PaketTindakan, show a list of contained tindakan
-                    $tindakanList = $row->billable->tindakan()->pluck('nama')->toArray();
+                    $tindakanList = optional($row->billable)->tindakan ? optional($row->billable)->tindakan()->pluck('nama')->toArray() : [];
 
                     if (empty($tindakanList)) {
                         return '-';
@@ -525,9 +528,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }, $tindakanList);
 
                     return implode("<br>", $formattedList);
-                } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
+                } else if ($row->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
                     $deskripsi = [];
-                    if ($row->billable->keterangan) {
+                    if (optional($row->billable)->keterangan) {
                         $deskripsi[] = $row->billable->keterangan;
                     }
                     return !empty($deskripsi) ? implode(", ", $deskripsi) : '-';
