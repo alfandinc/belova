@@ -48,6 +48,22 @@
                     </tr>
                 </thead>
             </table>
+            <!-- Total nominal card -->
+            <div class="row mt-3">
+                <div class="col-md-4 offset-md-8">
+                    <div class="card border-primary">
+                        <div class="card-body d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Total Nominal</h6>
+                                <small class="text-muted">(berdasarkan filter)</small>
+                            </div>
+                            <div>
+                                <h5 id="total-nominal" class="mb-0">Rp 0</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -124,6 +140,50 @@ $(document).ready(function () {
                 $(row).css('color', 'orange');
             }
         }
+    });
+
+    // Helper to format number to Indonesian Rupiah
+    function formatRupiah(number) {
+        if (!number) return 'Rp 0';
+        return 'Rp ' + Number(number).toLocaleString('id-ID');
+    }
+
+    // Update total nominal display. Prefer server-provided aggregated total if available
+    function updateTotalNominal(json) {
+        // If server returned aggregated total (total_nominal), use it
+        if (json && json.total_nominal !== undefined && json.total_nominal !== null) {
+            $('#total-nominal').text(formatRupiah(json.total_nominal));
+            return;
+        }
+
+        // Otherwise, sum the nominal column from the currently displayed rows
+        let api = table.api ? table.api() : table; // support different DataTables init
+        let data = api.rows({ page: 'current' }).data();
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+            let val = data[i].nominal;
+            if (!val) continue;
+            // ensure numeric
+            let num = Number(val);
+            if (!isNaN(num)) sum += num;
+        }
+        $('#total-nominal').text(formatRupiah(sum));
+    }
+
+    // When table draws (paging, filter, sort, initial load), update total
+    table.on('draw.dt', function(e, settings) {
+        // If server-side processing with returned JSON, the draw event's settings.json may contain our payload
+        // DataTables exposes the last JSON in settings.json
+        let json = settings.json || null;
+        updateTotalNominal(json);
+    });
+
+    // Also intercept the ajax response to capture server-provided total_nominal when available
+    $.fn.dataTable.ext.errMode = 'throw';
+    // If using DataTables ajax option as object, we can provide a dataSrc wrapper
+    // Instead, attach a global ajax handler for this specific table's ajax
+    $(document).on('xhr.dt', '#rawatjalan-table', function(e, settings, json, xhr) {
+        updateTotalNominal(json);
     });
 
     // Event ganti rentang tanggal
