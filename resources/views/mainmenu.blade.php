@@ -493,7 +493,10 @@
                     <div class="menu-label">AKREDITASI</div>
                 </a>
 
-                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13">
+                <a href="/insiden" class="menu-tile tile-insiden animate-item delay-13"
+                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
+                       onclick="showRoleWarning(event, 'INSIDEN')"
+                    @endif>
                     <div class="menu-icon"><i class="fas fa-exclamation-triangle"></i></div>
                     <div class="menu-label">LAPORAN INSIDEN</div>
                 </a>
