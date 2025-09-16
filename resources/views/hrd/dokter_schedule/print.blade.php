@@ -65,10 +65,9 @@
             margin-top: 0.1rem;
         }
         .doctor-entry {
-            /* use translucent white so underlying cell color (solid or gradient) shows through */
-            background: rgba(255,255,255,0.85);
+            background: #e3f2fd;
             border-radius: 6px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 2px rgba(25,118,210,0.07);
             margin-bottom: 7px;
             padding: 6px 8px 6px 8px;
             display: flex;
@@ -78,7 +77,7 @@
         .doctor-name {
             font-weight: 600;
             font-size: 1em;
-            color: #0d335b; /* darker for contrast */
+            color: #1565c0;
             margin-bottom: 2px;
             white-space: pre-line;
             word-break: break-word;
@@ -107,6 +106,32 @@
             - {{ $clinic->nama }}
         @endif
     </div>
+    @php
+        // Build a map of dokter_id => color. Use a deterministic palette so colors are stable between runs.
+        $palette = [
+            '#e3f2fd', // light blue
+            '#fce4ec', // pink
+            '#e8f5e9', // light green
+            '#fff3e0', // light orange
+            '#ede7f6', // light purple
+            '#f3e5f5', // lavender
+            '#e0f7fa', // cyan
+            '#fffde7', // yellow
+            '#fbe9e7', // salmon
+            '#f9fbe7', // lime
+        ];
+        $paletteText = [
+            '#1565c0', '#ad1457', '#2e7d32', '#ef6c00', '#5e35b1', '#6a1b9a', '#00796b', '#f9a825', '#d84315', '#827717'
+        ];
+        $doctorColors = [];
+        $allDoctors = $schedules->map(function($s){ return $s->dokter; })->filter()->unique('id')->values();
+        foreach($allDoctors as $i => $dokter){
+            $id = $dokter->id ?? $i;
+            $color = $palette[$i % count($palette)];
+            $text = $paletteText[$i % count($paletteText)];
+            $doctorColors[$id] = ['bg' => $color, 'text' => $text];
+        }
+    @endphp
     <table class="calendar-table">
         <thead>
             <tr>
@@ -135,41 +160,59 @@
                 @php
                     $dateStr = sprintf('%04d-%02d-%02d', $y, $m, $d);
                     $jadwal = $schedules->where('date', $dateStr);
-                @endphp
-                @php
-                    // collect unique dokter models for this date
-                    $uniqueDokters = $jadwal->pluck('dokter')->filter()->unique('id')->values();
-                    $colors = $uniqueDokters->map(function($dok) {
-                        // deterministic hue based on dokter id (or 0 if missing)
-                        $id = $dok->id ?? 0;
-                        $h = ($id * 137) % 360; // pseudo-random spread
-                        // softer pastel-like color for cell backgrounds
-                        return "hsl({$h}deg, 65%, 92%)";
-                    })->toArray();
-
-                    $cellStyle = '';
-                    if(count($colors) === 1) {
-                        $cellStyle = "background: {$colors[0]};";
-                    } elseif(count($colors) > 1) {
-                        // build gradient stops evenly
-                        $n = count($colors);
+                    $entries = $jadwal->values();
+                    $count = $entries->count();
+                    // compute TD style and text color
+                    $tdStyle = '';
+                    $dayTextColor = '#222';
+                    if($count === 1){
+                        $j = $entries[0];
+                        $doc = $j->dokter;
+                        $c = $doctorColors[$doc->id] ?? ['bg' => '#e3f2fd','text'=>'#1565c0'];
+                        $tdStyle = "background: {$c['bg']};";
+                        $dayTextColor = $c['text'];
+                    } elseif($count > 1) {
                         $stops = [];
-                        foreach($colors as $idx => $c) {
-                            $pos = (int) round(($idx / ($n - 1)) * 100);
-                            $stops[] = "$c $pos%";
+                        foreach($entries as $idx => $entry){
+                            $doc = $entry->dokter;
+                            $col = $doctorColors[$doc->id]['bg'] ?? '#e3f2fd';
+                            $start = intval($idx / $count * 100);
+                            $end = intval((($idx + 1) / $count) * 100);
+                            $stops[] = "$col $start% $end%";
                         }
-                        $cellStyle = "background: linear-gradient(135deg, " . implode(', ', $stops) . ");";
+                        $gradient = 'linear-gradient(90deg, '.implode(', ', $stops).')';
+                        $tdStyle = "background: {$gradient};";
+                        // Use first doctor's text color for labels
+                        $firstDoc = $entries[0]->dokter;
+                        $dayTextColor = $doctorColors[$firstDoc->id]['text'] ?? '#222';
                     }
                 @endphp
-                <td style="{{ $cellStyle }}">
-                    <div class="calendar-day-number">{{ $d }}</div>
+                <td style="{{ $tdStyle }}">
+                    <div class="calendar-day-number" style="color: {{ $dayTextColor }};">{{ $d }}</div>
                     <div class="doctor-list">
-                        @foreach($jadwal as $j)
-                            <div class="doctor-entry">
-                                <div class="doctor-name">{{ $j->dokter->user->name ?? '-' }}</div>
-                                <div class="doctor-time">{{ $j->jam_mulai }} - {{ $j->jam_selesai }}</div>
+                        @if($count === 1)
+                            @php $j = $entries[0]; $doc = $j->dokter; $c = $doctorColors[$doc->id] ?? ['bg' => '#e3f2fd','text'=>'#1565c0']; @endphp
+                            <div class="doctor-entry" style="background: transparent; color: {{ $c['text'] }}; border-radius:6px; box-shadow:none; padding:0;">
+                                <div style="padding:6px 0 0 0;">
+                                    <div class="doctor-name" style="color: {{ $c['text'] }};">{{ $j->dokter->user->name ?? '-' }}</div>
+                                    <div class="doctor-time" style="color: {{ $c['text'] }};">{{ $j->jam_mulai }} - {{ $j->jam_selesai }}</div>
+                                </div>
                             </div>
-                        @endforeach
+                        @elseif($count > 1)
+                            @php
+                                // entries exist, but TD already has gradient background. make inner transparent.
+                            @endphp
+                            <div class="doctor-entry" style="background: transparent; box-shadow:none; padding:0; border-radius:6px;">
+                                <div style="width:100%; padding:6px; border-radius:6px; background: transparent;">
+                                    @foreach($entries as $j)
+                                        @php $doc = $j->dokter; $c = $doctorColors[$doc->id] ?? ['text'=>'#1565c0']; @endphp
+                                        <div style="color: {{ $c['text'] }}; padding:4px 6px;">{{ $j->dokter->user->name ?? '-' }} — {{ $j->jam_mulai }} - {{ $j->jam_selesai }}</div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            {{-- no entries --}}
+                        @endif
                     </div>
                 </td>
                 @php $dayCell++; @endphp
