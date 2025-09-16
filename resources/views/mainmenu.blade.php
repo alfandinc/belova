@@ -503,7 +503,7 @@
 
                 <!-- Row 1: ERM, Farmasi, Laboratorium, Beautician, Penilaian Pelanggan -->
                 <a href="/erm/rawatjalans" class="menu-tile tile-erm animate-item delay-1" data-filter="erm healthcare patient"
-                   @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin']))
+                   @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin','Farmasi']))
                        onclick="showRoleWarning(event, 'ERM')"
                    @endif>
                     <div class="menu-top">
