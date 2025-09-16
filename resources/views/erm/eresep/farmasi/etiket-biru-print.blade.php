@@ -142,11 +142,35 @@
             line-height: 1;
         }
         .usage-text {
-            font-size: 4pt;
+            font-size: 6pt; /* match .expire-text */
+            font-weight: bold; /* make usage text bold */
             text-align: center;
             margin-bottom: 0.5mm;
             line-height: 1;
         }
+        /* larger, bolder glyph for printable checkboxes - allowed to overlap the box */
+        .checkbox-glyph {
+            display: inline-block;
+            font-size: 12pt; /* larger so it can overlap */
+            font-weight: 900; /* very bold */
+            line-height: 0.8; /* slightly tighter */
+            vertical-align: middle;
+            margin-top: -1px; /* nudge to center visually */
+            margin-left: -2px; /* allow overlap to the left */
+            margin-right: -2px; /* allow overlap to the right */
+        }
+        /* SVG checkbox for consistent printed rendering */
+        .svg-checkbox {
+            width: 0.4cm; /* match checkbox cell size */
+            height: 0.4cm;
+            display: inline-block;
+            vertical-align: middle;
+            margin-top: 0px; /* don't change layout */
+            margin-left: 0px;
+            margin-right: 0px;
+        }
+        .svg-checkbox .check { stroke: #000; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+        .svg-checkbox .box { fill: #ffffff; stroke: #000; stroke-width: 0.9; }
         .checkbox-container {
             width: 100%;
             margin-bottom: 0.05cm;
@@ -197,7 +221,7 @@
     <table class="main-table" style="width:100%;height:1.5cm;border-collapse:collapse;">
         <tr>
             <td class="left-column">
-                <div class="no-tanggal">No. {{ $pasien->id ?? '___' }} Tanggal {{ now()->format('d/m/Y') }}</div>
+                <div class="no-tanggal">No RM {{ $pasien->id ?? '___' }} Tanggal {{ now()->format('d/m/Y') }}</div>
                 <hr style="margin: 0.05cm 0 0.3cm 0; border: none; border-top: 1px solid #000;">
                 <div class="patient-box">
                     {{ strtoupper($pasien->nama ?? 'PATIENT') }}
@@ -213,19 +237,55 @@
                     <table style="width:100%; margin:0 auto; border-collapse:collapse;">
                         <tr>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($pagi) ? '&#x25A0;' : '&#x25A1;' !!}</span>
+                                @if(!empty($pagi))
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                        <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                    </svg>
+                                @else
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                    </svg>
+                                @endif
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Pagi</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($siang) ? '&#x25A0;' : '&#x25A1;' !!}</span>
+                                @if(!empty($siang))
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                        <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                    </svg>
+                                @else
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                    </svg>
+                                @endif
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Siang</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($sore) ? '&#x25A0;' : '&#x25A1;' !!}</span>
+                                @if(!empty($sore))
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                        <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                    </svg>
+                                @else
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                    </svg>
+                                @endif
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Sore</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
-                                <span style="font-size:9pt; vertical-align:middle;">{!! !empty($malam) ? '&#x25A0;' : '&#x25A1;' !!}</span>
+                                @if(!empty($malam))
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                        <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                    </svg>
+                                @else
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
+                                    </svg>
+                                @endif
                                 <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Malam</span>
                             </td>
                         </tr>
