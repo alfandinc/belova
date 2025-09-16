@@ -139,7 +139,18 @@
                     { data: 'dokter_nama', name: 'dokter_nama', orderable: false },
                     { data: 'tindakan_nama', name: 'tindakan_nama', orderable: false },
                     { data: 'tanggal_tindakan', name: 'tanggal_tindakan' },
-                    { data: 'status_badge', name: 'status', orderable: false, searchable: false },
+                    { data: 'status_badge', name: 'status', orderable: false, searchable: false, render: function(data, type, row) {
+                        // Normalize status label: replace 'pending' with localized label
+                        try {
+                            // If server already sent HTML badge, replace inside it
+                            if (typeof data === 'string') {
+                                return data.replace(/pending/gi, 'Belum Dikerjakan');
+                            }
+                        } catch (e) {
+                            console.error('Error rendering status_badge', e);
+                        }
+                        return data;
+                    } },
                     { data: 'action', name: 'action', orderable: false, searchable: false }
                 ],
                 order: [[0, 'desc']],
@@ -307,7 +318,12 @@
                         // Check if any had status updates
                         const statusUpdates = saveResults
                             .filter(r => r.success && r.response.new_status)
-                            .map(r => `SPK ${r.spkId}: ${r.response.new_status.replace('_', ' ').toUpperCase()}`);
+                            .map(r => {
+                                // Localize 'pending' to 'Belum Dikerjakan' and format
+                                var s = (r.response.new_status || '').replace(/pending/gi, 'Belum Dikerjakan');
+                                s = s.replace(/_/g, ' ').toUpperCase();
+                                return `SPK ${r.spkId}: ${s}`;
+                            });
                         
                         if (statusUpdates.length > 0) {
                             message += `\n\nStatus otomatis diubah:\n${statusUpdates.join('\n')}`;
@@ -377,9 +393,12 @@
         }
 
         function updateSpkStatus(spkId, status) {
+            // Localize status for confirmation message (pending -> Belum Dikerjakan)
+            var localizedStatus = (status || '').replace(/pending/gi, 'Belum Dikerjakan').replace(/_/g, ' ').toUpperCase();
+
             Swal.fire({
                 title: 'Konfirmasi',
-                text: `Apakah Anda yakin ingin mengubah status SPK menjadi "${status.replace('_', ' ').toUpperCase()}"?`,
+                text: `Apakah Anda yakin ingin mengubah status SPK menjadi "${localizedStatus}"?`,
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#3085d6',
