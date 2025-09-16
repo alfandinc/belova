@@ -59,6 +59,7 @@
                             <li class="nav-item"><a class="nav-link" href="/inventory/barang"><i class="ti-control-record"></i>List Barang</a></li>
                             <li class="nav-item"><a class="nav-link" href="/inventory/pembelian"><i class="ti-control-record"></i>Pembelian</a></li>
                             <li class="nav-item"><a class="nav-link" href="/inventory/maintenance"><i class="ti-control-record"></i>Maintenance</a></li>
+                            <li class="nav-item"><a class="nav-link" href="/inventory/kartu-stok"><i class="ti-control-record"></i>Kartu Stok</a></li>
                         </ul>
                     </li>
                 </ul>              

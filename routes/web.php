@@ -673,9 +673,16 @@ Route::prefix('inventory')->middleware('role:Admin|Inventaris')->group(function 
         Route::resource('ruangan', App\Http\Controllers\Inventory\RuanganController::class);
         Route::resource('tipe-barang', App\Http\Controllers\Inventory\TipeBarangController::class);
         
-        // Manajemen Barang
-        Route::resource('barang', App\Http\Controllers\Inventory\BarangController::class);
+    // Manajemen Barang
+    // Select2 AJAX search for barang (must be declared before resource routes to avoid conflict with {barang} parameter)
+    Route::get('/barang/search', [App\Http\Controllers\Inventory\BarangController::class, 'search'])->name('inventory.barang.search');
+    Route::resource('barang', App\Http\Controllers\Inventory\BarangController::class);
         Route::post('barang/update-stok', [App\Http\Controllers\Inventory\BarangController::class, 'updateStok'])->name('inventory.barang.update-stok');
+        
+        // Kartu Stok
+    Route::get('/kartu-stok', [App\Http\Controllers\Inventory\KartuStokController::class, 'index'])->name('inventory.kartustok.index');
+    Route::get('/kartu-stok/data', [App\Http\Controllers\Inventory\KartuStokController::class, 'data'])->name('inventory.kartustok.data');
+    Route::get('/kartu-stok/detail', [App\Http\Controllers\Inventory\KartuStokController::class, 'detail'])->name('inventory.kartustok.detail');
         
         // Pembelian Barang
         Route::resource('pembelian', App\Http\Controllers\Inventory\PembelianBarangController::class);

@@ -10,6 +10,7 @@ use App\Models\Inventory\Ruangan;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class BarangController extends Controller
 {
@@ -105,23 +106,23 @@ class BarangController extends Controller
                     'depreciation_rate' => $request->depreciation_rate,
                 ]
             );
-
+            // Handle stock update through centralized helper so kartu stok is recorded.
+            $stokBaru = (int) $request->stok;
             if ($request->barang_id) {
                 $stokBarang = StokBarang::where('barang_id', $request->barang_id)->first();
-                if ($stokBarang) {
-                    $stokBarang->jumlah = $request->stok;
-                    $stokBarang->save();
-                } else {
-                    StokBarang::create([
-                        'barang_id' => $barang->id,
-                        'jumlah' => $request->stok,
-                    ]);
+                $stokAwal = $stokBarang ? (int) $stokBarang->jumlah : 0;
+                $change = $stokBaru - $stokAwal;
+
+                // Only record and apply when there's an actual change
+                if ($change !== 0) {
+                    $keterangan = 'Update stok via barang form';
+                    StokBarang::adjustStock($barang->id, $change, $keterangan, 'inventory.barang.store', null, Auth::id());
                 }
             } else {
-                StokBarang::create([
-                    'barang_id' => $barang->id,
-                    'jumlah' => $request->stok,
-                ]);
+                // New barang: if initial stock > 0 create stok via helper (this creates kartu stok entry)
+                if ($stokBaru > 0) {
+                    StokBarang::adjustStock($barang->id, $stokBaru, 'Initial stok saat create barang', 'inventory.barang.store', null, Auth::id());
+                }
             }
 
             DB::commit();
@@ -185,17 +186,21 @@ class BarangController extends Controller
         ]);
 
         try {
+            // Ensure we record the change in kartu stok.
             $stokBarang = StokBarang::where('barang_id', $request->barang_id)->first();
-            
-            if ($stokBarang) {
-                $stokBarang->jumlah = $request->jumlah;
-                $stokBarang->save();
-            } else {
-                StokBarang::create([
-                    'barang_id' => $request->barang_id,
-                    'jumlah' => $request->jumlah,
-                ]);
+            $stokAwal = $stokBarang ? (int) $stokBarang->jumlah : 0;
+            $stokBaru = (int) $request->jumlah;
+            $change = $stokBaru - $stokAwal;
+
+            // If there's no change, return success without creating ledger
+            if ($change === 0) {
+                return response()->json(['success' => true, 'message' => 'Stok unchanged.']);
             }
+
+            // Use the helper (StockService) to update stok and create kartu stok entry
+            // optional keterangan can be provided from request
+            $keterangan = $request->input('keterangan', 'Update stok via list barang');
+            StokBarang::adjustStock($request->barang_id, $change, $keterangan, 'inventory.barang.updateStok', null, Auth::id());
 
             return response()->json(['success' => true, 'message' => 'Stok updated successfully.']);
         } catch (\Exception $e) {
@@ -208,5 +213,30 @@ class BarangController extends Controller
     {
         $ruangans = \App\Models\Inventory\Ruangan::where('gedung_id', $gedungId)->select('id', 'name')->get();
         return response()->json($ruangans);
+    }
+
+    /**
+     * AJAX search for barang to support select2
+     */
+    public function search(Request $request)
+    {
+        $q = $request->query('q');
+        $items = Barang::with('ruangan');
+        if ($q) {
+            $items->where('name', 'like', "%{$q}%");
+        }
+        $items = $items->orderBy('name')->limit(50)->get(['id', 'name', 'ruangan_id']);
+
+        // Format for select2: include ruangan name when available
+        $results = $items->map(function($i) {
+            $ruanganName = $i->ruangan ? $i->ruangan->name : null;
+            $text = $i->name;
+            if ($ruanganName) {
+                $text .= ' — ' . $ruanganName;
+            }
+            return ['id' => $i->id, 'text' => $text];
+        })->values();
+
+        return response()->json(['results' => $results]);
     }
 }
