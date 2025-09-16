@@ -407,7 +407,7 @@
                 </a>
 
                 <a href="/erm/eresepfarmasi" class="menu-tile tile-farmasi animate-item delay-2"
-                   @if(!array_intersect($userRoles, ['Farmasi','Admin']))
+                   @if(!array_intersect($userRoles, ['Farmasi','Admin','Lab','Beautician']))
                        onclick="showRoleWarning(event, 'Farmasi')"
                    @endif>
                     <div class="menu-icon"><i class="fas fa-pills"></i></div>

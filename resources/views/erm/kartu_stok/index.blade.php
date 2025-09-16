@@ -3,44 +3,7 @@
 @section('title', 'Kartu Stok')
 
 @section('navbar')
-    @php
-        // Priority: explicit menu selection (from request or session) -> user role -> default
-        $menuSelection = session('menu_selection');
-        if(request()->has('menu')) {
-            $menuSelection = request()->get('menu');
-            // persist selection for subsequent pages
-            session(['menu_selection' => $menuSelection]);
-        }
-    @endphp
-
-    @if(!empty($menuSelection))
-        @switch(strtolower($menuSelection))
-            @case('farmasi')
-                @include('layouts.erm.navbar-farmasi')
-                @break
-            @case('lab')
-                @include('layouts.erm.navbar-lab')
-                @break
-            @case('beautician')
-            @case('beautican')
-                @include('layouts.erm.navbar-beautician')
-                @break
-            @default
-                @include('layouts.erm.navbar-farmasi')
-        @endswitch
-    @else
-        @php $user = Auth::user(); @endphp
-        @if($user && $user->hasRole('Farmasi'))
-            @include('layouts.erm.navbar-farmasi')
-        @elseif($user && $user->hasRole('Lab'))
-            @include('layouts.erm.navbar-lab')
-        @elseif($user && ($user->hasRole('Beautician') || $user->hasRole('Beautican')))
-            @include('layouts.erm.navbar-beautician')
-        @else
-            {{-- Default to farmasi navbar when role is missing/unknown --}}
-            @include('layouts.erm.navbar-farmasi')
-        @endif
-    @endif
+    @include('layouts.erm.navbar-farmasi')
 @endsection
 
 @section('content')

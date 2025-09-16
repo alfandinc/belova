@@ -84,7 +84,7 @@
                         </ul>
                     </li>
                     @endhasanyrole
-                    @hasanyrole('Farmasi|Admin|Beautician')
+                    @hasanyrole('Farmasi|Admin|Beautician|Lab')
                     <li>
                         <a href="javascript: void(0);"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Stok & Mutasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
