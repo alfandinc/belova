@@ -370,8 +370,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $processedBillings[] = $pharmacyServiceItem;
         }
 
-        return DataTables::of($processedBillings)
-            ->addIndexColumn()
+        try {
+            return DataTables::of($processedBillings)
+                ->addIndexColumn()
             ->addColumn('nama_item', function ($row) {
                     // Use optional() to avoid "property on null" errors when relations are missing
                     if (isset($row->is_racikan) && $row->is_racikan) {
@@ -537,8 +538,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
                 return '-';
             })
-            ->rawColumns(['aksi', 'deskripsi'])
-            ->make(true);
+                ->rawColumns(['aksi', 'deskripsi'])
+                ->make(true);
+        } catch (\Exception $e) {
+            // Log and return JSON error so remote clients (browser) can see the message
+            Log::error('Error in BillingController::create AJAX DataTables', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'visitation_id' => $visitation_id ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Server error while generating billing data: ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ], 500);
+        }
     }
 
     $visitation = Visitation::with('pasien')->findOrFail($visitation_id);
