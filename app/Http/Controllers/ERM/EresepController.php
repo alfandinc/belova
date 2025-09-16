@@ -158,6 +158,26 @@ class EresepController extends Controller
             $query->whereIn('erm_zataktif.id', $zatAlergi);
         })->get();
 
+        // Map obat collection to include per-gudang stock used by farmasi operations
+        $gudangIdForResep = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        if ($gudangIdForResep) {
+            $obats = $obats->map(function ($obat) use ($gudangIdForResep) {
+                $stokGudang = (int) $obat->getStokByGudang($gudangIdForResep);
+                // Override the model attribute 'stok' so frontend `obatData.stok` reflects gudang stock
+                $obat->setAttribute('stok', $stokGudang);
+                // Also expose stok_gudang explicitly for clarity
+                $obat->setAttribute('stok_gudang', $stokGudang);
+                return $obat;
+            });
+        } else {
+            // If no mapped gudang, still expose total_stok as stok_gudang
+            $obats = $obats->map(function ($obat) {
+                $stokGudang = (int) $obat->getTotalStokAttribute();
+                $obat->setAttribute('stok_gudang', $stokGudang);
+                return $obat;
+            });
+        }
+
         // $obats = Obat::all();
 
         // Ambil semua resep berdasarkan visitation_id

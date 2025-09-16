@@ -320,6 +320,9 @@ class ObatController extends Controller
         
         // If this is an AJAX request, return JSON data for the modal
         if (request()->ajax()) {
+            // Also provide stok_gudang (authoritative) and set 'stok' to that value for frontend
+            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+            $stokGudang = $gudangId ? (int) $obat->getStokByGudang($gudangId) : (int) $obat->getTotalStokAttribute();
             return response()->json([
                 'id' => $obat->id,
                 'kode_obat' => $obat->kode_obat,
@@ -334,7 +337,8 @@ class ObatController extends Controller
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
                 'status_aktif' => $obat->status_aktif,
-                'stok' => $obat->stok
+                'stok' => $stokGudang,
+                'stok_gudang' => $stokGudang,
             ]);
         }
         
@@ -390,7 +394,8 @@ class ObatController extends Controller
                 'nama' => $obat->nama,
                 'dosis' => $obat->dosis,
                 'satuan' => $obat->satuan,
-                'stok' => $obat->stok,
+                // Use gudang stock as the authoritative 'stok' for frontend checks
+                'stok' => $stokGudang,
                 'stok_gudang' => $stokGudang,
                 'harga_nonfornas' => $obat->harga_nonfornas,
             ];
