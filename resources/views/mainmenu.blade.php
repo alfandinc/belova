@@ -609,7 +609,7 @@
                 </a>
 
                 <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-10" data-filter="finance billing kasir"
-                   @if(!array_intersect($userRoles, ['Kasir','Admin']))
+                   @if(!array_intersect($userRoles, ['Kasir','Admin','Farmasi']))
                        onclick="showRoleWarning(event, 'Finance')"
                    @endif>
                     <div class="menu-top">
