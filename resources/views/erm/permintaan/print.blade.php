@@ -67,6 +67,7 @@
 				<img src="{{ public_path('img/ttd-thesa.png') }}" alt="Signature Therese" style="height:90px; display:block; margin:0 auto 8px auto;">
 				<span style="display:inline-block; border-top:1.5px solid #333; width:200px; margin-bottom:2px;"></span><br>
 				<span style="font-size:18px; font-weight:bold;">{{ optional(App\Models\User::find($permintaan->approved_by))->name ?? 'User ID: '.$permintaan->approved_by }}</span><br>
+				<span style="font-size:18px; font-weight:bold;">SIP. NR 33722503003873</span><br>
 				<span style="font-size:12px;">{{ $permintaan->approved_date }}</span>
 			</div>
 		</div>
