@@ -226,7 +226,7 @@
                         <select class="form-control select2" id="obat_ids" name="obat_ids[]" multiple></select>
                         <div class="invalid-feedback" id="obat_ids-error"></div>
                     </div>
-                    <div class="form-group">
+                    {{-- <div class="form-group">
                         <label>SOP List (Order with Up/Down, remove with X, add with text input)</label>
                         <ul id="tindakanSopList" class="list-group mb-2"></ul>
                         <div class="input-group">
@@ -235,7 +235,7 @@
                                 <button type="button" class="btn btn-success" id="tindakanAddSopBtn">Add</button>
                             </div>
                         </div>
-                    </div>
+                    </div> --}}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
@@ -704,11 +704,21 @@
                     $('#spesialis_id').val(data.spesialis_id).trigger('change');
                     // Populate bundled obat
                     if (data.obat_ids && Array.isArray(data.obat_ids)) {
-                        var obatOptions = [];
-                        data.obat_ids.forEach(function(id) {
-                            obatOptions.push(id);
-                        });
-                        $('#obat_ids').val(obatOptions).trigger('change');
+                        // Clear any existing options first
+                        $('#obat_ids').empty();
+                        // If backend returned full obat objects, use their names to create options
+                        if (data.obats && Array.isArray(data.obats) && data.obats.length) {
+                            data.obats.forEach(function(obat) {
+                                var label = obat.nama || obat.name || ('Obat ' + obat.id);
+                                var option = new Option(label, obat.id, true, true);
+                                $('#obat_ids').append(option);
+                            });
+                            // Notify Select2 of change
+                            $('#obat_ids').trigger('change');
+                        } else {
+                            // Fallback: set by ids only (may not show labels until user searches)
+                            $('#obat_ids').val(data.obat_ids).trigger('change');
+                        }
                     }
                     // Populate kode tindakan table rows using kode_tindakans array
                     $('#kodeTindakanTable tbody').empty();

@@ -316,6 +316,13 @@ class TindakanController extends Controller
             ];
         })->toArray();
         $result['obat_ids'] = $tindakan->obats->pluck('id')->toArray();
+        // Also return basic obat objects (id & nama) to allow frontend to populate Select2 labels
+        $result['obats'] = $tindakan->obats->map(function($obat) {
+            return [
+                'id' => $obat->id,
+                'nama' => $obat->nama
+            ];
+        })->toArray();
         $result['kode_tindakan_ids'] = $tindakan->kodeTindakans->pluck('id')->toArray();
         // Add kode_tindakans array for Select2 population
         $result['kode_tindakans'] = $tindakan->kodeTindakans->map(function($kt) {
