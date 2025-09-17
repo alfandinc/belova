@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\SpkTindakan;
 use App\Models\ERM\SpkTindakanItem;
+use App\Models\ERM\KodeTindakan;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -156,7 +157,10 @@ class SpkTindakanController extends Controller
             $query->whereIn('name', ['Dokter', 'Beautician']);
         })->get();
 
-        return view('erm.spk-tindakan.items-modal', compact('spkTindakans', 'users'));
+        // Get kode tindakan list for select inputs
+        $kodeTindakans = KodeTindakan::orderBy('nama')->get();
+
+        return view('erm.spk-tindakan.items-modal', compact('spkTindakans', 'users', 'kodeTindakans'));
     }
 
     /**
@@ -174,7 +178,8 @@ class SpkTindakanController extends Controller
         
         $request->validate([
             'items' => 'required|array',
-            'items.*.id' => 'required|exists:erm_spk_tindakan_items,id',
+            'items.*.id' => 'nullable|exists:erm_spk_tindakan_items,id',
+            'items.*.kode_tindakan_id' => 'nullable|exists:erm_kode_tindakan,id',
             'items.*.penanggung_jawab' => 'nullable|string',
             'items.*.sbk' => 'nullable|in:1',
             'items.*.sba' => 'nullable|in:1',
@@ -182,6 +187,7 @@ class SpkTindakanController extends Controller
             'items.*.sdk' => 'nullable|in:1',
             'items.*.sdl' => 'nullable|in:1',
             'items.*.notes' => 'nullable|string',
+            'items.*._delete' => 'nullable|in:1',
             'waktu_mulai' => 'nullable|date_format:H:i',
             'waktu_selesai' => 'nullable|date_format:H:i'
         ]);
@@ -204,17 +210,50 @@ class SpkTindakanController extends Controller
             Log::info('SPK time fields updated', ['spk_id' => $id, 'data' => $updateData]);
         }
 
-        foreach ($request->items as $itemData) {
+        foreach ($request->items as $key => $itemData) {
             Log::info('Processing item data', ['item_data' => $itemData]);
-            
-            $item = SpkTindakanItem::find($itemData['id']);
-            Log::info('Before update', [
-                'item_id' => $item->id,
-                'current_data' => $item->toArray()
-            ]);
-            
-            $updated = SpkTindakanItem::where('id', $itemData['id'])
-                ->update([
+            // If this item is marked for deletion, delete it and continue
+            if (!empty($itemData['_delete']) && !empty($itemData['id'])) {
+                SpkTindakanItem::where('id', $itemData['id'])->delete();
+                Log::info('Item deleted', ['item_id' => $itemData['id']]);
+                continue;
+            }
+
+            // If id exists -> update
+            if (!empty($itemData['id'])) {
+                $item = SpkTindakanItem::find($itemData['id']);
+                if ($item) {
+                    Log::info('Before update', [
+                        'item_id' => $item->id,
+                        'current_data' => $item->toArray()
+                    ]);
+
+                    $item->update([
+                        'kode_tindakan_id' => $itemData['kode_tindakan_id'] ?? $item->kode_tindakan_id,
+                        'penanggung_jawab' => $itemData['penanggung_jawab'] ?? null,
+                        'sbk' => isset($itemData['sbk']) ? 1 : 0,
+                        'sba' => isset($itemData['sba']) ? 1 : 0,
+                        'sdc' => isset($itemData['sdc']) ? 1 : 0,
+                        'sdk' => isset($itemData['sdk']) ? 1 : 0,
+                        'sdl' => isset($itemData['sdl']) ? 1 : 0,
+                        'notes' => $itemData['notes'] ?? null
+                    ]);
+
+                    Log::info('After update', [
+                        'item_id' => $item->id,
+                        'updated_data' => $item->toArray()
+                    ]);
+                }
+            } else {
+                // Create new item - require kode_tindakan_id
+                if (empty($itemData['kode_tindakan_id'])) {
+                    Log::info('Skipping create: missing kode_tindakan_id', ['item_data' => $itemData]);
+                    continue;
+                }
+
+                $created = SpkTindakanItem::create([
+                    'spk_tindakan_id' => $spkTindakan->id,
+                    'kode_tindakan_id' => $itemData['kode_tindakan_id'],
                     'penanggung_jawab' => $itemData['penanggung_jawab'] ?? null,
                     'sbk' => isset($itemData['sbk']) ? 1 : 0,
                     'sba' => isset($itemData['sba']) ? 1 : 0,
@@ -223,14 +262,9 @@ class SpkTindakanController extends Controller
                     'sdl' => isset($itemData['sdl']) ? 1 : 0,
                     'notes' => $itemData['notes'] ?? null
                 ]);
-                
-            Log::info('Update result', ['rows_affected' => $updated]);
-            
-            $item->refresh();
-            Log::info('After update', [
-                'item_id' => $item->id,
-                'updated_data' => $item->toArray()
-            ]);
+
+                Log::info('Item created', ['item_id' => $created->id, 'data' => $created->toArray()]);
+            }
         }
 
         // Refresh the SPK to get updated items

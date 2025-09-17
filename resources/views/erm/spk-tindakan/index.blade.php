@@ -62,12 +62,25 @@
                 </div>
             </div>
         </div>
+
+                        <style>
+                            /* Ensure modal-xxl is wider on large screens */
+                            .modal-xxl {
+                                max-width: 1400px;
+                                width: 95%;
+                            }
+                            @media (max-width: 1200px) {
+                                .modal-xxl {
+                                    max-width: 1100px;
+                                }
+                            }
+                        </style>
     </div>
 </div>
 
 <!-- SPK Items Modal -->
 <div class="modal fade" id="spkItemsModal" tabindex="-1" role="dialog" aria-labelledby="spkItemsModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog modal-xl" role="document">
+    <div class="modal-dialog modal-xxl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="spkItemsModalLabel">Detail SPK Tindakan</h5>

@@ -115,8 +115,14 @@
                 <form class="spk-form" data-spk-id="{{ $spkTindakan->id }}" action="{{ route('erm.spktindakan.items.update', $spkTindakan->id) }}" method="POST">
                     @csrf
                     
+                    <div class="d-flex justify-content-between mb-2">
+                        <div></div>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-success add-kode-btn">Tambah Kode</button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
-                        <table class="table table-bordered table-sm">
+                        <table class="spkItemsTable table table-bordered table-sm">
                             <thead class="bg-light">
                                 <tr>
                                     <th width="20%">Kode Tindakan</th>
@@ -134,8 +140,13 @@
                                 <tr>
                                     <td>
                                         <input type="hidden" name="items[{{ $index }}][id]" value="{{ $item->id }}">
-                                        <strong>{{ $item->kodeTindakan->nama ?? '-' }}</strong><br>
-                                        <small class="text-muted">{{ $item->kodeTindakan->kode ?? '-' }}</small>
+                                        <select class="form-control form-control-sm select2-kode" name="items[{{ $index }}][kode_tindakan_id]">
+                                            @if($item->kodeTindakan)
+                                                <option value="{{ $item->kodeTindakan->id }}" selected>
+                                                    {{ $item->kodeTindakan->kode ?? '' }} - {{ $item->kodeTindakan->nama ?? '' }}
+                                                </option>
+                                            @endif
+                                        </select>
                                     </td>
                                     <td>
                                         <select class="form-control form-control-sm" name="items[{{ $index }}][penanggung_jawab]">
@@ -213,6 +224,34 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <!-- Hidden template for new item rows -->
+                    <table style="display:none;" id="newItemTemplate">
+                        <tr class="new-item-row">
+                            <td>
+                                        <select class="form-control form-control-sm" name="items[__TEMPLATE_INDEX__][kode_tindakan_id]"></select>
+                            </td>
+                            <td>
+                                <select class="form-control form-control-sm" name="items[__TEMPLATE_INDEX__][penanggung_jawab]">
+                                    <option value="">Pilih Staff</option>
+                                    @foreach($users as $user)
+                                        <option value="{{ $user->name }}">{{ $user->name }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td class="text-center"> <input type="checkbox" name="items[__TEMPLATE_INDEX__][sbk]" value="1"> </td>
+                            <td class="text-center"> <input type="checkbox" name="items[__TEMPLATE_INDEX__][sba]" value="1"> </td>
+                            <td class="text-center"> <input type="checkbox" name="items[__TEMPLATE_INDEX__][sdc]" value="1"> </td>
+                            <td class="text-center"> <input type="checkbox" name="items[__TEMPLATE_INDEX__][sdk]" value="1"> </td>
+                            <td class="text-center"> <input type="checkbox" name="items[__TEMPLATE_INDEX__][sdl]" value="1"> </td>
+                            <td>
+                                <textarea class="form-control form-control-sm" name="items[__TEMPLATE_INDEX__][notes]" rows="2" placeholder="Catatan"></textarea>
+                                <div class="mt-1 text-right">
+                                    <button type="button" class="btn btn-sm btn-danger remove-item-btn">Hapus</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
                     
                     @if($spkTindakan->items->isEmpty())
                         <div class="text-center py-4">
@@ -550,4 +589,112 @@ function setCurrentTime(inputId) {
     
     document.getElementById(inputId).value = formattedTime;
 }
+</script>
+
+<script>
+// Add / Remove item rows logic
+$(document).ready(function() {
+    // Add new item - scoped per form using a class on the button
+    // Remove any previous handlers (namespaced or not) to avoid duplicates from repeated script inserts
+    $(document).off('click', '.add-kode-btn').off('click.spktindakan', '.add-kode-btn').on('click.spktindakan', '.add-kode-btn', function(e) {
+        // Prevent duplicate handlers from also firing
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        const $btn = $(this);
+        // Prevent rapid double clicks
+        if ($btn.data('adding')) return;
+        $btn.data('adding', true);
+        setTimeout(function() { $btn.data('adding', false); }, 300);
+        const $form = $btn.closest('.spk-form');
+        const $tableBody = $form.find('.spkItemsTable tbody');
+        // Debug: log where this click came from
+        console.log('add-kode-btn clicked for spk-form', $form.data('spk-id'));
+        console.trace();
+        // Prevent duplicate appends triggered by multiple handler firings: per-table debounce
+        const lastAdded = $tableBody.data('lastAdded') || 0;
+        const now = Date.now();
+        if (now - lastAdded < 500) {
+            console.warn('Duplicate add prevented for spk', $form.data('spk-id'));
+            return;
+        }
+        $tableBody.data('lastAdded', now);
+
+    // Use the template inside the same form to avoid duplicate ID collisions when multiple forms exist
+    const template = $form.find('#newItemTemplate .new-item-row').clone();
+        // Use timestamp-based index for new rows
+        const idx = 'new_' + Date.now();
+        template.find('input, select, textarea').each(function() {
+            const name = $(this).attr('name');
+            if (!name) return;
+            $(this).attr('name', name.replace(/__TEMPLATE_INDEX__/g, idx));
+        });
+
+        // Append cloned row into the specific form's table body
+        $tableBody.append(template);
+
+        // add select2-kode class to the new select and initialize Select2 for it
+        const $newSelect = template.find('select[name$="[kode_tindakan_id]"]');
+        $newSelect.addClass('select2-kode');
+        initSelect2Kode($newSelect);
+    });
+
+    // Remove item (for dynamically added rows)
+    $(document).off('click', '.remove-item-btn').off('click.spktindakan', '.remove-item-btn').on('click.spktindakan', '.remove-item-btn', function() {
+        const row = $(this).closest('tr');
+        // If the row has a hidden id input (existing item), mark delete by adding a hidden _delete field
+        const idInput = row.find('input[name$="[id]"]');
+        if (idInput.length && idInput.val()) {
+            // mark for deletion: hide row and add hidden _delete using same items[index] key
+            row.hide();
+            const idName = idInput.attr('name'); // e.g. items[3][id]
+            const deleteName = idName.replace(/\[id\]$/, '[_delete]');
+            if (row.find('input[name="' + deleteName + '"]').length === 0) {
+                row.append('<input type="hidden" name="' + deleteName + '" value="1">');
+            }
+        } else {
+            row.remove();
+        }
+    });
+
+    // Before form submission, ensure names are consistent (they already are because we use explicit indexes)
+    $(document).on('submit', '.spk-form', function(e) {
+        // nothing special for now
+    });
+});
+
+// Initialize Select2 for kode tindakan selects (AJAX)
+function initSelect2Kode($el) {
+    if (!$el || !$el.length) return;
+    $el.select2({
+        placeholder: '-- Cari Kode Tindakan (min 3 karakter) --',
+        allowClear: true,
+        minimumInputLength: 3,
+        ajax: {
+            url: '{{ route('marketing.kode_tindakan.search') }}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return { q: params.term };
+            },
+            processResults: function(data) {
+                return { results: data.results };
+            }
+        },
+        width: '100%',
+        templateResult: function(item) {
+            if (!item.id) return item.text;
+            return item.text;
+        },
+        templateSelection: function(item) {
+            return item.text || item.nama || item.id;
+        }
+    });
+}
+
+// Initialize all existing kode selects inside each spk items table on modal load
+$(document).ready(function() {
+    $('.spkItemsTable .select2-kode').each(function() {
+        initSelect2Kode($(this));
+    });
+});
 </script>
