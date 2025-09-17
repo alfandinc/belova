@@ -911,6 +911,8 @@
             resetErrors();
             $('#tindakan_id').val('');
             $('.select2').val('').trigger('change');
+            // Ensure obat Select2 is fully cleared (remove any appended option elements)
+            $('#obat_ids').empty().val(null).trigger('change');
                 $('#kode_tindakan_ids').val('').trigger('change');
         }
         
