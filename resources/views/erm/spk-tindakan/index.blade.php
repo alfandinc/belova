@@ -66,7 +66,7 @@
 </div>
 
 <!-- SPK Items Modal -->
-<div class="modal fade" id="spkItemsModal" tabindex="-1" role="dialog" aria-labelledby="spkItemsModalLabel" aria-hidden="true">
+<div class="modal fade" id="spkItemsModal" tabindex="-1" role="dialog" aria-labelledby="spkItemsModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
@@ -79,7 +79,7 @@
                 <!-- Content will be loaded here -->
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-secondary">Tutup</button>
                 <button type="button" class="btn btn-primary" onclick="saveSpkItems()">Simpan</button>
             </div>
         </div>
@@ -203,11 +203,7 @@
                 .done(function(data) {
                     $('#spkItemsModalContent').html(data);
                     
-                    // Initialize Select2 for dropdowns in modal
-                    $('.select2-modal').select2({
-                        dropdownParent: $('#spkItemsModal'),
-                        width: '100%'
-                    });
+                    // No Select2 initialization needed; penanggung_jawab uses native select now
                     
                     // Initialize navigation if multiple SPK
                     if (window.spkData && window.spkData.length > 1) {
@@ -416,7 +412,7 @@
                         }
                     })
                     .done(function(response) {
-                        if (response.success) {
+                            if (response.success) {
                             Swal.fire({
                                 title: 'Berhasil!',
                                 text: response.message,
@@ -424,8 +420,9 @@
                                 timer: 2000,
                                 showConfirmButton: false
                             });
+                            // Don't programmatically hide the modal. The modal should only be closed by
+                            // clicking the header close button (×). This preserves user control.
                             $('#spk-table').DataTable().ajax.reload();
-                            $('#spkItemsModal').modal('hide');
                         } else {
                             Swal.fire({
                                 title: 'Error!',

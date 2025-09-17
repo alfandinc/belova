@@ -138,7 +138,7 @@
                                         <small class="text-muted">{{ $item->kodeTindakan->kode ?? '-' }}</small>
                                     </td>
                                     <td>
-                                        <select class="form-control form-control-sm select2-modal" name="items[{{ $index }}][penanggung_jawab]">
+                                        <select class="form-control form-control-sm" name="items[{{ $index }}][penanggung_jawab]">
                                             <option value="">Pilih Staff</option>
                                             @foreach($users as $user)
                                                 <option value="{{ $user->name }}" {{ $item->penanggung_jawab === $user->name ? 'selected' : '' }}>
@@ -323,9 +323,7 @@
     vertical-align: middle;
 }
 
-.select2-modal {
-    width: 100% !important;
-}
+
 
 #spkStatus {
     border: 2px solid #e3e6f0;
@@ -479,11 +477,7 @@ function updateSpkDisplay() {
     $('#prevSpk').prop('disabled', window.currentSpkIndex === 0);
     $('#nextSpk').prop('disabled', window.currentSpkIndex === window.spkData.length - 1);
     
-    // Reinitialize Select2 for the current form
-    $(`.spk-content[data-spk-id="${currentSpk.id}"] .select2-modal`).select2({
-        dropdownParent: $('#spkItemsModal'),
-        width: '100%'
-    });
+    // No Select2 for penanggung_jawab - using native select element
 }
 </script>
 
