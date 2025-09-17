@@ -1312,120 +1312,136 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $endDate = $request->input('end_date', now()->format('Y-m-d'));
         $dokterId = $request->input('dokter_id');
         $klinikId = $request->input('klinik_id');
-        
-        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice'])
+
+        $query = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice'])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
             ->where('status_kunjungan', 2);
 
         if ($dokterId) {
-            $visitations->where('dokter_id', $dokterId);
+            $query->where('dokter_id', $dokterId);
         }
         if ($klinikId) {
-            $visitations->where('klinik_id', $klinikId);
+            $query->where('klinik_id', $klinikId);
         }
 
         // Status filter: 'belum' (default), 'sudah', or '' (all)
         $statusFilter = $request->input('status_filter', 'belum');
         if ($statusFilter === 'belum') {
-            $visitations->where(function($query) {
+            $query->where(function($query) {
                 $query->whereDoesntHave('invoice')
                       ->orWhereHas('invoice', function($q) {
                           $q->where('amount_paid', 0);
                       });
             });
         } elseif ($statusFilter === 'sudah') {
-            $visitations->whereHas('invoice', function($q) {
+            $query->whereHas('invoice', function($q) {
                 $q->where('amount_paid', '>', 0);
             });
         }
-        
-        return DataTables::of($visitations)
-            ->filter(function ($query) use ($request) {
-                if ($search = $request->get('search')['value']) {
-                    $query->whereHas('pasien', function($q) use ($search) {
-                        $q->where('nama', 'like', "%$search%")
-                          ->orWhere('id', 'like', "%$search%") ;
-                    })
-                    ->orWhereHas('dokter.user', function($q) use ($search) {
-                        $q->where('name', 'like', "%$search%") ;
-                    })
-                    ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
-                        $q->where('nama', 'like', "%$search%") ;
-                    })
-                    ->orWhereHas('klinik', function($q) use ($search) {
-                        $q->where('nama', 'like', "%$search%") ;
-                    })
-                    ->orWhere('tanggal_visitation', 'like', "%$search%") ;
-                }
-            })
-            ->addColumn('no_rm', function ($visitation) {
-                return $visitation->pasien ? $visitation->pasien->id : '-';
-            })
-            ->addColumn('nama_pasien', function ($visitation) {
-                return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
-            })
-            ->addColumn('dokter', function ($visitation) {
-                // Show dokter name combined with specialization if available, e.g. "dr Bambang (Penyakit Dalam)"
-                if ($visitation->dokter && $visitation->dokter->user) {
-                    $name = $visitation->dokter->user->name;
-                    if ($visitation->dokter->spesialisasi && $visitation->dokter->spesialisasi->nama) {
-                        return $name . ' (' . $visitation->dokter->spesialisasi->nama . ')';
+
+        // Log slow queries (>2s)
+        $startTime = microtime(true);
+        try {
+            $dataTable = DataTables::of($query)
+                ->filter(function ($query) use ($request) {
+                    if ($search = $request->get('search')['value']) {
+                        $query->whereHas('pasien', function($q) use ($search) {
+                            $q->where('nama', 'like', "%$search%")
+                              ->orWhere('id', 'like', "%$search%") ;
+                        })
+                        ->orWhereHas('dokter.user', function($q) use ($search) {
+                            $q->where('name', 'like', "%$search%") ;
+                        })
+                        ->orWhereHas('dokter.spesialisasi', function($q) use ($search) {
+                            $q->where('nama', 'like', "%$search%") ;
+                        })
+                        ->orWhereHas('klinik', function($q) use ($search) {
+                            $q->where('nama', 'like', "%$search%") ;
+                        })
+                        ->orWhere('tanggal_visitation', 'like', "%$search%") ;
                     }
-                    return $name;
-                }
-                return '-';
-            })
-            ->addColumn('jenis_kunjungan', function ($visitation) {
-                // Map numeric values to labels
-                if (isset($visitation->jenis_kunjungan)) {
-                    switch ($visitation->jenis_kunjungan) {
-                        case 1:
-                        case '1':
-                            return 'Konsultasi Dokter';
-                        case 2:
-                        case '2':
-                            return 'Beli Produk';
-                        case 3:
-                        case '3':
-                            return 'Laboratorium';
-                        default:
-                            return $visitation->jenis_kunjungan;
+                })
+                ->addColumn('no_rm', function ($visitation) {
+                    return $visitation->pasien ? $visitation->pasien->id : '-';
+                })
+                ->addColumn('nama_pasien', function ($visitation) {
+                    return $visitation->pasien ? $visitation->pasien->nama : 'No Patient';
+                })
+                ->addColumn('dokter', function ($visitation) {
+                    if ($visitation->dokter && $visitation->dokter->user) {
+                        $name = $visitation->dokter->user->name;
+                        if ($visitation->dokter->spesialisasi && $visitation->dokter->spesialisasi->nama) {
+                            return $name . ' (' . $visitation->dokter->spesialisasi->nama . ')';
+                        }
+                        return $name;
                     }
-                }
-                return '-';
-            })
-            ->addColumn('tanggal_visit', function ($visitation) {
-                return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y');
-            })
-            ->addColumn('nama_klinik', function ($visitation) {
-                return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
-            })
-            ->addColumn('invoice_number', function ($visitation) {
-                // Return associated invoice number if exists, otherwise dash
-                if ($visitation->invoice && isset($visitation->invoice->invoice_number)) {
-                    return $visitation->invoice->invoice_number;
-                }
-                return '-';
-            })
+                    return '-';
+                })
+                ->addColumn('jenis_kunjungan', function ($visitation) {
+                    if (isset($visitation->jenis_kunjungan)) {
+                        switch ($visitation->jenis_kunjungan) {
+                            case 1:
+                            case '1':
+                                return 'Konsultasi Dokter';
+                            case 2:
+                            case '2':
+                                return 'Beli Produk';
+                            case 3:
+                            case '3':
+                                return 'Laboratorium';
+                            default:
+                                return $visitation->jenis_kunjungan;
+                        }
+                    }
+                    return '-';
+                })
+                ->addColumn('tanggal_visit', function ($visitation) {
+                    return \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->format('j F Y');
+                })
+                ->addColumn('nama_klinik', function ($visitation) {
+                    return $visitation->klinik ? $visitation->klinik->nama : 'No Clinic';
+                })
+                ->addColumn('invoice_number', function ($visitation) {
+                    if ($visitation->invoice && isset($visitation->invoice->invoice_number)) {
+                        return $visitation->invoice->invoice_number;
+                    }
+                    return '-';
+                })
                 ->addColumn('status', function ($visitation) {
                     if ($visitation->invoice && $visitation->invoice->amount_paid > 0) {
                         return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
                     }
                     return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
                 })
-            ->addColumn('action', function ($visitation) {
-                $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
-                
-                // Add "Cetak Nota" buttons if invoice exists
-                if ($visitation->invoice) {
-                    $action .= ' <a href="'.route('finance.invoice.print-nota', $visitation->invoice->id).'" class="btn btn-sm btn-success ml-1" target="_blank">Cetak Nota</a>';
-                    $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
-                }
-                
-                return $action;
-            })
-            ->rawColumns(['action', 'status'])
-            ->make(true);
+                ->addColumn('action', function ($visitation) {
+                    $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
+                    if ($visitation->invoice) {
+                        $action .= ' <a href="'.route('finance.invoice.print-nota', $visitation->invoice->id).'" class="btn btn-sm btn-success ml-1" target="_blank">Cetak Nota</a>';
+                        $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
+                    }
+                    return $action;
+                })
+                ->rawColumns(['action', 'status'])
+                ->make(true);
+            $duration = microtime(true) - $startTime;
+            if ($duration > 2) {
+                \Log::warning('Slow getVisitationsData query', [
+                    'duration' => $duration,
+                    'filters' => $request->all()
+                ]);
+            }
+            return $dataTable;
+        } catch (\Exception $e) {
+            \Log::error('Error in getVisitationsData', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'filters' => $request->all()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Server error while loading billing data: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

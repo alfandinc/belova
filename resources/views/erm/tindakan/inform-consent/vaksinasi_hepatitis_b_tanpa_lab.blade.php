@@ -101,6 +101,24 @@
                                 • Dengan kesadaran penuh dan tanpa paksaan dari pihak manapun, saya menyatakan 
                                 menyetujui untuk dilakukan tindakan vaksinasi Hepatitis B di klinik. 
                             </td>
+                            <tr>
+                            <td></td>
+                            <td> </td>
+                            <td>
+                                • Apabila pasien memilih tidak melakukan pemeriksaan HBsAg dan Anti-HBs, 
+                                maka kemungkinan status sudah reaktif/ pernah terinfeksi Hepatitis B tidak dapat 
+                                diketahui sebelum vaksinasi. <br>
+                                • Apabila di kemudian hari (misalnya pada pemeriksaan selanjutnya) terbukti hasil 
+                                laboratorium HBsAg reaktif/ antibodi reaktif atau pasien terdiagnosis sudah 
+                                terinfeksi Hepatitis B, maka: <br>
+                                o Vaksinasi yang telah diberikan <strong>tidak dapat mengobati penyakit tersebut.</strong> <br>
+                                o Apabila di kemudian hari terbukti hasil laboratorium menunjukkan adanya 
+                                <strong> infeksi Hepatitis B </strong>atau kondisi medis terkait, maka pasien memahami bahwa 
+                                hal tersebut bukan akibat dari vaksinasi yang diberikan. Risiko ini timbul 
+                                karena pasien memilih untuk tidak melakukan pemeriksaan laboratorium 
+                                terlebih dahulu, sehingga menjadi tanggung jawab pasien sepenuhnya. 
+                            </td>
+                        </tr>
                         </tr>
                         
                     </tbody>
