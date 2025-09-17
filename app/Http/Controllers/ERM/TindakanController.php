@@ -114,7 +114,28 @@ class TindakanController extends Controller
 
     public function getTindakanData(Request $request, $spesialisasiId)
     {
-        $tindakan = Tindakan::where('spesialis_id', $spesialisasiId)->get();
+        // Include tindakan with spesialis 'Umum' for all spesialisasi and
+        // prioritize rows that exactly match the current dokter's spesialisasi.
+        $umum = \App\Models\ERM\Spesialisasi::where('nama', 'Umum')->first();
+        $umumId = $umum ? $umum->id : null;
+
+        $tindakanQuery = Tindakan::query();
+
+        if ($umumId) {
+            $tindakanQuery->where(function($q) use ($spesialisasiId, $umumId) {
+                $q->where('spesialis_id', $spesialisasiId)
+                  ->orWhere('spesialis_id', $umumId);
+            });
+
+            // Ensure current spesialis rows appear first, then 'Umum', then others
+            $tindakanQuery->orderByRaw("CASE WHEN spesialis_id = ? THEN 0 WHEN spesialis_id = ? THEN 1 ELSE 2 END", [$spesialisasiId, $umumId]);
+        } else {
+            // If 'Umum' doesn't exist, fall back to just the spesialisasi
+            $tindakanQuery->where('spesialis_id', $spesialisasiId)
+                ->orderByRaw("CASE WHEN spesialis_id = ? THEN 0 ELSE 1 END", [$spesialisasiId]);
+        }
+
+        $tindakan = $tindakanQuery->get();
 
         return datatables()->of($tindakan)
             ->addColumn('action', function ($row) {
