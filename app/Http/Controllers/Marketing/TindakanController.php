@@ -64,9 +64,14 @@ class TindakanController extends Controller
      */
     public function getTindakanData(Request $request)
     {
-        $tindakan = Tindakan::with('spesialis')->withCount('sop')->get();
+        $spesialisId = $request->input('spesialis_id');
 
-        return DataTables::of($tindakan)
+        $query = Tindakan::with('spesialis')->withCount('sop');
+        if ($spesialisId) {
+            $query->where('spesialis_id', $spesialisId);
+        }
+
+        return DataTables::of($query)
             ->addColumn('spesialis_nama', function ($row) {
                 return $row->spesialis ? $row->spesialis->nama : 'N/A';
             })

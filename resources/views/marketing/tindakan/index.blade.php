@@ -50,8 +50,14 @@
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h4 class="card-title">Tindakan List</h4>
+                <div class="card-header d-flex align-items-center">
+                    <h4 class="card-title mb-0">Tindakan List</h4>
+                    <div class="ml-auto d-flex align-items-center">
+                        <label for="filter_spesialis" class="mr-2 mb-0">Filter Specialist</label>
+                        <select id="filter_spesialis" class="form-control" style="min-width:220px">
+                            <option value="">All Specialists</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -617,7 +623,12 @@
         var table = $('#tindakan-table').DataTable({
             processing: true,
             serverSide: true,
-            ajax: "{{ route('marketing.tindakan.data') }}",
+            ajax: {
+                url: "{{ route('marketing.tindakan.data') }}",
+                data: function(d) {
+                    d.spesialis_id = $('#filter_spesialis').val();
+                }
+            },
             columns: [
                 {data: 'id', name: 'id'},
                 {data: 'nama', name: 'nama'},
@@ -641,14 +652,23 @@
                 type: 'GET',
                 dataType: 'json',
                 success: function(data) {
+                    // Populate both modal spesialis select and the filter select
                     $('#spesialis_id').empty();
                     $('#spesialis_id').append('<option value="">Select Specialist</option>');
+                    $('#filter_spesialis').empty();
+                    $('#filter_spesialis').append('<option value="">All Specialists</option>');
                     $.each(data, function(key, value) {
                         $('#spesialis_id').append('<option value="' + value.id + '">' + value.nama + '</option>');
+                        $('#filter_spesialis').append('<option value="' + value.id + '">' + value.nama + '</option>');
                     });
                 }
             });
         }
+
+        // Reload DataTable when specialist filter changes
+        $(document).on('change', '#filter_spesialis', function() {
+            table.ajax.reload();
+        });
         
         // Open modal to create new tindakan
         $('.add-tindakan').click(function() {
