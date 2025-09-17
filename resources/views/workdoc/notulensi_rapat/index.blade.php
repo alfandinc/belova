@@ -17,6 +17,7 @@
                         <th>ID</th>
                         <th>Judul</th>
                         <th>Tanggal</th>
+                        <th>Dibuat Oleh</th>
                         <th>Aksi</th>
                         <th>Notulensi</th>
                     </tr>
@@ -37,6 +38,7 @@ $(function() {
             { data: 'id', name: 'id' },
             { data: 'title', name: 'title' },
             { data: 'date', name: 'date' },
+                    { data: 'created_by', name: 'created_by' },
             { data: 'action', name: 'action', orderable: false, searchable: false },
             { data: 'notulensi_btn', name: 'notulensi_btn', orderable: false, searchable: false },
         ]

@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Workdoc\NotulensiRapat;
 use App\Models\Workdoc\NotulensiRapatTodo;
+use Illuminate\Support\Facades\Auth;
 
 class NotulensiRapatController extends Controller
 {
@@ -12,10 +13,20 @@ class NotulensiRapatController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            return datatables()->of(NotulensiRapat::query())
+            return datatables()->of(NotulensiRapat::with('createdBy'))
                 ->addColumn('action', function ($row) {
+                    $user = Auth::user();
+                    $isCreator = $row->created_by === $user->id;
+                    $hasRole = $user->hasRole(['Manager', 'Hrd', 'Ceo']);
                     $url = route('workdoc.notulensi-rapat.show', $row->id);
-                    return '<a href="' . $url . '" class="btn btn-sm btn-primary">View</a>';
+                    if ($isCreator || $hasRole) {
+                        return '<a href="' . $url . '" class="btn btn-sm btn-primary">View</a>';
+                    }
+                    // non-authorized: show disabled button
+                    return '<button class="btn btn-sm btn-secondary" disabled>View</button>';
+                })
+                ->addColumn('created_by', function ($row) {
+                    return $row->createdBy->name ?? '-';
                 })
                 ->addColumn('notulensi_btn', function ($row) {
                     return '<button class="btn btn-info btn-sm show-notulensi" data-notulensi="'.e($row->notulen).'">Notulensi</button>';
@@ -31,6 +42,12 @@ class NotulensiRapatController extends Controller
     public function show($id)
     {
         $notulensi = NotulensiRapat::findOrFail($id);
+        $user = Auth::user();
+        $isCreator = $notulensi->created_by === $user->id;
+        $hasRole = $user->hasRole(['Manager', 'Hrd', 'Ceo','Admin']);
+        if (! $isCreator && ! $hasRole) {
+            abort(403);
+        }
         return view('workdoc.notulensi_rapat.create', compact('notulensi'));
     }
 
@@ -49,7 +66,9 @@ class NotulensiRapatController extends Controller
             'notulen' => 'required|string',
             'memo' => 'nullable|string',
         ]);
-        NotulensiRapat::create($request->only(['title', 'date', 'notulen', 'memo']));
+        $data = $request->only(['title', 'date', 'notulen', 'memo']);
+    $data['created_by'] = Auth::id();
+        NotulensiRapat::create($data);
         return response()->json(['success' => true]);
     }
 
@@ -112,10 +131,10 @@ class NotulensiRapatController extends Controller
     public function approveTodo($notulensiId, $todoId)
     {
         $todo = \App\Models\Workdoc\NotulensiRapatTodo::where('notulensi_rapat_id', $notulensiId)->findOrFail($todoId);
-        $todo->status = 'done';
-        $todo->approved_by = auth()->id();
+    $todo->status = 'done';
+    $todo->approved_by = Auth::id();
         $todo->save();
-        return response()->json(['success' => true, 'approved_by' => auth()->user()->name]);
+    return response()->json(['success' => true, 'approved_by' => Auth::user()->name]);
     }
 
 

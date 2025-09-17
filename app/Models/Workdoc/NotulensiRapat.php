@@ -15,11 +15,17 @@ class NotulensiRapat extends Model
         'date',
         'notulen',
         'memo',
+        'created_by',
     ];
 
         public function todos()
     {
         return $this->hasMany(NotulensiRapatTodo::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'created_by');
     }
 
 }
