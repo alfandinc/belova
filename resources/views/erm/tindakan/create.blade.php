@@ -143,25 +143,27 @@
 
 <!-- SOP Detail Modal -->
 <div class="modal fade" id="modalSopDetail" tabindex="-1" aria-labelledby="modalSopDetailLabel" aria-hidden="true">
-  <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="modalSopDetailLabel">SOP Tindakan</h5>
+    <h5 class="modal-title" id="modalSopDetailLabel">Detail Kode Tindakan</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
           <span aria-hidden="true">&times;</span>
         </button>
       </div>
       <div class="modal-body">
         <table class="table table-bordered" id="sopTable">
-          <thead>
-            <tr>
-              <th>No</th>
-              <th>SOP</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- SOP rows will be injected here -->
-          </tbody>
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Kode</th>
+                            <th>Nama</th>
+                            <th>Obat (Bundled)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Kode tindakan rows will be injected here -->
+                    </tbody>
         </table>
       </div>
     </div>
@@ -921,21 +923,36 @@ $(document).on('click', '.detail-sop-btn', function() {
     $('#modalSopDetail').modal('show');
     $.get(`/erm/tindakan/${tindakanId}/sop-list`, function(response) {
         if (response.success) {
-            $('#modalSopDetailLabel').text('SOP Tindakan: ' + response.tindakan);
+            $('#modalSopDetailLabel').text('Detail Kode Tindakan: ' + response.tindakan);
             let rows = '';
-            if (response.sop.length > 0) {
-                response.sop.forEach(function(item) {
-                    rows += `<tr><td>${item.no}</td><td>${item.nama_sop}</td></tr>`;
+            if (response.kode_tindakans && response.kode_tindakans.length > 0) {
+                response.kode_tindakans.forEach(function(item) {
+                    let obatList = '-';
+                    if (item.obats && item.obats.length > 0) {
+                        obatList = '<ul class="mb-0 pl-3">';
+                        item.obats.forEach(function(o) {
+                            const jumlah = o.jumlah !== null ? (' x ' + o.jumlah) : '';
+                            const dosis = o.dosis ? (' | ' + o.dosis + (o.satuan_dosis ? (' ' + o.satuan_dosis) : '')) : '';
+                            obatList += `<li>${o.nama}${jumlah}${dosis}</li>`;
+                        });
+                        obatList += '</ul>';
+                    }
+                    rows += `<tr>
+                        <td>${item.no}</td>
+                        <td>${item.kode}</td>
+                        <td>${item.nama}</td>
+                        <td>${obatList}</td>
+                    </tr>`;
                 });
             } else {
-                rows = '<tr><td colspan="2" class="text-center">Tidak ada SOP</td></tr>';
+                rows = '<tr><td colspan="4" class="text-center">Tidak ada kode tindakan</td></tr>';
             }
             $('#sopTable tbody').html(rows);
         } else {
-            $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Gagal memuat SOP</td></tr>');
+            $('#sopTable tbody').html('<tr><td colspan="4" class="text-center">Gagal memuat data</td></tr>');
         }
     }).fail(function() {
-        $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Gagal memuat SOP</td></tr>');
+        $('#sopTable tbody').html('<tr><td colspan="4" class="text-center">Gagal memuat data</td></tr>');
     });
 });
 

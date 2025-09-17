@@ -1051,21 +1051,31 @@ class TindakanController extends Controller
 
     public function getSopList($tindakanId)
     {
-        $tindakan = \App\Models\ERM\Tindakan::with(['sop' => function($q) {
-            $q->orderBy('urutan');
-        }])->findOrFail($tindakanId);
+        // Return kode tindakan list (with obat bundles) instead of SOP so the Detail button shows kode details.
+        $tindakan = \App\Models\ERM\Tindakan::with(['kodeTindakans.obats'])->findOrFail($tindakanId);
 
-        $sopList = $tindakan->sop->map(function($sop, $i) {
+        $kodeTindakans = $tindakan->kodeTindakans->map(function($kode, $i) {
             return [
                 'no' => $i + 1,
-                'nama_sop' => $sop->nama_sop,
+                'id' => $kode->id,
+                'kode' => $kode->kode ?? '',
+                'nama' => $kode->nama ?? '',
+                'obats' => $kode->obats->map(function($obat) {
+                    return [
+                        'id' => $obat->id,
+                        'nama' => $obat->nama,
+                        'jumlah' => $obat->pivot->jumlah ?? null,
+                        'dosis' => $obat->pivot->dosis ?? null,
+                        'satuan_dosis' => $obat->pivot->satuan_dosis ?? null,
+                    ];
+                })->values()->toArray(),
             ];
-        });
+        })->values();
 
         return response()->json([
             'success' => true,
-            'sop' => $sopList,
             'tindakan' => $tindakan->nama,
+            'kode_tindakans' => $kodeTindakans,
         ]);
     }
 };
