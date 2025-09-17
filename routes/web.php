@@ -890,12 +890,13 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
     }
 );
 
-Route::prefix('marketing')->middleware('role:Marketing|Admin')->group(function () {
+Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician')->group(function () {
 
     // // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
-   
+    // AJAX search for kode tindakan (for Select2 in tindakan modal)
+    Route::get('kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
     // Galeri Before After gallery for tindakan
     Route::get('/tindakan/{id}/galeri-before-after', [\App\Http\Controllers\Marketing\TindakanController::class, 'galeriBeforeAfter']);
 
@@ -1169,5 +1170,3 @@ Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSli
 Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'generateUangKpi'])->name('hrd.payroll.slip_gaji.generate_uang_kpi');
 // Public (auth) endpoint for Farmasi clients to poll finance notifications
 Route::get('/finance/get-notif', [App\Http\Controllers\Finance\BillingController::class, 'getNotif'])->middleware('auth');
- // AJAX search for kode tindakan (for Select2 in tindakan modal)
-    Route::get('marketing/kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
