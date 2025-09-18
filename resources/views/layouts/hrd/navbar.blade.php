@@ -233,7 +233,7 @@
             <li>
                 <a href="{{ route('hrd.gantishift.index') }}">
                     <i data-feather="refresh-cw" class="align-self-center menu-icon"></i>
-                    <span>Pengajuan Ganti Shift</span>
+                    <span>Pengajuan Ganti/Tukar Shift</span>
                     @if($pendingGantiShiftHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingGantiShiftHRD }}</span>
                     @endif
