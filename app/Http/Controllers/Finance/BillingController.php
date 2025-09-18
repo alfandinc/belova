@@ -1079,8 +1079,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                     
                     // For racikan, the unit price is the total price of all components per unit (bungkus)
-                    $unitPrice = $totalPrice;  // Total price of all components is treated as unit price
-                    $finalAmount = $totalPrice * $newQty; // Final amount = total price × qty (bungkus)                // Create single invoice item for the racikan group
+                    $unitPrice = (float) $totalPrice;  // Total price of all components is treated as unit price
+                    // Use the computed $qty (bungkus) for final amount. Previously code used $newQty which
+                    // could be from an earlier loop iteration and lead to final_amount equaling unit_price.
+                    $finalAmount = $unitPrice * (int) $qty; // Final amount = unit price × qty (bungkus)
+                    // Create single invoice item for the racikan group
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => 'Obat Racikan',
