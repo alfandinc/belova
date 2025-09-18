@@ -754,6 +754,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         
         // Pengajuan Ganti Shift
         Route::get('gantishift/available-shifts', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'getAvailableShifts'])->name('hrd.gantishift.available-shifts');
+        Route::get('gantishift/same-shift-employees', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'getEmployeesSameShift'])->name('hrd.gantishift.same-shift-employees');
         Route::get('gantishift', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'index'])->name('hrd.gantishift.index');
         Route::get('gantishift/create', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'create'])->name('hrd.gantishift.create');
         Route::post('gantishift', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'store'])->name('hrd.gantishift.store');
@@ -761,6 +762,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         Route::get('gantishift/{id}/approval-status', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'getApprovalStatus']);
         Route::put('gantishift/{id}/manager', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'persetujuanManager'])->name('hrd.gantishift.manager');
         Route::put('gantishift/{id}/hrd', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'persetujuanHRD'])->name('hrd.gantishift.hrd');
+        Route::put('gantishift/{id}/target-approval', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'targetEmployeeApproval'])->name('hrd.gantishift.target-approval');
         
         // Master Data Routes
         // Division Management

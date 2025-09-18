@@ -33,8 +33,10 @@
                                             <th>Tanggal Shift</th>
                                             <th>Shift Lama</th>
                                             <th>Shift Baru</th>
+                                            <th>Jenis</th>
                                             <th>Status Manager</th>
                                             <th>Status HRD</th>
+                                            <th>Status Target</th>
                                             <th>Aksi</th>
                                         </tr>
                                     </thead>
@@ -62,6 +64,7 @@
                                             <th>Tanggal Shift</th>
                                             <th>Shift Lama</th>
                                             <th>Shift Baru</th>
+                                            <th>Jenis</th>
                                             <th>Status</th>
                                             <th>Aksi</th>
                                         </tr>
@@ -90,8 +93,10 @@
                                             <th>Tanggal Shift</th>
                                             <th>Shift Lama</th>
                                             <th>Shift Baru</th>
+                                            <th>Jenis</th>
                                             <th>Status Manager</th>
                                             <th>Status HRD</th>
+                                            <th>Status Target</th>
                                             <th>Aksi</th>
                                         </tr>
                                     </thead>
@@ -123,16 +128,39 @@
                         <label for="tanggal_shift">Tanggal Shift <span class="text-danger">*</span></label>
                         <input type="date" class="form-control" id="tanggal_shift" name="tanggal_shift" required>
                     </div>
+                    
+                    <!-- Tukar Shift Checkbox -->
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="is_tukar_shift" name="is_tukar_shift" value="1">
+                            <label class="form-check-label" for="is_tukar_shift">
+                                Tukar Shift dengan Karyawan Lain
+                            </label>
+                            <small class="form-text text-muted">Centang jika ingin menukar shift dengan karyawan lain yang memiliki shift yang sama</small>
+                        </div>
+                    </div>
+                    
                     <div class="form-group">
                         <label for="shift_baru_id">Shift Baru <span class="text-danger">*</span></label>
                         <select class="form-control" id="shift_baru_id" name="shift_baru_id" required>
                             <option value="">Pilih Shift</option>
                         </select>
                     </div>
+                    
                     <div class="form-group">
                         <label for="shift_lama_display">Shift Saat Ini</label>
                         <input type="text" class="form-control" id="shift_lama_display" readonly placeholder="Tidak ada shift">
                     </div>
+                    
+                    <!-- Target Employee Selection for Tukar Shift -->
+                    <div class="form-group" id="target_employee_group" style="display: none;">
+                        <label for="target_employee_id">Karyawan untuk Ditukar <span class="text-danger">*</span></label>
+                        <select class="form-control" id="target_employee_id" name="target_employee_id">
+                            <option value="">Pilih Karyawan</option>
+                        </select>
+                        <small class="form-text text-muted">Karyawan yang akan ditukar shiftnya dengan Anda</small>
+                    </div>
+                    
                     <div class="form-group">
                         <label for="alasan">Alasan <span class="text-danger">*</span></label>
                         <textarea class="form-control" id="alasan" name="alasan" rows="3" required placeholder="Jelaskan alasan Anda meminta ganti shift..."></textarea>
@@ -238,6 +266,51 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Approval Target Employee (for Tukar Shift) -->
+<div class="modal fade" id="modalTargetEmployeeApproval" tabindex="-1" role="dialog" aria-labelledby="modalTargetEmployeeApprovalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTargetEmployeeApprovalLabel">Persetujuan Tukar Shift</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="formTargetEmployeeApproval">
+                @csrf
+                <input type="hidden" id="target_approval_id" name="id">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Permintaan Tukar Shift</strong><br>
+                        Rekan kerja Anda ingin menukar shift dengan Anda. Silakan berikan persetujuan.
+                    </div>
+                    <div class="form-group">
+                        <label>Keputusan <span class="text-danger">*</span></label>
+                        <div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="status" id="target_approve" value="disetujui" required>
+                                <label class="form-check-label" for="target_approve">Setuju</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="radio" name="status" id="target_reject" value="ditolak" required>
+                                <label class="form-check-label" for="target_reject">Tolak</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="target_notes">Catatan</label>
+                        <textarea class="form-control" id="target_notes" name="notes" rows="3" placeholder="Berikan catatan (opsional)..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Keputusan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -261,8 +334,10 @@ $(document).ready(function() {
             {data: 'tanggal_shift', name: 'tanggal_shift'},
             {data: 'shift_lama', name: 'shift_lama'},
             {data: 'shift_baru', name: 'shift_baru'},
+            {data: 'jenis', name: 'jenis', orderable: false},
             {data: 'status_manager', name: 'status_manager'},
             {data: 'status_hrd', name: 'status_hrd'},
+            {data: 'status_target', name: 'status_target'},
             {data: 'action', name: 'action', orderable: false, searchable: false}
         ]
     });
@@ -280,6 +355,7 @@ $(document).ready(function() {
             {data: 'tanggal_shift', name: 'tanggal_shift'},
             {data: 'shift_lama', name: 'shift_lama'},
             {data: 'shift_baru', name: 'shift_baru'},
+            {data: 'jenis', name: 'jenis', orderable: false},
             {data: 'status_manager', name: 'status_manager'},
             {data: 'action', name: 'action', orderable: false, searchable: false}
         ]
@@ -298,8 +374,10 @@ $(document).ready(function() {
             {data: 'tanggal_shift', name: 'tanggal_shift'},
             {data: 'shift_lama', name: 'shift_lama'},
             {data: 'shift_baru', name: 'shift_baru'},
+            {data: 'jenis', name: 'jenis', orderable: false},
             {data: 'status_manager', name: 'status_manager'},
             {data: 'status_hrd', name: 'status_hrd'},
+            {data: 'status_target', name: 'status_target'},
             {data: 'action', name: 'action', orderable: false, searchable: false}
         ]
     });
@@ -310,8 +388,65 @@ $(document).ready(function() {
         $('#formCreateGantiShift')[0].reset();
         $('#shift_lama_display').val('');
         $('#shift_baru_id').empty().append('<option value="">Pilih Shift</option>');
+        $('#target_employee_id').empty().append('<option value="">Pilih Karyawan</option>');
+        $('#target_employee_group').hide();
         $('#modalCreateGantiShift').modal('show');
     });
+
+    // Handle tukar shift checkbox
+    $('#is_tukar_shift').change(function() {
+        if ($(this).is(':checked')) {
+            $('#target_employee_group').show();
+            $('#target_employee_id').prop('required', true);
+            
+            // Load employees if date and shift are already selected
+            var date = $('#tanggal_shift').val();
+            var shiftId = $('#shift_baru_id').val();
+            if (date && shiftId) {
+                loadEmployeesSameShift(date, shiftId);
+            }
+        } else {
+            $('#target_employee_group').hide();
+            $('#target_employee_id').prop('required', false);
+        }
+    });
+
+    // Function to load employees with same shift
+    function loadEmployeesSameShift(date, shiftId) {
+        console.log('Loading employees for shift exchange...', { date, shiftId });
+        $.ajax({
+            url: "{{ route('hrd.gantishift.same-shift-employees') }}",
+            method: 'GET',
+            data: { date: date, shift_id: shiftId },
+            success: function(response) {
+                console.log('Employees response:', response);
+                var employeeSelect = $('#target_employee_id');
+                employeeSelect.empty().append('<option value="">Pilih Karyawan</option>');
+                
+                if (response.employees && response.employees.length > 0) {
+                    response.employees.forEach(function(employee) {
+                        var displayName = employee.name;
+                        if (employee.position && employee.position.trim() !== '') {
+                            displayName += ' (' + employee.position + ')';
+                        }
+                        employeeSelect.append('<option value="' + employee.id + '">' + displayName + '</option>');
+                    });
+                    console.log('Added ' + response.employees.length + ' employees to select');
+                } else {
+                    employeeSelect.append('<option value="" disabled>Tidak ada karyawan dengan shift yang sama</option>');
+                    console.log('No employees found with same shift');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX Error:', { xhr, status, error });
+                var errorMessage = 'Gagal memuat data karyawan';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage += ': ' + xhr.responseJSON.error;
+                }
+                Swal.fire('Error', errorMessage, 'error');
+            }
+        });
+    }
 
     // When date is selected, load available shifts
     $('#tanggal_shift').change(function() {
@@ -344,6 +479,22 @@ $(document).ready(function() {
                     Swal.fire('Error', 'Gagal memuat data shift', 'error');
                 }
             });
+        }
+    });
+
+    // When shift is selected and tukar shift is checked, load employees with same shift
+    $('#shift_baru_id').change(function() {
+        var shiftId = $(this).val();
+        var date = $('#tanggal_shift').val();
+        var isTukarShift = $('#is_tukar_shift').is(':checked');
+        
+        console.log('Shift changed:', { shiftId, date, isTukarShift });
+        
+        if (shiftId && date && isTukarShift) {
+            loadEmployeesSameShift(date, shiftId);
+        } else {
+            // Clear employee select if conditions not met
+            $('#target_employee_id').empty().append('<option value="">Pilih Karyawan</option>');
         }
     });
 
@@ -446,6 +597,37 @@ $(document).ready(function() {
             },
             error: function() {
                 Swal.fire('Error', 'Gagal memuat detail pengajuan', 'error');
+            }
+        });
+    });
+
+    // Show target employee approval modal
+    $(document).on('click', '.btn-target-approve', function() {
+        var id = $(this).data('id');
+        $('#target_approval_id').val(id);
+        $('#formTargetEmployeeApproval')[0].reset();
+        $('#modalTargetEmployeeApproval').modal('show');
+    });
+
+    // Submit target employee approval
+    $('#formTargetEmployeeApproval').submit(function(e) {
+        e.preventDefault();
+        var id = $('#target_approval_id').val();
+        var formData = $(this).serialize();
+        
+        $.ajax({
+            url: "{{ route('hrd.gantishift.target-approval', ':id') }}".replace(':id', id),
+            method: 'PUT',
+            data: formData,
+            success: function(response) {
+                $('#modalTargetEmployeeApproval').modal('hide');
+                Swal.fire('Sukses', response.message, 'success');
+                @if(auth()->user()->hasRole('Employee'))
+                tablePersonal.ajax.reload();
+                @endif
+            },
+            error: function() {
+                Swal.fire('Error', 'Gagal memproses persetujuan', 'error');
             }
         });
     });

@@ -22,8 +22,12 @@ class PengajuanGantiShiftController extends Controller
         if ($request->ajax()) {
             // Employee: hanya data sendiri
             if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Employee')) {
-                $data = PengajuanGantiShift::where('employee_id', $user->employee->id)
-                    ->with(['shiftLama', 'shiftBaru'])
+                // Get requests created by this employee OR requests where this employee is the target
+                $data = PengajuanGantiShift::where(function($query) use ($user) {
+                        $query->where('employee_id', $user->employee->id)
+                              ->orWhere('target_employee_id', $user->employee->id);
+                    })
+                    ->with(['employee', 'shiftLama', 'shiftBaru', 'targetEmployee'])
                     ->latest()
                     ->get();
                 return DataTables::of($data)
@@ -37,16 +41,43 @@ class PengajuanGantiShiftController extends Controller
                     ->addColumn('shift_baru', function($row) {
                         return $row->shiftBaru->name . ' (' . $row->shiftBaru->start_time . '-' . $row->shiftBaru->end_time . ')';
                     })
+                    ->addColumn('jenis', function($row) use ($user) {
+                        if ($row->is_tukar_shift) {
+                            $targetName = $row->targetEmployee ? $row->targetEmployee->nama : 'N/A';
+                            $isCurrentUserTarget = $row->target_employee_id == $user->employee->id;
+                            $isCurrentUserRequester = $row->employee_id == $user->employee->id;
+                            
+                            if ($isCurrentUserTarget) {
+                                return '<span class="badge badge-warning">Permintaan Tukar</span><br><small>dari: ' . $row->employee->nama . '</small>';
+                            } else if ($isCurrentUserRequester) {
+                                return '<span class="badge badge-info">Tukar Shift</span><br><small>dengan: ' . $targetName . '</small>';
+                            }
+                        }
+                        return '<span class="badge badge-secondary">Ganti Shift</span>';
+                    })
                     ->addColumn('status_manager', function($row) {
                         return $this->renderStatusBadge($row->status_manager);
                     })
                     ->addColumn('status_hrd', function($row) {
                         return $this->renderStatusBadge($row->status_hrd);
                     })
-                    ->addColumn('action', function($row) {
-                        return '<button class="btn btn-info btn-sm btn-detail" data-id="'.$row->id.'">Detail</button>';
+                    ->addColumn('status_target', function($row) {
+                        if ($row->is_tukar_shift) {
+                            return $this->renderStatusBadge($row->target_employee_approval_status);
+                        }
+                        return '<span class="badge badge-light">N/A</span>';
                     })
-                    ->rawColumns(['status_manager', 'status_hrd', 'action'])
+                    ->addColumn('action', function($row) use ($user) {
+                        $buttons = '<button class="btn btn-info btn-sm btn-detail" data-id="'.$row->id.'">Detail</button>';
+                        
+                        // Add target employee approval button if current user is the target employee
+                        if ($row->is_tukar_shift && $row->target_employee_id == $user->employee->id && $row->target_employee_approval_status === 'menunggu') {
+                            $buttons .= ' <button class="btn btn-warning btn-sm btn-target-approve" data-id="'.$row->id.'">Persetujuan</button>';
+                        }
+                        
+                        return $buttons;
+                    })
+                    ->rawColumns(['jenis', 'status_manager', 'status_hrd', 'status_target', 'action'])
                     ->make(true);
             }
             // Manager: data semua employee di divisinya (view=team)
@@ -54,7 +85,7 @@ class PengajuanGantiShiftController extends Controller
                 $division = $user->employee->division;
                 $employeeIds = $division ? $division->employees->pluck('id')->toArray() : [];
                 $data = PengajuanGantiShift::whereIn('employee_id', $employeeIds)
-                    ->with(['employee', 'shiftLama', 'shiftBaru'])
+                    ->with(['employee', 'shiftLama', 'shiftBaru', 'targetEmployee'])
                     ->latest()
                     ->get();
                 return DataTables::of($data)
@@ -70,6 +101,12 @@ class PengajuanGantiShiftController extends Controller
                     })
                     ->addColumn('shift_baru', function($row) {
                         return $row->shiftBaru->name . ' (' . $row->shiftBaru->start_time . '-' . $row->shiftBaru->end_time . ')';
+                    })
+                    ->addColumn('jenis', function($row) {
+                        if ($row->is_tukar_shift) {
+                            return '<span class="badge badge-info">Tukar Shift</span><br><small>dengan: ' . ($row->targetEmployee ? $row->targetEmployee->nama : 'N/A') . '</small>';
+                        }
+                        return '<span class="badge badge-secondary">Ganti Shift</span>';
                     })
                     ->addColumn('status_manager', function($row) {
                         return $this->renderStatusBadge($row->status_manager);
@@ -81,12 +118,12 @@ class PengajuanGantiShiftController extends Controller
                         }
                         return $buttons;
                     })
-                    ->rawColumns(['status_manager', 'action'])
+                    ->rawColumns(['jenis', 'status_manager', 'action'])
                     ->make(true);
             }
             // HRD: semua data untuk approval (view=approval)
             else if ($viewType == 'approval' && $user->hasRole('Hrd')) {
-                $data = PengajuanGantiShift::with(['employee', 'shiftLama', 'shiftBaru'])
+                $data = PengajuanGantiShift::with(['employee', 'shiftLama', 'shiftBaru', 'targetEmployee'])
                     ->latest()
                     ->get();
                 return DataTables::of($data)
@@ -103,11 +140,23 @@ class PengajuanGantiShiftController extends Controller
                     ->addColumn('shift_baru', function($row) {
                         return $row->shiftBaru->name . ' (' . $row->shiftBaru->start_time . '-' . $row->shiftBaru->end_time . ')';
                     })
+                    ->addColumn('jenis', function($row) {
+                        if ($row->is_tukar_shift) {
+                            return '<span class="badge badge-info">Tukar Shift</span><br><small>dengan: ' . ($row->targetEmployee ? $row->targetEmployee->nama : 'N/A') . '</small>';
+                        }
+                        return '<span class="badge badge-secondary">Ganti Shift</span>';
+                    })
                     ->addColumn('status_manager', function($row) {
                         return $this->renderStatusBadge($row->status_manager);
                     })
                     ->addColumn('status_hrd', function($row) {
                         return $this->renderStatusBadge($row->status_hrd);
+                    })
+                    ->addColumn('status_target', function($row) {
+                        if ($row->is_tukar_shift) {
+                            return $this->renderStatusBadge($row->target_employee_approval_status);
+                        }
+                        return '<span class="badge badge-light">N/A</span>';
                     })
                     ->addColumn('action', function($row) {
                         $buttons = '<button class="btn btn-info btn-sm btn-detail" data-id="'.$row->id.'">Detail</button>';
@@ -116,7 +165,7 @@ class PengajuanGantiShiftController extends Controller
                         }
                         return $buttons;
                     })
-                    ->rawColumns(['status_manager', 'status_hrd', 'action'])
+                    ->rawColumns(['jenis', 'status_manager', 'status_hrd', 'status_target', 'action'])
                     ->make(true);
             }
             // Default: data sendiri
@@ -176,11 +225,18 @@ class PengajuanGantiShiftController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
+        $rules = [
             'tanggal_shift' => 'required|date|after_or_equal:today',
             'shift_baru_id' => 'required|exists:hrd_shifts,id',
             'alasan' => 'required|string',
-        ]);
+        ];
+
+        // Add validation for tukar shift
+        if ($request->filled('is_tukar_shift') && $request->is_tukar_shift) {
+            $rules['target_employee_id'] = 'required|exists:hrd_employee,id';
+        }
+
+        $request->validate($rules);
 
         $employee = Auth::user()->employee;
         
@@ -202,18 +258,32 @@ class PengajuanGantiShiftController extends Controller
             ->where('date', $request->tanggal_shift)
             ->first();
 
-        $pengajuan = PengajuanGantiShift::create([
+        $data = [
             'employee_id' => $employee->id,
             'tanggal_shift' => $request->tanggal_shift,
             'shift_lama_id' => $currentSchedule ? $currentSchedule->shift_id : null,
             'shift_baru_id' => $request->shift_baru_id,
             'alasan' => $request->alasan,
-        ]);
+        ];
+
+        // Handle tukar shift
+        if ($request->filled('is_tukar_shift') && $request->is_tukar_shift) {
+            $data['is_tukar_shift'] = true;
+            $data['target_employee_id'] = $request->target_employee_id;
+            $data['target_employee_approval_status'] = 'menunggu';
+        }
+
+        $pengajuan = PengajuanGantiShift::create($data);
 
         if ($request->ajax()) {
             return response()->json(['data' => $pengajuan]);
         }
-        return redirect()->route('hrd.gantishift.index')->with('success', 'Pengajuan ganti shift berhasil diajukan.');
+        
+        $message = $request->filled('is_tukar_shift') && $request->is_tukar_shift 
+            ? 'Pengajuan tukar shift berhasil diajukan.'
+            : 'Pengajuan ganti shift berhasil diajukan.';
+            
+        return redirect()->route('hrd.gantishift.index')->with('success', $message);
     }
 
     public function persetujuanManager(Request $request, $id)
@@ -298,27 +368,37 @@ class PengajuanGantiShiftController extends Controller
         // If both manager and HRD approved, update the actual schedule
         if ($request->status === 'disetujui' && $pengajuan->status_manager === 'disetujui') {
             try {
-                $scheduleUpdated = EmployeeSchedule::updateOrCreate(
-                    [
+                if ($pengajuan->is_tukar_shift && $pengajuan->target_employee_approval_status === 'disetujui') {
+                    // Perform schedule swap for tukar shift
+                    $this->performScheduleSwap($pengajuan);
+                    $successMessage = 'Pengajuan tukar shift disetujui dan jadwal telah ditukar otomatis.';
+                } else if (!$pengajuan->is_tukar_shift) {
+                    // Regular shift change
+                    $scheduleUpdated = EmployeeSchedule::updateOrCreate(
+                        [
+                            'employee_id' => $pengajuan->employee_id,
+                            'date' => $pengajuan->tanggal_shift,
+                        ],
+                        [
+                            'shift_id' => $pengajuan->shift_baru_id,
+                        ]
+                    );
+
+                    Log::info('Schedule automatically updated after HRD approval', [
+                        'pengajuan_id' => $pengajuan->id,
                         'employee_id' => $pengajuan->employee_id,
-                        'date' => $pengajuan->tanggal_shift,
-                    ],
-                    [
-                        'shift_id' => $pengajuan->shift_baru_id,
-                    ]
-                );
-
-                Log::info('Schedule automatically updated after HRD approval', [
-                    'pengajuan_id' => $pengajuan->id,
-                    'employee_id' => $pengajuan->employee_id,
-                    'employee_name' => $pengajuan->employee->nama,
-                    'date' => $pengajuan->tanggal_shift->format('Y-m-d'),
-                    'new_shift_id' => $pengajuan->shift_baru_id,
-                    'new_shift_name' => $pengajuan->shiftBaru->name,
-                    'schedule_id' => $scheduleUpdated->id
-                ]);
-
-                $successMessage = 'Pengajuan ganti shift disetujui dan jadwal telah diperbarui otomatis.';
+                        'employee_name' => $pengajuan->employee->nama,
+                        'date' => $pengajuan->tanggal_shift->format('Y-m-d'),
+                        'new_shift_id' => $pengajuan->shift_baru_id,
+                        'new_shift_name' => $pengajuan->shiftBaru->name,
+                        'schedule_id' => $scheduleUpdated->id
+                    ]);
+                    
+                    $successMessage = 'Pengajuan ganti shift disetujui dan jadwal telah diperbarui otomatis.';
+                } else {
+                    // Tukar shift but target employee hasn't approved yet
+                    $successMessage = 'Pengajuan tukar shift disetujui HRD. Menunggu persetujuan dari karyawan tujuan.';
+                }
             } catch (\Exception $e) {
                 Log::error('Failed to update schedule after HRD approval', [
                     'pengajuan_id' => $pengajuan->id,
@@ -430,6 +510,119 @@ class PengajuanGantiShiftController extends Controller
             return response()->json([
                 'error' => 'Failed to load shift data: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    public function getEmployeesSameShift(Request $request)
+    {
+        try {
+            $date = $request->input('date');
+            $shiftId = $request->input('shift_id');
+            $user = Auth::user();
+            
+            if (!$user || !$user->employee) {
+                return response()->json(['error' => 'User not found'], 404);
+            }
+            
+            $currentEmployeeId = $user->employee->id;
+            
+            // Get employees with the same shift on the same date (excluding current user)
+            $schedules = EmployeeSchedule::where('date', $date)
+                ->where('shift_id', $shiftId)
+                ->where('employee_id', '!=', $currentEmployeeId)
+                ->with(['employee.position'])
+                ->get();
+            
+            $employees = $schedules->map(function ($schedule) {
+                $position = $schedule->employee->position ? $schedule->employee->position->nama : '';
+                return [
+                    'id' => $schedule->employee_id,
+                    'name' => $schedule->employee->nama,
+                    'position' => $position
+                ];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'employees' => $employees
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in getEmployeesSameShift: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to load employees: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function targetEmployeeApproval(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:disetujui,ditolak',
+            'notes' => 'nullable|string'
+        ]);
+
+        $user = Auth::user();
+        if (!$user || !$user->employee) {
+            return response()->json(['error' => 'User not found'], 404);
+        }
+
+        $pengajuan = PengajuanGantiShift::with(['employee', 'targetEmployee'])->findOrFail($id);
+        
+        // Check if current user is the target employee
+        if ($pengajuan->target_employee_id != $user->employee->id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Update target employee approval
+        $pengajuan->update([
+            'target_employee_approval_status' => $request->status,
+            'target_employee_notes' => $request->notes,
+            'target_employee_approval_date' => now(),
+        ]);
+
+        // Check if all approvals are complete and perform schedule swap
+        if ($pengajuan->isFullyApproved()) {
+            try {
+                $this->performScheduleSwap($pengajuan);
+                $successMessage = 'Pengajuan tukar shift disetujui dan jadwal telah ditukar otomatis.';
+            } catch (\Exception $e) {
+                Log::error('Error swapping schedules: ' . $e->getMessage());
+                $successMessage = 'Pengajuan disetujui tetapi terjadi error saat menukar jadwal.';
+            }
+        } else {
+            $successMessage = $request->status === 'disetujui' 
+                ? 'Pengajuan tukar shift disetujui. Menunggu persetujuan HRD.'
+                : 'Pengajuan tukar shift ditolak.';
+        }
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $successMessage
+            ]);
+        }
+
+        return redirect()->route('hrd.gantishift.index')->with('success', $successMessage);
+    }
+
+    private function performScheduleSwap($pengajuan)
+    {
+        // Get both employees' current schedules for the date
+        $requesterSchedule = EmployeeSchedule::where('employee_id', $pengajuan->employee_id)
+            ->where('date', $pengajuan->tanggal_shift)
+            ->first();
+            
+        $targetSchedule = EmployeeSchedule::where('employee_id', $pengajuan->target_employee_id)
+            ->where('date', $pengajuan->tanggal_shift)
+            ->first();
+
+        if ($requesterSchedule && $targetSchedule) {
+            // Swap the shifts
+            $tempShiftId = $requesterSchedule->shift_id;
+            $requesterSchedule->update(['shift_id' => $targetSchedule->shift_id]);
+            $targetSchedule->update(['shift_id' => $tempShiftId]);
+            
+            Log::info("Schedule swapped successfully for date {$pengajuan->tanggal_shift}: Employee {$pengajuan->employee_id} and Employee {$pengajuan->target_employee_id}");
         }
     }
 }
