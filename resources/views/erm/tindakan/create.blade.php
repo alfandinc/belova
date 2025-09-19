@@ -14,6 +14,33 @@
     margin-top: 20px;
     text-align: center;
 }
+/* Ensure custom modal content scrolls when tall */
+#modalCustomTindakan .modal-body {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+/* Tweak column widths inside the custom tindakan modal */
+#modalCustomTindakan .obat-list table td,
+#modalCustomTindakan .obat-list table th {
+    vertical-align: middle;
+}
+#modalCustomTindakan .obat-qty {
+    max-width: 90px;
+}
+#modalCustomTindakan .obat-dosis {
+    max-width: 140px;
+}
+#modalCustomTindakan .obat-satuan-dosis {
+    max-width: 140px;
+}
+#modalCustomTindakan .hpp-td {
+    min-width: 160px;
+    width: 160px;
+}
+#modalCustomTindakan .obat-list table td .form-control {
+    display: block;
+    width: 100%;
+}
 </style>
 
 @include('erm.partials.modal-alergipasien')
@@ -60,7 +87,7 @@
                                 <tr>
                                     <th>Tanggal</th>
                                     <th>Tindakan</th>
-                                    <th>Paket Tindakan</th>
+                                    
                                     <th>Dokter</th>
                                     <th>Spesialisasi</th>
                                     <th>Status</th>
@@ -77,8 +104,11 @@
         <!-- Tindakan DataTable -->
         <div class="col-lg-12 col-md-12 mb-3">
             <div class="card h-100">
-                <div class="card-header">
+                <div class="card-header d-flex align-items-center">
                     <h5 class="mb-0">Daftar Tindakan Dokter</h5>
+                    <div class="ml-auto">
+                        <button id="openCustomTindakanModal" class="btn btn-outline-primary btn-sm">Create Custom Tindakan</button>
+                    </div>
                 </div>
                 <div class="card-body p-2">
                     <div class="table-responsive">
@@ -220,6 +250,443 @@
                 },
             ],
         });
+
+                // Add Custom Tindakan modal HTML and handlers
+                const customModalHtml = `
+        <div class="modal fade" id="modalCustomTindakan" tabindex="-1" aria-hidden="true" data-backdrop="static" data-keyboard="false">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Create Custom Tindakan</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <form id="customTindakanForm">
+                    <div class="modal-body">
+                        <div class="form-row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Nama Tindakan</label>
+                                    <input id="customTindakanName" name="nama_tindakan" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label>Harga Tindakan (input)</label>
+                                    <input id="customTindakanHargaInput" name="harga" type="number" min="0" step="0.01" class="form-control" required value="0">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-group">
+                                    <label>Total HPP (Estimate)</label>
+                                    <input id="customTindakanHarga" type="text" class="form-control" readonly value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div id="customKodeTindakanContainer"></div>
+                        <div class="text-right mt-2">
+                                <button type="button" id="addKodeTindakanBtn" class="btn btn-primary btn-sm">Tambah Kode Tindakan</button>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success">Simpan Custom Tindakan</button>
+                    </div>
+                    </form>
+                </div>
+            </div>
+        </div>`;
+
+                // append modal to body once
+                if ($('#modalCustomTindakan').length === 0) {
+                    $('body').append(customModalHtml);
+                }
+
+                // small handler to add initial kode tindakan block and via button
+                $(document).on('click', '#addKodeTindakanBtn', function(){ addKodeTindakanBlock(); });
+                // add one on load to ensure UI isn't empty
+                $(document).ready(function(){ if ($('#customKodeTindakanContainer').children().length === 0) addKodeTindakanBlock(); });
+
+                // --- Custom Tindakan modal handlers ---
+                // Open modal
+                $(document).on('click', '#openCustomTindakanModal', function() {
+                    $('#customTindakanForm')[0].reset();
+                    $('#customKodeTindakanContainer').html('');
+                    addKodeTindakanBlock();
+                    $('#modalCustomTindakan').modal('show');
+                });
+
+                // Add kode tindakan block; kode chosen via Select2 (search existing kode tindakan)
+                function addKodeTindakanBlock(data = {}) {
+                    const index = Date.now();
+                    const html = `
+                        <div class="card mb-2 kode-tindakan-block" data-index="${index}">
+                            <div class="card-body">
+                                <div class="form-row">
+                                    <div class="col-md-6 mb-2">
+                                        <label> Pilih Kode Tindakan</label>
+                                        <select name="kode_tindakan_id[]" class="form-control kode-tindakan-select" style="width:100%"></select>
+                                    </div>
+                                    <div class="col-md-4 mb-2">
+                                        <label>HPP</label>
+                                        <input type="number" name="kode_tindakan_hpp[]" class="form-control kode-tindakan-hpp" value="${data.hpp||''}" step="0.01" readonly>
+                                    </div>
+                                    <div class="col-md-2 mb-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-danger remove-kode-tindakan ml-auto" title="Hapus"><i class="fas fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div class="obat-list">
+                                    <table class="table table-sm mb-0">
+                                                <thead>
+                                                    <tr><th>Obat/BHP</th><th>Qty</th><th>Dosis</th><th>Satuan</th><th>HPP Jual</th><th>Aksi</th></tr>
+                                                </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-secondary btn-sm add-obat-row">Tambah Obat/BHP</button>
+                                </div>
+                            </div>
+                        </div>`;
+                    $('#customKodeTindakanContainer').append(html);
+
+                    // initialize select2 on the newly added select
+                    const $select = $('#customKodeTindakanContainer').find('.kode-tindakan-block').last().find('.kode-tindakan-select');
+                    $select.select2({
+                        placeholder: 'Cari kode tindakan...',
+                        ajax: {
+                            url: '/erm/kodetindakan/search',
+                            dataType: 'json',
+                            delay: 250,
+                            data: function(params) { return { q: params.term }; },
+                            processResults: function(data) {
+                                return { results: data.results.map(r => ({ id: r.id, text: r.text })) };
+                            }
+                        },
+                        minimumInputLength: 1,
+                        width: '100%'
+                    });
+
+                    // whenever a kode hpp changes later, update the total harga
+                    updateModalHarga();
+
+                    // If data contains kode_id preselect it
+                    if (data.kode_id) {
+                        const option = new Option(data.text || data.name || data.kode_id, data.kode_id, true, true);
+                        $select.append(option).trigger('change');
+                        // load its obats
+                        loadKodeObatsIntoBlock(data.kode_id, $select.closest('.kode-tindakan-block'));
+                        // fetch kode details to fill hpp
+                        $.get(`/erm/kodetindakan/${data.kode_id}`, function(kd) {
+                            $select.closest('.kode-tindakan-block').find('.kode-tindakan-hpp').val(kd.hpp || '');
+                        });
+                    }
+                }
+
+                // When kode tindakan selected, load its obats and populate rows
+                $(document).on('change', '.kode-tindakan-select', function() {
+                    const kodeId = $(this).val();
+                    const block = $(this).closest('.kode-tindakan-block');
+                    if (kodeId) loadKodeObatsIntoBlock(kodeId, block);
+                    // also load kode details for HPP
+                    if (kodeId) {
+                        $.get(`/erm/kodetindakan/${kodeId}`, function(kd) {
+                            block.find('.kode-tindakan-hpp').val(kd.hpp || '');
+                            updateModalHarga();
+                        }).fail(function() {
+                            block.find('.kode-tindakan-hpp').val('');
+                            updateModalHarga();
+                        });
+                    } else {
+                        block.find('.kode-tindakan-hpp').val('');
+                        updateModalHarga();
+                    }
+                });
+
+                function loadKodeObatsIntoBlock(kodeId, $block) {
+                    const tbody = $block.find('tbody');
+                    tbody.html('<tr><td colspan="5" class="text-center">Loading...</td></tr>');
+                    $.get(`/erm/kodetindakan/${kodeId}/obats`, function(data) {
+                        tbody.html('');
+                        if (!data || data.length === 0) {
+                            tbody.html('<tr><td colspan="5" class="text-center text-muted">No obats</td></tr>');
+                            return;
+                        }
+                        data.forEach(function(o) {
+                            // combine dosis and satuan_dosis for display in the input
+                            const hppJual = o.hpp_jual ? Number(o.hpp_jual).toLocaleString('id-ID') : '-';
+                            const row = $(`<tr>
+                                <td><select class="form-control obat-select" style="width:100%"></select></td>
+                                <td><input type="number" name="obat_qty[]" class="form-control obat-qty" value="${o.qty||1}" min="1"></td>
+                                <td><input type="text" name="obat_dosis[]" class="form-control obat-dosis" value="${o.dosis || ''}"></td>
+                                <td><input type="text" name="obat_satuan_dosis[]" class="form-control obat-satuan-dosis" value="${o.satuan_dosis || ''}"></td>
+                                <td class="hpp-td text-right">${hppJual}</td>
+                                <td><button type="button" class="btn btn-danger btn-sm remove-obat-row" title="Hapus"><i class="fas fa-trash"></i></button></td>
+                            </tr>`);
+                            tbody.append(row);
+                            // init obat select with preselected value
+                            const $sel = row.find('.obat-select');
+                            const option = new Option(o.nama, o.id, true, true);
+                            $sel.append(option).trigger('change');
+                            // init select2 with obat search endpoint
+                            $sel.select2({
+                                placeholder: 'Cari obat...',
+                                ajax: {
+                                    url: '/obat/search',
+                                    dataType: 'json',
+                                    delay: 250,
+                                    data: function(params) { return { q: params.term }; },
+                                    processResults: function(data) { return data.results ? { results: data.results } : { results: data }; }
+                                },
+                                minimumInputLength: 1,
+                                width: '100%'
+                            });
+                            // set hpp cell for preselected
+                            const hppCell = row.find('.hpp-td');
+                            if (o.hpp_jual) {
+                                hppCell.text(Number(o.hpp_jual).toLocaleString('id-ID'));
+                            }
+                        });
+                    }).fail(function() {
+                        tbody.html('<tr><td colspan="5" class="text-center text-danger">Failed loading obats</td></tr>');
+                    });
+                }
+
+                // Remove kode tindakan block
+                $(document).on('click', '.remove-kode-tindakan', function() {
+                    $(this).closest('.kode-tindakan-block').remove();
+                    updateModalHarga();
+                });
+
+                // Update modal harga by summing kode-tindakan-hpp inputs
+                function updateModalHarga() {
+                    let total = 0;
+                    $('#customKodeTindakanContainer').find('.kode-tindakan-hpp').each(function() {
+                        const v = parseFloat($(this).val());
+                        if (!isNaN(v)) total += v;
+                    });
+                    $('#customTindakanHarga').val(new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(total));
+                }
+
+                // Add obat row (with Select2 obat lookup)
+                $(document).on('click', '.add-obat-row', function() {
+                    const tbody = $(this).closest('.kode-tindakan-block').find('tbody');
+                    const row = $(`<tr>
+                        <td><select class="form-control obat-select" style="width:100%"></select></td>
+                        <td><input type="number" name="obat_qty[]" class="form-control obat-qty" value="1" min="1"></td>
+                        <td><input type="text" name="obat_dosis[]" class="form-control obat-dosis" placeholder=""></td>
+                        <td><input type="text" name="obat_satuan_dosis[]" class="form-control obat-satuan-dosis" placeholder=""></td>
+                        <td class="hpp-td text-right">-</td>
+                        <td><button type="button" class="btn btn-danger btn-sm remove-obat-row" title="Hapus"><i class="fas fa-trash"></i></button></td>
+                    </tr>`);
+                    tbody.append(row);
+                    // init select2 for obat with ajax to existing endpoint
+                    row.find('.obat-select').select2({
+                        placeholder: 'Cari obat...',
+                        ajax: {
+                            url: '/obat/search',
+                            dataType: 'json',
+                            delay: 250,
+                            data: function(params) { return { q: params.term }; },
+                            processResults: function(data) { return data.results ? { results: data.results } : { results: data }; }
+                        },
+                        minimumInputLength: 1,
+                        width: '100%'
+                    });
+                    // when user selects an obat, update the HPP cell
+                    row.find('.obat-select').on('select2:select', function(e) {
+                        const selected = e.params.data;
+                        const hppCell = $(this).closest('tr').find('.hpp-td');
+                        if (selected && selected.hpp_jual) {
+                            hppCell.text(Number(selected.hpp_jual).toLocaleString('id-ID'));
+                        } else {
+                            // try fetching full obat detail if not provided
+                            const obatId = selected.id;
+                            if (obatId) {
+                                $.get('/erm/ajax/obat/' + obatId, function(d) {
+                                    if (d && d.hpp_jual) hppCell.text(Number(d.hpp_jual).toLocaleString('id-ID'));
+                                }).fail(function() { hppCell.text('-'); });
+                            } else {
+                                hppCell.text('-');
+                            }
+                        }
+                    });
+                });
+
+                // Remove obat row
+                $(document).on('click', '.remove-obat-row', function() {
+                    $(this).closest('tr').remove();
+                });
+
+                // Submit custom tindakan via AJAX
+                $(document).on('submit', '#customTindakanForm', function(e) {
+                    e.preventDefault();
+                    const form = $(this);
+                    const payload = { kode_tindakans: [] };
+                    $('#customKodeTindakanContainer .kode-tindakan-block').each(function() {
+                        const block = $(this);
+                        const kodeId = block.find('.kode-tindakan-select').val();
+                        const kodeHarga = block.find('.kode-tindakan-hpp').val() || null;
+                        const obats = [];
+                        block.find('tbody tr').each(function() {
+                            const r = $(this);
+                            const obatId = r.find('.obat-select').val();
+                            const qty = r.find('.obat-qty').val() || 1;
+                            const dosis = r.find('.obat-dosis').val() || null;
+                            const satuan = r.find('.obat-satuan-dosis').val() || null;
+                            if (obatId) {
+                                obats.push({ obat_id: obatId, qty: qty, dosis: dosis, satuan_dosis: satuan });
+                            }
+                        });
+                        // include current display text for kode so we can show it in confirmation form
+                        const kodeText = block.find('.kode-tindakan-select').find('option:selected').text() || '';
+                        payload.kode_tindakans.push({ kode_id: kodeId, hpp: kodeHarga, obats: obats, kode_text: kodeText });
+                    });
+                    // Basic validation
+                    if (payload.kode_tindakans.length === 0) {
+                        Swal.fire('Error', 'Tambahkan minimal 1 kode tindakan', 'error');
+                        return;
+                    }
+
+                    Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+                    // Determine which kode entries had their obat lists modified compared to original template
+                    // We'll compare qty, dosis and satuan_dosis as well (not just IDs)
+                    const createNewKodeFor = [];
+                    // payload.kode_tindakans corresponds to blocks; use it to compare with server canonical
+                    for (let i = 0; i < payload.kode_tindakans.length; i++) {
+                        const entry = payload.kode_tindakans[i];
+                        const kodeId = entry.kode_id;
+                        if (!kodeId) continue;
+
+                        // fetch canonical obats for this kode synchronously (we need result before prompting)
+                        let canonical = [];
+                        $.ajax({ url: `/erm/kodetindakan/${kodeId}/obats`, method: 'GET', async: false })
+                        .done(function(kodeObats) {
+                            canonical = kodeObats || [];
+                        }).fail(function() {
+                            canonical = [];
+                        });
+
+                        // normalize canonical into map by obat_id
+                        const canonicalMap = {};
+                        canonical.forEach(function(o) {
+                            canonicalMap['' + o.id] = {
+                                qty: (o.qty !== undefined && o.qty !== null) ? (''+o.qty) : '1',
+                                dosis: (o.dosis !== undefined && o.dosis !== null) ? (''+o.dosis) : '',
+                                satuan_dosis: (o.satuan_dosis !== undefined && o.satuan_dosis !== null) ? (''+o.satuan_dosis) : ''
+                            };
+                        });
+
+                        // normalize UI/provided obats into map
+                        const uiMap = {};
+                        (entry.obats || []).forEach(function(o) {
+                            uiMap['' + o.obat_id] = {
+                                qty: (o.qty !== undefined && o.qty !== null) ? (''+o.qty) : '1',
+                                dosis: (o.dosis !== undefined && o.dosis !== null) ? (''+o.dosis) : '',
+                                satuan_dosis: (o.satuan_dosis !== undefined && o.satuan_dosis !== null) ? (''+o.satuan_dosis) : ''
+                            };
+                        });
+
+                        // quick comparisons: length / keys
+                        const canonicalIds = Object.keys(canonicalMap).sort();
+                        const uiIds = Object.keys(uiMap).sort();
+                        let edited = false;
+                        if (canonicalIds.length !== uiIds.length) edited = true;
+                        else {
+                            for (let k = 0; k < canonicalIds.length; k++) {
+                                if (canonicalIds[k] !== uiIds[k]) { edited = true; break; }
+                                const id = canonicalIds[k];
+                                const c = canonicalMap[id];
+                                const u = uiMap[id];
+                                if (!u || c.qty !== u.qty || c.dosis !== u.dosis || c.satuan_dosis !== u.satuan_dosis) {
+                                    edited = true; break;
+                                }
+                            }
+                        }
+
+                        if (edited) createNewKodeFor.push(kodeId);
+                    }
+
+                    const finalPayload = {
+                        nama_tindakan: $('#customTindakanName').val(),
+                        harga: parseFloat($('#customTindakanHargaInput').val()) || 0,
+                        spesialis_id: spesialisasiId,
+                        kode_tindakans: payload.kode_tindakans,
+                        visitation_id: {{ $visitation->id }},
+                        create_new_kode_for: createNewKodeFor,
+                    };
+
+                    function doSubmit(createNew) {
+                        Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                        $.ajax({
+                            url: '/erm/tindakan/custom',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify(finalPayload),
+                            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                            success: function(res) {
+                                Swal.close();
+                                if (res.success) {
+                                    Swal.fire('Berhasil', res.message || 'Custom tindakan disimpan', 'success')
+                                        .then(() => { $('#modalCustomTindakan').modal('hide'); $('#tindakanTable').DataTable().ajax.reload(); });
+                                } else {
+                                    Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                                }
+                            },
+                            error: function(xhr) {
+                                Swal.close();
+                                console.error(xhr);
+                                Swal.fire('Error', 'Terjadi kesalahan server', 'error');
+                            }
+                        });
+                    }
+
+                    if (createNewKodeFor.length > 0) {
+                        // build HTML inputs for new kode names
+                        let html = `<p>Anda telah mengubah bundel obat untuk ${createNewKodeFor.length} kode tindakan.</p>`;
+                        html += `<p>Masukkan nama baru untuk setiap kode (kosongkan untuk pakai nama default):</p>`;
+                        createNewKodeFor.forEach(function(kid) {
+                            // find payload entry for this kode
+                            const p = payload.kode_tindakans.find(e => (''+e.kode_id) === (''+kid));
+                            const display = p ? (p.kode_text || '') : '';
+                            const inputId = `new_kode_name_${kid}`;
+                            html += `<div style="margin-bottom:8px"><label style="font-weight:600">${display}</label><input id="${inputId}" class="swal2-input" placeholder="Nama kode baru" value="${display} (salin)"></div>`;
+                        });
+
+                        // hide bootstrap modal so SweetAlert can accept focus/input
+                        $('#modalCustomTindakan').modal('hide');
+                        Swal.fire({
+                            title: 'Buat Kode Tindakan Baru?',
+                            html: html,
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonText: 'Ya, buat kode baru',
+                            cancelButtonText: 'Tidak, pakai kode lama',
+                            preConfirm: () => {
+                                const results = [];
+                                createNewKodeFor.forEach(function(kid) {
+                                    const input = document.getElementById(`new_kode_name_${kid}`);
+                                    const val = input ? input.value.trim() : '';
+                                    results.push({ kode_id: kid, new_name: val });
+                                });
+                                return results;
+                            }
+                        }).then((result) => {
+                            if (result.value) {
+                                finalPayload.create_new_kode_for = result.value || [];
+                                doSubmit(true);
+                            } else {
+                                // user cancelled the Swal -> reopen modal for further edits
+                                finalPayload.create_new_kode_for = [];
+                                $('#modalCustomTindakan').modal('show');
+                            }
+                        });
+                    } else {
+                        doSubmit(false);
+                    }
+                });
 
         // Initialize Paket Tindakan DataTable
         $('#paketTindakanTable').DataTable({

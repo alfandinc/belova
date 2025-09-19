@@ -54,6 +54,10 @@ class TindakanController extends Controller
                     'updated_at' => now(),
                 ]);
             }
+
+            // set tindakan harga to total HPP of attached kode tindakan
+            $tindakan->harga = $totalHpp;
+            $tindakan->save();
         }
 
         return response()->json(['success' => true, 'message' => 'Obat berhasil disimpan']);
@@ -160,6 +164,167 @@ class TindakanController extends Controller
                 return '<button class="btn btn-success btn-sm buat-paket-tindakan" data-id="' . $row->id . '" data-tindakan=\'' . $tindakanJson . '\'>Buat</button>';
             })
             ->make(true);
+    }
+
+    /**
+     * Store a custom tindakan created from the modal (AJAX)
+     */
+    public function storeCustomTindakan(Request $request)
+    {
+        $data = $request->validate([
+            'nama_tindakan' => 'required|string|max:255',
+            'deskripsi' => 'nullable|string',
+            'spesialis_id' => 'nullable|exists:erm_spesialisasis,id',
+            'harga' => 'nullable|numeric',
+            'kode_tindakans' => 'required|array|min:1',
+            'kode_tindakans.*.kode_id' => 'required|integer|exists:erm_kode_tindakan,id',
+            'kode_tindakans.*.obats' => 'nullable|array',
+            'kode_tindakans.*.obats.*.obat_id' => 'required|integer|exists:erm_obat,id',
+            'kode_tindakans.*.obats.*.qty' => 'nullable|numeric',
+            'kode_tindakans.*.obats.*.dosis' => 'nullable|string',
+            'create_new_kode_for' => 'nullable|array',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $tindakan = new Tindakan();
+            $tindakan->nama = $data['nama_tindakan'];
+            $tindakan->deskripsi = $data['deskripsi'] ?? null;
+            // prefer visitation's dokter spesialis if provided via request visitation_id
+            $spesialisId = $data['spesialis_id'] ?? null;
+            if (isset($data['visitation_id'])) {
+                $vis = Visitation::find($data['visitation_id']);
+                if ($vis && $vis->dokter) {
+                    $spesialisId = $vis->dokter->spesialisasi_id;
+                }
+            }
+            $tindakan->spesialis_id = $spesialisId ?? null;
+            // harga is explicitly provided by user (not auto HPP); save if present
+            if (isset($data['harga'])) {
+                $tindakan->harga = $data['harga'];
+            }
+            $tindakan->save();
+
+            $createdKode = [];
+            $totalHpp = 0;
+            // create_new_kode_for can be an array of kode ids or array of objects {kode_id, new_name}
+            $createNewForRaw = $data['create_new_kode_for'] ?? [];
+            $createNewFor = [];
+            $createNewNames = [];
+            if (!empty($createNewForRaw)) {
+                // normalize
+                foreach ($createNewForRaw as $c) {
+                    if (is_array($c) && isset($c['kode_id'])) {
+                        $createNewFor[] = $c['kode_id'];
+                        if (!empty($c['new_name'])) $createNewNames[$c['kode_id']] = $c['new_name'];
+                    } else {
+                        // maybe plain id
+                        $createNewFor[] = $c;
+                    }
+                }
+            }
+            foreach ($data['kode_tindakans'] as $kodeEntry) {
+                $kodeId = $kodeEntry['kode_id'];
+
+                // decide whether to clone kode (user requested create_new_kode_for)
+                $finalKodeId = $kodeId;
+                if (in_array($kodeId, $createNewFor)) {
+                    // clone kode tindakan and its pivot obats
+                    $orig = \App\Models\ERM\KodeTindakan::with('obats')->find($kodeId);
+                    if ($orig) {
+                        $clone = $orig->replicate();
+                        // use provided new name if available
+                        $providedName = $createNewNames[$kodeId] ?? null;
+                        $clone->kode = $orig->kode . '-copy-' . time();
+                        $clone->nama = $providedName ?: ($orig->nama . ' (salin)');
+                        $clone->created_at = now();
+                        $clone->updated_at = now();
+                        $clone->save();
+                        // If frontend provided edited obats for this kodeEntry, use them to populate kode_tindakan_obat for the clone;
+                        // otherwise copy obat pivots from original kode.
+                        $providedObats = $kodeEntry['obats'] ?? null;
+                        if (!empty($providedObats) && is_array($providedObats)) {
+                            foreach ($providedObats as $provided) {
+                                DB::table('erm_kode_tindakan_obat')->insert([
+                                    'kode_tindakan_id' => $clone->id,
+                                    'obat_id' => $provided['obat_id'],
+                                    'qty' => $provided['qty'] ?? 1,
+                                    'dosis' => $provided['dosis'] ?? null,
+                                    'satuan_dosis' => $provided['satuan_dosis'] ?? null,
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ]);
+                            }
+                        } else {
+                            foreach ($orig->obats as $ko) {
+                                $pivot = $ko->pivot;
+                                DB::table('erm_kode_tindakan_obat')->insert([
+                                    'kode_tindakan_id' => $clone->id,
+                                    'obat_id' => $ko->id,
+                                    'qty' => $pivot->qty ?? 1,
+                                    'dosis' => $pivot->dosis ?? null,
+                                    'satuan_dosis' => $pivot->satuan_dosis ?? null,
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ]);
+                            }
+                        }
+                        $finalKodeId = $clone->id;
+                    }
+                }
+
+                // attach kode to tindakan (either original or clone)
+                $tindakan->kodeTindakans()->attach($finalKodeId, ['created_at' => now(), 'updated_at' => now()]);
+                $createdKode[] = $finalKodeId;
+
+                // sum kode.hpp from model (ignore frontend input)
+                $kodeModel = \App\Models\ERM\KodeTindakan::find($finalKodeId);
+                if ($kodeModel) {
+                    $totalHpp += (float) $kodeModel->hpp;
+                }
+
+                // determine obats to attach: frontend-provided or fallback to kode's default
+                $obatsToAttach = [];
+                if (!empty($kodeEntry['obats']) && is_array($kodeEntry['obats'])) {
+                    // normalize provided obats
+                    foreach ($kodeEntry['obats'] as $ob) {
+                        $obatsToAttach[] = [
+                            'obat_id' => $ob['obat_id'],
+                            'qty' => $ob['qty'] ?? 1,
+                            'dosis' => $ob['dosis'] ?? null,
+                            'satuan_dosis' => $ob['satuan_dosis'] ?? null,
+                        ];
+                    }
+                } else {
+                    $kode = \App\Models\ERM\KodeTindakan::with('obats')->find($kodeId);
+                    if ($kode && $kode->obats) {
+                        foreach ($kode->obats as $ko) {
+                            $pivot = $ko->pivot ?? null;
+                                    $obatsToAttach[] = [
+                                        'obat_id' => $ko->id,
+                                        'qty' => $pivot->qty ?? 1,
+                                        'dosis' => $pivot->dosis ?? null,
+                                        'satuan_dosis' => $pivot->satuan_dosis ?? null,
+                                    ];
+                        }
+                    }
+                }
+
+                // Note: bundling of obat per kode is persisted on the kode side (erm_kode_tindakan_obat).
+                // We intentionally do not insert qty/dosis into erm_tindakan_obat here because that table
+                // in this project does not accept those columns. The relationship is: kode_tindakan -> obat,
+                // and tindakan -> kode_tindakan via pivot; obat bundling should be read from kode_tindakan_obat when needed.
+            }
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'tindakan_id' => $tindakan->id, 'kode_tindakans' => $createdKode]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('storeCustomTindakan error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Gagal membuat custom tindakan'], 500);
+        }
     }
 
     public function informConsent($id)

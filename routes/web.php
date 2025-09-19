@@ -192,6 +192,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/stok-gudang/nilai-stok', [\App\Http\Controllers\ERM\StokGudangController::class, 'getNilaiStok'])->name('erm.stok-gudang.nilai-stok');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
 
+    // Allow ERM pages to search kode tindakan and fetch bundled obats without requiring Marketing role
+    Route::get('/kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search']);
+    Route::get('/kodetindakan/{id}/obats', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
+    // Allow ERM pages to get kode tindakan details (includes hpp)
+    Route::get('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
+
     // AJAX: Get allow_post value for InformConsent
     Route::get('/inform-consent/{id}/get', [App\Http\Controllers\ERM\TindakanController::class, 'getInformConsentAllowPost']);
     
@@ -257,6 +263,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::post('stokopname-item/{id}/update-stok-fisik', [App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFisik'])->name('erm.stokopnameitem.update-stok-fisik');
     // AJAX endpoints for select2 (controller)
     Route::get('ajax/obat', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxObat']);
+    // Single obat details for AJAX (used by various JS fallbacks)
+    Route::get('ajax/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'edit']);
     Route::get('ajax/pemasok', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPemasok']);
 
         // Kartu Stok
@@ -444,6 +452,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     //Tindakan & Inform Consent
     Route::get('/tindakan/{visitation_id}/create', [TindakanController::class, 'create'])->name('erm.tindakan.create');
     Route::get('/tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getTindakanData'])->name('erm.tindakan.data');
+    // Custom Tindakan creation (AJAX)
+    Route::post('/tindakan/custom', [TindakanController::class, 'storeCustomTindakan']);
     Route::get('/paket-tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getPaketTindakanData'])->name('erm.paket-tindakan.data');
     Route::get('/tindakan/inform-consent/{id}', [TindakanController::class, 'informConsent'])->name('erm.tindakan.inform-consent');
     Route::post('/tindakan/inform-consent/save', [TindakanController::class, 'saveInformConsent'])->name('erm.tindakan.inform-consent.save');
