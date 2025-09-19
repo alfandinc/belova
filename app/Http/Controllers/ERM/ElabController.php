@@ -72,7 +72,19 @@ class ElabController extends Controller
                 $visitations->where('status_kunjungan', 2);
             }
 
+            // Calculate aggregated total nominal for the filtered visitations
+            $totalNominalQuery = clone $visitations->getQuery();
+            // Sum the nominal column (which comes from the leftJoinSub as lp.nominal via COALESCE)
+            try {
+                $totalNominal = $totalNominalQuery->get()->sum('nominal');
+            } catch (\Exception $e) {
+                // Fallback: 0 if anything goes wrong
+                $totalNominal = 0;
+                Log::error('Failed to calculate total nominal for elab index: ' . $e->getMessage());
+            }
+
             return datatables()->of($visitations)
+                ->with(['total_nominal' => $totalNominal])
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
                 ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
                 ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
