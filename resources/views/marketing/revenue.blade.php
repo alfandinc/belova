@@ -5,6 +5,84 @@
 @endsection
 
 @section('content')
+<style>
+.border-left-primary {
+    border-left: 4px solid #4e73df !important;
+}
+.border-left-success {
+    border-left: 4px solid #1cc88a !important;
+}
+.border-left-warning {
+    border-left: 4px solid #f6c23e !important;
+}
+.border-left-info {
+    border-left: 4px solid #36b9cc !important;
+}
+.icon-lg {
+    width: 2.5rem;
+    height: 2.5rem;
+}
+.avatar-sm {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Fix chart container overlapping issues */
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Ensure cards don't overlap */
+.card {
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+/* Fix ApexCharts positioning issues */
+.apexcharts-canvas {
+    position: relative !important;
+}
+
+/* Loading spinner styling */
+.chart-container .text-center {
+    padding: 2rem;
+    color: #6c757d;
+}
+
+/* Prevent text wrapping issues in summary cards */
+.card-body h4 {
+    word-break: break-word;
+    font-size: 1.25rem;
+    line-height: 1.2;
+}
+
+/* Select2 customization for clinic filter */
+.select2-container--bootstrap4 .select2-selection--single {
+    height: calc(1.5em + 0.5rem + 2px) !important;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.875rem !important;
+    border-color: #ced4da !important;
+}
+
+.select2-container--bootstrap4 .select2-selection__rendered {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    line-height: calc(1.5em + 0.5rem) !important;
+}
+
+.select2-container--bootstrap4 .select2-selection__arrow {
+    height: calc(1.5em + 0.5rem) !important;
+}
+
+/* Ensure Select2 dropdown appears above other elements */
+.select2-dropdown {
+    z-index: 9999 !important;
+}
+</style>
 <div class="container-fluid">
     <!-- Page Title & Filters -->
     <div class="row">
@@ -728,81 +806,4 @@ function initializeCharts(data) {
 </script>
 @endpush
 
-<style>
-.border-left-primary {
-    border-left: 4px solid #4e73df !important;
-}
-.border-left-success {
-    border-left: 4px solid #1cc88a !important;
-}
-.border-left-warning {
-    border-left: 4px solid #f6c23e !important;
-}
-.border-left-info {
-    border-left: 4px solid #36b9cc !important;
-}
-.icon-lg {
-    width: 2.5rem;
-    height: 2.5rem;
-}
-.avatar-sm {
-    width: 2rem;
-    height: 2rem;
-}
 
-/* Fix chart container overlapping issues */
-.chart-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-}
-
-/* Ensure cards don't overlap */
-.card {
-    margin-bottom: 1rem;
-    position: relative;
-    z-index: 1;
-}
-
-/* Fix ApexCharts positioning issues */
-.apexcharts-canvas {
-    position: relative !important;
-}
-
-/* Loading spinner styling */
-.chart-container .text-center {
-    padding: 2rem;
-    color: #6c757d;
-}
-
-/* Prevent text wrapping issues in summary cards */
-.card-body h4 {
-    word-break: break-word;
-    font-size: 1.25rem;
-    line-height: 1.2;
-}
-
-/* Select2 customization for clinic filter */
-.select2-container--bootstrap4 .select2-selection--single {
-    height: calc(1.5em + 0.5rem + 2px) !important;
-    padding: 0.25rem 0.5rem !important;
-    font-size: 0.875rem !important;
-    border-color: #ced4da !important;
-}
-
-.select2-container--bootstrap4 .select2-selection__rendered {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    line-height: calc(1.5em + 0.5rem) !important;
-}
-
-.select2-container--bootstrap4 .select2-selection__arrow {
-    height: calc(1.5em + 0.5rem) !important;
-}
-
-/* Ensure Select2 dropdown appears above other elements */
-.select2-dropdown {
-    z-index: 9999 !important;
-}
-</style>
