@@ -8,6 +8,8 @@ use App\Http\Controllers\ERM\Helper\KunjunganHelperController;
 use App\Models\ERM\AsesmenPerawat;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class AsesmenPerawatController extends Controller
 {
@@ -27,18 +29,48 @@ class AsesmenPerawatController extends Controller
 
     public function store(Request $request)
     {
-        // Validasi input wajib
-        $validated = $request->validate([
+        // Ambil visitation & pasien untuk cek umur
+        $visitation = Visitation::findOrFail($request->visitation_id);
+        $pasien = $visitation->pasien;
+
+        // Hitung umur pasien (tahun). Jika tanggal_lahir tidak tersedia, anggap dewasa false (umur 0)
+        $age = 0;
+        if ($pasien && $pasien->tanggal_lahir) {
+            try {
+                $age = Carbon::parse($pasien->tanggal_lahir)->age;
+            } catch (\Exception $e) {
+                $age = 0;
+            }
+        }
+
+        // Validasi input wajib umum
+        $rules = [
             'keluhan_utama' => 'required',
             'alasan_kunjungan' => 'required',
             'kesadaran' => 'required',
-            'td' => 'required',
-            'nadi' => 'required',
-            'rr' => 'required',
-            'suhu' => 'required',
-        ]);
+        ];
 
-        $user = auth()->id();
+        // Jika pasien > 17 tahun, jadikan vitals wajib dan tambahkan aturan format/range
+        if ($age > 17) {
+            $rules = array_merge($rules, [
+                'td' => ['required', 'regex:/^\d{2,3}\/\d{2,3}$/'],
+                'nadi' => 'required|integer|between:40,140',
+                'rr' => 'required|integer|between:15,60',
+                'suhu' => 'required|numeric|between:35,41',
+            ]);
+        } else {
+            // Untuk pasien <=17 tahun, terima nilai vitals jika ada, tapi tidak wajib.
+            $rules = array_merge($rules, [
+                'td' => ['nullable', 'regex:/^\d{2,3}\/\d{2,3}$/'],
+                'nadi' => 'nullable|integer|between:40,140',
+                'rr' => 'nullable|integer|between:15,60',
+                'suhu' => 'nullable|numeric|between:35,41',
+            ]);
+        }
+
+        $validated = $request->validate($rules);
+
+    $user = Auth::id();
 
         // Tangani masalah keperawatan
         $masalah = $request->input('masalah_keperawatan', []); // checkbox array
@@ -50,7 +82,7 @@ class AsesmenPerawatController extends Controller
             }, $masalah);
         }
 
-        $visitation = Visitation::findOrFail($request->visitation_id); // Find the visitation by ID
+        // gunakan $visitation yang sudah diambil di atas
         $visitation->status_kunjungan = 1; // Change progress to 1
         $visitation->status_dokumen = 'asesmen';
         $visitation->save(); // Save the updated visitation
