@@ -150,7 +150,8 @@
 </div>
 
 <!-- Modal for Create/Edit Tindakan -->
-<div class="modal fade" id="tindakanModal" tabindex="-1" role="dialog" aria-labelledby="tindakanModalLabel" aria-hidden="true">
+<!-- Make this modal non-dismissible by clicking backdrop or pressing Escape; only the top-right X can close it -->
+<div class="modal fade" id="tindakanModal" tabindex="-1" role="dialog" aria-labelledby="tindakanModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
@@ -238,7 +239,8 @@
                     </div> --}}
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <!-- Footer Close intentionally does not dismiss the modal: only the X in the header will close -->
+                    <button type="button" class="btn btn-secondary" id="tindakanModalFooterClose">Close</button>
                     <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
                 </div>
             </form>
@@ -677,6 +679,22 @@
             $('#tindakanSopList').empty(); // Clear SOP list when adding new tindakan
             $('#kodeTindakanTable tbody').empty(); // Clear kode tindakan table rows
             $('#tindakanModal').modal('show');
+        });
+
+        // Footer Close: ask confirmation before hiding since modal is non-dismissible
+        $(document).on('click', '#tindakanModalFooterClose', function() {
+            Swal.fire({
+                title: 'Close form?',
+                text: 'Any unsaved changes will be lost. Are you sure you want to close?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, close',
+                cancelButtonText: 'Cancel'
+            }).then(function(result) {
+                if (result.value) {
+                    $('#tindakanModal').modal('hide');
+                }
+            });
         });
         
         // Edit tindakan

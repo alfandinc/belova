@@ -30,7 +30,8 @@
 </div>
 
 <!-- Modal -->
-<div class="modal fade" id="kodeTindakanModal" tabindex="-1" role="dialog" aria-labelledby="kodeTindakanModalLabel" aria-hidden="true">
+<!-- Make this modal non-dismissible by backdrop click or Escape; only the header X immediately closes -->
+<div class="modal fade" id="kodeTindakanModal" tabindex="-1" role="dialog" aria-labelledby="kodeTindakanModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
     <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <form id="kodeTindakanForm">
@@ -79,10 +80,11 @@
                     </table>
                     <button type="button" class="btn btn-success btn-sm" id="addObatRow">Tambah Obat</button>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-          <button type="submit" class="btn btn-primary">Simpan</button>
-        </div>
+                <div class="modal-footer">
+                    <!-- Footer cancel does not auto-dismiss; asks for confirmation -->
+                    <button type="button" class="btn btn-secondary" id="kodeTindakanModalCancel">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
       </form>
     </div>
   </div>
@@ -200,6 +202,22 @@ $(document).ready(function() {
         $('#kodeTindakanModal').modal('show');
     });
 
+    // Footer Cancel: ask confirmation before hiding since modal is non-dismissible
+    $(document).on('click', '#kodeTindakanModalCancel', function() {
+        Swal.fire({
+            title: 'Tutup formulir?',
+            text: 'Perubahan yang belum disimpan akan hilang. Yakin ingin menutup?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, tutup',
+            cancelButtonText: 'Batal'
+        }).then(function(result) {
+            if (result.value) {
+                $('#kodeTindakanModal').modal('hide');
+            }
+        });
+    });
+
     // Show modal for edit
     $('#kodeTindakanTable').on('click', '.btn-edit', function() {
         var id = $(this).data('id');
@@ -255,7 +273,7 @@ $(document).ready(function() {
             confirmButtonText: 'Ya, hapus!',
             cancelButtonText: 'Batal'
         }).then((result) => {
-            if (result.isConfirmed) {
+            if (result.value) {
                 $.ajax({
                     url: '/marketing/kodetindakan/' + id,
                     type: 'DELETE',
