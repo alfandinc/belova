@@ -279,7 +279,7 @@
                             </div>
                             <div class="col-md-3">
                                 <div class="form-group">
-                                    <label>Total HPP (Estimate)</label>
+                                    <label>Rekomendasi Harga</label>
                                     <input id="customTindakanHarga" type="text" class="form-control" readonly value="0">
                                 </div>
                             </div>
