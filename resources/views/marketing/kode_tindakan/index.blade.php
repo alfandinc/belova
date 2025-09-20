@@ -21,6 +21,8 @@
                         <th>Nama</th>
                         <th>HPP</th>
                         <th>Harga Jasmed</th>
+                        <th>Harga Jual</th>
+                        <th>Harga Bottom</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -54,11 +56,19 @@
                         </div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-3">
                             <label for="hpp">HPP</label>
                             <input type="number" step="0.01" class="form-control" id="hpp" name="hpp">
                         </div>
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-3">
+                            <label for="harga_jual">Harga Jual</label>
+                            <input type="number" step="0.01" class="form-control" id="harga_jual" name="harga_jual">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label for="harga_bottom">Harga Bottom</label>
+                            <input type="number" step="0.01" class="form-control" id="harga_bottom" name="harga_bottom">
+                        </div>
+                        <div class="form-group col-md-3">
                             <label for="harga_jasmed">Harga Jasmed</label>
                             <input type="number" step="0.01" class="form-control" id="harga_jasmed" name="harga_jasmed">
                         </div>
@@ -198,6 +208,9 @@ $(document).ready(function() {
         $('#kodeTindakanForm')[0].reset();
         $('#kodeTindakanId').val('');
         $('#obatTable tbody').empty();
+        $('#harga_jasmed').val('');
+        $('#harga_jual').val('');
+        $('#harga_bottom').val('');
         $('#kodeTindakanModalLabel').text('Tambah Kode Tindakan');
         $('#kodeTindakanModal').modal('show');
     });
@@ -227,6 +240,8 @@ $(document).ready(function() {
             $('#nama').val(data.nama);
             $('#hpp').val(data.hpp);
             $('#harga_jasmed').val(data.harga_jasmed);
+            $('#harga_jual').val(data.harga_jual);
+            $('#harga_bottom').val(data.harga_bottom);
             $('#obatTable tbody').empty();
             if (data.obats && data.obats.length) {
                 data.obats.forEach(function(obat, idx) {

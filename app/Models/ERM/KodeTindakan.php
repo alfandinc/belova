@@ -23,6 +23,8 @@ class KodeTindakan extends Model
         'nama',
         'hpp',
         'harga_jasmed',
+        'harga_jual',
+        'harga_bottom',
     ];
 
     /**
@@ -31,6 +33,8 @@ class KodeTindakan extends Model
     protected $casts = [
         'hpp' => 'decimal:2',
         'harga_jasmed' => 'decimal:2',
+        'harga_jual' => 'decimal:2',
+        'harga_bottom' => 'decimal:2',
     ];
 
     /**
