@@ -69,7 +69,7 @@
                 <a href="/marketing/pasien-data"> <i data-feather="user" class="align-self-center menu-icon"></i><span>Pasien Data</span></a>
             </li>
             <li>
-                <a href="/marketing/tindakan"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Tindakan</span></a>
+                <a href="/marketing/tindakan"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Paket Tindakan</span></a>
             </li>
             <li>
                 <a href="/marketing/kodetindakan"> <i data-feather="key" class="align-self-center menu-icon"></i><span>Kode Tindakan</span></a>
