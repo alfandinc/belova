@@ -329,8 +329,8 @@
                                         <select name="kode_tindakan_id[]" class="form-control kode-tindakan-select" style="width:100%"></select>
                                     </div>
                                     <div class="col-md-4 mb-2">
-                                        <label>HPP</label>
-                                        <input type="number" name="kode_tindakan_hpp[]" class="form-control kode-tindakan-hpp" value="${data.hpp||''}" step="0.01" readonly>
+                                        <label>Harga Bottom</label>
+                                        <input type="number" name="kode_tindakan_harga_bottom[]" class="form-control kode-tindakan-harga-bottom" value="${data.harga_bottom||data.hpp||''}" step="0.01" readonly>
                                     </div>
                                     <div class="col-md-2 mb-2 d-flex align-items-end">
                                         <button type="button" class="btn btn-danger remove-kode-tindakan ml-auto" title="Hapus"><i class="fas fa-trash"></i></button>
@@ -368,7 +368,7 @@
                         width: '100%'
                     });
 
-                    // whenever a kode hpp changes later, update the total harga
+                    // whenever a kode harga bottom changes later, update the total harga
                     updateModalHarga();
 
                     // If data contains kode_id preselect it
@@ -377,9 +377,10 @@
                         $select.append(option).trigger('change');
                         // load its obats
                         loadKodeObatsIntoBlock(data.kode_id, $select.closest('.kode-tindakan-block'));
-                        // fetch kode details to fill hpp
+                        // fetch kode details to fill harga_bottom (fallback to hpp)
                         $.get(`/erm/kodetindakan/${data.kode_id}`, function(kd) {
-                            $select.closest('.kode-tindakan-block').find('.kode-tindakan-hpp').val(kd.hpp || '');
+                            const hb = (kd && (kd.harga_bottom !== undefined && kd.harga_bottom !== null)) ? kd.harga_bottom : (kd ? kd.hpp : '');
+                            $select.closest('.kode-tindakan-block').find('.kode-tindakan-harga-bottom').val(hb || '');
                         });
                     }
                 }
@@ -392,14 +393,15 @@
                     // also load kode details for HPP
                     if (kodeId) {
                         $.get(`/erm/kodetindakan/${kodeId}`, function(kd) {
-                            block.find('.kode-tindakan-hpp').val(kd.hpp || '');
+                            const hb = (kd && (kd.harga_bottom !== undefined && kd.harga_bottom !== null)) ? kd.harga_bottom : (kd ? kd.hpp : '');
+                            block.find('.kode-tindakan-harga-bottom').val(hb || '');
                             updateModalHarga();
                         }).fail(function() {
-                            block.find('.kode-tindakan-hpp').val('');
+                            block.find('.kode-tindakan-harga-bottom').val('');
                             updateModalHarga();
                         });
                     } else {
-                        block.find('.kode-tindakan-hpp').val('');
+                        block.find('.kode-tindakan-harga-bottom').val('');
                         updateModalHarga();
                     }
                 });
@@ -424,7 +426,7 @@
                                 <td class="hpp-td text-right">${hppJual}</td>
                                 <td><button type="button" class="btn btn-danger btn-sm remove-obat-row" title="Hapus"><i class="fas fa-trash"></i></button></td>
                             </tr>`);
-                            tbody.append(row);
+                                tbody.append(row);
                             // init obat select with preselected value
                             const $sel = row.find('.obat-select');
                             const option = new Option(o.nama, o.id, true, true);
@@ -442,11 +444,11 @@
                                 minimumInputLength: 1,
                                 width: '100%'
                             });
-                            // set hpp cell for preselected
-                            const hppCell = row.find('.hpp-td');
-                            if (o.hpp_jual) {
-                                hppCell.text(Number(o.hpp_jual).toLocaleString('id-ID'));
-                            }
+                                // set hpp cell for preselected (this cell shows obat jual HPP, unchanged)
+                                const hppCell = row.find('.hpp-td');
+                                if (o.hpp_jual) {
+                                    hppCell.text(Number(o.hpp_jual).toLocaleString('id-ID'));
+                                }
                         });
                     }).fail(function() {
                         tbody.html('<tr><td colspan="5" class="text-center text-danger">Failed loading obats</td></tr>');
@@ -459,11 +461,12 @@
                     updateModalHarga();
                 });
 
-                // Update modal harga by summing kode-tindakan-hpp inputs
+                // Update modal harga by summing kode-tindakan-harga-bottom inputs (fallback to hpp when necessary)
                 function updateModalHarga() {
                     let total = 0;
-                    $('#customKodeTindakanContainer').find('.kode-tindakan-hpp').each(function() {
-                        const v = parseFloat($(this).val());
+                    $('#customKodeTindakanContainer').find('.kode-tindakan-harga-bottom').each(function() {
+                        const raw = $(this).val();
+                        const v = parseFloat(raw);
                         if (!isNaN(v)) total += v;
                     });
                     $('#customTindakanHarga').val(new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(total));
@@ -527,7 +530,8 @@
                     $('#customKodeTindakanContainer .kode-tindakan-block').each(function() {
                         const block = $(this);
                         const kodeId = block.find('.kode-tindakan-select').val();
-                        const kodeHarga = block.find('.kode-tindakan-hpp').val() || null;
+                        // read harga_bottom (fallback was already set into the input), keep kodeHarga for payload
+                        const kodeHarga = block.find('.kode-tindakan-harga-bottom').val() || null;
                         const obats = [];
                         block.find('tbody tr').each(function() {
                             const r = $(this);
@@ -541,7 +545,8 @@
                         });
                         // include current display text for kode so we can show it in confirmation form
                         const kodeText = block.find('.kode-tindakan-select').find('option:selected').text() || '';
-                        payload.kode_tindakans.push({ kode_id: kodeId, hpp: kodeHarga, obats: obats, kode_text: kodeText });
+                        // include both keys to remain backward-compatible: hpp (legacy) and harga_bottom (preferred)
+                        payload.kode_tindakans.push({ kode_id: kodeId, hpp: kodeHarga, harga_bottom: kodeHarga, obats: obats, kode_text: kodeText });
                     });
                     // Basic validation
                     if (payload.kode_tindakans.length === 0) {
