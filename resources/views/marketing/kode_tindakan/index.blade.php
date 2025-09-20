@@ -115,9 +115,9 @@ $(document).ready(function() {
             { data: 'kode', name: 'kode' },
             { data: 'nama', name: 'nama' },
             { data: 'hpp', name: 'hpp', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
+            { data: 'harga_jasmed', name: 'harga_jasmed', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
             { data: 'harga_jual', name: 'harga_jual', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
             { data: 'harga_bottom', name: 'harga_bottom', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
-            { data: 'harga_jasmed', name: 'harga_jasmed', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
             {
                 data: null,
                 orderable: false,
