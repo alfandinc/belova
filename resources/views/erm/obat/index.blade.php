@@ -83,6 +83,7 @@
                                                             <option value="Obat">Obat</option>
                                                             <option value="Racikan">Racikan</option>
                                                             <option value="Bhp">Bhp</option>
+                                                            <option value="Bhp Alat">Bhp Alat</option>
                                                             <option value="Lainnya">Lainnya</option>
                                                         </select>
                                                     </div>
