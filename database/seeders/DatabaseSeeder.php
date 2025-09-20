@@ -46,6 +46,7 @@ class DatabaseSeeder extends Seeder
         // $this->call(RadiologiTestSeeder::class);
         // $this->call(TindakanEstetikaSeeder::class);
         $this->call(SopTindakanSeeder::class);
+        $this->call(\Database\Seeders\UpdateKodeTindakanPricesSeeder::class);
 
     }
 }
