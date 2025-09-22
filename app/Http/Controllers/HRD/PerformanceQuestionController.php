@@ -213,7 +213,8 @@ class PerformanceQuestionController extends Controller
         }
 
         $categories = PerformanceQuestionCategory::with(['questions' => function($q) use ($evaluationType) {
-            $q->where('evaluation_type', $evaluationType)->orderBy('question_type');
+            // Only include active questions for the preview
+            $q->where('evaluation_type', $evaluationType)->where('is_active', true)->orderBy('question_type');
         }])->get()->filter(function($cat) {
             // only include categories that have questions for the requested type
             return $cat->questions->isNotEmpty();

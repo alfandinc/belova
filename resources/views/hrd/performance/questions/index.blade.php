@@ -725,31 +725,31 @@
                 $('#previewQuestionsBtn').click(function(e) {
                         e.preventDefault();
 
-                        var modalHtml = `
-                                <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-hidden="true">
-                                    <div class="modal-dialog modal-lg" role="document">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title">Preview Questions by Evaluation Type</h5>
-                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                                        <div class="form-row mb-3">
-                                                                            <div class="col">
-                                                                                <select id="modal_preview_evaluation_type" class="form-control">
-                                                                                    <option value="">-- Select Evaluation Type --</option>
-                                                                                    @foreach($evaluationTypes as $value => $label)
-                                                                                        <option value="{{ $value }}">{{ $label }}</option>
-                                                                                    @endforeach
-                                                                                </select>
+                                                var modalHtml = `
+                                                                <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-hidden="true">
+                                                                    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+                                                                        <div class="modal-content">
+                                                                            <div class="modal-header">
+                                                                                <h5 class="modal-title">Preview Questions by Evaluation Type</h5>
+                                                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
                                                                             </div>
+                                                                            <div class="modal-body">
+                                                                                <div class="form-row mb-3">
+                                                                                    <div class="col">
+                                                                                        <select id="modal_preview_evaluation_type" class="form-control">
+                                                                                            <option value="">-- Select Evaluation Type --</option>
+                                                                                            @foreach($evaluationTypes as $value => $label)
+                                                                                                <option value="{{ $value }}">{{ $label }}</option>
+                                                                                            @endforeach
+                                                                                        </select>
+                                                                                    </div>
+                                                                                </div>
+                                                <div id="modalPreviewResults" style="max-height:65vh; overflow:auto;">Please select a type.</div>
+                                                                            </div>
+                                                                            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button></div>
                                                                         </div>
-                                                <div id="modalPreviewResults">Please select a type and click Load.</div>
-                                            </div>
-                                            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button></div>
-                                        </div>
-                                    </div>
-                                </div>`;
+                                                                    </div>
+                                                                </div>`;
 
                         // Remove existing and append
                         $('#previewModal').remove();
@@ -772,7 +772,7 @@
                                 success: function(categories) {
                                     var html = '';
                                     if (!categories || categories.length === 0) {
-                                        html = '<div class="card"><div class="card-body text-center"><p>No questions found for this evaluation type.</p></div></div>';
+                                        html = '<div class="card"><div class="card-body text-center"><p>No active questions found for this evaluation type.</p></div></div>';
                                     } else {
                                         categories.forEach(function(category) {
                                             html += `
