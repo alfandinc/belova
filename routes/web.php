@@ -880,6 +880,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
             // Questions AJAX routes
             Route::get('/questions/data', [PerformanceQuestionController::class, 'getQuestions'])->name('questions.data');
             Route::get('/questions/grouped', [PerformanceQuestionController::class, 'getGroupedQuestions'])->name('questions.grouped');
+            // Preview questions by evaluation type (e.g., manager_to_employee)
+            Route::get('/questions/by-evaluation/{type}', [PerformanceQuestionController::class, 'getQuestionsByEvaluationType'])->name('questions.byEvaluation');
             Route::get('/questions/all', [PerformanceQuestionController::class, 'getAllQuestions'])->name('questions.getAll');
             Route::get('/questions/{id}', [PerformanceQuestionController::class, 'getQuestionById'])->name('questions.get');
             Route::post('/questions', [PerformanceQuestionController::class, 'storeQuestion'])->name('questions.store');

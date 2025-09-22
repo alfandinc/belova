@@ -63,8 +63,13 @@
                         <button type="button" class="btn btn-primary" id="questionsTabAddBtn">
                             <i class="fa fa-plus"></i> Add New Question
                         </button>
-                        <div class="form-group mb-0">
-                            <input type="text" class="form-control" id="questionSearch" placeholder="Search questions...">
+                        <div class="d-flex align-items-center">
+                            <div class="form-group mb-0 mr-2">
+                                <button id="previewQuestionsBtn" class="btn btn-outline-info">Preview by Evaluation Type</button>
+                            </div>
+                            <div class="form-group mb-0">
+                                <input type="text" class="form-control" id="questionSearch" placeholder="Search questions...">
+                            </div>
                         </div>
                     </div>
                     <div id="questionsGrouped">
@@ -715,6 +720,100 @@
                 }
             });
         });
+
+                // Open preview modal (filter is inside modal)
+                $('#previewQuestionsBtn').click(function(e) {
+                        e.preventDefault();
+
+                        var modalHtml = `
+                                <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-hidden="true">
+                                    <div class="modal-dialog modal-lg" role="document">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Preview Questions by Evaluation Type</h5>
+                                                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                                        <div class="form-row mb-3">
+                                                                            <div class="col">
+                                                                                <select id="modal_preview_evaluation_type" class="form-control">
+                                                                                    <option value="">-- Select Evaluation Type --</option>
+                                                                                    @foreach($evaluationTypes as $value => $label)
+                                                                                        <option value="{{ $value }}">{{ $label }}</option>
+                                                                                    @endforeach
+                                                                                </select>
+                                                                            </div>
+                                                                        </div>
+                                                <div id="modalPreviewResults">Please select a type and click Load.</div>
+                                            </div>
+                                            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button></div>
+                                        </div>
+                                    </div>
+                                </div>`;
+
+                        // Remove existing and append
+                        $('#previewModal').remove();
+                        $('body').append(modalHtml);
+                        $('#previewModal').modal('show');
+
+                        // Debounced loader function
+                        var _previewDebounce;
+                        function loadPreviewFor(type) {
+                            if (!type) {
+                                $('#modalPreviewResults').html('<div class="text-center py-4">Please select a type to load results.</div>');
+                                return;
+                            }
+
+                            $('#modalPreviewResults').html('<div class="text-center py-4">Loading...</div>');
+
+                            $.ajax({
+                                url: "{{ route('hrd.performance.questions.byEvaluation', ['type' => 'REPLACE_TYPE']) }}".replace('REPLACE_TYPE', type),
+                                method: 'GET',
+                                success: function(categories) {
+                                    var html = '';
+                                    if (!categories || categories.length === 0) {
+                                        html = '<div class="card"><div class="card-body text-center"><p>No questions found for this evaluation type.</p></div></div>';
+                                    } else {
+                                        categories.forEach(function(category) {
+                                            html += `
+                                                <div class="card mb-3">
+                                                    <div class="card-header"><strong>${category.name}</strong></div>
+                                                    <div class="card-body">
+                                                        ${category.description ? `<p class="text-muted">${category.description}</p>` : ''}
+                                                        <ul class="list-group">`;
+
+                                            if (category.questions && category.questions.length > 0) {
+                                                category.questions.forEach(function(q) {
+                                                    var qType = q.question_type === 'score' ? 'Score (1-5)' : 'Text';
+                                                    var status = q.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-secondary">Inactive</span>';
+                                                    html += `<li class="list-group-item d-flex justify-content-between align-items-center"><div><strong>${q.question_text}</strong><div class="text-muted small">Type: ${qType}</div></div><div>${status}</div></li>`;
+                                                });
+                                            } else {
+                                                html += '<li class="list-group-item text-center">No questions for this category.</li>';
+                                            }
+
+                                            html += `</ul></div></div>`;
+                                        });
+                                    }
+
+                                    $('#modalPreviewResults').html(html);
+                                },
+                                error: function(xhr) {
+                                    $('#modalPreviewResults').html('');
+                                    Swal.fire({icon: 'error', title: 'Error', text: xhr.responseJSON?.message || 'Failed to fetch preview.'});
+                                }
+                            });
+                        }
+
+                        // Auto-load when selection changes (debounced)
+                        $('#modal_preview_evaluation_type').on('change', function() {
+                            var type = $(this).val();
+                            clearTimeout(_previewDebounce);
+                            _previewDebounce = setTimeout(function() {
+                                loadPreviewFor(type);
+                            }, 250);
+                        });
+                });
         
         // Refresh the grouped questions after CRUD operations
         function refreshQuestions() {

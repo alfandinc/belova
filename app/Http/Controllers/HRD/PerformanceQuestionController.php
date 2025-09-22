@@ -193,6 +193,35 @@ class PerformanceQuestionController extends Controller
         return response()->json($categories);
     }
 
+    /**
+     * Return questions filtered by evaluation type grouped by category.
+     * Example: /questions/by-evaluation/manager_to_employee
+     */
+    public function getQuestionsByEvaluationType($evaluationType)
+    {
+        // Validate allowed types to avoid accidental exposure
+        $allowed = [
+            'hrd_to_manager',
+            'manager_to_employee',
+            'employee_to_manager',
+            'manager_to_hrd',
+            'ceo_to_hrd'
+        ];
+
+        if (!in_array($evaluationType, $allowed)) {
+            return response()->json(["message" => "Invalid evaluation type"], 400);
+        }
+
+        $categories = PerformanceQuestionCategory::with(['questions' => function($q) use ($evaluationType) {
+            $q->where('evaluation_type', $evaluationType)->orderBy('question_type');
+        }])->get()->filter(function($cat) {
+            // only include categories that have questions for the requested type
+            return $cat->questions->isNotEmpty();
+        })->values();
+
+        return response()->json($categories);
+    }
+
     public function storeQuestion(Request $request)
     {
         $validated = $request->validate([
