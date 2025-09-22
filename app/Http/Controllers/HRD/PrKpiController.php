@@ -58,7 +58,28 @@ class PrKpiController extends Controller
         }
         // Recalculate only uang_kpi for all employees for the current month
         $bulan = date('Y-m'); // current month in YYYY-MM format
-        $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
+        // Calculate total incentive pool by converting each omset entry into its incentive amount
+        $omsetRows = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->get();
+        $totalOmset = 0;
+        foreach ($omsetRows as $row) {
+            $insentif = $row->insentifOmset;
+            if ($insentif) {
+                $nominal = floatval($row->nominal);
+                $insValue = 0;
+                if ($insentif->omset_min !== null && $insentif->omset_max !== null) {
+                    if ($nominal >= $insentif->omset_min && $nominal <= $insentif->omset_max) {
+                        $insValue = floatval($insentif->insentif_normal);
+                    } elseif ($nominal > $insentif->omset_max) {
+                        $insValue = floatval($insentif->insentif_up);
+                    }
+                } else {
+                    $insValue = floatval($insentif->insentif_normal ?? 0);
+                }
+                $totalOmset += ($insValue / 100) * $nominal;
+            } else {
+                $totalOmset += floatval($row->nominal);
+            }
+        }
         $employees = \App\Models\HRD\Employee::all();
         // Collect kpi_poin for all employees
         $employeeKpiPoin = [];

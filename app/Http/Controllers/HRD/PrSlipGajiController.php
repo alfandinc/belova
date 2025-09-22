@@ -113,7 +113,31 @@ class PrSlipGajiController extends Controller
     public function generateUangKpi(Request $request)
     {
         $bulan = $request->input('bulan') ?? date('Y-m');
-        $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
+        // Calculate total incentive pool by converting each omset entry into its incentive amount
+        $omsetRows = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->get();
+        $totalOmset = 0;
+        foreach ($omsetRows as $row) {
+            $insentif = $row->insentifOmset; // relation to PrInsentifOmset
+            if ($insentif) {
+                $nominal = floatval($row->nominal);
+                $insValue = 0;
+                // Determine which incentive percentage applies
+                if ($insentif->omset_min !== null && $insentif->omset_max !== null) {
+                    if ($nominal >= $insentif->omset_min && $nominal <= $insentif->omset_max) {
+                        $insValue = floatval($insentif->insentif_normal);
+                    } elseif ($nominal > $insentif->omset_max) {
+                        $insValue = floatval($insentif->insentif_up);
+                    }
+                } else {
+                    // Fallback: use normal if defined
+                    $insValue = floatval($insentif->insentif_normal ?? 0);
+                }
+                // insValue is expected to be a percentage (e.g., 10 for 10%)
+                $totalOmset += ($insValue / 100) * $nominal;
+            } else {
+                $totalOmset += floatval($row->nominal);
+            }
+        }
         $employees = \App\Models\HRD\Employee::all();
         $employeeKpiPoin = [];
         foreach ($employees as $employee) {
@@ -388,9 +412,17 @@ class PrSlipGajiController extends Controller
                 }
             }
 
-            // Get initial poin kehadiran from prkpi
+            // Get initial poin kehadiran and other KPI defaults from prkpi
             $initialPoinKehadiran = \App\Models\HRD\PrKpi::where('nama_poin', 'Kehadiran')->value('initial_poin');
             $initialPoinMedsos = \App\Models\HRD\PrKpi::where('nama_poin', 'Medsos')->value('initial_poin');
+            $initialPoinMarketing = \App\Models\HRD\PrKpi::where('nama_poin', 'Marketing')->value('initial_poin');
+
+            // If this employee has kategori_pegawai == 'khusus', they should have no initial KPI points
+            if (isset($employee->kategori_pegawai) && strtolower($employee->kategori_pegawai) === 'khusus') {
+                $initialPoinKehadiran = 0;
+                $initialPoinMedsos = 0;
+                $initialPoinMarketing = 0;
+            }
             // Get lateness recap for the employee in the selected month
             $latenessRecap = \App\Models\AttendanceLatenessRecap::where('employee_id', $employee->id)
                 ->where('month', $bulan)
@@ -424,12 +456,6 @@ class PrSlipGajiController extends Controller
             $unexcused = max($selisih - $excused, 0);
             $minus = ($unexcused * 1) + ($excused * 0.5);
             $poinKehadiran = max($initialPoinKehadiran - $minus - $latenessMinus, 0);
-            // Get initial poin marketing from prkpi
-            $initialPoinMarketing = \App\Models\HRD\PrKpi::where('nama_poin', 'Marketing')->value('initial_poin');
-            $initialPoinMedsos = \App\Models\HRD\PrKpi::where('nama_poin', 'Medsos')->value('initial_poin');
-
-
-
             $kpiPoin = $initialPoinMarketing + $poinPenilaian + $poinKehadiran;
 
             // Store slip gaji for each employee, without uang_kpi
