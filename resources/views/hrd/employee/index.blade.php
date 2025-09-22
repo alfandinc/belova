@@ -41,6 +41,7 @@
                             <th width="8%">NIK</th>
                             <th width="8%">No Induk</th>
                             <th width="20%">Nama</th>
+                            {{-- <th width="12%">Kategori Pegawai</th> --}}
                             <th width="15%">Posisi</th>
                             <th width="15%">Divisi</th>
                             <th width="10%">Status</th>
@@ -98,6 +99,10 @@
                                 <div class="col-md-6 mb-3">
                                     <strong><i class="fas fa-fingerprint mr-1"></i>No Induk:</strong>
                                     <p class="text-muted" id="employee-no_induk">-</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-users mr-1"></i>Kategori Pegawai:</strong>
+                                    <p class="text-muted" id="employee-kategori_pegawai">-</p>
                                 </div>
                                 
                                 <div class="col-md-6 mb-3">

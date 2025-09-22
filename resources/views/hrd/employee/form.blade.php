@@ -194,6 +194,15 @@
                                 </select>
                             </div>
                             <div class="form-group col-md-6">
+                                <label for="kategori_pegawai">Kategori Pegawai</label>
+                                <select id="kategori_pegawai" name="kategori_pegawai" class="form-control select2">
+                                    <option value="">-- Pilih Kategori --</option>
+                                    <option value="medis" {{ old('kategori_pegawai', $employee->kategori_pegawai ?? '') == 'medis' ? 'selected' : '' }}>Medis</option>
+                                    <option value="non-medis" {{ old('kategori_pegawai', $employee->kategori_pegawai ?? '') == 'non-medis' ? 'selected' : '' }}>Non-Medis</option>
+                                    <option value="manajemen" {{ old('kategori_pegawai', $employee->kategori_pegawai ?? '') == 'manajemen' ? 'selected' : '' }}>Manajemen</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
                                 <label for="no_induk">No Induk</label>
                                 <div class="input-group">
                                     <div class="input-group-prepend">

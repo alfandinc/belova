@@ -53,6 +53,7 @@ class Employee extends Model
         'finger_id', // New field for fingerprint ID
         'gol_gaji_pokok_id',
         'gol_tunjangan_jabatan_id'
+            ,'kategori_pegawai' // Added new field for employee category
     ];
     /**
      * Get the master gaji pokok (salary group) for the employee.
