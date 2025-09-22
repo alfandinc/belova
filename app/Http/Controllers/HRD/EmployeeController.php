@@ -138,6 +138,7 @@ class EmployeeController extends Controller
             'instagram' => 'nullable|array', // Accept array for multiple Instagram accounts
             'role' => 'nullable',
             'perusahaan' => 'nullable|string|max:255',
+            'kategori_pegawai' => 'nullable|string|in:normal,khusus',
             'gol_gaji_pokok_id' => 'nullable|exists:pr_master_gajipokok,id',
             'gol_tunjangan_jabatan_id' => 'nullable|exists:pr_master_tunjangan_jabatan,id',
         ]);
@@ -241,6 +242,7 @@ class EmployeeController extends Controller
             'email' => 'nullable|email|max:255|unique:hrd_employee,email,' . $employee->id,
             'instagram' => 'nullable|array', // Accept array for multiple Instagram accounts
             'perusahaan' => 'nullable|string|max:255',
+            'kategori_pegawai' => 'nullable|string|in:normal,khusus',
             'gol_gaji_pokok_id' => 'nullable|exists:pr_master_gajipokok,id',
             'gol_tunjangan_jabatan_id' => 'nullable|exists:pr_master_tunjangan_jabatan,id',
         ]);
