@@ -18,6 +18,11 @@
         .hrd-dashboard .card-header { font-weight:600 }
         .hrd-dashboard .card-body .text-muted { opacity:0.85 }
         .hrd-dashboard .page-note { color: #9aa3b2 }
+        /* Smaller/normal text specifically for the Pending Approvals card */
+        .hrd-dashboard .pending-approvals .list-group-item { font-size:0.92rem; padding:0.6rem 1rem; }
+        .hrd-dashboard .pending-approvals .font-weight-bold { font-size:0.95rem; }
+        .hrd-dashboard .pending-approvals .small { font-size:0.85rem; }
+        .hrd-dashboard .pending-approvals .mr-3 { font-size:0.9rem; }
     </style>
     <h2 class="my-4">HRD Dashboard</h2>
 
@@ -91,7 +96,7 @@
     <div class="row">
         {{-- Left column: pending approvals table --}}
         <div class="col-lg-8">
-            <div class="card mb-3">
+            <div class="card mb-3 pending-approvals">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>Pending Approvals</div>
                     <a href="{{ route('hrd.dashboard') }}" class="small">View all</a>
