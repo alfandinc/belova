@@ -206,6 +206,30 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> --}}
 
 <script>
+    // Load Qrious via CDN for client-side QR generation
+    (function loadQrious(){
+        if (window.QRious) return;
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';
+        s.async = false;
+        document.head.appendChild(s);
+    })();
+
+    // Helper: generate QR data URI in browser (returns base64 data URI)
+    function generateQrDataUriBrowser(text, size = 200) {
+        try {
+            if (!window.QRious) return null;
+            var qr = new QRious({
+                value: text || '',
+                size: size,
+                level: 'H'
+            });
+            return qr.toDataURL();
+        } catch (e) {
+            console.error('QR generation failed', e);
+            return null;
+        }
+    }
     $(document).ready(function () {
         $.ajaxSetup({
     headers: {
@@ -1139,6 +1163,22 @@
             let formData;
             let url;
             if (form.length) {
+                // Before submission, generate dokter and perawat QR data URIs and add them as hidden fields
+                const dokterNameForQr = form.find('input[name="dokter_name"]').val() || $('.dokter-nama').text() || '';
+                const perawatNameForQr = '{{ optional(auth()->user())->name ?? '' }}';
+                const dokterQrData = generateQrDataUriBrowser('Dokter: ' + dokterNameForQr) || '';
+                const perawatQrData = generateQrDataUriBrowser('Perawat: ' + perawatNameForQr) || '';
+
+                // Append hidden fields if not already present
+                if (!form.find('input[name="dokter_qr"]').length) {
+                    form.append('<input type="hidden" name="dokter_qr" />');
+                }
+                if (!form.find('input[name="perawat_qr"]').length) {
+                    form.append('<input type="hidden" name="perawat_qr" />');
+                }
+                form.find('input[name="dokter_qr"]').val(dokterQrData);
+                form.find('input[name="perawat_qr"]').val(perawatQrData);
+
                 formData = new FormData(form[0]);
                 url = form.attr('action');
             } else {
@@ -1264,6 +1304,14 @@
                 
                 // Buat promise untuk request ajax
                 const savePromise = new Promise((resolve, reject) => {
+                    // Generate QR for this step and append
+                    const dokterNameForQr = form.find('input[name="dokter_name"]').val() || $('.dokter-nama').text() || '';
+                    const perawatNameForQr = '{{ optional(auth()->user())->name ?? '' }}';
+                    const dokterQrData = generateQrDataUriBrowser('Dokter: ' + dokterNameForQr) || '';
+                    const perawatQrData = generateQrDataUriBrowser('Perawat: ' + perawatNameForQr) || '';
+                    formData.append('dokter_qr', dokterQrData);
+                    formData.append('perawat_qr', perawatQrData);
+
                     $.ajax({
                         url: form.attr('action'),
                         method: 'POST',

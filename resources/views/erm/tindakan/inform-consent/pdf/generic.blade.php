@@ -142,6 +142,26 @@
       <div style="margin-top: 10px;">({{ $data['nama_saksi'] ?? '' }})</div>
     </td>
   </tr>
+  <tr>
+    <td style="width:50%;">
+      <span class="sign-label">Dokter</span>
+      <div class="signature-container">
+        @if(!empty($dokter_qr))
+          <img src="{{ $dokter_qr }}" alt="QR Dokter">
+        @endif
+      </div>
+      <div style="margin-top: 6px;">({{ $dokter_name ?? '' }})</div>
+    </td>
+    <td style="width:50%;">
+      <span class="sign-label">Perawat</span>
+      <div class="signature-container">
+        @if(!empty($perawat_qr))
+          <img src="{{ $perawat_qr }}" alt="QR Perawat">
+        @endif
+      </div>
+      <div style="margin-top: 6px;">({{ $perawat_name ?? '' }})</div>
+    </td>
+  </tr>
 </table>
 </body>
 </html>

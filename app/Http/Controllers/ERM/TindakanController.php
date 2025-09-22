@@ -428,6 +428,54 @@ class TindakanController extends Controller
                     }
                 }
             }
+            // Prepare dokter and perawat (current user) names for QR
+            $dokterName = '';
+            if ($visitation->dokter) {
+                $dokterUser = $visitation->dokter->user ?? null;
+                $dokterName = $dokterUser ? ($dokterUser->name ?? '') : ($visitation->dokter->nama ?? '');
+            }
+            $perawatName = optional(auth()->user())->name ?? '';
+
+            // Helper to generate QR data URI via Google Chart API (fallback to empty string on failure)
+            $generateQrDataUri = function ($text) {
+                $dataUri = '';
+                if (empty($text)) return $dataUri;
+                $url = 'https://chart.googleapis.com/chart?chs=200x200&cht=qr&chl=' . urlencode($text) . '&choe=UTF-8';
+
+                // Try file_get_contents first
+                $img = false;
+                if (ini_get('allow_url_fopen')) {
+                    $img = @file_get_contents($url);
+                }
+
+                // If file_get_contents failed, try curl
+                if ($img === false) {
+                    if (function_exists('curl_init')) {
+                        $ch = curl_init($url);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                        $img = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+                        if ($img === false || $httpCode >= 400) {
+                            $img = false;
+                        }
+                    }
+                }
+
+                if ($img !== false && $img !== null) {
+                    $dataUri = 'data:image/png;base64,' . base64_encode($img);
+                }
+
+                return $dataUri;
+            };
+
+            // Prefer client-submitted QR data URIs (from browser) if provided
+            $dokterQr = $request->input('dokter_qr') ?? $generateQrDataUri('Dokter: ' . $dokterName);
+            $perawatQr = $request->input('perawat_qr') ?? $generateQrDataUri('Perawat: ' . $perawatName);
+
             // Generate PDF using the generic template
             $pdf = PDF::loadView("erm.tindakan.inform-consent.pdf.generic", [
                 'data' => $data,
@@ -436,6 +484,10 @@ class TindakanController extends Controller
                 'tindakan' => $tindakan,
                 'klinik_id' => $visitation->klinik_id, // pass klinik_id for logo
                 'content' => $consentText,
+                'dokter_qr' => $dokterQr,
+                'perawat_qr' => $perawatQr,
+                'dokter_name' => $dokterName,
+                'perawat_name' => $perawatName,
             ]);
             $timestamp = now()->format('YmdHis');
             $pdfPath = 'inform-consent/' . $pasien->id . '-' . $visitation->id . '-' . $tindakan->id . '-' . $timestamp . '.pdf';
