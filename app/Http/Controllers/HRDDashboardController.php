@@ -22,33 +22,33 @@ class HRDDashboardController extends Controller
         $counts = [
             'employees' => Employee::count(),
             // Treat NULL as pending as well
-            'pending_leaves' => PengajuanLibur::where(function($q){
-                $q->where('status_manager', 'pending')->orWhereNull('status_manager')
-                  ->orWhere('status_hrd', 'pending')->orWhereNull('status_hrd');
-            })->count(),
-            'pending_overtime' => PengajuanLembur::where(function($q){
-                $q->where('status_manager', 'pending')->orWhereNull('status_manager')
-                  ->orWhere('status_hrd', 'pending')->orWhereNull('status_hrd');
-            })->count(),
-            'pending_shifts' => PengajuanGantiShift::where(function($q){
-                $q->where('status_manager', 'pending')->orWhereNull('status_manager')
-                  ->orWhere('status_hrd', 'pending')->orWhereNull('status_hrd');
-            })->count(),
+                        'pending_leaves' => PengajuanLibur::where(function($q){
+                                $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
+                                    ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+                        })->count(),
+                        'pending_overtime' => PengajuanLembur::where(function($q){
+                                $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
+                                    ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+                        })->count(),
+                        'pending_shifts' => PengajuanGantiShift::where(function($q){
+                                $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
+                                    ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+                        })->count(),
         ];
 
         // Pending rows (short list)
-    $lembur = PengajuanLembur::where(function($q){
-        $q->where('status_manager', 'pending')->orWhereNull('status_manager')
-          ->orWhere('status_hrd', 'pending')->orWhereNull('status_hrd');
-        })->take(5)->get();
-    $libur = PengajuanLibur::where(function($q){
-        $q->where('status_manager', 'pending')->orWhereNull('status_manager')
-          ->orWhere('status_hrd', 'pending')->orWhereNull('status_hrd');
-        })->take(5)->get();
-    $ganti = PengajuanGantiShift::where(function($q){
-        $q->where('status_manager', 'pending')->orWhereNull('status_manager')
-          ->orWhere('status_hrd', 'pending')->orWhereNull('status_hrd');
-        })->take(5)->get();
+        $lembur = PengajuanLembur::where(function($q){
+                $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
+                    ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+                })->take(5)->get();
+        $libur = PengajuanLibur::where(function($q){
+                $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
+                    ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+                })->take(5)->get();
+        $ganti = PengajuanGantiShift::where(function($q){
+                $q->where('status_manager', 'pending')->orWhere('status_manager', 'menunggu')->orWhereNull('status_manager')
+                    ->orWhere('status_hrd', 'pending')->orWhere('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+                })->take(5)->get();
         $pendingRows = collect()->concat([$lembur, $libur, $ganti])->flatten(1);
 
         // Upcoming birthdays (next 5)
