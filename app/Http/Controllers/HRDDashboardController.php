@@ -47,6 +47,20 @@ class HRDDashboardController extends Controller
             ->sortBy('upcoming_days')
             ->take(5);
 
-        return view('hrd.dashboard', compact('counts', 'pendingRows', 'birthdays'));
+        // Full upcoming birthdays list (all employees with dob), sorted by next occurrence
+        $allBirthdays = Employee::whereNotNull('tanggal_lahir')
+            ->get()
+            ->map(function($e) use ($today) {
+                $dob = Carbon::parse($e->tanggal_lahir);
+                $next = $dob->copy()->year($today->year);
+                if ($next->lt($today)) $next->addYear();
+                $e->upcoming_days = (int) $today->diffInDays($next);
+                $e->upcoming_date = $next;
+                return $e;
+            })
+            ->sortBy('upcoming_days')
+            ->values();
+
+        return view('hrd.dashboard', compact('counts', 'pendingRows', 'birthdays', 'allBirthdays'));
     }
 }
