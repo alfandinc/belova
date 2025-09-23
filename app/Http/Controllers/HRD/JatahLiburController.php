@@ -19,17 +19,38 @@ class JatahLiburController extends Controller
 
     public function getData()
     {
-        $jatahLibur = JatahLibur::with('employee');
+        // Build a query that selects jatah libur plus employee fields so DataTables can
+        // search and order by employee name or number. We join the hrd_employee table
+        // and left join divisions (if available) to include division name.
+        $jatahLiburQuery = JatahLibur::select([
+            'hrd_jatah_libur.*',
+            'e.nama as employee_name',
+            'e.no_induk as employee_number',
+            'd.name as division'
+        ])
+        ->from('hrd_jatah_libur')
+        ->leftJoin('hrd_employee as e', 'hrd_jatah_libur.employee_id', '=', 'e.id')
+        ->leftJoin('hrd_division as d', 'e.division_id', '=', 'd.id');
 
-        return DataTables::of($jatahLibur)
+        return DataTables::of($jatahLiburQuery)
+            // If client searches for 'employee_name' or 'employee_number', let DataTables
+            // know how to filter those columns via the column names used in the select.
+            ->filterColumn('employee_name', function ($query, $keyword) {
+                $sql = "e.nama like ?";
+                $query->whereRaw($sql, ["%{$keyword}%"]);
+            })
+            ->filterColumn('employee_number', function ($query, $keyword) {
+                $sql = "e.no_induk like ?";
+                $query->whereRaw($sql, ["%{$keyword}%"]);
+            })
             ->addColumn('employee_name', function ($jatah) {
-                return $jatah->employee->nama ?? 'N/A';
+                return $jatah->employee_name ?? 'N/A';
             })
             ->addColumn('employee_number', function ($jatah) {
-                return $jatah->employee->no_induk ?? 'N/A';
+                return $jatah->employee_number ?? 'N/A';
             })
             ->addColumn('division', function ($jatah) {
-                return $jatah->employee->division->name ?? 'N/A';
+                return $jatah->division ?? 'N/A';
             })
             ->addColumn('action', function ($jatah) {
                 return '
