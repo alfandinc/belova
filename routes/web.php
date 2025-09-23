@@ -1069,6 +1069,7 @@ Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDokters
 Route::get('/get-apotekers', [EresepController::class, 'getApotekers'])->name('erm.get-apotekers');
 Route::get('/tindakan/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchTindakan'])->name('marketing.tindakan.search');
 Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\VisitationController::class, 'generateMissingResepDetails']);
+Route::post('/erm/rujuk', [App\Http\Controllers\ERM\VisitationController::class, 'storeRujuk'])->name('erm.rujuk.store');
 
 Route::get('/erm/dashboard/most-frequent-patient', [\App\Http\Controllers\ERMDashboardAjaxController::class, 'mostFrequentPatient'])->name('erm.dashboard.most-frequent-patient');
 

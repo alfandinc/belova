@@ -188,6 +188,84 @@ class VisitationController extends Controller
     }
 
     /**
+     * Store visitation and rujuk record for referral (rujuk).
+     */
+    public function storeRujuk(Request $request)
+    {
+        $request->validate([
+            'pasien_id' => 'required|exists:erm_pasiens,id',
+            'dokter_id' => 'required|string', // dokter tujuan
+            'dokter_pengirim_id' => 'required|string',
+            'tanggal_visitation' => 'required|date',
+            'metode_bayar_id' => 'required',
+            // klinik_id will be derived from selected dokter
+            'jenis_permintaan' => 'required|string',
+            'no_antrian' => 'nullable|numeric',
+        ]);
+
+        // Create visitation similar to store()
+        $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
+
+        // Determine no_antrian: use provided or compute next available
+        $noAntrian = $request->no_antrian;
+        if (empty($noAntrian)) {
+            $max = Visitation::whereDate('tanggal_visitation', $request->tanggal_visitation)
+                ->where('dokter_id', $request->dokter_id)
+                ->max('no_antrian');
+            $skip = [3,5];
+            $next = ($max ?? 0) + 1;
+            while (in_array($next, $skip)) {
+                $next++;
+            }
+            $noAntrian = $next;
+        }
+
+        // Determine klinik: if request provides klinik_id use it, otherwise derive from dokter
+        $klinikId = $request->klinink_id ?? null;
+        if (empty($klinikId)) {
+            $dokter = Dokter::find($request->dokter_id);
+            if ($dokter) {
+                $klinikId = $dokter->klinik_id;
+            }
+        }
+
+        Visitation::create([
+            'id' => $customId,
+            'pasien_id' => $request->pasien_id,
+            'dokter_id' => $request->dokter_id,
+            'tanggal_visitation' => $request->tanggal_visitation,
+            'waktu_kunjungan' => $request->waktu_kunjungan ?? null,
+            'no_antrian' => $noAntrian,
+            'metode_bayar_id' => $request->metode_bayar_id,
+            'klinik_id' => $klinikId,
+            'status_kunjungan' => 0,
+            'jenis_kunjungan' => 1,
+            'user_id' => Auth::id(),
+        ]);
+
+        // create resep detail
+        $noResep = 'RSP' . $customId;
+        \App\Models\ERM\ResepDetail::create([
+            'visitation_id' => $customId,
+            'no_resep' => $noResep,
+            'catatan_dokter' => null,
+        ]);
+
+        // Create rujuk record
+        \App\Models\ERM\Rujuk::create([
+            'pasien_id' => $request->pasien_id,
+            'dokter_pengirim_id' => $request->dokter_pengirim_id,
+            'dokter_tujuan_id' => $request->dokter_id,
+            'jenis_permintaan' => $request->jenis_permintaan,
+            'keterangan' => $request->keterangan ?? null,
+            'penunjang' => $request->penunjang ?? null,
+            'visitation_id' => $customId,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Rujuk and visitation created successfully.']);
+    }
+
+    /**
      * Temporary method to generate missing resep detail for existing visitations.
      * Remove after running once.
      */

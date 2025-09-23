@@ -141,6 +141,19 @@
                         <span>Reservasi Kunjungan</span>
                     </a>
                 </li>
+                <li>
+                    <a href="javascript:void(0);"
+                    class="btn-rujuk"
+                    data-id="{{ $visitation->pasien_id }}"
+                    data-nama="{{ $visitation->pasien->nama }}"
+                    data-norm="{{ $visitation->pasien->id }}"
+                    data-tgllahir="{{ $visitation->pasien->tanggal_lahir ?? '' }}"
+                    data-dokter="{{ $visitation->dokter_id ?? '' }}"
+                    data-metodebayar="{{ $visitation->metode_bayar_id ?? '' }}">
+                        <i data-feather="share" class="align-self-center menu-icon"></i>
+                        <span>Rujuk / Konsultasi</span>
+                    </a>
+                </li>
                 {{-- <li>
                     <a href="javascript:void(0);" data-toggle="modal" data-target="#modalKunjungan">
                         <i data-feather="calendar" class="align-self-center menu-icon"></i>
@@ -154,3 +167,4 @@
 <!-- end left-sidenav -->
 
 @include('erm.partials.modal-daftarkunjungan')
+@include('erm.partials.modal-rujuk')
