@@ -24,6 +24,7 @@ class SpkTindakanController extends Controller
             $tanggalEnd = $request->input('tanggal_end');
 
             $klinikId = $request->input('klinik_id');
+            $dokterId = $request->input('dokter_id');
             $query = SpkTindakan::with([
                 'riwayatTindakan.tindakan',
                 'riwayatTindakan.visitation.pasien',
@@ -43,6 +44,13 @@ class SpkTindakanController extends Controller
             if ($klinikId) {
                 $query->whereHas('riwayatTindakan.visitation', function($q) use ($klinikId) {
                     $q->where('klinik_id', $klinikId);
+                });
+            }
+
+            // Dokter filter
+            if ($dokterId) {
+                $query->whereHas('riwayatTindakan.visitation', function($q) use ($dokterId) {
+                    $q->where('dokter_id', $dokterId);
                 });
             }
 
@@ -92,6 +100,29 @@ class SpkTindakanController extends Controller
                 })
                 ->values();
 
+            // Compute stats to send with the DataTable response
+            $totalVisitations = $visitationGroups->count();
+            $totalTindakan = $visitationGroups->sum('tindakan_count');
+            $statusCounts = $visitationGroups->groupBy('status')->map->count()->toArray();
+
+            // Calculate percentages per status
+            $statusPercentages = [];
+            foreach (['completed', 'in_progress', 'pending'] as $s) {
+                $count = $statusCounts[$s] ?? 0;
+                $statusPercentages[$s] = $totalVisitations > 0 ? round(($count / $totalVisitations) * 100, 1) : 0;
+            }
+
+            // Average tindakan per visitation
+            $avgTindakanPerVisitation = $totalVisitations > 0 ? round($totalTindakan / $totalVisitations, 2) : 0;
+
+            $stats = [
+                'total_visitations' => $totalVisitations,
+                'total_tindakan' => $totalTindakan,
+                'avg_tindakan_per_visitation' => $avgTindakanPerVisitation,
+                'status_counts' => $statusCounts,
+                'status_percentages' => $statusPercentages
+            ];
+
             return DataTables::of($visitationGroups)
                 ->addColumn('tindakan_nama', function($row) {
                     return implode('<br>', $row->tindakan_names);
@@ -128,6 +159,7 @@ class SpkTindakanController extends Controller
                     return '<button type="button" class="btn btn-primary btn-sm" onclick="showSpkItems([' . $spkIdsString . '])">Input SPK Tindakan</button>';
                 })
                 ->rawColumns(['tindakan_nama', 'status_badge', 'action'])
+                ->with('stats', $stats)
                 ->make(true);
         }
         return view('erm.spk-tindakan.index');

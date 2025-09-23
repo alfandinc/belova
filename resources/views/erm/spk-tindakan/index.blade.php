@@ -34,12 +34,85 @@
                                         <option value="{{ $klinik->id }}" @if($klinik->id == 2) selected @endif>{{ $klinik->nama }}</option>
                                     @endforeach
                                 </select>
+                                <label for="filterDokter" class="mr-2 font-weight-bold mb-0">Dokter:</label>
+                                <select id="filterDokter" class="form-control mr-3" style="max-width: 220px;">
+                                    <option value="">Semua Dokter</option>
+                                    @foreach(App\Models\ERM\Dokter::with('user')->get() as $dokter)
+                                        <option value="{{ $dokter->id }}">{{ $dokter->user->name ?? ('Dokter #' . $dokter->id) }}</option>
+                                    @endforeach
+                                </select>
                                 <label for="filterTanggal" class="mr-2 font-weight-bold mb-0">Tanggal Tindakan:</label>
                                 <input type="text" id="filterTanggal" class="form-control" style="max-width: 220px;" />
                             </div>
                         </div>
                     </div>
                     <div class="card-body">
+                        <!-- Enhanced Stats Cards -->
+                        <div id="spk-stats" class="mb-3">
+                            <div class="row">
+                                <div class="col-md-3 mb-2">
+                                    <div class="card shadow-sm">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <small class="text-muted">Total Visitations</small>
+                                                    <div class="h4 mb-0" id="stat-total-visit">-</div>
+                                                </div>
+                                                <div class="text-primary">
+                                                    <i class="mdi mdi-account-multiple-outline" style="font-size:28px"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <div class="card shadow-sm">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <small class="text-muted">Total Tindakan</small>
+                                                    <div class="h4 mb-0" id="stat-total-tindakan">-</div>
+                                                    <small class="text-muted">Avg per visit: <span id="stat-avg-tindakan">-</span></small>
+                                                </div>
+                                                <div class="text-success">
+                                                    <i class="mdi mdi-stethoscope" style="font-size:28px"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-2">
+                                    <div class="card shadow-sm">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <div>
+                                                    <small class="text-muted">Status Breakdown</small>
+                                                    <div class="h5 mb-0">Overview</div>
+                                                </div>
+                                                <div class="text-secondary">
+                                                    <i class="mdi mdi-chart-donut" style="font-size:28px"></i>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <div class="mb-2">
+                                                    <div class="d-flex justify-content-between"><small>Completed</small><small><span id="stat-completed">0</span> (<span id="stat-completed-p">0%</span>)</small></div>
+                                                    <div class="progress" style="height:8px;"><div id="stat-completed-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div></div>
+                                                </div>
+                                                <div class="mb-2">
+                                                    <div class="d-flex justify-content-between"><small>In Progress</small><small><span id="stat-in-progress">0</span> (<span id="stat-in-progress-p">0%</span>)</small></div>
+                                                    <div class="progress" style="height:8px;"><div id="stat-in-progress-bar" class="progress-bar bg-warning" role="progressbar" style="width:0%"></div></div>
+                                                </div>
+                                                <div class="mb-0">
+                                                    <div class="d-flex justify-content-between"><small>Pending</small><small><span id="stat-pending">0</span> (<span id="stat-pending-p">0%</span>)</small></div>
+                                                    <div class="progress" style="height:8px;"><div id="stat-pending-bar" class="progress-bar bg-secondary" role="progressbar" style="width:0%"></div></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- (recent visitations removed per request) -->
+                        </div>
                         <div class="table-responsive">
                             <table id="spk-table" class="table table-bordered table-striped dt-responsive nowrap" style="width:100%">
                                 <thead>
@@ -143,6 +216,7 @@
                         d.tanggal_start = tanggal[0];
                         d.tanggal_end = tanggal[1];
                         d.klinik_id = $('#filterKlinik').val();
+                        d.dokter_id = $('#filterDokter').val();
                     }
                 },
                 columns: [
@@ -186,11 +260,41 @@
                 }
             });
 
+            // Update stats when DataTable completes an AJAX request
+            $('#spk-table').on('xhr.dt', function (e, settings, json, xhr) {
+                if (json && json.stats) {
+                    var s = json.stats;
+                    $('#stat-total-visit').text(s.total_visitations || 0);
+                    $('#stat-total-tindakan').text(s.total_tindakan || 0);
+                    $('#stat-avg-tindakan').text(s.avg_tindakan_per_visitation || 0);
+
+                    var counts = s.status_counts || {};
+                    var perc = s.status_percentages || {};
+
+                    $('#stat-completed').text(counts.completed || 0);
+                    $('#stat-completed-p').text((perc.completed || 0) + '%');
+                    $('#stat-completed-bar').css('width', (perc.completed || 0) + '%');
+
+                    $('#stat-in-progress').text(counts.in_progress || 0);
+                    $('#stat-in-progress-p').text((perc.in_progress || 0) + '%');
+                    $('#stat-in-progress-bar').css('width', (perc.in_progress || 0) + '%');
+
+                    $('#stat-pending').text(counts.pending || 0);
+                    $('#stat-pending-p').text((perc.pending || 0) + '%');
+                    $('#stat-pending-bar').css('width', (perc.pending || 0) + '%');
+
+                    // recent visitations removed - nothing to populate here
+                }
+            });
+
             // Reload table when date range or klinik changes
             $('#filterTanggal').on('apply.daterangepicker change', function() {
                 spkTable.ajax.reload();
             });
             $('#filterKlinik').on('change', function() {
+                spkTable.ajax.reload();
+            });
+            $('#filterDokter').on('change', function() {
                 spkTable.ajax.reload();
             });
         });
