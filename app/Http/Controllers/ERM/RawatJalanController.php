@@ -27,9 +27,9 @@ class RawatJalanController extends Controller
             'message' => 'required|string|max:255',
         ]);
         $perawats = \App\Models\User::role('Perawat')->get();
-        \Log::info('Perawat IDs:', $perawats->pluck('id')->toArray());
+        Log::info('Perawat IDs:', $perawats->pluck('id')->toArray());
         foreach ($perawats as $perawat) {
-            \Log::info('Sending notification to Perawat ID: ' . $perawat->id);
+            Log::info('Sending notification to Perawat ID: ' . $perawat->id);
             $perawat->notify(new \App\Notifications\DokterToPerawatNotification($request->message));
         }
         return response()->json(['success' => true]);
@@ -301,13 +301,15 @@ class RawatJalanController extends Controller
             $baseQuery->where('klinik_id', $request->klinik_id);
         }
 
+        // Ensure $today is always defined for use in closures below
+        $today = now()->format('Y-m-d');
+
         // Date range filter
         if ($request->start_date && $request->end_date) {
             $baseQuery->whereDate('tanggal_visitation', '>=', $request->start_date)
                      ->whereDate('tanggal_visitation', '<=', $request->end_date);
         } else {
             // Default to today if no date filter
-            $today = now()->format('Y-m-d');
             $baseQuery->whereDate('tanggal_visitation', $today);
         }
 
