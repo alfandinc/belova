@@ -780,6 +780,23 @@ Terima kasih.
                 </div>
             </div>
         </div>
+        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="card shadow-sm stat-card stat-card-clickable" data-status="rujuk" style="border: 2px solid #6f42c1; border-radius: 10px; cursor:pointer;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <div class="rounded-circle bg-purple d-flex align-items-center justify-content-center stat-icon" style="width: 48px; height: 48px; background:#6f42c1;">
+                                <i class="fas fa-share-square text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-fill">
+                            <h6 class="mb-1 font-weight-bold text-muted">Pasien Rujuk/Konsultasi</h6>
+                            <h4 class="mb-0 text-purple stat-number" id="stat-rujuk">{{ $stats['rujuk'] ?? 0 }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal for Visitation List by Stat -->
@@ -797,6 +814,24 @@ Terima kasih.
                         <div class="text-center"><span class="spinner-border"></span> Memuat data...</div>
                     </div>
                 </div>
+                    <!-- Modal for Rujuk List -->
+                    <div class="modal fade" id="modalRujukList" tabindex="-1" role="dialog" aria-labelledby="modalRujukListTitle" aria-hidden="true">
+                        <div class="modal-dialog modal-lg" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="modalRujukListTitle">Daftar Pasien Rujuk / Konsultasi</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="rujuk-list-content">
+                                        <div class="text-center"><span class="spinner-border"></span> Memuat data rujuk...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
             </div>
         </div>
     </div>
@@ -1188,12 +1223,45 @@ function updateStats() {
         $('#stat-belum-diperiksa').text(stats.belum_diperiksa);
         $('#stat-sudah-diperiksa').text(stats.sudah_diperiksa);
         $('#stat-dibatalkan').text(stats.dibatalkan);
+    $('#stat-rujuk').text(stats.rujuk || 0);
     }).fail(function() {
         console.error('Failed to update statistics');
     });
 }
 
 
+});
+
+// Open Rujuk list modal when clicking the stat
+$(document).on('click', '.stat-card[data-status="rujuk"]', function() {
+    // Use current filters
+    let startDate = $('#filter_start_date').val();
+    let endDate = $('#filter_end_date').val();
+    let dokterId = $('#filter_dokter').val();
+    let klinikId = $('#filter_klinik').val();
+
+    $('#rujuk-list-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat data rujuk...</div>');
+    $('#modalRujukList').modal('show');
+
+    $.get('{{ route("erm.rawatjalans.rujuks") }}', {
+        start_date: startDate,
+        end_date: endDate,
+        dokter_id: dokterId,
+        klinik_id: klinikId
+    }, function(res) {
+        if (!res.data || res.data.length === 0) {
+            $('#rujuk-list-content').html('<div class="text-center">Tidak ada data rujuk.</div>');
+            return;
+        }
+        let html = '<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>No RM</th><th>Nama Pasien</th><th>Jenis</th><th>Pengirim</th><th>Tujuan</th><th>Tanggal</th><th>Keterangan</th></tr></thead><tbody>';
+        res.data.forEach(function(item) {
+            html += `<tr><td>${item.no_rm}</td><td>${item.pasien}</td><td>${item.jenis_permintaan}</td><td>${item.dokter_pengirim}</td><td>${item.dokter_tujuan}</td><td>${item.tanggal}</td><td>${item.keterangan || ''}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+        $('#rujuk-list-content').html(html);
+    }).fail(function() {
+        $('#rujuk-list-content').html('<div class="text-center text-danger">Gagal memuat data.</div>');
+    });
 });
 
 // Batalkan Kunjungan
