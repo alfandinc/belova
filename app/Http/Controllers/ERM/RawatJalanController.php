@@ -261,14 +261,18 @@ class RawatJalanController extends Controller
             'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
             'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
             // count rujuk/konsultasi for visitations on $today (via related visitation)
-            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($today, $user) {
+            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($today) {
                 $q->whereDate('tanggal_visitation', $today);
-                // If the current user is a Dokter, restrict to their visits
-                if ($user && $user->hasRole('Dokter')) {
-                    $dokter = Dokter::where('user_id', $user->id)->first();
-                    if ($dokter) {
-                        $q->where('dokter_id', $dokter->id);
-                    }
+            })->when($user && $user->hasRole('Dokter'), function($q) use ($user) {
+                $dokter = Dokter::where('user_id', $user->id)->first();
+                if ($dokter) {
+                    $q->where(function($r) use ($dokter) {
+                        $r->where('dokter_pengirim_id', $dokter->id)
+                          ->orWhere('dokter_tujuan_id', $dokter->id)
+                          ->orWhereHas('visitation', function($v) use ($dokter) {
+                              $v->where('dokter_id', $dokter->id);
+                          });
+                    });
                 }
             })->count(),
         ];
@@ -319,14 +323,19 @@ class RawatJalanController extends Controller
             'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
             'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
             // rujuk count for the requested date range (or default today) based on related visitation.tanggal_visitation
-            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($request, $today, $user) {
+            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($request, $today) {
                 $start = $request->start_date ?? $today;
                 $q->whereDate('tanggal_visitation', $start);
-                if ($user && $user->hasRole('Dokter')) {
-                    $dokter = Dokter::where('user_id', $user->id)->first();
-                    if ($dokter) {
-                        $q->where('dokter_id', $dokter->id);
-                    }
+            })->when($user && $user->hasRole('Dokter'), function($q) use ($user) {
+                $dokter = Dokter::where('user_id', $user->id)->first();
+                if ($dokter) {
+                    $q->where(function($r) use ($dokter) {
+                        $r->where('dokter_pengirim_id', $dokter->id)
+                          ->orWhere('dokter_tujuan_id', $dokter->id)
+                          ->orWhereHas('visitation', function($v) use ($dokter) {
+                              $v->where('dokter_id', $dokter->id);
+                          });
+                    });
                 }
             })->count(),
         ];
@@ -342,13 +351,29 @@ class RawatJalanController extends Controller
         $query = Rujuk::with(['pasien:id,nama,tanggal_lahir', 'dokterPengirim.user:id,name', 'dokterTujuan.user:id,name', 'visitation'])
             ->orderBy('created_at', 'desc');
 
-        // If the logged-in user is a Dokter, restrict to their visits only
+        // If request included dokter_id, filter by involvement (pengirim/tujuan/visitation)
+        if ($request->dokter_id) {
+            $dokId = $request->dokter_id;
+            $query->where(function($qr) use ($dokId) {
+                $qr->where('dokter_pengirim_id', $dokId)
+                   ->orWhere('dokter_tujuan_id', $dokId)
+                   ->orWhereHas('visitation', function($v) use ($dokId) {
+                        $v->where('dokter_id', $dokId);
+                   });
+            });
+        }
+
+        // If no explicit dokter filter and logged-in user is a Dokter, restrict to their involvement
         $user = Auth::user();
-        if ($user && $user->hasRole('Dokter')) {
+        if (!$request->dokter_id && $user && $user->hasRole('Dokter')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
             if ($dokter) {
-                $query->whereHas('visitation', function($q) use ($dokter) {
-                    $q->where('dokter_id', $dokter->id);
+                $query->where(function($qr) use ($dokter) {
+                    $qr->where('dokter_pengirim_id', $dokter->id)
+                       ->orWhere('dokter_tujuan_id', $dokter->id)
+                       ->orWhereHas('visitation', function($v) use ($dokter) {
+                            $v->where('dokter_id', $dokter->id);
+                       });
                 });
             }
         }
@@ -744,6 +769,15 @@ class RawatJalanController extends Controller
         // Dokter filter
         if ($dokterId) {
             $query->where('dokter_id', $dokterId);
+        } else {
+            // If logged in user is a Dokter and no dokter filter provided, restrict to that dokter
+            $user = Auth::user();
+            if ($user && $user->hasRole('Dokter')) {
+                $dokter = Dokter::where('user_id', $user->id)->first();
+                if ($dokter) {
+                    $query->where('dokter_id', $dokter->id);
+                }
+            }
         }
 
         // Klinik filter
