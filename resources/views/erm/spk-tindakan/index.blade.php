@@ -49,64 +49,85 @@
                     <div class="card-body">
                         <!-- Enhanced Stats Cards -->
                         <div id="spk-stats" class="mb-3">
+                            <style>
+                                /* Clean card styling for stats - compact */
+                                .spk-stat-card { border-radius:8px; }
+                                /* Make card bodies compact and horizontally aligned */
+                                .spk-stat-card .card-body { padding: 8px 10px; display:flex; flex-direction:row; align-items:center; justify-content:space-between; height:auto; }
+                                .spk-stat-value { font-weight:600; font-size:1.1rem; }
+                                .spk-stat-sub { color:#6c757d; font-size:0.75rem; }
+                                .progress { background: #eef3fb; }
+                                .progress-bar { transition: width 400ms ease; }
+                                .stat-icon { width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:6px; }
+                                .stat-icon .mdi { font-size:14px; }
+                                .card-breakdown .progress { height:8px; }
+                                /* compact left stack spacing */
+                                .left-stack { gap:8px; }
+                                .left-stack .card { flex: none; }
+                                /* ensure the right breakdown card isn't too tall */
+                                .spk-stat-card.h-100 { min-height:130px; }
+                                /* breakdown card specific layout: use column flow inside */
+                                .card-breakdown .card-body { display:block !important; }
+                                .card-breakdown .progress { width:100%; }
+                                .card-breakdown .d-flex.justify-content-between { margin-bottom:8px; }
+                            </style>
                             <div class="row">
-                                <div class="col-md-3 mb-2">
-                                    <div class="card shadow-sm">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center">
+                                <!-- Left column: two stacked total cards -->
+                                <div class="col-12 col-md-4 mb-2">
+                                    <div class="d-flex flex-column left-stack" style="height:100%; gap:12px;">
+                                        <div class="card spk-stat-card shadow-sm">
+                                            <div class="card-body d-flex justify-content-between align-items-center">
                                                 <div>
-                                                    <small class="text-muted">Total Visitations</small>
-                                                    <div class="h4 mb-0" id="stat-total-visit">-</div>
+                                                    <div class="spk-stat-sub">Total Visitations</div>
+                                                    <div class="spk-stat-value" id="stat-total-visit">-</div>
                                                 </div>
-                                                <div class="text-primary">
-                                                    <i class="mdi mdi-account-multiple-outline" style="font-size:28px"></i>
+                                                <div class="stat-icon bg-white border text-primary ml-2">
+                                                    <i class="mdi mdi-account-multiple-outline"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card spk-stat-card shadow-sm">
+                                            <div class="card-body d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <div class="spk-stat-sub">Total Tindakan</div>
+                                                    <div class="spk-stat-value" id="stat-total-tindakan">-</div>
+                                                    <div class="spk-stat-sub">Avg per visit: <span id="stat-avg-tindakan">-</span></div>
+                                                </div>
+                                                <div class="stat-icon bg-white border text-success ml-2">
+                                                    <i class="mdi mdi-stethoscope"></i>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="col-md-3 mb-2">
-                                    <div class="card shadow-sm">
+
+                                <!-- Right column: status breakdown -->
+                                <div class="col-12 col-md-8 mb-2">
+                                    <div class="card spk-stat-card card-breakdown shadow-sm h-100">
                                         <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center">
+                                            {{-- <div class="d-flex justify-content-between align-items-center mb-2">
                                                 <div>
-                                                    <small class="text-muted">Total Tindakan</small>
-                                                    <div class="h4 mb-0" id="stat-total-tindakan">-</div>
-                                                    <small class="text-muted">Avg per visit: <span id="stat-avg-tindakan">-</span></small>
-                                                </div>
-                                                <div class="text-success">
-                                                    <i class="mdi mdi-stethoscope" style="font-size:28px"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-6 mb-2">
-                                    <div class="card shadow-sm">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <div>
-                                                    <small class="text-muted">Status Breakdown</small>
+                                                    <div class="spk-stat-sub">Status Breakdown</div>
                                                     <div class="h5 mb-0">Overview</div>
                                                 </div>
                                                 <div class="text-secondary">
-                                                    <i class="mdi mdi-chart-donut" style="font-size:28px"></i>
+                                                    <i class="mdi mdi-chart-donut" style="font-size:22px"></i>
                                                 </div>
-                                            </div>
-                                            <div class="mt-2">
-                                                <div class="mb-2">
-                                                    <div class="d-flex justify-content-between"><small>Completed</small><small><span id="stat-completed">0</span> (<span id="stat-completed-p">0%</span>)</small></div>
-                                                    <div class="progress" style="height:8px;"><div id="stat-completed-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div></div>
+                                            </div> --}}
+                                            {{-- <div class="mt-2"> --}}
+                                                <div class="mb-3">
+                                                    <div class="d-flex justify-content-between"><small class="spk-stat-sub">Completed</small><small class="spk-stat-sub"><span id="stat-completed">0</span> (<span id="stat-completed-p">0%</span>)</small></div>
+                                                    <div class="progress" style="height:10px;"><div id="stat-completed-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div></div>
                                                 </div>
-                                                <div class="mb-2">
-                                                    <div class="d-flex justify-content-between"><small>In Progress</small><small><span id="stat-in-progress">0</span> (<span id="stat-in-progress-p">0%</span>)</small></div>
-                                                    <div class="progress" style="height:8px;"><div id="stat-in-progress-bar" class="progress-bar bg-warning" role="progressbar" style="width:0%"></div></div>
+                                                <div class="mb-3">
+                                                    <div class="d-flex justify-content-between"><small class="spk-stat-sub">In Progress</small><small class="spk-stat-sub"><span id="stat-in-progress">0</span> (<span id="stat-in-progress-p">0%</span>)</small></div>
+                                                    <div class="progress" style="height:10px;"><div id="stat-in-progress-bar" class="progress-bar bg-warning" role="progressbar" style="width:0%"></div></div>
                                                 </div>
                                                 <div class="mb-0">
-                                                    <div class="d-flex justify-content-between"><small>Pending</small><small><span id="stat-pending">0</span> (<span id="stat-pending-p">0%</span>)</small></div>
-                                                    <div class="progress" style="height:8px;"><div id="stat-pending-bar" class="progress-bar bg-secondary" role="progressbar" style="width:0%"></div></div>
+                                                    <div class="d-flex justify-content-between"><small class="spk-stat-sub">Pending</small><small class="spk-stat-sub"><span id="stat-pending">0</span> (<span id="stat-pending-p">0%</span>)</small></div>
+                                                    <div class="progress" style="height:10px;"><div id="stat-pending-bar" class="progress-bar bg-secondary" role="progressbar" style="width:0%"></div></div>
                                                 </div>
-                                            </div>
+                                            {{-- </div> --}}
                                         </div>
                                     </div>
                                 </div>
@@ -261,29 +282,50 @@
             });
 
             // Update stats when DataTable completes an AJAX request
+            // Helper: format number with thousand separators
+            function fmt(n) {
+                if (n === null || n === undefined) return '-';
+                return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            }
+
+            // Animate a numeric text from old to new value (simple tween)
+            function animateNumber($el, start, end, duration) {
+                var startTime = performance.now();
+                function frame(now) {
+                    var t = Math.min(1, (now - startTime) / duration);
+                    var value = Math.round(start + (end - start) * t);
+                    $el.text(fmt(value));
+                    if (t < 1) requestAnimationFrame(frame);
+                }
+                requestAnimationFrame(frame);
+            }
+
             $('#spk-table').on('xhr.dt', function (e, settings, json, xhr) {
                 if (json && json.stats) {
                     var s = json.stats;
-                    $('#stat-total-visit').text(s.total_visitations || 0);
-                    $('#stat-total-tindakan').text(s.total_tindakan || 0);
-                    $('#stat-avg-tindakan').text(s.avg_tindakan_per_visitation || 0);
+                    var tv = s.total_visitations || 0;
+                    var tt = s.total_tindakan || 0;
+                    var avg = s.avg_tindakan_per_visitation || 0;
+
+                    // animate totals
+                    animateNumber($('#stat-total-visit'), parseInt($('#stat-total-visit').text().replace(/,/g,'')) || 0, tv, 600);
+                    animateNumber($('#stat-total-tindakan'), parseInt($('#stat-total-tindakan').text().replace(/,/g,'')) || 0, tt, 600);
+                    $('#stat-avg-tindakan').text(avg);
 
                     var counts = s.status_counts || {};
                     var perc = s.status_percentages || {};
 
-                    $('#stat-completed').text(counts.completed || 0);
+                    $('#stat-completed').text(fmt(counts.completed || 0));
                     $('#stat-completed-p').text((perc.completed || 0) + '%');
                     $('#stat-completed-bar').css('width', (perc.completed || 0) + '%');
 
-                    $('#stat-in-progress').text(counts.in_progress || 0);
+                    $('#stat-in-progress').text(fmt(counts.in_progress || 0));
                     $('#stat-in-progress-p').text((perc.in_progress || 0) + '%');
                     $('#stat-in-progress-bar').css('width', (perc.in_progress || 0) + '%');
 
-                    $('#stat-pending').text(counts.pending || 0);
+                    $('#stat-pending').text(fmt(counts.pending || 0));
                     $('#stat-pending-p').text((perc.pending || 0) + '%');
                     $('#stat-pending-bar').css('width', (perc.pending || 0) + '%');
-
-                    // recent visitations removed - nothing to populate here
                 }
             });
 
