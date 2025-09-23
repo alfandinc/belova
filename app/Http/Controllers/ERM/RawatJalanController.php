@@ -5,14 +5,13 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\Visitation;
-use App\Models\ERM\Rujuk;
 use Illuminate\Support\Facades\Auth;
 use App\Models\ERM\MetodeBayar;
 use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
 use App\Models\ERM\ScreeningBatuk;
+use App\Models\ERM\Rujuk;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 class RawatJalanController extends Controller
 {
@@ -261,8 +260,10 @@ class RawatJalanController extends Controller
             'belum_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 1)->count(),
             'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
             'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
-            // Count of rujuk/konsultasi made today
-            'rujuk' => Rujuk::whereDate('created_at', $today ?? now()->format('Y-m-d'))->count(),
+            // count rujuk/konsultasi for visitations on $today (via related visitation)
+            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($today) {
+                $q->whereDate('tanggal_visitation', $today);
+            })->count(),
         ];
 
         return $stats;
@@ -310,9 +311,44 @@ class RawatJalanController extends Controller
             'belum_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 1)->count(),
             'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
             'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
+            // rujuk count for the requested date range (or default today) based on related visitation.tanggal_visitation
+            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($request, $today) {
+                $start = $request->start_date ?? $today;
+                $q->whereDate('tanggal_visitation', $start);
+            })->count(),
         ];
 
         return response()->json($stats);
+    }
+
+    /**
+     * Return list of rujuk records for AJAX modal
+     */
+    public function listRujuks(Request $request)
+    {
+        $query = Rujuk::with(['pasien:id,nama,tanggal_lahir', 'dokterPengirim.user:id,name', 'dokterTujuan.user:id,name', 'visitation'])
+            ->orderBy('created_at', 'desc');
+
+        // Filter by related visitation.tanggal_visitation
+        if ($request->start_date && $request->end_date) {
+            $query->whereHas('visitation', function($q) use ($request) {
+                $q->whereDate('tanggal_visitation', '>=', $request->start_date)
+                  ->whereDate('tanggal_visitation', '<=', $request->end_date);
+            });
+        } else {
+            $today = now()->format('Y-m-d');
+            $query->whereHas('visitation', function($q) use ($today) {
+                $q->whereDate('tanggal_visitation', $today);
+            });
+        }
+
+        if ($request->dokter_id) {
+            $query->where('dokter_tujuan_id', $request->dokter_id);
+        }
+
+        $rujuks = $query->get();
+
+        return response()->json(['data' => $rujuks]);
     }
 
     public function cekAntrian(Request $request)
@@ -700,49 +736,6 @@ class RawatJalanController extends Controller
                 'dokter_nama' => $v->dokter ? ($v->dokter->user->name ?? '-') : '-',
                 'tanggal_visitation' => $v->tanggal_visitation,
                 'no_antrian' => $v->no_antrian,
-            ];
-        });
-
-        return response()->json(['data' => $data]);
-    }
-
-    /**
-     * AJAX: List rujuk / konsultasi entries for a modal
-     */
-    public function listRujuks(Request $request)
-    {
-        $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
-        $dokterId = $request->input('dokter_id');
-        $klinikId = $request->input('klinik_id');
-
-        $query = Rujuk::with(['pasien', 'dokterPengirim', 'dokterTujuan', 'visitation']);
-
-        if ($startDate && $endDate) {
-            $query->whereDate('created_at', '>=', $startDate)
-                  ->whereDate('created_at', '<=', $endDate);
-        } else {
-            $today = now()->format('Y-m-d');
-            $query->whereDate('created_at', $today);
-        }
-
-        if ($dokterId) $query->where('dokter_tujuan_id', $dokterId);
-        if ($klinikId) $query->whereHas('visitation', function($q) use ($klinikId) { $q->where('klinik_id', $klinikId); });
-
-        $items = $query->orderBy('created_at', 'desc')->limit(200)->get();
-
-        $data = $items->map(function($r) {
-            return [
-                'id' => $r->id,
-                'pasien' => $r->pasien ? $r->pasien->nama : '-',
-                'no_rm' => $r->pasien ? $r->pasien->id : '-',
-                'dokter_pengirim' => $r->dokterPengirim ? $r->dokterPengirim->user->name : '-',
-                'dokter_tujuan' => $r->dokterTujuan ? $r->dokterTujuan->user->name : '-',
-                'jenis_permintaan' => $r->jenis_permintaan,
-                'keterangan' => $r->keterangan,
-                'penunjang' => $r->penunjang,
-                'tanggal' => $r->created_at->format('Y-m-d'),
-                'visitation_id' => $r->visitation_id,
             ];
         });
 

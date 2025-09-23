@@ -326,12 +326,11 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
+    Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
     Route::post('/rawatjalans/create', [RawatJalanController::class, 'store'])->name('erm.rawatjalans.store');
     Route::get('/cek-antrian', [RawatJalanController::class, 'cekAntrian'])->name('erm.rawatjalans.cekAntrian');
     // AJAX: Get list of visitations by status for Rawat Jalan stats modal
     Route::get('/rawatjalans/list-by-status', [App\Http\Controllers\ERM\RawatJalanController::class, 'listByStatus']);
-    // AJAX: List rujuk / konsultasi entries for Rawat Jalan
-    Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
     // AJAX: Restore visitation status from dibatalkan (7) to tidak datang (0)
     Route::post('/rawatjalans/restore-status', [App\Http\Controllers\ERM\RawatJalanController::class, 'restoreStatus']);
 
