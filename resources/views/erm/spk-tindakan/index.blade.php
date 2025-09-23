@@ -47,8 +47,26 @@
                         </div>
                     </div>
                     <div class="card-body">
-                        <!-- Enhanced Stats Cards -->
-                        <div id="spk-stats" class="mb-3">
+                        <div class="table-responsive">
+                            <table id="spk-table" class="table table-bordered table-striped dt-responsive nowrap" style="width:100%">
+                                <thead>
+                                    <tr>
+                                        <th>Visitation ID</th>
+                                        <th>RM</th>
+                                        <th>Pasien</th>
+                                        <th>Dokter</th>
+                                        <th>Tindakan</th>
+                                        <th>Tanggal</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- move stats below the table -->
+                        <div id="spk-stats" class="mb-3 mt-3">
                             <style>
                                 /* Clean card styling for stats - compact */
                                 .spk-stat-card { border-radius:8px; }
@@ -105,52 +123,22 @@
                                 <div class="col-12 col-md-8 mb-2">
                                     <div class="card spk-stat-card card-breakdown shadow-sm h-100">
                                         <div class="card-body">
-                                            {{-- <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <div>
-                                                    <div class="spk-stat-sub">Status Breakdown</div>
-                                                    <div class="h5 mb-0">Overview</div>
-                                                </div>
-                                                <div class="text-secondary">
-                                                    <i class="mdi mdi-chart-donut" style="font-size:22px"></i>
-                                                </div>
-                                            </div> --}}
-                                            {{-- <div class="mt-2"> --}}
-                                                <div class="mb-3">
-                                                    <div class="d-flex justify-content-between"><small class="spk-stat-sub">Completed</small><small class="spk-stat-sub"><span id="stat-completed">0</span> (<span id="stat-completed-p">0%</span>)</small></div>
-                                                    <div class="progress" style="height:10px;"><div id="stat-completed-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div></div>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <div class="d-flex justify-content-between"><small class="spk-stat-sub">In Progress</small><small class="spk-stat-sub"><span id="stat-in-progress">0</span> (<span id="stat-in-progress-p">0%</span>)</small></div>
-                                                    <div class="progress" style="height:10px;"><div id="stat-in-progress-bar" class="progress-bar bg-warning" role="progressbar" style="width:0%"></div></div>
-                                                </div>
-                                                <div class="mb-0">
-                                                    <div class="d-flex justify-content-between"><small class="spk-stat-sub">Pending</small><small class="spk-stat-sub"><span id="stat-pending">0</span> (<span id="stat-pending-p">0%</span>)</small></div>
-                                                    <div class="progress" style="height:10px;"><div id="stat-pending-bar" class="progress-bar bg-secondary" role="progressbar" style="width:0%"></div></div>
-                                                </div>
-                                            {{-- </div> --}}
+                                            <div class="mb-3">
+                                                <div class="d-flex justify-content-between"><small class="spk-stat-sub">Completed</small><small class="spk-stat-sub"><span id="stat-completed">0</span> (<span id="stat-completed-p">0%</span>)</small></div>
+                                                <div class="progress" style="height:10px;"><div id="stat-completed-bar" class="progress-bar bg-success" role="progressbar" style="width:0%"></div></div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="d-flex justify-content-between"><small class="spk-stat-sub">In Progress</small><small class="spk-stat-sub"><span id="stat-in-progress">0</span> (<span id="stat-in-progress-p">0%</span>)</small></div>
+                                                <div class="progress" style="height:10px;"><div id="stat-in-progress-bar" class="progress-bar bg-warning" role="progressbar" style="width:0%"></div></div>
+                                            </div>
+                                            <div class="mb-0">
+                                                <div class="d-flex justify-content-between"><small class="spk-stat-sub">Pending</small><small class="spk-stat-sub"><span id="stat-pending">0</span> (<span id="stat-pending-p">0%</span>)</small></div>
+                                                <div class="progress" style="height:10px;"><div id="stat-pending-bar" class="progress-bar bg-secondary" role="progressbar" style="width:0%"></div></div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <!-- (recent visitations removed per request) -->
-                        </div>
-                        <div class="table-responsive">
-                            <table id="spk-table" class="table table-bordered table-striped dt-responsive nowrap" style="width:100%">
-                                <thead>
-                                    <tr>
-                                        <th>Visitation ID</th>
-                                        <th>RM</th>
-                                        <th>Pasien</th>
-                                        <th>Dokter</th>
-                                        <th>Tindakan</th>
-                                        <th>Tanggal</th>
-                                        <th>Status</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                </tbody>
-                            </table>
                         </div>
                     </div>
                 </div>
