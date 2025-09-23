@@ -249,9 +249,9 @@ class RawatJalanController extends Controller
             }
         }
 
-        // Apply today's date filter by default
-        $today = now()->format('Y-m-d');
-        $baseQuery->whereDate('tanggal_visitation', $today);
+    // Apply today's date filter by default
+    $today = now()->format('Y-m-d');
+    $baseQuery->whereDate('tanggal_visitation', $today);
 
         // Calculate statistics
         $stats = [
@@ -261,8 +261,15 @@ class RawatJalanController extends Controller
             'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
             'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
             // count rujuk/konsultasi for visitations on $today (via related visitation)
-            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($today) {
+            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($today, $user) {
                 $q->whereDate('tanggal_visitation', $today);
+                // If the current user is a Dokter, restrict to their visits
+                if ($user && $user->hasRole('Dokter')) {
+                    $dokter = Dokter::where('user_id', $user->id)->first();
+                    if ($dokter) {
+                        $q->where('dokter_id', $dokter->id);
+                    }
+                }
             })->count(),
         ];
 
@@ -312,9 +319,15 @@ class RawatJalanController extends Controller
             'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
             'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
             // rujuk count for the requested date range (or default today) based on related visitation.tanggal_visitation
-            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($request, $today) {
+            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($request, $today, $user) {
                 $start = $request->start_date ?? $today;
                 $q->whereDate('tanggal_visitation', $start);
+                if ($user && $user->hasRole('Dokter')) {
+                    $dokter = Dokter::where('user_id', $user->id)->first();
+                    if ($dokter) {
+                        $q->where('dokter_id', $dokter->id);
+                    }
+                }
             })->count(),
         ];
 
@@ -328,6 +341,17 @@ class RawatJalanController extends Controller
     {
         $query = Rujuk::with(['pasien:id,nama,tanggal_lahir', 'dokterPengirim.user:id,name', 'dokterTujuan.user:id,name', 'visitation'])
             ->orderBy('created_at', 'desc');
+
+        // If the logged-in user is a Dokter, restrict to their visits only
+        $user = Auth::user();
+        if ($user && $user->hasRole('Dokter')) {
+            $dokter = Dokter::where('user_id', $user->id)->first();
+            if ($dokter) {
+                $query->whereHas('visitation', function($q) use ($dokter) {
+                    $q->where('dokter_id', $dokter->id);
+                });
+            }
+        }
 
         // Filter by related visitation.tanggal_visitation
         if ($request->start_date && $request->end_date) {
