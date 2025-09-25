@@ -9,7 +9,8 @@ use App\Http\Controllers\{
     FinanceDashboardController,
     WorkdocDashboardController,
     AkreditasiDashboardController,
-    CustSurveyController
+    CustSurveyController,
+    BCLDashboardController
 };
 use App\Http\Controllers\ERM\StokGudangController;
 use App\Http\Controllers\Admin\{
@@ -67,6 +68,20 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Marketing\MarketingController;
 use App\Http\Controllers\Insiden\LaporanInsidenController;
 use App\Http\Controllers\LaporanDashboardController;
+
+use App\Http\Controllers\BCL\{
+    HomeController,
+    PricelistController,
+    RoomsController,
+    RenterController,
+    tr_renterController,
+    FinJurnalController,
+    InventoriesController,
+    RoomCategoryController,
+    RoomCategoryImageController,
+    pricelist_tambahanController,
+    extra_rentController,
+};
 
 
 use Illuminate\Support\Facades\Auth;
@@ -132,14 +147,86 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('role:Hrd|Manager|Admin|Kasir')
         ->name('laporan.dashboard');
 
-
-
+    Route::get('/bcl', [BCLDashboardController::class, 'index'])
+        ->middleware('role:Kos|Admin')
+        ->name('bcl.dashboard');
 });
 
 
 
 Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');
 Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('customer.survey');
+
+Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
+    Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
+    Route::get('/rooms/edit/{id}', [RoomsController::class, 'edit'])->name('bcl.rooms.edit');
+    Route::post('/rooms/update', [RoomsController::class, 'update'])->name('bcl.rooms.update');
+    Route::get('/rooms/delete/{id}', [RoomsController::class, 'destroy'])->name('bcl.rooms.delete');
+    Route::get('/rooms', [RoomsController::class, 'index'])->name('bcl.rooms');
+    Route::get('/rooms/{id}', [PricelistController::class, 'get_room_pricelist'])->name('bcl.pricelist.get_pl_room');
+    Route::post('/tambahanpl', [pricelist_tambahanController::class, 'store'])->name('bcl.extra_pl.store');
+    Route::get('/tambahanpl/edit/{id}', [pricelist_tambahanController::class, 'edit'])->name('bcl.extra_pl.edit');
+    Route::post('/tambahanpl/update', [pricelist_tambahanController::class, 'update'])->name('bcl.extra_pl.update');
+    Route::get('/tambahanpl/delete/{id}', [pricelist_tambahanController::class, 'destroy'])->name('bcl.extra_pl.delete');
+    Route::post('/rooms/sewa', [tr_renterController::class, 'sewa'])->name('bcl.rooms.sewa');
+
+    Route::get('/category', [RoomCategoryController::class, 'index'])->name('bcl.category.index');
+    Route::post('/category/store', [RoomCategoryController::class, 'store'])->name('bcl.category.store');
+    Route::get('/category/edit/{id}', [RoomCategoryController::class, 'edit'])->name('bcl.category.edit');
+    Route::post('/category/update', [RoomCategoryController::class, 'update'])->name('bcl.category.update');
+    Route::get('/category/delete/{id}', [RoomCategoryController::class, 'destroy'])->name('bcl.category.delete');
+    Route::post('/images/store', [RoomCategoryImageController::class, 'store'])->name('bcl.images.store');
+    Route::get('/images/delete/{id}', [RoomCategoryImageController::class, 'destroy'])->name('bcl.images.delete');
+
+    Route::get('/renter', [RenterController::class, 'index'])->name('bcl.renter.index');
+    Route::post('/renter/store', [RenterController::class, 'store'])->name('bcl.renter.store');
+    Route::get('/renter/edit/{id}', [RenterController::class, 'edit'])->name('bcl.renter.edit');
+    Route::post('/renter/update', [RenterController::class, 'update'])->name('bcl.renter.update');
+    Route::get('/renter/delete/{id}', [RenterController::class, 'destroy'])->name('bcl.renter.delete');
+
+    Route::get('/inventories', [InventoriesController::class, 'index'])->name('bcl.inventories.index');
+    Route::post('/inventories/store', [InventoriesController::class, 'store'])->name('bcl.inventories.store');
+    Route::get('/inventories/edit/{id}', [InventoriesController::class, 'edit'])->name('bcl.inventories.edit');
+    Route::post('/inventories/update', [InventoriesController::class, 'update'])->name('bcl.inventories.update');
+    Route::get('/inventories/delete/{id}', [InventoriesController::class, 'destroy'])->name('bcl.inventories.delete');
+    Route::get('/inventories/show/{id}', [InventoriesController::class, 'show'])->name('bcl.inventories.show');
+
+    Route::get('/pricelist', [PricelistController::class, 'index'])->name('bcl.pricelist.index');
+    Route::post('/pricelist/store', [PricelistController::class, 'store'])->name('bcl.pricelist.store');
+    Route::get('/pricelist/edit/{id}', [PricelistController::class, 'edit'])->name('bcl.pricelist.edit');
+    Route::post('/pricelist/update', [PricelistController::class, 'update'])->name('bcl.pricelist.update');
+    Route::get('/pricelist/delete/{id}', [PricelistController::class, 'destroy'])->name('bcl.pricelist.delete');
+    
+    Route::any('/finance/income', [FinJurnalController::class, 'index'])->name('bcl.income.index');
+    Route::get('/finance/income/delete/{id}', [FinJurnalController::class, 'income_delete'])->name('bcl.income.delete');
+    Route::any('/finance/expense', [FinJurnalController::class, 'expense'])->name('bcl.expense.index');
+    Route::get('/finance/expense/view/{id}', [FinJurnalController::class, 'expense_show'])->name('bcl.expense.show');
+    Route::get('/finance/expense/delete/{id}', [FinJurnalController::class, 'expense_delete'])->name('bcl.expense.delete');
+    Route::post('/finance/income/store', [FinJurnalController::class, 'store'])->name('bcl.income.store');
+    Route::post('/finance/expense/store', [FinJurnalController::class, 'store_expense'])->name('bcl.expense.store');
+
+    Route::any('/transaksi', [tr_renterController::class, 'index'])->name('bcl.transaksi.index');
+    Route::get('/transaksi/show/{id}', [tr_renterController::class, 'show'])->name('bcl.transaksi.show');
+    Route::get('/transaksi/delete/{id}', [tr_renterController::class, 'destroy'])->name('bcl.transaksi.delete');
+    Route::post('/transaksi/refund', [tr_renterController::class, 'refund'])->name('bcl.transaksi.refund');
+    Route::post('/transaksi/reschedule', [tr_renterController::class, 'reschedule'])->name('bcl.transaksi.reschedule');
+    Route::get('/transaksi/cetak/{id}', [tr_renterController::class, 'cetak'])->name('bcl.transaksi.cetak');
+    Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //LAPORAN Routes
 Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function () {

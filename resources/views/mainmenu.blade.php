@@ -657,7 +657,10 @@
                     <div class="menu-sub">Keamanan & Laporan</div>
                 </a>
 
-                <a href="https://bcl.belova.id/login" class="menu-tile tile-kos animate-item delay-14" target="_blank" data-filter="bcl kos">
+                <a href="/bcl" class="menu-tile tile-kos animate-item delay-14" data-filter="bcl kos"
+                    @if(!array_intersect($userRoles, ['Kos','Admin']))
+                       onclick="showRoleWarning(event, 'BCL')"
+                    @endif>
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-building"></i></div>
                         <div class="menu-badge">External</div>
