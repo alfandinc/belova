@@ -40,21 +40,22 @@ class FarmasiController extends Controller
                 ->addColumn('quantity', function($item) {
                     return $item->qty ?? 1;
                 })
-                ->addColumn('diskon', function($item) {
+                ->addColumn('diskon_persen', function($item) {
+                    $diskon = $item->diskon ?? 0;
+                    $diskonType = $item->diskon_type ?? 'nominal';
+                    $dt = strtolower(trim((string) $diskonType));
+                    $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+                    return $isPercent ? $diskon : '';
+                })
+                ->addColumn('diskon_nominal', function($item) {
                     $diskon = $item->diskon ?? 0;
                     $diskonType = $item->diskon_type ?? 'nominal';
                     $qty = $item->qty ?? 1;
                     $base = ($item->harga ?? 0) * $qty;
-                    // normalize diskon type to detect percent in various forms
                     $dt = strtolower(trim((string) $diskonType));
                     $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
                     $diskonValue = $isPercent ? ($base * $diskon / 100) : $diskon;
-                    $formattedNominal = number_format($diskonValue, 2);
-                    // Show nominal first; for percent types append percent in parentheses
-                    if ($isPercent) {
-                        return $formattedNominal . ' (' . $diskon . '%)';
-                    }
-                    return $formattedNominal;
+                    return number_format($diskonValue, 2);
                 })
                 ->addColumn('harga_jadi', function($item) {
                     $harga = $item->harga;
@@ -69,7 +70,7 @@ class FarmasiController extends Controller
                     $hargaJadi = $base - $diskonValue + $taxValue;
                     return number_format($hargaJadi, 2);
                 })
-                ->rawColumns(['nama_pemasok', 'nama_obat', 'harga_beli', 'quantity', 'diskon', 'harga_jadi'])
+                ->rawColumns(['nama_pemasok', 'nama_obat', 'harga_beli', 'quantity', 'diskon_persen', 'diskon_nominal', 'harga_jadi'])
                 ->make(true);
         }
         return view('laporan.farmasi.index');

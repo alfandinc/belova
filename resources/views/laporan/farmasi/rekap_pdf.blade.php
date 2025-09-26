@@ -15,7 +15,8 @@
                 <th>Nama Pemasok</th>
                 <th>Nama Obat</th>
                 <th>Harga Beli/Satuan</th>
-                <th>Diskon</th>
+                <th>Diskon Nominal</th>
+                <th>Diskon (%)</th>
                 <th>Harga Jadi (Setelah Diskon + PPN)</th>
             </tr>
         </thead>
@@ -39,16 +40,8 @@
                     <td>{{ optional($item->fakturbeli->pemasok)->nama }}</td>
                     <td>{{ optional($item->obat)->nama }}</td>
                     <td>{{ number_format($harga, 2) }}</td>
-                    <td>
-                        @php
-                            $diskonNominal = number_format($diskonValue, 2);
-                        @endphp
-                        @if($isPercent)
-                            {{ $diskonNominal }} ({{ $diskon }}%)
-                        @else
-                            {{ $diskonNominal }}
-                        @endif
-                    </td>
+                    <td>{{ number_format($diskonValue, 2) }}</td>
+                    <td>{{ $isPercent ? $diskon : '' }}</td>
                     <td>{{ number_format($hargaJadi, 2) }}</td>
                 </tr>
             @endforeach

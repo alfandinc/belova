@@ -28,7 +28,8 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
             'Nama Pemasok',
             'Nama Obat',
             'Harga Beli/Satuan',
-            'Diskon',
+            'Diskon Nominal',
+            'Diskon (%)',
             'Harga Jadi (Setelah Diskon + PPN)'
         ];
     }
@@ -51,9 +52,10 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
             optional($item->fakturbeli->pemasok)->nama,
             optional($item->obat)->nama,
             $harga,
-            // Show both original representation and nominal value, e.g. "10% (1000.00)" or "1000 (1000.00)"
-            // Show nominal first; if percent show percent in parentheses
-            ($isPercent ? (number_format($diskonValue, 2) . ' (' . $diskon . '%)') : number_format($diskonValue, 2)),
+            // Diskon nominal as number
+            number_format($diskonValue, 2),
+            // Diskon percent (only set when original type was percent)
+            ($isPercent ? $diskon : ''),
             $hargaJadi
         ];
     }

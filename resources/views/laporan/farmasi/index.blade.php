@@ -39,7 +39,8 @@
                                     <th>Nama Obat</th>
                                     <th>Harga Beli/Satuan</th>
                                     <th>Quantity</th>
-                                    <th>Diskon</th>
+                                    <th>Diskon Nominal</th>
+                                    <th>Diskon (%)</th>
                                     <th>Harga Jadi<br><small>(Setelah Diskon + PPN)</small></th>
                                 </tr>
                             </thead>
@@ -134,7 +135,8 @@ $(function() {
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'harga_beli', name: 'harga_beli' },
             { data: 'quantity', name: 'quantity' },
-            { data: 'diskon', name: 'diskon' },
+            { data: 'diskon_nominal', name: 'diskon_nominal' },
+            { data: 'diskon_persen', name: 'diskon_persen' },
             { data: 'harga_jadi', name: 'harga_jadi' },
         ]
     });
