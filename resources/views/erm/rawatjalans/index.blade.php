@@ -851,13 +851,13 @@ Terima kasih.
                     <label for="filter_end_date">End Date</label>
                     <input type="date" id="filter_end_date" class="form-control" />
                 </div>
-                @if ($role !== 'Dokter')
+                {{-- Show dokter filter to everyone, but pre-select logged-in Dokter when available --}}
                 <div class="col-md-4">
                     <label for="filter_dokter">Filter Dokter</label>
                     <select id="filter_dokter" class="form-control select2">
                         <option value="">Semua Dokter</option>
                         @foreach($dokters as $dokter)
-                            <option value="{{ $dokter->id }}">{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
+                            <option value="{{ $dokter->id }}" {{ isset($defaultDokterId) && $defaultDokterId == $dokter->id ? 'selected' : '' }}>{{ $dokter->user->name }} - {{ $dokter->spesialisasi->nama }}</option>
                         @endforeach
                     </select>
                 </div>
@@ -870,7 +870,6 @@ Terima kasih.
                         @endforeach
                     </select>
                 </div>
-                @endif
             </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
@@ -977,13 +976,26 @@ $(document).ready(function () {
     }, 2000);
     @endif
 
-    $('.select2').select2({
-        width: '100%' 
-    });
     // Set default value to today for both start and end date
     var today = moment().format('YYYY-MM-DD');
     $('#filter_start_date').val(today);
     $('#filter_end_date').val(today);
+
+    // If server provided a default dokter id (logged-in Dokter), set the select value
+    // now; Select2 will be initialized immediately after so we trigger change after init.
+    @if(isset($defaultDokterId) && $defaultDokterId)
+        var __defaultDokterId = '{{ $defaultDokterId }}';
+        $('#filter_dokter').val(__defaultDokterId);
+    @endif
+
+    $('.select2').select2({
+        width: '100%' 
+    });
+
+    // If we set a default, refresh select2 UI and notify change so initial load uses it
+    @if(isset($defaultDokterId) && $defaultDokterId)
+        $('#filter_dokter').trigger('change');
+    @endif
 
     $.fn.dataTable.ext.order['antrian-number'] = function(settings, col) {
         return this.api().column(col, {order: 'index'}).nodes().map(function(td, i) {

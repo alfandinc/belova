@@ -100,7 +100,10 @@ class RawatJalanController extends Controller
                 $visitations->where('erm_visitations.klinik_id', $request->klinik_id);
             }
             $user = Auth::user();
-            if ($user && $user->hasRole('Dokter')) {
+            // Default behavior: if the logged-in user has role Dokter and no explicit dokter filter
+            // is provided, show visitations for that logged-in dokter. This applies even if the user
+            // also has the Admin role. If a dokter is selected via the filter (dokter_id), that selection wins.
+            if ($user && $user->hasRole('Dokter') && !$request->filled('dokter_id')) {
                 $dokter = Dokter::where('user_id', $user->id)->first();
                 if ($dokter) {
                     $visitations->where('erm_visitations.dokter_id', $dokter->id);
@@ -230,7 +233,17 @@ class RawatJalanController extends Controller
         $metodeBayar = MetodeBayar::all();
         $kliniks = Klinik::all();
         $role = Auth::user()->getRoleNames()->first();
-        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks', 'stats'));
+        // Determine default dokter selection: if the logged-in user has Dokter role,
+        // default the filter to their Dokter record so the page shows their visits by default.
+        $defaultDokterId = null;
+        $currentUser = Auth::user();
+        if ($currentUser && $currentUser->hasRole('Dokter')) {
+            $myDokter = Dokter::where('user_id', $currentUser->id)->first();
+            if ($myDokter) {
+                $defaultDokterId = $myDokter->id;
+            }
+        }
+        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks', 'stats', 'defaultDokterId'));
     }
 
     /**
@@ -242,7 +255,9 @@ class RawatJalanController extends Controller
         
         // Apply same filters as in the DataTable query
         $user = Auth::user();
-        if ($user->hasRole('Dokter')) {
+        $dokter = null;
+        // If the user is a Dokter but NOT an Admin, restrict stats to their own visitations.
+        if ($user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
             if ($dokter) {
                 $baseQuery->where('dokter_id', $dokter->id);
@@ -263,17 +278,14 @@ class RawatJalanController extends Controller
             // count rujuk/konsultasi for visitations on $today (via related visitation)
             'rujuk' => Rujuk::whereHas('visitation', function($q) use ($today) {
                 $q->whereDate('tanggal_visitation', $today);
-            })->when($user && $user->hasRole('Dokter'), function($q) use ($user) {
-                $dokter = Dokter::where('user_id', $user->id)->first();
-                if ($dokter) {
-                    $q->where(function($r) use ($dokter) {
-                        $r->where('dokter_pengirim_id', $dokter->id)
-                          ->orWhere('dokter_tujuan_id', $dokter->id)
-                          ->orWhereHas('visitation', function($v) use ($dokter) {
-                              $v->where('dokter_id', $dokter->id);
-                          });
-                    });
-                }
+            })->when($dokter, function($q) use ($dokter) {
+                $q->where(function($r) use ($dokter) {
+                    $r->where('dokter_pengirim_id', $dokter->id)
+                      ->orWhere('dokter_tujuan_id', $dokter->id)
+                      ->orWhereHas('visitation', function($v) use ($dokter) {
+                          $v->where('dokter_id', $dokter->id);
+                      });
+                });
             })->count(),
         ];
 
@@ -289,7 +301,11 @@ class RawatJalanController extends Controller
         
         // Apply same filters as in the DataTable query
         $user = Auth::user();
-        if ($user->hasRole('Dokter')) {
+        $dokter = null;
+        // Default behavior: if no dokter_id is provided in the request, and the logged-in user
+        // has the Dokter role, restrict stats to that dokter's visitations. If a dokter_id
+        // is provided, that selection will be applied below and override this default.
+        if ($user && $user->hasRole('Dokter')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
             if ($dokter) {
                 $baseQuery->where('dokter_id', $dokter->id);
@@ -314,7 +330,10 @@ class RawatJalanController extends Controller
         }
 
         if ($request->dokter_id) {
+            // If explicit dokter filter provided, override the default logged-in dokter restriction
             $baseQuery->where('dokter_id', $request->dokter_id);
+            // Also ensure $dokter is set to null so rujuk counting isn't limited by the default
+            $dokter = null;
         }
 
         // Calculate statistics including cancelled visits for total count
@@ -328,17 +347,14 @@ class RawatJalanController extends Controller
             'rujuk' => Rujuk::whereHas('visitation', function($q) use ($request, $today) {
                 $start = $request->start_date ?? $today;
                 $q->whereDate('tanggal_visitation', $start);
-            })->when($user && $user->hasRole('Dokter'), function($q) use ($user) {
-                $dokter = Dokter::where('user_id', $user->id)->first();
-                if ($dokter) {
-                    $q->where(function($r) use ($dokter) {
-                        $r->where('dokter_pengirim_id', $dokter->id)
-                          ->orWhere('dokter_tujuan_id', $dokter->id)
-                          ->orWhereHas('visitation', function($v) use ($dokter) {
-                              $v->where('dokter_id', $dokter->id);
-                          });
-                    });
-                }
+            })->when($dokter, function($q) use ($dokter) {
+                $q->where(function($r) use ($dokter) {
+                    $r->where('dokter_pengirim_id', $dokter->id)
+                      ->orWhere('dokter_tujuan_id', $dokter->id)
+                      ->orWhereHas('visitation', function($v) use ($dokter) {
+                          $v->where('dokter_id', $dokter->id);
+                      });
+                });
             })->count(),
         ];
 
@@ -366,8 +382,8 @@ class RawatJalanController extends Controller
         }
 
         // If no explicit dokter filter and logged-in user is a Dokter, restrict to their involvement
-        $user = Auth::user();
-        if (!$request->dokter_id && $user && $user->hasRole('Dokter')) {
+    $user = Auth::user();
+    if (!$request->dokter_id && $user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
             if ($dokter) {
                 $query->where(function($qr) use ($dokter) {
@@ -774,7 +790,7 @@ class RawatJalanController extends Controller
         } else {
             // If logged in user is a Dokter and no dokter filter provided, restrict to that dokter
             $user = Auth::user();
-            if ($user && $user->hasRole('Dokter')) {
+            if ($user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
                 $dokter = Dokter::where('user_id', $user->id)->first();
                 if ($dokter) {
                     $query->where('dokter_id', $dokter->id);
