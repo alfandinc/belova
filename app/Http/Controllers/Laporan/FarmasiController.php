@@ -43,7 +43,15 @@ class FarmasiController extends Controller
                 ->addColumn('diskon', function($item) {
                     $diskon = $item->diskon ?? 0;
                     $diskonType = $item->diskon_type ?? 'nominal';
-                    return $diskon . ($diskonType === 'persen' ? '%' : '');
+                    $qty = $item->qty ?? 1;
+                    $base = ($item->harga ?? 0) * $qty;
+                    $diskonValue = $diskonType === 'persen' ? ($base * $diskon / 100) : $diskon;
+                    // Format: if percent show "10% (Rp 1.000,00)" else "1.000 (Rp 1.000,00)"
+                    $formattedNominal = number_format($diskonValue, 2);
+                    if ($diskonType === 'persen') {
+                        return $diskon . '% (' . $formattedNominal . ')';
+                    }
+                    return $diskon . ' (' . $formattedNominal . ')';
                 })
                 ->addColumn('harga_jadi', function($item) {
                     $harga = $item->harga;

@@ -49,7 +49,8 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
             optional($item->fakturbeli->pemasok)->nama,
             optional($item->obat)->nama,
             $harga,
-            $diskon . ($diskonType === 'persen' ? '%' : ''),
+            // Show both original representation and nominal value, e.g. "10% (1000.00)" or "1000 (1000.00)"
+            ($diskonType === 'persen' ? ($diskon . '%') : $diskon) . ' (' . number_format($diskonValue, 2) . ')',
             $hargaJadi
         ];
     }

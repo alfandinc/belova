@@ -37,7 +37,13 @@
                     <td>{{ optional($item->fakturbeli->pemasok)->nama }}</td>
                     <td>{{ optional($item->obat)->nama }}</td>
                     <td>{{ number_format($harga, 2) }}</td>
-                    <td>{{ $diskon }}{{ $diskonType === 'persen' ? '%' : '' }}</td>
+                    <td>
+                        @php
+                            $diskonLabel = $diskonType === 'persen' ? $diskon . '%' : $diskon;
+                            $diskonNominal = number_format($diskonValue, 2);
+                        @endphp
+                        {{ $diskonLabel }} ({{ $diskonNominal }})
+                    </td>
                     <td>{{ number_format($hargaJadi, 2) }}</td>
                 </tr>
             @endforeach
