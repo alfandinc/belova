@@ -563,7 +563,9 @@ class PerformanceEvaluationController extends Controller
         $isEvaluateeHRD = $evaluatee->division instanceof Division && in_array(strtolower($evaluatee->division->name), $hrdNames);
         $isEvaluateeManager = $evaluatee->isManager();
 
-        if ($isEvaluatorCEO && $isEvaluateeHRD) {
+        // If CEO is evaluator and evaluatee is HRD or a Manager, treat as CEO -> HRD
+        // so CEO uses the same question set for HRD and Manager evaluations.
+        if ($isEvaluatorCEO && ($isEvaluateeHRD || $isEvaluateeManager)) {
             return 'ceo_to_hrd';
         } elseif ($isEvaluatorHRD && $isEvaluateeManager) {
             return 'hrd_to_manager';
