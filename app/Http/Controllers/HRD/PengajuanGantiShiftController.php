@@ -226,7 +226,8 @@ class PengajuanGantiShiftController extends Controller
     public function store(Request $request)
     {
         $rules = [
-            'tanggal_shift' => 'required|date|after_or_equal:today',
+            // allow any date (remove after_or_equal:today per request)
+            'tanggal_shift' => 'required|date',
             'shift_baru_id' => 'required|exists:hrd_shifts,id',
             'alasan' => 'required|string',
         ];
