@@ -21,7 +21,9 @@ class PerformanceQuestionController extends Controller
             'manager_to_employee' => 'Manager to Employee',
             'employee_to_manager' => 'Employee to Manager',
             'manager_to_hrd' => 'Manager to HRD',
-            'ceo_to_hrd' => 'CEO to HRD'
+            'ceo_to_hrd' => 'CEO to HRD',
+            // CEO evaluating a manager should reuse the same question set as CEO -> HRD
+            'ceo_to_manager' => 'CEO to Manager'
         ];
         return view('hrd.performance.questions.index', compact('categories', 'evaluationTypes'));
     }
@@ -102,7 +104,8 @@ class PerformanceQuestionController extends Controller
                     'manager_to_employee' => 'Manager to Employee',
                     'employee_to_manager' => 'Employee to Manager',
                     'manager_to_hrd' => 'Manager to HRD',
-                    'ceo_to_hrd' => 'CEO to HRD'
+                    'ceo_to_hrd' => 'CEO to HRD',
+                    'ceo_to_manager' => 'CEO to Manager'
                 ];
                 return $types[$question->evaluation_type] ?? 'Unknown';
             })
@@ -205,16 +208,20 @@ class PerformanceQuestionController extends Controller
             'manager_to_employee',
             'employee_to_manager',
             'manager_to_hrd',
-            'ceo_to_hrd'
+            'ceo_to_hrd',
+            'ceo_to_manager'
         ];
 
         if (!in_array($evaluationType, $allowed)) {
             return response()->json(["message" => "Invalid evaluation type"], 400);
         }
 
-        $categories = PerformanceQuestionCategory::with(['questions' => function($q) use ($evaluationType) {
+        // If CEO is evaluating a manager, reuse the CEO->HRD question set
+        $queryEvaluationType = $evaluationType === 'ceo_to_manager' ? 'ceo_to_hrd' : $evaluationType;
+
+        $categories = PerformanceQuestionCategory::with(['questions' => function($q) use ($queryEvaluationType) {
             // Only include active questions for the preview
-            $q->where('evaluation_type', $evaluationType)->where('is_active', true)->orderBy('question_type');
+            $q->where('evaluation_type', $queryEvaluationType)->where('is_active', true)->orderBy('question_type');
         }])->get()->filter(function($cat) {
             // only include categories that have questions for the requested type
             return $cat->questions->isNotEmpty();
