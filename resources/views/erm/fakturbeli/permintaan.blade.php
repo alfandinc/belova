@@ -19,7 +19,7 @@
                             <select name="pemasok_id" id="pemasok_id" class="form-control select2" required>
                                 <option value="">Pilih Pemasok</option>
                                 @if(isset($faktur))
-                                    <option value="{{ $faktur->pemasok_id }}" selected>{{ $faktur->pemasok->nama }}</option>
+                                    <option value="{{ $faktur->pemasok_id }}" selected>{{ $faktur->pemasok->nama ?? 'Pemasok #' . $faktur->pemasok_id }}</option>
                                 @endif
                             </select>
                         </div>
@@ -54,7 +54,7 @@
                                 <tr>
                                     <td>
                                         <select name="items[{{ $index }}][obat_id]" class="form-control obat-select" required style="width:100%">
-                                            <option value="{{ $item->obat_id }}" selected>{{ $item->obat->nama }}</option>
+                                            <option value="{{ $item->obat_id }}" selected>{{ $item->obat->nama ?? 'Obat #' . $item->obat_id }}</option>
                                         </select>
                                     </td>
                                     <td>

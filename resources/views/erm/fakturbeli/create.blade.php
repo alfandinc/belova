@@ -23,10 +23,14 @@
                             <select name="pemasok_id" id="pemasok_id" class="form-control" required style="width:100%" @if(isset($faktur)) disabled @endif>
                                 @if(isset($faktur) && isset($faktur->pemasok))
                                     <option value="{{ $faktur->pemasok->id }}" selected>{{ $faktur->pemasok->nama }}</option>
+                                @elseif(isset($faktur) && isset($faktur->pemasok_id))
+                                    {{-- fallback to pemasok_id if relation not loaded --}} 
+                                    <option value="{{ $faktur->pemasok_id }}" selected>{{ $faktur->pemasok->nama ?? 'Pemasok #' . $faktur->pemasok_id }}</option>
                                 @endif
                             </select>
                             @if(isset($faktur))
-                                <input type="hidden" name="pemasok_id" value="{{ $faktur->pemasok->id }}">
+                                {{-- Prefer relation id if available, otherwise use raw pemasok_id --}}
+                                <input type="hidden" name="pemasok_id" value="{{ $faktur->pemasok->id ?? $faktur->pemasok_id }}">
                             @endif
                         </div>
                         <div class="form-row">
@@ -92,12 +96,15 @@
                                 <tr data-item-index="{{ $i }}">
                                     <td>
                                         <select name="items[{{ $i }}][obat_id]" class="form-control obat-select" required style="width:100%" @if(isset($faktur)) disabled @endif>
-                                            @if($item->obat)
+                                            @if(isset($item->obat) && $item->obat)
                                                 <option value="{{ $item->obat->id }}" selected>{{ $item->obat->nama }}</option>
+                                            @elseif(isset($item->obat_id))
+                                                {{-- fallback when relation not loaded: show id and try to display name if available --}}
+                                                <option value="{{ $item->obat_id }}" selected>{{ $item->obat->nama ?? 'Obat #' . $item->obat_id }}</option>
                                             @endif
                                         </select>
                                         @if(isset($faktur))
-                                            <input type="hidden" name="items[{{ $i }}][obat_id]" value="{{ $item->obat->id }}">
+                                            <input type="hidden" name="items[{{ $i }}][obat_id]" value="{{ $item->obat->id ?? $item->obat_id }}">
                                         @endif
                                     </td>
                                     <td>
@@ -126,10 +133,10 @@
                                     <td><input type="number" name="items[{{ $i }}][total]" class="form-control item-total" step="0.01" placeholder="Fill" value="{{ $item->qty * $item->harga }}"></td>
                                     <td>
                                         <select name="items[{{ $i }}][gudang_id]" class="form-control gudang-select" required style="width:100%">
-                                            @if($item->gudang)
+                                            @if(isset($item->gudang) && $item->gudang)
                                                 <option value="{{ $item->gudang->id }}" selected>{{ $item->gudang->nama }}</option>
-                                            {{-- @else
-                                                <option value="1" selected>Gudang Utama</option> --}}
+                                            @elseif(isset($item->gudang_id))
+                                                <option value="{{ $item->gudang_id }}" selected>{{ $item->gudang->nama ?? 'Gudang #' . $item->gudang_id }}</option>
                                             @endif
                                         </select>
                                     </td>
