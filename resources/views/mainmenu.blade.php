@@ -677,6 +677,16 @@
                     <div class="menu-title">Jadwal</div>
                     <div class="menu-sub">Cetak & Download</div>
                 </a>
+                
+                <!-- Belova Mengaji (Coming Soon) -->
+                <a href="#" class="menu-tile tile-marketing animate-item delay-16" id="belova-mengaji-tile" data-filter="mengaji islam belajar doa" onclick="showComingSoon(event, 'Belova Mengaji')">
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-book-reader"></i></div>
+                        <div class="menu-badge">Coming Soon...</div>
+                    </div>
+                    <div class="menu-title">Belova Mengaji</div>
+                    <div class="menu-sub">Module coming soon</div>
+                </a>
                 </div>
             </div>
             </div>
@@ -779,6 +789,16 @@
             title: 'Akses Ditolak',
             text: 'Anda tidak memiliki akses ke ' + modul + '.',
             confirmButtonText: 'OK'
+        });
+    }
+    
+    function showComingSoon(e, modulName) {
+        e.preventDefault();
+        Swal.fire({
+            icon: 'info',
+            title: modulName,
+            text: 'Fitur ini akan segera hadir. Nantikan pembaruan berikutnya!',
+            confirmButtonText: 'Tutup'
         });
     }
     </script>
