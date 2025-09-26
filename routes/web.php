@@ -229,7 +229,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
 
 
 //LAPORAN Routes
-Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin')->group(function () {
+Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin|Finance')->group(function () {
     // AJAX endpoint for HRD Rekap Kehadiran DataTable
     Route::get('/hrd/rekap-kehadiran/data', [\App\Http\Controllers\Laporan\HRDController::class, 'rekapKehadiranData'])->name('laporan.hrd.rekap-kehadiran.data');
     Route::get('/farmasi/penjualan-obat/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanExcel'])->name('laporan.farmasi.penjualan-obat.excel');
