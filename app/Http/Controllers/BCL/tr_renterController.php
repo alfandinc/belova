@@ -397,12 +397,15 @@ class tr_renterController extends Controller
             ->orderByDesc('total_lama_sewa')
             ->get();
 
-        // attach renter info (name) for convenience
+        // attach renter model (and keep renter_name) so views that expect $data->renter->nama work
         $result = $data->map(function ($row) {
-            $renter = renter::find($row->id_renter);
-            return (object) array_merge((array) $row, [
-                'renter_name' => $renter?->nama ?? null
-            ]);
+            $renterModel = renter::find($row->id_renter);
+            // convert row (stdClass) to array, then add keys
+            $arr = (array) $row;
+            $arr['renter_name'] = $renterModel?->nama ?? null;
+            // Attach renter model object (or null) to mirror older code expectations
+            $arr['renter'] = $renterModel ?? null;
+            return (object) $arr;
         });
 
         return response()->json($result);

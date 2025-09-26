@@ -1,3 +1,43 @@
+<style>
+    /* Scoped styles to make BCL left navbar hot pink and keep good contrast */
+    .left-sidenav {
+        background: #cf0973 !important; /* hotpink */
+        color: #ffffff;
+    }
+    .left-sidenav .metismenu .menu-label,
+    .left-sidenav .metismenu a span,
+    .left-sidenav .metismenu a {
+        color: #fff !important;
+    }
+    /* Ensure all kinds of icons (feather SVGs, font icons like mdi/ti) render white */
+    .left-sidenav .metismenu a .menu-icon,
+    .left-sidenav .metismenu a .menu-icon svg,
+    .left-sidenav .metismenu a .menu-icon i,
+    .left-sidenav .metismenu a i,
+    .left-sidenav .metismenu .nav-item .nav-link i,
+    .left-sidenav .metismenu .menu-arrow i {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
+        opacity: 1 !important;
+    }
+    /* Some SVGs have nested paths/circles/rects with explicit fills/strokes */
+    .left-sidenav .metismenu a .menu-icon svg path,
+    .left-sidenav .metismenu a .menu-icon svg circle,
+    .left-sidenav .metismenu a .menu-icon svg rect {
+        fill: #ffffff !important;
+        stroke: #ffffff !important;
+    }
+    /* subtle divider color */
+    .left-sidenav .hr-dashed {
+        border-top-color: rgba(255,255,255,0.12) !important;
+    }
+    /* make the logo area match the background */
+    .left-sidenav .nav-logo img {
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
+    }
+</style>
+
 <div class="left-sidenav">
     <div class="menu-content h-100" data-simplebar>
         <ul class="metismenu left-sidenav-menu">

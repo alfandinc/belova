@@ -161,8 +161,10 @@ function convert($sum)
                                 <tbody>
                                     @foreach($response->ranking_penyewa->original->take(5) as $data)
                                     <tr>
-                                        <td class="text-truncated">{{$data->renter->nama}}</td>
-                                        <td class="text-right">{{convert($data->total_lama_sewa)}}</td>
+                                        {{-- Safely access renter name; fallback to '-' if missing --}}
+                                        <td class="text-truncated">{{ data_get($data, 'renter.nama', '-') }}</td>
+                                        {{-- Ensure total_lama_sewa is numeric; fallback to 0 --}}
+                                        <td class="text-right">{{ convert(data_get($data, 'total_lama_sewa', 0)) }}</td>
                                     </tr>
                                     @endforeach
                                 </tbody>
