@@ -65,6 +65,30 @@
                     </div>
                 </div>
             </div>
+            <!-- Reference detail modal (loads faktur or invoice) -->
+            <div class="modal fade" id="refDetailModal" tabindex="-1" role="dialog" aria-labelledby="refDetailModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header bg-light">
+                            <h5 class="modal-title" id="refDetailModalLabel">Detail Referensi</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" id="refDetailModalContent" style="max-height:70vh; overflow:auto;">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="sr-only">Loading...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Memuat detail...</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -153,6 +177,68 @@ $(function() {
         $('#detailModal').modal('show');
         loadDetailKartuStok(lastObatId);
     });
+
+    // Handle view reference button inside detail modal (delegated)
+    (function() {
+        var refLoading = false; // guard to prevent multiple simultaneous loads
+
+        $(document).off('click', '.btn-view-ref');
+        $(document).on('click', '.btn-view-ref', function(e) {
+            e.preventDefault();
+            if (refLoading) return; // ignore if a load is in progress
+            refLoading = true;
+
+            var $btn = $(this);
+            var refType = $btn.data('ref-type');
+            var refId = $btn.data('ref-id');
+
+            var url = null;
+            if (refType === 'faktur_pembelian') {
+                // Use print view which is usually a minimal layout suitable for embedding
+                url = '{{ route("erm.fakturbeli.print", "__ID__") }}'.replace('__ID__', refId);
+            } else if (refType === 'invoice_penjualan' || refType === 'invoice_return') {
+                // Use printable invoice view
+                url = '{{ route("finance.invoice.print", "__ID__") }}'.replace('__ID__', refId);
+            } else {
+                url = '/';
+            }
+
+            // Provide immediate feedback
+            $('#refDetailModalContent').html('<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Memuat detail...</p></div>');
+
+            // Hide the parent detail modal to avoid stacking multiple modals on top
+            if ($('#detailModal').hasClass('show')) {
+                $('#detailModal').modal('hide');
+            }
+
+            // Show ref modal
+            $('#refDetailModal').modal({ backdrop: 'static', keyboard: false });
+
+            // Embed the target page inside an iframe to isolate layout and scripts
+            try {
+                // Create iframe via DOM API to avoid jQuery attribute quirks
+                var iframe = document.createElement('iframe');
+                iframe.src = url;
+                iframe.style.width = '100%';
+                iframe.style.height = '70vh';
+                iframe.style.border = '0';
+                iframe.onload = function() {
+                    // you could remove spinner or do other things here
+                };
+
+                // Replace content with iframe (wrap in jQuery for convenience)
+                $('#refDetailModalContent').empty().append(iframe);
+            } catch (err) {
+                console.error('Failed to create iframe for ref:', err);
+                // If iframe fails, hide modal and open in new tab as fallback
+                $('#refDetailModal').modal('hide');
+                window.open(url, '_blank');
+            } finally {
+                refLoading = false;
+                $('#refDetailModal').modal({ backdrop: true, keyboard: true });
+            }
+        });
+    })();
 });
 </script>
 @endpush

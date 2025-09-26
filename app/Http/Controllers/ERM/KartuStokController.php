@@ -149,7 +149,13 @@ class KartuStokController extends Controller
                             $refNumber = '#' . $row->ref_id;
                         }
                         
-                        $refInfo = '<small class="text-muted">' . $refTypeFormatted . '</small><br><strong>' . $refNumber . '</strong>';
+                        // Only show 'Lihat' button for faktur pembelian and invoice types
+                        $allowedViewTypes = ['faktur_pembelian', 'invoice_penjualan', 'invoice_return'];
+                        $viewBtn = '';
+                        if (in_array($row->ref_type, $allowedViewTypes)) {
+                            $viewBtn = '<br><a href="#" class="btn btn-sm btn-outline-primary btn-view-ref mt-1" data-ref-type="' . e($row->ref_type) . '" data-ref-id="' . e($row->ref_id) . '">Lihat</a>';
+                        }
+                        $refInfo = '<small class="text-muted">' . $refTypeFormatted . '</small><br><strong>' . $refNumber . '</strong>' . $viewBtn;
                     } else {
                         $refInfo = '<span class="text-muted">-</span>';
                     }
