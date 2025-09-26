@@ -288,6 +288,7 @@
     .tile-kos { background-color: #ff6fb5; }          /* magenta */
     .tile-insiden { background-color: #d9534f; }      /* alert red */
     .tile-jadwal { background-color: #9b72ff; }       /* schedule violet */
+    .tile-belova-mengaji { background-color: #c7c7c7; } /* pink */
 
     /* Hover: subtly darken the existing background for depth */
     .menu-tile:hover { filter: brightness(0.92); }
@@ -415,6 +416,7 @@
         .delay-13 { animation-delay: 1.3s; }
         .delay-14 { animation-delay: 1.4s; }
         .delay-15 { animation-delay: 1.5s; }
+        .delay-16 { animation-delay: 1.6s; }
     </style>
 </head>
 
@@ -679,7 +681,7 @@
                 </a>
                 
                 <!-- Belova Mengaji (Coming Soon) -->
-                <a href="#" class="menu-tile tile-marketing animate-item delay-16" id="belova-mengaji-tile" data-filter="mengaji islam belajar doa" onclick="showComingSoon(event, 'Belova Mengaji')">
+                <a href="#" class="menu-tile tile-belova-mengaji animate-item delay-16" id="belova-mengaji-tile" data-filter="mengaji islam belajar doa" onclick="showComingSoon(event, 'Belova Mengaji')">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-book-reader"></i></div>
                         <div class="menu-badge">Coming Soon...</div>
