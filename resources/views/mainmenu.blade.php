@@ -289,6 +289,8 @@
     .tile-insiden { background-color: #d9534f; }      /* alert red */
     .tile-jadwal { background-color: #9b72ff; }       /* schedule violet */
     .tile-belova-mengaji { background-color: #c7c7c7; } /* pink */
+    .tile-wifi { background-color: #00b8d9; }      /* bright cyan */
+    .tile-admin { background-color: #34495e; }     /* dark slate for admin */
 
     /* Hover: subtly darken the existing background for depth */
     .menu-tile:hover { filter: brightness(0.92); }
@@ -417,6 +419,8 @@
         .delay-14 { animation-delay: 1.4s; }
         .delay-15 { animation-delay: 1.5s; }
         .delay-16 { animation-delay: 1.6s; }
+        .delay-17 { animation-delay: 1.7s; }
+        .delay-18 { animation-delay: 1.8s; }
     </style>
 </head>
 
@@ -688,6 +692,32 @@
                     </div>
                     <div class="menu-title">Belova Mengaji</div>
                     <div class="menu-sub">Module coming soon</div>
+                </a>
+                
+                <!-- WiFi Panel -->
+                <a href="https://wifibelova.duckdns.org" target="_blank" rel="noopener noreferrer" class="menu-tile tile-wifi animate-item delay-17" data-filter="wifi jaringan panel"
+                    @if(!array_intersect($userRoles, ['Admin']))
+                       onclick="showRoleWarning(event, 'WIFI Panel')"
+                    @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-wifi"></i></div>
+                        <div class="menu-badge">External</div>
+                    </div>
+                    <div class="menu-title">WiFi Panel</div>
+                    <div class="menu-sub">Akses Pengaturan WiFi</div>
+                </a>
+                
+                <!-- Admin Panel -->
+                <a href="/admin/users" class="menu-tile tile-admin animate-item delay-18" data-filter="admin users pengaturan"
+                   @if(!array_intersect($userRoles, ['Admin']))
+                       onclick="showRoleWarning(event, 'Admin Panel')"
+                   @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-user-shield"></i></div>
+                        <div class="menu-badge">Admin</div>
+                    </div>
+                    <div class="menu-title">Admin Panel</div>
+                    <div class="menu-sub">Manajemen Pengguna</div>
                 </a>
                 </div>
             </div>

@@ -1128,8 +1128,9 @@ Route::get('/marketing/analytics/patients-data', [\App\Http\Controllers\Marketin
 // AJAX route for clinics data
 Route::get('/marketing/clinics', [\App\Http\Controllers\Marketing\MarketingController::class, 'getClinics'])->name('marketing.clinics');
 
-Route::prefix('admin')->group(
-    function () {
+Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
+// Route::prefix('admin')->group(
+    // function () {
         //User Management
         Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
         Route::get('/users/create', [UserController::class, 'create'])->name('admin.users.create');
