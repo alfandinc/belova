@@ -29,7 +29,9 @@
                     $taxType = $item->tax_type ?? 'nominal';
                     $qty = $item->qty ?? 1;
                     $base = $harga * $qty;
-                    $diskonValue = $diskonType === 'persen' ? ($base * $diskon / 100) : $diskon;
+                    $dt = strtolower(trim((string) $diskonType));
+                    $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+                    $diskonValue = $isPercent ? ($base * $diskon / 100) : $diskon;
                     $taxValue = $taxType === 'persen' ? ($base * $tax / 100) : $tax;
                     $hargaJadi = $base - $diskonValue + $taxValue;
                 @endphp
@@ -39,10 +41,13 @@
                     <td>{{ number_format($harga, 2) }}</td>
                     <td>
                         @php
-                            $diskonLabel = $diskonType === 'persen' ? $diskon . '%' : $diskon;
                             $diskonNominal = number_format($diskonValue, 2);
                         @endphp
-                        {{ $diskonLabel }} ({{ $diskonNominal }})
+                        @if($isPercent)
+                            {{ $diskonNominal }} ({{ $diskon }}%)
+                        @else
+                            {{ $diskonNominal }}
+                        @endif
                     </td>
                     <td>{{ number_format($hargaJadi, 2) }}</td>
                 </tr>

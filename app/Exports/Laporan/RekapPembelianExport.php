@@ -36,13 +36,15 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
     public function map($item): array
     {
         $harga = $item->harga;
-        $diskon = $item->diskon ?? 0;
-        $diskonType = $item->diskon_type ?? 'nominal';
+    $diskon = $item->diskon ?? 0;
+    $diskonType = $item->diskon_type ?? 'nominal';
         $tax = $item->tax ?? 0;
         $taxType = $item->tax_type ?? 'nominal';
         $qty = $item->qty ?? 1;
         $base = $harga * $qty;
-        $diskonValue = $diskonType === 'persen' ? ($base * $diskon / 100) : $diskon;
+    $dt = strtolower(trim((string) $diskonType));
+    $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+    $diskonValue = $isPercent ? ($base * $diskon / 100) : $diskon;
         $taxValue = $taxType === 'persen' ? ($base * $tax / 100) : $tax;
         $hargaJadi = $base - $diskonValue + $taxValue;
         return [
@@ -50,7 +52,8 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
             optional($item->obat)->nama,
             $harga,
             // Show both original representation and nominal value, e.g. "10% (1000.00)" or "1000 (1000.00)"
-            ($diskonType === 'persen' ? ($diskon . '%') : $diskon) . ' (' . number_format($diskonValue, 2) . ')',
+            // Show nominal first; if percent show percent in parentheses
+            ($isPercent ? (number_format($diskonValue, 2) . ' (' . $diskon . '%)') : number_format($diskonValue, 2)),
             $hargaJadi
         ];
     }
