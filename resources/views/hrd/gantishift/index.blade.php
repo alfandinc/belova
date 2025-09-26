@@ -515,9 +515,46 @@ $(document).ready(function() {
                 @endif
             },
             error: function(xhr) {
-                var errors = xhr.responseJSON.errors || {};
-                var message = xhr.responseJSON.error || 'Terjadi kesalahan';
-                Swal.fire('Error', message, 'error');
+                // Handle validation errors (422) and other server errors
+                var title = 'Terjadi kesalahan';
+                var text = '';
+
+                if (xhr.status === 422) {
+                    // Laravel validation error
+                    var errors = (xhr.responseJSON && xhr.responseJSON.errors) ? xhr.responseJSON.errors : null;
+                    if (errors) {
+                        // Collect first message from each field
+                        var messages = [];
+                        Object.keys(errors).forEach(function (key) {
+                            if (Array.isArray(errors[key])) {
+                                messages.push(errors[key].join('\n'));
+                            } else {
+                                messages.push(errors[key]);
+                            }
+                        });
+                        text = messages.join('\n');
+                        title = 'Validasi gagal';
+                    } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                        text = xhr.responseJSON.error;
+                    } else {
+                        text = 'Data tidak valid. Periksa input Anda.';
+                    }
+                } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                    text = xhr.responseJSON.error;
+                } else if (xhr.responseText) {
+                    text = xhr.responseText;
+                } else {
+                    text = 'Terjadi kesalahan pada server.';
+                }
+
+                // Show more helpful modal with details
+                Swal.fire({
+                    icon: 'error',
+                    title: title,
+                    text: text,
+                    customClass: { popup: 'swal2-preformatted' }
+                });
+                console.error('AJAX error (create gantishift):', xhr);
             }
         });
     });
@@ -626,8 +663,14 @@ $(document).ready(function() {
                 tablePersonal.ajax.reload();
                 @endif
             },
-            error: function() {
-                Swal.fire('Error', 'Gagal memproses persetujuan', 'error');
+            error: function(xhr) {
+                var message = 'Gagal memproses persetujuan';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.error) message = xhr.responseJSON.error;
+                if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                    message = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v)? v.join('\n') : v; }).join('\n');
+                }
+                Swal.fire('Error', message, 'error');
+                console.error('AJAX error (target approval):', xhr);
             }
         });
     });
@@ -658,8 +701,14 @@ $(document).ready(function() {
                 tableTeam.ajax.reload();
                 @endif
             },
-            error: function() {
-                Swal.fire('Error', 'Gagal menyimpan keputusan', 'error');
+            error: function(xhr) {
+                var message = 'Gagal menyimpan keputusan';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.error) message = xhr.responseJSON.error;
+                if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                    message = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v)? v.join('\n') : v; }).join('\n');
+                }
+                Swal.fire('Error', message, 'error');
+                console.error('AJAX error (manager approval):', xhr);
             }
         });
     });
@@ -690,8 +739,14 @@ $(document).ready(function() {
                 tableApproval.ajax.reload();
                 @endif
             },
-            error: function() {
-                Swal.fire('Error', 'Gagal menyimpan keputusan', 'error');
+            error: function(xhr) {
+                var message = 'Gagal menyimpan keputusan';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.error) message = xhr.responseJSON.error;
+                if (xhr && xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                    message = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v)? v.join('\n') : v; }).join('\n');
+                }
+                Swal.fire('Error', message, 'error');
+                console.error('AJAX error (hrd approval):', xhr);
             }
         });
     });
