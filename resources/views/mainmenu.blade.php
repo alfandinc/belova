@@ -563,7 +563,7 @@
 
                 <!-- Row 2: HRD, Dokumen Kerja, Laporan, Marketing, Finance -->
                 <a href="/hrd" class="menu-tile tile-hrd animate-item delay-6" data-filter="hrd staff employee"
-                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee']))
+                   @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Finance','Admin']))
                        onclick="showRoleWarning(event, 'HRD')"
                    @endif>
                     <div class="menu-top">
