@@ -1142,6 +1142,10 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
         //Role Management
         Route::get('/roles', [RoleController::class, 'index'])->name('admin.roles.index');
         Route::post('/roles', [RoleController::class, 'store'])->name('admin.roles.store');
+            // Admin dashboard
+            Route::get('/', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('admin.dashboard');
+            // Activity data for dashboard chart
+            Route::get('/activity-data', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'activityData'])->name('admin.activity.data');
     }
 );
 
