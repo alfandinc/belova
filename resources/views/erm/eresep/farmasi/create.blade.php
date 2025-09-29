@@ -203,7 +203,7 @@
                                 <tr data-id="{{ $resep->id }}">
                                     <td>{{ $resep->obat->nama ?? '-' }}</td>
                                     <td>{{ $resep->jumlah }}</td>
-                                    <td>Rp. {{ $resep->obat->harga_nonfornas ?? 0 }}</td>
+                                    <td>Rp. {{ $resep->harga ?? $resep->obat->harga_nonfornas ?? 0 }}</td>
                                     <td>{{ $resep->diskon ?? '0'}} %</td>
                                     
                                     @php
@@ -417,10 +417,10 @@
                     const stokGudang = res.data.obat.stok_gudang !== undefined ? parseInt(res.data.obat.stok_gudang) : 0;
                     const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
                     $('#resep-table-body').append(`
-                        <tr data-id="${res.data.id}">
+                        <tr data-id="${res.data.id}" data-obat-id="${res.data.obat.id}">
                             <td>${res.data.obat.nama}</td>
                             <td>${res.data.jumlah}</td>
-                            <td>${res.data.obat.harga_nonfornas}</td>
+                            <td>${res.data.harga}</td>
                             <td>${res.data.diskon} %</td>                           
                             <td style="color: ${stokColor};">${stokGudang}</td>
                             <td>${res.data.aturan_pakai}</td>
@@ -482,27 +482,79 @@
             }
         });
 
+        // Helper: robustly parse currency/formatted numbers to JS Number
+        function parseCurrencyToNumber(input) {
+            if (input === null || input === undefined) return 0;
+            // If already a number, return it
+            if (typeof input === 'number') return input;
+            let s = ('' + input).trim();
+            // Remove currency text like 'Rp' and whitespace
+            s = s.replace(/Rp\.?\s*/ig, '').trim();
+
+            // If contains both dot and comma, assume dot thousands and comma decimal: 1.234,56
+            if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+                s = s.replace(/\./g, '').replace(/,/g, '.');
+            } else if (s.indexOf('.') !== -1 && s.indexOf(',') === -1) {
+                // Only dot present. Could be decimal or thousands.
+                const dotCount = (s.match(/\./g) || []).length;
+                if (dotCount > 1) {
+                    // multiple dots: treat as thousands separators
+                    s = s.replace(/\./g, '');
+                } else {
+                    // single dot: decide based on digits after dot
+                    const after = s.split('.').pop();
+                    if (after.length === 3) {
+                        // e.g. 1.000 -> thousands separator
+                        s = s.replace(/\./g, '');
+                    } else {
+                        // treat as decimal separator (leave dot)
+                    }
+                }
+            } else if (s.indexOf(',') !== -1 && s.indexOf('.') === -1) {
+                // Only comma present -> decimal separator in id locale
+                s = s.replace(/,/g, '.');
+            }
+
+            // Strip any remaining non-numeric except dot and minus
+            s = s.replace(/[^0-9.\-]/g, '');
+            const n = parseFloat(s);
+            return isNaN(n) ? 0 : n;
+        }
+
         // UPDATE TOTAL HARGA
         function updateTotalPrice() {
             let total = 0;
-
             // Sum Non-Racikan (table layout: td[0]=nama, td[1]=jumlah, td[2]=harga, td[3]=diskon ...)
+            const nonRacikanBreakdown = [];
             $('#resep-table-body tr').each(function () {
                 // Skip placeholder rows
                 if ($(this).hasClass('no-data')) return;
                 // Try to extract price and quantity robustly
-                const jumlah = parseFloat($(this).find('td').eq(1).text().replace(/[^\d.,-]/g, '').replace(',', '.').trim()) || 0;
+                const jumlahText = $(this).find('td').eq(1).text();
+                const jumlah = parseFloat((jumlahText || '').replace(/[^\d.,-]/g, '').replace(',', '.').trim()) || 0;
                 // harga may be in different formats (with Rp. or plain number)
                 let hargaRaw = $(this).find('td').eq(2).text() || '';
-                hargaRaw = hargaRaw.replace(/Rp\.?\s*/gi, '').replace(/\./g, '').replace(/,/g, '.');
-                const harga = parseFloat(hargaRaw) || 0;
+                const harga = parseCurrencyToNumber(hargaRaw) || 0;
                 let diskonRaw = $(this).find('td').eq(3).text() || '';
                 diskonRaw = diskonRaw.toString().replace('%', '').trim();
                 const diskon = parseFloat(diskonRaw) || 0;
 
                 const discountedPrice = harga * jumlah * (1 - diskon / 100);
                 total += discountedPrice;
+                nonRacikanBreakdown.push({
+                    id: $(this).data('id') || null,
+                    obatId: $(this).data('obat-id') || null,
+                    jumlahText,
+                    jumlah,
+                    hargaRaw: $(this).find('td').eq(2).text(),
+                    harga,
+                    diskonRaw: $(this).find('td').eq(3).text(),
+                    diskon,
+                    discountedPrice
+                });
             });
+
+            if (nonRacikanBreakdown.length) console.table(nonRacikanBreakdown);
 
             // Collect unique obat ids present in all racikan cards
             const obatIds = new Set();
@@ -550,13 +602,15 @@
                     }
 
                     // Now iterate racikan cards and compute racikan totals
+                    const racikanBreakdown = [];
                     $('#racikan-container .racikan-card').each(function () {
                         let racikanTotal = 0;
                         const card = $(this);
+                        const cardItems = [];
                         card.find('.resep-table-body tr').each(function () {
                             if ($(this).hasClass('no-data') || $(this).hasClass('obat-deleted')) return;
                             const row = $(this);
-                            const obatId = row.data('obat-id') || row.find('td[data-id]').data('id');
+                            const obatId = row.data('obat-id') || row.find('td[data-id]').data('id') || null;
                             const dosisStr = (row.data('dosis') || row.find('td').eq(1).text() || '').toString();
                             // Extract numeric value from dosis string
                             const dosisMatch = dosisStr.match(/(\d+(?:[.,]\d+)?)/);
@@ -566,10 +620,20 @@
                             const baseDosisStr = (obatInfo.dosis || '').toString();
                             const baseMatch = baseDosisStr.match(/(\d+(?:[.,]\d+)?)/);
                             const baseDosis = baseMatch ? parseFloat(baseMatch[0].replace(',', '.')) : 0;
-                            const hargaSatuan = parseFloat(obatInfo.harga) || 0;
+                            const hargaSatuan = parseCurrencyToNumber(obatInfo.harga) || 0;
 
                             const hargaAkhir = (baseDosis > 0 && dosisRacik > 0) ? (dosisRacik / baseDosis) * hargaSatuan : 0;
                             racikanTotal += hargaAkhir;
+
+                            cardItems.push({
+                                obatId,
+                                dosisStr,
+                                dosisRacik,
+                                baseDosisStr: obatInfo.dosis || '',
+                                baseDosis,
+                                hargaSatuan,
+                                hargaAkhir
+                            });
                         });
 
                         // Bungkus multiplier (check both class names)
@@ -579,8 +643,18 @@
                         card.find('.racikan-harga').text(formattedRacikan);
                         card.find('.racikan-harga-detail').text(formattedRacikan);
 
+                        racikanBreakdown.push({
+                            racikanKe: card.data('racikan-ke') || null,
+                            bungkus,
+                            racikanTotal,
+                            racikanTotalWithBungkus: racikanTotal * bungkus,
+                            items: cardItems
+                        });
+
                         total += racikanTotal * bungkus;
                     });
+
+                    if (racikanBreakdown.length) console.log('Racikan breakdown:', racikanBreakdown);
 
                     // Finally update the total price display
                     $('#total-harga').html('<strong>' + new Intl.NumberFormat('id-ID').format(total) + '</strong>');
@@ -1377,7 +1451,7 @@
                 <tr data-id="${item.id}">
                     <td>${item.obat?.nama ?? '-'}</td>
                     <td>${item.jumlah}</td>
-                    <td>${item.obat?.harga_nonfornas ?? 0}</td>
+                    <td>${item.harga ?? item.obat?.harga_nonfornas ?? 0}</td>
                     <td>${item.diskon ?? 0}</td>                   
                     <td>${item.obat?.stok ?? 0}</td>
                     <td>${item.aturan_pakai}</td>
@@ -1407,13 +1481,13 @@
             const bungkus = items[0].bungkus ?? '';
             const aturan = items[0].aturan_pakai ?? '';
 
-            const rows = items.map(item => {
+                const rows = items.map(item => {
                 // Ensure dosis always has the unit displayed
                 const dosis = item.dosis;
                 
                 return `
-                    <tr>
-                        <td data-id="${item.id}">${item.obat?.nama ?? '-'}</td>
+                    <tr data-id="${item.id}" data-obat-id="${item.obat?.id ?? ''}" data-dosis="${dosis}">
+                        <td data-id="${item.obat?.id ?? ''}">${item.obat?.nama ?? '-'}</td>
                         <td>${dosis}</td>
                         <td>${item.obat?.stok ?? 0}</td>
 <td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
