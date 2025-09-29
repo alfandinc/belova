@@ -7,12 +7,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600&display=swap" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <style>
+        /* Base layout */
+        :root{
+            --accent-1: #f06292;
+            --accent-2: #ba68c8;
+            --accent-blue: #1976d2;
+            --card-bg: rgba(255,255,255,0.98);
+            --muted: #7b1fa2;
+        }
+        html,body{height:100%;}
+        /* Theme overrides depending on which klinik is selected. */
+        body.pratama { /* Klinik Pratama Belova Skin (default pink theme) */
+            --accent-1: #f06292;
+            --accent-2: #ba68c8;
+            --muted: #7b1fa2;
+            --card-bg: rgba(255,255,255,0.98);
+            background: linear-gradient(135deg, #f8bbd0 0%, #90caf9 100%) !important;
+        }
+        body.premiere { /* Klinik Utama Premiere Belova (blue theme) */
+            --accent-1: #1976d2;
+            --accent-2: #64b5f6;
+            --muted: #1565c0;
+            --card-bg: rgba(245,250,255,0.98);
+            background: linear-gradient(120deg, #e3f2fd 0%, #cfe9ff 100%) !important;
+        }
         body {
             background: linear-gradient(135deg, #f8bbd0 0%, #90caf9 100%) !important;
             font-family: 'Montserrat', Arial, sans-serif;
             margin: 0;
             padding: 0;
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         body.klinik-select-bg {
             background: linear-gradient(120deg, #f8bbd0 0%, #90caf9 100%);
@@ -21,16 +47,17 @@
             background: linear-gradient(120deg, #e3f2fd 0%, #90caf9 100%);
         }
         .survey-container {
-            max-width: 700px;
-            margin: 48px auto;
-            background: rgba(255,255,255,0.95);
-            border-radius: 28px;
-            box-shadow: 0 8px 32px rgba(206,147,216,0.18);
-            padding: 54px 36px 36px 36px;
-            border: 2px solid #f06292;
+            max-width: 780px;
+            margin: 36px auto;
+            background: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(16,24,40,0.12);
+            padding: 34px 28px 28px 28px;
+            border: 1px solid rgba(0,0,0,0.04);
             position: relative;
+            overflow: visible;
         }
-        .survey-container.blue-theme {
+        body.premiere .survey-container {
             box-shadow: 0 8px 32px rgba(33,150,243,0.13);
             border: 2px solid #1976d2;
         }
@@ -43,37 +70,46 @@
         .survey-title {
             display: inline-block;
             text-align: center;
-            font-size: 2.7rem;
-            color: #ad1457;
-            margin-bottom: 14px;
-            letter-spacing: 2px;
-            font-family: 'Montserrat', cursive, Arial, sans-serif;
+            font-size: 2.1rem;
+            color: var(--accent-1);
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+            font-weight:800;
         }
-        .blue-theme .survey-title {
+        .survey-subtitle {
+            text-align:center;
+            color:var(--muted);
+            font-size:1rem;
+            margin-top:6px;
+            margin-bottom:18px;
+            opacity:0.9;
+        }
+        body.premiere .survey-title {
             color: #1976d2;
             font-family: 'Montserrat', Arial, sans-serif;
             letter-spacing: 1px;
         }
         .survey-desc {
             text-align: center;
-            color: #7b1fa2;
-            margin-bottom: 40px;
-            font-size: 1.35rem;
+            color: var(--muted);
+            margin-bottom: 18px;
+            font-size: 1rem;
         }
-        .survey-desc.blue-theme {
+        body.premiere .survey-desc {
             color: #1976d2;
         }
         .question-block {
             display: none;
-            margin-bottom: 40px;
-            padding-bottom: 24px;
-            border-bottom: 1px solid #f8bbd0;
-            animation: fadeIn 0.4s;
+            margin-bottom: 28px;
+            padding: 18px 8px 24px 8px;
+            border-radius:12px;
+            background: linear-gradient(180deg, rgba(250,250,250,0.6), transparent);
+            animation: fadeIn 0.36s;
         }
         .question-block.active {
             display: block;
         }
-        .question-block.blue-theme {
+        body.premiere .question-block {
             border-bottom: 1px solid #90caf9;
         }
         @keyframes fadeIn {
@@ -81,20 +117,21 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .question-text {
-            font-size: 1.6rem;
-            color: #8e24aa;
-            margin-bottom: 22px;
+            font-size: 1.4rem;
+            color: #5b2a86;
+            margin-bottom: 14px;
             font-weight: 700;
-            letter-spacing: 1px;
+            letter-spacing: 0.3px;
         }
-        .question-text.blue-theme {
+        body.premiere .question-text {
             color: #1976d2;
         }
         .emoji-survey {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 44px;
+            gap: 28px;
+            flex-wrap:wrap;
         }
         .emoji-option {
             display: flex;
@@ -107,11 +144,13 @@
             display: none;
         }
         .emoji {
-            font-size: 70px;
-            transition: transform 0.2s, filter 0.2s;
-            filter: grayscale(0.3) brightness(1.1) drop-shadow(0 2px 8px #f8bbd0);
+            font-size: 64px;
+            transition: transform 0.18s, filter 0.18s;
+            filter: grayscale(0.25) brightness(1.03) drop-shadow(0 6px 18px rgba(160,100,160,0.08));
+            padding:6px;
+            border-radius:12px;
         }
-        .blue-theme .emoji {
+        body.premiere .emoji {
             filter: grayscale(0.1) brightness(1.1) drop-shadow(0 2px 8px #90caf9);
         }
         .emoji-option input[type="radio"]:checked + .emoji {
@@ -119,40 +158,42 @@
             filter: none;
             border-bottom: 4px solid #d500f9;
         }
-        .blue-theme .emoji-option input[type="radio"]:checked + .emoji {
+        body.premiere .emoji-option input[type="radio"]:checked + .emoji {
             border-bottom: 4px solid #1976d2;
         }
         .label {
-            margin-top: 12px;
-            font-size: 1.1rem;
-            color: #ad1457;
-            font-weight: 600;
+            margin-top: 10px;
+            font-size: 0.98rem;
+            color: #8e24aa;
+            font-weight: 700;
         }
-        .label.blue-theme {
+        body.premiere .label {
             color: #1976d2;
         }
         .step-btn, .submit-btn {
             display: inline-block;
-            margin: 36px 12px 0 12px;
-            padding: 18px 54px;
-            font-size: 1.35rem;
-            background: linear-gradient(90deg, #f06292 0%, #ba68c8 100%);
+            margin: 12px 8px 0 8px;
+            padding: 12px 28px;
+            font-size: 1rem;
+            background: linear-gradient(90deg, var(--accent-1) 0%, var(--accent-2) 100%);
             color: #fff;
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
-            font-weight: bold;
-            box-shadow: 0 2px 8px rgba(186,104,200,0.12);
-            transition: background 0.2s;
+            font-weight: 800;
+            box-shadow: 0 8px 20px rgba(33,25,40,0.06);
+            transition: transform 0.12s ease, box-shadow 0.12s;
         }
-        .blue-theme .step-btn, .blue-theme .submit-btn {
+        .step-btn.ghost{ background: transparent; color: #374151; box-shadow:none; border:1px solid rgba(0,0,0,0.06); }
+        .step-btn:active{ transform: translateY(1px); }
+        body.premiere .step-btn, body.premiere .submit-btn {
             background: linear-gradient(90deg, #1976d2 0%, #64b5f6 100%);
             box-shadow: 0 2px 8px rgba(33,150,243,0.10);
         }
         .step-btn:hover, .submit-btn:hover {
             background: linear-gradient(90deg, #ba68c8 0%, #f06292 100%);
         }
-        .blue-theme .step-btn:hover, .blue-theme .submit-btn:hover {
+        body.premiere .step-btn:hover, body.premiere .submit-btn:hover {
             background: linear-gradient(90deg, #64b5f6 0%, #1976d2 100%);
         }
         .step-btn[disabled] {
@@ -161,13 +202,15 @@
         }
         .step-indicator {
             text-align: center;
-            margin-bottom: 24px;
-            color: #d500f9;
+            margin-bottom: 8px;
+            color: #6b21a8;
             font-weight: 700;
-            letter-spacing: 1px;
-            font-size: 1.2rem;
+            letter-spacing: 0.6px;
+            font-size: 1rem;
         }
-        .step-indicator.blue-theme {
+        .progress{height:8px;background:linear-gradient(90deg,rgba(0,0,0,0.03),rgba(0,0,0,0.02));border-radius:999px;overflow:hidden;margin:10px auto 0;max-width:520px}
+        .progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent-1),var(--accent-2));transition:width .36s ease;border-radius:999px}
+        body.premiere .step-indicator {
             color: #1976d2;
         }
         @media (max-width: 900px) {
@@ -239,22 +282,23 @@
             position: absolute;
             z-index: 2;
             pointer-events: none;
-            opacity: 0.7;
+            opacity: 0.85;
+            mix-blend-mode: multiply;
         }
         .butterfly.b1 { top: -30px; left: -30px; width: 70px; transform: rotate(-15deg); }
         .butterfly.b2 { top: -40px; right: -30px; width: 60px; transform: rotate(10deg); }
         .butterfly.b3 { bottom: -30px; left: 10px; width: 50px; transform: rotate(8deg); }
         .butterfly.b4 { bottom: -25px; right: 0px; width: 40px; transform: rotate(-12deg); }
-        .blue-theme .butterfly { display: none; }
+    body.premiere .butterfly { display: none; }
         /* Klinik selection */
         .klinik-select-container {
-            max-width: 420px;
-            margin: 80px auto 0 auto;
-            background: rgba(255,255,255,0.97);
-            border-radius: 22px;
-            box-shadow: 0 8px 32px rgba(206,147,216,0.18);
-            padding: 48px 24px 36px 24px;
-            border: 2px solid #f06292;
+            max-width: 520px;
+            margin: 60px auto 0 auto;
+            background: var(--card-bg);
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(16,24,40,0.06);
+            padding: 36px 22px 28px 22px;
+            border: 1px solid rgba(0,0,0,0.04);
             text-align: center;
             position: relative;
         }
@@ -268,28 +312,25 @@
         .klinik-btn {
             display: block;
             width: 100%;
-            margin: 18px 0;
-            padding: 22px 0;
-            font-size: 1.25rem;
-            font-weight: bold;
+            margin: 14px 0;
+            padding: 14px 0;
+            font-size: 1.05rem;
+            font-weight: 800;
             border-radius: 12px;
             border: none;
             cursor: pointer;
-            background: linear-gradient(90deg, #f06292 0%, #ba68c8 100%);
+            background: linear-gradient(90deg, var(--accent-1) 0%, var(--accent-2) 100%);
             color: #fff;
-            box-shadow: 0 2px 8px rgba(186,104,200,0.10);
-            transition: background 0.2s, transform 0.2s;
+            box-shadow: 0 8px 20px rgba(33,25,40,0.06);
+            transition: transform 0.14s ease, box-shadow 0.14s;
         }
         .klinik-btn:hover {
-            background: linear-gradient(90deg, #ba68c8 0%, #f06292 100%);
             transform: scale(1.03);
         }
-        .klinik-btn.blue {
-            background: linear-gradient(90deg, #1976d2 0%, #64b5f6 100%);
-        }
-        .klinik-btn.blue:hover {
-            background: linear-gradient(90deg, #64b5f6 0%, #1976d2 100%);
-        }
+        .klinik-btn.pratama { background: linear-gradient(90deg, #f06292 0%, #ba68c8 100%); }
+        .klinik-btn.pratama:hover { background: linear-gradient(90deg, #ba68c8 0%, #f06292 100%); }
+        .klinik-btn.premiere { background: linear-gradient(90deg, #1976d2 0%, #64b5f6 100%); }
+        .klinik-btn.premiere:hover { background: linear-gradient(90deg, #64b5f6 0%, #1976d2 100%); }
         .source-option {
             display: flex;
             align-items: center;
@@ -320,7 +361,7 @@
             font-weight: 600;
             color: #8e24aa;
         }
-        .blue-theme .source-label {
+        body.premiere .source-label {
             color: #1976d2;
         }
         .source-survey {
@@ -360,7 +401,7 @@
             font-weight: 600;
             color: #8e24aa;
         }
-        .blue-theme .source-label {
+        body.premiere .source-label {
             color: #1976d2;
         }
         @media (max-width: 900px) {
@@ -389,8 +430,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 16px;
-            margin-top: 24px;
+            gap: 12px;
+            margin-top: 8px;
+            flex-wrap:wrap;
         }
         .step-btn, .submit-btn {
             margin: 0 8px;
@@ -430,7 +472,15 @@
         }
     </style>
 </head>
-<body>
+@php
+    // Normalize clinic names into simple class keys
+    $bodyClass = '';
+    if (isset($klinik)) {
+        if (stripos($klinik, 'Pratama') !== false) $bodyClass = 'pratama';
+        elseif (stripos($klinik, 'Premiere') !== false) $bodyClass = 'premiere';
+    }
+@endphp
+<body class="{{ $bodyClass }}" data-klinik="{{ $klinik ?? '' }}">
     @if (!isset($klinik))
         <div class="survey-title-outer">
             <div class="survey-title">Survei Kepuasan Pelanggan</div>
@@ -438,8 +488,8 @@
         <div class="klinik-select-container">
             <div class="klinik-select-title">Pilih Klinik</div>
             <form method="GET" action="{{ route('customer.survey') }}">
-                <button type="submit" name="klinik" value="Klinik Pratama Belova Skin" class="klinik-btn">Klinik Pratama Belova Skin</button>
-                <button type="submit" name="klinik" value="Klinik Utama Premiere Belova" class="klinik-btn blue">Klinik Utama Premiere Belova</button>
+                <button type="submit" name="klinik" value="Klinik Pratama Belova Skin" class="klinik-btn pratama" onclick="document.body.className='pratama'">Klinik Pratama Belova Skin</button>
+                <button type="submit" name="klinik" value="Klinik Utama Premiere Belova" class="klinik-btn premiere" onclick="document.body.className='premiere'">Klinik Utama Premiere Belova</button>
             </form>
         </div>
     @else
@@ -465,6 +515,7 @@
         @if(!session('success') && isset($klinik))
             <div class="survey-title-outer">
                 <div class="survey-title" id="surveyTitle">Survei Kepuasan Pelanggan</div>
+                <div class="survey-subtitle">{{ $klinik }}</div>
             </div>
             <div id="surveyContainer" class="survey-container">
                 <!-- Butterfly SVGs -->
@@ -476,6 +527,7 @@
                     @csrf
                     <input type="hidden" name="klinik" value="{{ $klinik }}">
                     <div class="step-indicator" id="stepIndicator"><span id="stepText"></span></div>
+                    <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
                     @foreach($questions as $i => $question)
                         <div class="question-block{{ $i === 0 ? ' active' : '' }}" data-step="{{ $i+1 }}" data-qid="{{ $question->id }}">
                             <div class="question-text center-question">{{ $question->question_text }}</div>
@@ -525,7 +577,7 @@
                         </div>
                     @endforeach
                     <div class="survey-btn-row">
-                        <button type="button" class="step-btn" id="prevBtn">Sebelumnya</button>
+                        <button type="button" class="step-btn ghost" id="prevBtn">Sebelumnya</button>
                         <button type="button" class="step-btn" id="nextBtn">Selanjutnya</button>
                         <button type="submit" class="submit-btn" id="submitBtn" style="display:none;">Kirim</button>
                     </div>
@@ -590,7 +642,7 @@ $(function() {
                 'X-CSRF-TOKEN': $('input[name="_token"]').val()
             },
             success: function(res) {
-                $('#surveyContainer').hide();
+                $('#surveyContainer').slideUp(240);
                 $('#thankYouMessage').fadeIn(300);
             },
             error: function(xhr) {
@@ -598,7 +650,16 @@ $(function() {
             }
         });
     });
-    showStep(currentStep);
+    function updateStepText(step){
+        $('#stepText').text('Pertanyaan ' + step + ' dari ' + totalSteps);
+        var pct = Math.round((step-1) / Math.max(1,totalSteps-1) * 100);
+        $('#progressBar').css('width', pct + '%');
+    }
+    function showStepAndUpdate(step){
+        showStep(step);
+        updateStepText(step);
+    }
+    showStepAndUpdate(currentStep);
 });
 </script>
 </body>
