@@ -1077,14 +1077,64 @@ var userRole = "{{ $role }}";
 }
     });
 
-    // Initial stats update
+    // Prevent DataTables from showing blocking alert on AJAX errors; we'll handle errors gracefully
+    $.fn.dataTable.ext.errMode = 'none';
+
+    // Initial stats update (updateStats now returns the jqXHR so caller can handle errors)
     updateStats();
 
-    // Auto-refresh DataTable every 10 seconds
-    setInterval(function() {
-        table.ajax.reload(null, false); // false to keep current page
-        updateStats(); // Also update statistics
-    }, 10000);
+    // Helper: centralized AJAX error handler for table and stats
+    function handleAjaxError(jqXHR, textStatus, errorThrown) {
+        console.error('AJAX error:', textStatus, errorThrown, jqXHR);
+        // Session expired or CSRF mismatch -> reload the page so user can re-authenticate
+        if (jqXHR && (jqXHR.status === 419 || jqXHR.status === 401)) {
+            console.warn('Session likely expired (status ' + jqXHR.status + '), reloading page...');
+            location.reload();
+            return;
+        }
+        // For other errors, do not show the DataTables alert; optionally show a non-blocking toast
+        // We'll just log and rely on the next scheduled retry.
+    }
+
+    // Guarded auto-refresh: skip when page is hidden or when any modal is open
+    var autoRefreshIntervalMs = 10000;
+    function shouldAutoRefresh() {
+        // Page visibility
+        if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') {
+            return false;
+        }
+        // Any bootstrap modal currently shown? if so, avoid refreshing to not disrupt user actions
+        if ($('.modal.show').length > 0) {
+            return false;
+        }
+        return true;
+    }
+
+    function autoRefresh() {
+        if (!shouldAutoRefresh()) {
+            console.debug('Auto-refresh skipped (hidden or modal open)');
+            return;
+        }
+
+        // reload table, keep current page; attach fail handler
+        try {
+            var reloadPromise = table.ajax.reload(null, false);
+            // DataTables' ajax.reload doesn't return a jqXHR in some setups; safeguard by using global ajaxStart/error
+            // As a second layer, ensure updateStats is called and its failures handled
+        } catch (e) {
+            console.error('table.ajax.reload error:', e);
+        }
+
+        // Update stats and handle errors (updateStats returns the jqXHR)
+        var statsPromise = updateStats();
+        if (statsPromise && typeof statsPromise.fail === 'function') {
+            statsPromise.fail(function(jqXHR, textStatus, errorThrown) {
+                handleAjaxError(jqXHR, textStatus, errorThrown);
+            });
+        }
+    }
+
+    var autoRefreshTimer = setInterval(autoRefresh, autoRefreshIntervalMs);
 
     $('#filter_dokter, #filter_klinik, #filter_start_date, #filter_end_date').on('change', function () {
         table.ajax.reload();
@@ -1259,8 +1309,8 @@ function updateStats() {
     let filterDokter = $('#filter_dokter').val();
     let filterKlinik = $('#filter_klinik').val();
 
-    // Make AJAX request to get updated stats
-    $.get('{{ route("erm.rawatjalans.stats") }}', {
+    // Make AJAX request to get updated stats and return the jqXHR for callers
+    return $.get('{{ route("erm.rawatjalans.stats") }}', {
         start_date: startDate,
         end_date: endDate,
         dokter_id: filterDokter,
@@ -1272,8 +1322,8 @@ function updateStats() {
         $('#stat-belum-diperiksa').text(stats.belum_diperiksa);
         $('#stat-sudah-diperiksa').text(stats.sudah_diperiksa);
         $('#stat-dibatalkan').text(stats.dibatalkan);
-    }).fail(function() {
-        console.error('Failed to update statistics');
+    }).fail(function(jqXHR, textStatus, errorThrown) {
+        console.error('Failed to update statistics', textStatus, errorThrown, jqXHR);
     });
 }
 
