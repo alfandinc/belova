@@ -732,6 +732,13 @@ Route::prefix('finance')->middleware('role:Kasir|Admin')->group(function () {
         Route::get('/billing/{id}/edit', [BillingController::class, 'edit'])->name('finance.billing.edit');
         Route::put('/billing/{id}', [BillingController::class, 'update'])->name('finance.billing.update');
         Route::delete('/billing/{id}', [BillingController::class, 'destroy'])->name('finance.billing.destroy');
+    Route::post('/billing/{id}/restore', [BillingController::class, 'restore'])->name('finance.billing.restore');
+    Route::delete('/billing/{id}/force', [BillingController::class, 'forceDelete'])->name('finance.billing.forceDelete');
+
+    // Visitation-level bulk actions from index
+    Route::post('/billing/visitation/{visitation_id}/trash', [BillingController::class, 'trashByVisitation'])->name('finance.billing.trashByVisitation');
+    Route::post('/billing/visitation/{visitation_id}/restore', [BillingController::class, 'restoreByVisitation'])->name('finance.billing.restoreByVisitation');
+    Route::delete('/billing/visitation/{visitation_id}/force', [BillingController::class, 'forceDeleteByVisitation'])->name('finance.billing.forceDeleteByVisitation');
         Route::get('/billing/data', [BillingController::class, 'getVisitationsData'])->name('finance.billing.data');
     // Billing -> Send notification to Farmasi
     Route::post('/send-notif-farmasi', [BillingController::class, 'sendNotifToFarmasi'])->middleware('auth');

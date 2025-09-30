@@ -118,6 +118,11 @@ class Visitation extends Model
     {
         return $this->hasOne(\App\Models\Finance\Invoice::class, 'visitation_id');
     }
+
+    public function billings()
+    {
+        return $this->hasMany(\App\Models\Finance\Billing::class, 'visitation_id');
+    }
     
     public function suratDiagnosa()
     {

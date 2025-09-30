@@ -8,38 +8,46 @@
     <div class="row">
         <div class="col-12">
             <div class="card shadow-sm mb-4">
-                <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
-                    <h4 class="card-title mb-0">Daftar Billing</h4>
-                    <div class="row g-2 flex-wrap">
-                        <div class="col-12 col-sm-6 col-md-3 mb-2 d-flex align-items-center justify-content-end">
-                            <button id="btn-send-farmasi-notif" class="btn btn-sm btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell"></i> Kirim Notif ke Farmasi</button>
+                <div class="card-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-4 col-12">
+                            <h4 class="card-title mb-0">Daftar Billing</h4>
                         </div>
-                        <div class="col-12 col-sm-6 col-md-3 mb-2">
-                            <select id="filter-dokter" class="form-control w-100">
-                                <option value="">Semua Dokter</option>
-                                {{-- Options will be loaded via AJAX or server-side rendering --}}
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-md-3 mb-2">
-                            <select id="filter-klinik" class="form-control w-100">
-                                <option value="">Semua Klinik</option>
-                                {{-- Options will be loaded via AJAX or server-side rendering --}}
-                            </select>
-                        </div>
-                        <div class="col-12 col-sm-6 col-md-3 mb-2">
-                            <div class="date-filter w-100">
-                                <div class="input-group w-100">
-                                    <input type="text" class="form-control" id="daterange" placeholder="Pilih Rentang Tanggal" readonly>
-                                    <span class="input-group-text"><i class="ti-calendar"></i></span>
+                        <div class="col-md-8 col-12">
+                            <div class="d-flex flex-wrap align-items-center justify-content-end" style="gap: .5rem;">
+                                <div class="d-flex align-items-center" style="flex:0 0 auto;">
+                                    <button id="btn-send-farmasi-notif" class="btn btn-sm btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell me-1"></i> Kirim Notif ke Farmasi</button>
+                                </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 220px;">
+                                    <select id="filter-dokter" class="form-control form-control-sm w-100">
+                                        <option value="">Semua Dokter</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 220px;">
+                                    <select id="filter-klinik" class="form-control form-control-sm w-100">
+                                        <option value="">Semua Klinik</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 260px;">
+                                    <div class="input-group input-group-sm w-100">
+                                        <input type="text" class="form-control form-control-sm" id="daterange" placeholder="Pilih Rentang Tanggal" readonly>
+                                        <span class="input-group-text"><i class="ti-calendar"></i></span>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 160px;">
+                                    <select id="filter-status" class="form-control form-control-sm w-100">
+                                        <option value="belum">Belum Dibayar</option>
+                                        <option value="sudah">Sudah Bayar</option>
+                                        <option value="">Semua Status</option>
+                                    </select>
+                                </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 auto;">
+                                    <div class="form-check d-flex align-items-center">
+                                        <input class="form-check-input" type="checkbox" value="1" id="show-deleted">
+                                        <label class="form-check-label small ms-2 mb-0" for="show-deleted">Tampilkan Terhapus</label>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="col-12 col-sm-6 col-md-3 mb-2">
-                            <select id="filter-status" class="form-control w-100">
-                                <option value="belum">Belum Dibayar</option>
-                                <option value="sudah">Sudah Bayar</option>
-                                <option value="">Semua Status</option>
-                            </select>
                         </div>
                     </div>
                 </div>
@@ -173,6 +181,7 @@
                     d.dokter_id = dokterId;
                     d.klinik_id = klinikId;
                     d.status_filter = statusFilter;
+                    d.include_deleted = $('#show-deleted').is(':checked') ? 1 : 0;
                 }
             },
             columnDefs: [
@@ -199,6 +208,8 @@
                             var $container = $('<div>').html(data);
                             $container.find('a, button').each(function() {
                                 var $el = $(this);
+                                // Skip elements that explicitly requested no icon mapping
+                                if ($el.data('no-icon')) return;
                                 var text = $el.text().trim();
                                 // map button text to icon classes (using Themify icons already used in project)
                                 if (/lihat\s*billing/i.test(text)) {
@@ -213,12 +224,10 @@
                                 } else if (/edit/i.test(text)) {
                                     $el.html('<i class="ti-pencil" aria-hidden="true"></i>');
                                     $el.attr('title', 'Edit');
-                                } else if (/hapus|delete|remove/i.test(text)) {
+                                } else if (/hapus|delete|remove/i.test(text) && $el.find('i').length === 0) {
+                                    // only map to trash icon if there isn't already an icon inside
                                     $el.html('<i class="ti-trash" aria-hidden="true"></i>');
                                     $el.attr('title', 'Hapus');
-                                } else {
-                                    // fallback: keep original text but add a small icon
-                                    // do nothing or optionally shorten
                                 }
                                 // ensure buttons remain accessible
                                 $el.attr('aria-label', $el.attr('title') || text);
@@ -252,6 +261,76 @@
         setInterval(function() {
             billingTable.ajax.reload(null, false); // false keeps current page position
         }, 15000); // 15000 milliseconds = 15 seconds
+
+        // Toggle show deleted
+        $('#show-deleted').on('change', function() {
+            billingTable.ajax.reload();
+        });
+
+        // Delegate handlers for visitation-level actions (trash/restore/force)
+        $(document).on('click', '.btn-trash-visitation', function() {
+            var id = $(this).data('id');
+            Swal.fire({
+                title: 'Pindahkan billing ke trash?',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, pindahkan',
+                cancelButtonText: 'Batal'
+            }).then(function(result) {
+                if (result.value) {
+                    $.post("{{ url('/finance/billing/visitation/') }}/" + id + "/trash", {_token: '{{ csrf_token() }}'})
+                    .done(function(res) {
+                        Swal.fire('Sukses', res.message, 'success');
+                        billingTable.ajax.reload();
+                    }).fail(function() {
+                        Swal.fire('Gagal', 'Terjadi kesalahan', 'error');
+                    });
+                }
+            });
+        });
+
+        $(document).on('click', '.btn-restore-visitation', function() {
+            var id = $(this).data('id');
+            Swal.fire({
+                title: 'Kembalikan billing dari trash?',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, kembalikan',
+                cancelButtonText: 'Batal'
+            }).then(function(result) {
+                if (result.value) {
+                    $.post("{{ url('/finance/billing/visitation/') }}/" + id + "/restore", {_token: '{{ csrf_token() }}'})
+                    .done(function(res) {
+                        Swal.fire('Sukses', res.message, 'success');
+                        billingTable.ajax.reload();
+                    }).fail(function() {
+                        Swal.fire('Gagal', 'Terjadi kesalahan', 'error');
+                    });
+                }
+            });
+        });
+
+        $(document).on('click', '.btn-force-visitation', function() {
+            var id = $(this).data('id');
+            Swal.fire({
+                title: 'Hapus permanen billing untuk kunjungan ini?',
+                text: 'Tindakan ini tidak dapat dibatalkan.',
+                showCancelButton: true,
+                confirmButtonText: 'Hapus Permanen',
+                cancelButtonText: 'Batal'
+            }).then(function(result) {
+                if (result.value) {
+                    $.ajax({
+                        url: "{{ url('/finance/billing/visitation/') }}/" + id + "/force",
+                        method: 'DELETE',
+                        data: {_token: '{{ csrf_token() }}'},
+                    }).done(function(res) {
+                        Swal.fire('Dihapus', res.message, 'success');
+                        billingTable.ajax.reload();
+                    }).fail(function() {
+                        Swal.fire('Gagal', 'Terjadi kesalahan', 'error');
+                    });
+                }
+            });
+        });
 
         // Finance: Send notification to Farmasi
         $('#btn-send-farmasi-notif').click(function() {

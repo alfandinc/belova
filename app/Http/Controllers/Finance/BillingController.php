@@ -1309,12 +1309,66 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         return response()->json(['message' => 'Item billing dihapus']);
     }
 
+    /**
+     * Restore a soft-deleted billing item
+     */
+    public function restore($id)
+    {
+        $item = Billing::withTrashed()->findOrFail($id);
+        if ($item->trashed()) {
+            $item->restore();
+            return response()->json(['message' => 'Item billing berhasil dikembalikan']);
+        }
+        return response()->json(['message' => 'Item tidak berada di trash'], 400);
+    }
+
+    /**
+     * Permanently delete a billing item
+     */
+    public function forceDelete($id)
+    {
+        $item = Billing::withTrashed()->findOrFail($id);
+        $item->forceDelete();
+        return response()->json(['message' => 'Item billing dihapus permanen']);
+    }
+
+    /**
+     * Soft-delete all billing items for a visitation (from index)
+     */
+    public function trashByVisitation($visitation_id)
+    {
+        $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
+        $count = Billing::where('visitation_id', $visitation_id)->delete();
+        return response()->json(['message' => 'Billing untuk kunjungan dipindahkan ke trash', 'count' => $count]);
+    }
+
+    /**
+     * Restore all billing items for a visitation
+     */
+    public function restoreByVisitation($visitation_id)
+    {
+        $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
+        $count = Billing::withTrashed()->where('visitation_id', $visitation_id)->restore();
+        return response()->json(['message' => 'Billing untuk kunjungan dikembalikan', 'count' => $count]);
+    }
+
+    /**
+     * Force delete all billing items for a visitation
+     */
+    public function forceDeleteByVisitation($visitation_id)
+    {
+        $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
+        $count = Billing::withTrashed()->where('visitation_id', $visitation_id)->forceDelete();
+        return response()->json(['message' => 'Billing untuk kunjungan dihapus permanen', 'count' => $count]);
+    }
+
     public function getVisitationsData(Request $request)
     {
         $startDate = $request->input('start_date', now()->format('Y-m-d'));
         $endDate = $request->input('end_date', now()->format('Y-m-d'));
         $dokterId = $request->input('dokter_id');
         $klinikId = $request->input('klinik_id');
+        $includeDeleted = filter_var($request->input('include_deleted', false), FILTER_VALIDATE_BOOLEAN);
         
         $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice'])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
@@ -1330,16 +1384,42 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         // Status filter: 'belum' (default), 'sudah', or '' (all)
         $statusFilter = $request->input('status_filter', 'belum');
         if ($statusFilter === 'belum') {
-            $visitations->where(function($query) {
-                $query->whereDoesntHave('invoice')
-                      ->orWhereHas('invoice', function($q) {
-                          $q->where('amount_paid', 0);
+            // Show visitations that either have no invoice OR have an unpaid invoice,
+            // AND ensure they have at least one billing item (respect includeDeleted)
+            $visitations->where(function($query) use ($includeDeleted) {
+                $query->where(function($q) {
+                          $q->whereDoesntHave('invoice')
+                            ->orWhereHas('invoice', function($iq) {
+                                  $iq->where('amount_paid', 0);
+                            });
+                      })
+                      ->whereExists(function($sub) use ($includeDeleted) {
+                          $sub->select(DB::raw(1))
+                              ->from('finance_billing')
+                              ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
+                          if (!$includeDeleted) {
+                              $sub->whereNull('finance_billing.deleted_at');
+                          }
                       });
             });
         } elseif ($statusFilter === 'sudah') {
+            // Only visitations with a paid invoice
             $visitations->whereHas('invoice', function($q) {
                 $q->where('amount_paid', '>', 0);
             });
+        } else {
+            // Semua status: by default exclude visitations that only have trashed billings
+            if (!$includeDeleted) {
+                $visitations->where(function($q) {
+                    $q->whereHas('invoice')
+                      ->orWhereExists(function($sub) {
+                          $sub->select(DB::raw(1))
+                              ->from('finance_billing')
+                              ->whereNull('finance_billing.deleted_at')
+                              ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
+                      });
+                });
+            }
         }
         
         return DataTables::of($visitations)
@@ -1411,20 +1491,43 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return '-';
             })
                 ->addColumn('status', function ($visitation) {
+                    // If there is an invoice paid > 0, show paid
                     if ($visitation->invoice && $visitation->invoice->amount_paid > 0) {
                         return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
                     }
+
+                    // Check if all billings for this visitation are trashed (if there are any)
+                    $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
+                    $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+                    if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
+                        return '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
+                    }
+
                     return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
                 })
             ->addColumn('action', function ($visitation) {
                 $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
-                
+
                 // Add "Cetak Nota" buttons if invoice exists
                 if ($visitation->invoice) {
                     $action .= ' <a href="'.route('finance.invoice.print-nota', $visitation->invoice->id).'" class="btn btn-sm btn-success ml-1" target="_blank">Cetak Nota</a>';
                     $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
                 }
-                
+
+                // Actions for soft-delete/restore/force per visitation
+                $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
+                $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+
+                if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
+                    // all billings trashed -> show restore and force-delete (force as text 'Permanent Delete')
+                    $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-info btn-restore-visitation ml-1">Restore</button>';
+                    // add data-no-icon to prevent client-side icon mapping
+                    $action .= ' <button data-id="'.$visitation->id.'" data-no-icon="1" class="btn btn-sm btn-danger btn-force-visitation ml-1">Permanent Delete</button>';
+                } elseif ($totalBillings > 0) {
+                    // has non-deleted billing -> show trash as icon-only button
+                    $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-danger btn-trash-visitation ml-1" title="Hapus"><i class="ti-trash" aria-hidden="true"></i></button>';
+                }
+
                 return $action;
             })
             ->rawColumns(['action', 'status'])

@@ -145,6 +145,6 @@
     </script>
 
     @yield('scripts')
-    @include('partials.farmasi-notif')
+    {{-- @include('partials.farmasi-notif') --}}
 </body>
 </html>
