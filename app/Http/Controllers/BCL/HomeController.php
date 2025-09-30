@@ -111,6 +111,6 @@ class HomeController extends Controller
         // ->sum('')
         // ->get();
         // return response()->json($group_jenis_kelamin);
-        return view('home')->with('response', (object)$response);
+    return view('bcl.home')->with('response', (object)$response);
     }
 }
