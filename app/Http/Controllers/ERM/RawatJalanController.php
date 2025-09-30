@@ -71,7 +71,13 @@ class RawatJalanController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $visitations = Visitation::query()
+            // If request is AJAX and user not authenticated, respond with JSON 401 instead of redirecting
+            if (!Auth::check()) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+
+            try {
+                $visitations = Visitation::query()
                 ->select([
                     'erm_visitations.id',
                     'erm_visitations.pasien_id',
@@ -224,6 +230,10 @@ class RawatJalanController extends Controller
                 })
                 ->rawColumns(['antrian', 'nama_pasien', 'dokumen'])
                 ->make(true);
+            } catch (\Exception $e) {
+                Log::error('RawatJalanController@index AJAX error: ' . $e->getMessage(), ['exception' => $e]);
+                return response()->json(['error' => 'Internal Server Error'], 500);
+            }
         }
 
         // Calculate statistics
