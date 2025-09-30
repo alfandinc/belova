@@ -162,6 +162,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/rooms/edit/{id}', [RoomsController::class, 'edit'])->name('bcl.rooms.edit');
     Route::post('/rooms/update', [RoomsController::class, 'update'])->name('bcl.rooms.update');
     Route::get('/rooms/delete/{id}', [RoomsController::class, 'destroy'])->name('bcl.rooms.delete');
+    Route::get('/rooms/restore/{id}', [RoomsController::class, 'restore'])->name('bcl.rooms.restore');
     Route::get('/rooms', [RoomsController::class, 'index'])->name('bcl.rooms');
     Route::get('/rooms/{id}', [PricelistController::class, 'get_room_pricelist'])->name('bcl.pricelist.get_pl_room');
     Route::post('/tambahanpl', [pricelist_tambahanController::class, 'store'])->name('bcl.extra_pl.store');

@@ -88,7 +88,7 @@ $categories = $categories;
                                                 </a>
                                                 @endif
                                                 @if(!$category->trashed())
-                                                <a href="{{route('category.delete',$category->id_category)}}" onclick="deletes(event)" class="btn btn-xs btn-outline-danger">
+                                                <a href="{{route('bcl.category.delete',$category->id_category)}}" onclick="deletes(event)" class="btn btn-xs btn-outline-danger">
                                                     <i data-feather="trash" class="align-self-center icon-xs"></i>
                                                 </a>
                                                 @endif
