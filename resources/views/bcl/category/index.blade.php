@@ -80,10 +80,10 @@ $categories = $categories;
                                                 </a>
                                                 @endif
                                                 @if($category->trashed())
-                                                <a href="{{route('category.restore',$category->id_category)}}" onclick="restore(event)" data-toggle="tooltip" data-original-title="Kembalikan, Dihapus pada {{$category->deleted_at}}" class="btn btn-xs btn-outline-success">
+                                                <a href="{{route('bcl.category.restore',$category->id_category)}}" onclick="restore(event)" data-toggle="tooltip" data-original-title="Kembalikan, Dihapus pada {{$category->deleted_at}}" class="btn btn-xs btn-outline-success">
                                                     <i data-feather="rotate-ccw" class="align-self-center icon-xs"></i>
                                                 </a>
-                                                <a href="{{route('category.forcedelete',$category->id_category)}}" onclick="forcedeletes(event)" data-toggle="tooltip" data-original-title="Hapus Permanen" class="btn btn-xs btn-outline-dark">
+                                                <a href="{{route('bcl.category.forcedelete',$category->id_category)}}" onclick="forcedeletes(event)" data-toggle="tooltip" data-original-title="Hapus Permanen" class="btn btn-xs btn-outline-dark">
                                                     <i data-feather="trash" class="align-self-center icon-xs"></i>
                                                 </a>
                                                 @endif
@@ -130,7 +130,7 @@ $categories = $categories;
                     @foreach($images as $image)
                     @if($image->category == null)
                     <div class="file-box">
-                        <a href="{{route('images.delete',$image->id)}}" onclick="deletes(event)" class="download-icon-link">
+                        <a href="{{route('bcl.images.delete',$image->id)}}" onclick="deletes(event)" class="download-icon-link">
                             <i class="dripicons-trash file-download-icon"></i>
                         </a>
                         <div class="text-center">
@@ -143,7 +143,7 @@ $categories = $categories;
                     </div>
                     @else
                     <div class="file-box">
-                        <a href="{{route('images.delete',$image->id)}}" onclick="deletes(event)" class="download-icon-link">
+                        <a href="{{route('bcl.images.delete',$image->id)}}" onclick="deletes(event)" class="download-icon-link">
                             <i class="dripicons-trash file-download-icon"></i>
                         </a>
                         <div class="text-center">
@@ -171,7 +171,7 @@ $categories = $categories;
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
-            <form action="{{route('category.store')}}" method="POST">
+            <form action="{{route('bcl.category.store')}}" method="POST">
                 @csrf
                 <div class="modal-body">
                     <div class="row">
@@ -202,7 +202,7 @@ $categories = $categories;
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
-            <form action="{{route('category.update')}}" method="POST">
+            <form action="{{route('bcl.category.update')}}" method="POST">
                 @csrf
                 <input type="hidden" name="id" id="id_kategori">
                 <div class="modal-body">
@@ -234,7 +234,7 @@ $categories = $categories;
                     <span aria-hidden="true"><i class="la la-times"></i></span>
                 </button>
             </div>
-            <form action="{{route('images.store')}}" method="POST" enctype="multipart/form-data">
+            <form action="{{route('bcl.images.store')}}" method="POST" enctype="multipart/form-data">
                 @csrf
                 <div class="modal-body">
                     <div class="row">
@@ -367,7 +367,7 @@ $categories = $categories;
     $('.edit_category').on('click', function() {
         var id = $(this).data('id');
         $.ajax({
-            url: "{{route('category.edit', ':id')}}",
+            url: "{{route('bcl.category.edit', ':id')}}",
             type: "GET",
             data: {
                 id: id
@@ -452,7 +452,7 @@ $categories = $categories;
     $('#kamar').on('select2:select', function() {
         var id = $(this).find(':selected').data('room_category');
         $.ajax({
-            url: "{{route('pricelist.get_pl_room', ':id')}}",
+            url: "{{route('bcl.pricelist.get_pl_room', ':id')}}",
             type: "GET",
             data: {
                 id: id
