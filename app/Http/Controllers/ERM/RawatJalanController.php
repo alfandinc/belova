@@ -12,6 +12,8 @@ use App\Models\ERM\Klinik;
 use App\Models\ERM\ScreeningBatuk;
 use App\Models\ERM\Rujuk;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class RawatJalanController extends Controller
 {
@@ -122,15 +124,17 @@ class RawatJalanController extends Controller
             if ($request->filled('dokter_id')) {
                 $visitations->where('erm_visitations.dokter_id', $request->dokter_id);
             }
+            // Eager load lightweight relations and use withCount for collection counts to reduce memory
             $visitations->with([
                 'metodeBayar:id,nama',
                 'dokter.user:id,name',
                 'dokter.spesialisasi:id,nama',
                 'screeningBatuk:id,visitation_id',
-                'labPermintaan:id,visitation_id',
-                'riwayatTindakan:id,visitation_id',
                 'asesmenPenunjang:id,visitation_id,created_at',
                 'cppt:id,visitation_id,created_at'
+            ])->withCount([
+                'labPermintaan as lab_permintaan_count',
+                'riwayatTindakan as riwayat_tindakan_count'
             ]);
             return datatables()->of($visitations)
                 ->filterColumn('nama_pasien', function ($query, $keyword) {
@@ -141,10 +145,10 @@ class RawatJalanController extends Controller
                 })
                 ->addColumn('antrian', function ($v) {
                     $antrianHtml = '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
-                    if ($v->labPermintaan && $v->labPermintaan->count() > 0) {
+                    if (isset($v->lab_permintaan_count) && $v->lab_permintaan_count > 0) {
                         $antrianHtml .= ' <i class="fas fa-flask blinking" title="Ada permintaan lab"></i>';
                     }
-                    if ($v->riwayatTindakan && $v->riwayatTindakan->count() > 0) {
+                    if (isset($v->riwayat_tindakan_count) && $v->riwayat_tindakan_count > 0) {
                         $antrianHtml .= ' <i class="fas fa-stethoscope blinking" title="Ada tindakan"></i>';
                     }
                     return $antrianHtml;
@@ -261,45 +265,57 @@ class RawatJalanController extends Controller
      */
     private function getVisitationStats()
     {
-        $baseQuery = Visitation::whereIn('jenis_kunjungan', [1, 2]);
-        
-        // Apply same filters as in the DataTable query
+        // Build cache key based on date and current user/dokter restriction
         $user = Auth::user();
         $dokter = null;
-        // If the user is a Dokter but NOT an Admin, restrict stats to their own visitations.
         if ($user && $user->hasRole('Dokter') && !$user->hasRole('Admin')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
-            if ($dokter) {
-                $baseQuery->where('dokter_id', $dokter->id);
-            }
         }
 
-    // Apply today's date filter by default
-    $today = now()->format('Y-m-d');
-    $baseQuery->whereDate('tanggal_visitation', $today);
+        $today = now()->format('Y-m-d');
+        $cacheKey = 'visitation_stats_' . $today . '_dok_' . ($dokter ? $dokter->id : 'all');
 
-        // Calculate statistics
-        $stats = [
-            'total' => (clone $baseQuery)->count(),
-            'tidak_datang' => (clone $baseQuery)->where('status_kunjungan', 0)->count(),
-            'belum_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 1)->count(),
-            'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
-            'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
-            // count rujuk/konsultasi for visitations on $today (via related visitation)
-            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($today) {
+        return Cache::remember($cacheKey, 5, function() use ($today, $dokter) {
+            // Use a single aggregated query to compute counts
+            $query = DB::table('erm_visitations')
+                ->selectRaw(
+                    "COUNT(*) as total,
+                    SUM(CASE WHEN status_kunjungan = 0 THEN 1 ELSE 0 END) as tidak_datang,
+                    SUM(CASE WHEN status_kunjungan = 1 THEN 1 ELSE 0 END) as belum_diperiksa,
+                    SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
+                    SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
+                )
+                ->whereIn('jenis_kunjungan', [1,2])
+                ->whereDate('tanggal_visitation', $today);
+
+            if ($dokter) {
+                $query->where('dokter_id', $dokter->id);
+            }
+
+            $row = $query->first();
+
+            $rujukQuery = Rujuk::whereHas('visitation', function($q) use ($today) {
                 $q->whereDate('tanggal_visitation', $today);
-            })->when($dokter, function($q) use ($dokter) {
-                $q->where(function($r) use ($dokter) {
+            });
+            if ($dokter) {
+                $rujukQuery->where(function($r) use ($dokter) {
                     $r->where('dokter_pengirim_id', $dokter->id)
                       ->orWhere('dokter_tujuan_id', $dokter->id)
                       ->orWhereHas('visitation', function($v) use ($dokter) {
                           $v->where('dokter_id', $dokter->id);
                       });
                 });
-            })->count(),
-        ];
+            }
 
-        return $stats;
+            return [
+                'total' => $row->total ?? 0,
+                'tidak_datang' => $row->tidak_datang ?? 0,
+                'belum_diperiksa' => $row->belum_diperiksa ?? 0,
+                'sudah_diperiksa' => $row->sudah_diperiksa ?? 0,
+                'dibatalkan' => $row->dibatalkan ?? 0,
+                'rujuk' => $rujukQuery->count(),
+            ];
+        });
     }
 
     /**
@@ -307,66 +323,164 @@ class RawatJalanController extends Controller
      */
     public function getStats(Request $request)
     {
-        $baseQuery = Visitation::whereIn('jenis_kunjungan', [1, 2]);
+        try {
+            // existing optimized implementation
         
-        // Apply same filters as in the DataTable query
+            // Prepare filters
+            $user = Auth::user();
+            $dokter = null;
+            if ($user && $user->hasRole('Dokter')) {
+                $dokter = Dokter::where('user_id', $user->id)->first();
+            }
+
+            $start = $request->start_date;
+            $end = $request->end_date;
+            $today = now()->format('Y-m-d');
+            if (!$start || !$end) {
+                $start = $end = $today;
+            }
+
+            // If explicit dokter_id provided, use that and clear default dokter
+            if ($request->dokter_id) {
+                $dokter = null;
+                $dokterFilter = $request->dokter_id;
+            } else {
+                $dokterFilter = ($dokter ? $dokter->id : null);
+            }
+
+            $klinikFilter = $request->klinik_id ?? null;
+
+            // Create cache key based on filters
+            $cacheKey = 'getstats_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all');
+
+            $stats = Cache::remember($cacheKey, 5, function() use ($start, $end, $dokterFilter, $klinikFilter) {
+                $query = DB::table('erm_visitations')
+                    ->selectRaw(
+                        "COUNT(*) as total,
+                        SUM(CASE WHEN status_kunjungan = 0 THEN 1 ELSE 0 END) as tidak_datang,
+                        SUM(CASE WHEN status_kunjungan = 1 THEN 1 ELSE 0 END) as belum_diperiksa,
+                        SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
+                        SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
+                    )
+                    ->whereIn('jenis_kunjungan', [1,2])
+                    ->whereDate('tanggal_visitation', '>=', $start)
+                    ->whereDate('tanggal_visitation', '<=', $end);
+
+                if ($dokterFilter) {
+                    $query->where('dokter_id', $dokterFilter);
+                }
+                if ($klinikFilter) {
+                    $query->where('klinik_id', $klinikFilter);
+                }
+
+                $row = $query->first();
+
+                // rujuk count for the requested date range
+                $rujukQuery = Rujuk::whereHas('visitation', function($q) use ($start) {
+                    $q->whereDate('tanggal_visitation', $start);
+                });
+                if ($dokterFilter) {
+                    $rujukQuery->where(function($r) use ($dokterFilter) {
+                        $r->where('dokter_pengirim_id', $dokterFilter)
+                          ->orWhere('dokter_tujuan_id', $dokterFilter)
+                          ->orWhereHas('visitation', function($v) use ($dokterFilter) {
+                              $v->where('dokter_id', $dokterFilter);
+                          });
+                    });
+                }
+
+                return [
+                    'total' => $row->total ?? 0,
+                    'tidak_datang' => $row->tidak_datang ?? 0,
+                    'belum_diperiksa' => $row->belum_diperiksa ?? 0,
+                    'sudah_diperiksa' => $row->sudah_diperiksa ?? 0,
+                    'dibatalkan' => $row->dibatalkan ?? 0,
+                    'rujuk' => $rujukQuery->count(),
+                ];
+            });
+
+            return response()->json($stats);
+        } catch (\Exception $e) {
+            Log::error('RawatJalanController@getStats error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+                'user_id' => Auth::id()
+            ]);
+            return response()->json(['error' => 'Internal Server Error'], 500);
+        }
+        // Prepare filters
         $user = Auth::user();
         $dokter = null;
-        // Default behavior: if no dokter_id is provided in the request, and the logged-in user
-        // has the Dokter role, restrict stats to that dokter's visitations. If a dokter_id
-        // is provided, that selection will be applied below and override this default.
         if ($user && $user->hasRole('Dokter')) {
             $dokter = Dokter::where('user_id', $user->id)->first();
-            if ($dokter) {
-                $baseQuery->where('dokter_id', $dokter->id);
-            }
         }
 
-        // Filter by klinik_id if provided
-        if ($request->klinik_id) {
-            $baseQuery->where('klinik_id', $request->klinik_id);
-        }
-
-        // Ensure $today is always defined for use in closures below
+        $start = $request->start_date;
+        $end = $request->end_date;
         $today = now()->format('Y-m-d');
-
-        // Date range filter
-        if ($request->start_date && $request->end_date) {
-            $baseQuery->whereDate('tanggal_visitation', '>=', $request->start_date)
-                     ->whereDate('tanggal_visitation', '<=', $request->end_date);
-        } else {
-            // Default to today if no date filter
-            $baseQuery->whereDate('tanggal_visitation', $today);
+        if (!$start || !$end) {
+            $start = $end = $today;
         }
 
+        // If explicit dokter_id provided, use that and clear default dokter
         if ($request->dokter_id) {
-            // If explicit dokter filter provided, override the default logged-in dokter restriction
-            $baseQuery->where('dokter_id', $request->dokter_id);
-            // Also ensure $dokter is set to null so rujuk counting isn't limited by the default
             $dokter = null;
+            $dokterFilter = $request->dokter_id;
+        } else {
+            $dokterFilter = ($dokter ? $dokter->id : null);
         }
 
-        // Calculate statistics including cancelled visits for total count
-        $stats = [
-            'total' => (clone $baseQuery)->count(),
-            'tidak_datang' => (clone $baseQuery)->where('status_kunjungan', 0)->count(),
-            'belum_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 1)->count(),
-            'sudah_diperiksa' => (clone $baseQuery)->where('status_kunjungan', 2)->count(),
-            'dibatalkan' => (clone $baseQuery)->where('status_kunjungan', 7)->count(),
-            // rujuk count for the requested date range (or default today) based on related visitation.tanggal_visitation
-            'rujuk' => Rujuk::whereHas('visitation', function($q) use ($request, $today) {
-                $start = $request->start_date ?? $today;
+        $klinikFilter = $request->klinik_id ?? null;
+
+        // Create cache key based on filters
+        $cacheKey = 'getstats_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all');
+
+        $stats = Cache::remember($cacheKey, 5, function() use ($start, $end, $dokterFilter, $klinikFilter) {
+            $query = DB::table('erm_visitations')
+                ->selectRaw(
+                    "COUNT(*) as total,
+                    SUM(CASE WHEN status_kunjungan = 0 THEN 1 ELSE 0 END) as tidak_datang,
+                    SUM(CASE WHEN status_kunjungan = 1 THEN 1 ELSE 0 END) as belum_diperiksa,
+                    SUM(CASE WHEN status_kunjungan = 2 THEN 1 ELSE 0 END) as sudah_diperiksa,
+                    SUM(CASE WHEN status_kunjungan = 7 THEN 1 ELSE 0 END) as dibatalkan"
+                )
+                ->whereIn('jenis_kunjungan', [1,2])
+                ->whereDate('tanggal_visitation', '>=', $start)
+                ->whereDate('tanggal_visitation', '<=', $end);
+
+            if ($dokterFilter) {
+                $query->where('dokter_id', $dokterFilter);
+            }
+            if ($klinikFilter) {
+                $query->where('klinik_id', $klinikFilter);
+            }
+
+            $row = $query->first();
+
+            // rujuk count for the requested date range
+            $rujukQuery = Rujuk::whereHas('visitation', function($q) use ($start) {
                 $q->whereDate('tanggal_visitation', $start);
-            })->when($dokter, function($q) use ($dokter) {
-                $q->where(function($r) use ($dokter) {
-                    $r->where('dokter_pengirim_id', $dokter->id)
-                      ->orWhere('dokter_tujuan_id', $dokter->id)
-                      ->orWhereHas('visitation', function($v) use ($dokter) {
-                          $v->where('dokter_id', $dokter->id);
+            });
+            if ($dokterFilter) {
+                $rujukQuery->where(function($r) use ($dokterFilter) {
+                    $r->where('dokter_pengirim_id', $dokterFilter)
+                      ->orWhere('dokter_tujuan_id', $dokterFilter)
+                      ->orWhereHas('visitation', function($v) use ($dokterFilter) {
+                          $v->where('dokter_id', $dokterFilter);
                       });
                 });
-            })->count(),
-        ];
+            }
+
+            return [
+                'total' => $row->total ?? 0,
+                'tidak_datang' => $row->tidak_datang ?? 0,
+                'belum_diperiksa' => $row->belum_diperiksa ?? 0,
+                'sudah_diperiksa' => $row->sudah_diperiksa ?? 0,
+                'dibatalkan' => $row->dibatalkan ?? 0,
+                'rujuk' => $rujukQuery->count(),
+            ];
+        });
 
         return response()->json($stats);
     }
