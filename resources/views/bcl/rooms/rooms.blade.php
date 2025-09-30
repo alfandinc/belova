@@ -424,9 +424,14 @@ $rooms = $data;
                                             $class = 'success';
                                             $selesai = Carbon::parse($room->tgl_selesai);
                                             $now = Carbon::now();
-                                            $diff = $selesai->diffInDays($now);
-                                            if ($diff <= 7) {
-                                                $message = '<i class="fas fa-exclamation-triangle faa faa-flash animated text-danger"></i>';
+                                            // compute signed days left: positive => still ongoing, negative => already ended
+                                            $daysLeft = $now->diffInDays($selesai, false);
+                                            if ($daysLeft < 0) {
+                                                // already ended
+                                                $message = '<i class="fas fa-exclamation-triangle faa faa-flash animated text-danger" title="Periode berakhir"></i>';
+                                            } elseif ($daysLeft <= 7) {
+                                                // ending within next 7 days -> gentle reminder (yellow)
+                                                $message = '<i class="fas fa-exclamation-triangle faa faa-flash animated text-warning" title="Periode hampir berakhir"></i>';
                                             } else {
                                                 $message = '';
                                             }
