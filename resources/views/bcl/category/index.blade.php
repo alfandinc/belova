@@ -1,4 +1,4 @@
-@extends('layouts.app')
+@extends('layouts.bcl.app')
 
 @section('content')
 <!-- Page-Title -->
