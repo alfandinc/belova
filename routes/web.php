@@ -176,6 +176,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/category/edit/{id}', [RoomCategoryController::class, 'edit'])->name('bcl.category.edit');
     Route::post('/category/update', [RoomCategoryController::class, 'update'])->name('bcl.category.update');
     Route::get('/category/delete/{id}', [RoomCategoryController::class, 'destroy'])->name('bcl.category.delete');
+    Route::get('/category/restore/{id}', [RoomCategoryController::class, 'restore'])->name('bcl.category.restore');
     Route::post('/images/store', [RoomCategoryImageController::class, 'store'])->name('bcl.images.store');
     Route::get('/images/delete/{id}', [RoomCategoryImageController::class, 'destroy'])->name('bcl.images.delete');
 

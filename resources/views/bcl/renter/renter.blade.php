@@ -97,16 +97,16 @@ $pricelist = [];
                                             <td>{{$renter->current_room->room_name??''}}</td>
                                             <td>{{$renter->current_room->tgl_selesai??''}}</td>
                                             <td class="text-right text-nowrap">
-                                                @can('Edit Penyewa')
+                                                {{-- @can('Edit Penyewa') --}}
                                                 <a href="#" data-id="{{$renter->id}}" class="btn btn-xs btn-warning edit">
                                                     <i data-feather="edit" class="align-self-center icon-xs"></i>
                                                 </a>
-                                                @endcan
-                                                @can('Hapus Penyewa')
+                                                {{-- @endcan --}}
+                                                {{-- @can('Hapus Penyewa') --}}
                                                 <a href="{{route('bcl.renter.delete',$renter->id)}}" onclick="deletes(event)" class="btn btn-xs btn-danger">
                                                     <i data-feather="trash" class="align-self-center icon-xs"></i>
                                                 </a>
-                                                @endcan
+                                                {{-- @endcan --}}
                                             </td>
                                         </tr>
                                         <?php $no++; ?>
