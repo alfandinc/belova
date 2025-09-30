@@ -4,7 +4,7 @@
 <!-- Page-Title -->
 <?php
 
-use carbon\carbon;
+use Carbon\Carbon;
 
 $data = $data;
 ?>
