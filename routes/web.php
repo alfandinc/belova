@@ -63,8 +63,7 @@ use App\Http\Controllers\HRD\{
     PerformanceScoreController
 };
 
-// KPI simulation preview route for HRD
-Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
+
 use App\Http\Controllers\AkreditasiController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
@@ -1291,3 +1290,5 @@ Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSli
 Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'generateUangKpi'])->name('hrd.payroll.slip_gaji.generate_uang_kpi');
 // Public (auth) endpoint for Farmasi clients to poll finance notifications
 Route::get('/finance/get-notif', [App\Http\Controllers\Finance\BillingController::class, 'getNotif'])->middleware('auth');
+// KPI simulation preview route for HRD
+Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
