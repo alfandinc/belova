@@ -855,40 +855,46 @@ $(document).ready(function () {
         let visitationId = $('#visitationId').val();
         let requestsData = {};
         let hasChanges = false;
-        
+
         // Get all lab tests (both checked and unchecked)
         $('.lab-test-checkbox').each(function() {
-            let testId = $(this).data('id');
+            let testId = String($(this).data('id'));
             let isChecked = $(this).prop('checked');
-            
-            // If checked, include it in the request with its status
+
+            // Get current status for this test (default to 'requested')
+            let status = $('.status-container[data-test-id="' + testId + '"] .status-select').val() || 'requested';
+
             if (isChecked) {
-                // Get status regardless of row checkbox state - we need to save all checked lab tests
-                let status = $(
-                    '.status-container[data-test-id="' + testId + '"] .status-select'
-                ).val() || 'requested';
-                
                 // Add to requests object with test ID as key
                 requestsData[testId] = {
                     status: status
                 };
-                hasChanges = true;
+
+                // If it wasn't present before or status changed, mark change
+                if (typeof existingLabTestStatuses === 'undefined' || existingLabTestStatuses[testId] === undefined || existingLabTestStatuses[String(testId)] != status) {
+                    hasChanges = true;
+                }
+            } else {
+                // If it was present before but now unchecked, that's a deletion -> mark change
+                if (typeof existingLabTestStatuses !== 'undefined' && existingLabTestStatuses[testId] !== undefined) {
+                    hasChanges = true;
+                }
             }
-            // Note: unchecked tests are handled server-side by their absence in the request
         });
-        
-        // Check if any requests are selected or if we have changes to save
-        if (!hasChanges && Object.keys(requestsData).length === 0) {
+
+        // If there are no changes, inform the user
+        if (!hasChanges) {
             Swal.fire({
                 icon: 'info',
                 title: 'Tidak Ada Perubahan',
-                text: 'Pilih minimal satu permintaan lab untuk disimpan',
+                text: 'Pilih minimal satu permintaan lab untuk disimpan atau ubah status untuk menyimpan',
                 timer: 2000,
                 showConfirmButton: false
             });
             return;
         }
 
+        // Send the (possibly empty) requestsData object to the server so deletions are processed
         $.ajax({
             url: '/erm/elab/permintaan/bulk-update',
             method: 'POST',
@@ -903,7 +909,7 @@ $(document).ready(function () {
                 if (riwayatTable) {
                     riwayatTable.ajax.reload();
                 }
-                
+
                 // Reset the button state
                 $('#submitLabRequests').removeClass('btn-pulse btn-warning').addClass('btn-primary');
                 $('#submitLabRequests').text('Simpan Permintaan Lab');

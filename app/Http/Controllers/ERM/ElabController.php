@@ -471,12 +471,14 @@ class ElabController extends Controller
     {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
-            'requests' => 'required|array'
+            // allow requests to be nullable so client can send an empty payload to trigger deletions
+            'requests' => 'nullable|array'
         ]);
 
         try {
             $visitationId = $request->visitation_id;
-            $requestsData = $request->requests;
+            // ensure we have an array to work with even if client didn't send any requests
+            $requestsData = $request->requests ?? [];
             
             // Get all lab tests that are checked (included in the request)
             $labTestIds = [];
