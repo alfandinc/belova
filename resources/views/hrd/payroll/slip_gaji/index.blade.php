@@ -53,8 +53,10 @@
 </div>
 @include('hrd.payroll.slip_gaji._modal_detail')
 @include('hrd.payroll.slip_gaji.buat._modal')
+@include('hrd.payroll.slip_gaji._simulate_modal')
 @endsection
 @section('scripts')
 @include('hrd.payroll.slip_gaji._scripts')
 @include('hrd.payroll.slip_gaji.buat._scripts')
+@include('hrd.payroll.slip_gaji._simulate_scripts')
 @endsection

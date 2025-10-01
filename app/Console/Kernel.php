@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
 	 */
 	protected $commands = [
 		UpdateJatahCuti::class,
+		\App\Console\Commands\SimulateKpi::class,
 	];
 
 	/**

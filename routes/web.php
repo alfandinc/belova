@@ -62,6 +62,9 @@ use App\Http\Controllers\HRD\{
     PerformanceQuestionController,
     PerformanceScoreController
 };
+
+// KPI simulation preview route for HRD
+Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
 use App\Http\Controllers\AkreditasiController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;

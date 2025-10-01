@@ -177,6 +177,83 @@ class PrSlipGajiController extends Controller
         }
         return response()->json(['success' => true]);
     }
+
+    // AJAX preview + optional confirm for generating uang KPI
+    public function simulateKpiPreview(Request $request)
+    {
+        $bulan = $request->input('bulan') ?? date('Y-m');
+        $omsetRows = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->get();
+        $rows = [];
+        $totalOmset = 0;
+        foreach ($omsetRows as $row) {
+            $insentif = $row->insentifOmset;
+            $nominal = floatval($row->nominal);
+            $insValue = 0;
+            $mode = 'no-insentif';
+            if ($insentif) {
+                if ($insentif->omset_min !== null && $insentif->omset_max !== null) {
+                    if ($nominal >= $insentif->omset_min && $nominal <= $insentif->omset_max) {
+                        $insValue = floatval($insentif->insentif_normal);
+                        $mode = 'normal';
+                    } elseif ($nominal > $insentif->omset_max) {
+                        $insValue = floatval($insentif->insentif_up);
+                        $mode = 'up';
+                    } else {
+                        $insValue = 0;
+                        $mode = 'below-min';
+                    }
+                } else {
+                    $insValue = floatval($insentif->insentif_normal ?? 0);
+                    $mode = 'normal-fallback';
+                }
+            }
+            $kontrib = ($insValue / 100) * $nominal;
+            $rows[] = [
+                'id' => $row->id,
+                'insentif_omset_id' => $row->insentif_omset_id,
+                'nominal' => number_format($nominal, 2, ',', '.'),
+                'insentif_pct' => $insValue,
+                'mode' => $mode,
+                'kontribusi' => number_format($kontrib, 2, ',', '.')
+            ];
+            $totalOmset += $kontrib;
+        }
+
+        // employees
+        $employees = \App\Models\HRD\Employee::all();
+        $employeeKpiPoin = [];
+        foreach ($employees as $employee) {
+            $employeeKpiPoin[$employee->id] = \App\Models\HRD\PrSlipGaji::where('employee_id', $employee->id)
+                ->where('bulan', $bulan)
+                ->value('kpi_poin') ?? 0;
+        }
+        $totalKpiPoin = array_sum($employeeKpiPoin);
+        $employeesOut = [];
+        foreach ($employees as $employee) {
+            $kpi = $employeeKpiPoin[$employee->id];
+            if ($kpi <= 0) continue;
+            $uang = ($totalKpiPoin > 0) ? ($kpi / $totalKpiPoin * $totalOmset) : 0;
+            $employeesOut[] = [
+                'id' => $employee->id,
+                'nama' => $employee->nama,
+                'kpi_poin' => number_format($kpi, 2, ',', '.'),
+                'uang_kpi' => number_format($uang, 2, ',', '.')
+            ];
+        }
+
+        // if confirm flag present, call generation logic
+        if ($request->input('confirm')) {
+            // call existing generator which saves nilai ke database
+            return $this->generateUangKpi($request);
+        }
+
+        return response()->json([
+            'success' => true,
+            'rows' => $rows,
+            'total' => number_format($totalOmset, 2, ',', '.'),
+            'employees' => $employeesOut
+        ]);
+    }
     // Update slip gaji dari modal detail
     public function update(Request $request, $id)
     {
