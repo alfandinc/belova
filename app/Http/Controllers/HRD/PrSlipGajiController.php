@@ -342,6 +342,10 @@ class PrSlipGajiController extends Controller
                     $poinPenilaian = round($scoreTypeScores->avg('score'), 2);
                 }
             }
+            // If this employee has kategori_pegawai == 'khusus', they should not receive performance evaluation points
+            if (isset($employee->kategori_pegawai) && strtolower($employee->kategori_pegawai) === 'khusus') {
+                $poinPenilaian = 0;
+            }
             // Count total hari scheduled
             $totalHariScheduled = $employee->schedules()
                 ->whereYear('date', $year)
