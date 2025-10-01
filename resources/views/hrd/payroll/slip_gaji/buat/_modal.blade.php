@@ -16,7 +16,7 @@
           </div>
           <div class="form-group">
             <label for="periode_penilaian_id">Periode Penilaian</label>
-            <select class="form-control" id="periode_penilaian_id" name="periode_penilaian_id">
+            <select required class="form-control" id="periode_penilaian_id" name="periode_penilaian_id">
               <option value="">Pilih Periode Penilaian</option>
               <!-- Options will be loaded via AJAX -->
             </select>

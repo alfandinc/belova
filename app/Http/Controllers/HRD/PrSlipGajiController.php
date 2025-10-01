@@ -277,6 +277,13 @@ class PrSlipGajiController extends Controller
     public function storeAll(Request $request)
 
     {
+        // Validate required inputs for creating slips
+        $request->validate([
+            'bulan' => 'required|string',
+            'periode_penilaian_id' => 'required',
+            'omset_bulanan' => 'required|array',
+            'omset_bulanan.*' => 'required|numeric'
+        ]);
         // Get master potongan values once
         $potonganBpjsKesehatan = \App\Models\HRD\PrMasterPotongan::where('nama_potongan', 'IURAN BPJS KESEHATAN')->value('nominal');
         $potonganJamsostek = \App\Models\HRD\PrMasterPotongan::where('nama_potongan', 'IURAN JAMSOSTEK')->value('nominal');

@@ -8,6 +8,7 @@ $(function() {
     });
 
     // Load omset data and periode penilaian when bulan changes
+    $('#bulan').attr('required', true);
     $('#bulan').on('change', function() {
         var bulan = $(this).val();
         if(bulan) {
@@ -30,6 +31,13 @@ $(function() {
     // Save slip gaji for all employees
     $('#formBuatSlipGaji').submit(function(e) {
         e.preventDefault();
+        // Client-side validation: ensure form is valid
+        var form = this;
+        if (!form.checkValidity()) {
+            // Let browser show validation UI
+            form.reportValidity();
+            return;
+        }
         $.ajax({
             url: '{{ url('hrd/payroll/slip-gaji/store-all') }}',
             type: 'POST',
@@ -43,7 +51,11 @@ $(function() {
                 }
             },
             error: function(xhr) {
-                Swal.fire('Error', 'Terjadi kesalahan!', 'error');
+                var msg = 'Terjadi kesalahan!';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
+                Swal.fire('Error', msg, 'error');
             }
         });
     });
