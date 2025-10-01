@@ -4,6 +4,7 @@
     @include('layouts.hrd.navbar')
 @endsection  
 @section('content')
+@hasanyrole('Hrd|Admin')
 <div class="container hrd-dashboard">
     <style>
         /* Scoped dashboard tweaks */
@@ -232,9 +233,16 @@
 
     </div> {{-- .container end --}}
 
+@else
+    <div class="container mt-4">
+        <div class="alert alert-info">Welcome to E-Hrd Page</div>
+    </div>
+@endhasanyrole
+
 @endsection {{-- content end --}}
 
 @section('scripts')
+    @hasanyrole('Hrd|Admin')
     {{-- Chart.js - include from CDN if not already available in layout --}}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
@@ -264,4 +272,5 @@
             });
         });
     </script>
+    @endhasanyrole
 @endsection
