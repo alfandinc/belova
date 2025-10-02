@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Carbon;
 
 class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
 {
@@ -53,8 +54,28 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
         return [
             optional($item->fakturbeli->pemasok)->nama,
             optional($item->obat)->nama,
-            optional(optional($item->fakturbeli)->received_date) ? optional($item->fakturbeli)->received_date->format('Y-m-d H:i:s') : '',
-            optional(optional($item->fakturbeli)->due_date) ? optional($item->fakturbeli)->due_date->format('Y-m-d H:i:s') : '',
+            // Received date (handle string or DateTime)
+            (function($fb) {
+                if (!$fb) return '';
+                $rd = $fb->received_date ?? null;
+                if (!$rd) return '';
+                try {
+                    return Carbon::parse($rd)->format('Y-m-d H:i:s');
+                } catch (\Exception $e) {
+                    return (string) $rd;
+                }
+            })(optional($item->fakturbeli)),
+            // Due date
+            (function($fb) {
+                if (!$fb) return '';
+                $dd = $fb->due_date ?? null;
+                if (!$dd) return '';
+                try {
+                    return Carbon::parse($dd)->format('Y-m-d H:i:s');
+                } catch (\Exception $e) {
+                    return (string) $dd;
+                }
+            })(optional($item->fakturbeli)),
             $harga,
             // Diskon nominal as number
             number_format($diskonValue, 2),
