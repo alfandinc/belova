@@ -27,6 +27,8 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
         return [
             'Nama Pemasok',
             'Nama Obat',
+            'Received Date',
+            'Due Date',
             'Harga Beli/Satuan',
             'Diskon Nominal',
             'Diskon (%)',
@@ -51,6 +53,8 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
         return [
             optional($item->fakturbeli->pemasok)->nama,
             optional($item->obat)->nama,
+            optional(optional($item->fakturbeli)->received_date) ? optional($item->fakturbeli)->received_date->format('Y-m-d H:i:s') : '',
+            optional(optional($item->fakturbeli)->due_date) ? optional($item->fakturbeli)->due_date->format('Y-m-d H:i:s') : '',
             $harga,
             // Diskon nominal as number
             number_format($diskonValue, 2),
