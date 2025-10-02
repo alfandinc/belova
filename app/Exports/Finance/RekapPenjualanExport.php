@@ -52,9 +52,10 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             'Nama Item',
             'Qty',
             'Harga',
-            'Total Harga',
+            'Harga Sebelum Diskon',
             'Diskon Nominal',
             'Diskon',
+            'Harga Setelah Diskon',
             'Status',
             'Payment Method',
         ];
@@ -76,7 +77,9 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
         $diskon = $item->discount ?? 0;
         $diskonType = strtolower(trim((string) ($item->discount_type ?? 'nominal')));
         $isPercent = in_array($diskonType, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
-        $diskonNominal = $isPercent ? ($totalPrice * $diskon / 100) : $diskon;
+    $diskonNominal = $isPercent ? ($totalPrice * $diskon / 100) : $diskon;
+    $hargaSebelumDiskon = $totalPrice;
+    $hargaSetelahDiskon = $totalPrice - $diskonNominal;
 
         return [
             optional($visitation)->tanggal_visitation,
@@ -88,9 +91,10 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             $item->name,
             $qty,
             $unit,
-            $totalPrice,
+            $hargaSebelumDiskon,
             $diskonNominal,
             $item->discount,
+            $hargaSetelahDiskon,
             $status,
             $invoice ? $invoice->payment_method : null,
         ];
