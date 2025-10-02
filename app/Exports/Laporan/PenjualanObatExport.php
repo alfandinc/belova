@@ -1,7 +1,7 @@
 <?php
 namespace App\Exports\Laporan;
 
-use App\Models\ERM\FakturBeliItem;
+use App\Models\Finance\InvoiceItem;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -16,17 +16,15 @@ class PenjualanObatExport implements FromCollection, WithHeadings, WithMapping
 
     public function collection()
     {
-        $query = FakturBeliItem::with(['obat', 'fakturbeli'])
-            ->whereHas('fakturbeli', function($q) {
-                $q->where('status', 'diapprove');
-            });
+        $query = InvoiceItem::with(['billable', 'billable.obat', 'invoice'])
+            ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi');
         if ($this->dateRange) {
             $dates = explode(' - ', $this->dateRange);
             if (count($dates) === 2) {
                 $start = $dates[0] . ' 00:00:00';
                 $end = $dates[1] . ' 23:59:59';
-                $query->whereHas('fakturbeli', function($q) use ($start, $end) {
-                    $q->whereBetween('received_date', [$start, $end]);
+                $query->whereHas('invoice', function($q) use ($start, $end) {
+                    $q->whereBetween('payment_date', [$start, $end]);
                 });
             }
         }
@@ -38,18 +36,31 @@ class PenjualanObatExport implements FromCollection, WithHeadings, WithMapping
         return [
             'Nama Obat',
             'Harga Jual',
+            'Diskon Nominal',
+            'Diskon (%)',
             'Diskon Obat Saat Pelayanan',
         ];
     }
 
     public function map($item): array
     {
-        $hargaJual = $item->obat->harga_nonfornas ?? $item->obat->harga_net ?? 0;
-        $diskon = ($item->diskon ?? 0) > 0 ? 'Ada' : 'Tidak';
+        $billable = $item->billable;
+        $obat = optional($billable)->obat;
+        $hargaJual = $item->unit_price ?? 0;
+        $discount = $item->discount ?? 0;
+        $discountType = $item->discount_type ?? 'nominal';
+        $qty = $item->quantity ?? 1;
+        $base = ($item->unit_price ?? 0) * $qty;
+        $dt = strtolower(trim((string) $discountType));
+        $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+        $discountValue = $isPercent ? ($base * $discount / 100) : $discount;
+        $hasDiscount = ($discount ?? 0) > 0 ? 'Ada' : 'Tidak';
         return [
-            optional($item->obat)->nama,
+            optional($obat)->nama,
             $hargaJual,
-            $diskon
+            number_format($discountValue, 2),
+            $isPercent ? $discount : '',
+            $hasDiscount,
         ];
     }
 }

@@ -68,6 +68,8 @@
                                     <th>Nama Obat</th>
                                     <th>Harga Jual</th>
                                     <th>Quantity</th>
+                                    <th>Diskon Nominal</th>
+                                    <th>Diskon (%)</th>
                                     <th>Diskon Obat Saat Pelayanan</th>
                                 </tr>
                             </thead>
@@ -106,6 +108,8 @@ $(function() {
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'harga_jual', name: 'harga_jual' },
             { data: 'quantity', name: 'quantity' },
+            { data: 'diskon_nominal', name: 'diskon_nominal' },
+            { data: 'diskon_persen', name: 'diskon_persen' },
             { data: 'diskon_pelayanan', name: 'diskon_pelayanan' },
         ]
     });

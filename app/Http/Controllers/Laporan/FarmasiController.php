@@ -119,10 +119,27 @@ class FarmasiController extends Controller
                 ->addColumn('quantity', function($item) {
                     return $item->quantity ?? 1;
                 })
+                ->addColumn('diskon_persen', function($item) {
+                    $discount = $item->discount ?? 0;
+                    $discountType = $item->discount_type ?? 'nominal';
+                    $dt = strtolower(trim((string) $discountType));
+                    $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+                    return $isPercent ? $discount : '';
+                })
+                ->addColumn('diskon_nominal', function($item) {
+                    $discount = $item->discount ?? 0;
+                    $discountType = $item->discount_type ?? 'nominal';
+                    $qty = $item->quantity ?? 1;
+                    $base = ($item->unit_price ?? 0) * $qty;
+                    $dt = strtolower(trim((string) $discountType));
+                    $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+                    $discountValue = $isPercent ? ($base * $discount / 100) : $discount;
+                    return number_format($discountValue, 2);
+                })
                 ->addColumn('diskon_pelayanan', function($item) {
                     return ($item->discount ?? 0) > 0 ? 'Ada' : 'Tidak';
                 })
-                ->rawColumns(['nama_obat', 'harga_jual', 'quantity', 'diskon_pelayanan'])
+                ->rawColumns(['nama_obat', 'harga_jual', 'quantity', 'diskon_pelayanan', 'diskon_persen', 'diskon_nominal'])
                 ->make(true);
         }
 
@@ -136,21 +153,34 @@ class FarmasiController extends Controller
     public function exportPenjualanPdf(Request $request)
     {
         $dateRange = $request->input('date_range');
-        $query = \App\Models\ERM\FakturBeliItem::with(['obat', 'fakturbeli'])
-            ->whereHas('fakturbeli', function($q) {
-                $q->where('status', 'diapprove');
-            });
+        $query = \App\Models\Finance\InvoiceItem::with(['billable', 'billable.obat', 'invoice'])
+            ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi');
         if ($dateRange) {
             $dates = explode(' - ', $dateRange);
             if (count($dates) === 2) {
                 $start = $dates[0] . ' 00:00:00';
                 $end = $dates[1] . ' 23:59:59';
-                $query->whereHas('fakturbeli', function($q) use ($start, $end) {
-                    $q->whereBetween('received_date', [$start, $end]);
+                $query->whereHas('invoice', function($q) use ($start, $end) {
+                    $q->whereBetween('payment_date', [$start, $end]);
                 });
             }
         }
-        $items = $query->get();
+        $items = $query->get()->filter(function($item) {
+            return $item->billable && $item->billable->obat;
+        })->map(function($item) {
+            // compute discount fields for the pdf view convenience
+            $discount = $item->discount ?? 0;
+            $discountType = $item->discount_type ?? 'nominal';
+            $qty = $item->quantity ?? 1;
+            $base = ($item->unit_price ?? 0) * $qty;
+            $dt = strtolower(trim((string) $discountType));
+            $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+            $discountValue = $isPercent ? ($base * $discount / 100) : $discount;
+            return (object) array_merge($item->toArray(), [
+                'diskon_nominal' => number_format($discountValue, 2),
+                'diskon_persen' => $isPercent ? $discount : '',
+            ]);
+        });
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('laporan.farmasi.penjualan_pdf', compact('items'));
         return $pdf->download('rekap_penjualan_obat.pdf');
     }
