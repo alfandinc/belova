@@ -53,6 +53,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             'Qty',
             'Harga',
             'Total Harga',
+            'Diskon Nominal',
             'Diskon',
             'Status',
             'Payment Method',
@@ -67,6 +68,16 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
         $dokter = $visitation && $visitation->dokter ? $visitation->dokter->user->name ?? $visitation->dokter->id : null;
         $klinik = $visitation && $visitation->klinik ? $visitation->klinik->nama : null;
         $status = ($invoice && $invoice->amount_paid > 0) ? 'Sudah Dibayar' : 'Belum Dibayar';
+        // Compute total price and diskon nominal
+        $qty = $item->quantity ?? 1;
+        $unit = $item->unit_price ?? 0;
+        $totalPrice = $qty * $unit;
+
+        $diskon = $item->discount ?? 0;
+        $diskonType = strtolower(trim((string) ($item->discount_type ?? 'nominal')));
+        $isPercent = in_array($diskonType, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
+        $diskonNominal = $isPercent ? ($totalPrice * $diskon / 100) : $diskon;
+
         return [
             optional($visitation)->tanggal_visitation,
             optional($invoice)->updated_at,
@@ -75,9 +86,10 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             $dokter,
             $klinik,
             $item->name,
-            $item->quantity,
-            $item->unit_price,
-            $item->quantity * $item->unit_price,
+            $qty,
+            $unit,
+            $totalPrice,
+            $diskonNominal,
             $item->discount,
             $status,
             $invoice ? $invoice->payment_method : null,
