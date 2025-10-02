@@ -329,6 +329,8 @@
             scrollX: false,    // Disable horizontal scrolling
             autoWidth: false,  // Don't automatically calculate column widths
             paging: true,
+            // Default to show all items on first load ("Semua")
+            pageLength: -1,
             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "Semua"]],
             stripeClasses: ['odd', 'even'], // Add zebra-striping
             ajax: {
