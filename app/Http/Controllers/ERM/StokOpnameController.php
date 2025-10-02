@@ -114,8 +114,20 @@ class StokOpnameController extends Controller
     public function downloadExcel($id)
     {
         $stokOpname = StokOpname::findOrFail($id);
-        $obats = Obat::all();
-        return Excel::download(new StokOpnameTemplateExport($obats), 'stok_opname_template.xlsx');
+
+        // Only include obat that have stock entries for the selected gudang
+        $gudangId = $stokOpname->gudang_id;
+
+        $obats = Obat::whereHas('stokGudang', function($q) use ($gudangId) {
+            $q->where('gudang_id', $gudangId);
+        })
+        // eager load the stokGudang rows only for this gudang to reduce queries in export
+        ->with(['stokGudang' => function($q) use ($gudangId) {
+            $q->where('gudang_id', $gudangId);
+        }])
+        ->get();
+
+        return Excel::download(new StokOpnameTemplateExport($obats, $gudangId), 'stok_opname_template.xlsx');
     }
 
     public function uploadExcel(Request $request, $id)
