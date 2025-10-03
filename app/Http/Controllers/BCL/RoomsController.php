@@ -112,7 +112,7 @@ class RoomsController extends Controller
             $room = Rooms::find($request->id);
             return response()->json($room);
         } catch (\Throwable $th) {
-            return redirect()->route('rooms')->with(['error' => 'Data tidak ditemukan!']);
+            return redirect()->route('bcl.rooms')->with(['error' => 'Data tidak ditemukan!']);
         }
     }
 
@@ -132,9 +132,9 @@ class RoomsController extends Controller
                 'room_category'     => $request->kategori,
                 'notes'   => $request->catatan
             ]);
-            return redirect()->route('rooms')->with(['success' => 'Data Berhasil diubah!']);
+            return redirect()->route('bcl.rooms')->with(['success' => 'Data Berhasil diubah!']);
         } catch (\Throwable $th) {
-            return redirect()->route('rooms')->with(['error' => $th->getMessage()]);
+            return redirect()->route('bcl.rooms')->with(['error' => $th->getMessage()]);
         }
     }
 
@@ -146,9 +146,9 @@ class RoomsController extends Controller
         try {
             $room = Rooms::find($request->id);
             $result = $room->delete();
-            return redirect()->route('rooms')->with(['success' => 'Data berhasil dihapus!']);
+            return redirect()->route('bcl.rooms')->with(['success' => 'Data berhasil dihapus!']);
         } catch (\Throwable $th) {
-            return redirect()->route('rooms')->with(['error' => 'Data gagal dihapus!']);
+            return redirect()->route('bcl.rooms')->with(['error' => 'Data gagal dihapus!']);
         }
     }
 }

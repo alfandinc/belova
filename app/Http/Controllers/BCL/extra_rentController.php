@@ -42,7 +42,7 @@ class extra_rentController extends Controller
             '',
         LPAD( count(*) + 1, 4, '0' )) AS kode 
     FROM
-        tb_extra_rent 
+        bcl_extra_rent 
     WHERE
         MONTH ( tgl_mulai )= MONTH (
         STR_TO_DATE( now(), '%Y-%m-%d' )) 
@@ -63,21 +63,22 @@ class extra_rentController extends Controller
                 'tgl_sewa' => 'required',
             ]);
             $extra_pl = extra_pricelist::find($request->pricelist);
+            $lama = (int) $request->lama_sewa;
             switch ($extra_pl->jangka_sewa) {
                 case 'Hari':
-                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addDays($request->lama_sewa)->format('Y-m-d');
+                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addDays($lama)->format('Y-m-d');
                     break;
                 case 'Minggu':
-                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addWeeks($request->lama_sewa)->format('Y-m-d');
+                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addWeeks($lama)->format('Y-m-d');
                     break;
                 case 'Bulan':
-                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addMonths($request->lama_sewa)->format('Y-m-d');
+                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addMonths($lama)->format('Y-m-d');
                     break;
                 case 'Tahun':
-                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addYears($request->lama_sewa)->format('Y-m-d');
+                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addYears($lama)->format('Y-m-d');
                     break;
                 default:
-                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addDays($request->lama_sewa)->format('Y-m-d');
+                    $tgl_selesai = Carbon::parse($request->tgl_sewa)->addDays($lama)->format('Y-m-d');
                     break;
             }
             $store = tb_extra_rent::create([

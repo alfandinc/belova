@@ -74,14 +74,15 @@ class HomeController extends Controller
         $needed_maintanance = 0;
         foreach ($inventory as $data) {
             if ($data->last_maintanance != null && $data->maintanance_cycle != null) {
+                $period = (int) $data->maintanance_period;
                 if ($data->maintanance_cycle == 'Minggu') {
-                    $next_maintanance = Carbon::parse($data->last_maintanance)->addWeeks($data->maintanance_period)->format('Y-m-d');
+                    $next_maintanance = Carbon::parse($data->last_maintanance)->addWeeks($period)->format('Y-m-d');
                     $remaining = Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
                 } else if ($data->maintanance_cycle == 'Bulan') {
-                    $next_maintanance = Carbon::parse($data->last_maintanance)->addMonths($data->maintanance_period)->format('Y-m-d');
+                    $next_maintanance = Carbon::parse($data->last_maintanance)->addMonths($period)->format('Y-m-d');
                     $remaining = Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
                 } else if ($data->maintanance_cycle == 'Tahun') {
-                    $next_maintanance = Carbon::parse($data->last_maintanance)->addYears($data->maintanance_period)->format('Y-m-d');
+                    $next_maintanance = Carbon::parse($data->last_maintanance)->addYears($period)->format('Y-m-d');
                     $remaining =  Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
                 }
             } else {
