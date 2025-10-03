@@ -12,6 +12,7 @@ use App\Models\BCL\tb_extra_rent;
 use App\Models\BCL\tr_renter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class tr_renterController extends Controller
 {
@@ -226,26 +227,30 @@ class tr_renterController extends Controller
     {
         try {
             $transaksi = tr_renter::where('trans_id', $request->trans_id)->first();
-            switch ($transaksi->jangka_sewa) {
-                case 'Hari':
-                    $jangka_sewa = 'days';
+            // determine interval type and compute end date using Carbon for reliability
+            $interval = strtolower($transaksi->jangka_sewa ?? 'Hari');
+            $amount = intval($transaksi->lama_sewa ?? 0);
+            $start = Carbon::parse($request->tgl_rencana_masuk);
+            switch ($interval) {
+                case 'hari':
+                    $tgl_selesai = $start->copy()->addDays($amount)->format('Y-m-d');
                     break;
-                case 'Minggu':
-                    $jangka_sewa = 'weeks';
+                case 'minggu':
+                    $tgl_selesai = $start->copy()->addWeeks($amount)->format('Y-m-d');
                     break;
-                case 'Bulan':
-                    $jangka_sewa = 'months';
+                case 'bulan':
+                    $tgl_selesai = $start->copy()->addMonths($amount)->format('Y-m-d');
                     break;
-                case 'Tahun':
-                    $jangka_sewa = 'years';
+                case 'tahun':
+                    $tgl_selesai = $start->copy()->addYears($amount)->format('Y-m-d');
                     break;
                 default:
-                    $jangka_sewa = 'days';
+                    $tgl_selesai = $start->copy()->addDays($amount)->format('Y-m-d');
                     break;
             }
-            $tgl_selesai = date('Y-m-d', strtotime("+$transaksi->lama_Sewa $jangka_sewa", strtotime($request->tgl_rencana_masuk)));
+
             $transaksi->update([
-                'tgl_mulai' => $request->tgl_rencana_masuk,
+                'tgl_mulai' => $start->format('Y-m-d'),
                 'tgl_selesai' => $tgl_selesai
             ]);
             return back()->with(['success' => 'Tanggal masuk berhasil diubah']);

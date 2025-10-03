@@ -835,5 +835,40 @@ $data = $data;
         });
         return true;
     });
+
+    // Global: normalize datePicker and inputmask fields for any form submission (covers reschedule form)
+    $(document).on('submit', 'form', function(e) {
+        var $form = $(this);
+        // Normalize any .datePicker fields inside this form
+        $form.find('.datePicker').each(function() {
+            var $d = $(this);
+            var val = $d.val();
+            if (!val) return;
+            if (typeof moment === 'function') {
+                var m = moment(val, ['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY', moment.ISO_8601], true);
+                if (!m.isValid()) m = moment(val);
+                if (m.isValid()) $d.val(m.format('YYYY-MM-DD'));
+            } else {
+                var parts = val.split(/[-\/]/);
+                if (parts.length === 3) {
+                    if (parts[0].length === 4) {
+                        $d.val(parts[0] + '-' + parts[1].padStart(2, '0') + '-' + parts[2].padStart(2, '0'));
+                    } else {
+                        $d.val(parts[2] + '-' + parts[0].padStart(2, '0') + '-' + parts[1].padStart(2, '0'));
+                    }
+                }
+            }
+        });
+
+        // Unformat any inputmask-style fields
+        $form.find('input.inputmask').each(function() {
+            var $i = $(this);
+            var v = $i.val();
+            var u = unformatNumber(v);
+            $i.val(u);
+        });
+        // allow other submit handlers to proceed
+        return true;
+    });
 </script>
 @stop
