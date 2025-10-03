@@ -772,5 +772,38 @@ $data = $data;
     } catch (err) {
         console.error('Datepicker init error', err);
     }
+
+    // Helper: unformat currency-like string to plain number (e.g. "1,600,000" -> "1600000")
+    function unformatNumber(value) {
+        if (value === null || value === undefined) return '';
+        // remove anything that's not digit, minus sign or dot
+        var cleaned = value.toString().replace(/[^0-9.-]/g, '');
+        // If multiple dots/hyphens, keep first occurrences reasonably
+        var parts = cleaned.split('.');
+        if (parts.length > 2) {
+            cleaned = parts.shift() + '.' + parts.join('');
+        }
+        // remove stray minus signs except leading
+        cleaned = cleaned.replace(/-(?=.)/g, '');
+        return cleaned;
+    }
+
+    // Before submitting the Sewa Kamar form, ensure #nominal contains a plain numeric string
+    $(document).on('submit', 'form[action="{{route('bcl.rooms.sewa')}}"]', function(e) {
+        var $nom = $(this).find('#nominal');
+        if ($nom.length) {
+            var raw = $nom.val();
+            var un = unformatNumber(raw);
+            $nom.val(un);
+        }
+        // also for other forms that might submit formatted inputs (defensive)
+        $(this).find('input.inputmask').each(function() {
+            var $i = $(this);
+            var v = $i.val();
+            var u = unformatNumber(v);
+            $i.val(u);
+        });
+        return true;
+    });
 </script>
 @stop
