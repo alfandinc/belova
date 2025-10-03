@@ -13,7 +13,19 @@ foreach ($transaksi->jurnal as $jurnal) {
 }
 // generate QR code for the signed user name (used in TTD section)
 $__signedUserName = Auth::user()->name ?? '';
-$__signedUserQr = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' . urlencode($__signedUserName);
+// Prefer embedding the QR image as a data URI so client-side canvas captures include it.
+$__signedUserQrRemote = 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' . urlencode($__signedUserName);
+$__signedUserQr = $__signedUserQrRemote;
+try {
+    // attempt server-side fetch and base64 encode
+    $qr_contents = @file_get_contents($__signedUserQrRemote);
+    if ($qr_contents !== false) {
+        $mime = 'image/png';
+        $__signedUserQr = 'data:' . $mime . ';base64,' . base64_encode($qr_contents);
+    }
+} catch (\Exception $e) {
+    // ignore, keep remote URL
+}
 ?>
 @section('page_css')
 <link href="{{asset('plugins/datatables/responsive.bootstrap4.min.css')}}" rel="stylesheet" type="text/css" />
