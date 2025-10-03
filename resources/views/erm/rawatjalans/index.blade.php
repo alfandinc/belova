@@ -1749,5 +1749,76 @@ function displayScreeningData(data) {
 }
 </script>
 
+<!-- Modal: Pasien Merchandise -->
+<div class="modal fade" id="modalPasienMerch" tabindex="-1" role="dialog" aria-labelledby="modalPasienMerchTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalPasienMerchTitle">Merchandise Pasien</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="pasien-merch-list">
+                    <table class="table table-sm table-striped" id="table-pasien-merch">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Nama Item</th>
+                                <th>Deskripsi</th>
+                                <th>Qty</th>
+                                <th>Notes</th>
+                                <th>Diberikan Pada</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Handler for clicking shopping bag icon next to patient name
+$(document).on('click', '.pasien-merch', function(e) {
+    e.preventDefault();
+    var pasienId = $(this).data('pasien-id');
+    if (!pasienId) return;
+    // clear table body
+    $('#table-pasien-merch tbody').empty();
+    // fetch merchandises
+    $.get("{{ url('erm/pasien') }}/" + pasienId + "/merchandises", function(res) {
+        if (res && res.data) {
+            var rows = '';
+            res.data.forEach(function(item, idx) {
+                rows += '<tr>' +
+                    '<td>' + (idx + 1) + '</td>' +
+                    '<td>' + (item.nama || '-') + '</td>' +
+                    '<td>' + (item.description || '-') + '</td>' +
+                    '<td>' + (item.quantity || '-') + '</td>' +
+                    '<td>' + (item.notes || '-') + '</td>' +
+                    '<td>' + (item.given_at || '-') + '</td>' +
+                    '</tr>';
+            });
+            if (rows === '') {
+                rows = '<tr><td colspan="6" class="text-center">Tidak ada merchandise.</td></tr>';
+            }
+            $('#table-pasien-merch tbody').html(rows);
+            $('#modalPasienMerch').modal('show');
+        } else {
+            Swal.fire('Info', 'Tidak dapat mengambil data merchandise.', 'info');
+        }
+    }).fail(function() {
+        Swal.fire('Error', 'Terjadi kesalahan saat mengambil data.', 'error');
+    });
+});
+</script>
+
 
 @endsection

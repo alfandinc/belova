@@ -154,6 +154,11 @@ Route::middleware(['auth'])->group(function () {
         ->name('bcl.dashboard');
 });
 
+// // AJAX endpoint to fetch merchandise received by a patient (used in Rawat Jalan datatable)
+// Route::middleware(['auth'])->prefix('erm')->group(function() {
+    
+// });
+
 
 
 Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');
@@ -271,6 +276,7 @@ Route::get('/hrd/absensi-rekap/export-excel', [\App\Http\Controllers\HRD\Absensi
 // ERM Routes
 Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
     // Dokter to Perawat notification
+    Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
         Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
             // ...existing ERM routes...
         Route::get('fakturretur', [\App\Http\Controllers\ERM\FakturReturController::class, 'index'])->name('erm.fakturretur.index');

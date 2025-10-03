@@ -14,6 +14,7 @@ use App\Models\ERM\Rujuk;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Models\ERM\PasienMerchandise;
 
 class RawatJalanController extends Controller
 {
@@ -100,6 +101,8 @@ class RawatJalanController extends Controller
                     'erm_pasiens.status_pasien as status_pasien',
                     'erm_pasiens.status_akses as status_akses'
                 ])
+                // include merchandise count per pasien using subquery
+                ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id) as merchandise_count')
                 ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
                 ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
                 ->where('erm_visitations.status_kunjungan', '!=', 7);
@@ -168,7 +171,16 @@ class RawatJalanController extends Controller
                         }
                     }
                     
-                    return $icons . $nama;
+                    // append a shopping-bag icon if pasien has merchandise
+                    $merchCount = intval($v->merchandise_count ?? 0);
+                    if ($merchCount > 0) {
+                        // Styled badge like other status icons: small colored square with white icon
+                        $icons .= ' <a href="#" class="ml-1 pasien-merch" data-pasien-id="' . $v->pasien_id . '" title="Lihat merchandise yang diterima">'
+                            . '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width:20px;height:20px;background-color:#1E90FF;border-radius:3px;color:#fff;">'
+                            . '<i class="fas fa-shopping-bag" style="font-size:11px;color:#fff"></i>'
+                            . '</span></a>';
+                    }
+                    return $icons . ' ' . $nama;
                 })
                 ->addColumn('tanggal', function ($v) {
                     return \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
@@ -780,6 +792,35 @@ class RawatJalanController extends Controller
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat mengambil data: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Return list of merchandises received by a patient (AJAX)
+     */
+    public function getPasienMerchandises($pasienId)
+    {
+        try {
+            $items = PasienMerchandise::with(['merchandise:id,name,description,price,stock', 'pasien:id,nama'])
+                ->where('pasien_id', $pasienId)
+                ->orderBy('given_at', 'desc')
+                ->get()
+                ->map(function($m) {
+                    return [
+                        'id' => $m->id,
+                        'nama' => $m->merchandise->name ?? '-',
+                        'description' => $m->merchandise->description ?? null,
+                        'quantity' => $m->quantity,
+                        'notes' => $m->notes,
+                        'given_by' => $m->given_by_user_id,
+                        'given_at' => $m->given_at ? (is_string($m->given_at) ? $m->given_at : $m->given_at->format('Y-m-d H:i')) : null,
+                    ];
+                });
+
+            return response()->json(['data' => $items]);
+        } catch (\Exception $e) {
+            Log::error('getPasienMerchandises error: ' . $e->getMessage());
+            return response()->json(['error' => 'Internal Server Error'], 500);
         }
     }
 
