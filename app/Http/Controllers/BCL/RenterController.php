@@ -8,6 +8,7 @@ use App\Models\BCL\renter_document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class RenterController extends Controller
@@ -72,13 +73,14 @@ class RenterController extends Controller
             if ($validator->fails()) {
                 return redirect()->back()->withErrors($validator)->withInput();
             }
+            // store uploaded files on the public disk (storage/app/public/renter)
             $img_photo_name = $this->generateRandomString(10) . '.' . $request->img_photo->extension();
             $img_identitas_name = $this->generateRandomString(10) . '.' . $request->img_identitas->extension();
-            $request->img_photo->move(public_path('assets/images/renter/'), $img_photo_name);
-            $request->img_identitas->move(public_path('assets/images/renter/'), $img_identitas_name);
+            $request->img_photo->storeAs('renter', $img_photo_name, 'public');
+            $request->img_identitas->storeAs('renter', $img_identitas_name, 'public');
             if (!empty($request->input_lain)) {
                 $img_lain_name = $this->generateRandomString(10) . '.' . $request->input_lain->extension();
-                $request->input_lain->move(public_path('assets/images/renter/'), $img_lain_name);
+                $request->input_lain->storeAs('renter', $img_lain_name, 'public');
             } else {
                 $img_lain_name = null;
             }
@@ -176,17 +178,31 @@ class RenterController extends Controller
             if ($validator->fails()) {
                 return redirect()->back()->withErrors($validator)->withInput();
             }
+            // handle new uploaded files and remove previous files if present
             if (isset($request->img_photo)) {
                 $img_photo_name = $this->generateRandomString(10) . '.' . $request->img_photo->extension();
-                $request->img_photo->move(public_path('assets\images\renter'), $img_photo_name);
+                $request->img_photo->storeAs('renter', $img_photo_name, 'public');
+                // delete old file if exists
+                $photo = renter_document::where('id_renter', $request->id)->where('document_type', 'PHOTO')->first();
+                if ($photo && $photo->img) {
+                    Storage::disk('public')->delete('renter/' . $photo->img);
+                }
             }
             if (isset($request->img_identitas)) {
                 $img_identitas_name = $this->generateRandomString(10) . '.' . $request->img_identitas->extension();
-                $request->img_identitas->move(public_path('assets\images\renter'), $img_identitas_name);
+                $request->img_identitas->storeAs('renter', $img_identitas_name, 'public');
+                $ident = renter_document::where('id_renter', $request->id)->where('document_type', 'IDENTITAS')->first();
+                if ($ident && $ident->img) {
+                    Storage::disk('public')->delete('renter/' . $ident->img);
+                }
             }
             if (isset($request->input_lain)) {
                 $img_lain_name = $this->generateRandomString(10) . '.' . $request->input_lain->extension();
-                $request->input_lain->move(public_path('assets\images\renter'), $img_lain_name);
+                $request->input_lain->storeAs('renter', $img_lain_name, 'public');
+                $lain = renter_document::where('id_renter', $request->id)->where('document_type', 'LAINNYA')->first();
+                if ($lain && $lain->img) {
+                    Storage::disk('public')->delete('renter/' . $lain->img);
+                }
             }
             DB::beginTransaction();
             $renter = renter::findorfail($request->id);
