@@ -104,6 +104,9 @@ class PasienController extends Controller
                     
                     return $statusDisplay;
                 })
+                ->addColumn('merchandise', function ($user) {
+                    return '<button class="btn btn-sm btn-outline-primary btn-merch-checklist" data-id="' . $user->id . '">Lihat</button>';
+                })
                 ->addColumn('actions', function ($user) {
                     return '
                 <div class="btn-group-vertical w-100 mb-1">
@@ -119,6 +122,7 @@ class PasienController extends Controller
                             data-id="' . $user->id . '">
                             <i class="fas fa-info-circle mr-1"></i> Info Pasien
                         </a>
+                        
                         
                     </div>
                     <div class="btn-group">
@@ -138,7 +142,7 @@ class PasienController extends Controller
                     </div>
                 </div>';
                 })
-                ->rawColumns(['status_pasien', 'status_akses', 'actions'])
+                ->rawColumns(['status_pasien', 'status_akses', 'merchandise', 'actions'])
                 ->make(true);
         }
 

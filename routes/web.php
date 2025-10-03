@@ -384,6 +384,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::delete('/pasiens/{id}', [PasienController::class, 'destroy'])->name('erm.pasiens.destroy');
     Route::get('/erm/pasien/{id}', [PasienController::class, 'show'])->name('erm.pasien.show');
 
+    // Pasien merchandise listing
+    Route::get('/pasiens/{id}/merchandises', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'index'])->name('erm.pasiens.merchandises.index');
+    Route::post('/pasiens/{id}/merchandises', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'store'])->name('erm.pasiens.merchandises.store');
+    Route::put('/pasiens/{id}/merchandises/{pmId}', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'update'])->name('erm.pasiens.merchandises.update');
+    Route::delete('/pasiens/{id}/merchandises/{pmId}', [\App\Http\Controllers\ERM\PasienMerchandiseController::class, 'destroy'])->name('erm.pasiens.merchandises.destroy');
+
     // Master Pemasok AJAX CRUD
     Route::get('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'index']);
     Route::post('pemasok', [App\Http\Controllers\ERM\PemasokController::class, 'store']);
@@ -1009,6 +1015,14 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician')->group
     // // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
+
+    // Master Merchandise (Marketing)
+    Route::get('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'index'])->name('marketing.master_merchandise.index');
+    Route::get('/master-merchandise/data', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'data'])->name('marketing.master_merchandise.data');
+    Route::post('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'store'])->name('marketing.master_merchandise.store');
+    Route::get('/master-merchandise/{id}/edit', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'edit']);
+    Route::put('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'update']);
+    Route::delete('/master-merchandise/{id}', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'destroy']);
     // AJAX search for kode tindakan (for Select2 in tindakan modal)
     Route::get('kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search'])->name('marketing.kode_tindakan.search');
     // Galeri Before After gallery for tindakan

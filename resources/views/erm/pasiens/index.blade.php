@@ -37,6 +37,28 @@
 @include('erm.partials.modal-daftarkunjunganlab')
 @include('erm.partials.modal-info-pasien')
 
+<!-- Modal Merchandise Checklist -->
+<div class="modal fade" id="modalMerchChecklist" tabindex="-1" role="dialog" aria-labelledby="modalMerchChecklistLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalMerchChecklistLabel">Merchandise Pasien</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="merchChecklistContainer">
+                    <p class="text-muted">Loading...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Edit Status Pasien -->
 <div class="modal fade" id="modalEditStatusPasien" tabindex="-1" role="dialog" aria-labelledby="modalEditStatusPasienLabel" aria-hidden="true">
     <div class="modal-dialog modal-sm" role="document">
@@ -176,6 +198,7 @@
                         <th>No HP</th>
                         <th>Status Pasien</th>
                         <th>Status Akses</th>
+                        <th>Merchandise</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -216,13 +239,15 @@ $(document).ready(function () {
             { data: 'no_hp', name: 'no_hp' },
             { data: 'status_pasien', name: 'status_pasien', orderable: false, searchable: false },
             { data: 'status_akses', name: 'status_akses', orderable: false, searchable: false },
+            { data: 'merchandise', name: 'merchandise', orderable: false, searchable: false },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
         columnDefs: [
             { targets: 0, width: '50px' },
             { targets: 5, width: '120px' }, // Status Pasien column
             { targets: 6, width: '120px' }, // Status Akses column
-            { targets: 7, width: '250px' } // Action column
+            { targets: 7, width: '120px' }, // Merchandise column (narrower)
+            { targets: 8, width: '260px' } // Action column
         ]
     });
 
@@ -396,8 +421,214 @@ let currentPasienId;
                 });
             }
         });
+
     });
 
-});
+    // Merchandise checklist modal logic
+        function renderMerchChecklist(masterList, pasienReceipts) {
+            let receivedIds = pasienReceipts.map(r => (r.merchandise_id || r.merchandise_id === 0) ? r.merchandise_id : null).filter(Boolean);
+            let $container = $('#merchChecklistContainer');
+            $container.empty();
+
+            if (!masterList.length) {
+                $container.html('<p class="text-muted">No merchandise items available.</p>');
+                return;
+            }
+
+            let $form = $('<div class="list-group"></div>');
+            // Build a map of received quantities by merchandise id
+            let qtyMap = {};
+            (pasienReceipts || []).forEach(r => {
+                if (r.merchandise_id) qtyMap[r.merchandise_id] = r.quantity || 1;
+            });
+
+            masterList.forEach(item => {
+                let received = receivedIds.includes(item.id);
+                let checked = received ? 'checked' : '';
+                let qty = received ? (qtyMap[item.id] || 1) : 1;
+                let stock = item.stock || 0;
+
+                // If stock is zero, disable the checkbox and show 'Habis' badge
+                let disabledAttr = stock <= 0 ? 'disabled' : '';
+                let stockBadge = stock <= 0 ? '<span class="badge badge-danger ml-2">Habis</span>' : `<small class="text-muted ml-2">Stok: ${stock}</small>`;
+
+                let $row = $(
+                    `<label class="list-group-item d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <input type="checkbox" class="merch-checkbox mr-3" data-id="${item.id}" data-stock="${stock}" ${checked} ${disabledAttr}>
+                            <div>
+                                <div><strong>${item.name}</strong> ${stockBadge}</div>
+                                <div class="small text-muted">${item.description || ''}</div>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <input type="number" min="1" class="form-control form-control-sm merch-qty" data-id="${item.id}" data-stock="${stock}" value="${qty}" style="width:80px;" ${received ? '' : 'disabled'} ${stock <= 0 ? 'disabled' : ''}>
+                        </div>
+                    </label>`
+                );
+                $form.append($row);
+            });
+
+            $container.append($form);
+        }
+
+        // Open modal when clicking a new button (create a handler for .btn-merch-checklist)
+        $(document).on('click', '.btn-merch-checklist', function() {
+            let pasienId = $(this).data('id');
+            if (!pasienId) return alert('Pasien ID not found');
+
+            $('#modalMerchChecklist').data('pasien-id', pasienId).modal('show');
+
+            // Fetch master merchandises and pasien receipts in parallel
+            $.when(
+                $.get('/marketing/master-merchandise/data').fail(()=>{}),
+                $.get('/erm/pasiens/' + pasienId + '/merchandises').fail(()=>{})
+            ).done(function(masterResp, pasienResp){
+                // masterResp and pasienResp are arrays from jQuery when using $.when
+                // If returned via DataTables, masterResp[0] may be DataTables structure; handle both
+                let masterData = [];
+                if (masterResp && masterResp[0]) {
+                    // Yajra returns { data: [...] }
+                    masterData = masterResp[0].data || masterResp[0];
+                }
+
+                let pasienData = [];
+                if (pasienResp && pasienResp[0]) pasienData = pasienResp[0].data || pasienResp[0];
+
+                renderMerchChecklist(masterData, pasienData);
+            }).fail(function(){
+                $('#merchChecklistContainer').html('<p class="text-danger">Failed to load data.</p>');
+            });
+        });
+
+        // Handle checkbox toggle: add or remove receipt
+        $(document).on('change', '.merch-checkbox', function(){
+            let checked = $(this).is(':checked');
+            let merchId = $(this).data('id');
+            let pasienId = $('#modalMerchChecklist').data('pasien-id');
+            if (!pasienId) return alert('Pasien ID missing');
+
+            // find the qty input for this merch and stock
+            let $qtyInput = $('.merch-qty[data-id="' + merchId + '"]');
+            let stock = parseInt($qtyInput.data('stock') || 0, 10);
+            let qty = parseInt($qtyInput.val() || 1, 10);
+
+            // validate against stock
+            if (stock <= 0) {
+                Swal.fire({ icon: 'warning', title: 'Stok habis', text: 'Stok item ini habis dan tidak dapat ditambahkan.' });
+                // ensure unchecked
+                $(this).prop('checked', false);
+                return;
+            }
+            if (qty > stock) {
+                Swal.fire({ icon: 'warning', title: 'Stok tidak cukup', text: `Permintaan qty (${qty}) melebihi stok (${stock}).` });
+                // restore qty to stock
+                $qtyInput.val(stock);
+                return;
+            }
+
+            if (checked) {
+                let $cb = $(this);
+                // enable qty input
+                $qtyInput.prop('disabled', false);
+
+                $.post('/erm/pasiens/' + pasienId + '/merchandises', {
+                    _token: $('meta[name="csrf-token"]').attr('content'),
+                    merchandise_id: merchId,
+                    quantity: qty
+                }, function(resp){
+                    // success - if response contains created id, we could store it on the row for faster updates
+                    if (resp && resp.id) {
+                        $qtyInput.data('pm-id', resp.id);
+                    }
+                }).fail(function(){
+                    alert('Failed to add merchandise');
+                    $cb.prop('checked', false);
+                    $qtyInput.prop('disabled', true);
+                });
+            } else {
+                // Need to find the pmId for this pasien+merch combination; call the pasien merch list and find id
+                $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){
+                    let rec = (resp.data || []).find(r => r.merchandise_id == merchId);
+                    if (!rec) return; // nothing to delete
+                    $.ajax({
+                        url: '/erm/pasiens/' + pasienId + '/merchandises/' + rec.id,
+                        type: 'DELETE',
+                        data: { _token: $('meta[name="csrf-token"]').attr('content') },
+                        success: function(){
+                            // removed - disable qty input
+                            $qtyInput.prop('disabled', true);
+                            $qtyInput.removeData('pm-id');
+                        },
+                        error: function(){
+                            alert('Failed to remove merchandise');
+                        }
+                    });
+                });
+            }
+        });
+
+        // Handle qty changes for already-checked items
+        $(document).on('change', '.merch-qty', function(){
+            let $input = $(this);
+            let merchId = $input.data('id');
+            let pasienId = $('#modalMerchChecklist').data('pasien-id');
+            if (!pasienId) return alert('Pasien ID missing');
+
+            let qty = parseInt($input.val() || 1, 10);
+            if (qty < 1) { qty = 1; $input.val(1); }
+            let stock = parseInt($input.data('stock') || 0, 10);
+            if (stock <= 0) {
+                Swal.fire({ icon: 'warning', title: 'Stok habis', text: 'Stok item ini habis dan tidak dapat diubah.' });
+                $input.val(1);
+                return;
+            }
+
+            if (qty > stock) {
+                Swal.fire({ icon: 'warning', title: 'Stok tidak cukup', text: `Permintaan qty (${qty}) melebihi stok (${stock}).` });
+                $input.val(stock);
+                qty = stock;
+            }
+
+            // If checkbox isn't checked, just return (qty changes only for checked items)
+            let $checkbox = $('.merch-checkbox[data-id="' + merchId + '"]');
+            if (!$checkbox.is(':checked')) return;
+
+            // Try to use stored pm-id first
+            let pmId = $input.data('pm-id');
+            if (pmId) {
+                // send update request (PUT)
+                $.ajax({
+                    url: '/erm/pasiens/' + pasienId + '/merchandises/' + pmId,
+                    type: 'PUT',
+                    data: { _token: $('meta[name="csrf-token"]').attr('content'), quantity: qty },
+                    success: function(resp){
+                        // updated
+                    },
+                    error: function(){
+                        alert('Failed to update quantity');
+                    }
+                });
+                return;
+            }
+
+            // fallback: fetch pasien receipts to find pm id and then update
+            $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){
+                let rec = (resp.data || []).find(r => r.merchandise_id == merchId);
+                if (!rec) return; // nothing to update
+                $.ajax({
+                    url: '/erm/pasiens/' + pasienId + '/merchandises/' + rec.id,
+                    type: 'PUT',
+                    data: { _token: $('meta[name="csrf-token"]').attr('content'), quantity: qty },
+                    success: function(){
+                        $input.data('pm-id', rec.id);
+                    },
+                    error: function(){
+                        alert('Failed to update quantity');
+                    }
+                });
+            });
+        });
+    });
 </script>
 @endsection

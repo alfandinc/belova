@@ -69,6 +69,9 @@
                 <a href="/marketing/pasien-data"> <i data-feather="user" class="align-self-center menu-icon"></i><span>Pasien Data</span></a>
             </li>
             <li>
+                <a href="/marketing/master-merchandise"> <i data-feather="package" class="align-self-center menu-icon"></i><span>Master Merchandise</span></a>
+            </li>
+            <li>
                 <a href="/marketing/tindakan"> <i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Paket Tindakan</span></a>
             </li>
             <li>

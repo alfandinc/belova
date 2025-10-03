@@ -58,4 +58,22 @@ class Pasien extends Model
     {
         return $this->hasMany(Visitation::class, 'pasien_id');
     }
+
+    /**
+     * Pasien merchandise receipts (pivot records)
+     */
+    public function pasienMerchandises()
+    {
+        return $this->hasMany(PasienMerchandise::class, 'pasien_id');
+    }
+
+    /**
+     * Convenience relation to get merchandises through pivot
+     */
+    public function merchandises()
+    {
+        return $this->belongsToMany(Merchandise::class, 'erm_pasien_merchandises', 'pasien_id', 'merchandise_id')
+                    ->withPivot(['id', 'quantity', 'notes', 'given_by_user_id', 'given_at'])
+                    ->withTimestamps();
+    }
 }
