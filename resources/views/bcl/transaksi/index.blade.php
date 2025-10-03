@@ -803,6 +803,36 @@ $data = $data;
             var u = unformatNumber(v);
             $i.val(u);
         });
+        // Normalize datePicker inputs to YYYY-MM-DD to avoid epoch default (1970-01-01)
+        $(this).find('.datePicker').each(function() {
+            var $d = $(this);
+            var val = $d.val();
+            if (!val) return;
+            // If daterangepicker was used (singleDatePicker), it stores 'MM/DD/YYYY' or 'YYYY-MM-DD' depending on locale
+            // Try parsing with moment if available, else attempt manual ISO conversion
+            if (typeof moment === 'function') {
+                var m = moment(val, ['YYYY-MM-DD', 'MM/DD/YYYY', 'DD/MM/YYYY', moment.ISO_8601], true);
+                if (!m.isValid()) {
+                    // try lenient parse
+                    m = moment(val);
+                }
+                if (m.isValid()) {
+                    $d.val(m.format('YYYY-MM-DD'));
+                }
+            } else {
+                // Basic fallback: try to detect common separators
+                var parts = val.split(/[-\/]/);
+                if (parts.length === 3) {
+                    // guess order: if first part length is 4 -> YYYY-MM-DD
+                    if (parts[0].length === 4) {
+                        $d.val(parts[0] + '-' + parts[1].padStart(2, '0') + '-' + parts[2].padStart(2, '0'));
+                    } else {
+                        // assume MM-DD-YYYY -> convert
+                        $d.val(parts[2] + '-' + parts[0].padStart(2, '0') + '-' + parts[1].padStart(2, '0'));
+                    }
+                }
+            }
+        });
         return true;
     });
 </script>
