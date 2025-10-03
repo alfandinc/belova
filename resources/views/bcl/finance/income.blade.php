@@ -437,6 +437,51 @@ $data = $data;
         // init_component();
     }
 
+    // Ensure components (datepicker, inputmask, select2, etc.) are initialized
+    function init_component() {
+        try {
+            // initialize daterangepicker single-date on elements with .datePicker
+            if ($.fn.daterangepicker) {
+                $('.datePicker').each(function() {
+                    var $el = $(this);
+                    if (!$el.data('daterangepicker')) {
+                        $el.daterangepicker({
+                            singleDatePicker: true,
+                            showDropdowns: true,
+                            locale: { format: 'YYYY-MM-DD' }
+                        });
+                    }
+                });
+            }
+            // optional: inputmask initialization if plugin available
+            if ($.fn.inputmask) {
+                $('.inputmask').each(function() {
+                    var $el = $(this);
+                    // guard: only apply once
+                    if (!$el.data('inputmask')) {
+                        $el.inputmask();
+                    }
+                });
+            }
+            // re-init select2 inside modal
+            if ($.fn.select2) {
+                $('#transaksi').select2({
+                    width: '100%',
+                    dropdownParent: $('#md_pay_biaya')
+                });
+            }
+        } catch (err) {
+            console.error('init_component error', err);
+        }
+    }
+
+    // initialize components when the payment modal is shown
+    $('#md_pay_biaya').on('shown.bs.modal', function() {
+        init_component();
+        // focus the date input for convenience
+        $(this).find('.datePicker').focus();
+    });
+
     function deletes(e) {
         e.preventDefault();
         var url = e.currentTarget.getAttribute('href');
