@@ -109,6 +109,48 @@ class PrSlipGajiController extends Controller
                ->header('Content-Type', 'application/pdf');
     }
 
+    /**
+     * Serve jasmed image file for a slip gaji.
+     * Protected by auth; only the employee owner or users with HRD/Admin/Manager/Ceo roles can access.
+     */
+    public function serveJasmed($id)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            abort(403);
+        }
+
+        $slip = PrSlipGaji::findOrFail($id);
+
+        // Basic authorization: owner or allowed roles
+        $allowed = false;
+        if ($slip->employee && $user->employee && $user->employee->id === $slip->employee->id) {
+            $allowed = true;
+        }
+        // If spatie/roles available, use hasAnyRole
+        if (!$allowed && method_exists($user, 'hasAnyRole')) {
+            if ($user->hasAnyRole(['Hrd', 'Admin', 'Manager', 'Ceo'])) {
+                $allowed = true;
+            }
+        }
+
+        if (!$allowed) {
+            abort(403);
+        }
+
+        if (!$slip->jasmed_file) {
+            abort(404);
+        }
+
+        $fullPath = storage_path('app/public/' . $slip->jasmed_file);
+        if (!file_exists($fullPath)) {
+            abort(404);
+        }
+
+        $mime = @mime_content_type($fullPath) ?: 'application/octet-stream';
+        return response()->file($fullPath, ['Content-Type' => $mime]);
+    }
+
         // Batch generate uang KPI for all employees in selected month
     public function generateUangKpi(Request $request)
     {

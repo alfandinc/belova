@@ -1286,6 +1286,11 @@ Route::get('hrd/payroll/slip-gaji/download/{id}', [App\Http\Controllers\HRD\PrSl
     ->middleware(['auth'])
     ->name('hrd.payroll.slip_gaji.download');
 
+// Serve jasmed file (secure)
+Route::get('hrd/payroll/slip-gaji/jasmed/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'serveJasmed'])
+    ->middleware(['auth'])
+    ->name('hrd.payroll.slip_gaji.jasmed');
+
 // Payroll Slip Gaji Routes
 Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'index'])->name('hrd.payroll.slip_gaji.index');
