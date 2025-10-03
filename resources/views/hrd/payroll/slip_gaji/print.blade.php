@@ -199,10 +199,24 @@
             Catatan: Benefit adalah fasilitas dari perusahaan dan tidak termasuk dalam total gaji / take home pay.
         </div>
         @if($slip->jasmed_file)
-            <div style="margin-top:32px; text-align:left;">
-                <strong>Lampiran:</strong><br>
-                <img src="{{ public_path('storage/' . $slip->jasmed_file) }}" alt="Lampiran Jasmed File" style="max-width:320px; max-height:320px; border:1px solid #ccc;">
-            </div>
+            @php
+                $filePath = storage_path('app/public/' . $slip->jasmed_file);
+                $imageData = null;
+                if (file_exists($filePath)) {
+                    $type = mime_content_type($filePath) ?: 'image/jpeg';
+                    $data = file_get_contents($filePath);
+                    $base64 = base64_encode($data);
+                    $imageData = 'data:' . $type . ';base64,' . $base64;
+                }
+            @endphp
+            @if($imageData)
+                <div style="margin-top:32px; text-align:left;">
+                    <strong>Lampiran:</strong><br>
+                    <img src="{{ $imageData }}" alt="Lampiran Jasmed File" style="max-width:320px; max-height:320px; border:1px solid #ccc;">
+                </div>
+            @else
+                <div style="margin-top:32px; text-align:left; color:#c00;">Lampiran: (file tidak ditemukan)</div>
+            @endif
         @endif
     </div>
 </body>
