@@ -245,6 +245,8 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin|Finance')->group(fu
     Route::get('/farmasi/penjualan-obat/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanExcel'])->name('laporan.farmasi.penjualan-obat.excel');
     Route::get('/farmasi/penjualan-obat/pdf', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportPenjualanPdf'])->name('laporan.farmasi.penjualan-obat.pdf');
     Route::get('/farmasi/penjualan-obat', [\App\Http\Controllers\Laporan\FarmasiController::class, 'penjualanObat'])->name('laporan.farmasi.penjualan-obat');
+    Route::get('/farmasi/stok-tanggal', [\App\Http\Controllers\Laporan\FarmasiController::class, 'stokTanggal'])->name('laporan.farmasi.stok-tanggal');
+    Route::get('/farmasi/stok-tanggal/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportStokTanggalExcel'])->name('laporan.farmasi.stok-tanggal.excel');
     Route::get('/', [LaporanDashboardController::class, 'index'])->name('laporan.dashboard');
     Route::get('/farmasi', [\App\Http\Controllers\Laporan\FarmasiController::class, 'index'])->name('laporan.farmasi');
     Route::get('/farmasi/excel', [\App\Http\Controllers\Laporan\FarmasiController::class, 'exportExcel'])->name('laporan.farmasi.excel');

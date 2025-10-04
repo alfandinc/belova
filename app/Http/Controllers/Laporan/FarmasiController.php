@@ -9,6 +9,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Exports\Laporan\PenjualanObatExport;
+use App\Exports\Laporan\StokTanggalExport;
 
 class FarmasiController extends Controller
 {
@@ -183,6 +184,159 @@ class FarmasiController extends Controller
         });
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('laporan.farmasi.penjualan_pdf', compact('items'));
         return $pdf->download('rekap_penjualan_obat.pdf');
+    }
+
+    public function stokTanggal(Request $request)
+    {
+        // Get selected date from request - no default, return empty if not provided
+        $selectedDate = $request->input('selected_date');
+        if (!$selectedDate) {
+            return \Yajra\DataTables\DataTables::of(collect([]))->make(true);
+        }
+        
+        $today = now()->format('Y-m-d');
+        
+        // Get all obat with their current stock from ObatStokGudang
+        $query = \App\Models\ERM\ObatStokGudang::with(['obat', 'gudang'])
+            ->select(
+                'obat_id',
+                \Illuminate\Support\Facades\DB::raw('SUM(stok) as current_total_stock')
+            )
+            ->groupBy('obat_id');
+
+        $stokData = $query->get();
+        
+        $results = [];
+        
+        foreach ($stokData as $item) {
+            if (!$item->obat) continue;
+            
+            $currentStock = $item->current_total_stock ?? 0;
+            
+            // If selected date is today or in the future, use current stock
+            if ($selectedDate >= $today) {
+                $stockOnDate = $currentStock;
+            } else {
+                // Calculate stock on selected date by subtracting outgoing stock
+                // from the day after selected date until today
+                $startDate = \Carbon\Carbon::parse($selectedDate)->addDay()->format('Y-m-d H:i:s');
+                $endDate = \Carbon\Carbon::parse($today)->endOfDay()->format('Y-m-d H:i:s');
+                
+                $outgoingStock = \App\Models\ERM\KartuStok::where('obat_id', $item->obat_id)
+                    ->where('tipe', 'keluar')
+                    ->whereBetween('tanggal', [$startDate, $endDate])
+                    ->sum('qty');
+                
+                $stockOnDate = $currentStock + $outgoingStock;
+            }
+            
+            $results[] = [
+                'obat_id' => $item->obat_id,
+                'nama_obat' => $item->obat->nama,
+                'kode_obat' => $item->obat->kode_obat ?? '',
+                'satuan' => $item->obat->satuan ?? '',
+                'stok_current' => $currentStock,
+                'stok_on_date' => max(0, $stockOnDate), // Ensure non-negative stock
+                'selected_date' => $selectedDate
+            ];
+        }
+        
+        // Sort by obat name
+        usort($results, function($a, $b) {
+            return strcmp($a['nama_obat'], $b['nama_obat']);
+        });
+        
+        return \Yajra\DataTables\DataTables::of(collect($results))
+            ->addColumn('nama_obat', function($item) {
+                return $item['nama_obat'];
+            })
+            ->addColumn('kode_obat', function($item) {
+                return $item['kode_obat'];
+            })
+            ->addColumn('satuan', function($item) {
+                return $item['satuan'];
+            })
+            ->addColumn('stok_on_date', function($item) {
+                return number_format($item['stok_on_date'], 0);
+            })
+            ->addColumn('stok_current', function($item) {
+                return number_format($item['stok_current'], 0);
+            })
+            ->addColumn('status_stok', function($item) {
+                $stock = $item['stok_on_date'];
+                if ($stock <= 0) {
+                    return '<span class="badge badge-danger">Kosong</span>';
+                } elseif ($stock < 10) {
+                    return '<span class="badge badge-warning">Rendah</span>';
+                } else {
+                    return '<span class="badge badge-success">Tersedia</span>';
+                }
+            })
+            ->rawColumns(['status_stok'])
+            ->make(true);
+    }
+
+    public function exportStokTanggalExcel(Request $request)
+    {
+        $selectedDate = $request->input('selected_date');
+        if (!$selectedDate) {
+            return back()->with('error', 'Tanggal harus dipilih untuk export data.');
+        }
+        
+        $today = now()->format('Y-m-d');
+        
+        // Get all obat with their current stock from ObatStokGudang
+        $query = \App\Models\ERM\ObatStokGudang::with(['obat', 'gudang'])
+            ->select(
+                'obat_id',
+                \Illuminate\Support\Facades\DB::raw('SUM(stok) as current_total_stock')
+            )
+            ->groupBy('obat_id');
+
+        $stokData = $query->get();
+        
+        $results = [];
+        
+        foreach ($stokData as $item) {
+            if (!$item->obat) continue;
+            
+            $currentStock = $item->current_total_stock ?? 0;
+            
+            // If selected date is today or in the future, use current stock
+            if ($selectedDate >= $today) {
+                $stockOnDate = $currentStock;
+            } else {
+                // Calculate stock on selected date by subtracting outgoing stock
+                // from the day after selected date until today
+                $startDate = \Carbon\Carbon::parse($selectedDate)->addDay()->format('Y-m-d H:i:s');
+                $endDate = \Carbon\Carbon::parse($today)->endOfDay()->format('Y-m-d H:i:s');
+                
+                $outgoingStock = \App\Models\ERM\KartuStok::where('obat_id', $item->obat_id)
+                    ->where('tipe', 'keluar')
+                    ->whereBetween('tanggal', [$startDate, $endDate])
+                    ->sum('qty');
+                
+                $stockOnDate = $currentStock + $outgoingStock;
+            }
+            
+            $results[] = [
+                'obat_id' => $item->obat_id,
+                'nama_obat' => $item->obat->nama,
+                'kode_obat' => $item->obat->kode_obat ?? '',
+                'satuan' => $item->obat->satuan ?? '',
+                'stok_current' => $currentStock,
+                'stok_on_date' => max(0, $stockOnDate), // Ensure non-negative stock
+                'selected_date' => $selectedDate
+            ];
+        }
+        
+        // Sort by obat name
+        usort($results, function($a, $b) {
+            return strcmp($a['nama_obat'], $b['nama_obat']);
+        });
+        
+        $filename = 'stok_obat_' . $selectedDate . '.xlsx';
+        return Excel::download(new StokTanggalExport($results, $selectedDate), $filename);
     }
 
 }
