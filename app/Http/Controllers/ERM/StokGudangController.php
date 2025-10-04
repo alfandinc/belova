@@ -11,6 +11,8 @@ use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Excel;
+use App\Exports\StokGudangExport;
 
 class StokGudangController extends Controller {
     // AJAX: Get nilai stok gudang dan keseluruhan
@@ -274,5 +276,81 @@ class StokGudangController extends Controller {
                 'message' => 'Gagal update stok batch: ' . $e->getMessage()
             ], 422);
         }
+    }
+
+    /**
+     * Export stok gudang to Excel
+     */
+    public function exportToExcel(Request $request)
+    {
+        // Determine which relation to use based on hide_inactive filter
+        $obatRelation = ($request->hide_inactive == 1) ? 'obatAktif' : 'obat';
+
+        $query = ObatStokGudang::with([$obatRelation, 'gudang'])
+            ->select(
+                'obat_id',
+                'gudang_id',
+                DB::raw('SUM(stok) as total_stok'),
+                DB::raw('MIN(min_stok) as min_stok'),
+                DB::raw('MAX(max_stok) as max_stok')
+            )
+            ->groupBy('obat_id', 'gudang_id');
+
+        if ($request->gudang_id) {
+            $query->where('gudang_id', $request->gudang_id);
+        }
+
+        // Apply hide inactive filter
+        if ($request->hide_inactive == 1) {
+            $query->whereHas('obat', function($q) {
+                $q->where('status_aktif', 1);
+            });
+        }
+
+        // Apply search
+        if ($request->search_obat) {
+            $searchTerm = $request->search_obat;
+            $query->whereHas('obat', function($q) use ($searchTerm, $request) {
+                if ($request->hide_inactive == 1) {
+                    $q->where('status_aktif', 1);
+                } else {
+                    $q->withInactive();
+                }
+                $q->where('nama', 'like', "%{$searchTerm}%")
+                  ->orWhere('kode_obat', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        $rows = $query->get();
+
+        // Map rows into exportable collection
+        $exportRows = collect();
+
+        foreach ($rows as $row) {
+            $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
+            $nama = $obat->nama ?? '-';
+            $totalStok = $row->total_stok ?? 0;
+            $hpp = $obat ? ($obat->hpp ?? 0) : 0;
+            $hppJual = $obat ? ($obat->hpp_jual ?? 0) : 0;
+            $kategori = $obat ? ($obat->kategori ?? '-') : '-';
+            $nilaiStok = $totalStok * $hpp;
+            $namaGudang = $row->gudang->nama ?? '-';
+
+            $exportRows->push([
+                $nama,
+                (int) $totalStok,
+                $hpp,
+                $hppJual,
+                $kategori,
+                $nilaiStok,
+                $namaGudang
+            ]);
+        }
+
+        $export = new StokGudangExport($exportRows);
+
+        $fileName = 'stok_gudang_' . now()->format('Ymd_His') . '.xlsx';
+
+        return \Maatwebsite\Excel\Facades\Excel::download($export, $fileName);
     }
 }

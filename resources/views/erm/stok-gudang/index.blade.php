@@ -64,9 +64,14 @@
                         </div>
                         <div class="col-md-2 d-flex align-items-end">
                             <div class="form-group">
-                                <button type="button" class="btn btn-secondary" id="btn-reset-filter">
-                                    <i class="fas fa-undo"></i> Reset Filter
-                                </button>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-secondary" id="btn-reset-filter">
+                                        <i class="fas fa-undo"></i> Reset Filter
+                                    </button>
+                                    <button type="button" class="btn btn-success" id="btn-export-excel">
+                                        <i class="fas fa-file-excel"></i> Export Excel
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -288,6 +293,24 @@ $(document).ready(function() {
         $('#filter_status').val('');
         $('#hide_inactive_obat').prop('checked', true); // Reset to default (checked)
         table.ajax.reload();
+    });
+
+    // Export Excel button
+    $('#btn-export-excel').click(function() {
+        var gudangId = $('#filter_gudang').val();
+        var searchObat = $('#search_obat').val();
+        var hideInactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
+
+        var params = [];
+        if (gudangId) params.push('gudang_id=' + encodeURIComponent(gudangId));
+        if (searchObat) params.push('search_obat=' + encodeURIComponent(searchObat));
+        if (hideInactive !== undefined) params.push('hide_inactive=' + encodeURIComponent(hideInactive));
+
+        var url = '{{ route("erm.stok-gudang.export") }}';
+        if (params.length) url += '?' + params.join('&');
+
+        // Open in new tab to trigger download without interfering with current page
+        window.open(url, '_blank');
     });
 
     // Handle batch details button click

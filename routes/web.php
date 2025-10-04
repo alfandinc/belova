@@ -288,6 +288,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     // AJAX endpoint for nilai stok gudang & keseluruhan
     Route::get('/stok-gudang/nilai-stok', [\App\Http\Controllers\ERM\StokGudangController::class, 'getNilaiStok'])->name('erm.stok-gudang.nilai-stok');
+    // Export stok gudang to Excel
+    Route::get('/stok-gudang/export', [\App\Http\Controllers\ERM\StokGudangController::class, 'exportToExcel'])->name('erm.stok-gudang.export');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
 
     // Allow ERM pages to search kode tindakan and fetch bundled obats without requiring Marketing role
