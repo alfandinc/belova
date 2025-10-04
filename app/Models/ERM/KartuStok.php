@@ -20,6 +20,10 @@ class KartuStok extends Model
         'keterangan'
     ];
 
+    protected $casts = [
+        'tanggal' => 'datetime',
+    ];
+
     public function obat()
     {
         return $this->belongsTo(Obat::class, 'obat_id');

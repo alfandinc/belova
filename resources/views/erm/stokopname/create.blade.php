@@ -36,6 +36,31 @@
                         </div>
                       </div>
                     </div>
+
+<!-- Modal History Temuan -->
+<div class="modal fade" id="temuanHistoryModal" tabindex="-1" role="dialog" aria-labelledby="temuanHistoryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="temuanHistoryModalLabel">History Temuan</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="temuanHistoryContent">
+          <div class="text-center">
+            <i class="fa fa-spinner fa-spin"></i> Loading...
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="mb-0">Lakukan Stok Opname</h4>
@@ -155,8 +180,10 @@
                     <th>Exp Date</th>
                     <th>Stok Sistem</th>
                     <th>Stok Fisik</th>
+                    <th>Nilai Stok</th>
                     <th>Selisih</th>
-                    <th>Catatan</th>
+                    <th>Temuan</th>
+                    <th>List Temuan</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -179,6 +206,8 @@
 @push('scripts')
 <script>
 $(function () {
+    // Ensure nama obat column is constrained and text truncates
+    $('#stokOpnameItemsTable').addClass('text-truncate');
     // Check button states on page load
     checkButtonStates();
     
@@ -210,6 +239,11 @@ $(function () {
         processing: true,
         serverSide: true,
         ajax: "{{ route('erm.stokopname.itemsData', $stokOpname->id) }}",
+        columnDefs: [
+            { targets: 1, width: '220px', className: 'nama-obat-cell', render: function(data, type, row) { return '<div class="nama-obat-cell">'+data+'</div>'; } },
+            { targets: 8, width: '280px' }, // Temuan column - make it wider
+            { targets: 9, width: '100px' }, // List Temuan column
+        ],
         columns: [
             {data: 'obat_id', name: 'obat_id'},
             {data: 'nama_obat', name: 'nama_obat'},
@@ -231,6 +265,18 @@ $(function () {
                         return `<input type="number" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${data}" style="width:90px;">`;
                     }
                 },
+                {
+                    data: null,
+                    name: 'nilai_stok',
+                    orderable: false,
+                    searchable: false,
+                    render: function(data, type, row) {
+                        var hpp = parseFloat(row.hpp_jual) || 0;
+                        var stokFisik = parseFloat(row.stok_fisik) || 0;
+                        var nilai = hpp * stokFisik;
+                        return 'Rp ' + nilai.toLocaleString('id-ID');
+                    }
+                },
             {
                 data: 'selisih',
                 name: 'selisih',
@@ -243,12 +289,33 @@ $(function () {
                 }
             },
             {
-                data: 'notes',
-                name: 'notes',
+                data: null,
+                name: 'temuan',
                 orderable: false,
                 searchable: false,
                 render: function(data, type, row) {
-                    return `<input type="text" class="form-control form-control-sm notes-input" data-id="${row.id}" value="${data ?? ''}" placeholder="Catatan...">`;
+                    return `
+                        <div class="d-flex align-items-center">
+                            <input type="number" class="form-control form-control-sm temuan-input" data-id="${row.id}" placeholder="Qty" style="width:60px; margin-right:8px;">
+                            <input type="text" class="form-control form-control-sm temuan-catatan-input" data-id="${row.id}" placeholder="Catatan..." style="flex:1; margin-right:8px; font-size:0.85rem;">
+                            <button type="button" class="btn btn-success btn-sm temuan-submit-btn" data-id="${row.id}" title="Submit Temuan">
+                                <i class="fa fa-plus"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+            },
+            {
+                data: null,
+                name: 'list_temuan',
+                orderable: false,
+                searchable: false,
+                render: function(data, type, row) {
+                    return `
+                        <button type="button" class="btn btn-info btn-sm lihat-temuan-btn" data-id="${row.id}" data-toggle="modal" data-target="#temuanHistoryModal" title="Lihat History Temuan">
+                            <i class="fa fa-list"></i> Lihat
+                        </button>
+                    `;
                 }
             },
         ]
@@ -270,11 +337,25 @@ $(function () {
                 success: function(res) {
                     input.removeClass('is-invalid').addClass('is-valid');
                     setTimeout(() => input.removeClass('is-valid'), 1000);
-                    // Update selisih cell in the same row (kolom ke-6: Obat ID, Nama, Batch, Exp, Stok Sistem, Stok Fisik, SELISIH)
+                    // Get row index
                     var rowIdx = table.row(input.closest('tr')).index();
-                    var selisihCell = $(table.cell(rowIdx, 6).node()); // Index 6 untuk kolom Selisih
+                    // Update selisih cell (now shifted because of added Nilai Stok and Temuan columns)
+                    // Columns: 0 Obat ID,1 Nama,2 Batch,3 Exp,4 Stok Sistem,5 Stok Fisik,6 Nilai Stok,7 Selisih,8 Temuan
+                    var selisihCell = $(table.cell(rowIdx, 7).node()); // Index 7 untuk kolom Selisih
                     var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
                     selisihCell.html(res.selisih + ' ' + icon);
+
+                    // Update Nilai Stok cell using hpp_jual from row data
+                    var rowData = table.row(rowIdx).data();
+                    var hpp = parseFloat(rowData.hpp_jual) || 0;
+                    var nilai = hpp * (parseFloat(res.stok_fisik) || 0);
+                    var nilaiCell = $(table.cell(rowIdx, 6).node()); // Index 6 untuk Nilai Stok
+                    nilaiCell.html('Rp ' + nilai.toLocaleString('id-ID'));
+                    
+                    // Also update table's internal data for stok_fisik and selisih so future redraws have correct values
+                    rowData.stok_fisik = res.stok_fisik;
+                    rowData.selisih = res.selisih;
+                    table.row(rowIdx).data(rowData);
                 },
                 error: function() {
                     input.addClass('is-invalid');
@@ -284,43 +365,182 @@ $(function () {
                 }
             });
         });
-    // Inline update notes
-    $('#stokOpnameItemsTable').on('change', '.notes-input', function() {
+    
+    // Temuan submit handler
+    $('#stokOpnameItemsTable').on('click', '.temuan-submit-btn', function() {
         var itemId = $(this).data('id');
-        var notes = $(this).val();
-        var input = $(this);
+        var temuanInput = $(this).closest('tr').find('.temuan-input');
+        var catatanInput = $(this).closest('tr').find('.temuan-catatan-input');
+        var temuan = temuanInput.val();
+        var catatan = catatanInput.val();
+        
+        if (!temuan || temuan <= 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Masukkan jumlah temuan yang valid',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            return;
+        }
+        
+        var btn = $(this);
+        btn.prop('disabled', true);
+        
         Swal.fire({
-            title: 'Menyimpan catatan...',
+            title: 'Menyimpan temuan...',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); }
         });
+        
         $.ajax({
-            url: '/erm/stokopname/item/' + itemId + '/update-notes',
+            url: '/erm/stokopname-item/' + itemId + '/submit-temuan',
             method: 'POST',
             data: {
-                notes: notes,
+                temuan: temuan,
+                catatan: catatan,
                 _token: '{{ csrf_token() }}'
             },
             success: function(res) {
-                input.removeClass('is-invalid').addClass('is-valid');
-                setTimeout(() => input.removeClass('is-valid'), 1000);
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Catatan disimpan',
-                    timer: 1000,
-                    showConfirmButton: false
-                });
+                if (res.success) {
+                    // Get row index
+                    var rowIdx = table.row(btn.closest('tr')).index();
+                    
+                    // Update Stok Fisik cell
+                    var stokFisikInput = $(table.cell(rowIdx, 5).node()).find('.stok-fisik-input');
+                    stokFisikInput.val(res.stok_fisik);
+                    
+                    // Update Nilai Stok cell
+                    var rowData = table.row(rowIdx).data();
+                    var hpp = parseFloat(rowData.hpp_jual) || 0;
+                    var nilai = hpp * parseFloat(res.stok_fisik);
+                    var nilaiCell = $(table.cell(rowIdx, 6).node());
+                    nilaiCell.html('Rp ' + nilai.toLocaleString('id-ID'));
+                    
+                    // Update Selisih cell
+                    var selisihCell = $(table.cell(rowIdx, 7).node());
+                    var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
+                    selisihCell.html(res.selisih + ' ' + icon);
+                    
+                    // Clear both temuan inputs
+                    temuanInput.val('');
+                    catatanInput.val('');
+                    
+                    // Update table's internal data
+                    rowData.stok_fisik = res.stok_fisik;
+                    rowData.selisih = res.selisih;
+                    table.row(rowIdx).data(rowData);
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: res.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: res.message || 'Gagal menyimpan temuan',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
             },
-            error: function() {
-                input.addClass('is-invalid');
+            error: function(xhr) {
+                var message = 'Gagal menyimpan temuan';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
                 Swal.fire({
                     icon: 'error',
-                    title: 'Gagal menyimpan catatan',
+                    title: message,
                     timer: 1500,
                     showConfirmButton: false
                 });
+            },
+            complete: function() {
+                btn.prop('disabled', false);
             }
         });
+    });
+    
+    // Handle lihat temuan history button
+    $('#stokOpnameItemsTable').on('click', '.lihat-temuan-btn', function() {
+        var itemId = $(this).data('id');
+        
+        // Reset modal content to loading state
+        $('#temuanHistoryContent').html('<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</div>');
+        
+        // Fetch temuan history
+        $.get('/erm/stokopname-item/' + itemId + '/temuan-history')
+            .done(function(res) {
+                if (res.success) {
+                    var content = `
+                        <div class="mb-3">
+                            <h6><strong>Item Information</strong></h6>
+                            <p><strong>Obat:</strong> ${res.item.obat_nama}<br>
+                            <strong>Batch:</strong> ${res.item.batch || '-'}<br>
+                            <strong>Gudang:</strong> ${res.item.gudang}</p>
+                        </div>
+                        <hr>
+                    `;
+                    
+                    if (res.history.length > 0) {
+                        content += `
+                            <h6><strong>History Temuan</strong></h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th>Tanggal & Waktu</th>
+                                            <th>Qty Temuan</th>
+                                            <th>Catatan</th>
+                                            <th>Stok Setelah</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                        `;
+                        
+                        res.history.forEach(function(record) {
+                            content += `
+                                <tr>
+                                    <td>${record.tanggal}</td>
+                                    <td class="text-center">${record.qty}</td>
+                                    <td>${record.keterangan || '-'}</td>
+                                    <td class="text-center">${record.stok_setelah}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        content += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    } else {
+                        content += `
+                            <div class="alert alert-info text-center">
+                                <i class="fa fa-info-circle"></i> Belum ada temuan untuk item ini.
+                            </div>
+                        `;
+                    }
+                    
+                    $('#temuanHistoryContent').html(content);
+                } else {
+                    $('#temuanHistoryContent').html(`
+                        <div class="alert alert-danger">
+                            <i class="fa fa-exclamation-triangle"></i> ${res.message || 'Gagal memuat data history temuan'}
+                        </div>
+                    `);
+                }
+            })
+            .fail(function() {
+                $('#temuanHistoryContent').html(`
+                    <div class="alert alert-danger">
+                        <i class="fa fa-exclamation-triangle"></i> Gagal memuat data history temuan
+                    </div>
+                `);
+            });
     });
 
     // Show selected file name in upload
@@ -557,6 +777,17 @@ $(function () {
 }
 .blink-warning {
   animation: blink 1s linear infinite;
+}
+/* Truncate long nama obat in table cells */
+/* Nama Obat: allow up to 2 lines then ellipsis */
+.nama-obat-cell {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2; /* show up to 2 lines */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    max-width: 220px; /* column width hint; DataTables columnDefs sets the column width */
 }
 </style>
 </div>

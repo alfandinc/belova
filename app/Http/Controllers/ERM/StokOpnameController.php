@@ -54,6 +54,139 @@ class StokOpnameController extends Controller
             'selisih' => $item->selisih,
         ]);
     }
+
+    /**
+     * Submit temuan - add found stock to both stok fisik and stok gudang
+     */
+    public function submitTemuan(Request $request, $itemId)
+    {
+        $request->validate([
+            'temuan' => 'required|numeric|min:0',
+            'catatan' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            DB::beginTransaction();
+            
+            $item = StokOpnameItem::with(['stokOpname', 'obat', 'obatStokGudang'])->findOrFail($itemId);
+            $temuan = (float) $request->temuan;
+            $catatan = $request->catatan;
+            
+            if ($temuan <= 0) {
+                return response()->json(['success' => false, 'message' => 'Jumlah temuan harus lebih dari 0'], 400);
+            }
+            
+            // Update stok fisik in opname item
+            $item->stok_fisik += $temuan;
+            $item->selisih = $item->stok_fisik - $item->stok_sistem;
+            
+            // Also update notes if provided
+            if ($catatan) {
+                $item->notes = $catatan;
+            }
+            
+            $item->save();
+            
+            // Prepare keterangan for kartu stok
+            $keterangan = "Temuan stok saat opname";
+            if ($catatan) {
+                $keterangan = $catatan;
+            } else {
+                $keterangan .= " - batch: {$item->batch_name}";
+            }
+            
+            // Add to actual stock using StokService
+            $stokService = app(\App\Services\ERM\StokService::class);
+            $stokService->tambahStok(
+                $item->obat_id,
+                $item->stokOpname->gudang_id,
+                $temuan,
+                $item->batch_name, // batch
+                $item->expiration_date, // expDate
+                null, // rak
+                null, // lokasi
+                null, // hargaBeli - don't change HPP
+                null, // hargaBeliJual - don't change HPP
+                'temuan_stok_opname', // refType
+                $item->stok_opname_id, // refId
+                $keterangan // use catatan as keterangan
+            );
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => "Temuan {$temuan} berhasil ditambahkan",
+                'stok_fisik' => $item->stok_fisik,
+                'selisih' => $item->selisih,
+                'temuan' => $temuan,
+                'notes' => $item->notes
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollback();
+            return response()->json([
+                'success' => false, 
+                'message' => 'Gagal menyimpan temuan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get temuan history for a specific stok opname item
+     */
+    public function getTemuanHistory($itemId)
+    {
+        try {
+            $item = StokOpnameItem::with(['obat', 'stokOpname.gudang'])->findOrFail($itemId);
+            
+            // Get temuan records from kartu stok
+            $temuanHistory = \App\Models\ERM\KartuStok::where('obat_id', $item->obat_id)
+                ->where('gudang_id', $item->stokOpname->gudang_id)
+                ->where('ref_type', 'temuan_stok_opname')
+                ->where('ref_id', $item->stok_opname_id)
+                ->where('batch', $item->batch_name)
+                ->orderBy('tanggal', 'desc')
+                ->get();
+            
+            $itemInfo = [
+                'obat_nama' => $item->obat ? $item->obat->nama : 'Unknown',
+                'batch' => $item->batch_name,
+                'gudang' => $item->stokOpname->gudang ? $item->stokOpname->gudang->nama : 'Unknown'
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'item' => $itemInfo,
+                'history' => $temuanHistory->map(function($record) {
+                    // Handle tanggal field safely - it might be string or Carbon instance
+                    $tanggal = $record->tanggal;
+                    if (is_string($tanggal)) {
+                        try {
+                            $tanggal = \Carbon\Carbon::parse($tanggal)->format('d/m/Y H:i');
+                        } catch (\Exception $e) {
+                            $tanggal = $record->tanggal; // fallback to original string
+                        }
+                    } else {
+                        $tanggal = $record->tanggal->format('d/m/Y H:i');
+                    }
+                    
+                    return [
+                        'tanggal' => $tanggal,
+                        'qty' => $record->qty,
+                        'keterangan' => $record->keterangan,
+                        'stok_setelah' => $record->stok_setelah
+                    ];
+                })
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Gagal mengambil data history temuan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -159,7 +292,8 @@ class StokOpnameController extends Controller
             ->leftJoin('erm_obat', 'erm_stok_opname_items.obat_id', '=', 'erm_obat.id')
             ->select(
                 'erm_stok_opname_items.*', 
-                'erm_obat.nama as nama_obat'
+                'erm_obat.nama as nama_obat',
+                'erm_obat.hpp_jual as hpp_jual'
             )
             ->where('stok_opname_id', $id)
             ->orderByRaw('ABS(selisih) DESC');

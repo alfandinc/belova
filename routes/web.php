@@ -361,6 +361,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/monitor-profit', [App\Http\Controllers\ERM\ObatController::class, 'monitorProfit'])->name('erm.monitor-profit');
         // Inline update stok fisik for hasil stok opname
         Route::post('stokopname-item/{id}/update-stok-fisik', [App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFisik'])->name('erm.stokopnameitem.update-stok-fisik');
+        Route::post('stokopname-item/{id}/submit-temuan', [App\Http\Controllers\ERM\StokOpnameController::class, 'submitTemuan'])->name('erm.stokopnameitem.submit-temuan');
+        Route::get('stokopname-item/{id}/temuan-history', [App\Http\Controllers\ERM\StokOpnameController::class, 'getTemuanHistory'])->name('erm.stokopnameitem.temuan-history');
     // AJAX endpoints for select2 (controller)
     Route::get('ajax/obat', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxObat']);
     // Single obat details for AJAX (used by various JS fallbacks)
