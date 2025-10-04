@@ -36,6 +36,7 @@ class StokTanggalExport implements FromCollection, WithHeadings, WithMapping, Wi
         return [
             'Kode Obat',
             'Nama Obat',
+            'Kategori',
             'Satuan',
             'Stok pada Tanggal (' . $this->selectedDate . ')',
             'Stok Saat Ini',
@@ -65,6 +66,7 @@ class StokTanggalExport implements FromCollection, WithHeadings, WithMapping, Wi
         return [
             $row['kode_obat'],
             $row['nama_obat'],
+            $row['kategori'],
             $row['satuan'],
             number_format($row['stok_on_date'], 0),
             number_format($row['stok_current'], 0),

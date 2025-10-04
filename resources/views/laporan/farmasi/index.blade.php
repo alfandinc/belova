@@ -65,6 +65,9 @@
                         <table id="datatable-penjualan" class="table table-bordered table-hover table-sm">
                             <thead class="thead-light">
                                 <tr>
+                                    <th>No Invoice</th>
+                                    <th>Nama Pasien</th>
+                                    <th>No Resep</th>
                                     <th>Nama Obat</th>
                                     <th>Harga Jual</th>
                                     <th>Quantity</th>
@@ -91,8 +94,17 @@
                             <label for="selected-date" class="font-weight-bold"><i class="fa fa-calendar mr-1"></i>Pilih Tanggal</label>
                             <input type="date" id="selected-date" class="form-control" value="">
                         </div>
-                        <div class="col-md-6 d-flex align-items-end">
-                            <span class="text-muted small">Pilih tanggal untuk melihat stok obat pada tanggal tersebut. Tabel akan kosong sampai tanggal dipilih.</span>
+                        <div class="col-md-3">
+                            <label for="filter-kategori" class="font-weight-bold"><i class="fa fa-tags mr-1"></i>Kategori</label>
+                            <select id="filter-kategori" class="form-control">
+                                <option value="">Semua Kategori</option>
+                                @foreach($kategoris as $kategori)
+                                    <option value="{{ $kategori }}">{{ $kategori }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <span class="text-muted small">Pilih tanggal dan kategori untuk filter stok obat.</span>
                         </div>
                         <div class="col-md-3 d-flex align-items-end">
                             <a href="#" id="export-stok-excel" class="btn btn-success btn-sm" disabled><i class="fa fa-file-excel-o mr-1"></i>Download Excel</a>
@@ -104,6 +116,7 @@
                                 <tr>
                                     <th>Kode Obat</th>
                                     <th>Nama Obat</th>
+                                    <th>Kategori</th>
                                     <th>Satuan</th>
                                     <th>Stok pada Tanggal</th>
                                     <th>Stok Saat Ini</th>
@@ -145,6 +158,9 @@ $(function() {
             }
         },
         columns: [
+            { data: 'invoice_number', name: 'invoice_number' },
+            { data: 'nama_pasien', name: 'nama_pasien' },
+            { data: 'no_resep', name: 'no_resep' },
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'harga_jual', name: 'harga_jual' },
             { data: 'quantity', name: 'quantity' },
@@ -162,11 +178,13 @@ $(function() {
             url: '{{ route('laporan.farmasi.stok-tanggal') }}',
             data: function(d) {
                 d.selected_date = $('#selected-date').val();
+                d.kategori = $('#filter-kategori').val();
             }
         },
         columns: [
             { data: 'kode_obat', name: 'kode_obat' },
             { data: 'nama_obat', name: 'nama_obat' },
+            { data: 'kategori', name: 'kategori' },
             { data: 'satuan', name: 'satuan' },
             { data: 'stok_on_date', name: 'stok_on_date', className: 'text-right' },
             { data: 'stok_current', name: 'stok_current', className: 'text-right' },
@@ -201,6 +219,14 @@ $(function() {
         }
     });
 
+    // Reload stock table when kategori filter changes
+    $('#filter-kategori').on('change', function() {
+        var selectedDate = $('#selected-date').val();
+        if (selectedDate) {
+            tableStokTanggal.ajax.reload();
+        }
+    });
+
     // Export stok tanggal to Excel
     $('#export-stok-excel').on('click', function(e) {
         e.preventDefault();
@@ -209,8 +235,12 @@ $(function() {
             alert('Silakan pilih tanggal terlebih dahulu');
             return;
         }
+        var kategori = $('#filter-kategori').val();
         var url = '{{ route('laporan.farmasi.stok-tanggal.excel') }}';
         url += '?selected_date=' + encodeURIComponent(selectedDate);
+        if (kategori) {
+            url += '&kategori=' + encodeURIComponent(kategori);
+        }
         window.location.href = url;
     });
 

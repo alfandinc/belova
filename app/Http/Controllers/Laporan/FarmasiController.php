@@ -74,7 +74,17 @@ class FarmasiController extends Controller
                 ->rawColumns(['nama_pemasok', 'nama_obat', 'harga_beli', 'quantity', 'diskon_persen', 'diskon_nominal', 'harga_jadi'])
                 ->make(true);
         }
-        return view('laporan.farmasi.index');
+        
+        // Get available categories for filter
+        $kategoris = \App\Models\ERM\Obat::withInactive()
+            ->select('kategori')
+            ->distinct()
+            ->whereNotNull('kategori')
+            ->where('kategori', '!=', '')
+            ->pluck('kategori')
+            ->sort();
+            
+        return view('laporan.farmasi.index', compact('kategoris'));
     }
 
     public function exportExcel()
@@ -95,7 +105,14 @@ class FarmasiController extends Controller
 
         public function penjualanObat(Request $request)
         {
-            $query = \App\Models\Finance\InvoiceItem::with(['billable', 'billable.obat', 'invoice'])
+            $query = \App\Models\Finance\InvoiceItem::with([
+                'billable', 
+                'billable.obat', 
+                'invoice', 
+                'invoice.visitation',
+                'invoice.visitation.pasien',
+                'billable.resepDetail'
+            ])
                 ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi');
             if ($request->filled('date_range')) {
                 $dates = explode(' - ', $request->input('date_range'));
@@ -111,6 +128,21 @@ class FarmasiController extends Controller
                 return $item->billable && $item->billable->obat;
             });
             return \Yajra\DataTables\DataTables::of($collection)
+                ->addColumn('invoice_number', function($item) {
+                    return $item->invoice ? $item->invoice->invoice_number : '-';
+                })
+                ->addColumn('nama_pasien', function($item) {
+                    return $item->invoice && $item->invoice->visitation && $item->invoice->visitation->pasien 
+                        ? $item->invoice->visitation->pasien->nama 
+                        : '-';
+                })
+                ->addColumn('no_resep', function($item) {
+                    if ($item->billable && $item->billable->visitation_id) {
+                        $resepDetail = \App\Models\ERM\ResepDetail::where('visitation_id', $item->billable->visitation_id)->first();
+                        return $resepDetail ? $resepDetail->no_resep : '-';
+                    }
+                    return '-';
+                })
                 ->addColumn('nama_obat', function($item) {
                     return $item->billable->obat->nama;
                 })
@@ -140,7 +172,7 @@ class FarmasiController extends Controller
                 ->addColumn('diskon_pelayanan', function($item) {
                     return ($item->discount ?? 0) > 0 ? 'Ada' : 'Tidak';
                 })
-                ->rawColumns(['nama_obat', 'harga_jual', 'quantity', 'diskon_pelayanan', 'diskon_persen', 'diskon_nominal'])
+                ->rawColumns(['invoice_number', 'nama_pasien', 'no_resep', 'nama_obat', 'harga_jual', 'quantity', 'diskon_pelayanan', 'diskon_persen', 'diskon_nominal'])
                 ->make(true);
         }
 
@@ -154,7 +186,14 @@ class FarmasiController extends Controller
     public function exportPenjualanPdf(Request $request)
     {
         $dateRange = $request->input('date_range');
-        $query = \App\Models\Finance\InvoiceItem::with(['billable', 'billable.obat', 'invoice'])
+        $query = \App\Models\Finance\InvoiceItem::with([
+            'billable', 
+            'billable.obat', 
+            'invoice', 
+            'invoice.visitation',
+            'invoice.visitation.pasien',
+            'billable.resepDetail'
+        ])
             ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi');
         if ($dateRange) {
             $dates = explode(' - ', $dateRange);
@@ -177,7 +216,23 @@ class FarmasiController extends Controller
             $dt = strtolower(trim((string) $discountType));
             $isPercent = in_array($dt, ['persen', 'percent', '%', 'pct', 'pc', 'per']);
             $discountValue = $isPercent ? ($base * $discount / 100) : $discount;
+            
+            // Get additional data
+            $invoiceNumber = $item->invoice ? $item->invoice->invoice_number : '-';
+            $namaPasien = $item->invoice && $item->invoice->visitation && $item->invoice->visitation->pasien 
+                ? $item->invoice->visitation->pasien->nama 
+                : '-';
+            
+            $noResep = '-';
+            if ($item->billable && $item->billable->visitation_id) {
+                $resepDetail = \App\Models\ERM\ResepDetail::where('visitation_id', $item->billable->visitation_id)->first();
+                $noResep = $resepDetail ? $resepDetail->no_resep : '-';
+            }
+            
             return (object) array_merge($item->toArray(), [
+                'invoice_number' => $invoiceNumber,
+                'nama_pasien' => $namaPasien,
+                'no_resep' => $noResep,
                 'diskon_nominal' => number_format($discountValue, 2),
                 'diskon_persen' => $isPercent ? $discount : '',
             ]);
@@ -194,6 +249,7 @@ class FarmasiController extends Controller
             return \Yajra\DataTables\DataTables::of(collect([]))->make(true);
         }
         
+        $kategori = $request->input('kategori');
         $today = now()->format('Y-m-d');
         
         // Get all obat with their current stock from ObatStokGudang
@@ -203,6 +259,13 @@ class FarmasiController extends Controller
                 \Illuminate\Support\Facades\DB::raw('SUM(stok) as current_total_stock')
             )
             ->groupBy('obat_id');
+
+        // Add kategori filter if provided
+        if ($kategori) {
+            $query->whereHas('obat', function($q) use ($kategori) {
+                $q->where('kategori', $kategori);
+            });
+        }
 
         $stokData = $query->get();
         
@@ -234,6 +297,7 @@ class FarmasiController extends Controller
                 'obat_id' => $item->obat_id,
                 'nama_obat' => $item->obat->nama,
                 'kode_obat' => $item->obat->kode_obat ?? '',
+                'kategori' => $item->obat->kategori ?? '',
                 'satuan' => $item->obat->satuan ?? '',
                 'stok_current' => $currentStock,
                 'stok_on_date' => max(0, $stockOnDate), // Ensure non-negative stock
@@ -252,6 +316,9 @@ class FarmasiController extends Controller
             })
             ->addColumn('kode_obat', function($item) {
                 return $item['kode_obat'];
+            })
+            ->addColumn('kategori', function($item) {
+                return $item['kategori'];
             })
             ->addColumn('satuan', function($item) {
                 return $item['satuan'];
@@ -283,6 +350,7 @@ class FarmasiController extends Controller
             return back()->with('error', 'Tanggal harus dipilih untuk export data.');
         }
         
+        $kategori = $request->input('kategori');
         $today = now()->format('Y-m-d');
         
         // Get all obat with their current stock from ObatStokGudang
@@ -292,6 +360,13 @@ class FarmasiController extends Controller
                 \Illuminate\Support\Facades\DB::raw('SUM(stok) as current_total_stock')
             )
             ->groupBy('obat_id');
+
+        // Add kategori filter if provided
+        if ($kategori) {
+            $query->whereHas('obat', function($q) use ($kategori) {
+                $q->where('kategori', $kategori);
+            });
+        }
 
         $stokData = $query->get();
         
@@ -323,6 +398,7 @@ class FarmasiController extends Controller
                 'obat_id' => $item->obat_id,
                 'nama_obat' => $item->obat->nama,
                 'kode_obat' => $item->obat->kode_obat ?? '',
+                'kategori' => $item->obat->kategori ?? '',
                 'satuan' => $item->obat->satuan ?? '',
                 'stok_current' => $currentStock,
                 'stok_on_date' => max(0, $stockOnDate), // Ensure non-negative stock
@@ -335,7 +411,12 @@ class FarmasiController extends Controller
             return strcmp($a['nama_obat'], $b['nama_obat']);
         });
         
-        $filename = 'stok_obat_' . $selectedDate . '.xlsx';
+        $filename = 'stok_obat_' . $selectedDate;
+        if ($kategori) {
+            $filename .= '_' . $kategori;
+        }
+        $filename .= '.xlsx';
+        
         return Excel::download(new StokTanggalExport($results, $selectedDate), $filename);
     }
 
