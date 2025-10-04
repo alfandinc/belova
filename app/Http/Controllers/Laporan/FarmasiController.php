@@ -258,12 +258,16 @@ class FarmasiController extends Controller
                 'obat_id',
                 \Illuminate\Support\Facades\DB::raw('SUM(stok) as current_total_stock')
             )
+            ->whereHas('obat', function($q) {
+                $q->where('status_aktif', 1); // Only active medicines
+            })
             ->groupBy('obat_id');
 
         // Add kategori filter if provided
         if ($kategori) {
             $query->whereHas('obat', function($q) use ($kategori) {
-                $q->where('kategori', $kategori);
+                $q->where('kategori', $kategori)
+                  ->where('status_aktif', 1); // Ensure still only active
             });
         }
 
@@ -359,12 +363,16 @@ class FarmasiController extends Controller
                 'obat_id',
                 \Illuminate\Support\Facades\DB::raw('SUM(stok) as current_total_stock')
             )
+            ->whereHas('obat', function($q) {
+                $q->where('status_aktif', 1); // Only active medicines
+            })
             ->groupBy('obat_id');
 
         // Add kategori filter if provided
         if ($kategori) {
             $query->whereHas('obat', function($q) use ($kategori) {
-                $q->where('kategori', $kategori);
+                $q->where('kategori', $kategori)
+                  ->where('status_aktif', 1); // Ensure still only active
             });
         }
 
