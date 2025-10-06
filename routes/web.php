@@ -786,6 +786,13 @@ Route::prefix('finance')->middleware('role:Kasir|Admin')->group(function () {
         Route::get('/invoice-export', [InvoiceController::class, 'invoiceExportForm'])->name('finance.invoice.export.form');
         Route::get('/invoice-export/download', [InvoiceController::class, 'downloadInvoiceExcel'])->name('finance.invoice.export.download');
         Route::get('/rekap-penjualan/statistik', [BillingController::class, 'statistikPendapatanAjax'])->name('finance.rekap-penjualan.statistik');
+        
+        // Retur Pembelian routes
+        Route::get('/retur-pembelian', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'index'])->name('finance.retur-pembelian.index');
+        Route::post('/retur-pembelian', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'store'])->name('finance.retur-pembelian.store');
+        Route::get('/retur-pembelian/{id}', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'show'])->name('finance.retur-pembelian.show');
+        Route::get('/retur-pembelian/invoices/filter', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoices'])->name('finance.retur-pembelian.invoices');
+        Route::get('/retur-pembelian/invoice/{id}/items', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoiceItems'])->name('finance.retur-pembelian.invoice-items');
     }
 );
 

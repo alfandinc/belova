@@ -476,4 +476,37 @@ class StokService {
     {
         return $this->updateStokFisik($obatId, $gudangId, $stokFisik, $batch, $stokOpnameId);
     }
+
+    /**
+     * Khusus untuk retur pembelian - menambah stok kembali
+     *
+     * @param int $obatId
+     * @param int $gudangId
+     * @param float $jumlah
+     * @param int $returId
+     * @param string $noRetur
+     * @param string|null $batch
+     * @param float|null $hargaBeli
+     * @param float|null $hargaBeliJual
+     * @return ObatStokGudang
+     */
+    public function returPembelianViaTransaksi($obatId, $gudangId, $jumlah, $returId, $noRetur, $batch = null, $hargaBeli = null, $hargaBeliJual = null)
+    {
+        $keterangan = "Retur Pembelian - {$noRetur}";
+        
+        return $this->tambahStok(
+            $obatId,
+            $gudangId,
+            $jumlah,
+            $batch,
+            null, // expDate
+            null, // rak
+            null, // lokasi
+            $hargaBeli,
+            $hargaBeliJual,
+            'retur_pembelian', // refType
+            $returId, // refId
+            $keterangan
+        );
+    }
 }
