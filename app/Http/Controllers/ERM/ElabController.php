@@ -72,6 +72,9 @@ class ElabController extends Controller
                 $visitations->where('status_kunjungan', 2);
             }
 
+            // Add default ordering by tanggal_visitation descending (newest first)
+            $visitations->orderBy('tanggal_visitation', 'desc');
+
             // Calculate aggregated total nominal for the filtered visitations
             $totalNominalQuery = clone $visitations->getQuery();
             // Sum the nominal column (which comes from the leftJoinSub as lp.nominal via COALESCE)
