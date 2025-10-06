@@ -56,7 +56,9 @@
             <ul class="nav-second-level" aria-expanded="false">
                 <li class="nav-item"><a class="nav-link" href="{{route('bcl.rooms')}}"><i class="ti-control-record"></i>Daftar Kamar</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{route('bcl.pricelist.index')}}"><i class="ti-control-record"></i>Daftar Harga</a></li>
+                
                 <li class="nav-item"><a class="nav-link" href="{{route('bcl.category.index')}}"><i class="ti-control-record"></i>Daftar Kategori</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{route('bcl.roomwifi.index')}}"><i class="ti-control-record"></i>Wifi Kamar</a></li>
             </ul>
         </li>
 

@@ -83,6 +83,7 @@ use App\Http\Controllers\BCL\{
     RoomCategoryImageController,
     pricelist_tambahanController,
     extra_rentController,
+    RoomWifiController,
 };
 
 
@@ -222,6 +223,13 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/transaksi/reschedule', [tr_renterController::class, 'reschedule'])->name('bcl.transaksi.reschedule');
     Route::get('/transaksi/cetak/{id}', [tr_renterController::class, 'cetak'])->name('bcl.transaksi.cetak');
     Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
+    // Room Wifi management (AJAX + Datatables)
+    Route::get('/wifi', [RoomWifiController::class, 'index'])->name('bcl.roomwifi.index');
+    Route::get('/wifi/data', [RoomWifiController::class, 'data'])->name('bcl.roomwifi.data');
+    Route::post('/wifi/store', [RoomWifiController::class, 'store'])->name('bcl.roomwifi.store');
+    Route::get('/wifi/edit/{id}', [RoomWifiController::class, 'edit'])->name('bcl.roomwifi.edit');
+    Route::post('/wifi/update/{id}', [RoomWifiController::class, 'update'])->name('bcl.roomwifi.update');
+    Route::get('/wifi/delete/{id}', [RoomWifiController::class, 'destroy'])->name('bcl.roomwifi.delete');
 });
 
 
