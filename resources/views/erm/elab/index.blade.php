@@ -118,7 +118,17 @@ $(document).ready(function () {
                 }
             },
             // Format tanggal_visitation using moment.js to 'D MMMM YYYY' (e.g. '1 Januari 2025')
-            { data: 'tanggal_visitation', name: 'tanggal_visitation', render: function(data, type, row) {
+            { 
+                data: 'tanggal_visitation', 
+                name: 'tanggal_visitation', 
+                orderable: true,
+                render: function(data, type, row) {
+                    // For sorting, return the raw date value
+                    if (type === 'sort' || type === 'type') {
+                        return data;
+                    }
+                    
+                    // For display, format the date
                     if (!data) return '-';
                     // Ensure moment has Indonesian locale available; format and capitalize month
                     try {
