@@ -96,6 +96,7 @@ $(document).ready(function () {
         processing: true,
         serverSide: true,
         responsive: true,
+        order: [[3, 'desc']], // Order by tanggal_visitation column (index 3) in descending order
         ajax: {
             url: '{{ route("erm.elab.index") }}',
             data: function(d) {
