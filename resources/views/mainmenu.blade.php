@@ -591,7 +591,7 @@
                 </a>
 
                 <a href="/laporan" class="menu-tile tile-laporan animate-item delay-8" data-filter="laporan reports analytics"
-                   @if(!array_intersect($userRoles, ['Manager','Hrd','Admin','Finance']))
+                   @if(!array_intersect($userRoles, ['Manager','Hrd','Admin','Finance','Farmasi']))
                        onclick="showRoleWarning(event, 'Laporan')"
                    @endif>
                     <div class="menu-top">
