@@ -101,13 +101,78 @@ class ElabController extends Controller
                         : ($user->hasRole('Dokter') ? route('erm.elab.create', $v->id) : '#');
                     return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
                 })
-                ->rawColumns(['dokumen'])
+                ->addColumn('actions', function($v){
+                    $disabled = ($v->status_kunjungan == 7) ? 'disabled' : '';
+                    $title = ($v->status_kunjungan == 7) ? 'Sudah dibatalkan' : 'Batalkan kunjungan';
+                    return '<button class="btn btn-sm btn-outline-danger btn-cancel-visitation" data-id="'.$v->id.'" '.$disabled.' title="'.$title.'">Cancel</button>';
+                })
+                ->rawColumns(['dokumen','actions'])
                 ->make(true);
         }
 
         $dokters = Dokter::with('user', 'spesialisasi')->get();
         $metodeBayar = MetodeBayar::all();
         return view('erm.elab.index', compact('dokters', 'metodeBayar'));
+    }
+
+    public function cancelVisitation($id, Request $request)
+    {
+        // Authorization: only Lab or Admin handled by route middleware, but can double-check
+        $user = Auth::user();
+        if (!$user->hasRole(['Lab','Admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $visitation = Visitation::findOrFail($id);
+        if ($visitation->status_kunjungan == 7) {
+            return response()->json(['message' => 'Kunjungan sudah dibatalkan'], 200);
+        }
+
+        // Optionally store previous status if needed in future (not implemented here)
+        $visitation->status_kunjungan = 7; // 7 = canceled
+        $visitation->save();
+
+        return response()->json(['message' => 'Kunjungan berhasil dibatalkan']);
+    }
+
+    public function canceledList(Request $request)
+    {
+        if (!$request->ajax()) {
+            return response()->json(['message' => 'Invalid request'], 400);
+        }
+
+        $query = Visitation::with(['pasien','metodeBayar'])
+            ->where('status_kunjungan', 7)
+            ->where('jenis_kunjungan', 3)
+            ->orderBy('tanggal_visitation','desc');
+
+        return datatables()->of($query)
+            ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
+            ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
+            ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
+            ->addColumn('actions', function($v){
+                return '<button class="btn btn-sm btn-success btn-restore-visitation" data-id="'.$v->id.'">Pulihkan</button>';
+            })
+            ->rawColumns(['actions'])
+            ->make(true);
+    }
+
+    public function restoreVisitation($id, Request $request)
+    {
+        $user = Auth::user();
+        if (!$user->hasRole(['Lab','Admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $visitation = Visitation::findOrFail($id);
+        if ($visitation->status_kunjungan != 7) {
+            return response()->json(['message' => 'Kunjungan tidak dalam status dibatalkan'], 422);
+        }
+        // Restore to default open status (assuming 1). Adjust if different logic.
+        $visitation->status_kunjungan = 2;
+        $visitation->save();
+
+        return response()->json(['message' => 'Kunjungan berhasil dipulihkan']);
     }
     public function create($visitationId)
     {

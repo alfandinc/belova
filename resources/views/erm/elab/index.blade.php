@@ -28,6 +28,9 @@
     <div class="card">
         <div class="card-header bg-primary">
             <h4 class="card-title text-white">Daftar Kunjungan Laboratorium</h4>
+            @hasanyrole('Lab|Admin')
+            <button class="btn btn-light btn-sm float-right" id="btn-show-canceled" style="margin-top:-30px;">Lihat Kunjungan Dibatalkan</button>
+            @endhasanyrole
         </div>
         <div class="card-body">
             <div class="row mb-3">
@@ -45,6 +48,7 @@
                         <th>Tanggal Kunjungan</th>
                         <th>Metode Bayar</th>
                         <th>Lab</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
             </table>
@@ -63,6 +67,33 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal: Canceled Visitations -->
+<div class="modal fade" id="modalCanceledVisitations" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Kunjungan Dibatalkan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-bordered w-100" id="canceled-table">
+                        <thead>
+                                <tr>
+                                        <th>No RM</th>
+                                        <th>Nama Pasien</th>
+                                        <th>Tanggal</th>
+                                        <th>Metode Bayar</th>
+                                        <th>Aksi</th>
+                                </tr>
+                        </thead>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
             </div>
         </div>
     </div>
@@ -144,6 +175,7 @@ $(document).ready(function () {
             },
             { data: 'metode_bayar', searchable: false, orderable: false },
             { data: 'dokumen', searchable: false, orderable: false },
+            { data: 'actions', searchable: false, orderable: false },
             { data: 'status_kunjungan', visible: false, searchable: false },
         ],
         createdRow: function(row, data, dataIndex) {
@@ -200,6 +232,68 @@ $(document).ready(function () {
     // Event ganti rentang tanggal
     $('#filter_tanggal_range').on('apply.daterangepicker cancel.daterangepicker', function(ev, picker) {
         table.ajax.reload();
+    });
+
+    // Cancel visitation handler
+    $(document).on('click', '.btn-cancel-visitation', function(){
+        const id = $(this).data('id');
+        if(!id) return;
+        if(!confirm('Batalkan kunjungan ini?')) return;
+        $.ajax({
+            url: '{{ route('erm.elab.visitation.cancel', ['id' => '___ID___']) }}'.replace('___ID___', id),
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function(res){
+                table.ajax.reload(null,false);
+            },
+            error: function(xhr){
+                alert(xhr.responseJSON?.message || 'Gagal membatalkan kunjungan');
+            }
+        });
+    });
+
+    // Show canceled visits modal
+    let canceledTableInitialized = false;
+    $('#btn-show-canceled').on('click', function(){
+        $('#modalCanceledVisitations').modal('show');
+        if(!canceledTableInitialized){
+            $('#canceled-table').DataTable({
+                processing:true, serverSide:true, responsive:true,
+                ajax: '{{ route('erm.elab.canceled.list') }}',
+                order: [[2,'desc']],
+                columns:[
+                    {data:'no_rm', orderable:false, searchable:false},
+                    {data:'nama_pasien', orderable:false, searchable:false},
+                    {data:'tanggal_visitation', name:'tanggal_visitation'},
+                    {data:'metode_bayar', orderable:false, searchable:false},
+                    {data:'actions', orderable:false, searchable:false}
+                ]
+            });
+            canceledTableInitialized = true;
+        } else {
+            $('#canceled-table').DataTable().ajax.reload();
+        }
+    });
+
+    // Restore visitation
+    $(document).on('click', '.btn-restore-visitation', function(){
+        const id = $(this).data('id');
+        if(!confirm('Pulihkan kunjungan ini?')) return;
+        $.ajax({
+            url: '{{ route('erm.elab.visitation.restore', ['id' => '___ID___']) }}'.replace('___ID___', id),
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function(res){
+                // Reload both tables
+                table.ajax.reload(null,false);
+                if(canceledTableInitialized){
+                    $('#canceled-table').DataTable().ajax.reload(null,false);
+                }
+            },
+            error: function(xhr){
+                alert(xhr.responseJSON?.message || 'Gagal memulihkan kunjungan');
+            }
+        });
     });
 });
 </script>

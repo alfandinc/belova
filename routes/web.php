@@ -1229,6 +1229,16 @@ Route::get('/erm/dashboard/visitation-count', [App\Http\Controllers\ERMDashboard
 Route::get('/erm/dashboard/visitation-detail', [App\Http\Controllers\ERMDashboardController::class, 'visitationDetail'])->name('erm.dashboard.visitation-detail');
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
+// Cancel visitation (Lab index) - change status_kunjungan to 7
+Route::post('/erm/elab/visitation/{id}/cancel', [\App\Http\Controllers\ERM\ElabController::class, 'cancelVisitation'])
+    ->middleware('role:Lab|Admin')
+    ->name('erm.elab.visitation.cancel');
+Route::get('/erm/elab/canceled', [\App\Http\Controllers\ERM\ElabController::class, 'canceledList'])
+    ->middleware('role:Lab|Admin')
+    ->name('erm.elab.canceled.list');
+Route::post('/erm/elab/visitation/{id}/restore', [\App\Http\Controllers\ERM\ElabController::class, 'restoreVisitation'])
+    ->middleware('role:Lab|Admin')
+    ->name('erm.elab.visitation.restore');
 
 // ===================== MASTER LAB TEST & KATEGORI (AJAX CRUD) =====================
 // Dedicated group restricted to Lab & Admin roles only
