@@ -31,6 +31,16 @@
     <!--end logo-->
     <div class="menu-content h-100" data-simplebar>
         <ul class="metismenu left-sidenav-menu">
+            @php
+                try {
+                    $today = \Carbon\Carbon::today();
+                    $hariPentingTodayCount = \App\Models\Marketing\HariPenting::whereDate('start_date', '<=', $today)
+                        ->where(function($q) use ($today){
+                            $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today);
+                        })
+                        ->count();
+                } catch (Exception $e) { $hariPentingTodayCount = 0; }
+            @endphp
             <li class="menu-label mt-0">Main</li>
             <li>
                 <a href="/marketing/dashboard"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span></a>
@@ -58,6 +68,13 @@
             </li>
             <li>
                 <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span></a>
+            </li>
+            <li>
+                <a href="/marketing/hari-penting"> <i data-feather="star" class="align-self-center menu-icon"></i><span>Hari Penting</span>
+                    @if(!empty($hariPentingTodayCount))
+                        <span class="badge badge-danger ml-1" style="font-size:10px;">{{ $hariPentingTodayCount }}</span>
+                    @endif
+                </a>
             </li>
             <li>
                 <a href="/marketing/catatan-keluhan"> <i data-feather="alert-circle" class="align-self-center menu-icon"></i><span>Catatan Keluhan Customer</span></a>

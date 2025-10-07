@@ -1128,6 +1128,12 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician')->group
     Route::put('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'update'])->name('marketing.content-plan.update');
     Route::delete('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'destroy'])->name('marketing.content-plan.destroy');
 
+    // Hari Penting (Important Days) Calendar
+    Route::get('hari-penting', [\App\Http\Controllers\Marketing\HariPentingController::class, 'index'])->name('marketing.hari-penting.index');
+    Route::get('hari-penting/events', [\App\Http\Controllers\Marketing\HariPentingController::class, 'events'])->name('marketing.hari-penting.events');
+    Route::post('hari-penting/store', [\App\Http\Controllers\Marketing\HariPentingController::class, 'store'])->name('marketing.hari-penting.store');
+    Route::delete('hari-penting/{id}', [\App\Http\Controllers\Marketing\HariPentingController::class, 'destroy'])->name('marketing.hari-penting.destroy');
+
     // Catatan Keluhan Customer
     Route::get('catatan-keluhan', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'index'])->name('marketing.catatan-keluhan.index');
     Route::post('catatan-keluhan', [\App\Http\Controllers\Marketing\CatatanKeluhanController::class, 'store'])->name('marketing.catatan-keluhan.store');
