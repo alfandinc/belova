@@ -715,4 +715,36 @@ class FakturBeliController extends Controller
             'Content-Disposition' => 'inline; filename="FakturPembelian-' . $faktur->no_faktur . '.pdf"'
         ]);
     }
+
+    /**
+     * Stream bukti (proof) image securely from storage.
+     * This avoids direct /storage symlink access issues (403) and allows auth/role checks.
+     */
+    public function showBukti(FakturBeli $faktur)
+    {
+        // Optional: enforce authorization / role specific logic here if needed
+        if (!$faktur->bukti) {
+            abort(404, 'Bukti tidak tersedia');
+        }
+        if (!Storage::disk('public')->exists($faktur->bukti)) {
+            abort(404, 'File bukti tidak ditemukan');
+        }
+
+        // Determine mime type (fallback to image/jpeg)
+    // Determine mime type (Laravel version compatibility: use finfo if facade helper not available)
+    $fullPath = Storage::disk('public')->path($faktur->bukti);
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = $finfo ? finfo_file($finfo, $fullPath) : null;
+    if ($finfo) { finfo_close($finfo); }
+    $mime = $mime ?: 'image/jpeg';
+        $filename = basename($faktur->bukti);
+        $stream = Storage::disk('public')->readStream($faktur->bukti);
+        return response()->stream(function() use ($stream) {
+            fpassthru($stream);
+        }, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Cache-Control' => 'public, max-age=86400'
+        ]);
+    }
 }
