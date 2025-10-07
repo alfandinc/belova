@@ -1230,6 +1230,28 @@ Route::get('/erm/dashboard/visitation-detail', [App\Http\Controllers\ERMDashboar
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
 
+// ===================== MASTER LAB TEST & KATEGORI (AJAX CRUD) =====================
+// Dedicated group restricted to Lab & Admin roles only
+Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
+    // Index page (single page containing both tables & modals)
+    Route::get('/master-lab', [\App\Http\Controllers\ERM\LabTestController::class, 'index'])->name('erm.labtests.master');
+
+    // Data endpoints for DataTables
+    Route::get('/lab-tests/data', [\App\Http\Controllers\ERM\LabTestController::class, 'data'])->name('erm.labtests.data');
+    Route::get('/lab-kategories/data', [\App\Http\Controllers\ERM\LabKategoriController::class, 'data'])->name('erm.labkategories.data');
+
+    // Lab Kategori CRUD
+    Route::post('/lab-kategories', [\App\Http\Controllers\ERM\LabKategoriController::class, 'store'])->name('erm.labkategories.store');
+    Route::put('/lab-kategories/{id}', [\App\Http\Controllers\ERM\LabKategoriController::class, 'update'])->name('erm.labkategories.update');
+    Route::delete('/lab-kategories/{id}', [\App\Http\Controllers\ERM\LabKategoriController::class, 'destroy'])->name('erm.labkategories.destroy');
+
+    // Lab Test CRUD
+    Route::post('/lab-tests', [\App\Http\Controllers\ERM\LabTestController::class, 'store'])->name('erm.labtests.store');
+    Route::put('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'update'])->name('erm.labtests.update');
+    Route::delete('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'destroy'])->name('erm.labtests.destroy');
+});
+// ================================================================================
+
 // AJAX route for riwayat tindakan detail modal (obat substitution)
 Route::get('/erm/riwayat-tindakan/{id}/detail', [App\Http\Controllers\ERM\TindakanController::class, 'getRiwayatDetail']);
 // POST route for saving substituted obat

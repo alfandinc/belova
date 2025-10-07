@@ -41,6 +41,11 @@
                             <li>
                                 <a href="/erm/elab"><i data-feather="list" class="align-self-center menu-icon"></i><span>Kunjungan Lab</span></a>
                             </li>
+                            @hasanyrole('Lab|Admin')
+                            <li>
+                                <a href="{{ route('erm.labtests.master') }}"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Lab</span></a>
+                            </li>
+                            @endhasanyrole
                         </ul>
                     </li>
                     @endhasanyrole                  
