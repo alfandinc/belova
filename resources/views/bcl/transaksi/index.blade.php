@@ -60,8 +60,7 @@ $data = $data;
                             <?php
                             $no = 1;
                             if ($belum_lunas->count() > 0) {
-                                foreach ($belum_lunas as $value) {
-                            ?>
+                                foreach ($belum_lunas as $value) { ?>
                                     <tr>
                                         <td><?= $no ?></td>
                                         <td><?= $value->tanggal ?></td>
@@ -71,29 +70,22 @@ $data = $data;
                                         <td class="text-right">Rp <?= number_format($value->harga, 2) ?></td>
                                         <td class="text-right text-danger font-weight-bold">Rp <?= number_format($value->kurang, 2) ?></td>
                                     </tr>
-                                <?php
-                                    $no++;
-                                }
+                                <?php $no++; }
                             }
                             if ($belum_lunas_extra->count() > 0) {
-                                $total_jurnal = 0;
                                 foreach ($belum_lunas_extra as $value) {
-                                    $total_harga = $value->harga * $value->lama_sewa * $value->qty;
-                                ?>
+                                    $total_harga = $value->harga * $value->lama_sewa * $value->qty; ?>
                                     <tr>
                                         <td><?= $no ?></td>
                                         <td><?= $value->tgl_mulai ?></td>
                                         <td><?= $value->kode ?></td>
-                                        <td><?= 'Tambahan Sewa' ?></td>
+                                        <td>Tambahan Sewa</td>
                                         <td><?= $value->nama . ' ' . $value->lama_sewa . ' ' . $value->jangka_sewa . ' ' . $value->renter->nama ?></td>
                                         <td class="text-right">Rp <?= number_format($total_harga, 2) ?></td>
                                         <td class="text-right text-danger font-weight-bold">Rp <?= number_format($total_harga - ($value->total_kredit == null ? 0 : $value->total_kredit), 2) ?></td>
                                     </tr>
-                            <?php
-                                    $no++;
-                                }
-                            }
-                            ?>
+                                <?php $no++; }
+                            } ?>
                         </tbody>
                     </table>
                 </div>
@@ -169,6 +161,7 @@ $data = $data;
                                             <td class="text-right text-nowrap">Rp {{number_format($data->harga,2)}} <a href="#" style="padding: 1px 10px;" data-toggle="dropdown" class="btn btn-xs btn-primary dropdown-toggle"><i class="fas fa-ellipsis-v"></i></a>
                                                 <div class="dropdown-menu">
                                                     <a class="dropdown-item ubah_tgl_masuk" href="javascript:void(0)" data-trans="{{$data->trans_id}}"><i class="fas fa-calendar-alt"></i> Ubah Tgl. Masuk (Reschedule)</a>
+                                                    <a class="dropdown-item change_room" href="javascript:void(0)" data-trans="{{$data->trans_id}}" data-room="{{$data->room_id}}"><i class="fas fa-exchange-alt"></i> Pindah Kamar</a>
                                                     <a class="dropdown-item refund" href="javascript:void(0)" data-trans="{{$data->trans_id}}"><i class="fas fa-hand-holding-usd"></i> Refund Transaksi</a>
                                                     <a class="dropdown-item" href="{{route('bcl.transaksi.cetak',$data->trans_id)}}"><i class="fas fa-print"></i> Cetak Transaksi</a>
                                                     <div class="dropdown-divider"></div>
@@ -870,5 +863,274 @@ $data = $data;
         // allow other submit handlers to proceed
         return true;
     });
+
+    // Handle change room button click
+    $(document).on('click', '.change_room', function(e) {
+        e.preventDefault();
+        var transId = $(this).data('trans');
+        var currentRoomId = $(this).data('room');
+        
+        $('#change_room_trans_id').val(transId);
+        $('#current_room_id').val(currentRoomId);
+        
+        // Prevent selecting the current room
+        $('#new_room_id option').prop('disabled', false);
+        $('#new_room_id option[value="' + currentRoomId + '"]').prop('disabled', true);
+        
+        // Initialize inputmask for payment amount
+        if ($.fn.inputmask) {
+            $('#payment_amount').inputmask({
+                'alias': 'numeric',
+                'groupSeparator': '.',
+                'radixPoint': ',',
+                'autoGroup': true,
+                'digits': 2,
+                'digitsOptional': false,
+                'suffix': '',
+                'placeholder': '0'
+            });
+        }
+        
+        // Manually initialize the datepicker
+        if ($.fn.daterangepicker) {
+            $('#effective_date').daterangepicker({
+                singleDatePicker: true,
+                showDropdowns: true,
+                locale: { format: 'YYYY-MM-DD' },
+                autoApply: true
+            });
+            
+            // Set default date to today
+            $('#effective_date').val(moment().format('YYYY-MM-DD'));
+            
+            // Also initialize the payment date picker
+            $('#payment_date').daterangepicker({
+                singleDatePicker: true,
+                showDropdowns: true,
+                locale: { format: 'YYYY-MM-DD' },
+                autoApply: true
+            });
+            
+            // Set default date for payment
+            $('#payment_date').val(moment().format('YYYY-MM-DD'));
+        }
+        
+        // Open the modal after initialization
+        $('#md_change_room').modal('show');
+    });
+    
+    // Dynamic data for change room modal
+    let changeRoomData = { transaction: null, options: [] };
+
+    function loadChangeRoomOptions(transId){
+        return $.getJSON(`/bcl/transaksi/change-room/options/${transId}`);
+    }
+    function loadTransaction(transId){
+        return $.getJSON(`/bcl/transaksi/show/${transId}`);
+    }
+
+    function sumPaidJurnal(trx){
+        if(!trx || !trx.jurnal) return 0;
+        // kredit entries of identity 'Sewa Kamar' or 'Upgrade Kamar'
+        return trx.jurnal.filter(j=> (j.identity||'').toLowerCase().match(/sewa kamar|upgrade kamar/)).reduce((a,b)=> a + (parseFloat(b.kredit)||0),0);
+    }
+
+    function populateRoomSelect(){
+        const $sel = $('#new_room_id');
+        $sel.empty().append('<option value="">-- Pilih Kamar --</option>');
+        changeRoomData.options.forEach(opt=>{
+            if(!opt || !opt.price) return; // skip null
+            $sel.append(`<option data-price="${opt.price}" value="${opt.room.id}">${opt.room.name} - ${opt.room.category_name} (Rp ${formatNumber(opt.price)})</option>`);
+        });
+    }
+
+    function recalcPayment(){
+        if(!changeRoomData.transaction) return;
+    const trx = changeRoomData.transaction;
+        const lama = parseInt(trx.lama_sewa);
+        const jangka = (trx.jangka_sewa||'').toLowerCase();
+        const effective = moment($('#effective_date').val(), 'YYYY-MM-DD');
+        const start = moment(trx.tgl_mulai,'YYYY-MM-DD');
+        const end = moment(trx.tgl_selesai,'YYYY-MM-DD');
+        if(!effective.isValid()) return;
+
+        // elapsed units (floor) using effective - start (not start - effective)
+        let elapsed = 0;
+        if(effective.isSameOrAfter(start)){
+            switch(jangka){
+                case 'bulan':
+                    elapsed = effective.diff(start,'months');
+                    break;
+                case 'minggu':
+                    elapsed = effective.diff(start,'weeks');
+                    break;
+                case 'tahun':
+                    elapsed = effective.diff(start,'years');
+                    break;
+                case 'hari':
+                default:
+                    elapsed = effective.diff(start,'days');
+                    break;
+            }
+        }
+        if(elapsed < 0) elapsed = 0; // safety (shouldn't happen now)
+        if(elapsed > lama) elapsed = lama; // cap at contract length
+        const remaining = lama - elapsed;
+        const remainingPercent = lama>0? remaining/lama : 0;
+
+        // old full package price = trx.harga (stored)
+    const oldFull = parseFloat(trx.harga);
+    const alreadyPaid = sumPaidJurnal(trx);
+    const outstandingOld = Math.max(oldFull - alreadyPaid,0);
+        // new full package price from selected option
+        const sel = $('#new_room_id').find(':selected');
+        const newFull = parseFloat(sel.data('price')) || 0;
+        const diffFull = newFull - oldFull;
+        const payable = diffFull * remainingPercent; // upgrade if >0 else refund
+
+        // update UI
+        $('#old_package_price').text('Rp '+formatNumber(oldFull.toFixed(2)));
+        $('#new_package_price').text('Rp '+formatNumber(newFull.toFixed(2)));
+        $('#diff_full').text('Rp '+formatNumber(diffFull.toFixed(2)));
+        $('#total_units').text(lama+' '+trx.jangka_sewa);
+        $('#elapsed_units').text(elapsed+' '+trx.jangka_sewa);
+        $('#remaining_units').text(remaining+' '+trx.jangka_sewa);
+        $('#remaining_percent').text((remainingPercent*100).toFixed(1)+'%');
+        $('#payment_amount_text').text('Rp '+formatNumber(Math.abs(payable).toFixed(2)));
+        $('#old_total_package_text').text('Rp '+formatNumber(oldFull.toFixed(2)));
+        $('#already_paid_text').text('Rp '+formatNumber(alreadyPaid.toFixed(2)));
+        $('#outstanding_old_text').text('Rp '+formatNumber(outstandingOld.toFixed(2)));
+
+        // total due now logic:
+        // If upgrade: user must cover (outstandingOld + prorated upgrade)
+        // If downgrade: potential refund reduced by any outstanding (can't refund what they haven't paid) -> refundable = min(alreadyPaid, |payable|)
+        let totalDueNow = 0;
+        if(payable>0){
+            totalDueNow = outstandingOld + payable; // full remaining from old contract still unpaid + upgrade diff
+        }else if(payable<0){
+            const refundBase = Math.min(alreadyPaid, Math.abs(payable));
+            totalDueNow = -refundBase; // negative means refund
+        }else{ // no price diff
+            totalDueNow = outstandingOld; // still need to settle remaining of old package if any
+        }
+        const totalDueNowAbs = Math.abs(totalDueNow);
+        $('#total_due_now_text').text((totalDueNow<0? '- ':'')+'Rp '+formatNumber(totalDueNowAbs.toFixed(2)));
+        if(payable>0){
+            $('#payment_type_text').html('<span class="text-primary">Upgrade: bayar tambahan (belum termasuk tunggakan lama)</span>');
+            $('#payment_type_hidden').val('charge');
+        }else if(payable<0){
+            $('#payment_type_text').html('<span class="text-success">Downgrade: kemungkinan refund</span>');
+            $('#payment_type_hidden').val('refund');
+        }else{
+            $('#payment_type_text').html('<span class="text-muted">Tidak ada selisih paket</span>');
+            $('#payment_type_hidden').val('none');
+        }
+        $('#payment_amount_hidden').val(Math.abs(payable.toFixed(2)));
+        $('#payment_total_due_hidden').val(totalDueNow.toFixed(2));
+    }
+
+    // hook changes
+    $(document).on('change','#new_room_id',recalcPayment);
+    $(document).on('change','#effective_date',function(){
+        recalcPayment();
+    });
+
+    // Override open handler to load data first
+    $(document).off('click','.change_room').on('click','.change_room',function(e){
+        e.preventDefault();
+        const transId = $(this).data('trans');
+        $('#change_room_trans_id').val(transId);
+        $('#current_room_id').val($(this).data('room'));
+        $('#new_room_id').html('<option value="">Loading...</option>');
+        $('#md_change_room').modal('show');
+        // add hidden for total due if not present
+        if(!$('#payment_total_due_hidden').length){
+            $('#form_change_room').append('<input type="hidden" id="payment_total_due_hidden" name="payment_total_due" value="0" />');
+        }
+        $.when(loadTransaction(transId), loadChangeRoomOptions(transId)).done(function(trxRes, optRes){
+            changeRoomData.transaction = trxRes[0];
+            changeRoomData.options = optRes[0].rooms;
+            populateRoomSelect();
+            // init pickers if not already
+            if ($.fn.daterangepicker && !$('#effective_date').data('daterangepicker')){
+                $('#effective_date').daterangepicker({singleDatePicker:true,showDropdowns:true,locale:{format:'YYYY-MM-DD'},autoApply:true});
+                $('#payment_date').daterangepicker({singleDatePicker:true,showDropdowns:true,locale:{format:'YYYY-MM-DD'},autoApply:true});
+                $('#effective_date').val(moment().format('YYYY-MM-DD'));
+                $('#payment_date').val(moment().format('YYYY-MM-DD'));
+            }
+            recalcPayment();
+        }).fail(function(){
+            $('#new_room_id').html('<option value="">Gagal memuat opsi</option>');
+        });
+    });
+    
+    function formatNumber(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
 </script>
+
+<!-- Modal for Room Change -->
+<div class="modal fade" id="md_change_room" tabindex="-1" role="dialog" aria-labelledby="roomChangeModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h6 class="modal-title m-0 text-white" id="roomChangeModalLabel">Pindah Kamar</h6>
+                <button type="button" class="close " data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form action="{{route('bcl.transaksi.change_room')}}" method="POST">
+                @csrf
+                <div class="modal-body">
+                    <input type="hidden" name="trans_id" id="change_room_trans_id">
+                    <input type="hidden" name="current_room_id" id="current_room_id">
+                    
+                    <div class="form-group row">
+                        <div class="col-lg-12">
+                            <label for="new_room_id">Pilih Kamar Baru (Harga Paket {{isset($data[0])?$data[0]->lama_sewa:''}} {{isset($data[0])?$data[0]->jangka_sewa:''}})</label>
+                            <select name="new_room_id" id="new_room_id" class="form-control" required>
+                                <option value="">-- Loading opsi kamar --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <input type="hidden" name="payment_amount" id="payment_amount_hidden">
+                    <input type="hidden" name="payment_type" id="payment_type_hidden">
+                    
+                    <div class="form-group row">
+                        <div class="col-lg-12">
+                            <label for="effective_date">Tanggal Pindah Kamar</label>
+                            <input type="text" name="effective_date" id="effective_date" class="form-control datePicker" required placeholder="Pilih Tanggal">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group row">
+                        <div class="col-lg-12">
+                            <label for="payment_date">Tanggal Pembayaran/Refund</label>
+                            <input type="text" name="payment_date" id="payment_date" class="form-control datePicker" value="{{date('Y-m-d')}}">
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info payment-info">
+                        <p class="mb-1">Perhitungan berdasarkan paket penuh & proporsi sisa durasi.</p>
+                        <table class="table table-sm mb-2">
+                            <tr><td width="40%">Paket Lama</td><td id="old_package_price">Rp 0</td></tr>
+                            <tr><td>Paket Baru</td><td id="new_package_price">Rp 0</td></tr>
+                            <tr><td>Selisih Paket</td><td id="diff_full">Rp 0</td></tr>
+                            <tr><td>Durasi Total</td><td id="total_units">-</td></tr>
+                            <tr><td>Sudah Terpakai</td><td id="elapsed_units">-</td></tr>
+                            <tr><td>Sisa</td><td id="remaining_units">-</td></tr>
+                            <tr class="font-weight-bold"><td>Proporsi Sisa</td><td id="remaining_percent">0%</td></tr>
+                            <tr class="font-weight-bold"><td>Tagihan / Refund</td><td id="payment_amount_text">Rp 0</td></tr>
+                        </table>
+                        <div id="payment_type_text" class="mt-1 font-weight-bold"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @stop

@@ -12,6 +12,7 @@ use App\Models\BCL\tb_extra_rent;
 use App\Models\BCL\tr_renter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class tr_renterController extends Controller
@@ -414,5 +415,262 @@ class tr_renterController extends Controller
         });
 
         return response()->json($result);
+    }
+    
+    public function changeRoom(Request $request)
+    {
+        DB::beginTransaction();
+        try {
+            // Validate request
+            $this->validate($request, [
+                'trans_id' => 'required',
+                'new_room_id' => 'required',
+                'effective_date' => 'required|date',
+                'payment_date' => 'nullable|date',
+            ]);
+            
+            // Get current transaction and room details
+            $currentTransaction = tr_renter::where('trans_id', $request->trans_id)->first();
+            if (!$currentTransaction) {
+                return back()->with(['error' => 'Transaksi tidak ditemukan']);
+            }
+            
+            // Get the new room and price
+            $newRoom = Rooms::findOrFail($request->new_room_id);
+            
+            // Dates
+            $effectiveDate = Carbon::parse($request->effective_date);
+            $currentEndDate = Carbon::parse($currentTransaction->tgl_selesai);
+            $startDateOriginal = Carbon::parse($currentTransaction->tgl_mulai);
+
+            // Total units from original transaction
+            $totalUnits = (int) $currentTransaction->lama_sewa; // e.g. 6
+            $unitType = strtolower($currentTransaction->jangka_sewa); // Bulan / Minggu / Hari / Tahun
+
+            // Compute elapsed units (floor) based on effectiveDate relative to start
+            if ($effectiveDate->lessThanOrEqualTo($startDateOriginal)) {
+                $elapsedUnits = 0;
+            } else {
+                switch ($unitType) {
+                    case 'bulan':
+                        $elapsedUnits = $startDateOriginal->diffInMonths(min($effectiveDate, $currentEndDate));
+                        break;
+                    case 'minggu':
+                        $elapsedUnits = $startDateOriginal->diffInWeeks(min($effectiveDate, $currentEndDate));
+                        break;
+                    case 'tahun':
+                        $elapsedUnits = $startDateOriginal->diffInYears(min($effectiveDate, $currentEndDate));
+                        break;
+                    case 'hari':
+                    default:
+                        $elapsedUnits = $startDateOriginal->diffInDays(min($effectiveDate, $currentEndDate));
+                        break;
+                }
+            }
+            if ($elapsedUnits > $totalUnits) $elapsedUnits = $totalUnits; // clamp
+            $remainingUnits = $totalUnits - $elapsedUnits;
+            if ($remainingUnits < 0) $remainingUnits = 0;
+            // Remaining percent of rental period
+            $remainingPercent = $totalUnits > 0 ? $remainingUnits / $totalUnits : 0;
+            
+            // Create a transaction ID for the room change
+            $changeTransId = $this->get_no_trans();
+            
+            // End the current rental on the effective date (one day before the new rental starts)
+            $currentTransaction->update([
+                'tgl_selesai' => $effectiveDate->copy()->subDay()->format('Y-m-d')
+            ]);
+            
+            // Get the pricelist for the new room with SAME duration (lama_sewa + jangka_sewa)
+            $newPricelist = Pricelist::where('room_category', $newRoom->room_category)
+                ->where('jangka_waktu', (int)$currentTransaction->lama_sewa)
+                ->whereRaw('LOWER(jangka_sewa) = ?', [strtolower($currentTransaction->jangka_sewa)])
+                ->first();
+            if (!$newPricelist) {
+                DB::rollBack();
+                return back()->with(['error' => 'Harga kamar baru (durasi sama) tidak ditemukan']);
+            }
+            
+            // Get the pricelist for the current room
+            $oldRoom = Rooms::findOrFail($currentTransaction->room_id);
+            $oldPricelist = Pricelist::where('room_category', $oldRoom->room_category)
+                ->where('jangka_waktu', (int)$currentTransaction->lama_sewa)
+                ->whereRaw('LOWER(jangka_sewa) = ?', [strtolower($currentTransaction->jangka_sewa)])
+                ->first();
+            if (!$oldPricelist) {
+                DB::rollBack();
+                return back()->with(['error' => 'Harga kamar lama tidak ditemukan']);
+            }
+            
+            // Full-period price difference (e.g. 6-month package new - old)
+            $priceDifferenceFull = $newPricelist->price - $oldPricelist->price;
+            // Payment only on remaining proportion
+            $paymentAmount = $priceDifferenceFull * $remainingPercent;
+            $paymentType = $paymentAmount > 0 ? 'charge' : 'refund';
+            $paymentAmount = abs($paymentAmount);
+            
+            // Create new rental transaction starting from effective date
+            $newTransaction = tr_renter::create([
+                'trans_id' => $changeTransId,
+                'identity' => 'Pindah Kamar',
+                'id_renter' => $currentTransaction->id_renter,
+                'tanggal' => date('Y-m-d'),
+                'tgl_mulai' => $effectiveDate->format('Y-m-d'),
+                'tgl_selesai' => $currentEndDate->format('Y-m-d'),
+                'tgl_selesai' => $currentEndDate->format('Y-m-d'), // keep same overall end date
+                'room_id' => $request->new_room_id,
+                'lama_sewa' => $remainingUnits,
+                'jangka_sewa' => $currentTransaction->jangka_sewa,
+                // store pro-rated remaining value for new room
+                'harga' => round($newPricelist->price * $remainingPercent, 2),
+            ]);
+            
+            // Handle financial adjustments (if any)
+            $renter = renter::findorfail($currentTransaction->id_renter);
+            
+            if ($paymentAmount > 0) {
+                $no_jurnal = app(ControllersFinJurnalController::class)->get_no_jurnal();
+                
+                if ($paymentType == 'charge') {
+                    // Additional payment required (upgrade)
+                    Fin_jurnal::create([
+                        'no_jurnal' => $no_jurnal,
+                        'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                        'kode_akun' => '4-10101',
+                        'debet' => 0,
+                        'kredit' => $paymentAmount,
+                        'kode_subledger' => $currentTransaction->id_renter,
+                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'doc_id' => $changeTransId,
+                        'identity' => 'Upgrade Kamar',
+                        'pos' => 'K',
+                        'user_id' => Auth::id(),
+                        'csrf' => time()
+                    ]);
+                    
+                    Fin_jurnal::create([
+                        'no_jurnal' => $no_jurnal,
+                        'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                        'kode_akun' => '1-10101',
+                        'debet' => $paymentAmount,
+                        'kredit' => 0,
+                        'kode_subledger' => null,
+                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'doc_id' => $changeTransId,
+                        'identity' => 'Upgrade Kamar',
+                        'pos' => 'D',
+                        'user_id' => Auth::id(),
+                        'csrf' => time()
+                    ]);
+                } else {
+                    // Refund (downgrade)
+                    $no_exp = app(ControllersFinJurnalController::class)->get_no_exp();
+                    
+                    Fin_jurnal::create([
+                        'no_jurnal' => $no_jurnal,
+                        'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                        'kode_akun' => '1-10101',
+                        'debet' => 0,
+                        'kredit' => $paymentAmount,
+                        'kode_subledger' => null,
+                        'catatan' => 'Refund downgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format(abs($priceDifferenceFull), 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'index_kas' => 0,
+                        'doc_id' => $no_exp,
+                        'identity' => 'Downgrade Kamar',
+                        'pos' => 'K',
+                        'user_id' => Auth::id(),
+                        'csrf' => time()
+                    ]);
+                    
+                    Fin_jurnal::create([
+                        'no_jurnal' => $no_jurnal,
+                        'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                        'kode_akun' => '5-10102',
+                        'debet' => $paymentAmount,
+                        'kredit' => 0,
+                        'kode_subledger' => null,
+                        'catatan' => 'Refund downgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format(abs($priceDifferenceFull), 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'index_kas' => 0,
+                        'doc_id' => $no_exp,
+                        'identity' => 'Downgrade Kamar',
+                        'pos' => 'D',
+                        'user_id' => Auth::id(),
+                        'csrf' => time()
+                    ]);
+                }
+            }
+            
+            DB::commit();
+            return back()->with(['success' => 'Pindah kamar berhasil dilakukan']);
+            
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return back()->with(['error' => $th->getMessage()]);
+        }
+    }
+
+    /**
+     * Provide list of available rooms with price matching the current transaction duration.
+     * Route param {id} = trans_id of existing rental.
+     * Returns JSON: { current: {...}, rooms: [ {room:{}, price, pricelist_id} ], meta:{lama_sewa, jangka_sewa} }
+     */
+    public function changeRoomOptions($id)
+    {
+        $trx = tr_renter::with('room')->where('trans_id', $id)->first();
+        if(!$trx){
+            return response()->json(['error'=>'Transaksi tidak ditemukan'],404);
+        }
+
+        $lama = $trx->lama_sewa;            // e.g. 6
+        $jangka = $trx->jangka_sewa;        // e.g. Bulan
+
+        // Map jangka_sewa to pricelist jangka_waktu + jangka_sewa fields
+        $rooms = Rooms::with('category')
+            ->with(['renter'=>function($q){ /* already filters active renter in model */ }])
+            ->get()
+            ->filter(function($r) use ($trx){
+                // exclude current active room and any occupied room (has renter relation result)
+                return ($r->id !== $trx->room_id) && !$r->renter; 
+            })
+            ->values();
+
+        // For each room find pricelist with same duration (lama & jangka)
+        $result = $rooms->map(function($room) use ($lama, $jangka){
+            $pl = Pricelist::where('room_category', $room->room_category)
+                ->where('jangka_waktu', $lama)
+                ->whereRaw('LOWER(jangka_sewa)=?', [strtolower($jangka)])
+                ->first();
+            if(!$pl){
+                return null; // skip if no matching duration price
+            }
+            return [
+                'room'=>[
+                    'id'=>$room->id,
+                    'name'=>$room->room_name,
+                    'category_name'=>$room->category->category_name ?? null,
+                ],
+                'price'=>$pl->price,
+                'pricelist_id'=>$pl->id,
+            ];
+        })->filter()->values();
+
+        return response()->json([
+            'current'=>[
+                'trans_id'=>$trx->trans_id,
+                'room_id'=>$trx->room_id,
+                'lama_sewa'=>$lama,
+                'jangka_sewa'=>$jangka,
+                'harga'=>$trx->harga,
+                'tgl_mulai'=>$trx->tgl_mulai,
+                'tgl_selesai'=>$trx->tgl_selesai,
+            ],
+            'rooms'=>$result,
+            'meta'=>[
+                'lama_sewa'=>$lama,
+                'jangka_sewa'=>$jangka
+            ]
+        ]);
     }
 }

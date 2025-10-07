@@ -221,6 +221,9 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/transaksi/delete/{id}', [tr_renterController::class, 'destroy'])->name('bcl.transaksi.delete');
     Route::post('/transaksi/refund', [tr_renterController::class, 'refund'])->name('bcl.transaksi.refund');
     Route::post('/transaksi/reschedule', [tr_renterController::class, 'reschedule'])->name('bcl.transaksi.reschedule');
+    Route::post('/transaksi/change-room', [tr_renterController::class, 'changeRoom'])->name('bcl.transaksi.change_room');
+    // AJAX: list available target rooms with price matching current transaction duration
+    Route::get('/transaksi/change-room/options/{id}', [tr_renterController::class, 'changeRoomOptions'])->name('bcl.transaksi.change_room.options');
     Route::get('/transaksi/cetak/{id}', [tr_renterController::class, 'cetak'])->name('bcl.transaksi.cetak');
     Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
     // Room Wifi management (AJAX + Datatables)
