@@ -34,9 +34,15 @@
             @php
                 try {
                     $today = \Carbon\Carbon::today();
-                    $hariPentingTodayCount = \App\Models\Marketing\HariPenting::whereDate('start_date', '<=', $today)
-                        ->where(function($q) use ($today){
-                            $q->whereNull('end_date')->orWhereDate('end_date', '>=', $today);
+                    $hariPentingTodayCount = \App\Models\Marketing\HariPenting::where(function($q) use ($today){
+                            // Single day events: start_date == today
+                            $q->where(function($q2) use ($today){
+                                $q2->whereDate('start_date', $today)->whereNull('end_date');
+                            })
+                            // Multi-day span: start_date <= today <= end_date
+                            ->orWhere(function($q2) use ($today){
+                                $q2->whereDate('start_date','<=',$today)->whereDate('end_date','>=',$today);
+                            });
                         })
                         ->count();
                 } catch (Exception $e) { $hariPentingTodayCount = 0; }

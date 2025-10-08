@@ -159,9 +159,13 @@
         if(auth()->check() && request()->is('marketing*') && auth()->user()->hasRole('Marketing')) {
             try {
                 $today = \Carbon\Carbon::today();
-                $hariPentingToday = \App\Models\Marketing\HariPenting::whereDate('start_date','<=',$today)
-                    ->where(function($q) use ($today){
-                        $q->whereNull('end_date')->orWhereDate('end_date','>=',$today);
+                $hariPentingToday = \App\Models\Marketing\HariPenting::where(function($q) use ($today){
+                        $q->where(function($q2) use ($today){
+                            $q2->whereDate('start_date',$today)->whereNull('end_date');
+                        })
+                        ->orWhere(function($q2) use ($today){
+                            $q2->whereDate('start_date','<=',$today)->whereDate('end_date','>=',$today);
+                        });
                     })
                     ->orderBy('start_date')
                     ->get();
