@@ -151,5 +151,50 @@
 
     @yield('scripts')
     @stack('scripts')  <!-- Add this line -->
+
+    @php
+        // Show popup only for Marketing role on marketing pages
+        $showHariPentingPopup = false;
+        $hariPentingToday = collect();
+        if(auth()->check() && request()->is('marketing*') && auth()->user()->hasRole('Marketing')) {
+            try {
+                $today = \Carbon\Carbon::today();
+                $hariPentingToday = \App\Models\Marketing\HariPenting::whereDate('start_date','<=',$today)
+                    ->where(function($q) use ($today){
+                        $q->whereNull('end_date')->orWhereDate('end_date','>=',$today);
+                    })
+                    ->orderBy('start_date')
+                    ->get();
+                $showHariPentingPopup = $hariPentingToday->count() > 0;
+            } catch (Exception $e) { $showHariPentingPopup = false; }
+        }
+    @endphp
+    @if($showHariPentingPopup)
+        @php
+            $todayListHtml = '<ul style="padding-left:18px;text-align:left;">';
+            foreach($hariPentingToday as $hp){
+                $title = e($hp->title);
+                $desc = $hp->description ? e(Str::limit($hp->description,120)) : '';
+                $range = $hp->end_date ? $hp->start_date->format('d M') . ' - ' . $hp->end_date->format('d M') : $hp->start_date->format('d M');
+                $todayListHtml .= '<li><strong>'.$title.'</strong> <span style="color:#888;">('.$range.')</span>'.($desc?'<br><small>'.$desc.'</small>':'').'</li>';
+            }
+            $todayListHtml .= '</ul>';
+        @endphp
+        <script>
+        document.addEventListener('DOMContentLoaded', function(){
+            var key = 'hariPentingAlertShown_{{ now()->toDateString() }}';
+            if(!sessionStorage.getItem(key)){
+                Swal.fire({
+                    title: 'Hari Penting Hari Ini',
+                    html: @json($todayListHtml),
+                    icon: 'info',
+                    confirmButtonText: 'OK',
+                    width: 600
+                });
+                sessionStorage.setItem(key,'1');
+            }
+        });
+        </script>
+    @endif
 </body>
 </html>
