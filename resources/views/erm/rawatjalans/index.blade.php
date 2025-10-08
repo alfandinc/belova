@@ -63,6 +63,81 @@
         font-size: 1.5rem;
     }
 }
+
+/* =============================
+   Compact Statistic Card Tweaks
+   ============================= */
+.row.mb-4 > [class*='col-'] { /* tighten bottom margin between cards */
+    margin-bottom: .75rem !important;
+}
+.stat-card { 
+    border-width: 1px !important; 
+    border-radius: 8px !important; 
+}
+.stat-card .card-body { 
+    padding: .55rem .65rem !important; 
+}
+.stat-card .stat-icon { 
+    width: 34px !important; 
+    height: 34px !important; 
+    font-size: 14px; 
+}
+.stat-card .stat-number { 
+    font-size: 1.25rem !important; 
+    font-weight: 600; 
+}
+.stat-card h6 { 
+    font-size: .70rem; 
+    letter-spacing: .25px; 
+    margin-bottom: .15rem !important; 
+    text-transform: uppercase; 
+}
+/* Slightly reduce hover lift & shadow for compact look */
+.stat-card:hover { 
+    transform: translateY(-1px); 
+    box-shadow: 0 4px 14px rgba(0,0,0,.12) !important; 
+}
+@media (max-width: 992px) { /* medium */
+    .stat-card .stat-number { font-size: 1.15rem !important; }
+}
+@media (max-width: 576px) { /* phones */
+    .stat-card .card-body { padding: .5rem .6rem !important; }
+    .stat-card .stat-icon { width: 30px !important; height: 30px !important; }
+    .stat-card .stat-number { font-size: 1.05rem !important; }
+}
+
+/* =============================
+   7-Column Responsive Layout
+   ============================= */
+.stats-row { /* custom flexible container */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px; /* consistent spacing */
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+.stats-row .stat-col { /* 7 columns on very large screens */
+    flex: 1 1 calc(14.285% - 8px);
+    max-width: calc(14.285% - 8px);
+}
+@media (max-width: 1600px) { /* fallback gracefully if narrower */
+    .stats-row .stat-col { flex: 1 1 calc(16.666% - 8px); max-width: calc(16.666% - 8px); }
+}
+@media (max-width: 1400px) { /* 6 -> 5 */
+    .stats-row .stat-col { flex: 1 1 calc(20% - 8px); max-width: calc(20% - 8px); }
+}
+@media (max-width: 1200px) { /* 5 -> 4 */
+    .stats-row .stat-col { flex: 1 1 calc(25% - 8px); max-width: calc(25% - 8px); }
+}
+@media (max-width: 992px) { /* 4 -> 3 */
+    .stats-row .stat-col { flex: 1 1 calc(33.333% - 8px); max-width: calc(33.333% - 8px); }
+}
+@media (max-width: 768px) { /* 3 -> 2 */
+    .stats-row .stat-col { flex: 1 1 calc(50% - 8px); max-width: calc(50% - 8px); }
+}
+@media (max-width: 480px) { /* 2 -> 1 */
+    .stats-row .stat-col { flex: 1 1 100%; max-width: 100%; }
+}
 </style>
 
 @include('erm.partials.modal-reschedule')
@@ -694,8 +769,8 @@ Terima kasih.
     </div>
     @endif
     <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+    <div class="row mb-4 stats-row">
+        <div class="stat-col">
             <div class="card shadow-sm stat-card stat-card-clickable" data-status="total" style="border: 2px solid #007bff; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
@@ -705,14 +780,14 @@ Terima kasih.
                             </div>
                         </div>
                         <div class="flex-fill">
-                            <h6 class="mb-1 font-weight-bold text-muted">Total Kunjungan</h6>
+                            <h6 class="mb-1 font-weight-bold text-muted">Total Visit</h6>
                             <h4 class="mb-0 text-primary stat-number" id="stat-total">{{ $stats['total'] }}</h4>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <div class="stat-col">
             <div class="card shadow-sm stat-card stat-card-clickable" data-status="belum_diperiksa" style="border: 2px solid #ffc107; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
@@ -729,7 +804,7 @@ Terima kasih.
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <div class="stat-col">
             <div class="card shadow-sm stat-card stat-card-clickable" data-status="sudah_diperiksa" style="border: 2px solid #28a745; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
@@ -746,7 +821,7 @@ Terima kasih.
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <div class="stat-col">
             <div class="card shadow-sm stat-card stat-card-clickable" data-status="tidak_datang" style="border: 2px solid #17a2b8; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
@@ -763,7 +838,7 @@ Terima kasih.
                 </div>
             </div>
         </div>
-        <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+        <div class="stat-col">
             <div class="card shadow-sm stat-card stat-card-clickable" data-status="dibatalkan" style="border: 2px solid #dc3545; border-radius: 10px; cursor:pointer;">
                 <div class="card-body p-3">
                     <div class="d-flex align-items-center">
@@ -780,7 +855,7 @@ Terima kasih.
                 </div>
             </div>
         </div>
-            <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
+            <div class="stat-col">
                 <div class="card shadow-sm stat-card stat-card-clickable" data-status="rujuk" style="border: 2px solid #6f42c1; border-radius: 10px; cursor:pointer;">
                     <div class="card-body p-3">
                         <div class="d-flex align-items-center">
@@ -790,13 +865,69 @@ Terima kasih.
                                 </div>
                             </div>
                             <div class="flex-fill">
-                                <h6 class="mb-1 font-weight-bold text-muted">Pasien Rujuk/Konsultasi</h6>
+                                <h6 class="mb-1 font-weight-bold text-muted">Rujuk/Konsultasi</h6>
                                 <h4 class="mb-0 text-dark stat-number" id="stat-rujuk">{{ $stats['rujuk'] ?? 0 }}</h4>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+        <div class="stat-col">
+            <div class="card shadow-sm stat-card stat-card-clickable" data-status="lab_permintaan" style="border: 2px solid #20c997; border-radius: 10px; cursor:pointer;">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center stat-icon" style="width:48px;height:48px;background:linear-gradient(135deg,#20c997,#0d8865);">
+                                <i class="fas fa-vials text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-fill">
+                            <h6 class="mb-1 font-weight-bold text-muted">Permintaan Lab</h6>
+                            <h4 class="mb-0 text-teal stat-number" id="stat-lab-permintaan">{{ $stats['lab_permintaan'] ?? 0 }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+            <!-- 7th Card Template (duplicate & adjust as needed) -->
+            <!--
+            <div class="stat-col">
+                <div class="card shadow-sm stat-card stat-card-clickable" data-status="baru" style="border: 2px solid #0d6efd; border-radius: 10px; cursor:pointer;">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center">
+                            <div class="mr-3">
+                                <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center stat-icon">
+                                    <i class="fas fa-star text-white"></i>
+                                </div>
+                            </div>
+                            <div class="flex-fill">
+                                <h6 class="mb-1 font-weight-bold text-muted">Label Baru</h6>
+                                <h4 class="mb-0 text-primary stat-number" id="stat-baru">0</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            -->
+    </div>
+
+    <!-- Modal: Lab Permintaan List -->
+    <div class="modal fade" id="modalLabPermintaanList" tabindex="-1" role="dialog" aria-labelledby="modalLabPermintaanListTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-teal text-white" style="background:#109e7d;">
+                    <h5 class="modal-title" id="modalLabPermintaanListTitle"><i class="fas fa-vials mr-2"></i>Permintaan Lab</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="lab-permintaan-list-content">
+                        <div class="text-center"><span class="spinner-border"></span> Memuat data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
         <!-- Modal for Rujuk List -->
@@ -1148,7 +1279,7 @@ var userRole = "{{ $role }}";
         let endDate = $('#filter_end_date').val();
         let filterDokter = $('#filter_dokter').val();
         let filterKlinik = $('#filter_klinik').val();
-        // If user clicked the new 'rujuk' stat, fetch rujuk list and show rujuk modal only
+        // If user clicked the 'rujuk' stat, fetch rujuk list and show rujuk modal only
         if (status === 'rujuk') {
             $('#modalRujukList').modal('show');
             $('#rujuk-list-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat data...</div>');
@@ -1178,6 +1309,72 @@ var userRole = "{{ $role }}";
                 },
                 error: function() {
                     $('#rujuk-list-content').html('<div class="text-danger text-center">Gagal memuat data rujuk.</div>');
+                }
+            });
+            return;
+            return;
+        }
+
+        // Lab permintaan modal
+        if (status === 'lab_permintaan') {
+            $('#modalLabPermintaanList').modal('show');
+            $('#lab-permintaan-list-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat data...</div>');
+            $.ajax({
+                url: '{{ route("erm.rawatjalans.labpermintaan") }}',
+                method: 'GET',
+                data: {
+                    start_date: startDate,
+                    end_date: endDate,
+                    dokter_id: filterDokter,
+                    klinik_id: filterKlinik
+                },
+                success: function(res3) {
+                    if (res3.data && res3.data.length) {
+                        let html = '<table class="table table-bordered table-sm"><thead><tr>' +
+                                   '<th>Waktu Diminta</th><th>Pasien</th><th>Pemeriksaan</th><th>Status</th><th>Diproses</th><th>Selesai</th><th>Durasi Proses</th>' +
+                                   '</tr></thead><tbody>';
+                        res3.data.forEach(function(item){
+                            (item.lab_tests || []).forEach(function(t, idx){
+                                const s = (t.status || '-');
+                                const badgeClass = s === 'completed' ? 'badge-success' : (s === 'requested' ? 'badge-info' : 'badge-secondary');
+                                const processedAt = t.processed_at || '-';
+                                const completedAt = t.completed_at || '-';
+
+                                // Recompute duration simply: completed - processed
+                                let dur = '-';
+                                if (processedAt !== '-' && completedAt !== '-') {
+                                    // Parse timestamps (YYYY-MM-DD HH:MM:SS)
+                                    const p = new Date(processedAt.replace(' ', 'T'));
+                                    const c = new Date(completedAt.replace(' ', 'T'));
+                                    if (!isNaN(p.getTime()) && !isNaN(c.getTime()) && c.getTime() >= p.getTime()) {
+                                        const diffSec = Math.floor((c.getTime() - p.getTime()) / 1000);
+                                        const m = Math.floor(diffSec / 60);
+                                        const sRemain = diffSec % 60;
+                                        dur = m > 0 ? (m + 'm' + (sRemain ? ' ' + sRemain + 's' : '')) : (sRemain + 's');
+                                    } else {
+                                        dur = '0s';
+                                    }
+                                }
+
+                                html += '<tr>' +
+                                    '<td>' + (idx === 0 ? (item.created_at || '-') : '') + '</td>' +
+                                    '<td>' + (idx === 0 ? (item.pasien || '-') : '') + '</td>' +
+                                    '<td>' + t.name + '</td>' +
+                                    '<td><span class="badge ' + badgeClass + '">' + s + '</span></td>' +
+                                    '<td>' + processedAt + '</td>' +
+                                    '<td>' + completedAt + '</td>' +
+                                    '<td>' + dur + '</td>' +
+                                '</tr>';
+                            });
+                        });
+                        html += '</tbody></table>';
+                        $('#lab-permintaan-list-content').html(html);
+                    } else {
+                        $('#lab-permintaan-list-content').html('<div class="text-center">Tidak ada permintaan lab.</div>');
+                    }
+                },
+                error: function() {
+                    $('#lab-permintaan-list-content').html('<div class="text-danger text-center">Gagal memuat data permintaan lab.</div>');
                 }
             });
             return;
@@ -1322,6 +1519,9 @@ function updateStats() {
         $('#stat-belum-diperiksa').text(stats.belum_diperiksa);
         $('#stat-sudah-diperiksa').text(stats.sudah_diperiksa);
         $('#stat-dibatalkan').text(stats.dibatalkan);
+        if (typeof stats.lab_permintaan !== 'undefined') {
+            $('#stat-lab-permintaan').text(stats.lab_permintaan);
+        }
     }).fail(function(jqXHR, textStatus, errorThrown) {
         console.error('Failed to update statistics', textStatus, errorThrown, jqXHR);
     });

@@ -11,6 +11,7 @@ use App\Models\ERM\Dokter;
 use App\Models\ERM\Klinik;
 use App\Models\ERM\ScreeningBatuk;
 use App\Models\ERM\Rujuk;
+use App\Models\ERM\LabPermintaan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -401,6 +402,20 @@ class RawatJalanController extends Controller
                     });
                 }
 
+                // Lab permintaan count within same date range & filters
+                $labQuery = LabPermintaan::whereHas('visitation', function($q) use ($start, $end) {
+                    $q->whereDate('tanggal_visitation', '>=', $start)
+                      ->whereDate('tanggal_visitation', '<=', $end);
+                });
+                if ($dokterFilter) {
+                    $labQuery->where('dokter_id', $dokterFilter);
+                }
+                if ($klinikFilter) {
+                    $labQuery->whereHas('visitation', function($q) use ($klinikFilter) {
+                        $q->where('klinik_id', $klinikFilter);
+                    });
+                }
+
                 return [
                     'total' => $row->total ?? 0,
                     'tidak_datang' => $row->tidak_datang ?? 0,
@@ -408,6 +423,7 @@ class RawatJalanController extends Controller
                     'sudah_diperiksa' => $row->sudah_diperiksa ?? 0,
                     'dibatalkan' => $row->dibatalkan ?? 0,
                     'rujuk' => $rujukQuery->count(),
+                    'lab_permintaan' => $labQuery->count(),
                 ];
             });
 
@@ -448,7 +464,7 @@ class RawatJalanController extends Controller
         // Create cache key based on filters
         $cacheKey = 'getstats_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all');
 
-        $stats = Cache::remember($cacheKey, 5, function() use ($start, $end, $dokterFilter, $klinikFilter) {
+    $stats = Cache::remember($cacheKey, 5, function() use ($start, $end, $dokterFilter, $klinikFilter) {
             $query = DB::table('erm_visitations')
                 ->selectRaw(
                     "COUNT(*) as total,
@@ -484,6 +500,20 @@ class RawatJalanController extends Controller
                 });
             }
 
+            // Lab permintaan count honoring same filters (date range + dokter + klinik)
+            $labQuery = LabPermintaan::whereHas('visitation', function($q) use ($start, $end) {
+                $q->whereDate('tanggal_visitation', '>=', $start)
+                  ->whereDate('tanggal_visitation', '<=', $end);
+            });
+            if ($dokterFilter) {
+                $labQuery->where('dokter_id', $dokterFilter);
+            }
+            if ($klinikFilter) {
+                $labQuery->whereHas('visitation', function($q) use ($klinikFilter) {
+                    $q->where('klinik_id', $klinikFilter);
+                });
+            }
+
             return [
                 'total' => $row->total ?? 0,
                 'tidak_datang' => $row->tidak_datang ?? 0,
@@ -491,6 +521,7 @@ class RawatJalanController extends Controller
                 'sudah_diperiksa' => $row->sudah_diperiksa ?? 0,
                 'dibatalkan' => $row->dibatalkan ?? 0,
                 'rujuk' => $rujukQuery->count(),
+                'lab_permintaan' => $labQuery->count(),
             ];
         });
 
@@ -552,6 +583,109 @@ class RawatJalanController extends Controller
         $rujuks = $query->get();
 
         return response()->json(['data' => $rujuks]);
+    }
+
+    /**
+     * Return list of Lab Permintaan (lab requests) for the stats modal
+     */
+    public function listLabPermintaan(Request $request)
+    {
+        try {
+            $start = $request->start_date ?: now()->format('Y-m-d');
+            $end = $request->end_date ?: $start;
+            $dokterFilter = $request->dokter_id;
+            $klinikFilter = $request->klinik_id;
+
+            $query = LabPermintaan::with([
+                'visitation:id,pasien_id,dokter_id,klinik_id,tanggal_visitation,no_antrian',
+                'visitation.pasien:id,nama',
+                'labTest:id,nama',
+                'dokter.user:id,name'
+            ])->whereHas('visitation', function($q) use ($start, $end) {
+                $q->whereDate('tanggal_visitation', '>=', $start)
+                  ->whereDate('tanggal_visitation', '<=', $end);
+            });
+
+            if ($dokterFilter) {
+                $query->where('dokter_id', $dokterFilter);
+            }
+            if ($klinikFilter) {
+                $query->whereHas('visitation', function($q) use ($klinikFilter) {
+                    $q->where('klinik_id', $klinikFilter);
+                });
+            }
+
+            $labsRaw = $query->orderBy('created_at','desc')->get();
+
+            // Group by visitation_id
+            $grouped = $labsRaw->groupBy('visitation_id')->map(function($collection) {
+                $first = $collection->first();
+                $tests = $collection->map(function($l){
+                    // Processing duration per test
+                    $processMinutes = null; $processSeconds = null; $processHuman = null;
+                    if ($l->processed_at && $l->completed_at) {
+                        $processSeconds = $l->completed_at->diffInSeconds($l->processed_at);
+                        $processMinutes = (int) floor($processSeconds / 60);
+                        // human friendly (e.g. "2m 15s" or "35s")
+                        $remaining = $processSeconds % 60;
+                        if ($processMinutes > 0) {
+                            $processHuman = $processMinutes . 'm' . ($remaining ? ' ' . $remaining . 's' : '');
+                        } else {
+                            $processHuman = $remaining . 's';
+                        }
+                    }
+                    return [
+                        'name' => $l->labTest?->nama ?? '-',
+                        'status' => $l->status ?? '-',
+                        'processed_at' => optional($l->processed_at)->format('Y-m-d H:i:s'),
+                        'completed_at' => optional($l->completed_at)->format('Y-m-d H:i:s'),
+                        'process_time_minutes' => $processMinutes,
+                        'process_time_seconds' => $processSeconds,
+                        'process_time_human' => $processHuman,
+                    ];
+                })->values();
+                $statuses = $collection->map(function($l){ return $l->status ?? '-'; })->unique()->values(); // kept if needed for other views
+
+                // Aggregate earliest processed and latest completed for visitation scope (optional UI usage)
+                $earliestProcessed = $collection->filter(fn($l) => $l->processed_at)->min('processed_at');
+                $latestCompleted = $collection->filter(fn($l) => $l->completed_at)->max('completed_at');
+                $aggregateProcessMinutes = null; $aggregateProcessSeconds = null; $aggregateProcessHuman = null;
+                if ($earliestProcessed && $latestCompleted) {
+                    $aggregateProcessSeconds = $latestCompleted->diffInSeconds($earliestProcessed);
+                    $aggregateProcessMinutes = (int) floor($aggregateProcessSeconds / 60);
+                    $remainingAgg = $aggregateProcessSeconds % 60;
+                    if ($aggregateProcessMinutes > 0) {
+                        $aggregateProcessHuman = $aggregateProcessMinutes . 'm' . ($remainingAgg ? ' ' . $remainingAgg . 's' : '');
+                    } else {
+                        $aggregateProcessHuman = $remainingAgg . 's';
+                    }
+                }
+
+                return [
+                    'visitation_id' => $first->visitation_id,
+                    'pasien' => $first->visitation?->pasien?->nama ?? '-',
+                    'lab_tests' => $tests,
+                    'statuses' => $statuses, // legacy aggregate
+                    'dokter' => $first->dokter?->user?->name ?? '-',
+                    'tanggal' => optional($first->visitation)->tanggal_visitation,
+                    'no_antrian' => optional($first->visitation)->no_antrian,
+                    'created_at' => optional($first->created_at)->format('Y-m-d H:i:s'),
+                    'duration_waiting' => $first->duration_waiting,
+                    'duration_processing' => $first->duration_processing,
+                    'duration_total' => $first->duration_total,
+                    'aggregate_processed_at' => $earliestProcessed ? $earliestProcessed->format('Y-m-d H:i:s') : null,
+                    'aggregate_completed_at' => $latestCompleted ? $latestCompleted->format('Y-m-d H:i:s') : null,
+                    'aggregate_process_time_minutes' => $aggregateProcessMinutes,
+                    'aggregate_process_time_seconds' => $aggregateProcessSeconds,
+                    'aggregate_process_time_human' => $aggregateProcessHuman,
+                ];
+            })->values();
+
+            return response()->json(['data' => $grouped]);
+        } catch(\Exception $e) {
+            Log::error('listLabPermintaan error', ['msg'=>$e->getMessage()]);
+            return response()->json(['data' => [], 'error' => 'Internal Server Error'], 500);
+        }
     }
 
     public function cekAntrian(Request $request)

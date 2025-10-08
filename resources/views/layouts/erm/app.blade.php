@@ -150,5 +150,73 @@
 
     @include('erm.partials.perawat-notif')
     @include('partials.farmasi-notif')
+    @php $user = auth()->user(); @endphp
+    @if($user && $user->hasRole('Dokter'))
+    <script>
+        (function(){
+            const LS_KEY = 'labNotifLastCompleted';
+            const endpoint = '{{ route('erm.elab.notifications.completed') }}';
+            const pollIntervalMs = 15000;
+            let lastCompleted = localStorage.getItem(LS_KEY); // last seen completed_at
+            let initialHydrated = false; // prevent toasts on first load
+
+            function toast(text){
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Hasil Lab Selesai',
+                    text: text,
+                    showConfirmButton: false,
+                    timer: 5000,
+                    timerProgressBar: true
+                });
+            }
+
+            async function poll(){
+                try {
+                    const url = new URL(endpoint, window.location.origin);
+                    if (lastCompleted) url.searchParams.set('since', lastCompleted);
+                    const res = await fetch(url.toString(), { headers:{'X-Requested-With':'XMLHttpRequest'} });
+                    if(!res.ok) throw new Error('HTTP '+res.status);
+                    const data = await res.json();
+                    if(data.ok){
+                        // If first hydration (no lastCompleted yet), just set baseline and skip toasts
+                        if(!initialHydrated){
+                            // Prefer last_completed_at returned, fallback server_time
+                            lastCompleted = data.last_completed_at || data.server_time;
+                            if (lastCompleted) localStorage.setItem(LS_KEY, lastCompleted);
+                            initialHydrated = true;
+                        } else {
+                            (data.data || []).forEach(item => {
+                                if(item.completed_at){
+                                    toast((item.test || 'Pemeriksaan') + ' pasien ' + (item.patient || '-') + ' sudah selesai');
+                                    // Move cursor forward if this item newer
+                                    if(!lastCompleted || item.completed_at > lastCompleted){
+                                        lastCompleted = item.completed_at;
+                                        localStorage.setItem(LS_KEY, lastCompleted);
+                                    }
+                                }
+                            });
+                            // Also update from API summary if newer
+                            if(data.last_completed_at && (!lastCompleted || data.last_completed_at > lastCompleted)){
+                                lastCompleted = data.last_completed_at;
+                                localStorage.setItem(LS_KEY, lastCompleted);
+                            }
+                        }
+                    }
+                } catch(e){
+                    // silent
+                } finally {
+                    setTimeout(poll, pollIntervalMs);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', function(){
+                poll();
+            });
+        })();
+    </script>
+    @endif
 </body>
 </html>

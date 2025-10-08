@@ -382,7 +382,10 @@ class ElabController extends Controller
         
         try {
             $permintaan = LabPermintaan::findOrFail($id);
-            $permintaan->status = $request->status;
+            $newStatus = $request->status;
+            // Apply timestamps for this status transition (explicit so it also works if model events change later)
+            $this->applyStatusTimestamps($permintaan, $newStatus);
+            $permintaan->status = $newStatus;
             
             if ($request->has('hasil')) {
                 $permintaan->hasil = $request->hasil;
@@ -392,7 +395,12 @@ class ElabController extends Controller
             
             return response()->json([
                 'success' => true,
-                'message' => 'Status permintaan lab berhasil diupdate'
+                'message' => 'Status permintaan lab berhasil diupdate',
+                'timestamps' => [
+                    'requested_at' => optional($permintaan->requested_at)->toDateTimeString(),
+                    'processed_at' => optional($permintaan->processed_at)->toDateTimeString(),
+                    'completed_at' => optional($permintaan->completed_at)->toDateTimeString(),
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -582,8 +590,11 @@ class ElabController extends Controller
                     $status = $requestData['status'] ?? 'requested';
                     
                     if ($existingRequest) {
-                        // Update existing request
-                        $existingRequest->status = $status;
+                        // Update existing request & apply timestamps if status changed
+                        if ($existingRequest->status !== $status) {
+                            $this->applyStatusTimestamps($existingRequest, $status);
+                            $existingRequest->status = $status;
+                        }
                         $existingRequest->save();
                     } else {
                         // Create new request
@@ -593,6 +604,8 @@ class ElabController extends Controller
                             'status' => $status,
                             'dokter_id' => Auth::id()
                         ]);
+                        // Ensure requested_at is populated explicitly (model event will also do this, but be defensive)
+                        $this->applyStatusTimestamps($labRequest, $status);
                         $labRequest->save();
                         
                         // Create billing entry
@@ -616,6 +629,27 @@ class ElabController extends Controller
             return response()->json([
                 'message' => 'Gagal menyimpan permintaan lab: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Apply timestamp fields for a given status transition (idempotent: only sets when empty)
+     */
+    private function applyStatusTimestamps(LabPermintaan $permintaan, string $status): void
+    {
+        $now = now();
+        if (in_array($status, ['requested']) && !$permintaan->requested_at) {
+            $permintaan->requested_at = $now;
+        }
+        if (in_array($status, ['processing']) && !$permintaan->processed_at) {
+            $permintaan->processed_at = $now;
+        }
+        if (in_array($status, ['completed']) && !$permintaan->completed_at) {
+            $permintaan->completed_at = $now;
+        }
+        if (in_array($status, ['cancelled']) && property_exists($permintaan, 'cancelled_at') && !$permintaan->cancelled_at) {
+            // In case cancelled is used later via UI
+            $permintaan->cancelled_at = $now;
         }
     }
     
