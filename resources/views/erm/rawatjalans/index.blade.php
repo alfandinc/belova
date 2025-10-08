@@ -1498,6 +1498,45 @@ var userRole = "{{ $role }}";
     }
 });
 
+// Click lab icon inside table row (outside of other handlers)
+$(document).on('click','.lab-icon', function(e){
+    e.preventDefault();
+    const visitationId = $(this).data('visitation-id');
+    if(!visitationId) return;
+    $('#modalLabPermintaanList').modal('show');
+    $('#lab-permintaan-list-content').html('<div class="text-center"><span class="spinner-border"></span> Memuat data...</div>');
+    const labVisitationUrlTemplate = '{{ route('erm.rawatjalans.labpermintaan.visitation',['visitationId'=>'__VID__']) }}';
+    const labVisitationUrl = labVisitationUrlTemplate.replace('__VID__', visitationId);
+    console.log('Fetching lab permintaan visitation', visitationId, labVisitationUrl);
+    $.get(labVisitationUrl, function(res){
+        console.log('Lab permintaan response', res);
+        if(res.data && res.data.length){
+            let html = '<table class="table table-bordered table-sm"><thead><tr><th>Pemeriksaan</th><th>Status</th><th>Requested</th><th>Diproses</th><th>Selesai</th><th>Durasi Proses</th></tr></thead><tbody>';
+            res.data.forEach(function(t){
+                const s = t.status || '-';
+                const badgeClass = s === 'completed' ? 'badge-success' : (s === 'requested' ? 'badge-info' : (s==='processed'?'badge-warning':'badge-secondary'));
+                html += '<tr>' +
+                    '<td>'+ (t.lab_test || '-') +'</td>' +
+                    '<td><span class="badge '+badgeClass+'">'+s+'</span></td>' +
+                    '<td>'+ (t.requested_at || '-') +'</td>' +
+                    '<td>'+ (t.processed_at || '-') +'</td>' +
+                    '<td>'+ (t.completed_at || '-') +'</td>' +
+                    '<td>'+ (t.process_time_human || '-') +'</td>' +
+                '</tr>';
+            });
+            html += '</tbody></table>';
+            $('#lab-permintaan-list-content').html(html);
+        } else {
+            const vid = (res.meta && res.meta.visitation_id) ? res.meta.visitation_id : visitationId;
+            $('#lab-permintaan-list-content').html('<div class="text-center">Tidak ada permintaan lab untuk visitation ID '+vid+'.</div>');
+            console.warn('No lab permintaan found for visitation', vid, res);
+        }
+    }).fail(function(){
+        $('#lab-permintaan-list-content').html('<div class="text-center text-danger">Gagal memuat data.</div>');
+        console.error('Failed to fetch lab permintaan visitation', visitationId);
+    });
+});
+
 // Function to update statistics
 function updateStats() {
     // Get current filter values

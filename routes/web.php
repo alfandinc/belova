@@ -449,6 +449,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
     Route::get('/rawatjalans/lab-permintaan', [App\Http\Controllers\ERM\RawatJalanController::class, 'listLabPermintaan'])->name('erm.rawatjalans.labpermintaan');
+    Route::get('/rawatjalans/lab-permintaan/visitation/{visitationId}', [App\Http\Controllers\ERM\RawatJalanController::class, 'labPermintaanByVisitation'])->name('erm.rawatjalans.labpermintaan.visitation');
     Route::post('/rawatjalans/create', [RawatJalanController::class, 'store'])->name('erm.rawatjalans.store');
     Route::get('/cek-antrian', [RawatJalanController::class, 'cekAntrian'])->name('erm.rawatjalans.cekAntrian');
     // AJAX: Get list of visitations by status for Rawat Jalan stats modal

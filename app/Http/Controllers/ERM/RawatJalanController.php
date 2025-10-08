@@ -138,6 +138,10 @@ class RawatJalanController extends Controller
                 'cppt:id,visitation_id,created_at'
             ])->withCount([
                 'labPermintaan as lab_permintaan_count',
+                // Count only completed lab requests
+                'labPermintaan as lab_permintaan_completed_count' => function($q){
+                    $q->where('status','completed');
+                },
                 'riwayatTindakan as riwayat_tindakan_count'
             ]);
             return datatables()->of($visitations)
@@ -149,11 +153,13 @@ class RawatJalanController extends Controller
                 })
                 ->addColumn('antrian', function ($v) {
                     $antrianHtml = '<span data-order="' . intval($v->no_antrian) . '">' . $v->no_antrian . '</span>';
-                    if (isset($v->lab_permintaan_count) && $v->lab_permintaan_count > 0) {
-                        $antrianHtml .= ' <i class="fas fa-flask blinking" title="Ada permintaan lab"></i>';
+                        if ($v->lab_permintaan_count > 0) {
+                            $statusClass = ($v->lab_permintaan_completed_count == $v->lab_permintaan_count) ? 'text-success' : 'blinking text-warning';
+                            $title = ($v->lab_permintaan_completed_count == $v->lab_permintaan_count) ? 'Semua permintaan lab selesai' : 'Ada permintaan lab belum selesai';
+                            $antrianHtml .= ' <i class="fas fa-flask ml-2 lab-icon '.$statusClass.'" data-visitation-id="'.$v->id.'" style="cursor:pointer" title="'.$title.'"></i>';
                     }
                     if (isset($v->riwayat_tindakan_count) && $v->riwayat_tindakan_count > 0) {
-                        $antrianHtml .= ' <i class="fas fa-stethoscope blinking" title="Ada tindakan"></i>';
+                        $antrianHtml .= ' <i class="fas fa-stethoscope blinking ml-2" title="Ada tindakan"></i>';
                     }
                     return $antrianHtml;
                 })
@@ -1077,6 +1083,7 @@ class RawatJalanController extends Controller
             }
         }
 
+
         // Date range filter
         if ($startDate && $endDate) {
             $query->whereDate('tanggal_visitation', '>=', $startDate)
@@ -1115,6 +1122,50 @@ class RawatJalanController extends Controller
         });
 
         return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Return lab permintaan (tests) for a single visitation id, flattened per test with durations.
+     */
+    public function labPermintaanByVisitation($visitationId)
+    {
+        try {
+            $vid = (string) $visitationId; // visitation_id stored as string in migration
+            $labs = LabPermintaan::with(['labTest:id,nama','visitation:id,pasien_id,no_antrian','visitation.pasien:id,nama'])
+                ->where('visitation_id', $vid)
+                ->orderBy('created_at','asc')
+                ->get();
+            Log::info('labPermintaanByVisitation fetch', ['visitation_id'=>$vid, 'count'=>$labs->count()]);
+            $data = $labs->map(function($l){
+                $processSeconds = null; $processMinutes = null; $processHuman = null;
+                if ($l->processed_at && $l->completed_at) {
+                    $processSeconds = $l->completed_at->diffInSeconds($l->processed_at);
+                    $processMinutes = (int) floor($processSeconds / 60);
+                    $remaining = $processSeconds % 60;
+                    $processHuman = $processMinutes > 0 ? ($processMinutes.'m'.($remaining? ' '.$remaining.'s':'')) : ($remaining.'s');
+                }
+                return [
+                    'id' => $l->id,
+                    'lab_test' => $l->labTest?->nama ?? '-',
+                    'status' => $l->status,
+                    'requested_at' => optional($l->requested_at)->format('Y-m-d H:i:s'),
+                    'processed_at' => optional($l->processed_at)->format('Y-m-d H:i:s'),
+                    'completed_at' => optional($l->completed_at)->format('Y-m-d H:i:s'),
+                    'process_time_seconds' => $processSeconds,
+                    'process_time_human' => $processHuman,
+                ];
+            })->values();
+            return response()->json([
+                'data' => $data,
+                'meta' => [
+                    'visitation_id' => $vid,
+                    'count' => $data->count()
+                ]
+            ]);
+        } catch(\Exception $e) {
+            Log::error('labPermintaanByVisitation error', ['msg'=>$e->getMessage(),'visitation_id'=>$visitationId]);
+            return response()->json(['data'=>[],'error'=>'Internal Server Error','meta'=>['visitation_id'=>(string)$visitationId]],500);
+        }
     }
 
 }
