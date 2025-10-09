@@ -211,8 +211,10 @@ $data = $data;
                                     <option value="" selected></option>
                                     <?php
                                     foreach ($belum_lunas as $value) {
+                                        // Check if this is an upgrade transaction by looking at the identity
+                                        $section = strpos($value->identity, 'Upgrade Kamar') !== false ? 'Upgrade Kamar' : 'Sewa Kamar';
                                     ?>
-                                        <option data-section="Sewa Kamar" data-kurang="<?= $value->kurang ?>" value="<?= $value->doc_id ?>"><?= $value->doc_id . ' - ' . $value->catatan ?></option>
+                                        <option data-section="<?= $section ?>" data-kurang="<?= $value->kurang ?>" value="<?= $value->doc_id ?>"><?= $value->doc_id . ' - ' . $value->catatan ?></option>
                                     <?php }
                                     foreach ($belum_lunas_extra as $value) {
                                         $total_harga = $value->harga * $value->lama_sewa * $value->qty;

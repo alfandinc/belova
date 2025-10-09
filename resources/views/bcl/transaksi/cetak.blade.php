@@ -137,7 +137,17 @@ try {
                                             ?>
                                             <tr>
                                                 <td>{{$no}}</td>
-                                                <td>Sewa Kamar No {{$transaksi->room->room_name??'Kamar dihapus'}}</td>
+                                                <td>
+                                                    @if(strpos($transaksi->identity, 'Pindah Kamar') !== false)
+                                                        @if($transaksi->catatan && strpos($transaksi->catatan, 'Pindah kamar:') !== false)
+                                                            {{ $transaksi->catatan }}
+                                                        @else
+                                                            Upgrade Kamar No {{$transaksi->room->room_name??'Kamar dihapus'}}
+                                                        @endif
+                                                    @else
+                                                        Sewa Kamar No {{$transaksi->room->room_name??'Kamar dihapus'}}
+                                                    @endif
+                                                </td>
                                                 <td>{{$transaksi->room->category->category_name??'Dihapus'}}</td>
                                                 <td>{{$transaksi->lama_sewa.' '.$transaksi->jangka_sewa}}</td>
                                                 <td class="text-center">{{$transaksi->tgl_mulai}}</td>

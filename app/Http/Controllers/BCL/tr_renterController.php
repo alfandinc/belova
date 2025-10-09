@@ -50,7 +50,7 @@ class tr_renterController extends Controller
                 DB::raw('IFNULL(MAX(tr_renter.harga),0) as harga'),
                 DB::raw('IFNULL(SUM( kredit ),0) AS dibayar'),
                 DB::raw('IFNULL(MAX(tr_renter.harga) - SUM( kredit ),0) AS kurang')
-            )->where('bcl_fin_jurnal.identity', 'regexp', 'pemasukan|sewa kamar')
+            )->where('bcl_fin_jurnal.identity', 'regexp', 'pemasukan|sewa kamar|upgrade kamar')
             ->groupby('bcl_fin_jurnal.doc_id')
             ->havingRaw('(MAX(tr_renter.harga) - SUM(kredit)) > 0')
             ->orderby(DB::raw('MAX(bcl_fin_jurnal.tanggal)'), 'DESC')
@@ -427,6 +427,8 @@ class tr_renterController extends Controller
                 'new_room_id' => 'required',
                 'effective_date' => 'required|date',
                 'payment_date' => 'nullable|date',
+                'pay_now' => 'nullable|numeric|min:0',
+                'remaining_due' => 'nullable|numeric|min:0',
             ]);
             
             // Get current transaction and room details
@@ -453,17 +455,18 @@ class tr_renterController extends Controller
             } else {
                 switch ($unitType) {
                     case 'bulan':
-                        $elapsedUnits = $startDateOriginal->diffInMonths(min($effectiveDate, $currentEndDate));
+                        // Match UI logic exactly: effective.diff(start,'months')
+                        $elapsedUnits = $startDateOriginal->diffInMonths($effectiveDate);
                         break;
                     case 'minggu':
-                        $elapsedUnits = $startDateOriginal->diffInWeeks(min($effectiveDate, $currentEndDate));
+                        $elapsedUnits = $startDateOriginal->diffInWeeks($effectiveDate);
                         break;
                     case 'tahun':
-                        $elapsedUnits = $startDateOriginal->diffInYears(min($effectiveDate, $currentEndDate));
+                        $elapsedUnits = $startDateOriginal->diffInYears($effectiveDate);
                         break;
                     case 'hari':
                     default:
-                        $elapsedUnits = $startDateOriginal->diffInDays(min($effectiveDate, $currentEndDate));
+                        $elapsedUnits = $startDateOriginal->diffInDays($effectiveDate);
                         break;
                 }
             }
@@ -504,25 +507,31 @@ class tr_renterController extends Controller
             
             // Full-period price difference (e.g. 6-month package new - old)
             $priceDifferenceFull = $newPricelist->price - $oldPricelist->price;
-            // Payment only on remaining proportion
-            $paymentAmount = $priceDifferenceFull * $remainingPercent;
+            // Payment only on remaining proportion - use clean fraction to match modal
+            $remainingPercentClean = $totalUnits > 0 ? $remainingUnits / $totalUnits : 0;
+            $paymentAmount = $priceDifferenceFull * $remainingPercentClean;
             $paymentType = $paymentAmount > 0 ? 'charge' : 'refund';
-            $paymentAmount = abs($paymentAmount);
+            $paymentAmount = abs(round($paymentAmount, 0)); // round to nearest rupiah
+            
+            // Get payment amounts
+            $payNow = floatval($request->pay_now ?? 0);
+            $remainingDue = floatval($request->remaining_due ?? 0);
             
             // Create new rental transaction starting from effective date
+            $defaultNote = $request->catatan ?? ('Pindah kamar: ' . ($oldRoom->room_name ?? $oldRoom->id) . ' -> ' . ($newRoom->room_name ?? $newRoom->id));
             $newTransaction = tr_renter::create([
                 'trans_id' => $changeTransId,
                 'identity' => 'Pindah Kamar',
                 'id_renter' => $currentTransaction->id_renter,
                 'tanggal' => date('Y-m-d'),
                 'tgl_mulai' => $effectiveDate->format('Y-m-d'),
-                'tgl_selesai' => $currentEndDate->format('Y-m-d'),
                 'tgl_selesai' => $currentEndDate->format('Y-m-d'), // keep same overall end date
                 'room_id' => $request->new_room_id,
                 'lama_sewa' => $remainingUnits,
                 'jangka_sewa' => $currentTransaction->jangka_sewa,
-                // store pro-rated remaining value for new room
-                'harga' => round($newPricelist->price * $remainingPercent, 2),
+                // Store the total upgrade charge as harga (full amount that needs to be paid)
+                'harga' => $paymentAmount,
+                'catatan' => $defaultNote,
             ]);
             
             // Handle financial adjustments (if any)
@@ -532,34 +541,38 @@ class tr_renterController extends Controller
                 $no_jurnal = app(ControllersFinJurnalController::class)->get_no_jurnal();
                 
                 if ($paymentType == 'charge') {
-                    // Additional payment required (upgrade)
+                    // Determine payment amount and status
+                    $actualPayment = $payNow > 0 ? $payNow : 0; // Use actual payment or 0 if nothing specified
+                    $paymentStatus = $actualPayment >= $paymentAmount ? 'Lunas' : 'Belum Lunas';
+                    $statusNote = $actualPayment >= $paymentAmount ? '' : ' (Pembayaran sebagian)';
+                    
+                    // First journal entry - Record the actual payment amount in kredit
                     Fin_jurnal::create([
                         'no_jurnal' => $no_jurnal,
                         'tanggal' => $request->payment_date ?? date('Y-m-d'),
                         'kode_akun' => '4-10101',
                         'debet' => 0,
-                        'kredit' => $paymentAmount,
+                        'kredit' => $actualPayment, // Only record what's actually being paid
                         'kode_subledger' => $currentTransaction->id_renter,
-                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
-                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 0) . ' x ' . number_format($remainingPercentClean*100,1) . '% sisa = Rp ' . number_format($paymentAmount,0) . $statusNote,
                         'doc_id' => $changeTransId,
-                        'identity' => 'Upgrade Kamar',
+                        'identity' => 'Upgrade Kamar ' . $paymentStatus,
                         'pos' => 'K',
                         'user_id' => Auth::id(),
                         'csrf' => time()
                     ]);
                     
+                    // Second journal entry - Match debet with what's actually being paid
                     Fin_jurnal::create([
                         'no_jurnal' => $no_jurnal,
                         'tanggal' => $request->payment_date ?? date('Y-m-d'),
                         'kode_akun' => '1-10101',
-                        'debet' => $paymentAmount,
+                        'debet' => $actualPayment, // Only record what's being paid now, not the full amount
                         'kredit' => 0,
                         'kode_subledger' => null,
-                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
-                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
+                        'catatan' => 'Pembayaran tambahan upgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format($priceDifferenceFull, 0) . ' x ' . number_format($remainingPercentClean*100,1) . '% sisa = Rp ' . number_format($paymentAmount,0) . $statusNote,
                         'doc_id' => $changeTransId,
-                        'identity' => 'Upgrade Kamar',
+                        'identity' => 'Upgrade Kamar ' . $paymentStatus,
                         'pos' => 'D',
                         'user_id' => Auth::id(),
                         'csrf' => time()
@@ -603,7 +616,13 @@ class tr_renterController extends Controller
             }
             
             DB::commit();
-            return back()->with(['success' => 'Pindah kamar berhasil dilakukan']);
+            
+            // Success message based on payment status
+            if ($paymentAmount > 0 && $payNow < $paymentAmount) {
+                return back()->with(['success' => 'Pindah kamar berhasil dilakukan dengan pembayaran sebagian. Sisa tagihan: Rp ' . number_format($paymentAmount - $payNow, 0)]);
+            } else {
+                return back()->with(['success' => 'Pindah kamar berhasil dilakukan']);
+            }
             
         } catch (\Throwable $th) {
             DB::rollBack();

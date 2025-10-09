@@ -986,7 +986,20 @@ $data = $data;
         const sel = $('#new_room_id').find(':selected');
         const newFull = parseFloat(sel.data('price')) || 0;
         const diffFull = newFull - oldFull;
-        const payable = diffFull * remainingPercent; // upgrade if >0 else refund
+        const payable = Math.round(diffFull * remainingPercent); // upgrade if >0 else refund
+        
+        // Get current "Bayar Sekarang" value
+        let payNowRaw = $('#pay_now').val();
+        let payNow = parseFloat(unformatNumber(payNowRaw)) || 0;
+        
+        // Cap the payment to the payable amount (prevent paying more than required)
+        if (payable > 0 && payNow > payable) {
+            payNow = payable;
+            $('#pay_now').val(formatNumber(payNow));
+        }
+        
+        // Calculate remaining due after payment
+        const remainingDue = payable > 0 ? Math.max(0, payable - payNow) : 0; // Only track unpaid for upgrades
 
         // update UI
         $('#old_package_price').text('Rp '+formatNumber(oldFull.toFixed(2)));
@@ -997,16 +1010,19 @@ $data = $data;
         $('#remaining_units').text(remaining+' '+trx.jangka_sewa);
         $('#remaining_percent').text((remainingPercent*100).toFixed(1)+'%');
         $('#payment_amount_text').text('Rp '+formatNumber(Math.abs(payable).toFixed(2)));
-        $('#old_total_package_text').text('Rp '+formatNumber(oldFull.toFixed(2)));
-        $('#already_paid_text').text('Rp '+formatNumber(alreadyPaid.toFixed(2)));
-        $('#outstanding_old_text').text('Rp '+formatNumber(outstandingOld.toFixed(2)));
+        $('#old_total_package_text').text('Rp '+formatNumber(oldFull.toFixed(0)));
+        $('#already_paid_text').text('Rp '+formatNumber(alreadyPaid.toFixed(0)));
+        $('#outstanding_old_text').text('Rp '+formatNumber(outstandingOld.toFixed(0)));
+        $('#pay_now_text').text('Rp '+formatNumber(payNow));
+        $('#remaining_due_text').text('Rp '+formatNumber(remainingDue));
 
         // total due now logic:
-        // If upgrade: user must cover (outstandingOld + prorated upgrade)
+        // If upgrade: user must cover (outstandingOld + prorated upgrade - amount already being paid now)
         // If downgrade: potential refund reduced by any outstanding (can't refund what they haven't paid) -> refundable = min(alreadyPaid, |payable|)
         let totalDueNow = 0;
         if(payable>0){
-            totalDueNow = outstandingOld + payable; // full remaining from old contract still unpaid + upgrade diff
+            // Subtract any amount being paid now from the total due
+            totalDueNow = outstandingOld + payable - payNow; 
         }else if(payable<0){
             const refundBase = Math.min(alreadyPaid, Math.abs(payable));
             totalDueNow = -refundBase; // negative means refund
@@ -1016,24 +1032,39 @@ $data = $data;
         const totalDueNowAbs = Math.abs(totalDueNow);
         $('#total_due_now_text').text((totalDueNow<0? '- ':'')+'Rp '+formatNumber(totalDueNowAbs.toFixed(2)));
         if(payable>0){
-            $('#payment_type_text').html('<span class="text-primary">Upgrade: bayar tambahan (belum termasuk tunggakan lama)</span>');
+            $('#payment_type_text').html('<span class="text-primary">Upgrade: bayar tambahan' + (remainingDue > 0 ? ' (akan tercatat di transaksi belum lunas)' : '') + '</span>');
             $('#payment_type_hidden').val('charge');
+            // Show payment input
+            $('#payment_input_row').show();
         }else if(payable<0){
-            $('#payment_type_text').html('<span class="text-success">Downgrade: kemungkinan refund</span>');
+            $('#payment_type_text').html('<span class="text-success">Downgrade: kemungkinan refund' + (outstandingOld > 0 ? ' (dikurangi tunggakan)' : '') + '</span>');
             $('#payment_type_hidden').val('refund');
+            // Hide payment input for refund
+            $('#payment_input_row').hide();
+            $('#pay_now').val('0');
         }else{
-            $('#payment_type_text').html('<span class="text-muted">Tidak ada selisih paket</span>');
+            $('#payment_type_text').html('<span class="text-muted">Tidak ada selisih paket' + (outstandingOld > 0 ? ' (hanya tunggakan lama)' : '') + '</span>');
             $('#payment_type_hidden').val('none');
+            // Hide payment input when no price difference
+            $('#payment_input_row').hide();
+            $('#pay_now').val('0');
         }
-        $('#payment_amount_hidden').val(Math.abs(payable.toFixed(2)));
-        $('#payment_total_due_hidden').val(totalDueNow.toFixed(2));
+        // Update hidden fields
+        $('#payment_amount_hidden').val(Math.abs(payable));
+        $('#payment_total_due_hidden').val(totalDueNow);
+        $('#pay_now_hidden').val(payNow);
+        $('#remaining_due_hidden').val(remainingDue);
+    }
+
+    // Helper for unformatting numbers (e.g. "1,234.56" -> 1234.56)
+    function unformatNumber(value) {
+        return value ? value.toString().replace(/[^\d.-]/g, '') : '0';
     }
 
     // hook changes
     $(document).on('change','#new_room_id',recalcPayment);
-    $(document).on('change','#effective_date',function(){
-        recalcPayment();
-    });
+    $(document).on('change','#effective_date',recalcPayment);
+    $(document).on('input','#pay_now',recalcPayment);
 
     // Override open handler to load data first
     $(document).off('click','.change_room').on('click','.change_room',function(e){
@@ -1095,6 +1126,8 @@ $data = $data;
                     </div>
                     <input type="hidden" name="payment_amount" id="payment_amount_hidden">
                     <input type="hidden" name="payment_type" id="payment_type_hidden">
+                    <input type="hidden" name="payment_total_due" id="payment_total_due_hidden">
+                    <input type="hidden" name="remaining_due" id="remaining_due_hidden" value="0">
                     
                     <div class="form-group row">
                         <div class="col-lg-12">
@@ -1109,6 +1142,19 @@ $data = $data;
                             <input type="text" name="payment_date" id="payment_date" class="form-control datePicker" value="{{date('Y-m-d')}}">
                         </div>
                     </div>
+                    
+                    <div class="form-group row" id="payment_input_row">
+                        <div class="col-lg-12">
+                            <label for="pay_now">Bayar Sekarang</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">Rp</span>
+                                </div>
+                                <input type="text" name="pay_now" id="pay_now" class="form-control inputmask text-right" data-inputmask="'alias': 'decimal', 'groupSeparator': ','" value="0">
+                                <input type="hidden" name="pay_now_hidden" id="pay_now_hidden" value="0">
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="alert alert-info payment-info">
                         <p class="mb-1">Perhitungan berdasarkan paket penuh & proporsi sisa durasi.</p>
@@ -1120,8 +1166,23 @@ $data = $data;
                             <tr><td>Sudah Terpakai</td><td id="elapsed_units">-</td></tr>
                             <tr><td>Sisa</td><td id="remaining_units">-</td></tr>
                             <tr class="font-weight-bold"><td>Proporsi Sisa</td><td id="remaining_percent">0%</td></tr>
-                            <tr class="font-weight-bold"><td>Tagihan / Refund</td><td id="payment_amount_text">Rp 0</td></tr>
                         </table>
+                        
+                        <h6 class="mb-2 text-primary">Status Pembayaran Saat Ini:</h6>
+                        <table class="table table-sm mb-2">
+                            <tr><td width="40%">Total Paket Lama</td><td id="old_total_package_text">Rp 0</td></tr>
+                            <tr><td>Sudah Dibayar</td><td id="already_paid_text" class="text-success">Rp 0</td></tr>
+                            <tr class="font-weight-bold"><td>Kurang (Belum Lunas)</td><td id="outstanding_old_text" class="text-danger">Rp 0</td></tr>
+                        </table>
+                        
+                        <h6 class="mb-2 text-warning">Tagihan Pindah Kamar:</h6>
+                        <table class="table table-sm mb-2">
+                            <tr class="font-weight-bold"><td width="40%">Tagihan / Refund</td><td id="payment_amount_text">Rp 0</td></tr>
+                            <tr><td>Bayar Sekarang</td><td id="pay_now_text" class="text-success">Rp 0</td></tr>
+                            <tr class="font-weight-bold"><td>Sisa Tagihan</td><td id="remaining_due_text" class="text-danger">Rp 0</td></tr>
+                            <tr class="font-weight-bold border-top"><td>Total Yang Harus Dibayar</td><td id="total_due_now_text" class="text-primary">Rp 0</td></tr>
+                        </table>
+                        
                         <div id="payment_type_text" class="mt-1 font-weight-bold"></div>
                     </div>
                 </div>

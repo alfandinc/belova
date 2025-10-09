@@ -10,8 +10,9 @@ use App\Models\BCL\tb_extra_rent;
 use App\Models\BCL\tr_renter;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Intervention\Image\Facades\Image as Image;
+use Intervention\Image\Facades\Image;
 
 class FinJurnalController extends Controller
 {
@@ -73,7 +74,7 @@ class FinJurnalController extends Controller
                 DB::raw('IFNULL(MAX(tr_renter.harga),0) as harga'),
                 DB::raw('IFNULL(SUM( kredit ),0) AS dibayar'),
                 DB::raw('IFNULL(MAX(tr_renter.harga) - SUM( kredit ),0) AS kurang')
-            )->where('bcl_fin_jurnal.identity', 'regexp', 'pemasukan|sewa kamar')
+            )->where('bcl_fin_jurnal.identity', 'regexp', 'pemasukan|sewa kamar|upgrade kamar')
             ->groupby('bcl_fin_jurnal.doc_id')
             ->havingRaw('(MAX(tr_renter.harga) - SUM(kredit)) > 0')
             ->orderby(DB::raw('MAX(bcl_fin_jurnal.tanggal)'), 'DESC')
@@ -120,6 +121,10 @@ class FinJurnalController extends Controller
             $tr_renter = tr_renter::where('trans_id', '=', $extra_rent->parent_trans)->first();
             $renter = renter::findorfail($tr_renter->id_renter);
             $catatan = 'Pembayaran Tambahan Sewa ' . $extra_rent->qty . ' ' . $extra_rent->nama . ' selama ' . $extra_rent->lama_sewa . ' ' . $extra_rent->jangka_sewa . ' Oleh ' . $renter->nama . '. dengan catatan: ' . $request->keterangan;
+        } elseif ($request->section == 'Upgrade Kamar') {
+            $tr_renter = tr_renter::where('trans_id', '=', $request->transaksi)->first();
+            $renter = renter::findorfail($tr_renter->id_renter);
+            $catatan = 'Pelunasan Upgrade Kamar dari ' . $renter->nama . ' dengan catatan: ' . $request->keterangan;
         } else {
             $extra_rent = tb_extra_rent::where('kode', $request->transaksi)->first();
             $tr_renter = tr_renter::where('trans_id', '=', $request->transaksi)->first();
@@ -140,7 +145,7 @@ class FinJurnalController extends Controller
                 'doc_id' => $request->transaksi,
                 'identity' => $request->section,
                 'pos' => 'K',
-                'user_id' => auth()->user()->id,
+                'user_id' => Auth::id(),
                 'csrf' => time()
             ]);
             Fin_jurnal::create([
@@ -155,7 +160,7 @@ class FinJurnalController extends Controller
                 'doc_id' => $request->transaksi,
                 'identity' => $request->section,
                 'pos' => 'D',
-                'user_id' => auth()->user()->id,
+                'user_id' => Auth::id(),
                 'csrf' => time()
             ]);
             DB::commit();
