@@ -69,6 +69,22 @@
                     </button>
                 </div>
                 <div class="modal-body">
+                    <!-- Search Input -->
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text"><i class="fa fa-search"></i></span>
+                            </div>
+                            <input type="text" class="form-control" id="searchItemInput" placeholder="Cari nama obat/item...">
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-secondary" type="button" id="clearSearchBtn">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <small class="text-muted">Ketik untuk mencari item berdasarkan nama</small>
+                    </div>
+                    
                     <div class="table-responsive">
                         <table class="table table-bordered table-striped">
                             <thead>
@@ -83,6 +99,12 @@
                                 <!-- Content will be populated by JavaScript -->
                             </tbody>
                         </table>
+                    </div>
+                    
+                    <!-- No results message -->
+                    <div id="noResultsMessage" class="text-center text-muted mt-3" style="display: none;">
+                        <i class="fa fa-search fa-2x mb-2"></i>
+                        <p>Tidak ada item yang sesuai dengan pencarian "<span id="searchTerm"></span>"</p>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -186,16 +208,31 @@ $(function() {
         var items = JSON.parse($(this).attr('data-items'));
         var pemasokName = $(this).attr('data-pemasok');
         
+        // Store items globally for search functionality
+        window.currentModalItems = items;
+        
         // Update modal title
         $('#modalItemListLabel').text('Daftar Item yang Dibeli - ' + pemasokName);
         
+        // Clear search input
+        $('#searchItemInput').val('');
+        $('#noResultsMessage').hide();
+        
+        // Populate table with items
+        populateItemTable(items);
+        
+        // Show modal
+        $('#modalItemList').modal('show');
+    });
+
+    // Function to populate item table
+    function populateItemTable(items) {
         // Clear existing content
         $('#itemListTableBody').empty();
         
-        // Populate table with items
         if (items && items.length > 0) {
             $.each(items, function(index, item) {
-                var row = '<tr>' +
+                var row = '<tr class="item-row" data-item-name="' + item.nama_obat.toLowerCase() + '">' +
                     '<td>' + (index + 1) + '</td>' +
                     '<td>' + item.nama_obat + '</td>' +
                     '<td>' + item.total_qty + '</td>' +
@@ -206,9 +243,60 @@ $(function() {
         } else {
             $('#itemListTableBody').append('<tr><td colspan="4" class="text-center">Tidak ada data item</td></tr>');
         }
+    }
+
+    // Search functionality for modal
+    $('#searchItemInput').on('input', function() {
+        var searchTerm = $(this).val().toLowerCase().trim();
+        var visibleRows = 0;
         
-        // Show modal
-        $('#modalItemList').modal('show');
+        if (searchTerm === '') {
+            // Show all rows if search is empty
+            $('.item-row').show();
+            $('#noResultsMessage').hide();
+            // Re-number the rows
+            $('.item-row').each(function(index) {
+                $(this).find('td:first').text(index + 1);
+            });
+        } else {
+            // Filter rows based on search term
+            $('.item-row').each(function() {
+                var itemName = $(this).data('item-name');
+                if (itemName.includes(searchTerm)) {
+                    $(this).show();
+                    visibleRows++;
+                } else {
+                    $(this).hide();
+                }
+            });
+            
+            // Re-number visible rows
+            var counter = 1;
+            $('.item-row:visible').each(function() {
+                $(this).find('td:first').text(counter++);
+            });
+            
+            // Show/hide no results message
+            if (visibleRows === 0) {
+                $('#searchTerm').text(searchTerm);
+                $('#noResultsMessage').show();
+            } else {
+                $('#noResultsMessage').hide();
+            }
+        }
+    });
+
+    // Clear search button
+    $('#clearSearchBtn').on('click', function() {
+        $('#searchItemInput').val('').trigger('input');
+        $('#searchItemInput').focus();
+    });
+
+    // Reset search when modal is closed
+    $('#modalItemList').on('hidden.bs.modal', function() {
+        $('#searchItemInput').val('');
+        $('#noResultsMessage').hide();
+        window.currentModalItems = null;
     });
 });
 </script>

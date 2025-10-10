@@ -142,11 +142,22 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h4 class="card-title">Riwayat Pembelian</h4>
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h4 class="card-title mb-0">Riwayat Pembelian</h4>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-inline justify-content-end">
+                                <label for="tanggalTerimaRange" class="mr-2">Filter Tanggal Terima:</label>
+                                <input type="text" id="tanggalTerimaRange" class="form-control" style="width:220px;" autocomplete="off" placeholder="Pilih rentang tanggal">
+                                <button class="btn btn-secondary btn-sm ml-2" id="resetTanggalTerima">Reset</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-bordered">
+                        <table class="table table-bordered" id="purchase-history-table">
                             <thead>
                                 <tr>
                                     <th>No Faktur</th>
@@ -160,9 +171,11 @@
                                     <th>Status</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="purchase-history-tbody">
                                 @forelse($pemasok->fakturBeli as $faktur)
-                                <tr>
+                                <tr class="purchase-row" 
+                                    data-received-date="{{ $faktur->received_date }}"
+                                    data-original-index="{{ $loop->iteration }}">
                                     <td>{{ $faktur->no_faktur ?: '-' }}</td>
                                     <td>{{ $faktur->received_date ? \Carbon\Carbon::parse($faktur->received_date)->format('d/m/Y') : '-' }}</td>
                                     <td>{{ $faktur->due_date ? \Carbon\Carbon::parse($faktur->due_date)->format('d/m/Y') : '-' }}</td>
@@ -185,12 +198,19 @@
                                     </td>
                                 </tr>
                                 @empty
-                                <tr>
+                                <tr id="no-data-row">
                                     <td colspan="9" class="text-center">Tidak ada data pembelian</td>
                                 </tr>
                                 @endforelse
                             </tbody>
                         </table>
+                    </div>
+                    
+                    <!-- No results message for filtering -->
+                    <div id="no-filter-results" class="text-center text-muted mt-3" style="display: none;">
+                        <i class="fa fa-calendar fa-2x mb-2"></i>
+                        <p>Tidak ada pembelian pada rentang tanggal "<span id="dateRangeTerm"></span>"</p>
+                        <button class="btn btn-sm btn-outline-primary" id="showAllPurchases">Tampilkan Semua</button>
                     </div>
                 </div>
             </div>
@@ -198,3 +218,102 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+$(function() {
+    // Date Range Picker for Tanggal Terima
+    $('#tanggalTerimaRange').daterangepicker({
+        autoUpdateInput: false,
+        locale: {
+            cancelLabel: 'Clear',
+            format: 'DD/MM/YYYY',
+            separator: ' - ',
+            applyLabel: 'Terapkan',
+            cancelLabel: 'Batal',
+            fromLabel: 'Dari',
+            toLabel: 'Sampai',
+            customRangeLabel: 'Custom',
+            weekLabel: 'W',
+            daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+            monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
+            firstDay: 1
+        }
+    });
+
+    $('#tanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
+        var startDate = picker.startDate.format('DD/MM/YYYY');
+        var endDate = picker.endDate.format('DD/MM/YYYY');
+        $(this).val(startDate + ' - ' + endDate);
+        
+        // Filter the table
+        filterPurchaseHistory(picker.startDate, picker.endDate);
+    });
+
+    $('#tanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
+        $(this).val('');
+        showAllPurchases();
+    });
+
+    $('#resetTanggalTerima').on('click', function() {
+        $('#tanggalTerimaRange').val('');
+        showAllPurchases();
+    });
+
+    $('#showAllPurchases').on('click', function() {
+        $('#tanggalTerimaRange').val('');
+        showAllPurchases();
+    });
+
+    function filterPurchaseHistory(startDate, endDate) {
+        var visibleRows = 0;
+        var rowCounter = 1;
+        
+        $('.purchase-row').each(function() {
+            var receivedDate = $(this).data('received-date');
+            
+            if (receivedDate && receivedDate !== '-') {
+                var rowDate = moment(receivedDate, 'YYYY-MM-DD');
+                
+                if (rowDate.isSameOrAfter(startDate, 'day') && rowDate.isSameOrBefore(endDate, 'day')) {
+                    $(this).show();
+                    visibleRows++;
+                    rowCounter++;
+                } else {
+                    $(this).hide();
+                }
+            } else {
+                // Hide rows without received_date when filtering
+                $(this).hide();
+            }
+        });
+
+        // Show/hide no results message
+        if (visibleRows === 0) {
+            var dateRangeText = $('#tanggalTerimaRange').val();
+            $('#dateRangeTerm').text(dateRangeText);
+            $('#no-filter-results').show();
+            $('#no-data-row').hide();
+        } else {
+            $('#no-filter-results').hide();
+            $('#no-data-row').hide();
+        }
+    }
+
+    function showAllPurchases() {
+        $('.purchase-row').show();
+        $('#no-filter-results').hide();
+        
+        // Show original no-data row if no purchases exist
+        if ($('.purchase-row').length === 0) {
+            $('#no-data-row').show();
+        } else {
+            $('#no-data-row').hide();
+        }
+    }
+
+    // Initialize: show all purchases
+    showAllPurchases();
+});
+</script>
+@endpush
