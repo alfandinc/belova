@@ -672,6 +672,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/fakturpembelian/{id}/approve', [\App\Http\Controllers\ERM\FakturBeliController::class, 'approveFaktur'])->name('erm.fakturbeli.approveFaktur');
     Route::get('/fakturpembelian/{id}/debug-hpp', [\App\Http\Controllers\ERM\FakturBeliController::class, 'debugHpp'])->name('erm.fakturbeli.debugHpp');
 
+    // Data Pembelian Routes
+    Route::get('/datapembelian', [\App\Http\Controllers\ERM\DataPembelianController::class, 'index'])->name('erm.datapembelian.index');
+    Route::get('/datapembelian/{id}/detail', [\App\Http\Controllers\ERM\DataPembelianController::class, 'detail'])->name('erm.datapembelian.detail');
+
     // Stok Opname Routes
     Route::prefix('/stokopname')->middleware('auth')->group(function () {
     Route::get('/', [\App\Http\Controllers\ERM\StokOpnameController::class, 'index'])->name('erm.stokopname.index');

@@ -12,4 +12,9 @@ class Pemasok extends Model
     protected $fillable = [
         'nama', 'alamat', 'telepon', 'email'
     ];
+
+    public function fakturBeli()
+    {
+        return $this->hasMany(\App\Models\ERM\FakturBeli::class, 'pemasok_id');
+    }
 }

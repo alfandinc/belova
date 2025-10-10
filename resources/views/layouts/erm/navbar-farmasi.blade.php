@@ -71,7 +71,9 @@
                     <li>
                         <a href="javascript: void(0);"><i data-feather="shopping-cart" class="align-self-center menu-icon"></i><span>Pembelian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            
+                            <li>
+                                <a href="/erm/datapembelian"><i data-feather="bar-chart" class="align-self-center menu-icon"></i><span>Data Pembelian</span></a>
+                            </li>
                             <li>
                                 <a href="/erm/permintaan"><i data-feather="inbox" class="align-self-center menu-icon"></i><span>Permintaan Pembelian</span></a>
                             </li>
