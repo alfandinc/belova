@@ -57,6 +57,40 @@
             </div><!--end card-->
         </div><!--end col-->
     </div><!--end row-->
+
+    <!-- Modal for Item List -->
+    <div class="modal fade" id="modalItemList" tabindex="-1" role="dialog" aria-labelledby="modalItemListLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalItemListLabel">Daftar Item yang Dibeli</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama Obat/Item</th>
+                                    <th>Total Qty Dibeli</th>
+                                    <th>Harga Terakhir</th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemListTableBody">
+                                <!-- Content will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -112,8 +146,8 @@ $(function() {
             { 
                 data: 'qty_jenis_item', 
                 name: 'qty_jenis_item',
-                render: function(data) {
-                    return data + ' item';
+                render: function(data, type, row) {
+                    return data + ' item <button class="btn btn-sm btn-outline-info ml-2 btn-view-items" data-items=\'' + JSON.stringify(row.items_detail) + '\' data-pemasok="' + row.nama_pemasok + '"><i class="fa fa-eye"></i> Lihat</button>';
                 }
             },
             { 
@@ -145,6 +179,36 @@ $(function() {
                 previous: "Sebelumnya"
             }
         }
+    });
+
+    // Handle view items button click
+    $('#data-pembelian-table').on('click', '.btn-view-items', function() {
+        var items = JSON.parse($(this).attr('data-items'));
+        var pemasokName = $(this).attr('data-pemasok');
+        
+        // Update modal title
+        $('#modalItemListLabel').text('Daftar Item yang Dibeli - ' + pemasokName);
+        
+        // Clear existing content
+        $('#itemListTableBody').empty();
+        
+        // Populate table with items
+        if (items && items.length > 0) {
+            $.each(items, function(index, item) {
+                var row = '<tr>' +
+                    '<td>' + (index + 1) + '</td>' +
+                    '<td>' + item.nama_obat + '</td>' +
+                    '<td>' + item.total_qty + '</td>' +
+                    '<td>Rp ' + parseFloat(item.last_price || 0).toLocaleString('id-ID') + '</td>' +
+                    '</tr>';
+                $('#itemListTableBody').append(row);
+            });
+        } else {
+            $('#itemListTableBody').append('<tr><td colspan="4" class="text-center">Tidak ada data item</td></tr>');
+        }
+        
+        // Show modal
+        $('#modalItemList').modal('show');
     });
 });
 </script>

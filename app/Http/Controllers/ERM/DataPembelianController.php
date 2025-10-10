@@ -30,13 +30,23 @@ class DataPembelianController extends Controller
                     // Get last purchase date
                     $lastPurchase = $pemasok->fakturBeli->first()?->received_date ?? '-';
                     
-                    // Count unique items purchased
-                    $qtyJenisItem = $pemasok->fakturBeli
-                        ->flatMap(function($faktur) {
-                            return $faktur->items->pluck('obat_id');
-                        })
-                        ->unique()
-                        ->count();
+                    // Get unique items with details
+                    $uniqueItems = collect();
+                    $obatIds = collect();
+                    
+                    foreach($pemasok->fakturBeli as $faktur) {
+                        foreach($faktur->items as $item) {
+                            if (!$obatIds->contains($item->obat_id)) {
+                                $obatIds->push($item->obat_id);
+                                $uniqueItems->push([
+                                    'obat_id' => $item->obat_id,
+                                    'nama_obat' => $item->obat->nama ?? 'Unknown',
+                                    'total_qty' => $pemasok->fakturBeli->flatMap->items->where('obat_id', $item->obat_id)->sum('qty'),
+                                    'last_price' => $item->harga
+                                ]);
+                            }
+                        }
+                    }
                     
                     return [
                         'id' => $pemasok->id,
@@ -46,8 +56,9 @@ class DataPembelianController extends Controller
                         'email' => $pemasok->email,
                         'total_nominal' => $totalNominal,
                         'pembelian_terakhir' => $lastPurchase,
-                        'qty_jenis_item' => $qtyJenisItem,
-                        'jumlah_faktur' => $pemasok->fakturBeli->count()
+                        'qty_jenis_item' => $uniqueItems->count(),
+                        'jumlah_faktur' => $pemasok->fakturBeli->count(),
+                        'items_detail' => $uniqueItems->toArray()
                     ];
                 });
 
