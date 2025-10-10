@@ -646,17 +646,13 @@ class tr_renterController extends Controller
         $jangka = $trx->jangka_sewa;        // e.g. Bulan
 
         // Map jangka_sewa to pricelist jangka_waktu + jangka_sewa fields
+        // Showing all rooms regardless of occupation status
         $rooms = Rooms::with('category')
             ->with(['renter'=>function($q){ /* already filters active renter in model */ }])
-            ->get()
-            ->filter(function($r) use ($trx){
-                // exclude current active room and any occupied room (has renter relation result)
-                return ($r->id !== $trx->room_id) && !$r->renter; 
-            })
-            ->values();
+            ->get();
 
         // For each room find pricelist with same duration (lama & jangka)
-        $result = $rooms->map(function($room) use ($lama, $jangka){
+        $result = $rooms->map(function($room) use ($lama, $jangka, $trx){
             $pl = Pricelist::where('room_category', $room->room_category)
                 ->where('jangka_waktu', $lama)
                 ->whereRaw('LOWER(jangka_sewa)=?', [strtolower($jangka)])
@@ -664,6 +660,12 @@ class tr_renterController extends Controller
             if(!$pl){
                 return null; // skip if no matching duration price
             }
+            
+            // Check if room is occupied (has active renter)
+            $isOccupied = $room->renter ? true : false;
+            // Check if this is the current user's room
+            $isCurrentRoom = ($room->id === $trx->room_id);
+            
             return [
                 'room'=>[
                     'id'=>$room->id,
@@ -672,6 +674,8 @@ class tr_renterController extends Controller
                 ],
                 'price'=>$pl->price,
                 'pricelist_id'=>$pl->id,
+                'is_occupied'=>$isOccupied,
+                'is_current_room'=>$isCurrentRoom,
             ];
         })->filter()->values();
 

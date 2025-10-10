@@ -1,6 +1,17 @@
 @extends('layouts.bcl.app')
 
 @section('content')
+<!-- Add styling for room status in dropdown -->
+<style>
+    #new_room_id option[data-occupied="true"][data-current="false"] {
+        color: #999; /* Gray out occupied rooms */
+        background-color: #f5f5f5;
+    }
+    #new_room_id option[data-current="true"] {
+        font-weight: bold;
+        background-color: #e8f0fe; /* Light blue background for current room */
+    }
+</style>
 <!-- Page-Title -->
 <?php
 
@@ -940,7 +951,25 @@ $data = $data;
         $sel.empty().append('<option value="">-- Pilih Kamar --</option>');
         changeRoomData.options.forEach(opt=>{
             if(!opt || !opt.price) return; // skip null
-            $sel.append(`<option data-price="${opt.price}" value="${opt.room.id}">${opt.room.name} - ${opt.room.category_name} (Rp ${formatNumber(opt.price)})</option>`);
+            
+            // Add status indicator to room name
+            let roomLabel = opt.room.name;
+            
+            // Add indicators for room status
+            if (opt.is_current_room) {
+                roomLabel += ' [Kamar Saat Ini]';
+            } else if (opt.is_occupied) {
+                roomLabel += ' [Terisi]';
+            }
+            
+            // Construct the option element
+            let optionEl = `<option data-price="${opt.price}" value="${opt.room.id}" `;
+            
+            // Add additional data attributes - no disabled attribute
+            optionEl += `data-occupied="${opt.is_occupied}" data-current="${opt.is_current_room}">`;
+            optionEl += `${roomLabel} - ${opt.room.category_name} (Rp ${formatNumber(opt.price)})</option>`;
+            
+            $sel.append(optionEl);
         });
     }
 
@@ -1061,8 +1090,34 @@ $data = $data;
         return value ? value.toString().replace(/[^\d.-]/g, '') : '0';
     }
 
+    // Show or hide occupied room warning
+    function checkOccupiedRoomWarning() {
+        const selectedOption = $('#new_room_id option:selected');
+        const isOccupied = selectedOption.attr('data-occupied') === 'true';
+        const isCurrent = selectedOption.attr('data-current') === 'true';
+        
+        // Remove any existing warning
+        $('.occupied-room-warning').remove();
+        
+        // If an occupied room that's not the current room is selected, show warning
+        if (isOccupied && !isCurrent && selectedOption.val()) {
+            const warningHtml = `
+                <div class="alert alert-warning occupied-room-warning mt-2">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <strong>Perhatian:</strong> Kamar ini sedang terisi. Perubahan kamar bisa menyebabkan konflik jadwal.
+                </div>
+            `;
+            $('#new_room_id').after(warningHtml);
+        }
+    }
+
     // hook changes
-    $(document).on('change','#new_room_id',recalcPayment);
+    $(document).on('change','#new_room_id', function() {
+        // Check if an occupied room is selected and show/hide warning
+        checkOccupiedRoomWarning();
+        // Recalculate payment details
+        recalcPayment();
+    });
     $(document).on('change','#effective_date',recalcPayment);
     $(document).on('input','#pay_now',recalcPayment);
 
