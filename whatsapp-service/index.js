@@ -27,6 +27,11 @@ async function connectToWhatsApp() {
     isConnecting = true;
     
     try {
+        console.log('� Using file-based authentication with enhanced cleanup...');
+        
+        // Enhanced cleanup before connection
+        cleanupExcessiveFiles();
+        
         const { state, saveCreds } = await useMultiFileAuthState(authDir);
         
         sock = makeWASocket({
@@ -36,12 +41,18 @@ async function connectToWhatsApp() {
             defaultQueryTimeoutMs: 60000,
             connectTimeoutMs: 60000,
             keepAliveIntervalMs: 30000,
-            // Limit the number of pre-keys
             generateHighQualityLinkPreview: false,
-            syncFullHistory: false
+            syncFullHistory: false,
+            // Limit pre-key generation
+            maxPreKeys: 5
         });
 
-        sock.ev.on('creds.update', saveCreds);
+        // Enhanced creds saving with cleanup
+        sock.ev.on('creds.update', async () => {
+            await saveCreds();
+            // Clean up after each save
+            setTimeout(() => cleanupExcessiveFiles(), 1000);
+        });
         
         sock.ev.on('connection.update', (update) => {
             const { connection, lastDisconnect, qr } = update;
@@ -227,27 +238,83 @@ app.post('/shutdown', (req, res) => {
     }, 1000);
 });
 
-// Cleanup function to prevent session conflicts
-function cleanupOldSessions() {
+// Enhanced cleanup function to aggressively manage auth files
+function cleanupExcessiveFiles() {
     try {
+        if (!fs.existsSync(authDir)) return;
+        
         const files = fs.readdirSync(authDir);
         const now = Date.now();
-        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
         
-        files.forEach(file => {
-            const filePath = path.join(authDir, file);
-            const stats = fs.statSync(filePath);
-            
-            // Remove old pre-key files (keep only recent ones)
-            if (file.startsWith('pre-key-') && (now - stats.mtime.getTime()) > maxAge) {
-                fs.unlinkSync(filePath);
-                console.log(`🗑️ Cleaned up old pre-key: ${file}`);
+        // Keep only the most essential files
+        const keepFiles = ['creds.json'];
+        const maxPreKeys = 5;
+        const maxSenderKeys = 10;
+        
+        let preKeyCount = 0;
+        let senderKeyCount = 0;
+        
+        // Sort files by modification time (newest first)
+        const sortedFiles = files
+            .map(file => ({
+                name: file,
+                path: path.join(authDir, file),
+                mtime: fs.statSync(path.join(authDir, file)).mtime.getTime()
+            }))
+            .sort((a, b) => b.mtime - a.mtime);
+        
+        for (const file of sortedFiles) {
+            try {
+                // Always keep essential files
+                if (keepFiles.includes(file.name)) {
+                    continue;
+                }
+                
+                // Manage pre-key files (keep only the newest ones)
+                if (file.name.startsWith('pre-key-')) {
+                    preKeyCount++;
+                    if (preKeyCount > maxPreKeys) {
+                        fs.unlinkSync(file.path);
+                        console.log(`�️ Removed old pre-key: ${file.name}`);
+                        continue;
+                    }
+                }
+                
+                // Manage sender-key files (keep only the newest ones)
+                if (file.name.startsWith('sender-key-')) {
+                    senderKeyCount++;
+                    if (senderKeyCount > maxSenderKeys) {
+                        fs.unlinkSync(file.path);
+                        console.log(`🗑️ Removed old sender-key: ${file.name}`);
+                        continue;
+                    }
+                }
+                
+                // Remove very old files (older than 2 hours)
+                const maxAge = 2 * 60 * 60 * 1000; // 2 hours
+                if ((now - file.mtime) > maxAge) {
+                    fs.unlinkSync(file.path);
+                    console.log(`🗑️ Removed old file: ${file.name}`);
+                }
+                
+            } catch (fileError) {
+                console.log(`⚠️ Error processing file ${file.name}:`, fileError.message);
             }
-        });
+        }
+        
+        // Log summary
+        const remainingFiles = fs.readdirSync(authDir);
+        console.log(`📊 Auth files: ${remainingFiles.length} remaining after cleanup`);
+        
     } catch (error) {
-        console.log('⚠️ Error during cleanup:', error.message);
+        console.log('⚠️ Error during file cleanup:', error.message);
     }
 }
+
+// Periodic cleanup every 5 minutes
+setInterval(() => {
+    cleanupExcessiveFiles();
+}, 5 * 60 * 1000);
 
 // Handle process termination
 process.on('SIGINT', () => {
@@ -269,10 +336,10 @@ process.on('SIGTERM', () => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 WhatsApp service running on port ${PORT}`);
-    console.log('🔗 Starting WhatsApp connection...');
+    console.log('🔗 Starting WhatsApp connection with enhanced file management...');
     
-    // Clean up old sessions before connecting
-    cleanupOldSessions();
+    // Initial cleanup
+    cleanupExcessiveFiles();
     
     connectToWhatsApp();
 });
