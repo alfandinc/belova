@@ -15,7 +15,8 @@ use App\Http\Controllers\{
 use App\Http\Controllers\ERM\StokGudangController;
 use App\Http\Controllers\Admin\{
     UserController,
-    RoleController
+    RoleController,
+    WhatsAppController
 };
 use App\Http\Controllers\Finance\{
     BillingController,
@@ -445,6 +446,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');
     Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
+    
+    // WhatsApp Integration Routes
+    Route::post('/visitation/{id}/test-whatsapp', [VisitationController::class, 'testVisitationWhatsApp'])->name('erm.visitation.test-whatsapp');
+    Route::get('/whatsapp/status', [VisitationController::class, 'getWhatsAppStatus'])->name('erm.whatsapp.status');
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
@@ -1216,8 +1221,28 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('admin.dashboard');
             // Activity data for dashboard chart
             Route::get('/activity-data', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'activityData'])->name('admin.activity.data');
-    }
-);
+            
+        // WhatsApp Management
+        Route::get('/whatsapp', [WhatsAppController::class, 'index'])->name('admin.whatsapp.index');
+        Route::get('/whatsapp/status', [WhatsAppController::class, 'getStatus'])->name('admin.whatsapp.status');
+        Route::post('/whatsapp/test', [WhatsAppController::class, 'testMessage'])->name('admin.whatsapp.test');
+        Route::post('/whatsapp/qr-code', [WhatsAppController::class, 'getQRCode'])->name('admin.whatsapp.qr');
+        Route::post('/whatsapp/start', [WhatsAppController::class, 'startService'])->name('admin.whatsapp.start');
+        Route::post('/whatsapp/restart', [WhatsAppController::class, 'restartService'])->name('admin.whatsapp.restart');
+        Route::post('/whatsapp/stop', [WhatsAppController::class, 'stopService'])->name('admin.whatsapp.stop');
+        Route::post('/whatsapp/settings', [WhatsAppController::class, 'updateSettings'])->name('admin.whatsapp.settings');
+        
+        // WhatsApp Templates Management
+        Route::get('/whatsapp/templates', [\App\Http\Controllers\Admin\WhatsAppTemplateController::class, 'index'])->name('admin.whatsapp.templates.index');
+        Route::put('/whatsapp/templates/{templateKey}', [\App\Http\Controllers\Admin\WhatsAppTemplateController::class, 'update'])->name('admin.whatsapp.templates.update');
+        Route::post('/whatsapp/templates/{templateKey}/preview', [\App\Http\Controllers\Admin\WhatsAppTemplateController::class, 'preview'])->name('admin.whatsapp.templates.preview');
+    });
+
+// WhatsApp Webhook Routes (no auth middleware)
+Route::prefix('api/whatsapp')->group(function () {
+    Route::post('/webhook', [\App\Http\Controllers\Api\WhatsAppWebhookController::class, 'handleIncomingMessage'])->name('whatsapp.webhook');
+    Route::get('/webhook', [\App\Http\Controllers\Api\WhatsAppWebhookController::class, 'verifyWebhook'])->name('whatsapp.webhook.verify');
+});
 
 // Get Master Data
 Route::get('/get-regencies/{province_id}', [AddressController::class, 'getRegencies']);
@@ -1387,3 +1412,66 @@ Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD
 Route::get('/finance/get-notif', [App\Http\Controllers\Finance\BillingController::class, 'getNotif'])->middleware('auth');
 // KPI simulation preview route for HRD
 Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
+
+// WhatsApp Test Routes
+Route::get('/test-whatsapp', function () {
+    $whatsappService = new App\Services\WhatsAppService();
+    
+    // Test connection
+    $isConnected = $whatsappService->isConnected();
+    $health = $whatsappService->getServiceHealth();
+    
+    if (!$isConnected) {
+        return response()->json([
+            'success' => false,
+            'message' => 'WhatsApp service not connected. Please scan QR code first.',
+            'health' => $health
+        ]);
+    }
+    
+    // Test sending a simple message (replace with your phone number)
+    $testNumber = '6289624854544'; // Replace with your actual number
+    $testMessage = "🏥 BELOVA CLINIC TEST\n\nHalo! Ini adalah pesan test dari sistem Belova Clinic.\n\nSistem WhatsApp berfungsi dengan baik! ✅\n\nPesan test otomatis";
+    
+    try {
+        $result = $whatsappService->sendMessage($testNumber, $testMessage);
+        
+        return response()->json([
+            'success' => $result['success'] ?? false,
+            'message' => $result['success'] ? 'Test message sent successfully!' : ($result['error'] ?? 'Unknown error'),
+            'health' => $health,
+            'connected' => $isConnected,
+            'raw_result' => $result
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Exception: ' . $e->getMessage(),
+            'health' => $health,
+            'connected' => $isConnected
+        ]);
+    }
+});
+
+// WhatsApp Debug Route
+Route::get('/debug-whatsapp', function () {
+    $whatsappService = new App\Services\WhatsAppService();
+    
+    $health = $whatsappService->getServiceHealth();
+    $connected = $whatsappService->isConnected();
+    
+    return response()->json([
+        'service_url' => config('whatsapp.service_url'),
+        'enabled' => config('whatsapp.enabled'),
+        'health' => $health,
+        'connected' => $connected,
+        'timestamp' => now()
+    ]);
+});
+
+// Test route for WhatsApp service start (temporary)
+Route::get('/test-whatsapp-start', function() {
+    $whatsappService = new \App\Services\WhatsAppService();
+    $controller = new \App\Http\Controllers\Admin\WhatsAppController($whatsappService);
+    return $controller->startService();
+});

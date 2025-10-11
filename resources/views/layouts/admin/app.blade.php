@@ -86,6 +86,15 @@
         <script src="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.js')}}"></script>
         <script src="{{ asset('dastone/assets/pages/jquery.sweet-alert.init.js')}}"></script>
 
+    <!-- CSRF Token Setup for AJAX -->
+    <script>
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+    </script>
+
     <!-- Theme Toggle Script -->
     <script>
         function applyTheme(isDark) {

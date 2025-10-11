@@ -10,6 +10,9 @@ use App\Models\ERM\MetodeBayar;
 use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use App\Jobs\SendVisitationWhatsAppNotification;
+use App\Services\WhatsAppService;
 
 class VisitationController extends Controller
 {
@@ -47,8 +50,7 @@ class VisitationController extends Controller
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
 
-
-        Visitation::create([
+        $visitation = Visitation::create([
             'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
@@ -70,6 +72,11 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
+        // Send WhatsApp notification if enabled
+        if (config('whatsapp.enabled')) {
+            $this->sendVisitationWhatsApp($visitation);
+        }
+
         return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
     }
     public function storeProduk(Request $request)
@@ -86,8 +93,7 @@ class VisitationController extends Controller
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
 
-
-        Visitation::create([
+        $visitation = Visitation::create([
             'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
@@ -108,6 +114,11 @@ class VisitationController extends Controller
             'catatan_dokter' => null,
         ]);
 
+        // Send WhatsApp notification if enabled
+        if (config('whatsapp.enabled')) {
+            $this->sendVisitationWhatsApp($visitation);
+        }
+
         return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
     }
     public function storeLab(Request $request)
@@ -124,8 +135,7 @@ class VisitationController extends Controller
         // Buat ID custom
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);
 
-
-        Visitation::create([
+        $visitation = Visitation::create([
             'id' => $customId, // <-- pastikan kolom 'id' di DB bisa diisi manual (non auto-increment)
             'pasien_id' => $request->pasien_id,
             'dokter_id' => $request->dokter_id,
@@ -145,6 +155,11 @@ class VisitationController extends Controller
             'no_resep' => $noResep,
             'catatan_dokter' => null,
         ]);
+
+        // Send WhatsApp notification if enabled
+        if (config('whatsapp.enabled')) {
+            $this->sendVisitationWhatsApp($visitation);
+        }
 
         return response()->json(['success' => true, 'message' => 'Kunjungan berhasil disimpan.']);
     }
@@ -287,6 +302,101 @@ class VisitationController extends Controller
         }
         return response()->json([
             'message' => "Created $created missing resep detail records."
+        ]);
+    }
+
+    /**
+     * Send WhatsApp notification for new visitation
+     */
+    private function sendVisitationWhatsApp($visitation)
+    {
+        try {
+            // Load pasien data
+            $visitation->load(['pasien', 'dokter.user', 'klinik']);
+            
+            // Check if patient has phone number
+            if (!$visitation->pasien->no_hp) {
+                Log::info('Patient has no phone number, skipping WhatsApp notification', [
+                    'visitation_id' => $visitation->id,
+                    'pasien_id' => $visitation->pasien_id
+                ]);
+                return;
+            }
+
+            // Create and dispatch WhatsApp job
+            SendVisitationWhatsAppNotification::dispatch($visitation->id);
+            
+            Log::info('WhatsApp notification queued for visitation', [
+                'visitation_id' => $visitation->id,
+                'pasien_id' => $visitation->pasien_id,
+                'patient_phone' => $visitation->pasien->no_hp
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Error queuing WhatsApp notification for visitation', [
+                'visitation_id' => $visitation->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Test WhatsApp functionality for specific visitation
+     */
+    public function testVisitationWhatsApp($id)
+    {
+        if (!config('whatsapp.enabled')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp service is disabled'
+            ]);
+        }
+
+        $whatsappService = new WhatsAppService();
+        
+        // Check service health
+        $health = $whatsappService->getServiceHealth();
+        if ($health['status'] !== 'running') {
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp service is not running: ' . ($health['message'] ?? 'Unknown error')
+            ]);
+        }
+        
+        if (!$whatsappService->isConnected()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp service is not connected to WhatsApp Web'
+            ]);
+        }
+
+        $result = $whatsappService->sendVisitationNotification($id);
+        
+        return response()->json($result);
+    }
+
+    /**
+     * Get WhatsApp service status
+     */
+    public function getWhatsAppStatus()
+    {
+        if (!config('whatsapp.enabled')) {
+            return response()->json([
+                'enabled' => false,
+                'connected' => false,
+                'message' => 'WhatsApp service is disabled'
+            ]);
+        }
+
+        $whatsappService = new WhatsAppService();
+        $health = $whatsappService->getServiceHealth();
+        $connected = $whatsappService->isConnected();
+        
+        return response()->json([
+            'enabled' => true,
+            'connected' => $connected,
+            'health' => $health,
+            'service_url' => config('whatsapp.service_url')
         ]);
     }
 }
