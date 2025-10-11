@@ -1,9 +1,10 @@
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason } = require('@whiskeysockets/baileys');
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const path = require('path');
+const DatabaseSessionAuthState = require('./database-session-auth');
 
 const app = express();
 app.use(express.json());
@@ -11,15 +12,39 @@ app.use(cors());
 
 let sock;
 let isConnecting = false;
+let dbAuth;
 
-// Ensure auth directory exists
-const authDir = 'auth_info_baileys';
-if (!fs.existsSync(authDir)) {
-    fs.mkdirSync(authDir, { recursive: true });
+// Initialize database auth handler
+dbAuth = new DatabaseSessionAuthState();
+
+// Custom auth state that uses database and prevents file creation
+async function useDatabaseAuthState() {
+    const authDir = 'auth_info_baileys';
+    
+    // Nuclear cleanup before starting
+    await dbAuth.nuclearCleanup();
+    
+    // Load state from database
+    const creds = await dbAuth.loadCreds();
+    const keys = await dbAuth.loadKeys();
+    
+    const state = {
+        creds: creds,
+        keys: keys
+    };
+    
+    // Custom save credentials function
+    const saveCreds = async () => {
+        await dbAuth.saveCreds(state.creds);
+        // Immediate nuclear cleanup after saving
+        setTimeout(() => dbAuth.nuclearCleanup(), 500);
+    };
+    
+    return { state, saveCreds };
 }
 
-// SESSION FILE INTERCEPTOR - Prevent session file creation
-function interceptSessionFiles() {
+// Override Baileys file operations to prevent session file creation
+function interceptFileOperations() {
     const originalWriteFileSync = fs.writeFileSync;
     const originalWriteFile = fs.writeFile;
     
@@ -27,14 +52,28 @@ function interceptSessionFiles() {
     fs.writeFileSync = function(filePath, data, options) {
         const fileName = path.basename(filePath);
         
-        // BLOCK ALL SESSION FILES
+        // Block session file creation
         if (fileName.startsWith('session-') && fileName.endsWith('.json')) {
             console.log(`🚫 BLOCKED session file creation: ${fileName}`);
-            console.log(`💾 Session data would be saved to database (simulated)`);
-            return; // Don't create the file
+            
+            // Extract session ID and save to database instead
+            const sessionId = fileName.replace('session-', '').replace('.json', '');
+            try {
+                const sessionData = typeof data === 'string' ? JSON.parse(data) : data;
+                dbAuth.writeSessionData(sessionId, sessionData);
+            } catch (err) {
+                console.log(`⚠️ Error saving session ${sessionId} to database:`, err.message);
+            }
+            return;
         }
         
-        // Allow creds.json and other essential files
+        // Block all other auth file creation
+        if (filePath.includes('auth_info_baileys')) {
+            console.log(`🚫 BLOCKED auth file creation: ${fileName}`);
+            return;
+        }
+        
+        // Allow other files
         return originalWriteFileSync.call(this, filePath, data, options);
     };
     
@@ -47,52 +86,35 @@ function interceptSessionFiles() {
         
         const fileName = path.basename(filePath);
         
-        // BLOCK ALL SESSION FILES
+        // Block session file creation
         if (fileName.startsWith('session-') && fileName.endsWith('.json')) {
             console.log(`🚫 BLOCKED async session file creation: ${fileName}`);
-            console.log(`💾 Session data would be saved to database (simulated)`);
+            
+            // Extract session ID and save to database instead
+            const sessionId = fileName.replace('session-', '').replace('.json', '');
+            try {
+                const sessionData = typeof data === 'string' ? JSON.parse(data) : data;
+                dbAuth.writeSessionData(sessionId, sessionData);
+            } catch (err) {
+                console.log(`⚠️ Error saving session ${sessionId} to database:`, err.message);
+            }
+            
             if (callback) callback(null);
-            return; // Don't create the file
+            return;
+        }
+        
+        // Block all other auth file creation
+        if (filePath.includes('auth_info_baileys')) {
+            console.log(`🚫 BLOCKED async auth file creation: ${fileName}`);
+            if (callback) callback(null);
+            return;
         }
         
         // Allow other files
         return originalWriteFile.call(this, filePath, data, options, callback);
     };
     
-    console.log('🛡️ Session file interceptor activated - NO session files will be created!');
-}
-
-// Aggressive cleanup for session files only
-function aggressiveSessionCleanup() {
-    try {
-        if (!fs.existsSync(authDir)) return;
-        
-        const files = fs.readdirSync(authDir);
-        let sessionFilesRemoved = 0;
-        
-        for (const file of files) {
-            // Only remove session files, keep creds and other essential files
-            if (file.startsWith('session-') && file.endsWith('.json')) {
-                try {
-                    fs.unlinkSync(path.join(authDir, file));
-                    console.log(`🗑️ Removed session file: ${file}`);
-                    sessionFilesRemoved++;
-                } catch (err) {
-                    console.log(`⚠️ Could not remove session file ${file}:`, err.message);
-                }
-            }
-        }
-        
-        if (sessionFilesRemoved > 0) {
-            console.log(`✅ Session cleanup: removed ${sessionFilesRemoved} session files`);
-        }
-        
-        const remainingFiles = fs.readdirSync(authDir);
-        console.log(`📊 Auth files remaining: ${remainingFiles.length} (session files: ${remainingFiles.filter(f => f.startsWith('session-')).length})`);
-        
-    } catch (error) {
-        console.log('⚠️ Error during session cleanup:', error.message);
-    }
+    console.log('🛡️ File operation interceptor activated - NO auth files will be created');
 }
 
 async function connectToWhatsApp() {
@@ -104,16 +126,19 @@ async function connectToWhatsApp() {
     isConnecting = true;
     
     try {
-        console.log('🛡️ Using HYBRID authentication - creds.json file + NO session files...');
+        console.log('🗄️ Using DATABASE-ONLY authentication with ZERO file creation...');
         
-        // Activate session file interceptor
-        interceptSessionFiles();
+        // Activate file operation interceptor
+        interceptFileOperations();
         
-        // Clean up any existing session files
-        aggressiveSessionCleanup();
+        // Start file monitor to remove any files that somehow get created
+        dbAuth.startFileMonitor();
         
-        // Use normal file-based auth for creds, but intercept session files
-        const { state, saveCreds } = await useMultiFileAuthState(authDir);
+        // Nuclear cleanup before connection
+        await dbAuth.nuclearCleanup();
+        
+        // Use database auth state
+        const { state, saveCreds } = await useDatabaseAuthState();
         
         sock = makeWASocket({
             auth: state,
@@ -124,16 +149,16 @@ async function connectToWhatsApp() {
             keepAliveIntervalMs: 30000,
             generateHighQualityLinkPreview: false,
             syncFullHistory: false,
-            // Limit pre-key generation
-            maxPreKeys: 2
+            // Limit pre-key generation to minimum
+            maxPreKeys: 1
         });
 
-        // Enhanced creds saving with session cleanup
+        // Handle credentials update with database save and nuclear cleanup
         sock.ev.on('creds.update', async () => {
             await saveCreds();
-            console.log('💾 Credentials updated');
-            // Cleanup session files after each save
-            setTimeout(() => aggressiveSessionCleanup(), 1000);
+            console.log('💾 Credentials updated in database');
+            // Nuclear cleanup after each update
+            setTimeout(() => dbAuth.nuclearCleanup(), 1000);
         });
         
         sock.ev.on('connection.update', (update) => {
@@ -151,18 +176,18 @@ async function connectToWhatsApp() {
                 console.log('Connection closed, reconnecting:', shouldReconnect);
                 
                 if(shouldReconnect) {
-                    // Clean up session files before reconnecting
-                    aggressiveSessionCleanup();
-                    setTimeout(() => {
+                    // Nuclear cleanup before reconnecting
+                    setTimeout(async () => {
+                        await dbAuth.nuclearCleanup();
                         connectToWhatsApp();
                     }, 5000);
                 }
             } else if(connection === 'open') {
                 isConnecting = false;
                 console.log('✅ WhatsApp connection opened - Ready to send messages!');
-                console.log('🛡️ Session files are BLOCKED - only creds.json allowed!');
-                // Cleanup session files after successful connection
-                setTimeout(() => aggressiveSessionCleanup(), 2000);
+                console.log('🗄️ All auth data stored in DATABASE - NO FILES CREATED!');
+                // Nuclear cleanup after successful connection
+                setTimeout(() => dbAuth.nuclearCleanup(), 2000);
             }
         });
 
@@ -275,7 +300,7 @@ app.get('/status', (req, res) => {
     res.json({ 
         connected,
         status: connected ? 'Connected' : 'Disconnected',
-        auth_method: 'Hybrid (creds.json + NO session files)'
+        auth_method: 'Database-only (NO FILES)'
     });
 });
 
@@ -284,18 +309,18 @@ app.get('/health', (req, res) => {
         status: 'running',
         timestamp: new Date().toISOString(),
         whatsapp_connected: sock && sock.ws.readyState === sock.ws.OPEN,
-        auth_method: 'Hybrid (creds.json + NO session files)',
-        session_files_blocked: true
+        auth_method: 'Database-only (NO FILES)',
+        files_created: 'NONE'
     });
 });
 
-// Session cleanup endpoint
-app.post('/cleanup-sessions', async (req, res) => {
-    console.log('🧹 Manual session cleanup request received');
-    aggressiveSessionCleanup();
+// Nuclear cleanup endpoint
+app.post('/nuclear-cleanup', async (req, res) => {
+    console.log('☢️ Nuclear cleanup request received');
+    await dbAuth.nuclearCleanup();
     res.json({ 
         success: true, 
-        message: 'Session files cleanup completed' 
+        message: 'Nuclear cleanup completed - all files removed' 
     });
 });
 
@@ -325,24 +350,24 @@ app.post('/shutdown', (req, res) => {
     }, 1000);
 });
 
-// Session cleanup every 1 minute
-setInterval(() => {
-    aggressiveSessionCleanup();
-}, 1 * 60 * 1000);
+// Continuous nuclear cleanup - every 30 seconds
+setInterval(async () => {
+    await dbAuth.nuclearCleanup();
+}, 30 * 1000);
 
 // Handle process termination
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('\\n🛑 Received SIGINT, shutting down gracefully...');
-    aggressiveSessionCleanup();
+    await dbAuth.nuclearCleanup();
     if (sock) {
         sock.ws.close();
     }
     process.exit(0);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
     console.log('\\n🛑 Received SIGTERM, shutting down gracefully...');
-    aggressiveSessionCleanup();
+    await dbAuth.nuclearCleanup();
     if (sock) {
         sock.ws.close();
     }
@@ -350,13 +375,13 @@ process.on('SIGTERM', () => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 WhatsApp service running on port ${PORT}`);
-    console.log('🛡️ Starting WhatsApp connection with SESSION FILE BLOCKING...');
-    console.log('📄 Only creds.json allowed - ALL session files will be blocked!');
+    console.log('🗄️ Starting WhatsApp connection with DATABASE-ONLY authentication...');
+    console.log('🚫 ZERO files will be created - everything stored in database!');
     
-    // Initial session cleanup
-    aggressiveSessionCleanup();
+    // Initial nuclear cleanup
+    await dbAuth.nuclearCleanup();
     
     connectToWhatsApp();
 });

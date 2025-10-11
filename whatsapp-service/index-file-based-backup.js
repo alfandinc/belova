@@ -18,80 +18,138 @@ if (!fs.existsSync(authDir)) {
     fs.mkdirSync(authDir, { recursive: true });
 }
 
-// SESSION FILE INTERCEPTOR - Prevent session file creation
-function interceptSessionFiles() {
-    const originalWriteFileSync = fs.writeFileSync;
-    const originalWriteFile = fs.writeFile;
-    
-    // Intercept synchronous file writes
-    fs.writeFileSync = function(filePath, data, options) {
-        const fileName = path.basename(filePath);
-        
-        // BLOCK ALL SESSION FILES
-        if (fileName.startsWith('session-') && fileName.endsWith('.json')) {
-            console.log(`🚫 BLOCKED session file creation: ${fileName}`);
-            console.log(`💾 Session data would be saved to database (simulated)`);
-            return; // Don't create the file
-        }
-        
-        // Allow creds.json and other essential files
-        return originalWriteFileSync.call(this, filePath, data, options);
-    };
-    
-    // Intercept asynchronous file writes
-    fs.writeFile = function(filePath, data, options, callback) {
-        if (typeof options === 'function') {
-            callback = options;
-            options = {};
-        }
-        
-        const fileName = path.basename(filePath);
-        
-        // BLOCK ALL SESSION FILES
-        if (fileName.startsWith('session-') && fileName.endsWith('.json')) {
-            console.log(`🚫 BLOCKED async session file creation: ${fileName}`);
-            console.log(`💾 Session data would be saved to database (simulated)`);
-            if (callback) callback(null);
-            return; // Don't create the file
-        }
-        
-        // Allow other files
-        return originalWriteFile.call(this, filePath, data, options, callback);
-    };
-    
-    console.log('🛡️ Session file interceptor activated - NO session files will be created!');
-}
-
-// Aggressive cleanup for session files only
-function aggressiveSessionCleanup() {
+// SUPER AGGRESSIVE cleanup function
+function superAggressiveCleanup() {
     try {
         if (!fs.existsSync(authDir)) return;
         
         const files = fs.readdirSync(authDir);
-        let sessionFilesRemoved = 0;
+        const now = Date.now();
+        
+        // Only keep absolutely essential files
+        const essentialFiles = ['creds.json'];
+        const maxPreKeys = 2; // Only 2 pre-keys
+        const maxSenderKeys = 2; // Only 2 sender-keys  
+        const maxSessionFiles = 2; // Only 2 session files
+        const maxAppStateKeys = 1; // Only 1 app-state key
+        
+        let preKeyCount = 0;
+        let senderKeyCount = 0;
+        let sessionCount = 0;
+        let appStateKeyCount = 0;
+        
+        // Sort files by modification time (newest first)
+        const sortedFiles = files
+            .map(file => ({
+                name: file,
+                path: path.join(authDir, file),
+                mtime: fs.statSync(path.join(authDir, file)).mtime.getTime()
+            }))
+            .sort((a, b) => b.mtime - a.mtime);
+        
+        for (const file of sortedFiles) {
+            try {
+                // Always keep essential files
+                if (essentialFiles.includes(file.name)) {
+                    continue;
+                }
+                
+                // Aggressive pre-key management (only keep 2)
+                if (file.name.startsWith('pre-key-')) {
+                    preKeyCount++;
+                    if (preKeyCount > maxPreKeys) {
+                        fs.unlinkSync(file.path);
+                        console.log(`🗑️ Removed excess pre-key: ${file.name}`);
+                        continue;
+                    }
+                }
+                
+                // Aggressive sender-key management (only keep 2)
+                if (file.name.startsWith('sender-key-')) {
+                    senderKeyCount++;
+                    if (senderKeyCount > maxSenderKeys) {
+                        fs.unlinkSync(file.path);
+                        console.log(`🗑️ Removed excess sender-key: ${file.name}`);
+                        continue;
+                    }
+                }
+                
+                // Aggressive session management (only keep 2)
+                if (file.name.startsWith('session-')) {
+                    sessionCount++;
+                    if (sessionCount > maxSessionFiles) {
+                        fs.unlinkSync(file.path);
+                        console.log(`🗑️ Removed excess session: ${file.name}`);
+                        continue;
+                    }
+                }
+                
+                // Aggressive app-state-sync management (only keep 1)
+                if (file.name.startsWith('app-state-sync-key-')) {
+                    appStateKeyCount++;
+                    if (appStateKeyCount > maxAppStateKeys) {
+                        fs.unlinkSync(file.path);
+                        console.log(`🗑️ Removed excess app-state-sync-key: ${file.name}`);
+                        continue;
+                    }
+                }
+                
+                // Remove files older than 15 minutes (very aggressive)
+                const maxAge = 15 * 60 * 1000; // 15 minutes
+                if ((now - file.mtime) > maxAge) {
+                    fs.unlinkSync(file.path);
+                    console.log(`🗑️ Removed old file: ${file.name}`);
+                    continue;
+                }
+                
+                // Remove app-state-sync-version files if more than 2
+                if (file.name.startsWith('app-state-sync-version-')) {
+                    const versionFiles = sortedFiles.filter(f => f.name.startsWith('app-state-sync-version-'));
+                    if (versionFiles.length > 2 && versionFiles.indexOf(file) >= 2) {
+                        fs.unlinkSync(file.path);
+                        console.log(`🗑️ Removed excess app-state-sync-version: ${file.name}`);
+                    }
+                }
+                
+            } catch (fileError) {
+                console.log(`⚠️ Error processing file ${file.name}:`, fileError.message);
+            }
+        }
+        
+        // Final check - if still too many files, nuclear cleanup
+        const remainingFiles = fs.readdirSync(authDir);
+        console.log(`📊 Auth files: ${remainingFiles.length} remaining after super aggressive cleanup`);
+        
+        if (remainingFiles.length > 10) {
+            console.log(`🚨 NUCLEAR CLEANUP: Still too many files (${remainingFiles.length}), removing all except creds.json`);
+            nuclearCleanup();
+        }
+        
+    } catch (error) {
+        console.log('⚠️ Error during super aggressive cleanup:', error.message);
+    }
+}
+
+// Nuclear cleanup - remove everything except creds.json
+function nuclearCleanup() {
+    try {
+        const files = fs.readdirSync(authDir);
+        const nuclearEssential = ['creds.json'];
         
         for (const file of files) {
-            // Only remove session files, keep creds and other essential files
-            if (file.startsWith('session-') && file.endsWith('.json')) {
+            if (!nuclearEssential.includes(file)) {
                 try {
                     fs.unlinkSync(path.join(authDir, file));
-                    console.log(`🗑️ Removed session file: ${file}`);
-                    sessionFilesRemoved++;
+                    console.log(`☢️ Nuclear removed: ${file}`);
                 } catch (err) {
-                    console.log(`⚠️ Could not remove session file ${file}:`, err.message);
+                    console.log(`⚠️ Could not nuclear remove ${file}:`, err.message);
                 }
             }
         }
         
-        if (sessionFilesRemoved > 0) {
-            console.log(`✅ Session cleanup: removed ${sessionFilesRemoved} session files`);
-        }
-        
-        const remainingFiles = fs.readdirSync(authDir);
-        console.log(`📊 Auth files remaining: ${remainingFiles.length} (session files: ${remainingFiles.filter(f => f.startsWith('session-')).length})`);
-        
+        console.log(`☢️ Nuclear cleanup completed. Files remaining: ${fs.readdirSync(authDir).length}`);
     } catch (error) {
-        console.log('⚠️ Error during session cleanup:', error.message);
+        console.log('⚠️ Error during nuclear cleanup:', error.message);
     }
 }
 
@@ -104,15 +162,11 @@ async function connectToWhatsApp() {
     isConnecting = true;
     
     try {
-        console.log('🛡️ Using HYBRID authentication - creds.json file + NO session files...');
+        console.log('📁 Using file-based authentication with SUPER AGGRESSIVE cleanup...');
         
-        // Activate session file interceptor
-        interceptSessionFiles();
+        // Super aggressive cleanup before connection
+        superAggressiveCleanup();
         
-        // Clean up any existing session files
-        aggressiveSessionCleanup();
-        
-        // Use normal file-based auth for creds, but intercept session files
         const { state, saveCreds } = await useMultiFileAuthState(authDir);
         
         sock = makeWASocket({
@@ -124,16 +178,15 @@ async function connectToWhatsApp() {
             keepAliveIntervalMs: 30000,
             generateHighQualityLinkPreview: false,
             syncFullHistory: false,
-            // Limit pre-key generation
+            // Extremely limit pre-key generation
             maxPreKeys: 2
         });
 
-        // Enhanced creds saving with session cleanup
+        // Enhanced creds saving with immediate cleanup
         sock.ev.on('creds.update', async () => {
             await saveCreds();
-            console.log('💾 Credentials updated');
-            // Cleanup session files after each save
-            setTimeout(() => aggressiveSessionCleanup(), 1000);
+            // Immediate cleanup after each save
+            setTimeout(() => superAggressiveCleanup(), 500);
         });
         
         sock.ev.on('connection.update', (update) => {
@@ -151,8 +204,8 @@ async function connectToWhatsApp() {
                 console.log('Connection closed, reconnecting:', shouldReconnect);
                 
                 if(shouldReconnect) {
-                    // Clean up session files before reconnecting
-                    aggressiveSessionCleanup();
+                    // Clean up before reconnecting
+                    superAggressiveCleanup();
                     setTimeout(() => {
                         connectToWhatsApp();
                     }, 5000);
@@ -160,9 +213,8 @@ async function connectToWhatsApp() {
             } else if(connection === 'open') {
                 isConnecting = false;
                 console.log('✅ WhatsApp connection opened - Ready to send messages!');
-                console.log('🛡️ Session files are BLOCKED - only creds.json allowed!');
-                // Cleanup session files after successful connection
-                setTimeout(() => aggressiveSessionCleanup(), 2000);
+                // Cleanup after successful connection
+                setTimeout(() => superAggressiveCleanup(), 2000);
             }
         });
 
@@ -274,8 +326,7 @@ app.get('/status', (req, res) => {
     const connected = sock && sock.ws.readyState === sock.ws.OPEN;
     res.json({ 
         connected,
-        status: connected ? 'Connected' : 'Disconnected',
-        auth_method: 'Hybrid (creds.json + NO session files)'
+        status: connected ? 'Connected' : 'Disconnected'
     });
 });
 
@@ -283,19 +334,7 @@ app.get('/health', (req, res) => {
     res.json({ 
         status: 'running',
         timestamp: new Date().toISOString(),
-        whatsapp_connected: sock && sock.ws.readyState === sock.ws.OPEN,
-        auth_method: 'Hybrid (creds.json + NO session files)',
-        session_files_blocked: true
-    });
-});
-
-// Session cleanup endpoint
-app.post('/cleanup-sessions', async (req, res) => {
-    console.log('🧹 Manual session cleanup request received');
-    aggressiveSessionCleanup();
-    res.json({ 
-        success: true, 
-        message: 'Session files cleanup completed' 
+        whatsapp_connected: sock && sock.ws.readyState === sock.ws.OPEN
     });
 });
 
@@ -325,15 +364,14 @@ app.post('/shutdown', (req, res) => {
     }, 1000);
 });
 
-// Session cleanup every 1 minute
+// VERY frequent cleanup - every 1 minute
 setInterval(() => {
-    aggressiveSessionCleanup();
+    superAggressiveCleanup();
 }, 1 * 60 * 1000);
 
 // Handle process termination
 process.on('SIGINT', () => {
     console.log('\\n🛑 Received SIGINT, shutting down gracefully...');
-    aggressiveSessionCleanup();
     if (sock) {
         sock.ws.close();
     }
@@ -342,7 +380,6 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
     console.log('\\n🛑 Received SIGTERM, shutting down gracefully...');
-    aggressiveSessionCleanup();
     if (sock) {
         sock.ws.close();
     }
@@ -352,11 +389,10 @@ process.on('SIGTERM', () => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 WhatsApp service running on port ${PORT}`);
-    console.log('🛡️ Starting WhatsApp connection with SESSION FILE BLOCKING...');
-    console.log('📄 Only creds.json allowed - ALL session files will be blocked!');
+    console.log('🔗 Starting WhatsApp connection with SUPER AGGRESSIVE file management...');
     
-    // Initial session cleanup
-    aggressiveSessionCleanup();
+    // Initial cleanup
+    superAggressiveCleanup();
     
     connectToWhatsApp();
 });
