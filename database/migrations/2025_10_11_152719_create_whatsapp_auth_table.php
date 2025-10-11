@@ -13,11 +13,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_auth', function (Blueprint $table) {
             $table->id();
-            $table->string('key_name')->unique(); // e.g., 'creds', 'pre-key-1', 'sender-key-xxx'
-            $table->json('data'); // The actual auth data
             $table->timestamps();
-            
-            $table->index('key_name');
         });
     }
 

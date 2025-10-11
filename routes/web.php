@@ -1242,13 +1242,6 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
 Route::prefix('api/whatsapp')->group(function () {
     Route::post('/webhook', [\App\Http\Controllers\Api\WhatsAppWebhookController::class, 'handleIncomingMessage'])->name('whatsapp.webhook');
     Route::get('/webhook', [\App\Http\Controllers\Api\WhatsAppWebhookController::class, 'verifyWebhook'])->name('whatsapp.webhook.verify');
-    
-    // WhatsApp Auth API (for database-based auth storage)
-    Route::get('/auth/{key}', [\App\Http\Controllers\Api\WhatsAppAuthController::class, 'get'])->name('whatsapp.auth.get');
-    Route::post('/auth/{key}', [\App\Http\Controllers\Api\WhatsAppAuthController::class, 'store'])->name('whatsapp.auth.store');
-    Route::delete('/auth/{key}', [\App\Http\Controllers\Api\WhatsAppAuthController::class, 'delete'])->name('whatsapp.auth.delete');
-    Route::delete('/auth', [\App\Http\Controllers\Api\WhatsAppAuthController::class, 'clear'])->name('whatsapp.auth.clear');
-    Route::get('/auth-summary', [\App\Http\Controllers\Api\WhatsAppAuthController::class, 'summary'])->name('whatsapp.auth.summary');
 });
 
 // Get Master Data
