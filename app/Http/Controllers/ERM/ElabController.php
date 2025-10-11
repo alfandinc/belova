@@ -34,7 +34,8 @@ class ElabController extends Controller
                 ->selectRaw('erm_lab_permintaan.visitation_id, SUM(erm_lab_test.harga) as nominal')
                 ->groupBy('erm_lab_permintaan.visitation_id');
 
-            $visitations = Visitation::with(['pasien', 'metodeBayar'])
+            // Eager-load labPermintaan and their labTest so we can include per-test timestamps
+            $visitations = Visitation::with(['pasien', 'metodeBayar', 'labPermintaan.labTest'])
                 ->select('erm_visitations.*')
                 ->leftJoinSub($subQuery, 'lp', function($join) {
                     $join->on('lp.visitation_id', '=', 'erm_visitations.id');
@@ -100,6 +101,19 @@ class ElabController extends Controller
                     $asesmenUrl = $user->hasRole('Perawat') || $user->hasRole('Lab') ? route('erm.elab.create', $v->id)
                         : ($user->hasRole('Dokter') ? route('erm.elab.create', $v->id) : '#');
                     return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
+                })
+                ->addColumn('lab_details', function($v) {
+                    // Return array of lab test details with timestamps so frontend can format them
+                    $out = [];
+                    foreach ($v->labPermintaan as $p) {
+                        $out[] = [
+                            'nama' => optional($p->labTest)->nama ?? null,
+                            'requested_at' => $p->requested_at ? $p->requested_at->format('Y-m-d H:i:s') : null,
+                            'processed_at' => $p->processed_at ? $p->processed_at->format('Y-m-d H:i:s') : null,
+                            'completed_at' => $p->completed_at ? $p->completed_at->format('Y-m-d H:i:s') : null,
+                        ];
+                    }
+                    return $out;
                 })
                 ->addColumn('actions', function($v){
                     $disabled = ($v->status_kunjungan == 7) ? 'disabled' : '';

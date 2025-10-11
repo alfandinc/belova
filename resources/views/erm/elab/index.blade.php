@@ -44,6 +44,7 @@
                     <tr>
                         <th>No RM</th>
                         <th>Nama Pasien</th>
+                        <th>Detail Lab</th>
                         <th>Nominal</th>
                         <th>Tanggal Kunjungan</th>
                         <th>Metode Bayar</th>
@@ -103,6 +104,15 @@
 @section('scripts')
 <script>
 $(document).ready(function () {
+    // Style tweaks for the Detail Lab column
+    var style = document.createElement('style');
+    style.innerHTML = '\n        .lab-detail-list { max-width: 520px; white-space: normal; }\n        .lab-detail-column { white-space: normal; }\n        @media (max-width: 768px) { .lab-detail-list { max-width: 300px; } }\n    ';
+    document.head.appendChild(style);
+
+    // Actions column alignment: place left and right horizontally
+    var actionStyle = document.createElement('style');
+    actionStyle.innerHTML = '\n        .action-cell { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }\n        .action-cell .action-left { display: flex; align-items: center; justify-content: flex-start; }\n        .action-cell .action-right { display: flex; align-items: center; justify-content: flex-end; }\n        .action-cell .btn { display: inline-block; }\n    ';
+    document.head.appendChild(actionStyle);
     // Date range picker for filter
     $('#filter_tanggal_range').daterangepicker({
         autoUpdateInput: true,
@@ -127,7 +137,11 @@ $(document).ready(function () {
         processing: true,
         serverSide: true,
         responsive: true,
-        order: [[3, 'desc']], // Order by tanggal_visitation column (index 3) in descending order
+        // Ensure the detail column is wider (index 2 after reordering)
+        columnDefs: [
+            { targets: 2, width: '35%', className: 'lab-detail-column' }
+        ],
+        order: [[4, 'desc']], // Order by tanggal_visitation column (index 4) in descending order
         ajax: {
             url: '{{ route("erm.elab.index") }}',
             data: function(d) {
@@ -142,6 +156,51 @@ $(document).ready(function () {
         columns: [
             { data: 'no_rm', searchable: false, orderable: false },
             { data: 'nama_pasien', searchable: false, orderable: false },
+            // New column: detail lab per visitation. Server may return html (string) or an array of objects
+            { data: 'lab_details', searchable: false, orderable: false, render: function(data, type, row) {
+                    if (!data) return '-';
+
+                    // If server already returned HTML string, use it directly for display
+                    if (typeof data === 'string') {
+                        if (type === 'sort' || type === 'type') return data;
+                        return data;
+                    }
+
+                    // If server returned an array of lab test objects, render a compact list
+                    if (Array.isArray(data)) {
+                        if (type === 'sort' || type === 'type') {
+                            // For sorting, return concatenated test names
+                            return data.map(function(item){ return item.nama || item.lab_test_nama || ''; }).join(', ');
+                        }
+
+                        // Display a small list with dates per test
+                        moment.locale('id');
+                        let html = '<div class="lab-detail-list">';
+                        data.forEach(function(item){
+                            // fields we might receive: nama, lab_test_nama, requested_at, processed_at, completed_at
+                            let nama = item.nama || item.lab_test_nama || '-';
+                            let req = item.requested_at || item.tanggal_diminta || item.tanggal_diminta_raw || null;
+                            let proc = item.processed_at || item.tanggal_diproses || null;
+                            let comp = item.completed_at || item.tanggal_selesai || null;
+
+                            function fmt(d){
+                                if (!d) return '-';
+                                try { return moment(d).format('D MMMM YYYY'); } catch(e){ return d; }
+                            }
+
+                            html += '<div class="mb-1">'
+                                + '<strong>' + escapeHtml(nama) + '</strong><br/>'
+                                + '<small class="text-muted">Diminta: ' + fmt(req) + ' | Diproses: ' + fmt(proc) + ' | Selesai: ' + fmt(comp) + '</small>'
+                            + '</div>';
+                        });
+                        html += '</div>';
+                        return html;
+                    }
+
+                    // Fallback: stringify
+                    return String(data);
+                }
+            },
             { data: 'nominal', searchable: false, orderable: false, render: function(data, type, row) {
                     // data is numeric nominal (sum of harga). Format to 'Rp 1.000'
                     if (!data) return 'Rp 0';
@@ -174,8 +233,21 @@ $(document).ready(function () {
                 }
             },
             { data: 'metode_bayar', searchable: false, orderable: false },
-            { data: 'dokumen', searchable: false, orderable: false },
-            { data: 'actions', searchable: false, orderable: false },
+            // keep dokumen data available on the row but don't render as a separate column
+            { data: 'dokumen', searchable: false, orderable: false, visible: false },
+            { data: null, searchable: false, orderable: false, render: function(data, type, row) {
+                    // row.dokumen may contain HTML for the 'Lihat' button from the server
+                    let docHtml = row.dokumen || '';
+                    let disabled = (row.status_kunjungan == 7) ? 'disabled' : '';
+                    let title = (row.status_kunjungan == 7) ? 'Sudah dibatalkan' : 'Batalkan kunjungan';
+                    let cancelBtn = '<button class="btn btn-sm btn-outline-danger btn-cancel-visitation" data-id="'+ (row.id || '') +'" '+disabled+' title="'+ title +'">Cancel</button>';
+                    // wrap docHtml and cancel button in left/right containers for horizontal alignment
+                    let left = '<div class="action-left">' + (docHtml || '') + '</div>';
+                    let right = '<div class="action-right">' + cancelBtn + '</div>';
+                    let wrapper = '<div class="action-cell">' + left + right + '</div>';
+                    return wrapper;
+                }
+            },
             { data: 'status_kunjungan', visible: false, searchable: false },
         ],
         createdRow: function(row, data, dataIndex) {
@@ -189,6 +261,20 @@ $(document).ready(function () {
     function formatRupiah(number) {
         if (!number) return 'Rp 0';
         return 'Rp ' + Number(number).toLocaleString('id-ID');
+    }
+
+    // Small helper to escape HTML to avoid XSS when inserting strings as HTML
+    function escapeHtml(string) {
+        if (string === null || string === undefined) return '';
+        return String(string).replace(/[&<>",']/g, function (s) {
+            return ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[s];
+        });
     }
 
     // Update total nominal display. Prefer server-provided aggregated total if available
