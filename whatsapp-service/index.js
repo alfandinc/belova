@@ -2,42 +2,72 @@ const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = requi
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode-terminal');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
 let sock;
+let isConnecting = false;
+
+// Ensure auth directory exists
+const authDir = 'auth_info_baileys';
+if (!fs.existsSync(authDir)) {
+    fs.mkdirSync(authDir, { recursive: true });
+}
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    if (isConnecting) {
+        console.log('⏳ Connection already in progress...');
+        return;
+    }
     
-    sock = makeWASocket({
-        auth: state,
-        browser: ['Belova Clinic', 'Chrome', '1.0.0']
-    });
+    isConnecting = true;
+    
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState(authDir);
+        
+        sock = makeWASocket({
+            auth: state,
+            browser: ['Belova Clinic', 'Chrome', '1.0.0'],
+            printQRInTerminal: false,
+            defaultQueryTimeoutMs: 60000,
+            connectTimeoutMs: 60000,
+            keepAliveIntervalMs: 30000,
+            // Limit the number of pre-keys
+            generateHighQualityLinkPreview: false,
+            syncFullHistory: false
+        });
 
-    sock.ev.on('creds.update', saveCreds);
-    
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
+        sock.ev.on('creds.update', saveCreds);
         
-        if (qr) {
-            console.log('\n📱 SCAN THIS QR CODE WITH YOUR WHATSAPP:\n');
-            qrcode.generate(qr, { small: true });
-            console.log('\n📱 Open WhatsApp on your phone > Linked Devices > Link a Device\n');
-        }
-        
-        if(connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Connection closed, reconnecting:', shouldReconnect);
-            if(shouldReconnect) {
-                connectToWhatsApp();
+        sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect, qr } = update;
+            
+            if (qr) {
+                console.log('\n📱 SCAN THIS QR CODE WITH YOUR WHATSAPP:\n');
+                qrcode.generate(qr, { small: true });
+                console.log('\n📱 Open WhatsApp on your phone > Linked Devices > Link a Device\n');
             }
-        } else if(connection === 'open') {
-            console.log('✅ WhatsApp connection opened - Ready to send messages!');
-        }
-    });
+            
+            if(connection === 'close') {
+                isConnecting = false;
+                const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+                console.log('Connection closed, reconnecting:', shouldReconnect);
+                
+                if(shouldReconnect) {
+                    // Add delay before reconnecting to prevent rapid reconnection
+                    setTimeout(() => {
+                        connectToWhatsApp();
+                    }, 5000);
+                }
+            } else if(connection === 'open') {
+                isConnecting = false;
+                console.log('✅ WhatsApp connection opened - Ready to send messages!');
+            }
+        });
 
     // Handle incoming messages and forward to Laravel webhook
     sock.ev.on('messages.upsert', async (m) => {
@@ -89,6 +119,12 @@ async function connectToWhatsApp() {
             }
         }
     });
+    
+    } catch (error) {
+        console.error('❌ Error connecting to WhatsApp:', error.message);
+    } finally {
+        isConnecting = false;
+    }
 }
 
 // API endpoints
@@ -177,6 +213,7 @@ app.post('/shutdown', (req, res) => {
     if (sock) {
         try {
             sock.ws.close();
+            sock = null;
             console.log('📱 WhatsApp connection closed');
         } catch (error) {
             console.log('⚠️ Error closing WhatsApp connection:', error.message);
@@ -190,9 +227,52 @@ app.post('/shutdown', (req, res) => {
     }, 1000);
 });
 
+// Cleanup function to prevent session conflicts
+function cleanupOldSessions() {
+    try {
+        const files = fs.readdirSync(authDir);
+        const now = Date.now();
+        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        
+        files.forEach(file => {
+            const filePath = path.join(authDir, file);
+            const stats = fs.statSync(filePath);
+            
+            // Remove old pre-key files (keep only recent ones)
+            if (file.startsWith('pre-key-') && (now - stats.mtime.getTime()) > maxAge) {
+                fs.unlinkSync(filePath);
+                console.log(`🗑️ Cleaned up old pre-key: ${file}`);
+            }
+        });
+    } catch (error) {
+        console.log('⚠️ Error during cleanup:', error.message);
+    }
+}
+
+// Handle process termination
+process.on('SIGINT', () => {
+    console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+    if (sock) {
+        sock.ws.close();
+    }
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+    if (sock) {
+        sock.ws.close();
+    }
+    process.exit(0);
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 WhatsApp service running on port ${PORT}`);
     console.log('🔗 Starting WhatsApp connection...');
+    
+    // Clean up old sessions before connecting
+    cleanupOldSessions();
+    
     connectToWhatsApp();
 });
