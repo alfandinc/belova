@@ -95,14 +95,32 @@ class ElabController extends Controller
             $visitations->orderBy('tanggal_visitation', 'desc');
 
             // Calculate aggregated totals (nominal, paid, unpaid) for the filtered visitations
+            // Use invoice items final_amount when available (actual billed amount), fallback to lab_test.harga.
             try {
-                // Clone and get the full filtered collection (no pagination)
-                $visCollection = (clone $visitations)->get();
-                $totalNominal = $visCollection->sum('nominal');
-                $totalPaid = $visCollection->filter(function($v){
-                    return ($v->invoice && $v->invoice->amount_paid && floatval($v->invoice->amount_paid) > 0);
-                })->sum('nominal');
-                $totalUnpaid = $totalNominal - $totalPaid;
+                // Get visitation IDs after filters
+                $visitationIds = (clone $visitations)->pluck('id')->toArray();
+
+                if (empty($visitationIds)) {
+                    $totalNominal = 0;
+                    $totalPaid = 0;
+                    $totalUnpaid = 0;
+                } else {
+                    // Sum nominal (prefer invoice item final_amount, else lab test harga)
+                    $totalQuery = DB::table('erm_lab_permintaan as lp')
+                        ->leftJoin('erm_lab_test as lt', 'lp.lab_test_id', '=', 'lt.id')
+                        ->leftJoin('finance_invoice_items as fii', function($j){
+                            $j->on('fii.billable_id', '=', 'lp.id')
+                              ->where('fii.billable_type', '=', \App\Models\ERM\LabPermintaan::class);
+                        })
+                        ->leftJoin('finance_invoices as fi', 'fi.visitation_id', '=', 'lp.visitation_id')
+                        ->whereIn('lp.visitation_id', $visitationIds)
+                        ->select(DB::raw('SUM(COALESCE(fii.final_amount, lt.harga, 0)) as total_nominal'), DB::raw('SUM(CASE WHEN fi.amount_paid IS NOT NULL AND fi.amount_paid > 0 THEN COALESCE(fii.final_amount, lt.harga, 0) ELSE 0 END) as total_paid'))
+                        ->first();
+
+                    $totalNominal = $totalQuery->total_nominal ? floatval($totalQuery->total_nominal) : 0;
+                    $totalPaid = $totalQuery->total_paid ? floatval($totalQuery->total_paid) : 0;
+                    $totalUnpaid = max(0, $totalNominal - $totalPaid);
+                }
             } catch (\Exception $e) {
                 $totalNominal = 0;
                 $totalPaid = 0;

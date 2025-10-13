@@ -228,24 +228,31 @@ class ElabAnalyticsController extends Controller
                 ->whereBetween('lp.created_at', [$start, $end]);
             $total_tests = $testsQ->count();
 
-            // revenue and paid/unpaid
-            $sub = DB::table('erm_lab_permintaan')
-                ->join('erm_lab_test','erm_lab_permintaan.lab_test_id','=','erm_lab_test.id')
-                ->selectRaw('erm_lab_permintaan.visitation_id, SUM(erm_lab_test.harga) as nominal')
-                ->groupBy('erm_lab_permintaan.visitation_id');
+            // revenue and paid/unpaid — compute using invoice items final_amount when present, otherwise lab_test.harga
+            $labQuery = DB::table('erm_lab_permintaan as lp')
+                ->leftJoin('erm_lab_test as lt', 'lp.lab_test_id', '=', 'lt.id')
+                ->leftJoin('finance_invoice_items as fii', function($j){
+                    $j->on('fii.billable_id', '=', 'lp.id')
+                      ->where('fii.billable_type', '=', \App\Models\ERM\LabPermintaan::class);
+                })
+                ->leftJoin('finance_invoices as fi', 'fi.visitation_id', '=', 'lp.visitation_id')
+                ->whereBetween('lp.created_at', [$start, $end])
+                ->select('lp.visitation_id', DB::raw('COALESCE(fii.final_amount, lt.harga, 0) as nominal'), 'fi.amount_paid');
 
-            $visitQ = DB::table('erm_visitations as v')
-                ->leftJoinSub($sub,'lp',function($j){ $j->on('lp.visitation_id','=','v.id'); })
-                ->leftJoin('finance_invoices as fi','fi.visitation_id','=','v.id')
-                ->whereBetween('v.tanggal_visitation', [$start, $end])
-                ->select('v.id','lp.nominal','fi.amount_paid');
-
-            $rows = $visitQ->get();
+            $rows = $labQuery->get();
             $total_nominal = 0; $total_paid = 0; $total_unpaid = 0;
+            // sum per visitation but consider invoice payment status
+            $byVis = [];
             foreach($rows as $r){
+                $vid = $r->visitation_id;
                 $nom = $r->nominal ? floatval($r->nominal) : 0;
-                $total_nominal += $nom;
-                if ($r->amount_paid && floatval($r->amount_paid) > 0) $total_paid += $nom; else $total_unpaid += $nom;
+                if (!isset($byVis[$vid])) { $byVis[$vid] = ['nominal' => 0, 'paid' => false]; }
+                $byVis[$vid]['nominal'] += $nom;
+                if ($r->amount_paid && floatval($r->amount_paid) > 0) $byVis[$vid]['paid'] = true;
+            }
+            foreach($byVis as $vid => $rec){
+                $total_nominal += $rec['nominal'];
+                if ($rec['paid']) $total_paid += $rec['nominal']; else $total_unpaid += $rec['nominal'];
             }
 
             return response()->json([

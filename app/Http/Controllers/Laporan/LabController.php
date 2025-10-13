@@ -146,6 +146,9 @@ class LabController extends Controller
         // Prepare array for export
         $rows = [];
         foreach ($data as $row) {
+            // Determine harga_jual: prefer InvoiceItem.final_amount, else use labTest.harga
+            $ii = InvoiceItem::where('billable_type', LabPermintaan::class)->where('billable_id', $row->id)->first();
+            $hargaJual = $ii ? $ii->final_amount : ($row->labTest->harga ?? '-');
             $rows[] = [
                 'Tanggal Visit' => $row->visitation->tanggal_visitation ?? '-',
                 'Pasien' => $row->visitation->pasien->nama ?? '-',
@@ -153,7 +156,7 @@ class LabController extends Controller
                 'Dokter' => $row->visitation->dokter->user->name ?? $row->visitation->dokter->nama ?? '-',
                 'Klinik' => $row->visitation->klinik->nama ?? '-',
                 'Harga' => $row->labTest->harga ?? '-',
-                'Harga Jual' => optional($row->invoiceItem)->final_amount ?? '-',
+                'Harga Jual' => $hargaJual,
             ];
         }
 
@@ -328,11 +331,13 @@ class LabController extends Controller
             $all = $query->get();
             $jumlahPermintaanLab = $all->count();
             $jumlahPasienLab = $all->pluck('visitation.pasien.id')->unique()->count();
-            $totalPendapatanLab = $all->map(function($row) {
+            $totalPendapatanLab = 0;
+            foreach ($all as $row) {
                 $invoiceItem = InvoiceItem::where('billable_type', LabPermintaan::class)
                     ->where('billable_id', $row->id)->first();
-                return $invoiceItem ? floatval($invoiceItem->final_amount) : 0;
-            })->sum();
+                if ($invoiceItem) $totalPendapatanLab += floatval($invoiceItem->final_amount);
+                else $totalPendapatanLab += $row->labTest->harga ? floatval($row->labTest->harga) : 0;
+            }
             return response()->json([
                 'stats' => [
                     'jumlah_permintaan_lab' => $jumlahPermintaanLab,
