@@ -34,9 +34,23 @@
         </div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-5">
-                    <label for="filter_tanggal_range">Filter Rentang Tanggal Kunjungan</label>
-                    <input type="text" id="filter_tanggal_range" class="form-control" autocomplete="off" placeholder="Pilih rentang tanggal">
+                <div class="col-md-7">
+                    <label for="filter_start_date">Filter Rentang Tanggal Kunjungan</label>
+                    <div class="input-group">
+                        <input type="date" id="filter_start_date" class="form-control" autocomplete="off" />
+                        <div class="input-group-prepend input-group-append">
+                            <span class="input-group-text">s/d</span>
+                        </div>
+                        <input type="date" id="filter_end_date" class="form-control" autocomplete="off" />
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label for="filter_payment_status">Status Pembayaran</label>
+                    <select id="filter_payment_status" class="form-control">
+                        <option value="all">Semua</option>
+                        <option value="paid">Sudah Dibayar</option>
+                        <option value="unpaid">Belum Dibayar</option>
+                    </select>
                 </div>
             </div>
             <table class="table table-bordered w-100" id="rawatjalan-table">
@@ -53,22 +67,37 @@
                     </tr>
                 </thead>
             </table>
-            <!-- Total nominal card -->
+            <!-- Compact totals card -->
             <div class="row mt-3">
                 <div class="col-md-4 offset-md-8">
-                    <div class="card border-primary">
-                        <div class="card-body d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-0">Total Nominal</h6>
-                                <small class="text-muted">(berdasarkan filter)</small>
+                    <div class="card compact-totals">
+                        <div class="card-body p-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="text-muted small">Total Nominal</div>
+                                <div id="total-nominal" class="font-weight-bold">Rp 0</div>
                             </div>
-                            <div>
-                                <h5 id="total-nominal" class="mb-0">Rp 0</h5>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="text-muted small">Sudah Dibayar</div>
+                                <div id="total-paid" class="text-success font-weight-bold">Rp 0</div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="text-muted small">Belum Dibayar</div>
+                                <div id="total-unpaid" class="text-danger font-weight-bold">Rp 0</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <style>
+                .card.compact-totals { border-radius: 6px; }
+                .card.compact-totals .card-body { padding: .5rem .75rem; }
+                .card.compact-totals .small { opacity: .8; }
+                .card.compact-totals .font-weight-bold { font-size: 0.95rem; }
+                @media (max-width: 576px) {
+                    .card.compact-totals .font-weight-bold { font-size: 0.85rem; }
+                }
+            </style>
         </div>
     </div>
 </div>
@@ -113,25 +142,10 @@ $(document).ready(function () {
     var actionStyle = document.createElement('style');
     actionStyle.innerHTML = '\n        .action-cell { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; width: 100%; }\n        .action-cell .action-left { display: flex; align-items: center; justify-content: flex-start; }\n        .action-cell .action-right { display: flex; align-items: center; justify-content: flex-end; }\n        .action-cell .btn { display: inline-block; }\n    ';
     document.head.appendChild(actionStyle);
-    // Date range picker for filter
-    $('#filter_tanggal_range').daterangepicker({
-        autoUpdateInput: true,
-        locale: {
-            format: 'YYYY-MM-DD',
-            cancelLabel: 'Clear',
-            applyLabel: 'Terapkan',
-            fromLabel: 'Dari',
-            toLabel: 'Sampai',
-            customRangeLabel: 'Custom',
-            daysOfWeek: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
-            monthNames: ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'],
-            firstDay: 1
-        },
-        opens: 'left',
-        startDate: moment().startOf('day'),
-        endDate: moment().startOf('day'),
-        maxDate: moment(),
-    });
+    // Set default start/end date inputs to today
+    var today = moment().format('YYYY-MM-DD');
+    $('#filter_start_date').val(today);
+    $('#filter_end_date').val(today);
 
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
@@ -145,12 +159,12 @@ $(document).ready(function () {
         ajax: {
             url: '{{ route("erm.elab.index") }}',
             data: function(d) {
-                let range = $('#filter_tanggal_range').val();
-                if (range) {
-                    let dates = range.split(' - ');
-                    d.tanggal_start = dates[0];
-                    d.tanggal_end = dates[1] ? dates[1] : dates[0];
-                }
+                let start = $('#filter_start_date').val();
+                let end = $('#filter_end_date').val();
+                if (start) d.tanggal_start = start;
+                if (end) d.tanggal_end = end;
+                        let payment = $('#filter_payment_status').val();
+                        if (payment && payment !== 'all') d.payment_status = payment;
             }
         },
         columns: [
@@ -202,9 +216,12 @@ $(document).ready(function () {
                 }
             },
             { data: 'nominal', searchable: false, orderable: false, render: function(data, type, row) {
-                    // data is numeric nominal (sum of harga). Format to 'Rp 1.000'
-                    if (!data) return 'Rp 0';
-                    return 'Rp ' + Number(data).toLocaleString('id-ID');
+                    // data is numeric nominal (sum of harga). Format to 'Rp 1.000' and append paid/unpaid badge
+                    let amount = (data && !isNaN(Number(data))) ? 'Rp ' + Number(data).toLocaleString('id-ID') : 'Rp 0';
+                    // Determine paid status: prefer explicit row.is_paid, otherwise check row.invoice.amount_paid
+                    let paid = row.is_paid || (row.invoice && row.invoice.amount_paid && Number(row.invoice.amount_paid) > 0);
+                    let badge = paid ? '<span class="badge badge-success ml-2">Sudah Dibayar</span>' : '<span class="badge badge-danger ml-2">Belum Dibayar</span>';
+                    return amount + ' ' + badge;
                 }
             },
             // Format tanggal_visitation using moment.js to 'D MMMM YYYY' (e.g. '1 Januari 2025')
@@ -282,21 +299,39 @@ $(document).ready(function () {
         // If server returned aggregated total (total_nominal), use it
         if (json && json.total_nominal !== undefined && json.total_nominal !== null) {
             $('#total-nominal').text(formatRupiah(json.total_nominal));
-            return;
+        } else {
+            // Otherwise, sum the nominal column from the currently displayed rows
+            let api = table.api ? table.api() : table; // support different DataTables init
+            let data = api.rows({ page: 'current' }).data();
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) {
+                let val = data[i].nominal;
+                if (!val) continue;
+                // ensure numeric
+                let num = Number(val);
+                if (!isNaN(num)) sum += num;
+            }
+            $('#total-nominal').text(formatRupiah(sum));
         }
 
-        // Otherwise, sum the nominal column from the currently displayed rows
-        let api = table.api ? table.api() : table; // support different DataTables init
-        let data = api.rows({ page: 'current' }).data();
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) {
-            let val = data[i].nominal;
-            if (!val) continue;
-            // ensure numeric
-            let num = Number(val);
-            if (!isNaN(num)) sum += num;
+        // Server-provided paid/unpaid totals
+        if (json && json.total_paid !== undefined && json.total_unpaid !== undefined) {
+            $('#total-paid').text(formatRupiah(json.total_paid));
+            $('#total-unpaid').text(formatRupiah(json.total_unpaid));
+        } else {
+            // Fallback: compute from visible rows
+            let api = table.api ? table.api() : table;
+            let data = api.rows({ page: 'current' }).data();
+            let paid = 0, unpaid = 0;
+            for (let i = 0; i < data.length; i++) {
+                let row = data[i];
+                let val = Number(row.nominal) || 0;
+                let isPaid = row.is_paid || (row.invoice && row.invoice.amount_paid && Number(row.invoice.amount_paid) > 0);
+                if (isPaid) paid += val; else unpaid += val;
+            }
+            $('#total-paid').text(formatRupiah(paid));
+            $('#total-unpaid').text(formatRupiah(unpaid));
         }
-        $('#total-nominal').text(formatRupiah(sum));
     }
 
     // When table draws (paging, filter, sort, initial load), update total
@@ -315,8 +350,13 @@ $(document).ready(function () {
         updateTotalNominal(json);
     });
 
-    // Event ganti rentang tanggal
-    $('#filter_tanggal_range').on('apply.daterangepicker cancel.daterangepicker', function(ev, picker) {
+    // Reload table when start/end inputs change
+    $('#filter_start_date, #filter_end_date').on('change', function(){
+        table.ajax.reload();
+    });
+
+    // Reload table when payment status changes
+    $('#filter_payment_status').on('change', function(){
         table.ajax.reload();
     });
 

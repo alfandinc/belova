@@ -35,7 +35,7 @@ class ElabController extends Controller
                 ->groupBy('erm_lab_permintaan.visitation_id');
 
             // Eager-load labPermintaan and their labTest so we can include per-test timestamps
-            $visitations = Visitation::with(['pasien', 'metodeBayar', 'labPermintaan.labTest'])
+            $visitations = Visitation::with(['pasien', 'metodeBayar', 'labPermintaan.labTest', 'invoice'])
                 ->select('erm_visitations.*')
                 ->leftJoinSub($subQuery, 'lp', function($join) {
                     $join->on('lp.visitation_id', '=', 'erm_visitations.id');
@@ -67,6 +67,24 @@ class ElabController extends Controller
             // Only include visitations with status_kunjungan 1 or 2 (open or in-progress)
             $visitations->whereIn('status_kunjungan', [1, 2]);
 
+            // Filter by payment status if requested (paid/unpaid)
+            if ($request->filled('payment_status')) {
+                $status = $request->payment_status;
+                if ($status === 'paid') {
+                    $visitations->whereHas('invoice', function($q) {
+                        $q->whereNotNull('amount_paid')->where('amount_paid', '>', 0);
+                    });
+                } elseif ($status === 'unpaid') {
+                    // unpaid: either no invoice or invoice with null/zero amount_paid
+                    $visitations->where(function($q){
+                        $q->whereDoesntHave('invoice')
+                          ->orWhereHas('invoice', function($q2){
+                              $q2->whereNull('amount_paid')->orWhere('amount_paid', '=', 0);
+                          });
+                    });
+                }
+            }
+
             $user = Auth::user();
             // Perawat should still see only status 2 (as before)
             if ($user->hasRole('Perawat')) {
@@ -76,19 +94,24 @@ class ElabController extends Controller
             // Add default ordering by tanggal_visitation descending (newest first)
             $visitations->orderBy('tanggal_visitation', 'desc');
 
-            // Calculate aggregated total nominal for the filtered visitations
-            $totalNominalQuery = clone $visitations->getQuery();
-            // Sum the nominal column (which comes from the leftJoinSub as lp.nominal via COALESCE)
+            // Calculate aggregated totals (nominal, paid, unpaid) for the filtered visitations
             try {
-                $totalNominal = $totalNominalQuery->get()->sum('nominal');
+                // Clone and get the full filtered collection (no pagination)
+                $visCollection = (clone $visitations)->get();
+                $totalNominal = $visCollection->sum('nominal');
+                $totalPaid = $visCollection->filter(function($v){
+                    return ($v->invoice && $v->invoice->amount_paid && floatval($v->invoice->amount_paid) > 0);
+                })->sum('nominal');
+                $totalUnpaid = $totalNominal - $totalPaid;
             } catch (\Exception $e) {
-                // Fallback: 0 if anything goes wrong
                 $totalNominal = 0;
-                Log::error('Failed to calculate total nominal for elab index: ' . $e->getMessage());
+                $totalPaid = 0;
+                $totalUnpaid = 0;
+                Log::error('Failed to calculate totals for elab index: ' . $e->getMessage());
             }
 
             return datatables()->of($visitations)
-                ->with(['total_nominal' => $totalNominal])
+                ->with(['total_nominal' => $totalNominal, 'total_paid' => $totalPaid, 'total_unpaid' => $totalUnpaid])
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
                 ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
                 ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
@@ -101,6 +124,13 @@ class ElabController extends Controller
                     $asesmenUrl = $user->hasRole('Perawat') || $user->hasRole('Lab') ? route('erm.elab.create', $v->id)
                         : ($user->hasRole('Dokter') ? route('erm.elab.create', $v->id) : '#');
                     return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
+                })
+                ->addColumn('is_paid', function($v) {
+                    // Consider paid when there's an invoice and amount_paid is not null and > 0
+                    if ($v->invoice && $v->invoice->amount_paid) {
+                        return true;
+                    }
+                    return false;
                 })
                 ->addColumn('lab_details', function($v) {
                     // Return array of lab test details with timestamps so frontend can format them

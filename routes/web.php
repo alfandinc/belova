@@ -580,6 +580,22 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Lab notifications (completed tests polling)
     Route::get('/elab/notifications/completed', [\App\Http\Controllers\API\LabNotificationController::class, 'completed'])->name('erm.elab.notifications.completed');
 
+    // Lab analytics dashboard
+    Route::get('/elab/analytics', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'index'])->name('erm.elab.analytics');
+    Route::get('/elab/analytics/visits-per-day', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'visitsPerDay'])->name('erm.elab.analytics.visits-per-day');
+    Route::get('/elab/analytics/tests-per-category', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'testsPerCategory'])->name('erm.elab.analytics.tests-per-category');
+    Route::get('/elab/analytics/patients-type', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'patientsType'])->name('erm.elab.analytics.patients-type');
+    Route::get('/elab/analytics/payment-status', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'paymentStatus'])->name('erm.elab.analytics.payment-status');
+    Route::get('/elab/analytics/top-tests', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'topTests'])->name('erm.elab.analytics.top-tests');
+    Route::get('/elab/analytics/top-patients-visits', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'topPatientsByVisits'])->name('erm.elab.analytics.top-patients-visits');
+    Route::get('/elab/analytics/top-patients-spending', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'topPatientsBySpending'])->name('erm.elab.analytics.top-patients-spending');
+    Route::get('/elab/analytics/totals-summary', [\App\Http\Controllers\ERM\ElabAnalyticsController::class, 'totalsSummary'])->name('erm.elab.analytics.totals-summary');
+
+    // Lightweight unauthenticated health/test endpoint for analytics (debug only)
+    Route::get('/elab/analytics/test-json', function(){
+        return response()->json(['ok' => true, 'msg' => 'analytics test endpoint reachable']);
+    });
+
     //Tindakan & Inform Consent
     Route::get('/tindakan/{visitation_id}/create', [TindakanController::class, 'create'])->name('erm.tindakan.create');
     Route::get('/tindakan/data/{spesialisasi_id}', [TindakanController::class, 'getTindakanData'])->name('erm.tindakan.data');

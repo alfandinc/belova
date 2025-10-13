@@ -41,6 +41,9 @@
                             <li>
                                 <a href="/erm/elab"><i data-feather="list" class="align-self-center menu-icon"></i><span>Kunjungan Lab</span></a>
                             </li>
+                            <li>
+                                <a href="{{ route('erm.elab.analytics') }}"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Lab Analytics</span></a>
+                            </li>
                             @hasanyrole('Lab|Admin')
                             <li>
                                 <a href="{{ route('erm.labtests.master') }}"><i data-feather="database" class="align-self-center menu-icon"></i><span>Master Lab</span></a>
