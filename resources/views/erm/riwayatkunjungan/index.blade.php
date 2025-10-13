@@ -35,6 +35,61 @@
 
     <div class="card">
         <div class="card-body">
+            <div class="row mb-3 align-items-end">
+                <div class="col-md-3">
+                    <div class="card bg-primary mb-0">
+                        <div class="card-body p-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="text-dark">
+                                    <div class="font-weight-bold text-dark">Total Kunjungan (Selesai)</div>
+                                    <div class="h4 mb-0 text-dark">{{ number_format($stats['total_visits'] ?? 0) }}</div>
+                                </div>
+                                <div><i class="fas fa-calendar-check fa-2x text-dark"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success mb-0">
+                        <div class="card-body p-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="text-dark">
+                                    <div class="font-weight-bold text-dark">Total Pengeluaran</div>
+                                    <div class="h4 mb-0 text-dark">Rp {{ number_format($stats['total_spend'] ?? 0, 0, ',', '.') }}</div>
+                                </div>
+                                <div><i class="fas fa-wallet fa-2x text-dark"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <label for="filter_status_kunjungan">Status Kunjungan</label>
+                            <select id="filter_status_kunjungan" class="form-control select2">
+                                <option value="">Semua</option>
+                                <option value="0">Tidak datang</option>
+                                <option value="1">Belum diperiksa</option>
+                                <option value="2">Sudah diperiksa</option>
+                                <option value="7">Dibatalkan</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label for="filter_jenis_kunjungan">Jenis Kunjungan</label>
+                            <select id="filter_jenis_kunjungan" class="form-control select2">
+                                <option value="">Semua</option>
+                                <option value="1">Konsultasi Dokter</option>
+                                <option value="2">Beli Produk</option>
+                                <option value="3">Laboratorium</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button id="btnResetFilter" class="btn btn-secondary w-100">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Riwayat Hasil Laboratorium -->
             <div>
                 <div class="table-responsive">
@@ -65,10 +120,21 @@
 <script>
 $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
-    $('#riwayat-table').DataTable({
+
+    // Set default filters: status_kunjungan = 2, jenis_kunjungan = 1
+    $('#filter_status_kunjungan').val('2').trigger('change');
+    $('#filter_jenis_kunjungan').val('1').trigger('change');
+
+    var riwayatTable = $('#riwayat-table').DataTable({
         processing: true,
         serverSide: true,
-        ajax: '{{ route('erm.riwayatkunjungan.index', $pasien) }}',
+        ajax: {
+            url: '{{ route('erm.riwayatkunjungan.index', $pasien) }}',
+            data: function(d) {
+                d.status_kunjungan = $('#filter_status_kunjungan').val();
+                d.jenis_kunjungan = $('#filter_jenis_kunjungan').val();
+            }
+        },
         columns: [
             { data: 'DT_RowIndex', name: 'DT_RowIndex', title: 'No', orderable: false, searchable: false },
             
@@ -80,6 +146,18 @@ $(document).ready(function () {
             // { data: 'created_at', name: 'created_at' },
             { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
         ]
+    });
+
+    // Auto-apply filters when selection changes
+    $('#filter_status_kunjungan, #filter_jenis_kunjungan').on('change', function() {
+        riwayatTable.ajax.reload();
+    });
+
+    // Reset filters
+    $('#btnResetFilter').on('click', function() {
+        $('#filter_status_kunjungan').val('').trigger('change');
+        $('#filter_jenis_kunjungan').val('').trigger('change');
+        // table will reload because change event triggers reload
     });
 
     // Surat Diagnosis button click

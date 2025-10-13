@@ -121,6 +121,20 @@ class RiwayatKunjunganController extends Controller
                 ->where('pasien_id', $pasien)
                 ->orderBy('erm_visitations.created_at', 'desc');
 
+            // Apply filters if present
+            if ($request->filled('status_kunjungan')) {
+                // allow numeric or string values
+                $status = $request->get('status_kunjungan');
+                $kunjungan->where('status_kunjungan', $status);
+            }
+
+            if ($request->filled('jenis_kunjungan')) {
+                $jenis = $request->get('jenis_kunjungan');
+                // In case jenis_kunjungan is stored in a column named 'jenis_kunjungan'
+                // or 'jenis_kunjungan' uses specific codes, adjust mapping if needed.
+                $kunjungan->where('jenis_kunjungan', $jenis);
+            }
+
             return DataTables::of($kunjungan)
                 ->addIndexColumn()
                 ->addColumn('metode', fn($row) => $row->metodeBayar->nama ?? '-')
@@ -140,21 +154,63 @@ class RiwayatKunjunganController extends Controller
                     $dokumenUrl = route('erm.asesmendokter.create', ['visitation' => $row->id]);
                     $diagnosisBtn = '<button class="btn btn-sm btn-success diagnosis-btn" data-id="' . $row->id . '">Surat Diagnosis</button>';
 
-                    return '
-                        <a href="' . $resumeUrl . '" class="btn btn-sm btn-primary" target="_blank">Resume</a>
-                         <a href="' . $dokumenUrl . '" class="btn btn-sm btn-secondary" target="_blank">Dokumen</a>
-                         ' . $diagnosisBtn . '
-                    ';
+                    // If jenis_kunjungan is Beli Produk (2) or Laboratorium (3) then only show the specific button(s)
+                    $jenis = isset($row->jenis_kunjungan) ? (int)$row->jenis_kunjungan : null;
+
+                    if ($jenis === 2) {
+                        // Beli Produk -> show only Resep
+                        try {
+                            $resepUrl = route('erm.eresep.create', $row->id);
+                            return '<a href="' . $resepUrl . '" class="btn btn-sm btn-success" target="_blank">Resep</a>';
+                        } catch (\Exception $e) {
+                            Log::warning('Route erm.eresep.create not found or error building URL: ' . $e->getMessage());
+                            return '';
+                        }
+                    }
+
+                    if ($jenis === 3) {
+                        // Laboratorium -> show only Lab
+                        try {
+                            $elabUrl = route('erm.elab.create', $row->id);
+                            return '<a href="' . $elabUrl . '" class="btn btn-sm btn-warning" target="_blank">Lab</a>';
+                        } catch (\Exception $e) {
+                            Log::warning('Route erm.elab.create not found or error building URL: ' . $e->getMessage());
+                            return '';
+                        }
+                    }
+
+                    // Default: show Resume, Dokumen and Diagnosis buttons
+                    $buttons = '';
+                    $buttons .= '<a href="' . $resumeUrl . '" class="btn btn-sm btn-primary" target="_blank">Resume</a> ';
+                    $buttons .= '<a href="' . $dokumenUrl . '" class="btn btn-sm btn-secondary" target="_blank">Dokumen</a> ';
+                    $buttons .= $diagnosisBtn;
+
+                    return $buttons;
                 })
                 ->rawColumns(['aksi'])
                 ->make(true);
         }
 
 
+        // Compute stats for this pasien
+        // Total visits with status_kunjungan == 2 (assumed 'Sudah diperiksa')
+        $totalVisits = Visitation::where('pasien_id', $pasien)
+            ->where('status_kunjungan', 2)
+            ->count();
+
+        // Total spend from invoices linked to visitations of this pasien
+        // Join finance_invoices where visitation.pasien_id == $pasien
+        $totalSpend = \App\Models\Finance\Invoice::whereHas('visitation', function ($q) use ($pasien) {
+            $q->where('pasien_id', $pasien);
+        })->sum('total_amount');
 
         return view('erm.riwayatkunjungan.index', array_merge([
             'visitation' => $visitation,
             'pasien' => $pasien,
+            'stats' => [
+                'total_visits' => $totalVisits,
+                'total_spend' => $totalSpend,
+            ],
         ], $pasienData, $createKunjunganData));
     }
 
