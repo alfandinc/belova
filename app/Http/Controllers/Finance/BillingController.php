@@ -692,6 +692,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ], 400);
             }
 
+            // No invoice-level current_hpp: HPP is stored per invoice item (hpp/hpp_jual)
+
             // Get totals from request
             $totals = $request->totals;
             $subtotal = $totals['subtotal'] ?? 0;
@@ -1027,6 +1029,49 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'description' => $description,
                     'quantity' => intval($item->qty ?? 1),
                     'unit_price' => floatval($item->jumlah ?? 0),
+                    'hpp' => (function() use ($item) {
+                        try {
+                            if (!empty($item->billable_type) && !empty($item->billable_id)) {
+                                if ($item->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
+                                    $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
+                                    if ($resep && isset($resep->obat) && $resep->obat) return $resep->obat->hpp ?? null;
+                                } elseif ($item->billable_type == 'App\\Models\\ERM\\Obat') {
+                                    $obat = \App\Models\ERM\Obat::withInactive()->find($item->billable_id);
+                                    if ($obat) return $obat->hpp ?? null;
+                                }
+                                // fallback: try to resolve model and common field
+                                $model = app($item->billable_type)::find($item->billable_id);
+                                if ($model) {
+                                    if (isset($model->hpp)) return $model->hpp;
+                                    if (isset($model->obat) && isset($model->obat->hpp)) return $model->obat->hpp;
+                                }
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning('Failed to get hpp for invoice item: ' . $e->getMessage());
+                        }
+                        return null;
+                    })(),
+                    'hpp_jual' => (function() use ($item) {
+                        try {
+                            if (!empty($item->billable_type) && !empty($item->billable_id)) {
+                                if ($item->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
+                                    $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
+                                    if ($resep && isset($resep->obat) && $resep->obat) return $resep->obat->hpp_jual ?? null;
+                                } elseif ($item->billable_type == 'App\\Models\\ERM\\Obat') {
+                                    $obat = \App\Models\ERM\Obat::withInactive()->find($item->billable_id);
+                                    if ($obat) return $obat->hpp_jual ?? null;
+                                }
+                                $model = app($item->billable_type)::find($item->billable_id);
+                                if ($model) {
+                                    if (isset($model->hpp_jual)) return $model->hpp_jual;
+                                    if (isset($model->obat) && isset($model->obat->hpp_jual)) return $model->obat->hpp_jual;
+                                }
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning('Failed to get hpp_jual for invoice item: ' . $e->getMessage());
+                        }
+                        return null;
+                    })(),
                     'discount' => floatval($item->diskon ?? 0),
                     'discount_type' => $item->diskon_type ?? null,
                     'final_amount' => floatval($item->jumlah ?? 0) * intval($item->qty ?? 1),
@@ -1113,6 +1158,36 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'description' => $description,
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
+                    'hpp' => (function() use ($racikanItems) {
+                        try {
+                            $hppVals = [];
+                            foreach ($racikanItems as $ri) {
+                                if (isset($ri->billable) && isset($ri->billable->obat) && $ri->billable->obat) {
+                                    $hppVals[] = $ri->billable->obat->hpp ?? null;
+                                }
+                            }
+                            $hppVals = array_filter($hppVals, function($v){ return !is_null($v); });
+                            if (!empty($hppVals)) return round(array_sum($hppVals)/count($hppVals), 2);
+                        } catch (\Exception $e) {
+                            Log::warning('Failed to compute racikan hpp: ' . $e->getMessage());
+                        }
+                        return null;
+                    })(),
+                    'hpp_jual' => (function() use ($racikanItems) {
+                        try {
+                            $vals = [];
+                            foreach ($racikanItems as $ri) {
+                                if (isset($ri->billable) && isset($ri->billable->obat) && $ri->billable->obat) {
+                                    $vals[] = $ri->billable->obat->hpp_jual ?? null;
+                                }
+                            }
+                            $vals = array_filter($vals, function($v){ return !is_null($v); });
+                            if (!empty($vals)) return round(array_sum($vals)/count($vals), 2);
+                        } catch (\Exception $e) {
+                            Log::warning('Failed to compute racikan hpp_jual: ' . $e->getMessage());
+                        }
+                        return null;
+                    })(),
                     'discount' => 0,
                     'discount_type' => null,
                     'final_amount' => $finalAmount,
@@ -1129,6 +1204,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'description' => 'Biaya administrasi layanan',
                     'quantity' => 1,
                     'unit_price' => floatval($totals['adminFee']),
+                    'hpp' => null,
+                    'hpp_jual' => null,
                     'discount' => 0,
                     'discount_type' => null,
                     'final_amount' => floatval($totals['adminFee']),
@@ -1143,6 +1220,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'description' => 'Biaya pengiriman',
                     'quantity' => 1,
                     'unit_price' => floatval($totals['shippingFee']),
+                    'hpp' => null,
+                    'hpp_jual' => null,
                     'discount' => 0,
                     'discount_type' => null,
                     'final_amount' => floatval($totals['shippingFee']),

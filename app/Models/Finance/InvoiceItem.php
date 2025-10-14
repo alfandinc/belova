@@ -17,6 +17,8 @@ class InvoiceItem extends Model
         'description',
         'quantity',
         'unit_price',
+        'hpp',
+        'hpp_jual',
         'discount',
         'discount_type',
         'final_amount',
@@ -26,6 +28,8 @@ class InvoiceItem extends Model
 
     protected $casts = [
         'unit_price' => 'decimal:2',
+        'hpp' => 'decimal:2',
+        'hpp_jual' => 'decimal:2',
         'discount' => 'decimal:2',
         'final_amount' => 'decimal:2',
     ];
