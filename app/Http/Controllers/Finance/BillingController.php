@@ -740,6 +740,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $regularItems = [];
             $pharmacyFeeItems = [];
             $processedRacikanObats = [];
+            // Track whether any stock reductions actually happened (useful for response)
+            $stockReduced = false;
 
             foreach ($billingItems as $item) {
                 // Identify pharmacy fee items
@@ -867,13 +869,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
                                     
                                     // Reduce stock from selected gudang
-                                    $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
+                                    $reduced = $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
+                                    if ($reduced) $stockReduced = true;
                                 } else if ($qtyDiff < 0) {
                                     // Get gudang selection for stock return
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
                                     
                                     // Return stock to selected gudang
-                                    $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
+                                    $returned = $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
+                                    if ($returned) $stockReduced = true; // treat returned as stock-adjusted
                                 }
                             Log::info('Stock processed via invoice (ResepFarmasi)', [
                                 'obat_id' => $obat->id,
@@ -899,7 +903,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             // Get gudang selection for bundled obat
                             $gudangId = $this->getGudangForItem($request, $obat->id, 'tindakan');
                             
-                            $this->reduceGudangStock($obat->id, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
+                            $reduced = $this->reduceGudangStock($obat->id, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
+                            if ($reduced) $stockReduced = true;
                             Log::info('Stock processed via invoice (Bundled Obat)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,
@@ -924,7 +929,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // Get gudang selection for kode tindakan obat
                     $gudangId = $this->getGudangForItem($request, $obatId, 'kode_tindakan');
                     
-                    $this->reduceGudangStock($obatId, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
+                    $reduced = $this->reduceGudangStock($obatId, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
+                    if ($reduced) $stockReduced = true;
                     
                     $obat = \App\Models\ERM\Obat::find($obatId);
                     Log::info('Stock processed via invoice (Kode Tindakan Obat)', [
@@ -1149,9 +1155,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             return response()->json([
                 'success' => true,
-                'message' => 'Invoice berhasil dibuat dan stok telah diupdate',
+                'message' => 'Invoice berhasil dibuat',
                 'invoice_id' => $invoice->id,
-                'invoice_number' => $invoice->invoice_number
+                'invoice_number' => $invoice->invoice_number,
+                'stock_reduced' => $stockReduced,
+                'stock_message' => $stockReduced ? 'Stok berhasil dikurangi sesuai pembayaran.' : 'Stok tidak dikurangi (invoice belum lunas atau tidak ada item stok).'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
