@@ -996,7 +996,7 @@ $('#saveAllChangesBtn').on('click', function() {
     });
 });
         
-        // Create invoice button
+        // Create invoice button (single-Swal flow to avoid stacked alerts)
         $('#createInvoiceBtn').on('click', function() {
             Swal.fire({
                 title: 'Konfirmasi',
@@ -1009,7 +1009,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 cancelButtonText: 'Batal'
             }).then((result) => {
                 if (result.value) {
-                    // Simpan billing dulu
+                    // Prepare request data
                     const correctVisitationId = "{{ $visitation->id }}";
                     const editedItems = billingData.filter(item => item.edited && !item.deleted);
                     const newItems = billingData.filter(item =>
@@ -1029,20 +1029,24 @@ $('#saveAllChangesBtn').on('click', function() {
                         deleted_items: deletedItems,
                         totals: window.billingTotals
                     };
+
+                    // Open a single loading modal and update it through the process
                     Swal.fire({
-                        title: 'Menyimpan...',
-                        text: 'Harap tunggu, sedang menyimpan billing.',
+                        title: 'Memproses...',
+                        text: 'Harap tunggu, sedang menyimpan dan membuat invoice.',
                         icon: 'info',
                         allowOutsideClick: false,
                         showConfirmButton: false,
                         didOpen: () => { Swal.showLoading(); }
                     });
+
+                    // First: save billing
                     $.ajax({
                         url: "{{ route('finance.billing.save') }}",
                         type: "POST",
                         data: requestData,
                         success: function(saveResponse) {
-                            // Setelah simpan sukses, lanjut buat invoice
+                            // After save, create invoice
                             const items = billingData.filter(item => !item.deleted);
                             if (items.length === 0) {
                                 Swal.fire({
@@ -1052,14 +1056,23 @@ $('#saveAllChangesBtn').on('click', function() {
                                 });
                                 return;
                             }
-                            Swal.fire({
-                                title: 'Membuat Invoice...',
-                                text: 'Harap tunggu, sedang memproses invoice.',
-                                icon: 'info',
-                                allowOutsideClick: false,
-                                showConfirmButton: false,
-                                didOpen: () => { Swal.showLoading(); }
-                            });
+
+                            // Update the same modal to indicate invoice creation
+                            try {
+                                Swal.update({ title: 'Membuat Invoice...', text: 'Harap tunggu, sedang memproses invoice.' });
+                            } catch(e) {
+                                // Fallback: if Swal.update isn't available, close and open a new loading modal
+                                Swal.close();
+                                Swal.fire({
+                                    title: 'Membuat Invoice...',
+                                    text: 'Harap tunggu, sedang memproses invoice.',
+                                    icon: 'info',
+                                    allowOutsideClick: false,
+                                    showConfirmButton: false,
+                                    didOpen: () => { Swal.showLoading(); }
+                                });
+                            }
+
                             $.ajax({
                                 url: "{{ route('finance.billing.createInvoice') }}",
                                 type: "POST",
@@ -1071,10 +1084,19 @@ $('#saveAllChangesBtn').on('click', function() {
                                     gudang_selections: collectGudangSelections()
                                 },
                                 success: function(invoiceResponse) {
+                                    // The backend returns stock_reduced and stock_message
+                                    var stockReduced = invoiceResponse.stock_reduced === true || invoiceResponse.stock_reduced === 1;
+                                    var stockMessage = invoiceResponse.stock_message || '';
+                                    var icon = stockReduced ? 'success' : 'warning';
+                                    var html = 'Invoice berhasil dibuat dengan nomor: <strong>' + (invoiceResponse.invoice_number || invoiceResponse.invoice_number) + '</strong>';
+                                    if (stockMessage) {
+                                        html += '<br><small style="display:block;margin-top:8px;color:#555;">' + stockMessage + '</small>';
+                                    }
+
                                     Swal.fire({
                                         title: 'Berhasil!',
-                                        text: 'Invoice berhasil dibuat dengan nomor: ' + invoiceResponse.invoice_number,
-                                        icon: 'success',
+                                        html: html,
+                                        icon: icon,
                                         confirmButtonText: 'OK'
                                     }).then(() => {
                                         window.location.href = "{{ route('finance.billing.index') }}";
