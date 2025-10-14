@@ -40,6 +40,25 @@ class BackfillInvoiceStock extends Command
         $dryRun = $this->option('dry-run');
         $limit = $this->option('limit');
 
+        // Parse and validate date inputs using Carbon
+        $fromTs = null;
+        $toTs = null;
+        try {
+            if ($from) {
+                $fromTs = \Carbon\Carbon::parse($from)->startOfDay();
+            }
+            if ($to) {
+                $toTs = \Carbon\Carbon::parse($to)->endOfDay();
+            }
+            if ($fromTs && $toTs && $fromTs->gt($toTs)) {
+                $this->error('Invalid date range: --from cannot be after --to');
+                return 1;
+            }
+        } catch (\Exception $e) {
+            $this->error('Invalid date format for --from or --to. Use YYYY-MM-DD or an ISO datetime.');
+            return 1;
+        }
+
         $this->info('Starting backfill process' . ($dryRun ? ' (dry-run)' : ''));
 
         $query = Invoice::query()
@@ -50,12 +69,13 @@ class BackfillInvoiceStock extends Command
         if ($invoiceId) {
             $query->where('id', $invoiceId);
         }
-        if ($from && $to) {
-            $query->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59']);
-        } elseif ($from) {
-            $query->where('created_at', '>=', $from . ' 00:00:00');
-        } elseif ($to) {
-            $query->where('created_at', '<=', $to . ' 23:59:59');
+
+        if ($fromTs && $toTs) {
+            $query->whereBetween('created_at', [$fromTs->toDateTimeString(), $toTs->toDateTimeString()]);
+        } elseif ($fromTs) {
+            $query->where('created_at', '>=', $fromTs->toDateTimeString());
+        } elseif ($toTs) {
+            $query->where('created_at', '<=', $toTs->toDateTimeString());
         }
 
         if ($limit) {
@@ -179,6 +199,19 @@ class BackfillInvoiceStock extends Command
                     DB::rollBack();
                     $this->info(' - Dry run complete for invoice ' . $invoice->id);
                 } else {
+                    // Update created_at/updated_at on kartu stok entries created for this invoice
+                    try {
+                        $ts = $invoice->created_at instanceof \DateTime ? $invoice->created_at : date('Y-m-d H:i:s', strtotime($invoice->created_at));
+                        // Also set the `tanggal` field so the ledger date matches the invoice time
+                        $updateData = ['created_at' => $ts, 'updated_at' => $ts, 'tanggal' => $ts];
+                        KartuStok::where('ref_type', 'invoice_penjualan')
+                            ->where('ref_id', $invoice->id)
+                            ->update($updateData);
+                    } catch (\Exception $ex) {
+                        // Log and continue — this should not block commit, but we want to surface issues
+                        Log::warning('Failed to update kartu_stok timestamps for invoice ' . $invoice->id . ': ' . $ex->getMessage());
+                    }
+
                     DB::commit();
                     $this->info(' - Stock reductions applied and kartu stok entries created for invoice ' . $invoice->id);
                 }
