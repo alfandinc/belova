@@ -724,9 +724,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
             // Get old items for comparison if invoice exists
             $oldInvoiceItems = [];
-            $hadPreviousPayment = false;
+            $previousAmountPaid = 0;
             if ($existingInvoice) {
-                $hadPreviousPayment = ($existingInvoice->amount_paid > 0);
+                $previousAmountPaid = floatval($existingInvoice->amount_paid ?? 0);
                 $oldInvoiceItems = $invoice->items()
                     ->get()
                     ->keyBy(function($item) {
@@ -772,23 +772,33 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
             }
 
-            // Process stock changes only for medication items WHEN PAYMENT IS MADE
-            $shouldReduceStock = ($amountPaid > 0) && (!$existingInvoice || !$hadPreviousPayment);
-            
+            // Process stock changes only when invoice becomes fully paid (amount_paid >= total_amount)
+            $amountPaid = floatval($amountPaid ?? 0);
+            $totalAmount = floatval($grandTotal ?? 0);
+
+            // Determine if payment increased compared to previous
+            $paymentIncreased = $existingInvoice ? ($amountPaid > $previousAmountPaid) : ($amountPaid > 0);
+
+            // Only trigger reduction when the invoice was not fully paid before, payment increased,
+            // and now amount_paid is >= total_amount (i.e. fully paid now)
+            $shouldReduceStock = ($previousAmountPaid < $totalAmount) && $paymentIncreased && ($amountPaid >= $totalAmount);
+
             if ($shouldReduceStock) {
-                Log::info('Processing stock reduction - payment detected', [
+                Log::info('Processing stock reduction - invoice reached full payment', [
                     'invoice_id' => $invoice->id,
                     'amount_paid' => $amountPaid,
+                    'previous_amount_paid' => $previousAmountPaid,
+                    'total_amount' => $totalAmount,
                     'is_new_invoice' => !$existingInvoice,
-                    'had_previous_payment' => $hadPreviousPayment,
                     'visitation_id' => $request->visitation_id
                 ]);
             } else {
-                Log::info('Skipping stock reduction - no payment or already paid', [
+                Log::info('Skipping stock reduction - invoice not fully paid or no new payment', [
                     'invoice_id' => $invoice->id,
                     'amount_paid' => $amountPaid,
+                    'previous_amount_paid' => $previousAmountPaid,
+                    'total_amount' => $totalAmount,
                     'is_new_invoice' => !$existingInvoice,
-                    'had_previous_payment' => $hadPreviousPayment,
                     'visitation_id' => $request->visitation_id
                 ]);
             }
@@ -801,6 +811,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // For updates, only adjust the difference
                     $oldItem = $oldInvoiceItems[$itemKey] ?? null;
                     $oldQty = $oldItem ? intval($oldItem->quantity) : 0;
+
+                    // If this invoice was previously unpaid (no stock reductions performed)
+                    // and payment has just increased, treat old quantity as 0 so we reduce full qty
+                    if ($previousAmountPaid == 0 && $paymentIncreased) {
+                        $oldQty = 0;
+                    }
+
                     $qtyDiff = $newQty - $oldQty;
 
                     // Skip if no quantity change
