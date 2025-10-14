@@ -16,6 +16,7 @@ class Kernel extends ConsoleKernel
 	protected $commands = [
 		UpdateJatahCuti::class,
 		\App\Console\Commands\SimulateKpi::class,
+		\App\Console\Commands\BackfillInvoiceStock::class,
 	];
 
 	/**
