@@ -21,6 +21,7 @@ class Invoice extends Model
         'total_amount',
         'amount_paid',
         'change_amount',
+        'shortage_amount',
         'payment_method',
         'status',
         'payment_date',
@@ -39,6 +40,7 @@ class Invoice extends Model
         'total_amount' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'change_amount' => 'decimal:2',
+        'shortage_amount' => 'decimal:2',
     ];
 
     public function items()

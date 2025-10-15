@@ -236,6 +236,10 @@
                             <span>Kembali:</span>
                             <span id="change_amount" class="font-weight-bold text-success">Rp 0</span>
                         </div>
+                        <div class="d-flex justify-content-between" style="display:none;" id="shortage_label">
+                            <span>Kekurangan:</span>
+                            <span id="shortage_amount" class="font-weight-bold text-danger">Rp 0</span>
+                        </div>
                     </div>
                     
                     <div class="mt-4">
@@ -884,7 +888,16 @@
             const amountPaid = parseHarga($('#amount_paid').val() || 0);
             const amountPaidInt = Math.ceil(amountPaid);
             const changeAmount = Math.max(0, amountPaidInt - grandTotalInt);
+            const shortageAmount = Math.max(0, grandTotalInt - amountPaidInt);
             $('#change_amount').text('Rp ' + formatCurrency(changeAmount));
+            // Update shortage display (kekurangan)
+            if (shortageAmount > 0) {
+                $('#shortage_amount').text('Rp ' + formatCurrency(shortageAmount)).show();
+                $('#shortage_label').show();
+            } else {
+                $('#shortage_amount').hide();
+                $('#shortage_label').hide();
+            }
             
             // Store these values for later use when saving/creating invoice
             window.billingTotals = {
@@ -903,6 +916,7 @@
                 amountPaid: amountPaid,
                 amountPaidInt: amountPaidInt,
                 changeAmount: changeAmount,
+                shortageAmount: shortageAmount,
                 paymentMethod: $('#payment_method').val()
             };
         }

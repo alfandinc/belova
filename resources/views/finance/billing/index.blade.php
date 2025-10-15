@@ -36,10 +36,11 @@
                                 </div>
                                 <div class="d-flex align-items-center" style="flex:0 0 160px;">
                                     <select id="filter-status" class="form-control form-control-sm w-100">
-                                        <option value="belum">Belum Dibayar</option>
-                                        <option value="sudah">Sudah Bayar</option>
-                                        <option value="">Semua Status</option>
-                                    </select>
+                                            <option value="belum">Belum Dibayar</option>
+                                            <option value="belum_lunas">Belum Lunas</option>
+                                            <option value="sudah">Sudah Bayar</option>
+                                            <option value="">Semua Status</option>
+                                        </select>
                                 </div>
                                 <div class="d-flex align-items-center" style="flex:0 0 auto;">
                                     <div class="form-check d-flex align-items-center">

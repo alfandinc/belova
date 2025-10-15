@@ -702,8 +702,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Prefer integer-rounded totals if provided by frontend to avoid rounding mismatch
             $grandTotal = isset($totals['grandTotalInt']) ? intval($totals['grandTotalInt']) : floatval($totals['grandTotal'] ?? $subtotal);
             $amountPaid = isset($totals['amountPaidInt']) ? intval($totals['amountPaidInt']) : floatval($totals['amountPaid'] ?? 0);
-            $changeAmount = floatval($totals['changeAmount'] ?? 0);
+            // Calculate change and shortage from provided amounts (server-side authoritative)
             $paymentMethod = $totals['paymentMethod'] ?? 'cash';
+
+            // Ensure numeric
+            $amountPaidNumeric = floatval($amountPaid ?? 0);
+            $grandTotalNumeric = floatval($grandTotal ?? 0);
+
+            // If paid more than total => change (kembalian), else if paid less => shortage (kekurangan)
+            $changeAmount = 0.0;
+            $shortageAmount = 0.0;
+            if ($amountPaidNumeric >= $grandTotalNumeric) {
+                $changeAmount = $amountPaidNumeric - $grandTotalNumeric;
+            } else {
+                $shortageAmount = max(0, $grandTotalNumeric - $amountPaidNumeric);
+            }
 
             // Use updateOrCreate untuk invoice
             $invoice = Invoice::updateOrCreate(
@@ -719,6 +732,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'total_amount' => $grandTotal,
                     'amount_paid' => $amountPaid,
                     'change_amount' => $changeAmount,
+                    'shortage_amount' => $shortageAmount,
                     'payment_method' => $paymentMethod,
                     'status' => 'issued',
                     'user_id' => Auth::id(),
@@ -1527,6 +1541,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                           }
                       });
             });
+        } elseif ($statusFilter === 'belum_lunas') {
+            // Partially paid invoices
+            $visitations->whereHas('invoice', function($q) {
+                $q->where('amount_paid', '>', 0)->whereColumn('amount_paid', '<', 'total_amount');
+            });
         } elseif ($statusFilter === 'sudah') {
             // Only visitations with a paid invoice
             $visitations->whereHas('invoice', function($q) {
@@ -1616,19 +1635,33 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return '-';
             })
                 ->addColumn('status', function ($visitation) {
-                    // If there is an invoice paid > 0, show paid
-                    if ($visitation->invoice && $visitation->invoice->amount_paid > 0) {
-                        return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
-                    }
+                        // If invoice exists, determine full/partial/unpaid status
+                        if ($visitation->invoice) {
+                            $amountPaid = floatval($visitation->invoice->amount_paid ?? 0);
+                            $totalAmount = floatval($visitation->invoice->total_amount ?? 0);
 
-                    // Check if all billings for this visitation are trashed (if there are any)
-                    $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
-                    $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
-                    if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
-                        return '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
-                    }
+                            // Fully paid
+                            if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
+                                return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
+                            }
 
-                    return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                            // Partially paid
+                            if ($amountPaid > 0 && $amountPaid < $totalAmount) {
+                                return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
+                            }
+
+                            // amount_paid == 0 falls through to check billings below
+                        }
+
+                        // Check if all billings for this visitation are trashed (if there are any)
+                        $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
+                        $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+                        if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
+                            return '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
+                        }
+
+                        // No invoice or unpaid invoice
+                        return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
                 })
             ->addColumn('action', function ($visitation) {
                 $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
