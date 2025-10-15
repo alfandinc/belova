@@ -214,7 +214,7 @@
                         <div class="form-group row mb-2">
                             <div class="col-6">
                                 <label for="amount_paid">Dibayar</label>
-                                <input type="number" class="form-control" id="amount_paid" min="0" value="0" placeholder="Jumlah uang yang diberikan pasien">
+                                <input type="text" class="form-control" id="amount_paid" value="0" placeholder="Jumlah uang yang diberikan pasien">
                                 <small class="text-muted">Masukkan jumlah uang yang diberikan oleh pasien</small>
                             </div>
                             <div class="col-6">
@@ -876,11 +876,14 @@
             const shippingFee = parseFloat($('#shipping_fee').val() || 0);
             // Calculate and display grand total
             const grandTotal = afterDiscount + taxAmount + adminFee + shippingFee;
-            $('#grand_total').text('Rp ' + formatCurrency(grandTotal));
-            
-            // Calculate change amount
-            const amountPaid = parseFloat($('#amount_paid').val() || 0);
-            const changeAmount = Math.max(0, amountPaid - grandTotal);
+            // integer ceil versions to align with backend (always round up)
+            const grandTotalInt = Math.ceil(grandTotal);
+            $('#grand_total').text('Rp ' + formatCurrency(grandTotalInt));
+
+            // Calculate change amount using integer ceil values to match displayed total
+            const amountPaid = parseHarga($('#amount_paid').val() || 0);
+            const amountPaidInt = Math.ceil(amountPaid);
+            const changeAmount = Math.max(0, amountPaidInt - grandTotalInt);
             $('#change_amount').text('Rp ' + formatCurrency(changeAmount));
             
             // Store these values for later use when saving/creating invoice
@@ -894,14 +897,32 @@
                 adminFee: adminFee,
                 shippingFee: shippingFee,
                 grandTotal: grandTotal,
+                // integer-rounded rupiah values to avoid mismatch when frontend strips decimals
+                // use Math.ceil to always round up so payment value will never be under the actual price
+                grandTotalInt: grandTotalInt,
                 amountPaid: amountPaid,
+                amountPaidInt: amountPaidInt,
                 changeAmount: changeAmount,
                 paymentMethod: $('#payment_method').val()
             };
         }
         
         // Event listeners for total calculation inputs
-        $('#global_discount, #global_discount_type, #tax_percentage, #admin_fee, #shipping_fee, #amount_paid, #payment_method').on('change input', function() {
+        $('#global_discount, #global_discount_type, #tax_percentage, #admin_fee, #shipping_fee, #payment_method').on('change input', function() {
+            calculateTotals();
+        });
+
+        // Handle amount_paid input separately: parse/ceil on blur and recalc
+        $('#amount_paid').on('change input', function() {
+            // live updates while typing
+            calculateTotals();
+        }).on('blur', function() {
+            // On blur, normalize: parse, ceil, and format for display
+            const raw = $(this).val();
+            const parsed = parseHarga(raw);
+            const ceilVal = Math.ceil(parsed);
+            // formatCurrency returns e.g. '257.000' for integers; append ',00' to match user's style
+            $(this).val(formatCurrency(ceilVal) + ',00');
             calculateTotals();
         });
         
@@ -1073,7 +1094,15 @@ $('#saveAllChangesBtn').on('click', function() {
                                 });
                             }
 
-                            $.ajax({
+                                // Debug: log payload being sent for invoice creation
+                                console.debug('Creating invoice payload', {
+                                    visitation_id: correctVisitationId,
+                                    items: items,
+                                    totals: window.billingTotals,
+                                    gudang_selections: collectGudangSelections()
+                                });
+
+                                $.ajax({
                                 url: "{{ route('finance.billing.createInvoice') }}",
                                 type: "POST",
                                 data: {

@@ -695,13 +695,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // No invoice-level current_hpp: HPP is stored per invoice item (hpp/hpp_jual)
 
             // Get totals from request
-            $totals = $request->totals;
-            $subtotal = $totals['subtotal'] ?? 0;
-            $discountAmount = $totals['discountAmount'] ?? 0;
-            $taxAmount = $totals['taxAmount'] ?? 0;
-            $grandTotal = $totals['grandTotal'] ?? $subtotal;
-            $amountPaid = $totals['amountPaid'] ?? 0;
-            $changeAmount = $totals['changeAmount'] ?? 0;
+            $totals = $request->totals ?? [];
+            $subtotal = floatval($totals['subtotal'] ?? 0);
+            $discountAmount = floatval($totals['discountAmount'] ?? 0);
+            $taxAmount = floatval($totals['taxAmount'] ?? 0);
+            // Prefer integer-rounded totals if provided by frontend to avoid rounding mismatch
+            $grandTotal = isset($totals['grandTotalInt']) ? intval($totals['grandTotalInt']) : floatval($totals['grandTotal'] ?? $subtotal);
+            $amountPaid = isset($totals['amountPaidInt']) ? intval($totals['amountPaidInt']) : floatval($totals['amountPaid'] ?? 0);
+            $changeAmount = floatval($totals['changeAmount'] ?? 0);
             $paymentMethod = $totals['paymentMethod'] ?? 'cash';
 
             // Use updateOrCreate untuk invoice
@@ -777,31 +778,51 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             }
 
             // Process stock changes only when invoice becomes fully paid (amount_paid >= total_amount)
-            $amountPaid = floatval($amountPaid ?? 0);
-            $totalAmount = floatval($grandTotal ?? 0);
+            // To avoid issues where frontend strips decimals (e.g. 256491.25 displayed/rounded),
+            // compare amounts in integer rupiah (round to nearest 1) so small fractional differences
+            // don't prevent stock reduction. Store raw floats too for logging.
+            $amountPaidRaw = floatval($amountPaid ?? 0);
+            $totalAmountRaw = floatval($grandTotal ?? 0);
 
-            // Determine if payment increased compared to previous
-            $paymentIncreased = $existingInvoice ? ($amountPaid > $previousAmountPaid) : ($amountPaid > 0);
+            // Round up to whole rupiah (int) for comparison so we never undercount
+            $previousAmountPaidInt = intval(ceil($previousAmountPaid));
+            $amountPaidInt = intval(ceil($amountPaidRaw));
+            $totalAmountInt = intval(ceil($totalAmountRaw));
+
+            // Determine if payment increased compared to previous using integer rupiah
+            $paymentIncreased = $existingInvoice ? ($amountPaidInt > $previousAmountPaidInt) : ($amountPaidInt > 0);
 
             // Only trigger reduction when the invoice was not fully paid before, payment increased,
-            // and now amount_paid is >= total_amount (i.e. fully paid now)
-            $shouldReduceStock = ($previousAmountPaid < $totalAmount) && $paymentIncreased && ($amountPaid >= $totalAmount);
+            // and now amount_paid (rounded) is >= total_amount (rounded)
+            $shouldReduceStock = ($previousAmountPaidInt < $totalAmountInt) && $paymentIncreased && ($amountPaidInt >= $totalAmountInt);
+
+            // Add detailed logging with both raw and rounded values for debugging
+            Log::info('Payment comparison (raw vs int)', [
+                'previous_raw' => $previousAmountPaid,
+                'amount_paid_raw' => $amountPaidRaw,
+                'total_amount_raw' => $totalAmountRaw,
+                'previous_int' => $previousAmountPaidInt,
+                'amount_paid_int' => $amountPaidInt,
+                'total_amount_int' => $totalAmountInt,
+                'payment_increased' => $paymentIncreased,
+                'should_reduce_stock' => $shouldReduceStock
+            ]);
 
             if ($shouldReduceStock) {
                 Log::info('Processing stock reduction - invoice reached full payment', [
                     'invoice_id' => $invoice->id,
-                    'amount_paid' => $amountPaid,
+                    'amount_paid_raw' => $amountPaidRaw,
                     'previous_amount_paid' => $previousAmountPaid,
-                    'total_amount' => $totalAmount,
+                    'total_amount_raw' => $totalAmountRaw,
                     'is_new_invoice' => !$existingInvoice,
                     'visitation_id' => $request->visitation_id
                 ]);
             } else {
                 Log::info('Skipping stock reduction - invoice not fully paid or no new payment', [
                     'invoice_id' => $invoice->id,
-                    'amount_paid' => $amountPaid,
+                    'amount_paid_raw' => $amountPaidRaw,
                     'previous_amount_paid' => $previousAmountPaid,
-                    'total_amount' => $totalAmount,
+                    'total_amount_raw' => $totalAmountRaw,
                     'is_new_invoice' => !$existingInvoice,
                     'visitation_id' => $request->visitation_id
                 ]);
