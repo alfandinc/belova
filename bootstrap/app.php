@@ -16,10 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
         ]);
         
-        // Exclude WhatsApp webhook from CSRF verification
-        $middleware->validateCsrfTokens(except: [
-            'api/whatsapp/webhook',
-        ]);
+        // No custom CSRF exceptions required (WhatsApp webhook removed)
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

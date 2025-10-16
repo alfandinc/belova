@@ -22,9 +22,4 @@ yarn-error.log
 /.vscode
 /.zed
 
-# WhatsApp Baileys Authentication Files
-/whatsapp-service/auth_info_baileys/
-/whatsapp-service/auth_info_baileys/*
-
-# WhatsApp Service Logs (optional)
-/whatsapp-service/logs/
+# WhatsApp Baileys Authentication Files (removed)

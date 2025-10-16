@@ -33,6 +33,7 @@ class WhatsAppConversation extends Model
     // Conversation states
     const STATE_PENDING = 'pending';
     const STATE_CONFIRMED = 'confirmed';
+        // Stub model to keep references safe; integration removed
     const STATE_CANCELLED = 'cancelled';
     const STATE_EXPIRED = 'expired';
 
