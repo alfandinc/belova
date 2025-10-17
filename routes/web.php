@@ -1239,6 +1239,12 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
             Route::get('/activity-data', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'activityData'])->name('admin.activity.data');
             
     // WhatsApp integration removed
+        // Admin WhatsApp UI (send single message)
+        Route::get('/whatsapp', [\App\Http\Controllers\Admin\WhatsAppController::class, 'index'])->name('admin.whatsapp.index');
+        Route::post('/whatsapp/send', [\App\Http\Controllers\Admin\WhatsAppController::class, 'send'])->name('admin.whatsapp.send');
+        Route::post('/whatsapp/start', [\App\Http\Controllers\Admin\WhatsAppController::class, 'startService'])->name('admin.whatsapp.start');
+        Route::post('/whatsapp/stop', [\App\Http\Controllers\Admin\WhatsAppController::class, 'stopService'])->name('admin.whatsapp.stop');
+        Route::get('/whatsapp/debug', [\App\Http\Controllers\Admin\WhatsAppController::class, 'debug'])->name('admin.whatsapp.debug');
     });
 
 // WhatsApp webhook routes removed

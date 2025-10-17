@@ -23,3 +23,22 @@ yarn-error.log
 /.zed
 
 # WhatsApp Baileys Authentication Files (removed)
+
+
+# Whatsapp-web.js / whatsapp-service runtime artifacts
+# - Local auth/session and cache created by whatsapp-web.js (do not commit)
+/whatsapp-service/.wwebjs_auth/
+/whatsapp-service/.wwebjs_cache/
+
+# - Node modules and logs for the service
+/whatsapp-service/node_modules/
+/whatsapp-service/logs/
+/whatsapp-service/*.log
+/whatsapp-service/*.pid
+
+# - Local chromium downloads / cache created by puppeteer (if any)
+/whatsapp-service/.local-chromium/
+/whatsapp-service/.cache/
+
+# - Optional environment file for the service
+/whatsapp-service/.env
