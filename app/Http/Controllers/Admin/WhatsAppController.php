@@ -34,12 +34,14 @@ class WhatsAppController extends Controller
         $data = $request->validate([
             'number' => 'required|string',
             'message' => 'nullable|string',
+            'session' => 'nullable|string',
         ]);
 
         $number = preg_replace('/[^0-9]/', '', $data['number']);
         $message = $data['message'] ?? '';
 
-        $result = $whatsappService->sendMessage($number, $message);
+    $session = $data['session'] ?? null;
+    $result = $whatsappService->sendMessage($number, $message, $session);
 
         if (is_array($result) && isset($result['success']) && $result['success']) {
             return redirect()->route('admin.whatsapp.index')->with('success', 'Message queued for sending.');
@@ -88,6 +90,9 @@ class WhatsAppController extends Controller
             ]);
 
             // Try launching Node.js with a visible window using cmd.exe /c start
+            // Ensure the process will auto-initialize existing sessions on start
+            $envVars['WHATSAPP_AUTO_INIT'] = 'true';
+            $envVars['WHATSAPP_MAX_SESSIONS'] = '20';
             $cmdLine = ['cmd.exe', '/c', 'start', 'node', 'server.js'];
             $startProcess = new Process($cmdLine, $servicePath, $envVars);
             $startProcess->start();

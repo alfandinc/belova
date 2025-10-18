@@ -34,6 +34,22 @@ class WhatsAppService
         return false;
     }
 
+    // overloaded to accept a session id (optional)
+    public function isConnectedSession($session = null)
+    {
+        try {
+            $url = $this->baseUrl . '/status' . ($session ? ('?session=' . urlencode($session)) : '');
+            $res = Http::timeout(3)->get($url);
+            if ($res->successful()) {
+                $json = $res->json();
+                return isset($json['status']) && $json['status'] === 'ready';
+            }
+        } catch (\Exception $e) {
+            Log::debug('WhatsAppService isConnectedSession check failed: ' . $e->getMessage());
+        }
+        return false;
+    }
+
     public function getServiceHealth()
     {
         try {
@@ -44,7 +60,14 @@ class WhatsAppService
         }
     }
 
-    public function sendMessage($number, $message)
+    /**
+     * Send a message through the whatsapp-service.
+     * @param string $number E.164-ish digits (country code + number)
+     * @param string $message
+     * @param string|null $session Optional session/clientId to use (default: belova)
+     * @return array
+     */
+    public function sendMessage($number, $message, $session = null)
     {
         // normalize number to digits only (caller should include country code)
         $clean = preg_replace('/[^0-9]/', '', (string) $number);
@@ -53,10 +76,10 @@ class WhatsAppService
         }
 
         try {
-            $res = Http::timeout(10)->post($this->baseUrl . '/send', [
-                'number' => $clean,
-                'message' => $message ?? '',
-            ]);
+            $body = ['number' => $clean, 'message' => $message ?? ''];
+            if ($session) $body['session'] = $session;
+
+            $res = Http::timeout(10)->post($this->baseUrl . '/send', $body);
 
             if ($res->successful()) {
                 return ['success' => true, 'response' => $res->json()];
