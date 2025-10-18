@@ -22,6 +22,9 @@
             <li>
                 <a href="{{ route('admin.whatsapp.index') }}"><i data-feather="message-square" class="align-self-center menu-icon"></i><span>WhatsApp</span></a>
             </li>
+            <li>
+                <a href="{{ route('admin.whatsapp.flows') }}"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>WhatsApp Flows</span></a>
+            </li>
             <!-- WhatsApp menu removed -->
             {{-- <li>
                 <a href="{{ route('admin.permissions.index') ?? '#' }}"><i data-feather="lock" class="align-self-center menu-icon"></i><span>Permissions</span></a>

@@ -25,6 +25,100 @@ process.on('unhandledRejection', (reason, p) => {
 
 // Multi-session support: manage multiple clients by clientId
 const clients = new Map(); // clientId -> { client, lastQr, ready }
+// Simple in-memory conversation state: key = `${clientId}::${from}` -> { expecting: 'choice' }
+const conversations = new Map();
+
+// Bot flows persisted to disk
+const globalFlowsFile = path.join(__dirname, 'bot-flows.json');
+let globalFlows = [];
+// sessionId -> flows array
+const flowsMap = new Map();
+
+function ensureDefaultFlows(arr) {
+  if (Array.isArray(arr) && arr.length) return arr;
+  return [{
+    id: 'main_menu',
+    name: 'Main Menu',
+    triggers: ['/start', 'menu', 'hi', 'hello'],
+    choices: [
+      { key: '1', label: 'Product info', reply: 'Our product is ...' },
+      { key: '2', label: 'Contact support', reply: 'Support will contact you shortly.' }
+    ],
+    fallback: 'Invalid choice. Please reply with the number of your selection.'
+  }];
+}
+
+function loadGlobalFlows() {
+  try {
+    if (fs.existsSync(globalFlowsFile)) {
+      const raw = fs.readFileSync(globalFlowsFile, 'utf8');
+      globalFlows = ensureDefaultFlows(JSON.parse(raw || '[]'));
+      console.log(`Loaded ${globalFlows.length} global bot flows from ${globalFlowsFile}`);
+    } else {
+      globalFlows = ensureDefaultFlows([]);
+      saveGlobalFlows();
+    }
+  } catch (e) {
+    console.error('Failed to load global flows:', e);
+    globalFlows = ensureDefaultFlows([]);
+  }
+}
+
+function saveGlobalFlows() {
+  try {
+    fs.writeFileSync(globalFlowsFile, JSON.stringify(globalFlows, null, 2), 'utf8');
+    console.log(`Saved ${globalFlows.length} global bot flows to ${globalFlowsFile}`);
+    return true;
+  } catch (e) {
+    console.error('Failed to save global flows:', e);
+    return false;
+  }
+}
+
+function getFlowsFileForSession(session) {
+  if (!session) return globalFlowsFile;
+  const safe = session.replace(/[^a-zA-Z0-9-_]/g, '_');
+  return path.join(__dirname, `bot-flows.${safe}.json`);
+}
+
+function loadFlowsFor(session) {
+  try {
+    if (!session) return globalFlows;
+    const file = getFlowsFileForSession(session);
+    if (fs.existsSync(file)) {
+      const raw = fs.readFileSync(file, 'utf8');
+      const f = ensureDefaultFlows(JSON.parse(raw || '[]'));
+      flowsMap.set(session, f);
+      console.log(`Loaded ${f.length} bot flows for session ${session} from ${file}`);
+      return f;
+    }
+    // fallback to global
+    flowsMap.set(session, globalFlows);
+    return globalFlows;
+  } catch (e) {
+    console.error('Failed to load flows for session', session, e);
+    flowsMap.set(session, globalFlows);
+    return globalFlows;
+  }
+}
+
+function saveFlowsFor(session, arr) {
+  try {
+    if (!Array.isArray(arr)) arr = [];
+    if (!session) {
+      globalFlows = ensureDefaultFlows(arr);
+      return saveGlobalFlows();
+    }
+    const file = getFlowsFileForSession(session);
+    fs.writeFileSync(file, JSON.stringify(arr, null, 2), 'utf8');
+    flowsMap.set(session, ensureDefaultFlows(arr));
+    console.log(`Saved ${arr.length} bot flows for session ${session} to ${file}`);
+    return true;
+  } catch (e) {
+    console.error('Failed to save flows for session', session, e);
+    return false;
+  }
+}
 
 function createClient(clientId) {
   if (clients.has(clientId)) return clients.get(clientId);
@@ -68,7 +162,59 @@ function createClient(clientId) {
     console.warn(`[${clientId}] WhatsApp client disconnected:`, reason);
   });
 
+  // Basic chatbot handler: send a simple menu and handle choice replies (1 or 2)
+  c.on('message', async (msg) => {
+    try {
+      const from = msg.from; // e.g., 62812...@c.us
+      const bodyRaw = (msg.body || '') + '';
+      const body = bodyRaw.trim().toLowerCase();
+      const key = `${clientId}::${from}`;
+
+      // Lookup flows for this client (session-specific or global)
+      const sessionFlows = flowsMap.get(clientId) || globalFlows;
+
+      // Check flows: triggers
+      let handled = false;
+      for (const f of sessionFlows) {
+        if (f.triggers && f.triggers.some(t => (t + '').toLowerCase() === body)) {
+          // send menu
+          const menu = (f.choices || []).map(ci => `${ci.key}. ${ci.label}`).join('\n');
+          await c.sendMessage(from, `${f.name}\nPlease choose an option:\n${menu}`);
+          conversations.set(key, { expecting: 'choice', flowId: f.id });
+          handled = true;
+          break;
+        }
+      }
+      if (handled) return;
+
+      const conv = conversations.get(key);
+      if (conv && conv.expecting === 'choice') {
+        const f = (sessionFlows || []).find(x => x.id === conv.flowId);
+        if (!f) {
+          conversations.delete(key);
+          return;
+        }
+        const choice = (f.choices || []).find(ci => (ci.key + '') === body);
+        if (choice) {
+          await c.sendMessage(from, choice.reply || '');
+          conversations.delete(key);
+          return;
+        }
+        // fallback
+        await c.sendMessage(from, f.fallback || 'Invalid choice.');
+        return;
+      }
+
+      // You can extend here: add keyword-based auto-replies, or forward messages to a worker
+
+    } catch (e) {
+      console.error(`[${clientId}] message handler error`, e && e.stack ? e.stack : e);
+    }
+  });
+
   c.initialize();
+  // load per-session flows into memory for this client
+  try { loadFlowsFor(clientId); } catch (e) { /* ignore */ }
   clients.set(clientId, state);
   return state;
 }
@@ -141,6 +287,28 @@ try {
 } catch (e) {
   console.error('Auto-init check failed:', e.message || e);
 }
+
+// Load global flows at startup
+loadGlobalFlows();
+
+// Bot flows management endpoints (support optional ?session=ID)
+app.get('/bot-flows', (req, res) => {
+  const session = (req.query && req.query.session) ? ('' + req.query.session) : '';
+  try {
+    const f = session ? (flowsMap.get(session) || loadFlowsFor(session)) : globalFlows;
+    return res.json({ flows: f });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e && e.message ? e.message : String(e) });
+  }
+});
+
+app.post('/bot-flows', (req, res) => {
+  const newFlows = req.body && req.body.flows;
+  const session = (req.query && req.query.session) ? ('' + req.query.session) : '';
+  if (!Array.isArray(newFlows)) return res.status(400).json({ success: false, error: 'flows (array) is required' });
+  const ok = saveFlowsFor(session, newFlows);
+  return ok ? res.json({ success: true, flows: newFlows }) : res.status(500).json({ success: false, error: 'Failed to save flows' });
+});
 
 app.get('/status', async (req, res) => {
   try {

@@ -19,6 +19,11 @@ class WhatsAppController extends Controller
         return view('admin.whatsapp.index');
     }
 
+    public function flowsView()
+    {
+        return view('admin.whatsapp.flows');
+    }
+
     public function getStatus()
     {
         return response()->json(['status' => 'disabled']);

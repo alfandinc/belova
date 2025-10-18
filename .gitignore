@@ -42,3 +42,7 @@ yarn-error.log
 
 # - Optional environment file for the service
 /whatsapp-service/.env
+
+# Bot flows (runtime) - global and per-session files
+whatsapp-service/bot-flows.json
+whatsapp-service/bot-flows.*.json
