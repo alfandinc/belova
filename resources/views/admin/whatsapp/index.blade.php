@@ -46,29 +46,7 @@
                 </div>
             </div>
 
-            <hr>
-
-            <!-- Send Message Section -->
-            <h5>Send Message</h5>
-            <form method="POST" action="{{ route('admin.whatsapp.send') }}">
-                @csrf
-                <div class="form-group">
-                    <label for="session">Session (optional)</label>
-                    <input type="text" name="session" id="session" class="form-control" placeholder="Session id (e.g. belova, wa2)">
-                    <small class="form-text text-muted">Leave empty to use default session <code>belova</code>.</small>
-                </div>
-                <div class="form-group">
-                    <label for="number">Phone number (with country code, e.g. 62812...)</label>
-                    <input type="text" name="number" id="number" class="form-control" placeholder="62812..." required>
-                </div>
-
-                <div class="form-group">
-                    <label for="message">Message</label>
-                    <textarea name="message" id="message" rows="5" class="form-control" placeholder="Your message"></textarea>
-                </div>
-
-                <button class="btn btn-primary" type="submit">Send</button>
-            </form>
+            
 
             <hr>
             <h5>Sessions</h5>
@@ -101,6 +79,30 @@
                     </table>
                 </div>
             </div>
+
+            <hr>
+
+            <!-- Send Message Section -->
+            <h5>Send Message</h5>
+            <form method="POST" action="{{ route('admin.whatsapp.send') }}">
+                @csrf
+                <div class="form-group">
+                    <label for="session">Session (optional)</label>
+                    <input type="text" name="session" id="session" class="form-control" placeholder="Session id (e.g. belova, wa2)">
+                    <small class="form-text text-muted">Leave empty to use default session <code>belova</code>.</small>
+                </div>
+                <div class="form-group">
+                    <label for="number">Phone number (with country code, e.g. 62812...)</label>
+                    <input type="text" name="number" id="number" class="form-control" placeholder="62812..." required>
+                </div>
+
+                <div class="form-group">
+                    <label for="message">Message</label>
+                    <textarea name="message" id="message" rows="5" class="form-control" placeholder="Your message"></textarea>
+                </div>
+
+                <button class="btn btn-primary" type="submit">Send</button>
+            </form>
 
             <script>
                 let autoRefreshTimer = null;
