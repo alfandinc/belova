@@ -9,6 +9,7 @@ const qrcodeTerminal = require('qrcode-terminal');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const fs = require('fs');
 const path = require('path');
+const fetch = require('node-fetch');
 
 const app = express();
 app.use(bodyParser.json());
@@ -66,6 +67,12 @@ function loadGlobalFlows() {
 
 function saveGlobalFlows() {
   try {
+    // If Laravel polling is enabled, do not persist flows to disk; DB is the canonical source
+    const usingPoll = (process.env.WHATSAPP_LARAVEL_POLL_SECONDS || '') !== '';
+    if (usingPoll) {
+      console.log(`Skipping saving global flows to disk because Laravel polling is enabled (count=${globalFlows.length})`);
+      return true;
+    }
     fs.writeFileSync(globalFlowsFile, JSON.stringify(globalFlows, null, 2), 'utf8');
     console.log(`Saved ${globalFlows.length} global bot flows to ${globalFlowsFile}`);
     return true;
@@ -109,7 +116,14 @@ function saveFlowsFor(session, arr) {
       globalFlows = ensureDefaultFlows(arr);
       return saveGlobalFlows();
     }
+    // If Laravel polling is enabled, do not persist per-session flows to disk; just update in-memory map
+    const usingPoll = (process.env.WHATSAPP_LARAVEL_POLL_SECONDS || '') !== '';
     const file = getFlowsFileForSession(session);
+    if (usingPoll) {
+      flowsMap.set(session, ensureDefaultFlows(arr));
+      console.log(`Updated ${arr.length} bot flows in-memory for session ${session} (not saved to disk due to polling)`);
+      return true;
+    }
     fs.writeFileSync(file, JSON.stringify(arr, null, 2), 'utf8');
     flowsMap.set(session, ensureDefaultFlows(arr));
     console.log(`Saved ${arr.length} bot flows for session ${session} to ${file}`);
@@ -173,16 +187,32 @@ function createClient(clientId) {
       // Lookup flows for this client (session-specific or global)
       const sessionFlows = flowsMap.get(clientId) || globalFlows;
 
-      // Check flows: triggers
+      // Check flows: triggers (normalize by trimming and removing leading slashes)
       let handled = false;
+      // normalize incoming body: remove leading slashes, surrounding quotes, trim and lowercase
+      let bodyNorm = body.replace(/^\/+/, '').trim();
+      bodyNorm = bodyNorm.replace(/^['"]+|['"]+$/g, '').toLowerCase();
       for (const f of sessionFlows) {
-        if (f.triggers && f.triggers.some(t => (t + '').toLowerCase() === body)) {
-          // send menu
-          const menu = (f.choices || []).map(ci => `${ci.key}. ${ci.label}`).join('\n');
-          await c.sendMessage(from, `${f.name}\nPlease choose an option:\n${menu}`);
-          conversations.set(key, { expecting: 'choice', flowId: f.id });
-          handled = true;
-          break;
+        try {
+          const triggers = Array.isArray(f.triggers) ? f.triggers : [];
+          const normalized = triggers.map(t => ('' + (t || ''))
+            .replace(/^\/+/, '')
+            .trim()
+            .replace(/^['"]+|['"]+$/g, '')
+            .toLowerCase()
+          );
+          // debug log for easier troubleshooting
+          console.debug(`[${clientId}] Incoming message='${bodyRaw}' normalized='${bodyNorm}' checking triggers:`, normalized);
+          if (normalized.some(t => t === bodyNorm)) {
+            // send menu
+            const menu = (f.choices || []).map(ci => `${ci.key}. ${ci.label}`).join('\n');
+            await c.sendMessage(from, `${f.name}\nPlease choose an option:\n${menu}`);
+            conversations.set(key, { expecting: 'choice', flowId: f.id });
+            handled = true;
+            break;
+          }
+        } catch (e) {
+          console.error('Trigger check error', e && e.stack ? e.stack : e);
         }
       }
       if (handled) return;
@@ -544,6 +574,11 @@ function loadScheduled() {
 
 function saveScheduled() {
   try {
+    const usingPoll = (process.env.WHATSAPP_LARAVEL_POLL_SECONDS || '') !== '';
+    if (usingPoll) {
+      console.log('Skipping saving scheduled messages to disk because Laravel polling is enabled');
+      return true;
+    }
     fs.writeFileSync(scheduledFile, JSON.stringify(scheduled, null, 2), 'utf8');
     return true;
   } catch (e) {
@@ -560,7 +595,7 @@ function startScheduler() {
     const due = scheduled.filter(s => !s.sent && new Date(s.sendAt).getTime() <= now);
     for (const job of due) {
       // attempt to send
-      try {
+        try {
         const sessionId = job.session || 'belova';
         const state = clients.get(sessionId);
         if (!state || !state.ready) {
@@ -581,9 +616,33 @@ function startScheduler() {
         await state.client.sendMessage(id, job.message || '');
         job.sent = true;
         job.sentAt = new Date().toISOString();
+        // if this job is from DB (id starts with db_), notify Laravel to mark it as sent
+        try {
+          if (String(job.id).startsWith('db_')) {
+            const dbId = String(job.id).replace(/^db_/, '');
+            const notifyUrl = `${LARAVEL_BASE}/admin/internal/whatsapp/scheduled/${encodeURIComponent(dbId)}/sent?token=${encodeURIComponent(LARAVEL_TOKEN)}`;
+            await fetch(notifyUrl, { method: 'POST' });
+          }
+        } catch (e) {
+          console.warn('Failed to notify Laravel about sent job:', e && e.message ? e.message : e);
+        }
       } catch (e) {
         job.attempts = (job.attempts || 0) + 1;
         job.lastError = (e && e.message) ? e.message : String(e);
+        // If job originates from DB, let Laravel know about failure and attempts
+        try {
+          if (String(job.id).startsWith('db_')) {
+            const dbId = String(job.id).replace(/^db_/, '');
+            const notifyUrl = `${LARAVEL_BASE}/admin/internal/whatsapp/scheduled/${encodeURIComponent(dbId)}/failed?token=${encodeURIComponent(LARAVEL_TOKEN)}`;
+            await fetch(notifyUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ last_error: job.lastError, attempts: job.attempts })
+            });
+          }
+        } catch (er2) {
+          console.warn('Failed to notify Laravel about failed job:', er2 && er2.message ? er2.message : er2);
+        }
         if ((job.attempts || 0) >= (job.maxAttempts || 3)) {
           job.sent = true;
           job.failed = true;
@@ -599,6 +658,70 @@ function startScheduler() {
 // load scheduled messages now
 loadScheduled();
 startScheduler();
+
+// New: optional Laravel DB polling so Node picks up flows and scheduled jobs from Laravel
+const LARAVEL_POLL = (process.env.WHATSAPP_LARAVEL_POLL_SECONDS || '') !== '';
+const LARAVEL_POLL_SECONDS = parseInt(process.env.WHATSAPP_LARAVEL_POLL_SECONDS || '60', 10);
+const LARAVEL_BASE = process.env.WHATSAPP_LARAVEL_URL || 'http://127.0.0.1:8000';
+const LARAVEL_TOKEN = process.env.WHATSAPP_SYNC_TOKEN || '';
+
+async function pollLaravelOnce() {
+  if (!LARAVEL_TOKEN) return;
+  try {
+    // fetch global flows
+    const flowsResp = await fetch(`${LARAVEL_BASE}/admin/internal/whatsapp/flows?token=${encodeURIComponent(LARAVEL_TOKEN)}`);
+    if (flowsResp.ok) {
+      const jf = await flowsResp.json();
+      const arr = jf.flows || [];
+      // map into globalFlows and file
+      globalFlows = Array.isArray(arr) ? arr : [];
+      saveGlobalFlows();
+      console.log(`Polled ${arr.length} global flows from Laravel`);
+    } else {
+      console.warn('Failed to poll flows from Laravel:', flowsResp.status);
+    }
+
+  // fetch scheduled
+    const schedResp = await fetch(`${LARAVEL_BASE}/admin/internal/whatsapp/scheduled?token=${encodeURIComponent(LARAVEL_TOKEN)}`);
+    if (schedResp.ok) {
+      const js = await schedResp.json();
+      const jobs = js.scheduled || [];
+      // map Laravel fields to node scheduled job format
+      scheduled = jobs.map(j => ({ id: `db_${j.id}`, session: j.session || 'belova', number: j.number, message: j.message || '', sendAt: new Date(j.send_at).toISOString(), createdAt: j.created_at || new Date().toISOString(), attempts: j.attempts || 0, maxAttempts: j.max_attempts || 3, sent: j.sent || false, failed: j.failed || false }));
+      saveScheduled();
+      console.log(`Polled ${scheduled.length} scheduled jobs from Laravel`);
+    } else {
+      console.warn('Failed to poll scheduled from Laravel:', schedResp.status);
+    }
+    // fetch per-session flows if Node has clients initialized
+    for (const [clientId] of clients.entries()) {
+      try {
+        const fresp = await fetch(`${LARAVEL_BASE}/admin/internal/whatsapp/flows?session=${encodeURIComponent(clientId)}&token=${encodeURIComponent(LARAVEL_TOKEN)}`);
+        if (fresp.ok) {
+          const jf2 = await fresp.json();
+          const arr2 = jf2.flows || [];
+          // update flowsMap only (do not persist to disk when polling is enabled)
+          flowsMap.set(clientId, Array.isArray(arr2) && arr2.length ? arr2 : globalFlows);
+          console.log(`Updated ${arr2.length} flows for session ${clientId} in-memory from Laravel`);
+        }
+      } catch (e) {
+        console.warn(`Failed to poll flows for session ${clientId}:`, e && e.message ? e.message : e);
+      }
+    }
+  } catch (e) {
+    console.error('Laravel poll error:', e && e.message ? e.message : e);
+  }
+}
+
+if (LARAVEL_POLL) {
+  try {
+    pollLaravelOnce();
+    setInterval(pollLaravelOnce, Math.max(15, LARAVEL_POLL_SECONDS) * 1000);
+    console.log(`Laravel polling enabled, interval ${LARAVEL_POLL_SECONDS}s, target ${LARAVEL_BASE}`);
+  } catch (e) {
+    console.error('Failed to start Laravel poller:', e && e.message ? e.message : e);
+  }
+}
 
 const server = app.listen(port, '127.0.0.1', (err) => {
   if (err) {

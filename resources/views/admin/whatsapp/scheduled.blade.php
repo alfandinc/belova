@@ -57,7 +57,7 @@
 </div>
 
 <script>
-const apiBase = 'http://127.0.0.1:3000';
+const apiBase = '{{ url('/admin/api/whatsapp') }}';
 
 function showAlert(type, msg) {
   const alerts = document.getElementById('alerts');
@@ -70,7 +70,7 @@ function showAlert(type, msg) {
 
 async function loadSessions() {
   try {
-    const r = await fetch(apiBase + '/sessions');
+  const r = await fetch(apiBase + '/sessions', { credentials: 'same-origin' });
     if (!r.ok) throw new Error('Failed to load sessions');
     const d = await r.json();
     const select = document.getElementById('sessionSelect');
@@ -87,7 +87,7 @@ async function loadSessions() {
 async function loadScheduled() {
   try {
     const session = document.getElementById('sessionSelect').value || '';
-    const url = apiBase + '/scheduled-messages' + (session ? ('?session=' + encodeURIComponent(session)) : '');
+  const url = apiBase + '/scheduled' + (session ? ('?session=' + encodeURIComponent(session)) : '');
     const r = await fetch(url);
     if (!r.ok) throw new Error('Failed to load scheduled messages');
     const d = await r.json();
@@ -122,8 +122,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     const maxAttempts = parseInt(document.getElementById('schedMaxAttempts').value || '3', 10);
     if (!number || !sendAt) return showAlert('warning', 'Number and sendAt are required');
     try {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
       const payload = { session: session || undefined, number, message, sendAt, maxAttempts };
-      const r = await fetch(apiBase + '/scheduled-messages', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const r = await fetch(apiBase + '/scheduled', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json','X-CSRF-TOKEN': csrf}, body: JSON.stringify(payload) });
       if (!r.ok) throw new Error('Failed to create scheduled message');
       const d = await r.json();
       showAlert('success', 'Scheduled created');
@@ -137,7 +138,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     const id = btn.getAttribute('data-id');
     if (!confirm('Delete scheduled job ' + id + '?')) return;
     try {
-      const r = await fetch(apiBase + '/scheduled-messages/' + encodeURIComponent(id), { method: 'DELETE' });
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  const r = await fetch(apiBase + '/scheduled/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin', headers: {'X-CSRF-TOKEN': csrf} });
       if (!r.ok) throw new Error('Delete failed');
       showAlert('success', 'Deleted');
       await loadScheduled();

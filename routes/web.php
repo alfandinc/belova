@@ -160,12 +160,40 @@ Route::middleware(['auth'])->group(function () {
 Route::middleware(['auth'])->prefix('admin')->group(function () {
     Route::get('/whatsapp/flows', [WhatsAppController::class, 'flowsView'])->name('admin.whatsapp.flows');
     Route::get('/whatsapp/scheduled', [WhatsAppController::class, 'scheduledView'])->name('admin.whatsapp.scheduled');
+
+    // Admin API for WhatsApp (used by UI)
+    Route::prefix('api/whatsapp')->group(function () {
+        Route::get('/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listFlows']);
+        Route::post('/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'saveFlow']);
+        Route::delete('/flows/{id}', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'deleteFlow']);
+
+    // Sessions proxy (calls Node service)
+    Route::get('/sessions', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listSessions']);
+
+        Route::get('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduled']);
+        Route::post('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'createScheduled']);
+        Route::delete('/scheduled/{id}', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'deleteScheduled']);
+    });
+
+    // Internal endpoints for Node polling (protected by WHATSAPP_SYNC_TOKEN)
+    Route::prefix('internal/whatsapp')->group(function () {
+        Route::get('/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listFlowsPublic']);
+        Route::get('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduledPublic']);
+    });
+
+
 });
 
 // // AJAX endpoint to fetch merchandise received by a patient (used in Rawat Jalan datatable)
 // Route::middleware(['auth'])->prefix('erm')->group(function() {
     
 // });
+// Also expose the internal endpoints at a public path so services running outside of Laravel's auth can access them.
+// These routes are token-protected by WHATSAPP_SYNC_TOKEN in the controller.
+Route::get('/admin/internal/whatsapp/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listFlowsPublic']);
+Route::get('/admin/internal/whatsapp/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduledPublic']);
+Route::post('/admin/internal/whatsapp/scheduled/{id}/sent', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledSent']);
+Route::post('/admin/internal/whatsapp/scheduled/{id}/failed', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledFailed']);
 
 
 

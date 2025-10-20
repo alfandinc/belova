@@ -68,7 +68,7 @@
 </div>
 
 <script>
-const apiBase = 'http://127.0.0.1:3000';
+const apiBase = '{{ url('/admin/api/whatsapp') }}';
 let flows = [];
 let editingId = null;
 
@@ -83,13 +83,13 @@ function showAlert(type, msg) {
 
 async function loadFlows(session = '') {
   try {
-    const url = apiBase + '/bot-flows' + (session ? ('?session=' + encodeURIComponent(session)) : '');
-    const r = await fetch(url);
+    const url = apiBase + '/flows' + (session ? ('?session=' + encodeURIComponent(session)) : '');
+    const r = await fetch(url, { credentials: 'same-origin' });
     if (!r.ok) throw new Error('Failed to load flows');
     const data = await r.json();
     flows = data.flows || [];
     renderFlowsList();
-    if (flows.length) loadIntoEditor(flows[0].id);
+    if (flows.length) loadIntoEditor(flows[0].flow_id || flows[0].id);
     else clearEditor();
   } catch (e) { showAlert('danger', 'Error loading flows: ' + e.message); }
 }
@@ -100,13 +100,16 @@ function renderFlowsList() {
   flows.forEach(f => {
     const li = document.createElement('li');
     li.className = 'list-group-item d-flex justify-content-between align-items-center';
-    li.innerHTML = `<div><strong>${f.name || f.id}</strong><br/><small class="text-muted">${f.id}</small></div><div><button data-id="${f.id}" class="btn btn-sm btn-outline-primary selectFlowBtn">Edit</button></div>`;
+    // show flow_id if available else id
+    const shownId = f.flow_id || f.id;
+    li.innerHTML = `<div><strong>${f.name || shownId}</strong><br/><small class="text-muted">${shownId}</small></div><div><button data-id="${shownId}" class="btn btn-sm btn-outline-primary selectFlowBtn">Edit</button></div>`;
     ul.appendChild(li);
   });
 }
 
 function loadIntoEditor(id) {
-  const f = flows.find(x => x.id === id);
+  const idStr = (id + '');
+  const f = flows.find(x => (String(x.id) === idStr) || (String(x.flow_id || '') === idStr));
   if (!f) return showAlert('warning', 'Flow not found');
   editingId = f.id;
   document.getElementById('flowIdInput').value = f.id;
@@ -135,18 +138,28 @@ function parseChoices(text) {
 }
 
 async function saveFlowsToServer(newFlows, session = '') {
-  const url = apiBase + '/bot-flows' + (session ? ('?session=' + encodeURIComponent(session)) : '');
-  const r = await fetch(url, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ flows: newFlows })
-  });
-  if (!r.ok) throw new Error('Save failed');
-  const data = await r.json();
-  return data.flows;
+  // Laravel endpoint expects single flow per request; we'll save all flows by upserting each one
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    for (const f of newFlows) {
+    const payload = {
+      session: session || undefined,
+      flow_id: f.id || f.flow_id,
+      name: f.name || f.id,
+      triggers: f.triggers || [],
+      choices: f.choices || [],
+      fallback: f.fallback || ''
+    };
+    const r = await fetch(apiBase + '/flows', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf }, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error('Save failed');
+  }
+  // reload
+  await loadFlows(session);
+  return flows;
 }
 
 async function loadSessions() {
   try {
-    const r = await fetch(apiBase + '/sessions');
+    const r = await fetch(apiBase + '/sessions', { credentials: 'same-origin' });
     if (!r.ok) throw new Error('Failed to load sessions');
     const d = await r.json();
     const select = document.getElementById('sessionSelect');

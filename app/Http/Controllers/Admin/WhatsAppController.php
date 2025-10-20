@@ -103,6 +103,11 @@ class WhatsAppController extends Controller
             // Ensure the process will auto-initialize existing sessions on start
             $envVars['WHATSAPP_AUTO_INIT'] = 'true';
             $envVars['WHATSAPP_MAX_SESSIONS'] = '20';
+            // Propagate WhatsApp sync/poll config from Laravel .env to Node process so UI-started Node can poll DB
+            $envVars['WHATSAPP_SYNC_TOKEN'] = env('WHATSAPP_SYNC_TOKEN', $envVars['WHATSAPP_SYNC_TOKEN'] ?? '');
+            $envVars['WHATSAPP_LARAVEL_POLL_SECONDS'] = env('WHATSAPP_LARAVEL_POLL_SECONDS', $envVars['WHATSAPP_LARAVEL_POLL_SECONDS'] ?? '30');
+            $envVars['WHATSAPP_LARAVEL_URL'] = env('WHATSAPP_LARAVEL_URL', $envVars['WHATSAPP_LARAVEL_URL'] ?? 'http://127.0.0.1:8000');
+
             $cmdLine = ['cmd.exe', '/c', 'start', 'node', 'server.js'];
             $startProcess = new Process($cmdLine, $servicePath, $envVars);
             $startProcess->start();

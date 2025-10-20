@@ -1,14 +1,1 @@
-[
-  {
-    "id": "job_1760941916880_tv5bee",
-    "session": "belova",
-    "number": "6289619679552",
-    "message": "test scheduled",
-    "sendAt": "2025-10-20T06:33:00.000Z",
-    "createdAt": "2025-10-20T06:31:56.880Z",
-    "attempts": 0,
-    "maxAttempts": 3,
-    "sent": true,
-    "sentAt": "2025-10-20T06:33:03.787Z"
-  }
-]
+[]
