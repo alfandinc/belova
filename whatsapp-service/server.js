@@ -310,6 +310,35 @@ app.post('/bot-flows', (req, res) => {
   return ok ? res.json({ success: true, flows: newFlows }) : res.status(500).json({ success: false, error: 'Failed to save flows' });
 });
 
+// Scheduled messages endpoints
+app.get('/scheduled-messages', (req, res) => {
+  // optional ?session= to filter
+  const session = (req.query && req.query.session) ? ('' + req.query.session) : null;
+  const list = session ? scheduled.filter(s => (s.session || 'belova') === session) : scheduled;
+  return res.json({ scheduled: list });
+});
+
+app.post('/scheduled-messages', (req, res) => {
+  const { session, number, message, sendAt, maxAttempts } = req.body || {};
+  if (!number || !sendAt) return res.status(400).json({ success: false, error: 'number and sendAt are required' });
+  const id = 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  const job = {
+    id, session: session || 'belova', number: (number + ''), message: message || '', sendAt: new Date(sendAt).toISOString(), createdAt: new Date().toISOString(), attempts: 0, maxAttempts: maxAttempts || 3, sent: false
+  };
+  scheduled.push(job);
+  saveScheduled();
+  return res.json({ success: true, job });
+});
+
+app.delete('/scheduled-messages/:id', (req, res) => {
+  const id = req.params.id;
+  const idx = scheduled.findIndex(s => s.id === id);
+  if (idx === -1) return res.status(404).json({ success: false, error: 'not found' });
+  const job = scheduled.splice(idx, 1)[0];
+  saveScheduled();
+  return res.json({ success: true, job });
+});
+
 app.get('/status', async (req, res) => {
   try {
     const clientId = (req.query.session || 'belova') + '';
@@ -328,6 +357,33 @@ app.get('/status', async (req, res) => {
     return res.json({ status: 'initializing', session: clientId });
   } catch (e) {
     return res.status(500).json({ status: 'error', error: e.message });
+  }
+});
+
+// Debug: list registered routes (for troubleshooting)
+app.get('/_debug/routes', (req, res) => {
+  try {
+    const routes = [];
+    if (app && app._router && Array.isArray(app._router.stack)) {
+      app._router.stack.forEach((middleware) => {
+        if (middleware.route) {
+          // routes registered directly on the app
+          const methods = Object.keys(middleware.route.methods).join(',');
+          routes.push({ path: middleware.route.path, methods });
+        } else if (middleware.name === 'router' && middleware.handle && middleware.handle.stack) {
+          // router middleware
+          middleware.handle.stack.forEach((handler) => {
+            if (handler.route) {
+              const methods = Object.keys(handler.route.methods).join(',');
+              routes.push({ path: handler.route.path, methods });
+            }
+          });
+        }
+      });
+    }
+    return res.json({ routes });
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
   }
 });
 
@@ -466,6 +522,83 @@ app.delete('/sessions', async (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
+
+// Scheduled messages persistence
+const scheduledFile = path.join(__dirname, 'scheduled-messages.json');
+let scheduled = [];
+
+function loadScheduled() {
+  try {
+    if (fs.existsSync(scheduledFile)) {
+      scheduled = JSON.parse(fs.readFileSync(scheduledFile, 'utf8') || '[]');
+      console.log(`Loaded ${scheduled.length} scheduled messages from ${scheduledFile}`);
+    } else {
+      scheduled = [];
+      saveScheduled();
+    }
+  } catch (e) {
+    console.error('Failed to load scheduled messages:', e);
+    scheduled = [];
+  }
+}
+
+function saveScheduled() {
+  try {
+    fs.writeFileSync(scheduledFile, JSON.stringify(scheduled, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Failed to save scheduled messages:', e);
+    return false;
+  }
+}
+
+// Background scheduler: check every 30s
+const SCHEDULER_INTERVAL = parseInt(process.env.SCHEDULER_INTERVAL_SECONDS || '30', 10);
+function startScheduler() {
+  setInterval(async () => {
+    const now = Date.now();
+    const due = scheduled.filter(s => !s.sent && new Date(s.sendAt).getTime() <= now);
+    for (const job of due) {
+      // attempt to send
+      try {
+        const sessionId = job.session || 'belova';
+        const state = clients.get(sessionId);
+        if (!state || !state.ready) {
+          // increment attempt and skip
+          job.attempts = (job.attempts || 0) + 1;
+          job.lastError = job.lastError || 'session_not_ready';
+          if ((job.attempts || 0) >= (job.maxAttempts || 3)) {
+            job.sent = true;
+            job.failed = true;
+            job.failedAt = new Date().toISOString();
+          }
+          continue;
+        }
+
+        // send message
+        const sanitized = (job.number + '').replace(/[^0-9]/g, '');
+        const id = sanitized.includes('@c.us') ? sanitized : `${sanitized}@c.us`;
+        await state.client.sendMessage(id, job.message || '');
+        job.sent = true;
+        job.sentAt = new Date().toISOString();
+      } catch (e) {
+        job.attempts = (job.attempts || 0) + 1;
+        job.lastError = (e && e.message) ? e.message : String(e);
+        if ((job.attempts || 0) >= (job.maxAttempts || 3)) {
+          job.sent = true;
+          job.failed = true;
+          job.failedAt = new Date().toISOString();
+        }
+      }
+    }
+    // persist changes if any due jobs were modified
+    if (due.length) saveScheduled();
+  }, SCHEDULER_INTERVAL * 1000);
+}
+
+// load scheduled messages now
+loadScheduled();
+startScheduler();
 
 const server = app.listen(port, '127.0.0.1', (err) => {
   if (err) {

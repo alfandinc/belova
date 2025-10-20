@@ -159,6 +159,7 @@ Route::middleware(['auth'])->group(function () {
 // WhatsApp admin pages
 Route::middleware(['auth'])->prefix('admin')->group(function () {
     Route::get('/whatsapp/flows', [WhatsAppController::class, 'flowsView'])->name('admin.whatsapp.flows');
+    Route::get('/whatsapp/scheduled', [WhatsAppController::class, 'scheduledView'])->name('admin.whatsapp.scheduled');
 });
 
 // // AJAX endpoint to fetch merchandise received by a patient (used in Rawat Jalan datatable)
