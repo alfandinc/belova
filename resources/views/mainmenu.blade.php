@@ -521,7 +521,7 @@
                 </a>
 
                 <a href="/erm/eresepfarmasi" class="menu-tile tile-farmasi animate-item delay-2" data-filter="farmasi resep obat pharmacy"
-                   @if(!array_intersect($userRoles, ['Farmasi','Admin','Lab','Beautician']))
+                   @if(!array_intersect($userRoles, ['Farmasi','Admin','Lab','Beautician','Finance']))
                        onclick="showRoleWarning(event, 'Farmasi')"
                    @endif>
                     <div class="menu-top">
@@ -603,7 +603,7 @@
                 </a>
 
                 <a href="/marketing/dashboard" class="menu-tile tile-marketing animate-item delay-9" data-filter="marketing campaign ads"
-                   @if(!array_intersect($userRoles, ['Marketing','Admin']))
+                   @if(!array_intersect($userRoles, ['Marketing','Admin','Finance']))
                        onclick="showRoleWarning(event, 'Marketing')"
                    @endif>
                     <div class="menu-top">
@@ -615,7 +615,7 @@
                 </a>
 
                 <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-10" data-filter="finance billing kasir"
-                   @if(!array_intersect($userRoles, ['Kasir','Admin','Farmasi']))
+                   @if(!array_intersect($userRoles, ['Kasir','Admin','Farmasi','Finance']))
                        onclick="showRoleWarning(event, 'Finance')"
                    @endif>
                     <div class="menu-top">
@@ -628,7 +628,7 @@
 
                 <!-- Row 3: remaining tiles -->
                 <a href="/inventory" class="menu-tile tile-inventory animate-item delay-11" data-filter="inventory stok gudang"
-                   @if(!array_intersect($userRoles, ['Inventaris','Admin']))
+                   @if(!array_intersect($userRoles, ['Inventaris','Admin','Finance']))
                        onclick="showRoleWarning(event, 'Inventory')"
                    @endif>
                     <div class="menu-top">

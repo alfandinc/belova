@@ -115,11 +115,11 @@ Route::fallback(function () {
 Route::middleware(['auth'])->group(function () {
     // Hanya user dengan role ERM yang bisa akses modul ERM
     Route::get('/erm', [ERMDashboardController::class, 'index'])
-        ->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')
+        ->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance')
         ->name('erm.dashboard');
 
     Route::get('/finance', [FinanceDashboardController::class, 'index'])
-        ->middleware('role:Kasir|Admin')
+        ->middleware('role:Kasir|Admin|Finance')
         ->name('finance.dashboard');
 
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
@@ -131,7 +131,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('inventory.dashboard');
 
     Route::get('/marketing', [MarketingDashboardController::class, 'index'])
-        ->middleware('role:Marketing|Admin')
+        ->middleware('role:Marketing|Admin|Finance')
         ->name('marketing.dashboard');
 
     Route::get('/workdoc', [WorkdocDashboardController::class, 'index'])
@@ -322,7 +322,7 @@ Route::prefix('laporan')->middleware('role:Hrd|Manager|Admin|Finance|Farmasi')->
 
 Route::get('/hrd/absensi-rekap/export-excel', [\App\Http\Controllers\HRD\AbsensiRekapController::class, 'exportExcel'])->name('hrd.absensi_rekap.export_excel');
 // ERM Routes
-Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab')->group(function () {
+Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance')->group(function () {
     // Dokter to Perawat notification
     Route::get('/pasien/{pasien}/merchandises', [RawatJalanController::class, 'getPasienMerchandises'])->name('erm.pasien.merchandises');
         Route::post('/send-notif-perawat', [App\Http\Controllers\ERM\RawatJalanController::class, 'sendNotifToPerawat'])->middleware('auth');
@@ -818,7 +818,7 @@ Route::prefix('akreditasi')->middleware('role:Hrd|Manager|Employee|Admin')->grou
 });
 
 
-Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi')->group(function () {
+Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance')->group(function () {
         Route::get('/billing', [BillingController::class, 'index'])->name('finance.billing.index');
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
@@ -1103,7 +1103,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
     }
 );
 
-Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician')->group(function () {
+Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance')->group(function () {
 
     // // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
