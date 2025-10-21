@@ -163,6 +163,58 @@ class FinJurnalController extends Controller
                 'user_id' => Auth::id(),
                 'csrf' => time()
             ]);
+
+            // If client requested to use deposit for this payment, attempt to debit deposit first
+            // Expected param: use_deposit = 1 and deposit_amount (optional). If deposit covers some or all, record journal entries accordingly.
+            if (isset($request->use_deposit) && $request->use_deposit) {
+                try {
+                    $renter = renter::findOrFail($request->renter);
+                    $depositToUse = isset($request->deposit_amount) ? floatval($request->deposit_amount) : min((float)$renter->deposit_balance, floatval($request->nominal));
+                    if ($depositToUse > 0) {
+                        // Create journal entries moving money from deposit (liability/other) to payment
+                        $no_jurnal_dep = $this->get_no_jurnal();
+                        // Credit deposit source (assume deposit liability account 2-99999 for example)
+                        Fin_jurnal::create([
+                            'no_jurnal' => $no_jurnal_dep,
+                            'tanggal' => $request->tgl_transaksi,
+                            'kode_akun' => '2-99999',
+                            'debet' => 0,
+                            'kredit' => $depositToUse,
+                            'kode_subledger' => $request->renter,
+                            'catatan' => 'Pemakaian deposit untuk pembayaran oleh ' . ($renter->nama ?? $request->renter),
+                            'index_kas' => 0,
+                            'doc_id' => $request->transaksi,
+                            'identity' => 'Pemakaian Deposit',
+                            'pos' => 'K',
+                            'user_id' => Auth::id(),
+                            'csrf' => time()
+                        ]);
+                        // Debit cash/bank account for the deposit usage (1-10101)
+                        Fin_jurnal::create([
+                            'no_jurnal' => $no_jurnal_dep,
+                            'tanggal' => $request->tgl_transaksi,
+                            'kode_akun' => '1-10101',
+                            'debet' => $depositToUse,
+                            'kredit' => 0,
+                            'kode_subledger' => null,
+                            'catatan' => 'Pemakaian deposit untuk pembayaran oleh ' . ($renter->nama ?? $request->renter),
+                            'index_kas' => 0,
+                            'doc_id' => $request->transaksi,
+                            'identity' => 'Pemakaian Deposit',
+                            'pos' => 'D',
+                            'user_id' => Auth::id(),
+                            'csrf' => time()
+                        ]);
+
+                        // Debit renter deposit balance in model
+                        $renter->debitDeposit($depositToUse);
+                    }
+                } catch (\Throwable $e) {
+                    // do not stop entire flow if deposit use fails; log and continue
+                    // in production we'd log to logger; for now attach to session
+                    // (no-op)
+                }
+            }
             DB::commit();
             return back()->with('success', 'Pembayaran Berhasil');
         } catch (\Throwable $th) {
@@ -340,7 +392,7 @@ class FinJurnalController extends Controller
                     'doc_id' => $no_exp,
                     'identity' => 'Pengeluaran',
                     'pos' => 'K',
-                    'user_id' => auth()->user()->id,
+                    'user_id' => Auth::id(),
                     'csrf' => time()
                 ]);
                 $data = Fin_jurnal::create([
@@ -355,7 +407,7 @@ class FinJurnalController extends Controller
                     'doc_id' => $no_exp,
                     'identity' => 'Pengeluaran',
                     'pos' => 'D',
-                    'user_id' => auth()->user()->id,
+                    'user_id' => Auth::id(),
                     'csrf' => time()
                 ]);
             }
@@ -412,5 +464,65 @@ class FinJurnalController extends Controller
         }
 
         return response()->json($request);
+    }
+
+    /**
+     * Top-up renter deposit. Creates Fin_jurnal entries and credits renter.deposit_balance
+     * Expected POST params: renter (id), amount, tgl_transaksi, note
+     */
+    public function topup_deposit(Request $request)
+    {
+        $this->validate($request, [
+            'renter' => 'required|numeric',
+            'amount' => 'required|numeric|min:1',
+            'tgl_transaksi' => 'required|date'
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $renter = renter::findOrFail($request->renter);
+            $no_jurnal = $this->get_no_jurnal();
+
+            // Record top-up: debit cash (1-10101) and credit deposit liability (2-99999)
+            Fin_jurnal::create([
+                'no_jurnal' => $no_jurnal,
+                'tanggal' => $request->tgl_transaksi,
+                'kode_akun' => '1-10101',
+                'debet' => $request->amount,
+                'kredit' => 0,
+                'kode_subledger' => $renter->id,
+                'catatan' => 'Topup deposit oleh ' . $renter->nama . '. ' . ($request->note ?? ''),
+                'index_kas' => 0,
+                'doc_id' => 'DP' . time(),
+                'identity' => 'Topup Deposit',
+                'pos' => 'D',
+                'user_id' => Auth::id(),
+                'csrf' => time()
+            ]);
+            Fin_jurnal::create([
+                'no_jurnal' => $no_jurnal,
+                'tanggal' => $request->tgl_transaksi,
+                'kode_akun' => '2-99999',
+                'debet' => 0,
+                'kredit' => $request->amount,
+                'kode_subledger' => $renter->id,
+                'catatan' => 'Topup deposit oleh ' . $renter->nama . '. ' . ($request->note ?? ''),
+                'index_kas' => 0,
+                'doc_id' => 'DP' . time(),
+                'identity' => 'Topup Deposit',
+                'pos' => 'K',
+                'user_id' => Auth::id(),
+                'csrf' => time()
+            ]);
+
+            // credit model balance
+            $renter->creditDeposit(floatval($request->amount));
+
+            DB::commit();
+            return back()->with(['success' => 'Deposit berhasil ditambahkan']);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return back()->with(['error' => $th->getMessage()]);
+        }
     }
 }

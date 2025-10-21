@@ -16,16 +16,28 @@ class RenterController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(\Illuminate\Http\Request $request)
     {
         // $renter = renter::leftjoin('renter_document', function ($join) {
         //     $join->on('renter.id', '=', 'renter_document.id_renter')
         //         ->where('renter_document.document_type', '=', 'PHOTO');
         // })->select('renter.*', 'renter_document.img')
         //     ->get();
-        $renter = renter::with('document')->with('current_room')->get();
+    // default to showing active renters
+    $status = $request->query('status', 'active');
+
+        $query = renter::with('document')->with('current_room');
+        if ($status === 'active') {
+            // renters with active current_room
+            $query = $query->whereHas('current_room');
+        } elseif ($status === 'inactive') {
+            // renters without active current_room
+            $query = $query->whereDoesntHave('current_room');
+        }
+
+        $renter = $query->get();
         // return response()->json($renter);
-        return view('bcl.renter.renter')->with('renter', $renter);
+        return view('bcl.renter.renter')->with(['renter' => $renter, 'status' => $status]);
     }
 
     /**

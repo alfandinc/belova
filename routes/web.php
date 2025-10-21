@@ -249,6 +249,7 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/finance/expense/view/{id}', [FinJurnalController::class, 'expense_show'])->name('bcl.expense.show');
     Route::get('/finance/expense/delete/{id}', [FinJurnalController::class, 'expense_delete'])->name('bcl.expense.delete');
     Route::post('/finance/income/store', [FinJurnalController::class, 'store'])->name('bcl.income.store');
+    Route::post('/finance/deposit/topup', [FinJurnalController::class, 'topup_deposit'])->name('bcl.deposit.topup');
     Route::post('/finance/expense/store', [FinJurnalController::class, 'store_expense'])->name('bcl.expense.store');
 
     Route::any('/transaksi', [tr_renterController::class, 'index'])->name('bcl.transaksi.index');

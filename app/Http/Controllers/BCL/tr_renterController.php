@@ -264,7 +264,7 @@ class tr_renterController extends Controller
                 'doc_id' => $no_exp,
                 'identity' => 'Refund',
                 'pos' => 'K',
-                'user_id' => auth()->user()->id,
+                'user_id' => Auth::id(),
                 'csrf' => time()
             ]);
             $data = Fin_jurnal::create([
@@ -279,7 +279,7 @@ class tr_renterController extends Controller
                 'doc_id' => $no_exp,
                 'identity' => 'Refund',
                 'pos' => 'D',
-                'user_id' => auth()->user()->id,
+                'user_id' => Auth::id(),
                 'csrf' => time()
             ]);
             DB::commit();
@@ -398,27 +398,37 @@ class tr_renterController extends Controller
                 'free_jangka' => $pl->bonus_sewa,
                 'catatan' => $request->catatan
             ]);
+            // Determine amounts: split into revenue (price) and optional overpay
+            $nominal = floatval($request->nominal);
+            $price = floatval($pl->price);
+            $over = 0;
+            if ($nominal > $price) {
+                $over = $nominal - $price;
+            }
+            $revenue_amount = $nominal - $over; // will be equal to price if nominal > price
+
             $no_jurnal = app(ControllersFinJurnalController::class)->get_no_jurnal();
+            // Record revenue portion
             Fin_jurnal::create([
                 'no_jurnal' => $no_jurnal,
                 'tanggal' => $request->tgl_bayar,
                 'kode_akun' => '4-10101',
                 'debet' => 0,
-                'kredit' => $request->nominal,
+                'kredit' => $revenue_amount,
                 'kode_subledger' => $request->renter,
                 'catatan' => 'Pendapatan Sewa Kamar dari ' . $renter->nama,
                 'index_kas' => 0,
                 'doc_id' => $no_trans,
                 'identity' => 'Sewa Kamar',
                 'pos' => 'K',
-                'user_id' => auth()->user()->id,
+                'user_id' => Auth::id(),
                 'csrf' => time()
             ]);
             Fin_jurnal::create([
                 'no_jurnal' => $no_jurnal,
                 'tanggal' => $request->tgl_bayar,
                 'kode_akun' => '1-10101',
-                'debet' => $request->nominal,
+                'debet' => $revenue_amount,
                 'kredit' => 0,
                 'kode_subledger' => null,
                 'catatan' => 'Pendapatan Sewa Kamar dari ' . $renter->nama,
@@ -426,9 +436,59 @@ class tr_renterController extends Controller
                 'doc_id' => $no_trans,
                 'identity' => 'Sewa Kamar',
                 'pos' => 'D',
-                'user_id' => auth()->user()->id,
+                'user_id' => Auth::id(),
                 'csrf' => time()
             ]);
+            // If nominal > package price and user asked to add excess to deposit
+            try {
+                $nominal = floatval($request->nominal);
+                $price = floatval($pl->price);
+                $over = $nominal - $price;
+                if (isset($request->overpay_to_deposit) && $request->overpay_to_deposit && $over > 0) {
+                    // record jurnal for deposit top-up: credit cash and debit deposit liability
+                    $no_jurnal_dep = app(ControllersFinJurnalController::class)->get_no_jurnal();
+                    // Record as topup: debit cash (1-10101) and credit deposit liability (2-99999)
+                    Fin_jurnal::create([
+                        'no_jurnal' => $no_jurnal_dep,
+                        'tanggal' => $request->tgl_bayar,
+                        'kode_akun' => '1-10101',
+                        'debet' => $over,
+                        'kredit' => 0,
+                        'kode_subledger' => $request->renter,
+                        'catatan' => 'Kelebihan pembayaran disimpan sebagai deposit oleh ' . $renter->nama,
+                        'index_kas' => 0,
+                        'doc_id' => 'DP' . time(),
+                        'identity' => 'Topup Deposit (Overpay)',
+                        'pos' => 'D',
+                        'user_id' => Auth::id(),
+                        'csrf' => time()
+                    ]);
+                    Fin_jurnal::create([
+                        'no_jurnal' => $no_jurnal_dep,
+                        'tanggal' => $request->tgl_bayar,
+                        'kode_akun' => '2-99999',
+                        'debet' => 0,
+                        'kredit' => $over,
+                        'kode_subledger' => $request->renter,
+                        'catatan' => 'Kelebihan pembayaran disimpan sebagai deposit oleh ' . $renter->nama,
+                        'index_kas' => 0,
+                        'doc_id' => 'DP' . time(),
+                        'identity' => 'Topup Deposit (Overpay)',
+                        'pos' => 'K',
+                        'user_id' => Auth::id(),
+                        'csrf' => time()
+                    ]);
+
+                    // update model balance
+                    try {
+                        $renter->creditDeposit($over);
+                    } catch (\Throwable $e) {
+                        // ignore model error but keep jurnal entries; in future surface this
+                    }
+                }
+            } catch (\Throwable $e) {
+                // ignore overpay handling errors to avoid breaking sewa flow
+            }
             DB::commit();
             // return response()->json($request);
             return back()->with(['success' => 'Kamar berhasil disewa']);

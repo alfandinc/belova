@@ -19,13 +19,42 @@ class renter extends Model
         'kendaraan',
         'nopol',
         'birthday',
+        'deposit_balance',
     ];
     protected $table = 'bcl_renter';
     protected $primaryKey = 'id';
+    protected $casts = [
+        'deposit_balance' => 'decimal:2',
+    ];
 
     public function tr_renter()
     {
         return $this->hasMany(tr_renter::class, 'id_renter');
+    }
+
+    /**
+     * Credit renter deposit balance and persist change.
+     * Returns new balance.
+     */
+    public function creditDeposit(float $amount)
+    {
+        $this->deposit_balance = (float)$this->deposit_balance + round($amount, 2);
+        $this->save();
+        return $this->deposit_balance;
+    }
+
+    /**
+     * Debit renter deposit balance (if available). Throws exception on insufficient funds.
+     */
+    public function debitDeposit(float $amount)
+    {
+        $amount = round($amount, 2);
+        if ((float)$this->deposit_balance < $amount) {
+            throw new \Exception('Insufficient deposit balance');
+        }
+        $this->deposit_balance = (float)$this->deposit_balance - $amount;
+        $this->save();
+        return $this->deposit_balance;
     }
     public function document()
     {

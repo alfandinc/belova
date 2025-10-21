@@ -282,12 +282,12 @@ $data = $data;
                     <div class="row">
                         <div class="col-md-4 col-sm-12">
                             <label class="">Penyewa</label>
-                            <select class="mb-3 select2" name="renter" required style="width: 100%" data-placeholder="Pilih Penyewa">
-                                <option value=""></option>
-                                @foreach($renter as $rent)
-                                <option value="{{$rent->id}}">{{$rent->nama}}</option>
-                                @endforeach
-                            </select>
+                            <select class="mb-3 select2" name="renter" id="sewa_renter" required style="width: 100%" data-placeholder="Pilih Penyewa">
+                                    <option value=""></option>
+                                    @foreach($renter as $rent)
+                                    <option value="{{$rent->id}}" data-deposit="{{ $rent->deposit_balance ?? 0 }}">{{$rent->nama}}</option>
+                                    @endforeach
+                                </select>
                         </div>
                         <div class="col-md-4 col-sm-12">
                             <label class="">No/Nama Kamar</label>
@@ -325,6 +325,29 @@ $data = $data;
                             <label class="">Nominal</label>
                             <input type="text" id="nominal" required name="nominal" class="form-control inputmask">
                             <small class="form-text text-muted">*Jika Pembayaran kurang dari harga, maka akan dianggap sebagai DP</small>
+                        </div>
+                        <div class="col-md-4 col-sm-12">
+                            <label class="">Deposit Penyewa</label>
+                            <div class="input-group mb-2">
+                                <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
+                                <input type="text" id="renter_deposit_display" class="form-control text-right" readonly value="0">
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1" id="use_deposit" name="use_deposit">
+                                <label class="form-check-label" for="use_deposit">Gunakan deposit untuk pembayaran</label>
+                            </div>
+                                <!-- Overpay to deposit checkbox (hidden by default, shown by JS when nominal > price) -->
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" value="1" id="overpay_to_deposit" name="overpay_to_deposit" style="display:none;" />
+                                    <label class="form-check-label" for="overpay_to_deposit" id="overpay_to_deposit_label" style="display:none; margin-left:6px;">Simpan kelebihan pembayaran ke deposit</label>
+                                </div>
+                            <div class="input-group mt-2" id="deposit_amount_row" style="display:none;">
+                                <div class="input-group-prepend"><span class="input-group-text">Rp</span></div>
+                                <input type="text" id="deposit_amount" name="deposit_amount" class="form-control inputmask text-right" value="0">
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" type="button" id="btn_topup_deposit">Top-up</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -645,6 +668,24 @@ $data = $data;
             alias: 'decimal',
             groupSeparator: ',',
         });
+        // store selected price for overpayment detection
+        $('#nominal').data('price', harga);
+    });
+
+    // also watch nominal input to detect overpayment
+    $(document).on('input', '#nominal', function(){
+        var raw = $(this).val();
+        var price = parseFloat($(this).data('price') || 0);
+        var un = unformatNumber(raw);
+        var val = parseFloat(un) || 0;
+        if(price > 0 && val > price){
+            // show option to save excess to deposit
+            $('#overpay_to_deposit').show();
+            $('#overpay_to_deposit_label').show();
+        } else {
+            $('#overpay_to_deposit').hide().prop('checked', false);
+            $('#overpay_to_deposit_label').hide();
+        }
     });
     $('.dt_transaksi').on('click', function() {
         var id = $(this).data('id');
@@ -1249,4 +1290,71 @@ $data = $data;
         </div>
     </div>
 </div>
+<!-- Top-up Deposit Modal -->
+<div class="modal fade" id="md_topup_deposit" tabindex="-1" role="dialog" aria-labelledby="topupDepositLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-dark">
+                <h6 class="modal-title m-0 text-white" id="topupDepositLabel">Top-up Deposit</h6>
+                <button type="button" class="close " data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true"><i class="la la-times"></i></span>
+                </button>
+            </div>
+            <form action="{{ route('bcl.deposit.topup') }}" method="POST">
+                @csrf
+                <input type="hidden" name="renter" id="topup_renter_id">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Jumlah Top-up (Rp)</label>
+                        <input type="text" name="amount" id="topup_amount" class="form-control inputmask text-right" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal</label>
+                        <input type="text" name="tgl_transaksi" value="{{ date('Y-m-d') }}" class="form-control datePicker" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Catatan (opsional)</label>
+                        <input type="text" name="note" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Top-up</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+    // Update deposit display when renter selected in sewa modal
+    $(document).on('change', '#sewa_renter', function(){
+        var sel = $(this).find(':selected');
+        var deposit = parseFloat(sel.data('deposit') || 0).toFixed(2);
+        $('#renter_deposit_display').val(deposit.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+        $('#topup_renter_id').val(sel.val());
+    });
+    // Toggle deposit amount input visibility
+    $(document).on('change', '#use_deposit', function(){
+        if($(this).is(':checked')){
+            $('#deposit_amount_row').show();
+            // default deposit amount to renter deposit
+            var sel = $('#sewa_renter').find(':selected');
+            var deposit = parseFloat(sel.data('deposit') || 0).toFixed(2);
+            $('#deposit_amount').val(deposit);
+        } else {
+            $('#deposit_amount_row').hide();
+            $('#deposit_amount').val('0');
+        }
+    });
+    // Open top-up modal
+    $(document).on('click', '#btn_topup_deposit', function(){
+        var renterId = $('#sewa_renter').val();
+        if(!renterId){
+            alert('Pilih penyewa dulu');
+            return;
+        }
+        $('#topup_renter_id').val(renterId);
+        $('#md_topup_deposit').modal('show');
+    });
+</script>
 @stop

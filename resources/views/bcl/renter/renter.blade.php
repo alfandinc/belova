@@ -27,6 +27,18 @@ $pricelist = [];
     </div><!--end col-->
 </div><!--end row-->
 
+<form id="f_renter_filter" method="GET" action="{{ route('bcl.renter.index') }}">
+    <div class="row mb-2">
+        <div class="col-md-3">
+            <select class="form-control" name="status" id="renter_status_filter">
+                <option value="all" {{ (isset($status) && $status=='all') ? 'selected' : '' }}>All</option>
+                <option value="active" {{ (isset($status) && $status=='active') ? 'selected' : '' }}>Active</option>
+                <option value="inactive" {{ (isset($status) && $status=='inactive') ? 'selected' : '' }}>Not Active</option>
+            </select>
+        </div>
+    </div>
+</form>
+
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
@@ -66,6 +78,7 @@ $pricelist = [];
                                             <th class="text-white">Kendaraan</th>
                                             <th class="text-white">Kamar</th>
                                             <th class="text-white">Habis Kontrak</th>
+                                            <th class="text-right text-white">Deposit (Rp)</th>
                                             <th class="text-right"></th>
                                         </tr>
                                     </thead>
@@ -100,8 +113,13 @@ $pricelist = [];
                                             <td>{{$renter->kendaraan.' - '.$renter->nopol}}</td>
                                             <td>{{$renter->current_room->room_name??''}}</td>
                                             <td>{{$renter->current_room->tgl_selesai??''}}</td>
+                                            <td class="text-right">{{ number_format($renter->deposit_balance ?? 0, 2) }}</td>
                                             <td class="text-right text-nowrap">
                                                 {{-- @can('Edit Penyewa') --}}
+                                                <a href="#" data-id="{{$renter->id}}" class="btn btn-xs btn-info deposit_detail" title="Deposit">
+                                                    <i data-feather="dollar-sign" class="align-self-center icon-xs"></i>
+                                                </a>
+                                                &nbsp;
                                                 <a href="#" data-id="{{$renter->id}}" class="btn btn-xs btn-warning edit">
                                                     <i data-feather="edit" class="align-self-center icon-xs"></i>
                                                 </a>
@@ -232,6 +250,35 @@ $pricelist = [];
     </div>
     <!--end modal-dialog-->
 </div>
+<!-- Deposit Detail Modal -->
+<div class="modal fade" id="md_deposit_detail" tabindex="-1" role="dialog" aria-labelledby="depositDetailLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-dark">
+                <h6 class="modal-title m-0 text-white" id="depositDetailLabel">Detail Deposit Penyewa</h6>
+                <button type="button" class="close " data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true"><i class="la la-times text-white"></i></span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Nama</dt>
+                    <dd class="col-sm-8" id="dep_name"></dd>
+
+                    <dt class="col-sm-4">Deposit Balance</dt>
+                    <dd class="col-sm-8" id="dep_balance"></dd>
+
+                    <dt class="col-sm-4">Rincian</dt>
+                    <dd class="col-sm-8"><small class="text-muted">Riwayat deposit tersedia di modul Keuangan (Pemasukan/Topup) atau hubungi admin.</small></dd>
+                </dl>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary btn-sm" id="open_topup_from_detail">Top-up</button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="modal fade bd-example-modal-xl" id="md_edit" tabindex="-1" role="dialog" aria-labelledby="myExtraLargeModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
@@ -350,6 +397,41 @@ $pricelist = [];
                 this.data(i++);
             });
         }).draw();
+        // auto-submit filter
+        $(document).on('change', '#renter_status_filter', function(){
+            $('#f_renter_filter').submit();
+        });
+
+        // Open deposit detail modal
+        $(document).on('click', '.deposit_detail', function(e){
+            e.preventDefault();
+            var id = $(this).data('id');
+            // find renter data from server or DOM; we have deposit value in table cell
+            var row = $(this).closest('tr');
+            var name = row.find('td').eq(2).text().trim();
+            var deposit = row.find('td').eq(9).text().trim() || '0';
+            $('#dep_name').text(name);
+            $('#dep_balance').text(deposit);
+            $('#md_deposit_detail').modal('show');
+            // store for topup
+            $('#open_topup_from_detail').data('renter-id', id);
+        });
+
+        // open topup modal from deposit detail
+        $(document).on('click', '#open_topup_from_detail', function(){
+            var id = $(this).data('renter-id');
+            $('#md_deposit_detail').modal('hide');
+            $('#md_tambah').modal('hide');
+            // reuse existing topup modal in transaksi view if available; else open the topup modal within this page
+            // set hidden input renter
+            if($('#topup_renter_id').length){
+                $('#topup_renter_id').val(id);
+                $('#md_topup_deposit').modal('show');
+            } else {
+                // fallback: redirect to renter edit or show page
+                alert('Topup modal tidak tersedia di halaman ini. Silakan buka transaksi -> Sewa atau halaman Keuangan.');
+            }
+        });
         var buttonCommon = {
             exportOptions: {
                 format: {
