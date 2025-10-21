@@ -289,6 +289,7 @@ $data = $data;
 
             </div>
             <div class="modal-footer">
+                <a id="btn_print_refund" class="btn btn-warning btn-sm mr-2" target="_blank" style="display:none;">Cetak Refund</a>
                 <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
             </div>
         </div>
@@ -297,6 +298,8 @@ $data = $data;
 @endsection
 @section('pagescript')
 <script>
+    // Template URL for refund print (replace :doc with doc_id)
+    var refundPrintUrlTemplate = "{{ url('/bcl/transaksi/refund/cetak/:doc') }}";
     var item = $('[data-repeater-item]').html();
     var itemid = 0;
     var t = moment('<?= $start ?>', 'YYYY-MM-DD'),
@@ -520,13 +523,12 @@ $data = $data;
         $('#amm_total').text('Rp ' + $.number(total));
     }
 
-    $('.view_expense').on('click', function() {
+    // Use delegated handler so clicks work even when DataTables redraws rows
+    $(document).on('click', '.view_expense', function() {
         var id = $(this).data('id');
-        var address = "{{route('bcl.expense.show',':id')}}";
-        $.get(address, {
-                id: id
-            },
-            function(data) {
+        var address = "{{route('bcl.expense.show',':id')}}"; // will be called with query param ?id=...
+        $.get(address, { id: id })
+            .done(function(data) {
                 console.log(data);
                 $('#receipt').empty();
                 $('#md_dt_biaya').find('tbody').empty();
@@ -555,6 +557,20 @@ $data = $data;
                     });
                 }
                 $('#total_exp').text('Rp ' + $.number(total, 2));
+                // prepare Cetak Refund button (open refund print in new tab)
+                var docId = $('#no_exp').text();
+                // Determine if this doc likely represents a refund/downgrade by checking identity in returned data
+                var hasRefundLike = data.some(function(v){
+                    var idn = (v.identity||'').toLowerCase();
+                    return idn.indexOf('refund') !== -1 || idn.indexOf('downgrade') !== -1;
+                });
+                if(hasRefundLike){
+                    var url = refundPrintUrlTemplate.replace(':doc', encodeURIComponent(docId));
+                    $('#btn_print_refund').attr('href', url).show();
+                } else {
+                    // hide by default
+                    $('#btn_print_refund').hide();
+                }
                 $('#md_dt_biaya').modal();
                 $(".image-popup-vertical-fit").magnificPopup({
                     type: "image",
@@ -564,6 +580,10 @@ $data = $data;
                         verticalFit: !0
                     }
                 })
+            })
+            .fail(function(jqxhr, status, error) {
+                console.error('Failed loading expense details', status, error, jqxhr.responseText);
+                alert('Gagal memuat detail pengeluaran. Cek console untuk detail.');
             });
     });
 

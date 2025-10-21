@@ -127,6 +127,72 @@ class tr_renterController extends Controller
         return view('bcl.transaksi.cetak', compact('transaksi'));
         // return response()->json($transaksi);
     }
+
+    /**
+     * Render refund/credit note print view for downgrade refunds.
+     * Accepts route params: doc_id (journal/expense id), optional renter_id.
+     */
+    public function cetakRefund(Request $request, $doc_id, $renter_id = null)
+    {
+        // Try to get refund payload from session (redirect-from changeRoom)
+        $flash = session('refund_payload');
+        $transaksiId = session('transaksi_id') ?? null;
+
+        $transaksi = null;
+        if ($transaksiId) {
+            $transaksi = tr_renter::with('renter')->with('room')->where('trans_id', $transaksiId)->first();
+        } elseif ($renter_id && $doc_id) {
+            // fallback: try to find a related transaction by renter and latest journal doc
+            $transaksi = tr_renter::with('renter')->with('room')->where('id_renter', $renter_id)->orderByDesc('tanggal')->first();
+        }
+
+        $refund = null;
+        $journal_lines = [];
+        if ($flash) {
+            $refund = $flash;
+        } else {
+            // Minimal fallback: try to compute refund amount from fin_jurnal doc_id
+            $sum = Fin_jurnal::where('doc_id', $doc_id)->sum('debet');
+            $refund = (object)[
+                'doc_id' => $doc_id,
+                'amount' => $sum ?: 0,
+                'tanggal' => date('Y-m-d'),
+                'alasan' => 'Refund'
+            ];
+        }
+
+        if ($doc_id) {
+            $journal_lines = Fin_jurnal::where('doc_id', $doc_id)->orderBy('tanggal', 'asc')->get();
+        }
+
+        // If we couldn't find the original transaction, try a best-effort lookup:
+        // 1) check if any journal line has kode_subledger that matches a tr_renter.trans_id
+        // 2) or matches a renter.id — then load the latest transaction for that renter
+        if (!$transaksi && $doc_id && count($journal_lines) > 0) {
+            // try trans_id match first
+            $kode = $journal_lines->pluck('kode_subledger')->filter()->first();
+            if ($kode) {
+                // try as trans_id
+                $tryTrans = tr_renter::with('renter')->with('room')->where('trans_id', $kode)->first();
+                if ($tryTrans) {
+                    $transaksi = $tryTrans;
+                } else {
+                    // try as renter id
+                    try {
+                        $r = renter::find($kode);
+                        if ($r) {
+                            $tryTrans = tr_renter::with('renter')->with('room')->where('id_renter', $r->id)->orderByDesc('tanggal')->first();
+                            if ($tryTrans) $transaksi = $tryTrans;
+                        }
+                    } catch (\Throwable $e) {
+                        // ignore and continue without transaksi
+                    }
+                }
+            }
+        }
+
+        return view('bcl.transaksi.cetak_refund', compact('transaksi', 'refund', 'journal_lines'));
+    }
     /**
      * Show the form for editing the specified resource.
      */
@@ -615,14 +681,28 @@ class tr_renterController extends Controller
                 }
             }
             
+            // commit before redirecting to ensure jurnal saved
             DB::commit();
-            
-            // Success message based on payment status
+
+            // If downgrade refund occurred, redirect to a refund print page so user can print refund receipt
+            if ($paymentType === 'refund' && $paymentAmount > 0) {
+                // Build a minimal refund payload for the print view
+                $refundPayload = (object)[
+                    'doc_id' => $no_exp ?? null,
+                    'amount' => $paymentAmount,
+                    'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                    'alasan' => $request->alasan ?? ($request->reason ?? 'Downgrade kamar')
+                ];
+                // reload transaksi to pass to view
+                $transaksiForView = tr_renter::with('renter')->with('room')->where('trans_id', $currentTransaction->trans_id)->first();
+                return redirect()->route('bcl.transaksi.cetak_refund', ['doc_id' => $no_exp, 'renter_id' => $transaksiForView->id_renter])->with(['refund_payload' => $refundPayload, 'transaksi_id' => $currentTransaction->trans_id]);
+            }
+
+            // Success message based on payment status (non-refund path)
             if ($paymentAmount > 0 && $payNow < $paymentAmount) {
                 return back()->with(['success' => 'Pindah kamar berhasil dilakukan dengan pembayaran sebagian. Sisa tagihan: Rp ' . number_format($paymentAmount - $payNow, 0)]);
-            } else {
-                return back()->with(['success' => 'Pindah kamar berhasil dilakukan']);
             }
+            return back()->with(['success' => 'Pindah kamar berhasil dilakukan']);
             
         } catch (\Throwable $th) {
             DB::rollBack();

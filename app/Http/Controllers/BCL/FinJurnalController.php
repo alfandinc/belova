@@ -176,7 +176,9 @@ class FinJurnalController extends Controller
      */
     public function expense_show(Fin_jurnal $fin_jurnal, Request $request)
     {
-        $data = Fin_jurnal::with('user')->with('receipt')
+        // don't eager-load receipts here to avoid querying receipt table if it doesn't exist
+        // (expense receipts are optional and not needed for the simple expense modal / print flow)
+        $data = Fin_jurnal::with('user')
             ->where('doc_id', $request->id)->where('kode_akun', 'regexp', '5-10101|5-10102')
             ->where('pos', 'D')->get();
         foreach ($data as $value) {

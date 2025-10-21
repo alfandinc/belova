@@ -260,6 +260,8 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     // AJAX: list available target rooms with price matching current transaction duration
     Route::get('/transaksi/change-room/options/{id}', [tr_renterController::class, 'changeRoomOptions'])->name('bcl.transaksi.change_room.options');
     Route::get('/transaksi/cetak/{id}', [tr_renterController::class, 'cetak'])->name('bcl.transaksi.cetak');
+    // Refund/Refund-print route for downgrade refunds (optional renter_id helps associate receipt)
+    Route::get('/transaksi/refund/cetak/{doc_id}/{renter_id?}', [tr_renterController::class, 'cetakRefund'])->name('bcl.transaksi.cetak_refund');
     Route::post('/extrarent/store', [extra_rentController::class, 'store'])->name('bcl.extrarent.store');
     // Room Wifi management (AJAX + Datatables)
     Route::get('/wifi', [RoomWifiController::class, 'index'])->name('bcl.roomwifi.index');
