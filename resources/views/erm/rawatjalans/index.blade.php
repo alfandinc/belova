@@ -1403,7 +1403,10 @@ var userRole = "{{ $role }}";
                     res.data.forEach(function(item) {
                         html += `<tr><td>${item.pasien_nama}</td><td>${item.dokter_nama}</td><td>${item.tanggal_visitation}</td><td>${item.no_antrian ?? '-'}</td>`;
                         if (status === 'dibatalkan') {
-                            html += `<td><button class="btn btn-sm btn-success restore-status-btn" data-id="${item.id}">Pulihkan</button></td>`;
+                            html += `<td>
+                                <button class="btn btn-sm btn-success restore-status-btn" data-id="${item.id}">Pulihkan</button>
+                                <button class="btn btn-sm btn-danger force-delete-btn ml-1" data-id="${item.id}">Hapus Permanen</button>
+                            </td>`;
                         }
                         html += '</tr>';
                     });
@@ -1418,7 +1421,7 @@ var userRole = "{{ $role }}";
             }
         });
 
-        // Delegate click for restore button
+        // Delegate click for restore and force-delete buttons
         $('#visitation-list-content').off('click').on('click', '.restore-status-btn', function() {
             var visitationId = $(this).data('id');
             var btn = $(this);
@@ -1440,6 +1443,38 @@ var userRole = "{{ $role }}";
                 error: function() {
                     btn.prop('disabled', false).text('Pulihkan');
                     alert('Gagal memulihkan status');
+                }
+            });
+        });
+
+        // Delegate click for force delete (permanent delete) button
+        $('#visitation-list-content').on('click', '.force-delete-btn', function() {
+            var visitationId = $(this).data('id');
+            var btn = $(this);
+            if (!confirm('Hapus permanen kunjungan ini? Tindakan ini tidak dapat dibatalkan.')) return;
+            btn.prop('disabled', true).text('Menghapus...');
+            $.ajax({
+                url: '{{ route("erm.rawatjalans.forceDestroy") }}',
+                method: 'POST',
+                data: {
+                    _token: '{{ csrf_token() }}',
+                    visitation_id: visitationId
+                },
+                success: function(res) {
+                    if (res.success) {
+                        btn.removeClass('btn-danger').addClass('btn-secondary').text('Dihapus');
+                        setTimeout(function(){
+                            $('#modalVisitationList').modal('hide');
+                            $('.stat-card-clickable[data-status="dibatalkan"]').click();
+                        }, 800);
+                    } else {
+                        btn.prop('disabled', false).text('Hapus Permanen');
+                        alert(res.message || 'Gagal menghapus kunjungan');
+                    }
+                },
+                error: function(xhr) {
+                    btn.prop('disabled', false).text('Hapus Permanen');
+                    alert('Gagal menghapus kunjungan');
                 }
             });
         });

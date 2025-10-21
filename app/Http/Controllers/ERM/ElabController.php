@@ -213,7 +213,8 @@ class ElabController extends Controller
             ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
             ->addColumn('metode_bayar', fn($v) => $v->metodeBayar->nama ?? '-')
             ->addColumn('actions', function($v){
-                return '<button class="btn btn-sm btn-success btn-restore-visitation" data-id="'.$v->id.'">Pulihkan</button>';
+                return '<button class="btn btn-sm btn-success btn-restore-visitation" data-id="'.$v->id.'">Pulihkan</button>'
+                    . ' <button class="btn btn-sm btn-danger btn-force-delete-visitation" data-id="'.$v->id.'">Hapus Permanen</button>';
             })
             ->rawColumns(['actions'])
             ->make(true);
@@ -235,6 +236,44 @@ class ElabController extends Controller
         $visitation->save();
 
         return response()->json(['message' => 'Kunjungan berhasil dipulihkan']);
+    }
+    /**
+     * Permanently delete a canceled visitation (status_kunjungan == 7).
+     * Accessible to Lab and Admin roles.
+     */
+    public function forceDestroy($id, Request $request)
+    {
+        $user = Auth::user();
+        if (!$user->hasRole(['Lab','Admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $visitation = Visitation::findOrFail($id);
+        if ($visitation->status_kunjungan != 7) {
+            return response()->json(['message' => 'Kunjungan tidak dalam status dibatalkan'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // delete related lab permintaan, rujuk, cppt etc if needed
+            if ($visitation->labPermintaan()->exists()) {
+                $visitation->labPermintaan()->delete();
+            }
+            if ($visitation->screeningBatuk()->exists()) {
+                $visitation->screeningBatuk()->delete();
+            }
+            // delete rujuk records that reference this visitation
+            \App\Models\ERM\Rujuk::where('visitation_id', $visitation->id)->delete();
+
+            $visitation->delete();
+            DB::commit();
+            Log::info('Elab visitation force deleted', ['visitation_id' => $id, 'user_id' => $user->id]);
+            return response()->json(['message' => 'Kunjungan berhasil dihapus secara permanen']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to force delete elab visitation: ' . $e->getMessage(), ['visitation_id' => $id, 'user_id' => $user->id]);
+            return response()->json(['message' => 'Internal Server Error'], 500);
+        }
     }
     public function create($visitationId)
     {

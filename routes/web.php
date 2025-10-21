@@ -498,6 +498,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans/list-by-status', [App\Http\Controllers\ERM\RawatJalanController::class, 'listByStatus']);
     // AJAX: Restore visitation status from dibatalkan (7) to tidak datang (0)
     Route::post('/rawatjalans/restore-status', [App\Http\Controllers\ERM\RawatJalanController::class, 'restoreStatus']);
+    // AJAX: Permanently delete a visitation that is in 'dibatalkan' status (7)
+    Route::post('/rawatjalans/force-destroy', [App\Http\Controllers\ERM\RawatJalanController::class, 'forceDestroy'])->name('erm.rawatjalans.forceDestroy');
 
 
 
@@ -1314,6 +1316,9 @@ Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController
 Route::post('/erm/elab/visitation/{id}/cancel', [\App\Http\Controllers\ERM\ElabController::class, 'cancelVisitation'])
     ->middleware('role:Lab|Admin')
     ->name('erm.elab.visitation.cancel');
+Route::post('/erm/elab/visitation/{id}/force-destroy', [\App\Http\Controllers\ERM\ElabController::class, 'forceDestroy'])
+    ->middleware('role:Lab|Admin')
+    ->name('erm.elab.visitation.forceDestroy');
 Route::get('/erm/elab/canceled', [\App\Http\Controllers\ERM\ElabController::class, 'canceledList'])
     ->middleware('role:Lab|Admin')
     ->name('erm.elab.canceled.list');

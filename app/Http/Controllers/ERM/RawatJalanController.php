@@ -760,6 +760,61 @@ class RawatJalanController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Permanently delete a visitation that is in 'dibatalkan' status (7).
+     * Only users with Admin or Pendaftaran role may perform this.
+     */
+    public function forceDestroy(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+        ]);
+
+        $user = Auth::user();
+        if (!$user || (! $user->hasRole('Admin') && ! $user->hasRole('Pendaftaran'))) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $visitation = Visitation::findOrFail($request->visitation_id);
+
+        if ($visitation->status_kunjungan != 7) {
+            return response()->json(['success' => false, 'message' => 'Visitation is not in dibatalkan status'], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Delete related screening, lab requests, rujuk and other related records if present
+            if ($visitation->screeningBatuk) {
+                $visitation->screeningBatuk()->delete();
+            }
+            if ($visitation->labPermintaan()->exists()) {
+                $visitation->labPermintaan()->delete();
+            }
+            if ($visitation->resepDokter()->exists()) {
+                $visitation->resepDokter()->delete();
+            }
+            if ($visitation->resepFarmasi()->exists()) {
+                $visitation->resepFarmasi()->delete();
+            }
+            if ($visitation->cppt()->exists()) {
+                $visitation->cppt()->delete();
+            }
+            // Any rujuk records referencing this visitation
+            Rujuk::where('visitation_id', $visitation->id)->delete();
+
+            // Finally delete the visitation itself
+            $visitation->delete();
+
+            DB::commit();
+            Log::info('Visitation force deleted', ['visitation_id' => $request->visitation_id, 'user_id' => $user->id]);
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to force delete visitation: ' . $e->getMessage(), ['visitation_id' => $request->visitation_id, 'user_id' => $user->id]);
+            return response()->json(['success' => false, 'message' => 'Internal Server Error'], 500);
+        }
+    }
+
     // Edit antrian
     public function editAntrian(Request $request)
     {

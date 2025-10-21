@@ -421,6 +421,29 @@ $(document).ready(function () {
             }
         });
     });
+
+    // Force delete (permanent) visitation from canceled modal
+    $(document).on('click', '.btn-force-delete-visitation', function(){
+        const id = $(this).data('id');
+        if(!id) return;
+        if(!confirm('Hapus permanen kunjungan ini? Tindakan ini tidak dapat dikembalikan.')) return;
+        $.ajax({
+            url: '{{ route('erm.elab.visitation.forceDestroy', ['id' => '___ID___']) }}'.replace('___ID___', id),
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            success: function(res){
+                // Reload both tables
+                table.ajax.reload(null,false);
+                if(canceledTableInitialized){
+                    $('#canceled-table').DataTable().ajax.reload(null,false);
+                }
+                alert(res.message || 'Kunjungan dihapus');
+            },
+            error: function(xhr){
+                alert(xhr.responseJSON?.message || 'Gagal menghapus kunjungan');
+            }
+        });
+    });
 });
 </script>
 @endsection
