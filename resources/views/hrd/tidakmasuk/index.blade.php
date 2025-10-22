@@ -5,9 +5,8 @@
 @endsection
 
 @section('content')
-<div class="page-wrapper">
-    <div class="page-content">
-        <div class="container-fluid">
+@section('content')
+<div class="container-fluid px-2">
             <div class="row">
                 <div class="col-sm-12">
                     <div class="page-title-box">
@@ -79,8 +78,6 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
 <!-- Modal Create Tidak Masuk -->
 <div class="modal fade" id="modalCreateTidakMasuk" tabindex="-1" role="dialog" aria-labelledby="modalCreateTidakMasukLabel" aria-hidden="true">

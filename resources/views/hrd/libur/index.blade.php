@@ -5,9 +5,8 @@
 @endsection
 
 @section('content')
-<div class="page-wrapper">
-    <div class="page-content">
-        <div class="container-fluid">
+@section('content')
+<div class="container-fluid px-2">
             <div class="row">
                 <div class="col-sm-12">
                     <div class="page-title-box">
@@ -47,8 +46,6 @@
             @endif
 
         </div>
-    </div>
-</div>
 
 <!-- Modal Create Pengajuan -->
 <div class="modal fade" id="modalCreateLibur" tabindex="-1" role="dialog" aria-labelledby="modalCreateLiburLabel" aria-hidden="true">
@@ -218,8 +215,8 @@
 @section('scripts')
 <style>
 /* Hide the "Anda akan mengajukan libur" messages outside of modal */
-.page-content .alert-info p.mb-0 + .hari-info,
-.page-content .alert-info div:contains("Anda akan mengajukan libur") {
+.container-fluid .alert-info p.mb-0 + .hari-info,
+.container-fluid .alert-info div:contains("Anda akan mengajukan libur") {
     display: none !important;
 }
 </style>

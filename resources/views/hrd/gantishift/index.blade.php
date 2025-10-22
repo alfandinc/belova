@@ -5,9 +5,7 @@
 @endsection
 
 @section('content')
-<div class="page-wrapper">
-    <div class="page-content">
-        <div class="container-fluid">
+<div class="container-fluid px-2">
             <div class="row">
                 <div class="col-12">
                     <div class="page-title-box d-flex align-items-center justify-content-between">
@@ -24,7 +22,7 @@
                             <h4 class="card-title">Pengajuan Ganti Shift Saya</h4>
                             <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body p-2">
                             <div class="table-responsive">
                                 <table id="tableGantiShiftPersonal" class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
                                     <thead>
@@ -54,7 +52,7 @@
                             <h4 class="card-title">Persetujuan Ganti Shift Tim</h4>
                             <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body p-2">
                             <div class="table-responsive">
                                 <table id="tableGantiShiftTeam" class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
                                     <thead>
@@ -83,7 +81,7 @@
                             <h4 class="card-title">Persetujuan HRD - Ganti Shift</h4>
                             <button class="btn btn-primary" id="btnCreateGantiShift">Buat Pengajuan Baru</button>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body p-2">
                             <div class="table-responsive">
                                 <table id="tableGantiShiftApproval" class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;">
                                     <thead>
@@ -107,9 +105,6 @@
                 </div>
                 @endif
             </div>
-        </div>
-    </div>
-</div>
 
 <!-- Modal Create Ganti Shift -->
 <div class="modal fade" id="modalCreateGantiShift" tabindex="-1" role="dialog" aria-labelledby="modalCreateGantiShiftLabel" aria-hidden="true">

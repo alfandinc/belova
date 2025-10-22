@@ -210,23 +210,32 @@
             
             <!-- Pengajuan Ganti Shift - Visible to all authenticated users -->
             @php
-                if (!class_exists('App\\Models\\HRD\\PengajuanGantiShift')) {
-                    // Only define if not already loaded
-                    eval('namespace App\\Models\\HRD; class PengajuanGantiShift extends \\Illuminate\\Database\\Eloquent\\Model {}');
-                }
+                // Compute pending counts for Ganti/Tukar Shift safely
                 $pendingGantiShiftHRD = 0;
                 $pendingGantiShiftManager = 0;
-                if(Auth::check()) {
-                    if(Auth::user()->hasAnyRole('Hrd','Admin')) {
-                        $pendingGantiShiftHRD = \App\Models\HRD\PengajuanGantiShift::where(function($q) {
-                            $q->whereNull('status_manager')->whereNull('status_hrd')
-                              ->orWhere(function($q2) {
-                                  $q2->where('status_manager', 'disetujui')->whereNull('status_hrd');
-                              });
-                        })->count();
-                    }
-                    if(Auth::user()->hasAnyRole('Manager','Admin')) {
-                        $pendingGantiShiftManager = \App\Models\HRD\PengajuanGantiShift::whereNull('status_manager')->count();
+
+                if (Auth::check()) {
+                    try {
+                        if (class_exists('\App\\Models\\HRD\\PengajuanGantiShift')) {
+                            if (Auth::user()->hasAnyRole('Hrd','Admin')) {
+                                // Pending for HRD: manager already approved and HRD waiting
+                                $pendingGantiShiftHRD = \App\Models\HRD\PengajuanGantiShift::where('status_manager', 'disetujui')
+                                    ->where(function($q) {
+                                        $q->where('status_hrd', 'menunggu')->orWhereNull('status_hrd');
+                                    })->count();
+                            }
+
+                            if (Auth::user()->hasAnyRole('Manager','Admin')) {
+                                // Pending for Manager: status_manager explicitly 'menunggu' or null
+                                $pendingGantiShiftManager = \App\Models\HRD\PengajuanGantiShift::where(function($q){
+                                    $q->where('status_manager', 'menunggu')->orWhereNull('status_manager');
+                                })->count();
+                            }
+                        }
+                    } catch (Exception $e) {
+                        // If model or query fails, keep counts at 0 to avoid breaking the navbar
+                        $pendingGantiShiftHRD = 0;
+                        $pendingGantiShiftManager = 0;
                     }
                 }
             @endphp

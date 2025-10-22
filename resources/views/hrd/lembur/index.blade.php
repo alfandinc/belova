@@ -5,9 +5,8 @@
 @endsection
 
 @section('content')
-<div class="page-wrapper">
-    <div class="page-content">
-        <div class="container-fluid">
+@section('content')
+<div class="container-fluid px-2">
             <div class="row">
                 <div class="col-12 mb-3">
                     <button class="btn btn-primary" id="btnCreateLembur">Ajukan Lembur</button>
@@ -33,8 +32,6 @@
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
 <!-- Modal Create Lembur -->
 <div class="modal fade" id="modalCreateLembur" tabindex="-1" role="dialog" aria-labelledby="modalCreateLemburLabel" aria-hidden="true">
