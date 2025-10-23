@@ -434,11 +434,20 @@ class FakturBeliController extends Controller
                 $oldHpp = $obat->hpp ?? 0;
                 $oldHppJual = $obat->hpp_jual ?? 0;
                 $oldStok = $obat->total_stok ?? 0; // Use total_stok attribute
-                
-                // Calculate new weighted average HPP
+
+                // Per-unit costs used by the system when updating master HPP
+                $hppPerUnit = $qty > 0 ? ($purchaseCost / $qty) : 0; // include diskon
+                $hppJualPerUnit = $qty > 0 ? ($purchaseCostJual / $qty) : 0; // exclude diskon
+
+                // Simple average (system behavior in StokService): newHpp = (oldHpp + hppPerUnit) / 2
+                $newHpp_simple = ($oldHpp + $hppPerUnit) / 2;
+                $newHppJual_simple = ($oldHppJual + $hppJualPerUnit) / 2;
+
+                // Also compute weighted average for reference (previous debug behavior)
                 $newStok = $oldStok + $qty;
-                $newHpp = $newStok > 0 ? (($oldHpp * $oldStok) + $purchaseCost) / $newStok : 0;
-                $newHppJual = $newStok > 0 ? (($oldHppJual * $oldStok) + $purchaseCostJual) / $newStok : 0;
+                $newHpp_weighted = $newStok > 0 ? (($oldHpp * $oldStok) + $purchaseCost) / $newStok : 0;
+                $newHppJual_weighted = $newStok > 0 ? (($oldHppJual * $oldStok) + $purchaseCostJual) / $newStok : 0;
+
                 $debugInfo[] = [
                     'obat_id' => $item->obat_id,
                     'obat_nama' => $obat->nama ?? 'Unknown',
@@ -454,12 +463,20 @@ class FakturBeliController extends Controller
                     'oldHppJual' => $oldHppJual,
                     'oldStok' => $oldStok,
                     'newStok' => $newStok,
-                    'newHpp' => $newHpp, // Weighted average HPP dengan diskon
-                    'newHppJual' => $newHppJual, // Weighted average HPP tanpa diskon
+                    // Show system (simple average) result as primary
+                    'newHpp' => $newHpp_simple,
+                    'newHppJual' => $newHppJual_simple,
+                    // Also include weighted results for comparison
+                    'newHpp_weighted' => $newHpp_weighted,
+                    'newHppJual_weighted' => $newHppJual_weighted,
                     'hppPerUnit' => $qty > 0 ? $purchaseCost / $qty : 0,
                     'hppJualPerUnit' => $qty > 0 ? $purchaseCostJual / $qty : 0,
-                    'selisihHpp' => $newHpp - $oldHpp,
-                    'selisihHppJual' => $newHppJual - $oldHppJual,
+                    'selisihHpp' => $newHpp_simple - $oldHpp,
+                    // Deltas for both simple and weighted
+                    'selisihHpp_simple' => $newHpp_simple - $oldHpp,
+                    'selisihHppJual_simple' => $newHppJual_simple - $oldHppJual,
+                    'selisihHpp_weighted' => $newHpp_weighted - $oldHpp,
+                    'selisihHppJual_weighted' => $newHppJual_weighted - $oldHppJual,
                 ];
             }
         }

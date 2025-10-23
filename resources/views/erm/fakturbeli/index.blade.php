@@ -315,25 +315,40 @@ $(function() {
                         </thead>
                         <tbody>`;
                     res.items.forEach(item => {
-                        let formula = `New HPP = (Old HPP × Old Stok + Purchase Cost) / (Old Stok + Qty)<br>
-                            = (${item.oldHpp} × ${item.oldStok} + ${item.purchaseCost}) / (${item.oldStok} + ${item.qty})<br>
-                            = ${item.newHpp}`;
-                        let formulaJual = `New HPP Jual = (Old HPP Jual × Old Stok + Purchase Cost Jual) / (Old Stok + Qty)<br>
-                            = (${item.oldHppJual ?? '-'} × ${item.oldStok} + ${item.purchaseCostJual ?? '-'}) / (${item.oldStok} + ${item.qty})<br>
-                            = ${item.newHppJual ?? '-'}`;
+                        // Build human-friendly formatted numbers
+                        const fmt = (v) => 'Rp' + parseFloat(v || 0).toLocaleString('id-ID');
+                        const num = (v) => (v === null || v === undefined) ? '-' : v;
+
+                        // Simple-average (system) formula (what StokService uses)
+                        let simpleFormula = `New HPP = (Old HPP + HPP per unit) / 2<br>
+                            = (${num(item.oldHpp)} + ${num(item.hppPerUnit)}) / 2<br>
+                            = ${num(item.newHpp)}`;
+
+                        // Deltas (selisih) for system simple-average
+                        let deltaSimple = `Selisih (simple): ${fmt(item.selisihHpp_simple)}`;
+                        let deltaSimpleJual = `Selisih Jual (simple): ${fmt(item.selisihHppJual_simple)}`;
+
                         debugInfo += `<tr>
                             <td>${item.obat_nama}</td>
                             <td>${item.qty}</td>
-                            <td>Rp${parseFloat(item.harga || 0).toLocaleString('id-ID')}</td>
-                            <td>Rp${parseFloat(item.itemValue || 0).toLocaleString('id-ID')}</td>
-                            <td>Rp${parseFloat(item.itemTax || 0).toLocaleString('id-ID')}</td>
-                            <td>Rp${parseFloat(item.globalTaxPortion || 0).toLocaleString('id-ID')}</td>
-                            <td>Rp${parseFloat(item.oldHpp || 0).toLocaleString('id-ID')}</td>
-                            <td>${item.oldStok}</td>
-                            <td>Rp${parseFloat(item.purchaseCost || 0).toLocaleString('id-ID')}</td>
-                            <td>${item.newStok}</td>
-                            <td>Rp${parseFloat(item.newHpp || 0).toLocaleString('id-ID')}</td>
-                            <td style="font-size: 0.9em;">${formula}<br><hr><b>HPP Jual (tanpa diskon):</b><br>${formulaJual}</td>
+                            <td>${fmt(item.harga)}</td>
+                            <td>${fmt(item.itemSubtotal)}</td>
+                            <td>${fmt(item.tax_value || item.itemTax)}</td>
+                            <td>${fmt(item.globalTaxPortion)}</td>
+                            <td>${fmt(item.oldHpp)}</td>
+                            <td>${num(item.oldStok)}</td>
+                            <td>${fmt(item.purchaseCost)}</td>
+                            <td>${num(item.newStok)}</td>
+                            <td>${fmt(item.newHpp)}</td>
+                            <td style="font-size: 0.9em;">
+                                <strong>HPP/unit:</strong> ${fmt(item.hppPerUnit)}<br>
+                                <strong>Formula used by system:</strong><br>${simpleFormula}<br>
+                                <em>${deltaSimple}</em>
+                                <hr>
+                                <strong>HPP Jual (per unit):</strong> ${fmt(item.hppJualPerUnit)}<br>
+                                <strong>Formula used by system (HPP Jual):</strong><br> ${simpleFormula.replace(/New HPP/g, 'New HPP Jual').replace(item.newHpp, item.newHppJual)}<br>
+                                <em>${deltaSimpleJual}</em>
+                            </td>
                         </tr>`;
                     });
                     debugInfo += `</tbody></table>`;
