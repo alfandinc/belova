@@ -46,7 +46,8 @@
                         <label class="form-check-label" for="hideDireturCheckbox">Sembunyikan Faktur Diretur</label>
                     </div>
                         <!-- Custom search inputs -->
-                        <input type="text" id="searchNamaObat" class="form-control ml-4" style="width:180px;" placeholder="Cari Nama Obat">
+                        <input type="text" id="searchNoFaktur" class="form-control ml-4" style="width:180px;" placeholder="Cari No Faktur">
+                        <input type="text" id="searchNamaObat" class="form-control ml-2" style="width:180px;" placeholder="Cari Nama Obat">
                         <input type="text" id="searchPemasok" class="form-control ml-2" style="width:180px;" placeholder="Cari Pemasok">
                 </div>
         </div>
@@ -132,6 +133,7 @@ $(function() {
                 d.tanggal_terima_range = $('#tanggalTerimaRange').val();
                 d.status = $('#statusFilter').val();
                 d.hide_diretur = $('#hideDireturCheckbox').is(':checked') ? 1 : 0;
+                    d.search_no_faktur = $('#searchNoFaktur').val();
                     d.search_nama_obat = $('#searchNamaObat').val();
                     d.search_pemasok = $('#searchPemasok').val();
                 }
@@ -217,9 +219,28 @@ $(function() {
     $('#hideDireturCheckbox').on('change', function() {
         fakturTable.ajax.reload();
     });
-    // Custom search handlers
-    $('#searchNamaObat, #searchPemasok').on('input', function() {
+    // Debounce helper to avoid excessive reloads
+    function debounce(fn, delay) {
+        let timer = null;
+        return function() {
+            const ctx = this, args = arguments;
+            clearTimeout(timer);
+            timer = setTimeout(function() {
+                fn.apply(ctx, args);
+            }, delay);
+        };
+    }
+
+    // Custom search handlers (include searchNoFaktur)
+    $('#searchNoFaktur, #searchNamaObat, #searchPemasok').on('input', debounce(function() {
         fakturTable.ajax.reload();
+    }, 300));
+
+    // Also allow Enter key on No Faktur to immediately trigger search
+    $('#searchNoFaktur').on('keyup', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            fakturTable.ajax.reload();
+        }
     });
     // Delete handler
     $('#fakturbeli-table').on('click', '.btn-delete-faktur', function() {

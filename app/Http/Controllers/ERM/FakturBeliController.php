@@ -53,6 +53,11 @@ class FakturBeliController extends Controller
                     $q->where('nama', 'like', "%$searchNamaObat%");
                 });
             }
+            // Filter by no_faktur
+            if ($request->filled('search_no_faktur')) {
+                $searchNo = $request->input('search_no_faktur');
+                $data = $data->where('no_faktur', 'like', "%$searchNo%");
+            }
             // Filter by pemasok
             if ($request->filled('search_pemasok')) {
                 $searchPemasok = $request->input('search_pemasok');
