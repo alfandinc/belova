@@ -691,6 +691,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/obat/create', [ObatController::class, 'create'])->name('erm.obat.create');
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
     Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
+    Route::get('/obat/{id}/relations', [ObatController::class, 'relations'])->name('erm.obat.relations');
     Route::delete('/obat/{id}', [ObatController::class, 'destroy'])->name('erm.obat.destroy');
 
     // Surat Istirahat & Surat Mondok (Combined)

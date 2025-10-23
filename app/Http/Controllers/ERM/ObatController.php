@@ -423,6 +423,36 @@ class ObatController extends Controller
     }
 
     /**
+     * Return unique pemasok and principal lists for a given obat based on faktur items.
+     */
+    public function relations($id)
+    {
+        // For pemasok: count distinct faktur per pemasok where fakturbeli_items.obat_id = $id
+        $pemasoks = \App\Models\ERM\FakturBeliItem::where('obat_id', $id)
+            ->join('erm_fakturbeli as f', 'erm_fakturbeli_items.fakturbeli_id', '=', 'f.id')
+            ->join('erm_pemasok as pm', 'f.pemasok_id', '=', 'pm.id')
+            ->select('pm.id', 'pm.nama', DB::raw('COUNT(DISTINCT f.id) as jumlah_faktur'))
+            ->groupBy('pm.id', 'pm.nama')
+            ->orderBy('jumlah_faktur', 'desc')
+            ->get();
+
+        // For principals: count distinct faktur per principal where fakturbeli_items.obat_id = $id
+        $principals = \App\Models\ERM\FakturBeliItem::where('obat_id', $id)
+            ->whereNotNull('principal_id')
+            ->join('erm_principals as pr', 'erm_fakturbeli_items.principal_id', '=', 'pr.id')
+            ->join('erm_fakturbeli as f2', 'erm_fakturbeli_items.fakturbeli_id', '=', 'f2.id')
+            ->select('pr.id', 'pr.nama', DB::raw('COUNT(DISTINCT f2.id) as jumlah_faktur'))
+            ->groupBy('pr.id', 'pr.nama')
+            ->orderBy('jumlah_faktur', 'desc')
+            ->get();
+
+        return response()->json([
+            'pemasoks' => $pemasoks,
+            'principals' => $principals,
+        ]);
+    }
+
+    /**
      * Export Obat data to Excel
      */
     public function exportExcel(Request $request)

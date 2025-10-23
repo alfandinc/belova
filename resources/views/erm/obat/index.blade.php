@@ -235,6 +235,8 @@
                         <th>Zat Aktif</th>
                         <th>Status</th>
                         <th>Aksi</th>
+                           <th>Pemasok</th>
+                           <th>Principal</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -435,7 +437,95 @@
                     }
                 },
                 { data: 'action', name: 'action', orderable: false, searchable: false }
+                ,
+                { 
+                    data: null, 
+                    orderable: false, 
+                    searchable: false,
+                    render: function (data, type, row) {
+                        return '<button class="btn btn-sm btn-info btn-relations" data-id="'+row.id+'">Detail</button>';
+                    }
+                },
+                { 
+                    data: null, 
+                    orderable: false, 
+                    searchable: false,
+                    render: function (data, type, row) {
+                        return '<button class="btn btn-sm btn-secondary btn-relations" data-id="'+row.id+'">Detail</button>';
+                    }
+                }
             ]
+        });
+
+        // Append modal for relations (pemasok & principal)
+        if ($('#obatRelationsModal').length === 0) {
+            $('body').append('\
+            <div class="modal fade" id="obatRelationsModal" tabindex="-1" role="dialog" aria-hidden="true">\
+              <div class="modal-dialog modal-lg" role="document">\
+                <div class="modal-content">\
+                  <div class="modal-header">\
+                    <h5 class="modal-title">Relasi Obat</h5>\
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">\
+                      <span aria-hidden="true">&times;</span>\
+                    </button>\
+                  </div>\
+                                    <div class="modal-body">\
+                                        <h6>Pemasok</h6>\
+                                        <div class="table-responsive mb-3">\
+                                            <table class="table table-sm table-bordered" id="relationsPemasokTable">\
+                                                <thead><tr><th>No</th><th>Nama Pemasok</th><th>Jumlah Faktur</th></tr></thead>\
+                                                <tbody></tbody>\
+                                            </table>\
+                                        </div>\
+                                        <h6>Principal</h6>\
+                                        <div class="table-responsive">\
+                                            <table class="table table-sm table-bordered" id="relationsPrincipalTable">\
+                                                <thead><tr><th>No</th><th>Nama Principal</th><th>Jumlah Faktur</th></tr></thead>\
+                                                <tbody></tbody>\
+                                            </table>\
+                                        </div>\
+                                    </div>\
+                  <div class="modal-footer">\
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>\
+                  </div>\
+                </div>\
+              </div>\
+            </div>');
+        }
+
+        // Click handler for relations buttons (both columns use same handler)
+        $(document).on('click', '.btn-relations', function() {
+            var id = $(this).data('id');
+            $('#relationsPemasokList').empty();
+            $('#relationsPrincipalList').empty();
+            $.get('/erm/obat/' + id + '/relations', function(res) {
+                    // Populate pemasok table
+                    var $pmTbody = $('#relationsPemasokTable tbody');
+                    $pmTbody.empty();
+                    if (res.pemasoks && res.pemasoks.length) {
+                        res.pemasoks.forEach(function(pm, idx) {
+                            var jumlah = pm.jumlah_faktur || pm.jumlah || 0;
+                            $pmTbody.append('<tr><td>' + (idx+1) + '</td><td>' + (pm.nama || '-') + '</td><td>' + jumlah + '</td></tr>');
+                        });
+                    } else {
+                        $pmTbody.append('<tr><td colspan="3" class="text-center text-muted">(Tidak ada pemasok)</td></tr>');
+                    }
+
+                    // Populate principals table
+                    var $prTbody = $('#relationsPrincipalTable tbody');
+                    $prTbody.empty();
+                    if (res.principals && res.principals.length) {
+                        res.principals.forEach(function(pr, idx) {
+                            var jumlah = pr.jumlah_faktur || pr.jumlah || 0;
+                            $prTbody.append('<tr><td>' + (idx+1) + '</td><td>' + (pr.nama || '-') + '</td><td>' + jumlah + '</td></tr>');
+                        });
+                    } else {
+                        $prTbody.append('<tr><td colspan="3" class="text-center text-muted">(Tidak ada principal)</td></tr>');
+                    }
+                $('#obatRelationsModal').modal('show');
+            }).fail(function() {
+                alert('Gagal mengambil relasi untuk obat ini');
+            });
         });
 
         // Submit form obat via AJAX (moved inside document ready)
