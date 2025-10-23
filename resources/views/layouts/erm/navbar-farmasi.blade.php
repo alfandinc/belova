@@ -46,6 +46,9 @@
                                     <a href="/erm/pemasok"><i data-feather="truck" class="align-self-center menu-icon"></i><span>Master Pemasok</span></a>
                                 </li>
                                 <li>
+                                    <a href="/erm/principal"><i data-feather="users" class="align-self-center menu-icon"></i><span>Master Principal</span></a>
+                                </li>
+                                <li>
                                     <a href="/erm/gudang"><i data-feather="archive" class="align-self-center menu-icon"></i><span>Master Gudang</span></a>
                                 </li>
                                 <li>

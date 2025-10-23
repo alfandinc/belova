@@ -15,6 +15,7 @@ class PermintaanItem extends Model
         'permintaan_id',
         'obat_id',
         'pemasok_id',
+        'principal_id',
         'jumlah_box',
         'qty_total',
     ];
@@ -32,5 +33,10 @@ class PermintaanItem extends Model
     public function pemasok()
     {
         return $this->belongsTo(Pemasok::class, 'pemasok_id');
+    }
+
+    public function principal()
+    {
+        return $this->belongsTo(Principal::class, 'principal_id');
     }
 }

@@ -419,6 +419,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Single obat details for AJAX (used by various JS fallbacks)
     Route::get('ajax/obat/{id}', [App\Http\Controllers\ERM\ObatController::class, 'edit']);
     Route::get('ajax/pemasok', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPemasok']);
+    Route::get('ajax/principal', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxPrincipal']);
 
         // Kartu Stok
         Route::get('/kartu-stok', [App\Http\Controllers\ERM\KartuStokController::class, 'index'])->name('erm.kartustok.index');
@@ -459,6 +460,15 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     // Export to Excel
     Route::get('pemasok/export-excel', [App\Http\Controllers\ERM\PemasokController::class, 'exportExcel']);
+
+    // Master Principal AJAX CRUD (mirror pemasok)
+    Route::get('principal', [App\Http\Controllers\ERM\PrincipalController::class, 'index']);
+    Route::post('principal', [App\Http\Controllers\ERM\PrincipalController::class, 'store']);
+    Route::put('principal/{id}', [App\Http\Controllers\ERM\PrincipalController::class, 'update']);
+    Route::delete('principal/{id}', [App\Http\Controllers\ERM\PrincipalController::class, 'destroy']);
+
+    // Export to Excel
+    Route::get('principal/export-excel', [App\Http\Controllers\ERM\PrincipalController::class, 'exportExcel']);
 
    
     Route::get('permintaan/data', [App\Http\Controllers\ERM\PermintaanController::class, 'data'])->name('erm.permintaan.data');

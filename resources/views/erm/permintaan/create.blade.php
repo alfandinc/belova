@@ -43,12 +43,12 @@
         <h5>Item Permintaan</h5>
         <table class="table table-bordered" id="items-table">
             <colgroup>
-                <col style="width: 22%;">
-                <col style="width: 22%;">
+                <col style="width: 20%;">
+                <col style="width: 18%;">
+                <col style="width: 18%;">
                 <col style="width: 8%;">
                 <col style="width: 8%;">
-                <col style="width: 10%;">
-                <col style="width: 10%;">
+                <col style="width: 8%;">
                 <col style="width: 8%;">
                 <col style="width: 8%;">
                 <col style="width: 4%;">
@@ -57,12 +57,12 @@
                 <tr>
                     <th>Obat</th>
                     <th>Pemasok</th>
+                    <th>Principal</th>
                     <th>Jumlah Box</th>
                     <th>Qty Total</th>
                     <th>Harga</th>
                     <th>Qty/Box</th>
                     <th>Diskon</th>
-                    <th>Diskon Type</th>
                     <th>Aksi</th>
                 </tr>
             </thead>
@@ -87,6 +87,8 @@
                 'obat_nama' => optional($item->obat)->nama,
                 'pemasok_id' => $item->pemasok_id,
                 'pemasok_nama' => optional($item->pemasok)->nama,
+                'principal_id' => $item->principal_id,
+                'principal_nama' => optional($item->principal)->nama,
                 'jumlah_box' => $item->jumlah_box,
                 'qty_total' => $item->qty_total
             ];
@@ -106,6 +108,7 @@ function addPermintaanRow(item = null) {
     let row = `<tr>
         <td><select name="items[${rowIdx}][obat_id]" class="form-control obat-select" required style="min-width:400px; width:100%"></select></td>
         <td><select name="items[${rowIdx}][pemasok_id]" class="form-control pemasok-select" required style="min-width:400px; width:100%"></select></td>
+        <td><select name="items[${rowIdx}][principal_id]" class="form-control principal-select" style="min-width:300px; width:100%"></select></td>
         <td><input type="number" name="items[${rowIdx}][jumlah_box]" class="form-control jumlah-box" min="1" required value="${item ? item.jumlah_box : ''}"></td>
         <td><input type="number" name="items[${rowIdx}][qty_total]" class="form-control qty-total" min="1" required value="${item ? item.qty_total : ''}"></td>
         <td><input type="text" class="form-control harga-master" readonly></td>
@@ -119,6 +122,7 @@ function addPermintaanRow(item = null) {
     // Init select2 and set value if editing
     initSelect2($row.find('.obat-select'), '/erm/ajax/obat', item ? {id: item.obat_id, text: item.obat_nama} : null);
     initSelect2($row.find('.pemasok-select'), '/erm/ajax/pemasok', item ? {id: item.pemasok_id, text: item.pemasok_nama} : null);
+    initSelect2($row.find('.principal-select'), '/erm/ajax/principal', item ? {id: item.principal_id, text: item.principal_nama} : null);
 }
 
 function initSelect2($el, url, selected = null) {
@@ -164,7 +168,8 @@ $(document).ready(function() {
             let $row = $(this);
             let obatId = $row.find('.obat-select').val();
             let pemasokId = $row.find('.pemasok-select').val();
-            if (obatId && pemasokId) {
+            let principalId = $row.find('.principal-select').val();
+            if (obatId && pemasokId && principalId) {
                 $.get('/erm/permintaan/master-faktur', { obat_id: obatId, pemasok_id: pemasokId }, function(data) {
                     if (data.found) {
                         $row.find('.harga-master').val(data.harga);
@@ -186,11 +191,12 @@ $(document).ready(function() {
     });
 
     // Autofill master faktur fields
-    $('#items-table').on('change', '.obat-select, .pemasok-select', function() {
+    $('#items-table').on('change', '.obat-select, .pemasok-select, .principal-select', function() {
         let $row = $(this).closest('tr');
         let obatId = $row.find('.obat-select').val();
         let pemasokId = $row.find('.pemasok-select').val();
-        if (obatId && pemasokId) {
+        let principalId = $row.find('.principal-select').val();
+        if (obatId && pemasokId && principalId) {
             $.get('/erm/permintaan/master-faktur', { obat_id: obatId, pemasok_id: pemasokId }, function(data) {
                 if (data.found) {
                     $row.find('.harga-master').val(data.harga);

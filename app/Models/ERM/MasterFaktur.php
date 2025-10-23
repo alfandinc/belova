@@ -14,6 +14,7 @@ class MasterFaktur extends Model
     protected $fillable = [
         'obat_id',
         'pemasok_id',
+        'principal_id',
         'harga',
         'qty_per_box',
         'diskon',
@@ -28,5 +29,10 @@ class MasterFaktur extends Model
     public function pemasok()
     {
         return $this->belongsTo(Pemasok::class, 'pemasok_id');
+    }
+
+    public function principal()
+    {
+        return $this->belongsTo(Principal::class, 'principal_id');
     }
 }

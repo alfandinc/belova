@@ -29,6 +29,7 @@ class PermintaanController extends Controller
             'items' => 'required|array|min:1',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.pemasok_id' => 'required|exists:erm_pemasok,id',
+            'items.*.principal_id' => 'nullable|exists:erm_principals,id',
             'items.*.jumlah_box' => 'required|integer|min:1',
             'items.*.qty_total' => 'required|integer|min:1',
         ]);
@@ -45,6 +46,7 @@ class PermintaanController extends Controller
                     'permintaan_id' => $permintaan->id,
                     'obat_id' => $item['obat_id'],
                     'pemasok_id' => $item['pemasok_id'],
+                    'principal_id' => $item['principal_id'] ?? null,
                     'jumlah_box' => $item['jumlah_box'],
                     'qty_total' => $item['qty_total'],
                 ]);
@@ -160,6 +162,7 @@ class PermintaanController extends Controller
                         'permintaan_id' => $permintaan->id,
                         'obat_id' => $item['obat_id'],
                         'pemasok_id' => $item['pemasok_id'],
+                        'principal_id' => $item['principal_id'] ?? null,
                         'jumlah_box' => $item['jumlah_box'],
                         'qty_total' => $item['qty_total'],
                     ]);
@@ -179,6 +182,7 @@ class PermintaanController extends Controller
                             'permintaan_id' => $permintaan->id,
                             'obat_id' => $item['obat_id'],
                             'pemasok_id' => $item['pemasok_id'],
+                            'principal_id' => $item['principal_id'] ?? null,
                             'jumlah_box' => $item['jumlah_box'],
                             'qty_total' => $item['qty_total'],
                         ]);
@@ -261,6 +265,7 @@ class PermintaanController extends Controller
                         \App\Models\ERM\FakturBeliItem::create([
                             'fakturbeli_id' => $faktur->id,
                             'obat_id' => $item->obat_id,
+                            'principal_id' => $item->principal_id ?? null,
                             'qty' => $item->qty_total,
                             'sisa' => $item->qty_total,
                             'harga' => $harga,

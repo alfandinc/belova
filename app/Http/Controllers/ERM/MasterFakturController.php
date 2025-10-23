@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ERM\MasterFaktur;
 use App\Models\ERM\Obat;
 use App\Models\ERM\Pemasok;
+use App\Models\ERM\Principal;
 use Illuminate\Http\Request;
 
 class MasterFakturController extends Controller
@@ -29,15 +30,27 @@ class MasterFakturController extends Controller
             ->get(['id', 'nama as text']);
         return response()->json($data);
     }
+
+    // AJAX for select2 Principal
+    public function ajaxPrincipal(Request $request)
+    {
+        $q = $request->q;
+        $data = Principal::where('nama', 'like', "%$q%")
+            ->limit(20)
+            ->get(['id', 'nama as text']);
+        return response()->json($data);
+    }
     public function show($id)
     {
-        $masterFaktur = MasterFaktur::with(['obat', 'pemasok'])->findOrFail($id);
+        $masterFaktur = MasterFaktur::with(['obat', 'pemasok', 'principal'])->findOrFail($id);
         return response()->json([
             'id' => $masterFaktur->id,
             'obat_id' => $masterFaktur->obat_id,
             'obat_nama' => $masterFaktur->obat->nama ?? '',
             'pemasok_id' => $masterFaktur->pemasok_id,
             'pemasok_nama' => $masterFaktur->pemasok->nama ?? '',
+            'principal_id' => $masterFaktur->principal_id,
+            'principal_nama' => $masterFaktur->principal->nama ?? '',
             'harga' => $masterFaktur->harga,
             'qty_per_box' => $masterFaktur->qty_per_box,
             'diskon' => $masterFaktur->diskon,
@@ -62,7 +75,7 @@ class MasterFakturController extends Controller
 
     public function data(Request $request)
     {
-            $query = MasterFaktur::with(['obat', 'pemasok']);
+            $query = MasterFaktur::with(['obat', 'pemasok', 'principal']);
             // Filter by obat_id
             if ($request->filled('obat_id')) {
                 $query->where('obat_id', $request->input('obat_id'));
@@ -70,6 +83,10 @@ class MasterFakturController extends Controller
             // Filter by pemasok_id
             if ($request->filled('pemasok_id')) {
                 $query->where('pemasok_id', $request->input('pemasok_id'));
+            }
+            // Filter by principal_id
+            if ($request->filled('principal_id')) {
+                $query->where('principal_id', $request->input('principal_id'));
             }
             $total = $query->count();
             // DataTables server-side params
@@ -92,6 +109,7 @@ class MasterFakturController extends Controller
                     'id' => $mf->id,
                     'obat' => $mf->obat->nama ?? '-',
                     'pemasok' => $mf->pemasok->nama ?? '-',
+                    'principal' => $mf->principal->nama ?? '-',
                     'harga' => number_format($mf->harga,2),
                     'qty_per_box' => $mf->qty_per_box,
                     'diskon' => $mf->diskon,
@@ -120,6 +138,7 @@ class MasterFakturController extends Controller
         $request->validate([
             'obat_id' => 'required|exists:erm_obat,id',
             'pemasok_id' => 'required|exists:erm_pemasok,id',
+            'principal_id' => 'nullable|exists:erm_principals,id',
             'harga' => 'required|numeric',
             'qty_per_box' => 'required|integer',
             'diskon' => 'required|numeric',
@@ -158,6 +177,7 @@ class MasterFakturController extends Controller
         $request->validate([
             'obat_id' => 'required|exists:erm_obat,id',
             'pemasok_id' => 'required|exists:erm_pemasok,id',
+            'principal_id' => 'nullable|exists:erm_principals,id',
             'harga' => 'required|numeric',
             'qty_per_box' => 'required|integer',
             'diskon' => 'required|numeric',

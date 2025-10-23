@@ -91,6 +91,7 @@
                                 <tr>
                                     <th>No</th>
                                     <th>Nama Obat/Item</th>
+                                    <th>Principal</th>
                                     <th>Total Qty Dibeli</th>
                                     <th>Harga Terakhir</th>
                                 </tr>
@@ -226,27 +227,29 @@ $(function() {
     });
 
     // Function to populate item table
-    function populateItemTable(items) {
+        function populateItemTable(items) {
         // Clear existing content
         $('#itemListTableBody').empty();
         
         if (items && items.length > 0) {
             $.each(items, function(index, item) {
-                var row = '<tr class="item-row" data-item-name="' + item.nama_obat.toLowerCase() + '">' +
+                var principalName = item.principal_name || item.principal || '-';
+                var row = '<tr class="item-row" data-item-name="' + item.nama_obat.toLowerCase() + '" data-principal-name="' + principalName.toLowerCase() + '">' +
                     '<td>' + (index + 1) + '</td>' +
                     '<td>' + item.nama_obat + '</td>' +
+                    '<td>' + principalName + '</td>' +
                     '<td>' + item.total_qty + '</td>' +
                     '<td>Rp ' + parseFloat(item.last_price || 0).toLocaleString('id-ID') + '</td>' +
                     '</tr>';
                 $('#itemListTableBody').append(row);
             });
         } else {
-            $('#itemListTableBody').append('<tr><td colspan="4" class="text-center">Tidak ada data item</td></tr>');
+            $('#itemListTableBody').append('<tr><td colspan="5" class="text-center">Tidak ada data item</td></tr>');
         }
     }
 
     // Search functionality for modal
-    $('#searchItemInput').on('input', function() {
+        $('#searchItemInput').on('input', function() {
         var searchTerm = $(this).val().toLowerCase().trim();
         var visibleRows = 0;
         
@@ -259,10 +262,11 @@ $(function() {
                 $(this).find('td:first').text(index + 1);
             });
         } else {
-            // Filter rows based on search term
+            // Filter rows based on search term (match item name or principal)
             $('.item-row').each(function() {
-                var itemName = $(this).data('item-name');
-                if (itemName.includes(searchTerm)) {
+                var itemName = $(this).data('item-name') || '';
+                var principalName = $(this).data('principal-name') || '';
+                if (itemName.includes(searchTerm) || principalName.includes(searchTerm)) {
                     $(this).show();
                     visibleRows++;
                 } else {

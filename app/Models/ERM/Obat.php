@@ -31,6 +31,14 @@ class Obat extends Model
         return $this->hasMany(ObatStokGudang::class, 'obat_id');
     }
 
+    /**
+     * Principals (many-to-many)
+     */
+    public function principals()
+    {
+        return $this->belongsToMany(Principal::class, 'erm_obat_principal', 'obat_id', 'principal_id');
+    }
+
     // Mendapatkan total stok dari semua gudang
     public function getTotalStokAttribute()
     {

@@ -40,6 +40,8 @@
                 <select id="filterObat" class="form-control select2-ajax" style="width:220px;"></select>
                 <label for="filterPemasok" class="ml-4 mr-2">Nama Pemasok:</label>
                 <select id="filterPemasok" class="form-control select2-ajax" style="width:220px;"></select>
+                <label for="filterPrincipal" class="ml-4 mr-2">Principal:</label>
+                <select id="filterPrincipal" class="form-control select2-ajax" style="width:220px;"></select>
                 <button class="btn btn-secondary btn-sm ml-2" id="resetMasterFakturFilter">Reset</button>
             </div>
         </div>
@@ -49,6 +51,7 @@
                 <th>ID</th>
                 <th>Obat</th>
                 <th>Pemasok</th>
+                <th>Principal</th>
                 <th>Harga</th>
                 <th>Qty/Box</th>
                 <th>Diskon</th>
@@ -76,7 +79,39 @@
                 </div>
                 <div class="mb-3">
                     <label>Pemasok</label>
-                    <select name="pemasok_id" class="form-control select2-ajax" id="mf_pemasok_id" required style="width:100%"></select>
+                    <div class="input-group">
+                        <select name="pemasok_id" class="form-control select2-ajax" id="mf_pemasok_id" required style="width:100%"></select>
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="addPemasokBtn" title="Tambah Pemasok">+</button>
+                        </div>
+                    </div>
+                    <div class="mt-2" id="mf_pemasok_add_box" style="display:none;">
+                        <div class="input-group">
+                            <input type="text" id="mf_pemasok_nama_new" class="form-control" placeholder="Nama pemasok">
+                            <div class="input-group-append">
+                                <button class="btn btn-success" type="button" id="savePemasokInline">Simpan</button>
+                                <button class="btn btn-secondary" type="button" id="cancelPemasokInline">Batal</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>Principal</label>
+                    <div class="input-group">
+                        <select name="principal_id" class="form-control select2-ajax" id="mf_principal_id" style="width:100%"></select>
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="addPrincipalBtn" title="Tambah Principal">+</button>
+                        </div>
+                    </div>
+                    <div class="mt-2" id="mf_principal_add_box" style="display:none;">
+                        <div class="input-group">
+                            <input type="text" id="mf_principal_nama_new" class="form-control" placeholder="Nama principal">
+                            <div class="input-group-append">
+                                <button class="btn btn-success" type="button" id="savePrincipalInline">Simpan</button>
+                                <button class="btn btn-secondary" type="button" id="cancelPrincipalInline">Batal</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label>Harga</label>
@@ -152,12 +187,14 @@ $(document).ready(function() {
                 data: function(d) {
                     d.obat_id = $('#filterObat').val();
                     d.pemasok_id = $('#filterPemasok').val();
+                    d.principal_id = $('#filterPrincipal').val();
                 }
             },
         columns: [
             { data: 'id', name: 'id' },
             { data: 'obat', name: 'obat' },
             { data: 'pemasok', name: 'pemasok' },
+            { data: 'principal', name: 'principal' },
             { data: 'harga', name: 'harga' },
             { data: 'qty_per_box', name: 'qty_per_box' },
             {
@@ -239,6 +276,25 @@ $(document).ready(function() {
             allowClear: true
         });
 
+        // Filter select2 for Principal
+        $('#filterPrincipal').select2({
+            placeholder: 'Cari Principal',
+            minimumInputLength: 2,
+            ajax: {
+                url: '/erm/ajax/principal',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return { results: data };
+                },
+                cache: true
+            },
+            allowClear: true
+        });
+
         // Reload table on filter change
         $('#filterObat, #filterPemasok').on('change', function() {
             table.ajax.reload();
@@ -268,6 +324,25 @@ $(document).ready(function() {
         allowClear: true
     });
 
+    // Initialize select2 AJAX for Principal
+    $('#mf_principal_id').select2({
+        placeholder: 'Pilih Principal',
+        minimumInputLength: 2,
+        ajax: {
+            url: '/erm/ajax/principal',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return { q: params.term };
+            },
+            processResults: function(data) {
+                return { results: data };
+            },
+            cache: true
+        },
+        allowClear: true
+    });
+
     // Open modal for edit
     $('#master-faktur-table').on('click', '.btn-edit-mf', function(e) {
         e.preventDefault();
@@ -281,6 +356,13 @@ $(document).ready(function() {
             // Set Pemasok
             var pemasokOption = new Option(data.pemasok_nama, data.pemasok_id, true, true);
             $('#mf_pemasok_id').append(pemasokOption).trigger('change');
+            // Set Principal (if provided by API)
+            if (data.principal_id) {
+                var principalOption = new Option(data.principal_nama || data.principal_name || 'Principal', data.principal_id, true, true);
+                $('#mf_principal_id').append(principalOption).trigger('change');
+            } else {
+                $('#mf_principal_id').val(null).trigger('change');
+            }
             $('#mf_harga').val(data.harga);
             $('#mf_qty_per_box').val(data.qty_per_box);
             $('#mf_diskon').val(data.diskon);
@@ -312,6 +394,95 @@ $(document).ready(function() {
                     msg = xhr.responseJSON.message;
                 }
                 Swal.fire('Gagal!', msg, 'error');
+            }
+        });
+    });
+    // Toggle inline add form for Pemasok
+    $('#addPemasokBtn').on('click', function() {
+        $('#mf_pemasok_add_box').show();
+        $('#mf_pemasok_nama_new').focus();
+    });
+    $('#cancelPemasokInline').on('click', function() {
+        $('#mf_pemasok_add_box').hide();
+        $('#mf_pemasok_nama_new').val('');
+    });
+    $('#savePemasokInline').on('click', function() {
+        var nama = $('#mf_pemasok_nama_new').val();
+        if (!nama || nama.trim() === '') {
+            Swal.fire('Error', 'Masukkan nama pemasok', 'warning');
+            return;
+        }
+        $.ajax({
+            url: '/erm/pemasok',
+            type: 'POST',
+            data: {
+                nama: nama,
+                _token: '{{ csrf_token() }}'
+            },
+            success: function(res) {
+                var id = res.id || (res.data && res.data.id) || null;
+                if (id) {
+                    var newOption = new Option(nama, id, true, true);
+                    $('#mf_pemasok_id').append(newOption).trigger('change');
+                    $('#mf_pemasok_add_box').hide();
+                    $('#mf_pemasok_nama_new').val('');
+                    Swal.fire('Sukses', 'Pemasok ditambahkan', 'success');
+                } else {
+                    // fallback: search via select2 ajax and select the first matching
+                    $('#mf_pemasok_id').val(null).trigger('change');
+                    $('#mf_pemasok_add_box').hide();
+                    $('#mf_pemasok_nama_new').val('');
+                    Swal.fire('Sukses', 'Pemasok mungkin ditambahkan. Coba cari di select.', 'success');
+                }
+            },
+            error: function(xhr) {
+                let msg = 'Gagal menambahkan pemasok';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire('Gagal', msg, 'error');
+            }
+        });
+    });
+
+    // Toggle inline add form for Principal
+    $('#addPrincipalBtn').on('click', function() {
+        $('#mf_principal_add_box').show();
+        $('#mf_principal_nama_new').focus();
+    });
+    $('#cancelPrincipalInline').on('click', function() {
+        $('#mf_principal_add_box').hide();
+        $('#mf_principal_nama_new').val('');
+    });
+    $('#savePrincipalInline').on('click', function() {
+        var nama = $('#mf_principal_nama_new').val();
+        if (!nama || nama.trim() === '') {
+            Swal.fire('Error', 'Masukkan nama principal', 'warning');
+            return;
+        }
+        $.ajax({
+            url: '/erm/principal',
+            type: 'POST',
+            data: {
+                nama: nama,
+                _token: '{{ csrf_token() }}'
+            },
+            success: function(res) {
+                var id = res.id || (res.data && res.data.id) || null;
+                if (id) {
+                    var newOption = new Option(nama, id, true, true);
+                    $('#mf_principal_id').append(newOption).trigger('change');
+                    $('#mf_principal_add_box').hide();
+                    $('#mf_principal_nama_new').val('');
+                    Swal.fire('Sukses', 'Principal ditambahkan', 'success');
+                } else {
+                    $('#mf_principal_add_box').hide();
+                    $('#mf_principal_nama_new').val('');
+                    Swal.fire('Sukses', 'Principal mungkin ditambahkan. Coba cari di select.', 'success');
+                }
+            },
+            error: function(xhr) {
+                let msg = 'Gagal menambahkan principal';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire('Gagal', msg, 'error');
             }
         });
     });

@@ -18,7 +18,9 @@ class DataPembelianController extends Controller
             $data = Pemasok::select('erm_pemasok.*')
                 ->leftJoin('erm_fakturbeli', 'erm_pemasok.id', '=', 'erm_fakturbeli.pemasok_id')
                 ->with(['fakturBeli' => function($query) {
+                    // eager-load items with obat and principal to include principal name
                     $query->where('status', '!=', 'diretur')
+                          ->with(['items.obat', 'items.principal'])
                           ->orderBy('received_date', 'desc');
                 }])
                 ->groupBy('erm_pemasok.id')
@@ -42,7 +44,8 @@ class DataPembelianController extends Controller
                                     'obat_id' => $item->obat_id,
                                     'nama_obat' => $item->obat->nama ?? 'Unknown',
                                     'total_qty' => $pemasok->fakturBeli->flatMap->items->where('obat_id', $item->obat_id)->sum('qty'),
-                                    'last_price' => $item->harga
+                                    'last_price' => $item->harga,
+                                    'principal_name' => $item->principal?->nama ?? null
                                 ]);
                             }
                         }
