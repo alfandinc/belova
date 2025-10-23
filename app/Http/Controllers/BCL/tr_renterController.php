@@ -340,7 +340,7 @@ class tr_renterController extends Controller
                 'tgl_masuk' => 'required',
                 'catatan' => 'sometimes',
                 'tgl_bayar' => 'sometimes',
-                'nominal' => 'required|numeric|min:1',
+                'nominal' => 'required|numeric',
             ]);
             $pl = pricelist::findorfail($request->pricelist);
             switch ($pl->jangka_sewa) {
