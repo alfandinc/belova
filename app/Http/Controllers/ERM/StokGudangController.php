@@ -39,13 +39,16 @@ class StokGudangController extends Controller {
         // Determine which relation to use based on hide_inactive filter
         $obatRelation = ($request->hide_inactive == 1) ? 'obatAktif' : 'obat';
         
+        // Compute aggregated totals and status in SQL so status immediately reflects min/max changes
         $query = ObatStokGudang::with([$obatRelation, 'gudang'])
             ->select(
                 'obat_id',
                 'gudang_id',
                 DB::raw('SUM(stok) as total_stok'),
                 DB::raw('MIN(min_stok) as min_stok'),
-                DB::raw('MAX(max_stok) as max_stok')
+                DB::raw('MAX(max_stok) as max_stok'),
+                // status_stok: 'minimum' if total <= min, 'maksimum' if total >= max, otherwise 'normal'
+                DB::raw("CASE WHEN SUM(stok) <= COALESCE(MIN(min_stok),0) THEN 'minimum' WHEN SUM(stok) >= COALESCE(MAX(max_stok),0) THEN 'maksimum' ELSE 'normal' END as status_stok")
             )
             ->groupBy('obat_id', 'gudang_id');
 
@@ -139,26 +142,20 @@ class StokGudangController extends Controller {
                     </button>';
                 }
                 
-                return '<button class="btn btn-sm btn-info show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'">
-                    <i class="fas fa-list"></i> Detail Batch
-                </button>';
+                // Detail batch button + Edit Min/Max button
+                $html  = '<button class="btn btn-sm btn-info show-batch-details mr-1" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'">';
+                $html .= '<i class="fas fa-list"></i> Detail Batch</button>';
+                $html .= '<button class="btn btn-sm btn-warning btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($row->min_stok ?? 0).'" data-max="'.($row->max_stok ?? 0).'">';
+                $html .= '<i class="fas fa-edit"></i> Edit Min/Max</button>';
+
+                return $html;
             })
             ->addColumn('status_stok', function ($row) {
-                $status = '';
-                $statusClass = '';
-                
-                if ($row->total_stok <= $row->min_stok) {
-                    $status = 'minimum';
-                    $statusClass = '<span class="badge badge-danger">Stok Minimum</span>';
-                } elseif ($row->total_stok >= $row->max_stok) {
-                    $status = 'maksimum';
-                    $statusClass = '<span class="badge badge-warning">Stok Maksimum</span>';
-                } else {
-                    $status = 'normal';
-                    $statusClass = '<span class="badge badge-success">Normal</span>';
-                }
-                
-                return $statusClass;
+                // status_stok is computed in the SQL select
+                $status = $row->status_stok ?? 'normal';
+                if ($status === 'minimum') return '<span class="badge badge-danger">Stok Minimum</span>';
+                if ($status === 'maksimum') return '<span class="badge badge-warning">Stok Maksimum</span>';
+                return '<span class="badge badge-success">Normal</span>';
             })
             ->editColumn('total_stok', function ($row) {
                 return number_format($row->total_stok, 0);
@@ -274,6 +271,57 @@ class StokGudangController extends Controller {
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal update stok batch: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Update min_stok and max_stok for obat in a gudang (applies to all batches)
+     */
+    public function updateMinMax(Request $request)
+    {
+        $request->validate([
+            // Model tables are named erm_obat and erm_gudang
+            'obat_id' => 'required|integer|exists:erm_obat,id',
+            'gudang_id' => 'required|integer|exists:erm_gudang,id',
+            'min_stok' => 'nullable|numeric|min:0',
+            'max_stok' => 'nullable|numeric|min:0'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $obatId = $request->obat_id;
+            $gudangId = $request->gudang_id;
+            $min = $request->min_stok !== null ? $request->min_stok : 0;
+            $max = $request->max_stok !== null ? $request->max_stok : 0;
+
+            // Update all batch records for this obat/gudang so aggregated view reflects new min/max
+            ObatStokGudang::where('obat_id', $obatId)
+                ->where('gudang_id', $gudangId)
+                ->update([
+                    'min_stok' => $min,
+                    'max_stok' => $max
+                ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Min/Max stok berhasil disimpan',
+                'data' => [
+                    'obat_id' => $obatId,
+                    'gudang_id' => $gudangId,
+                    'min_stok' => $min,
+                    'max_stok' => $max
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan Min/Max stok: ' . $e->getMessage()
             ], 422);
         }
     }

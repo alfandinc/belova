@@ -142,6 +142,39 @@
     </div>
 </div>
 
+<!-- Modal for Edit Min/Max -->
+<div class="modal fade" id="editMinMaxModal" tabindex="-1" role="dialog" aria-labelledby="editMinMaxLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editMinMaxLabel">Edit Min / Max Stok</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-edit-minmax">
+                    <input type="hidden" id="minmax_obat_id" name="obat_id" />
+                    <input type="hidden" id="minmax_gudang_id" name="gudang_id" />
+                    <div class="form-group">
+                        <label for="min_stok">Min Stok</label>
+                        <input type="number" step="1" min="0" class="form-control" id="min_stok" name="min_stok" />
+                    </div>
+                    <div class="form-group">
+                        <label for="max_stok">Max Stok</label>
+                        <input type="number" step="1" min="0" class="form-control" id="max_stok" name="max_stok" />
+                    </div>
+                </form>
+                <div id="minmaxAlert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="save-minmax-btn"><i class="fas fa-save"></i> Simpan</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal for Batch Details -->
 <div class="modal fade" id="batchDetailsModal" tabindex="-1" role="dialog" aria-labelledby="batchDetailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl" role="document">
@@ -522,6 +555,61 @@ $(document).ready(function() {
             },
             complete: function() {
                 button.prop('disabled', false).html('<i class="fas fa-check"></i> Simpan');
+            }
+        });
+    });
+
+    // Handle Edit Min/Max button click (from main table)
+    $(document).on('click', '.btn-edit-minmax', function() {
+        var obatId = $(this).data('obat-id');
+        var gudangId = $(this).data('gudang-id');
+        var minVal = $(this).data('min');
+        var maxVal = $(this).data('max');
+
+        $('#minmax_obat_id').val(obatId);
+        $('#minmax_gudang_id').val(gudangId);
+        $('#min_stok').val(minVal !== undefined ? minVal : '');
+        $('#max_stok').val(maxVal !== undefined ? maxVal : '');
+        $('#minmaxAlert').html('');
+        $('#editMinMaxModal').modal('show');
+    });
+
+    // Submit min/max update
+    $('#save-minmax-btn').click(function() {
+        var btn = $(this);
+        var form = $('#form-edit-minmax');
+        var data = {
+            _token: '{{ csrf_token() }}',
+            obat_id: $('#minmax_obat_id').val(),
+            gudang_id: $('#minmax_gudang_id').val(),
+            min_stok: $('#min_stok').val(),
+            max_stok: $('#max_stok').val()
+        };
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
+
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.update-minmax") }}',
+            type: 'POST',
+            data: data,
+            success: function(response) {
+                if (response.success) {
+                    $('#minmaxAlert').html('<div class="alert alert-success">' + response.message + '</div>');
+                    table.ajax.reload(null, false);
+                    setTimeout(function() {
+                        $('#editMinMaxModal').modal('hide');
+                    }, 800);
+                } else {
+                    $('#minmaxAlert').html('<div class="alert alert-danger">' + (response.message || 'Gagal menyimpan') + '</div>');
+                }
+            },
+            error: function(xhr) {
+                var msg = 'Terjadi kesalahan saat menyimpan';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                $('#minmaxAlert').html('<div class="alert alert-danger">' + msg + '</div>');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-save"></i> Simpan');
             }
         });
     });
