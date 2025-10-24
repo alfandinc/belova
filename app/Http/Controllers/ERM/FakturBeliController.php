@@ -389,6 +389,29 @@ class FakturBeliController extends Controller
         return response()->json($data);
     }
     
+        /**
+         * Select2 AJAX endpoint for FakturBeli search
+         */
+        public function select2(\Illuminate\Http\Request $request)
+        {
+            $q = $request->get('q');
+            $query = FakturBeli::query();
+            if ($q) {
+                $query->where(function($qr) use ($q) {
+                    $qr->where('no_faktur', 'like', "%$q%")
+                       ->orWhere('no_permintaan', 'like', "%$q%");
+                });
+            }
+            $list = $query->with('pemasok')->orderBy('received_date', 'desc')->limit(30)->get();
+            $results = $list->map(function($f) {
+                $text = $f->no_faktur ?: ('Faktur #' . $f->id);
+                if ($f->pemasok) $text .= ' — ' . $f->pemasok->nama;
+                $text .= ' (' . ($f->status ?? '-') . ')';
+                return ['id' => $f->id, 'text' => $text];
+            });
+            return response()->json(['results' => $results]);
+        }
+    
     /**
      * Debug HPP calculation without actually updating anything
      */
@@ -735,6 +758,35 @@ class FakturBeliController extends Controller
         return response($mpdf->Output('', 'S'), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="FakturPembelian-' . $faktur->no_faktur . '.pdf"'
+        ]);
+    }
+
+    /**
+     * Return JSON detail for a Faktur Beli (used by other modules to show faktur snapshot)
+     */
+    public function showJson($id)
+    {
+        $faktur = FakturBeli::with(['pemasok', 'items.obat'])->findOrFail($id);
+        // Return only necessary fields for UI
+        return response()->json([
+            'id' => $faktur->id,
+            'no_faktur' => $faktur->no_faktur,
+            'pemasok' => $faktur->pemasok ? [ 'id' => $faktur->pemasok->id, 'nama' => $faktur->pemasok->nama ] : null,
+            'subtotal' => $faktur->subtotal,
+            'global_diskon' => $faktur->global_diskon,
+            'global_pajak' => $faktur->global_pajak,
+            'total' => $faktur->total,
+            'status' => $faktur->status,
+            'items' => $faktur->items->map(function($it){
+                return [
+                    'id' => $it->id,
+                    'obat_id' => $it->obat_id,
+                    'obat_nama' => $it->obat ? $it->obat->nama : null,
+                    'qty' => $it->qty,
+                    'harga' => $it->harga,
+                    'total_amount' => $it->total_amount,
+                ];
+            })
         ]);
     }
 }

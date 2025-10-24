@@ -28,4 +28,9 @@ class Division extends Model
             })
             ->first();
     }
+
+    public function pengajuanDanas()
+    {
+        return $this->hasMany(\App\Models\Finance\FinancePengajuanDana::class, 'division_id');
+    }
 }

@@ -106,6 +106,14 @@ class Employee extends Model
     {
         return $this->belongsTo(\App\Models\User::class);
     }
+
+    /**
+     * Pengajuan dana created by this employee
+     */
+    public function pengajuanDanas()
+    {
+        return $this->hasMany(\App\Models\Finance\FinancePengajuanDana::class, 'employee_id');
+    }
     
     public function contracts()
     {

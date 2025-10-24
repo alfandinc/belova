@@ -398,6 +398,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     Route::get('/obat-masuk/detail', [App\Http\Controllers\ERM\ObatMasukController::class, 'detail'])->name('erm.obatmasuk.detail');
     Route::get('/fakturpembelian/{id}/print', [App\Http\Controllers\ERM\FakturBeliController::class, 'printFaktur'])->name('erm.fakturbeli.print');
+    Route::get('/fakturpembelian/{id}/json', [App\Http\Controllers\ERM\FakturBeliController::class, 'showJson'])->name('erm.fakturbeli.json');
     // DataTables AJAX for Mutasi Obat Masuk
     Route::get('/obat-masuk/data', [App\Http\Controllers\ERM\ObatMasukController::class, 'data'])->name('erm.obatmasuk.data');
     // Mutasi Obat Masuk
@@ -728,6 +729,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     
     // Faktur Pembelian
     Route::get('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'index'])->name('erm.fakturbeli.index');
+    Route::get('/fakturpembelian/select2', [\App\Http\Controllers\ERM\FakturBeliController::class, 'select2'])->name('erm.fakturbeli.select2');
     Route::get('/fakturpembelian/cari-by-no-permintaan', [\App\Http\Controllers\ERM\FakturBeliController::class, 'cariByNoPermintaan']);
     Route::get('/fakturpembelian/create', [\App\Http\Controllers\ERM\FakturBeliController::class, 'create'])->name('erm.fakturbeli.create');
     Route::post('/fakturpembelian', [\App\Http\Controllers\ERM\FakturBeliController::class, 'store'])->name('erm.fakturbeli.store');
@@ -884,6 +886,33 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance')->group(
         Route::get('/retur-pembelian/{id}', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'show'])->name('finance.retur-pembelian.show');
         Route::get('/retur-pembelian/invoices/filter', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoices'])->name('finance.retur-pembelian.invoices');
         Route::get('/retur-pembelian/invoice/{id}/items', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoiceItems'])->name('finance.retur-pembelian.invoice-items');
+        
+    // Pengajuan Dana (AJAX + DataTables)
+    Route::get('/pengajuan-dana', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'index'])->name('finance.pengajuan.index');
+    Route::get('/pengajuan-dana/data', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'data'])->name('finance.pengajuan.data');
+    Route::get('/pengajuan-dana/generate-kode', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'generateKode'])->name('finance.pengajuan.generate_kode');
+    Route::post('/pengajuan-dana', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'store'])->name('finance.pengajuan.store');
+    Route::get('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'show'])->name('finance.pengajuan.show');
+    Route::get('/pengajuan-dana/{id}/pdf', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'pdf'])->name('finance.pengajuan.pdf');
+    Route::put('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'update'])->name('finance.pengajuan.update');
+    Route::post('/pengajuan-dana/{id}/approve', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'approve'])->name('finance.pengajuan.approve');
+    Route::delete('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'destroy'])->name('finance.pengajuan.destroy');
+
+    // Rekening management
+    Route::get('/pengajuan-rekening', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'index'])->name('finance.rekening.index');
+    Route::get('/pengajuan-rekening/data', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'data'])->name('finance.rekening.data');
+    Route::post('/pengajuan-rekening', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'store'])->name('finance.rekening.store');
+    Route::get('/pengajuan-rekening/{id}', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'show'])->name('finance.rekening.show');
+    Route::put('/pengajuan-rekening/{id}', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'update'])->name('finance.rekening.update');
+    Route::delete('/pengajuan-rekening/{id}', [\App\Http\Controllers\Finance\FinanceRekeningController::class, 'destroy'])->name('finance.rekening.destroy');
+
+    // Approver management (AJAX + DataTables)
+    Route::get('/pengajuan-dana-approvers', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'index'])->name('finance.pengajuan.approver.index');
+    Route::get('/pengajuan-dana-approvers/data', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'data'])->name('finance.pengajuan.approver.data');
+    Route::post('/pengajuan-dana-approvers', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'store'])->name('finance.pengajuan.approver.store');
+    Route::get('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'show'])->name('finance.pengajuan.approver.show');
+    Route::put('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'update'])->name('finance.pengajuan.approver.update');
+    Route::delete('/pengajuan-dana-approvers/{id}', [\App\Http\Controllers\Finance\FinanceApproverController::class, 'destroy'])->name('finance.pengajuan.approver.destroy');
     }
 );
 
