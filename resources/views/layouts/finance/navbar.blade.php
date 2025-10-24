@@ -47,6 +47,17 @@
                             <li class="nav-item"><a class="nav-link" href="/finance/billing"><i class="ti-control-record"></i>Billing</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ route('finance.rekap-penjualan.form') }}"><i class="ti-control-record"></i>Rekap Penjualan</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ route('finance.retur-pembelian.index') }}"><i class="ti-control-record"></i>Retur Pembelian</a></li>
+                            <!-- Pengajuan links moved to their own top-level section -->
+                        </ul>
+                    </li>
+
+                    <li>
+                        <a href="javascript: void(0);">
+                            <i class="fas fa-file-invoice-dollar align-self-center menu-icon"></i>
+                            <span>Pengajuan</span>
+                            <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
+                        </a>
+                        <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="{{ route('finance.pengajuan.index') }}"><i class="ti-control-record"></i>Pengajuan Dana</a></li>
                             <li class="nav-item"><a class="nav-link" href="{{ route('finance.pengajuan.approver.index') }}"><i class="ti-control-record"></i>Approver Pengajuan</a></li>
                         </ul>
