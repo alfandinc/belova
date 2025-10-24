@@ -614,10 +614,11 @@
                     <div class="menu-sub">Kampanye & Leads</div>
                 </a>
 
-                <a href="/finance/billing" class="menu-tile tile-finance animate-item delay-10" data-filter="finance billing kasir"
-                   @if(!array_intersect($userRoles, ['Kasir','Admin','Farmasi','Finance']))
-                       onclick="showRoleWarning(event, 'Finance')"
-                   @endif>
+                @php
+                    $isKasir = in_array('Kasir', $userRoles);
+                    $financeHref = $isKasir ? '/finance/billing' : '/finance/pengajuan-dana';
+                @endphp
+                <a href="{{ $financeHref }}" class="menu-tile tile-finance animate-item delay-10" data-filter="finance billing kasir">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-coins"></i></div>
                         <div class="menu-badge">Billing</div>
