@@ -9,6 +9,9 @@ use App\Models\BCL\Rooms;
 use Illuminate\Support\Facades\DB;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use App\Models\BCL\InventoryMaintenance;
+use Carbon\Carbon;
 
 class InventoriesController extends Controller
 {
@@ -35,6 +38,45 @@ class InventoriesController extends Controller
             )
             ->groupBy('bcl_inventories.inv_number')
             ->get();
+        // compute next maintenance date and remaining days/badge for each grouped record
+        foreach ($data as $d) {
+            $d->next_maintanance = null;
+            $d->remaining_badge = '';
+            if (!empty($d->last_maintanance) && !empty($d->maintanance_cycle) && !empty($d->maintanance_period)) {
+                $period = (int) $d->maintanance_period;
+                try {
+                    if ($d->maintanance_cycle == 'Minggu') {
+                        $next = Carbon::parse($d->last_maintanance)->addWeeks($period)->format('Y-m-d');
+                    } else if ($d->maintanance_cycle == 'Bulan') {
+                        $next = Carbon::parse($d->last_maintanance)->addMonths($period)->format('Y-m-d');
+                    } else if ($d->maintanance_cycle == 'Tahun') {
+                        $next = Carbon::parse($d->last_maintanance)->addYears($period)->format('Y-m-d');
+                    } else {
+                        $next = null;
+                    }
+                    if ($next) {
+                        $d->next_maintanance = $next;
+                        // compute signed remaining days (negative => overdue)
+                        $remaining = (int) Carbon::now()->diffInDays(Carbon::parse($next), false);
+                        if ($remaining < 0) {
+                            // overdue: show danger blinking badge with days overdue
+                            $overdue = abs($remaining);
+                            $d->remaining_badge = '<span class="badge badge-danger faa faa-flash animated">Terlambat ' . $overdue . ' Hari</span>';
+                        } elseif ($remaining <= 7) {
+                            // due within 7 days: show blinking warning badge
+                            $d->remaining_badge = '<span class="badge badge-warning faa faa-flash animated">' . $remaining . ' Hari lagi</span>';
+                        } else {
+                            // not urgent
+                            $d->remaining_badge = '<span class="badge badge-outline-dark">' . $remaining . ' Hari lagi</span>';
+                        }
+                    }
+                } catch (\Exception $ex) {
+                    // leave next_maintanance null on parse errors
+                    $d->next_maintanance = null;
+                    $d->remaining_badge = '';
+                }
+            }
+        }
         // return response()->json($data);
 
         $rooms = Rooms::leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
@@ -121,13 +163,18 @@ class InventoriesController extends Controller
             $this->validate($request, [
                 'nama' => 'required',
                 'tipe_inv' => 'required',
+                // inv_number must be present and unique except for the current record
+                'inv_number' => 'required|unique:bcl_inventories,inv_number,' . $request->id,
                 'kamar' => 'required_if:tipe_inv,==,Private/Room',
                 'waktu_perawatan' => 'required_if:perawatan_rutin,==,On',
                 'cycle_perawatan' => 'required_if:perawatan_rutin,==,On',
             ]);
+
+            // Update including inv_number and correct notes field
             $result = Inventory::findorfail($request->id)->update([
+                'inv_number' => $request->inv_number,
                 'name' => $request->nama,
-                'notes' => $request->tipe_inv,
+                'notes' => $request->keterangan,
                 'maintanance_period' => $request->waktu_perawatan,
                 'maintanance_cycle' => $request->cycle_perawatan,
                 'type' => $request->tipe_inv,
@@ -157,5 +204,87 @@ class InventoriesController extends Controller
         $data = DB::select("SELECT CONCAT('IN',DATE_FORMAT(NOW(), '%m%y' ),LPAD(ifnull(max(SUBSTR(inv_number,7)),0)+1,4,0)) as no_inv from bcl_inventories");
         $result = $data[0];
         return $result->no_inv;
+    }
+
+    /**
+     * Store a maintenance record in the finance journal and link it to an inventory number
+     */
+    public function storeMaintenance(Request $request)
+    {
+        $this->validate($request, [
+            'inv_number' => 'required',
+            'tanggal' => 'required|date',
+            'catatan' => 'required',
+            'nominal' => 'nullable|numeric',
+            'vendor_name' => 'nullable|string'
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $inv = Inventory::where('inv_number', $request->inv_number)->first();
+
+            // generate doc id and no_jurnal similar to FinJurnalController
+            $doc_id = 'MAINT' . time();
+            $nj = DB::select("SELECT CONCAT(DATE_FORMAT(NOW(), '%y' ),LPAD(ifnull(max(SUBSTR(no_jurnal,3)),0)+1,7,0)) as no_jurnal from bcl_fin_jurnal");
+            $no_jurnal = $nj[0]->no_jurnal ?? time();
+
+            // create maintenance record
+            $maint = InventoryMaintenance::create([
+                'inventory_id' => $inv?$inv->id:null,
+                'inv_number' => $request->inv_number,
+                'tanggal' => $request->tanggal,
+                'description' => $request->catatan,
+                'cost' => $request->nominal ?? 0,
+                'vendor_name' => $request->vendor_name ?? null,
+                'doc_id' => $doc_id,
+                'created_by' => Auth::id()
+            ]);
+
+            // Create corresponding Fin_jurnal entries (double-entry)
+            // Credit cash/bank (1-10101)
+            $k = Fin_jurnal::create([
+                'no_jurnal' => $no_jurnal,
+                'tanggal' => $request->tanggal,
+                'kode_akun' => '1-10101',
+                'debet' => 0,
+                'kredit' => $request->nominal ?? 0,
+                'kode_subledger' => null,
+                'catatan' => $request->catatan,
+                'index_kas' => 0,
+                'doc_id' => $doc_id,
+                'identity' => 'Pengeluaran',
+                'pos' => 'K',
+                'user_id' => Auth::id(),
+                'csrf' => time()
+            ]);
+
+            // Debit expense (5-10101) and link to inv_number
+            $d = Fin_jurnal::create([
+                'no_jurnal' => $no_jurnal,
+                'tanggal' => $request->tanggal,
+                'kode_akun' => '5-10101',
+                'debet' => $request->nominal ?? 0,
+                'kredit' => 0,
+                'kode_subledger' => $request->inv_number,
+                'catatan' => $request->catatan,
+                'index_kas' => 0,
+                'doc_id' => $doc_id,
+                'identity' => 'Pengeluaran',
+                'pos' => 'D',
+                'user_id' => Auth::id(),
+                'csrf' => time()
+            ]);
+
+            // update maintenance with journal id
+            $maint->journal_id = $d->id;
+            $maint->save();
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'data' => $maint]);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
+        }
     }
 }

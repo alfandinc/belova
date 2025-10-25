@@ -73,33 +73,7 @@ $inv = $data;
                                         $no = 1;
                                         ?>
                                         @foreach($inv as $data)
-                                        <?php
-                                        if ($data->last_maintanance != null && $data->maintanance_cycle != null) {
-                                            $period = (int) $data->maintanance_period;
-                                            if ($data->maintanance_cycle == 'Minggu') {
-                                                $next_maintanance = Carbon::parse($data->last_maintanance)->addWeeks($period)->format('Y-m-d');
-                                                $remaining = Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
-                                            } else if ($data->maintanance_cycle == 'Bulan') {
-                                                $next_maintanance = Carbon::parse($data->last_maintanance)->addMonths($period)->format('Y-m-d');
-                                                $remaining = Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
-                                            } else if ($data->maintanance_cycle == 'Tahun') {
-                                                $next_maintanance = Carbon::parse($data->last_maintanance)->addYears($period)->format('Y-m-d');
-                                                $remaining =  Carbon::parse(Carbon::now())->diffInDays($next_maintanance);
-                                            }
-                                        } else {
-                                            $next_maintanance = null;
-                                            $remaining = '';
-                                        }
-                                        if ($next_maintanance != null) {
-                                            if ($remaining <= 7) {
-                                                $remaining = '<span class="badge badge-danger faa faa-flash animated">' . $remaining . ' Hari lagi</span>';
-                                            } else {
-                                                $remaining = '<span class="badge badge-outline-dark">' . $remaining . ' Hari lagi</span>';
-                                            }
-                                        } else {
-                                            $remaining = '';
-                                        }
-                                        ?>
+                                        <?php /* next_maintanance and remaining_badge computed server-side in controller */ ?>
 
                                         <tr>
                                             <td class="text-center">{{ $no }}</td>
@@ -110,7 +84,7 @@ $inv = $data;
                                             <td>{{$data->room_name}}</td>
                                             <td>{{$data->maintanance_period!=null?$data->maintanance_period.' '.$data->maintanance_cycle:''}}</td>
                                             <td>{{$data->last_maintanance}}</td>
-                                            <td>{{$next_maintanance}} {!!$remaining!!}</td>
+                                            <td>{{$data->next_maintanance}} {!! $data->remaining_badge !!}</td>
                                             <td class="text-right">
                                                 {{-- @can('Tambah Inventaris') --}}
                                                 <a href="#" data-id="{{$data->id}}" class="btn btn-xs btn-outline-primary edit_inv">
@@ -238,8 +212,8 @@ $inv = $data;
                 <div class="modal-body">
                     <div class="row mb-2">
                         <div class="col-xl-4 col-md-6 col-sm-12">
-                            <label class="">Nomor (Perkiraan)</label>
-                            <input type="text" id="no_inv" readonly value="" class="form-control">
+                            <label class="">Nomor</label>
+                            <input type="text" id="no_inv" name="inv_number" value="" class="form-control">
                         </div>
                         <div class="col-xl-4 col-md-6 col-sm-12">
                             <label class="">Nama</label>
@@ -335,6 +309,29 @@ $inv = $data;
                     <dd class="col-sm-10" id="view_tipe"></dd>
                     <dt class="col-sm-2">No. Kamar</dt>
                     <dd class="col-sm-10" id="view_no_kamar"></dd>
+                </div>
+                <hr class="hr-dashed mt-2">
+                <div class="row mb-2">
+                    <div class="col-sm-12">
+                        <h5>Catat Perawatan / Perbaikan</h5>
+                        <div class="form-row align-items-end">
+                            <div class="form-group col-md-3">
+                                <label>Tanggal</label>
+                                <input type="date" id="maint_tanggal" class="form-control" value="{{date('Y-m-d')}}">
+                            </div>
+                            <div class="form-group col-md-3">
+                                <label>Biaya (Opsional)</label>
+                                <input type="number" id="maint_nominal" class="form-control" placeholder="0">
+                            </div>
+                            <div class="form-group col-md-5">
+                                <label>Deskripsi</label>
+                                <input type="text" id="maint_catatan" class="form-control" placeholder="Uraian perbaikan / perawatan">
+                            </div>
+                            <div class="form-group col-md-1">
+                                <button type="button" id="save_maintenance" class="btn btn-primary btn-block">Simpan</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <hr class="hr-dashed mt-2">
                 <div class="row">
@@ -660,6 +657,41 @@ $inv = $data;
                 $('#md_history tbody').append(row);
             });
             $('#md_history').modal('show');
+        });
+    });
+    
+    // Save maintenance record
+    $('#save_maintenance').on('click', function() {
+        var inv = $('#view_inv').text().trim();
+        if (!inv) {
+            $.alert({title: 'Error', content: 'No inventory selected'});
+            return;
+        }
+        var tanggal = $('#maint_tanggal').val();
+        var nominal = $('#maint_nominal').val();
+        var catatan = $('#maint_catatan').val();
+        if (!tanggal || !catatan) {
+            $.alert({title: 'Error', content: 'Tanggal dan Deskripsi wajib diisi'});
+            return;
+        }
+        var address = "{{route('bcl.inventories.maintenance.store')}}";
+        $.post(address, {
+            _token: '{{csrf_token()}}',
+            inv_number: inv,
+            tanggal: tanggal,
+            nominal: nominal,
+            catatan: catatan
+        }, function(resp) {
+            if (resp.success) {
+                $.alert({title: 'Berhasil', content: 'Catatan perawatan tersimpan. Halaman akan dimuat ulang.'});
+                setTimeout(function() {
+                    location.reload();
+                }, 800);
+            } else {
+                $.alert({title: 'Error', content: resp.message || 'Gagal menyimpan'});
+            }
+        }).fail(function(xhr) {
+            $.alert({title: 'Error', content: xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal menyimpan'});
         });
     });
 </script>
