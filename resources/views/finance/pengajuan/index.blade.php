@@ -67,7 +67,8 @@
 
 <!-- Add/Edit Pengajuan Modal (skeleton) -->
 <div class="modal fade" id="pengajuanModal" tabindex="-1" aria-labelledby="pengajuanModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
+    <!-- widened modal: increase max-width and use percentage width for better responsiveness -->
+    <div class="modal-dialog modal-xl" style="max-width:1400px; width:95%;">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="pengajuanModalLabel">Buat Pengajuan Dana</h5>
@@ -104,11 +105,11 @@
                         </div>
 
                         <div class="col-md-4">
-                            <label for="bukti_transaksi">Bukti Transaksi (Gambar)</label>
-                            <input type="file" class="form-control" id="bukti_transaksi" name="bukti_transaksi" accept="image/*">
-                            <small class="form-text text-muted">Maks 2MB. Format: jpg, png, gif.</small>
+                            <label for="bukti_transaksi">Bukti Transaksi (Gambar) - bisa pilih beberapa file</label>
+                            <input type="file" class="form-control" id="bukti_transaksi" name="bukti_transaksi[]" accept="image/*" multiple>
+                            <small class="form-text text-muted">Maks 2MB per file. Format: jpg, png, gif.</small>
                             <div id="bukti_preview" class="mt-1" style="display:none">
-                                <img src="" alt="Preview" style="max-width:120px; max-height:80px;" />
+                                <!-- multiple thumbnails will be injected here -->
                             </div>
                         </div>
                     </div>
@@ -223,6 +224,7 @@
                                     <tr>
                                         <th style="width:4%">#</th>
                                         <th>Nama Item</th>
+                                        <th>Pegawai</th>
                                         <th style="width:10%">Qty</th>
                                         <th style="width:15%">Harga</th>
                                         <th style="width:15%">Total</th>
@@ -233,7 +235,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="4" class="text-end"><strong>Grand Total</strong></td>
+                                        <td colspan="5" class="text-end"><strong>Grand Total</strong></td>
                                         <td><input type="text" id="grand_total_display" class="form-control" readonly></td>
                                         <td class="text-end">
                                             <div class="d-flex justify-content-end align-items-center">
@@ -262,6 +264,8 @@
 @section('scripts')
 <script>
 $(document).ready(function() {
+    // server-provided current employee id (logged-in user) to default main employee select
+    var __currentEmployeeId = '{{ auth()->check() && optional(auth()->user()->employee)->id ? auth()->user()->employee->id : '' }}';
     if (typeof $.fn.select2 === 'function') {
         $('#employee_id, #division_id, #rekening_id').select2({ dropdownParent: $('#pengajuanModal'), width: '100%' });
     }
@@ -361,8 +365,14 @@ $(document).ready(function() {
         $('#pengajuan_id').val('');
         $('.invalid-feedback').text('');
         $('.is-invalid').removeClass('is-invalid');
-        if (typeof $('#employee_id').select2 === 'function') { $('#employee_id').val('').trigger('change'); }
-        if (typeof $('#division_id').select2 === 'function') { $('#division_id').val('').trigger('change'); }
+        if (typeof $('#employee_id').select2 === 'function') {
+            // default to currently logged-in employee when creating a new pengajuan
+            if (__currentEmployeeId && __currentEmployeeId !== '') {
+                $('#employee_id').val(__currentEmployeeId).trigger('change');
+            } else {
+                $('#employee_id').val('').trigger('change');
+            }
+    }
         // reset items table for a fresh create
         $('#itemsTable tbody').empty();
         addItemRow();
@@ -419,17 +429,24 @@ $(document).ready(function() {
 
     // Preview selected image
     $('#bukti_transaksi').on('change', function(e) {
-        var file = this.files && this.files[0];
-        if (file) {
-            var reader = new FileReader();
-            reader.onload = function(evt) {
-                $('#bukti_preview img').attr('src', evt.target.result);
-                $('#bukti_preview').show();
-            };
-            reader.readAsDataURL(file);
+        var files = this.files || [];
+        var $preview = $('#bukti_preview');
+        $preview.empty();
+        if (files.length) {
+            // render thumbnails for each selected file
+            Array.from(files).forEach(function(file){
+                if (!file.type || file.type.indexOf('image') === -1) return;
+                var reader = new FileReader();
+                reader.onload = function(evt) {
+                    var $img = $('<img>').attr('src', evt.target.result).css({ 'max-width':'120px', 'max-height':'80px', 'margin-right':'6px', 'margin-bottom':'6px' });
+                    $preview.append($img);
+                };
+                reader.readAsDataURL(file);
+            });
+            $preview.show();
         } else {
-            $('#bukti_preview').hide();
-            $('#bukti_preview img').attr('src', '');
+            $preview.hide();
+            $preview.empty();
         }
     });
 
@@ -453,6 +470,10 @@ $(document).ready(function() {
         var $tr = $('<tr>');
         $tr.append('<td class="align-middle text-center"></td>');
         $tr.append('<td><input type="text" class="form-control item-desc" placeholder="Nama Item" value="'+(data.desc||'')+'"></td>');
+        // employee select: clone options from main #employee_id to keep consistency
+        var empOptions = '';
+        try { if ($('#employee_id').length) empOptions = $('#employee_id').html(); } catch(e) { empOptions = ''; }
+        $tr.append('<td><select class="form-control item-employee" name="item_employee_id[]"><option value="">-- Pilih Pegawai --</option>'+empOptions+'</select></td>');
         $tr.append('<td><input type="number" min="0" step="1" class="form-control item-qty" value="'+(data.qty||'')+'"></td>');
         $tr.append('<td><input type="number" min="0" step="0.01" class="form-control item-price" value="'+(data.price||0)+'"></td>');
         $tr.append('<td><input type="text" readonly class="form-control item-total" value="0.00"></td>');
@@ -461,6 +482,18 @@ $(document).ready(function() {
         $('#itemsTable tbody').append($tr);
         // focus the newly added row's description for quick entry
         $tr.find('.item-desc').focus();
+        // initialize select2 for the dynamic employee select if available
+        if (typeof $.fn.select2 === 'function') {
+            $tr.find('.item-employee').select2({ dropdownParent: $('#pengajuanModal'), width: '100%' });
+            // only set per-item employee when explicit data.employee_id is provided (edit flow)
+            if (data.employee_id) {
+                $tr.find('.item-employee').val(data.employee_id).trigger('change');
+            }
+        } else {
+            if (data.employee_id) {
+                $tr.find('.item-employee').val(data.employee_id);
+            }
+        }
         recalcItems();
     }
 
@@ -555,13 +588,14 @@ $(document).ready(function() {
             var descTrim = desc ? desc.toString().trim() : '';
             var qty = parseFloat($tr.find('.item-qty').val()||0);
             var price = parseFloat($tr.find('.item-price').val()||0);
+            var empId = $tr.find('.item-employee').val() || null;
             // If the row is a faktur row, we embed fakturbeli_id into payload
             var fakturId = $tr.data('fakturbeli-id') || null;
             if (descTrim !== '') {
                 if (fakturId) {
-                    items.push({desc: descTrim, qty: 1, price: price || 0, fakturbeli_id: fakturId});
+                    items.push({desc: descTrim, qty: 1, price: price || 0, fakturbeli_id: fakturId, employee_id: empId});
                 } else {
-                    items.push({desc: descTrim, qty: qty || 0, price: price || 0});
+                    items.push({desc: descTrim, qty: qty || 0, price: price || 0, employee_id: empId});
                 }
             }
         });
@@ -726,9 +760,30 @@ $(document).ready(function() {
                 $('#no_rekening').val(res.no_rekening || '');
                 $('#atas_nama').val(res.atas_nama || '');
                 if (res.bukti_transaksi) {
-                    var url = '/storage/' + res.bukti_transaksi;
-                    $('#bukti_preview img').attr('src', url);
-                    $('#bukti_preview').show();
+                    // res.bukti_transaksi may be JSON array or single path
+                    var preview = $('#bukti_preview');
+                    preview.empty();
+                    try {
+                        var arr = typeof res.bukti_transaksi === 'string' ? JSON.parse(res.bukti_transaksi) : res.bukti_transaksi;
+                        if (Array.isArray(arr)) {
+                            arr.forEach(function(p){
+                                if (!p) return;
+                                var $img = $('<img>').attr('src', '/storage/' + p).css({ 'max-width':'120px', 'max-height':'80px', 'margin-right':'6px', 'margin-bottom':'6px' });
+                                preview.append($img);
+                            });
+                            preview.show();
+                        } else {
+                            // treat as single path
+                            var url = '/storage/' + res.bukti_transaksi;
+                            preview.append($('<img>').attr('src', url).css({ 'max-width':'120px', 'max-height':'80px' }));
+                            preview.show();
+                        }
+                    } catch (e) {
+                        // fallback: treat as single path string
+                        var url = '/storage/' + res.bukti_transaksi;
+                        preview.append($('<img>').attr('src', url).css({ 'max-width':'120px', 'max-height':'80px' }));
+                        preview.show();
+                    }
                 } else {
                     $('#bukti_preview').hide();
                     $('#bukti_preview img').attr('src', '');
@@ -737,7 +792,7 @@ $(document).ready(function() {
                 $('#itemsTable tbody').empty();
                 if (res.items && res.items.length) {
                     res.items.forEach(function(it){
-                        var rowData = { desc: it.nama_item, qty: it.jumlah, price: it.harga_satuan };
+                        var rowData = { desc: it.nama_item, qty: it.jumlah, price: it.harga_satuan, employee_id: it.employee_id || '' };
                         addItemRow(rowData);
                         // if item is faktur-type, mark row so serialization and UI are correct
                         if (it.fakturbeli_id) {
@@ -938,7 +993,7 @@ $(document).ready(function() {
                                 $empty.find('.item-total').val((1 * price).toFixed(2));
                                 $empty.data('fakturbeli-id', res.id);
                             } else {
-                                // no empty row; append as before
+                                // no empty row; append a new faktur row (do not default per-item employee)
                                 addItemRow({ desc: desc, qty: 1, price: price });
                                 var $new = $tbody.find('tr').last();
                                 $new.data('fakturbeli-id', res.id);

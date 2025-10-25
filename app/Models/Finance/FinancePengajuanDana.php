@@ -26,6 +26,7 @@ class FinancePengajuanDana extends Model
 
     protected $casts = [
         'tanggal_pengajuan' => 'date',
+        'bukti_transaksi' => 'array',
     ];
 
     public function items()

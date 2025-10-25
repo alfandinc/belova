@@ -13,6 +13,7 @@ class FinancePengajuanDanaItem extends Model
 
     protected $fillable = [
         'pengajuan_id',
+        'employee_id',
         'nama_item',
         'jumlah',
         'harga_satuan',
@@ -25,6 +26,11 @@ class FinancePengajuanDanaItem extends Model
     public function pengajuan()
     {
         return $this->belongsTo(FinancePengajuanDana::class, 'pengajuan_id');
+    }
+
+    public function employee()
+    {
+        return $this->belongsTo(\App\Models\HRD\Employee::class, 'employee_id');
     }
 
     public function faktur()

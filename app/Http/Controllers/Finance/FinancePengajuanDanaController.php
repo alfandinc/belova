@@ -183,13 +183,20 @@ class FinancePengajuanDanaController extends Controller
             'status' => 'nullable|string',
             'rekening_id' => 'nullable|integer|exists:finance_rekening,id',
             'items_json' => 'nullable|json',
-            'bukti_transaksi' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'bukti_transaksi' => 'nullable',
+            'bukti_transaksi.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-        // Handle file upload if present
+        // Handle multiple file uploads if present
         if ($request->hasFile('bukti_transaksi')) {
-            $path = $request->file('bukti_transaksi')->store('finance/pengajuan', 'public');
-            $data['bukti_transaksi'] = $path;
+            $paths = [];
+            foreach ($request->file('bukti_transaksi') as $file) {
+                if ($file && $file->isValid()) {
+                    $paths[] = $file->store('finance/pengajuan', 'public');
+                }
+            }
+            // store as JSON array of paths
+            $data['bukti_transaksi'] = json_encode($paths);
         }
 
         // persist pengajuan and its items in a transaction
@@ -223,6 +230,7 @@ class FinancePengajuanDanaController extends Controller
                     $name = isset($it['desc']) ? $it['desc'] : (isset($it['name']) ? $it['name'] : null);
                     $qty = isset($it['qty']) ? intval($it['qty']) : 1;
                     $price = isset($it['price']) ? floatval($it['price']) : 0;
+                    $itemEmployeeId = isset($it['employee_id']) && $it['employee_id'] !== '' ? intval($it['employee_id']) : null;
 
                     // faktur-type item: server-side authoritative snapshot
                     $fakturbeliId = isset($it['fakturbeli_id']) ? intval($it['fakturbeli_id']) : null;
@@ -241,6 +249,7 @@ class FinancePengajuanDanaController extends Controller
                                 'nama_item' => $name,
                                 'jumlah' => 1,
                                 'harga_satuan' => $price,
+                                'employee_id' => $itemEmployeeId,
                                 'fakturbeli_id' => $fakturbeliId,
                                 'is_faktur' => true,
                                 'harga_total_snapshot' => $price,
@@ -255,6 +264,7 @@ class FinancePengajuanDanaController extends Controller
                         'nama_item' => $name,
                         'jumlah' => $qty,
                         'harga_satuan' => $price,
+                        'employee_id' => $itemEmployeeId,
                     ]);
                 }
             }
@@ -388,7 +398,8 @@ class FinancePengajuanDanaController extends Controller
         // load blade and render to PDF
         try {
             $pdf = PDF::loadView('finance.pengajuan.pdf', compact('pengajuan', 'fakturs', 'logoPath', 'signatures'));
-            $pdf->setPaper('a4', 'portrait');
+            // Render the PDF in landscape orientation to better fit wide item tables
+            $pdf->setPaper('a4', 'landscape');
             return $pdf->stream('pengajuan_' . $pengajuan->id . '.pdf');
         } catch (\Exception $e) {
             // fallback to HTML view if PDF generation fails
@@ -412,12 +423,26 @@ class FinancePengajuanDanaController extends Controller
 
         // Handle file upload: delete old file if exists and replace
         if ($request->hasFile('bukti_transaksi')) {
-            // delete existing file
+            // delete existing files if stored as JSON array or single string
             if ($pengajuan->bukti_transaksi) {
-                Storage::disk('public')->delete($pengajuan->bukti_transaksi);
+                $existing = $pengajuan->bukti_transaksi;
+                $arr = [];
+                try { $arr = json_decode($existing, true) ?: []; } catch (\Exception $e) { $arr = []; }
+                if (!empty($arr) && is_array($arr)) {
+                    foreach ($arr as $p) { Storage::disk('public')->delete($p); }
+                } else {
+                    // maybe single string path
+                    Storage::disk('public')->delete($existing);
+                }
             }
-            $path = $request->file('bukti_transaksi')->store('finance/pengajuan', 'public');
-            $data['bukti_transaksi'] = $path;
+
+            $paths = [];
+            foreach ($request->file('bukti_transaksi') as $file) {
+                if ($file && $file->isValid()) {
+                    $paths[] = $file->store('finance/pengajuan', 'public');
+                }
+            }
+            $data['bukti_transaksi'] = json_encode($paths);
         }
 
         DB::transaction(function() use ($pengajuan, $data, $request) {
@@ -456,6 +481,7 @@ class FinancePengajuanDanaController extends Controller
                         $name = isset($it['desc']) ? $it['desc'] : (isset($it['name']) ? $it['name'] : null);
                         $qty = isset($it['qty']) ? intval($it['qty']) : 1;
                         $price = isset($it['price']) ? floatval($it['price']) : 0;
+                        $itemEmployeeId = isset($it['employee_id']) && $it['employee_id'] !== '' ? intval($it['employee_id']) : null;
                         $fakturbeliId = isset($it['fakturbeli_id']) ? intval($it['fakturbeli_id']) : null;
                         if ($fakturbeliId) {
                             $faktur = FakturBeli::find($fakturbeliId);
@@ -470,6 +496,7 @@ class FinancePengajuanDanaController extends Controller
                                     'nama_item' => $name,
                                     'jumlah' => 1,
                                     'harga_satuan' => $price,
+                                    'employee_id' => $itemEmployeeId,
                                     'fakturbeli_id' => $fakturbeliId,
                                     'is_faktur' => true,
                                     'harga_total_snapshot' => $price,
@@ -482,6 +509,7 @@ class FinancePengajuanDanaController extends Controller
                             'nama_item' => $name,
                             'jumlah' => $qty,
                             'harga_satuan' => $price,
+                            'employee_id' => $itemEmployeeId,
                         ]);
                     }
                 }
