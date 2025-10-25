@@ -67,23 +67,25 @@ class PerformanceEvaluationController extends Controller
                 $data = [];
                 foreach ($periods as $period) {
                     $actions = '<a href="' . route('hrd.performance.periods.show', $period) . '" class="btn btn-sm btn-info"><i class="fa fa-eye"></i> Details</a>';
+
+                    // Edit and Initiate only available for pending periods
                     if ($period->status == 'pending') {
-                        $actions .= ' <button type="button" class="btn btn-sm btn-primary edit-period" 
-                                        data-id="' . $period->id . '"
-                                        data-name="' . $period->name . '"
-                                        data-start="' . $period->start_date->format('Y-m-d') . '"
-                                        data-end="' . $period->end_date->format('Y-m-d') . '"
-                                        data-status="' . $period->status . '"
-                                        data-toggle="modal" data-target="#editPeriodModal">
-                                        <i class="fa fa-edit"></i> Edit
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-success btn-initiate" data-id="' . $period->id . '">
-                                        <i class="fa fa-play"></i> Initiate
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-danger btn-delete" data-id="' . $period->id . '">
-                                        <i class="fa fa-trash"></i> Delete
-                                    </button>';
+                        $actions .= ' <button type="button" class="btn btn-sm btn-primary edit-period" '
+                                        . 'data-id="' . $period->id . '" '
+                                        . 'data-name="' . e($period->name) . '" '
+                                        . 'data-start="' . $period->start_date->format('Y-m-d') . '" '
+                                        . 'data-end="' . $period->end_date->format('Y-m-d') . '" '
+                                        . 'data-status="' . $period->status . '" '
+                                        . 'data-toggle="modal" data-target="#editPeriodModal">'
+                                        . '<i class="fa fa-edit"></i> Edit</button>';
+
+                        $actions .= ' <button type="button" class="btn btn-sm btn-success btn-initiate" data-id="' . $period->id . '">' .
+                                    '<i class="fa fa-play"></i> Initiate</button>';
                     }
+
+                    // Always allow deletion (will cascade-delete evaluations and scores)
+                    $actions .= ' <button type="button" class="btn btn-sm btn-danger btn-delete" data-id="' . $period->id . '">' .
+                                '<i class="fa fa-trash"></i> Delete</button>';
                     if (empty($actions)) {
                         $actions = '<span></span>';
                     }
@@ -209,32 +211,46 @@ class PerformanceEvaluationController extends Controller
 
     public function destroy(Request $request, PerformanceEvaluationPeriod $period)
     {
-        // Check if evaluations exist
-        $hasEvaluations = PerformanceEvaluation::where('period_id', $period->id)->exists();
+        // Allow deletion even if evaluations exist. We'll delete related evaluations and scores
+        DB::beginTransaction();
+        try {
+            $evaluations = PerformanceEvaluation::where('period_id', $period->id)->get();
+            foreach ($evaluations as $eval) {
+                // delete associated scores
+                $eval->scores()->delete();
+            }
 
-        if ($hasEvaluations) {
+            // delete evaluations for this period
+            PerformanceEvaluation::where('period_id', $period->id)->delete();
+
+            // finally delete the period
+            $period->delete();
+
+            DB::commit();
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Evaluation period and related evaluations deleted successfully.'
+                ]);
+            }
+
+            return redirect()->route('hrd.performance.periods.index')
+                ->with('success', 'Evaluation period and related evaluations deleted successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error deleting performance period: ' . $e->getMessage(), ['period_id' => $period->id]);
+
             if ($request->ajax()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot delete period with existing evaluations.'
-                ], 422);
+                    'message' => 'An error occurred while deleting the period.'
+                ], 500);
             }
-            
+
             return redirect()->route('hrd.performance.periods.index')
-                ->with('error', 'Cannot delete period with existing evaluations.');
+                ->with('error', 'An error occurred while deleting the period.');
         }
-
-        $period->delete();
-
-        if ($request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Evaluation period deleted successfully.'
-            ]);
-        }
-
-        return redirect()->route('hrd.performance.periods.index')
-            ->with('success', 'Evaluation period deleted successfully.');
     }
 
 
