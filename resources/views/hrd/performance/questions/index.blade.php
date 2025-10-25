@@ -279,6 +279,7 @@
                                 category.questions.forEach(function(question) {
                                     var evaluationType = '';
                                     switch(question.evaluation_type) {
+                                        case 'hrd_to_employee': evaluationType = 'HRD to Employee'; break;
                                         case 'hrd_to_manager': evaluationType = 'HRD to Manager'; break;
                                         case 'manager_to_employee': evaluationType = 'Manager to Employee'; break;
                                         case 'employee_to_manager': evaluationType = 'Employee to Manager'; break;

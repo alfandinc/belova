@@ -159,6 +159,7 @@ class PerformanceEvaluationController extends Controller
         foreach ($evaluations as $eval) {
             $type = $this->determineEvaluationType($eval);
             $labels = [
+                    'hrd_to_employee' => 'HRD to Employee',
                 'hrd_to_manager' => 'HRD to Manager',
                 'manager_to_employee' => 'Manager to Employee',
                 'employee_to_manager' => 'Employee to Manager',
@@ -275,10 +276,10 @@ class PerformanceEvaluationController extends Controller
         });
 
         // Get regular employees (non-managers and non-HRD)
+        // Prefer role-based exclusion for HRD instead of relying on division name string matching
         $regularEmployees = $employees->filter(function ($employee) {
-            return !$employee->isManager() &&
-                $employee->division &&
-                stripos($employee->division->name, 'Human Resource') === false;
+            $isHrdUser = $employee->user && $employee->user->hasRole(['hrd', 'Hrd', 'HRD']);
+            return !$employee->isManager() && !$isHrdUser;
         });
 
         // Normalize mode value for comparison
@@ -300,6 +301,27 @@ class PerformanceEvaluationController extends Controller
                     );
                 }
             }
+
+            // HRD to Regular Employees (new requirement)
+            $createdHrdToEmployee = 0;
+            foreach ($hrdEmployees as $hrd) {
+                foreach ($regularEmployees as $employee) {
+                    $eval = PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $hrd->id,
+                            'evaluatee_id' => $employee->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                    if ($eval->wasRecentlyCreated) {
+                        $createdHrdToEmployee++;
+                    }
+                }
+            }
+            Log::info('Initiate: HRD->Employee evaluations created', ['period_id' => $period->id, 'count' => $createdHrdToEmployee]);
 
             // CEO to Managers (using evaluation type ceo_to_hrd)
             foreach ($ceos as $ceo) {
@@ -374,9 +396,10 @@ class PerformanceEvaluationController extends Controller
             }
 
             // 5. Employee to HRD
+            $createdEmployeeToHrd = 0;
             foreach ($regularEmployees as $employee) {
                 foreach ($hrdEmployees as $hrd) {
-                    PerformanceEvaluation::firstOrCreate(
+                    $eval = PerformanceEvaluation::firstOrCreate(
                         [
                             'period_id' => $period->id,
                             'evaluator_id' => $employee->id,
@@ -386,8 +409,12 @@ class PerformanceEvaluationController extends Controller
                             'status' => 'pending'
                         ]
                     );
+                    if ($eval->wasRecentlyCreated) {
+                        $createdEmployeeToHrd++;
+                    }
                 }
             }
+            Log::info('Initiate: Employee->HRD evaluations created', ['period_id' => $period->id, 'count' => $createdEmployeeToHrd]);
             
             // 6. CEO to HRD
             foreach ($ceos as $ceo) {
@@ -420,6 +447,26 @@ class PerformanceEvaluationController extends Controller
                     );
                 }
             }
+            // HRD to Regular Employees in satu arah mode as well
+            $createdHrdToEmployeeSa = 0;
+            foreach ($hrdEmployees as $hrd) {
+                foreach ($regularEmployees as $employee) {
+                    $eval = PerformanceEvaluation::firstOrCreate(
+                        [
+                            'period_id' => $period->id,
+                            'evaluator_id' => $hrd->id,
+                            'evaluatee_id' => $employee->id
+                        ],
+                        [
+                            'status' => 'pending'
+                        ]
+                    );
+                    if ($eval->wasRecentlyCreated) {
+                        $createdHrdToEmployeeSa++;
+                    }
+                }
+            }
+            Log::info('Initiate (satu arah): HRD->Employee evaluations created', ['period_id' => $period->id, 'count' => $createdHrdToEmployeeSa]);
             foreach ($managers as $manager) {
                 if (!$manager->division) continue;
                 $divisionEmployees = $employees->filter(function ($employee) use ($manager) {
@@ -504,6 +551,7 @@ class PerformanceEvaluationController extends Controller
                 ->addColumn('evaluation_type', function ($evaluation) {
                     $type = (new \App\Http\Controllers\HRD\PerformanceEvaluationController)->determineEvaluationType($evaluation);
                     $labels = [
+                        'hrd_to_employee' => 'HRD to Employee',
                         'hrd_to_manager' => 'HRD to Manager',
                         'manager_to_employee' => 'Manager to Employee',
                         'employee_to_manager' => 'Employee to Manager',
@@ -573,10 +621,17 @@ class PerformanceEvaluationController extends Controller
 
 
         $hrdNames = ['human resources', 'hrd', 'human resource'];
-        $isEvaluatorHRD = $evaluator->division instanceof Division && in_array(strtolower($evaluator->division->name), $hrdNames);
+        // HRD detection: either division name matches or the related user has an HRD role
+        $isEvaluatorHRD = (
+            ($evaluator->division instanceof Division && in_array(strtolower($evaluator->division->name), $hrdNames)) ||
+            ($evaluator->user && $evaluator->user->hasRole(['hrd', 'Hrd', 'HRD']))
+        );
         $isEvaluatorManager = $evaluator->isManager();
         $isEvaluatorCEO = $evaluator->isCEO();
-        $isEvaluateeHRD = $evaluatee->division instanceof Division && in_array(strtolower($evaluatee->division->name), $hrdNames);
+        $isEvaluateeHRD = (
+            ($evaluatee->division instanceof Division && in_array(strtolower($evaluatee->division->name), $hrdNames)) ||
+            ($evaluatee->user && $evaluatee->user->hasRole(['hrd', 'Hrd', 'HRD']))
+        );
         $isEvaluateeManager = $evaluatee->isManager();
 
         // If CEO is evaluator and evaluatee is HRD or a Manager, treat as CEO -> HRD
@@ -585,6 +640,8 @@ class PerformanceEvaluationController extends Controller
             return 'ceo_to_hrd';
         } elseif ($isEvaluatorHRD && $isEvaluateeManager) {
             return 'hrd_to_manager';
+        } elseif ($isEvaluatorHRD && !$isEvaluateeManager && !$isEvaluateeHRD) {
+            return 'hrd_to_employee';
         } elseif ($isEvaluatorManager && !$isEvaluateeManager && !$isEvaluateeHRD) {
             return 'manager_to_employee';
         } elseif (!$isEvaluatorManager && !$isEvaluatorHRD && !$isEvaluatorCEO && $isEvaluateeManager) {

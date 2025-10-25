@@ -17,6 +17,7 @@ class PerformanceQuestionController extends Controller
             $query->orderBy('evaluation_type');
         }])->get();
         $evaluationTypes = [
+            'hrd_to_employee' => 'HRD to Employee',
             'hrd_to_manager' => 'HRD to Manager',
             'manager_to_employee' => 'Manager to Employee',
             'employee_to_manager' => 'Employee to Manager',
@@ -100,6 +101,7 @@ class PerformanceQuestionController extends Controller
             })
             ->editColumn('evaluation_type', function ($question) {
                 $types = [
+                    'hrd_to_employee' => 'HRD to Employee',
                     'hrd_to_manager' => 'HRD to Manager',
                     'manager_to_employee' => 'Manager to Employee',
                     'employee_to_manager' => 'Employee to Manager',
@@ -204,6 +206,7 @@ class PerformanceQuestionController extends Controller
     {
         // Validate allowed types to avoid accidental exposure
         $allowed = [
+            'hrd_to_employee',
             'hrd_to_manager',
             'manager_to_employee',
             'employee_to_manager',
@@ -236,7 +239,7 @@ class PerformanceQuestionController extends Controller
             'question_text' => 'required|string',
             'category_id' => 'required|exists:performance_question_categories,id',
             'question_type' => 'required|in:score,text',
-            'evaluation_type' => 'required|in:hrd_to_manager,manager_to_employee,employee_to_manager,manager_to_hrd,ceo_to_hrd',
+            'evaluation_type' => 'required|in:hrd_to_employee,hrd_to_manager,manager_to_employee,employee_to_manager,manager_to_hrd,ceo_to_hrd',
             'is_active' => 'boolean'
         ]);
 
@@ -257,7 +260,7 @@ class PerformanceQuestionController extends Controller
             'question_text' => 'required|string',
             'category_id' => 'required|exists:performance_question_categories,id',
             'question_type' => 'required|in:score,text',
-            'evaluation_type' => 'required|in:hrd_to_manager,manager_to_employee,employee_to_manager,manager_to_hrd,ceo_to_hrd',
+            'evaluation_type' => 'required|in:hrd_to_employee,hrd_to_manager,manager_to_employee,employee_to_manager,manager_to_hrd,ceo_to_hrd',
             'is_active' => 'boolean'
         ]);
 
