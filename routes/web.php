@@ -1149,7 +1149,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
     }
 );
 
-Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance')->group(function () {
+Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|Perawat|Pendaftaran')->group(function () {
 
     // // Main dashboard and analytics
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
