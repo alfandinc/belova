@@ -635,9 +635,27 @@ class tr_renterController extends Controller
             $priceDifferenceFull = $newPricelist->price - $oldPricelist->price;
             // Payment only on remaining proportion - use clean fraction to match modal
             $remainingPercentClean = $totalUnits > 0 ? $remainingUnits / $totalUnits : 0;
-            $paymentAmount = $priceDifferenceFull * $remainingPercentClean;
-            $paymentType = $paymentAmount > 0 ? 'charge' : 'refund';
-            $paymentAmount = abs(round($paymentAmount, 0)); // round to nearest rupiah
+            $payableRaw = $priceDifferenceFull * $remainingPercentClean; // can be negative for refund
+            $paymentType = $payableRaw > 0 ? 'charge' : 'refund';
+            $paymentAmount = abs(round($payableRaw, 0)); // full theoretical amount (absolute)
+
+            // Compute actual amounts consistent with modal logic:
+            // alreadyPaid = sum of kredit revenue lines for the original transaction
+            $alreadyPaid = (float) Fin_jurnal::where('doc_id', $currentTransaction->trans_id)
+                ->where(function($q){
+                    // match identities similar to UI (Sewa Kamar / Upgrade Kamar) or kode_akun revenue
+                    $q->where('identity', 'like', '%Sewa Kamar%')
+                      ->orWhere('identity', 'like', '%Upgrade Kamar%')
+                      ->orWhere('kode_akun', '4-10101');
+                })->sum('kredit');
+
+            // For refunds (downgrades) the UI uses refundBase = min(alreadyPaid, abs(payable)).
+            // Use the same rule here so the controller is trustable with the UI.
+            if ($payableRaw < 0) {
+                $finalPaymentAmount = min($alreadyPaid, abs(round($payableRaw, 0)));
+            } else {
+                $finalPaymentAmount = $paymentAmount; // upgrades use the full computed amount
+            }
             
             // Get payment amounts
             $payNow = floatval($request->pay_now ?? 0);
@@ -663,7 +681,7 @@ class tr_renterController extends Controller
             // Handle financial adjustments (if any)
             $renter = renter::findorfail($currentTransaction->id_renter);
             
-            if ($paymentAmount > 0) {
+            if ((($paymentType == 'charge') && $paymentAmount > 0) || (($paymentType == 'refund') && $finalPaymentAmount > 0)) {
                 $no_jurnal = app(ControllersFinJurnalController::class)->get_no_jurnal();
                 
                 if ($paymentType == 'charge') {
@@ -705,47 +723,97 @@ class tr_renterController extends Controller
                     ]);
                 } else {
                     // Refund (downgrade)
-                    $no_exp = app(ControllersFinJurnalController::class)->get_no_exp();
-                    
-                    Fin_jurnal::create([
-                        'no_jurnal' => $no_jurnal,
-                        'tanggal' => $request->payment_date ?? date('Y-m-d'),
-                        'kode_akun' => '1-10101',
-                        'debet' => 0,
-                        'kredit' => $paymentAmount,
-                        'kode_subledger' => null,
-                        'catatan' => 'Refund downgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format(abs($priceDifferenceFull), 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
-                        'index_kas' => 0,
-                        'doc_id' => $no_exp,
-                        'identity' => 'Downgrade Kamar',
-                        'pos' => 'K',
-                        'user_id' => Auth::id(),
-                        'csrf' => time()
-                    ]);
-                    
-                    Fin_jurnal::create([
-                        'no_jurnal' => $no_jurnal,
-                        'tanggal' => $request->payment_date ?? date('Y-m-d'),
-                        'kode_akun' => '5-10102',
-                        'debet' => $paymentAmount,
-                        'kredit' => 0,
-                        'kode_subledger' => null,
-                        'catatan' => 'Refund downgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format(abs($priceDifferenceFull), 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($paymentAmount,2),
-                        'index_kas' => 0,
-                        'doc_id' => $no_exp,
-                        'identity' => 'Downgrade Kamar',
-                        'pos' => 'D',
-                        'user_id' => Auth::id(),
-                        'csrf' => time()
-                    ]);
+                    // If user chose to put refund into deposit, record as deposit top-up instead of cash refund
+                    if (isset($request->refund_to_deposit) && $request->refund_to_deposit) {
+                        // create deposit journal entries (debit cash, credit deposit liability)
+                        $no_jurnal_dep = app(ControllersFinJurnalController::class)->get_no_jurnal();
+                        $doc_dep = 'DP' . time();
+
+                        Fin_jurnal::create([
+                            'no_jurnal' => $no_jurnal_dep,
+                            'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                            'kode_akun' => '1-10101',
+                            'debet' => $finalPaymentAmount,
+                            'kredit' => 0,
+                            'kode_subledger' => $currentTransaction->id_renter,
+                            'catatan' => 'Tambah deposit (downgrade kamar): ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name,
+                            'index_kas' => 0,
+                            'doc_id' => $doc_dep,
+                            'identity' => 'Topup Deposit (Downgrade)',
+                            'pos' => 'D',
+                            'user_id' => Auth::id(),
+                            'csrf' => time()
+                        ]);
+
+                        Fin_jurnal::create([
+                            'no_jurnal' => $no_jurnal_dep,
+                            'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                            'kode_akun' => '2-99999',
+                            'debet' => 0,
+                            'kredit' => $finalPaymentAmount,
+                            'kode_subledger' => $currentTransaction->id_renter,
+                            'catatan' => 'Tambah deposit (downgrade kamar): ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name,
+                            'index_kas' => 0,
+                            'doc_id' => $doc_dep,
+                            'identity' => 'Topup Deposit (Downgrade)',
+                            'pos' => 'K',
+                            'user_id' => Auth::id(),
+                            'csrf' => time()
+                        ]);
+
+                        // Update renter deposit balance (best-effort)
+                        try {
+                            $renter->creditDeposit($finalPaymentAmount);
+                        } catch (\Throwable $e) {
+                            // ignore model error but keep jurnal entries
+                        }
+
+                        // mark that we created a deposit doc id for later use (if needed)
+                        $no_exp = $doc_dep;
+                    } else {
+                        // Cash refund as before
+                        $no_exp = app(ControllersFinJurnalController::class)->get_no_exp();
+
+                        Fin_jurnal::create([
+                            'no_jurnal' => $no_jurnal,
+                            'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                            'kode_akun' => '1-10101',
+                            'debet' => 0,
+                            'kredit' => $finalPaymentAmount,
+                            'kode_subledger' => null,
+                            'catatan' => 'Refund downgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format(abs($priceDifferenceFull), 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($finalPaymentAmount,2),
+                            'index_kas' => 0,
+                            'doc_id' => $no_exp,
+                            'identity' => 'Downgrade Kamar',
+                            'pos' => 'K',
+                            'user_id' => Auth::id(),
+                            'csrf' => time()
+                        ]);
+
+                        Fin_jurnal::create([
+                            'no_jurnal' => $no_jurnal,
+                            'tanggal' => $request->payment_date ?? date('Y-m-d'),
+                            'kode_akun' => '5-10102',
+                            'debet' => $finalPaymentAmount,
+                            'kredit' => 0,
+                            'kode_subledger' => null,
+                            'catatan' => 'Refund downgrade kamar: ' . $oldRoom->room_name . ' -> ' . $newRoom->room_name . '. Selisih paket penuh Rp ' . number_format(abs($priceDifferenceFull), 2) . ' x ' . number_format($remainingPercent*100,1) . '% sisa = Rp ' . number_format($finalPaymentAmount,2),
+                            'index_kas' => 0,
+                            'doc_id' => $no_exp,
+                            'identity' => 'Downgrade Kamar',
+                            'pos' => 'D',
+                            'user_id' => Auth::id(),
+                            'csrf' => time()
+                        ]);
+                    }
                 }
             }
             
             // commit before redirecting to ensure jurnal saved
             DB::commit();
 
-            // If downgrade refund occurred, redirect to a refund print page so user can print refund receipt
-            if ($paymentType === 'refund' && $paymentAmount > 0) {
+            // If downgrade cash refund occurred, redirect to a refund print page so user can print refund receipt
+            if ($paymentType === 'refund' && $paymentAmount > 0 && !($request->refund_to_deposit ?? false)) {
                 // Build a minimal refund payload for the print view
                 $refundPayload = (object)[
                     'doc_id' => $no_exp ?? null,

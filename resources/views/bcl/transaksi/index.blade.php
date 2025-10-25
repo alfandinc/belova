@@ -1106,18 +1106,26 @@ $data = $data;
             $('#payment_type_hidden').val('charge');
             // Show payment input
             $('#payment_input_row').show();
+            // hide refund-to-deposit option for upgrades
+            $('#refund_options_row').hide();
+            $('#refund_to_deposit').prop('checked', false);
         }else if(payable<0){
             $('#payment_type_text').html('<span class="text-success">Downgrade: kemungkinan refund' + (outstandingOld > 0 ? ' (dikurangi tunggakan)' : '') + '</span>');
             $('#payment_type_hidden').val('refund');
             // Hide payment input for refund
             $('#payment_input_row').hide();
             $('#pay_now').val('0');
+            // show refund-to-deposit option for downgrades
+            $('#refund_options_row').show();
         }else{
             $('#payment_type_text').html('<span class="text-muted">Tidak ada selisih paket' + (outstandingOld > 0 ? ' (hanya tunggakan lama)' : '') + '</span>');
             $('#payment_type_hidden').val('none');
             // Hide payment input when no price difference
             $('#payment_input_row').hide();
             $('#pay_now').val('0');
+            // no refund option
+            $('#refund_options_row').hide();
+            $('#refund_to_deposit').prop('checked', false);
         }
         // Update hidden fields
         $('#payment_amount_hidden').val(Math.abs(payable));
@@ -1280,6 +1288,12 @@ $data = $data;
                         </table>
                         
                         <div id="payment_type_text" class="mt-1 font-weight-bold"></div>
+                        <div id="refund_options_row" style="display:none;">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" value="1" id="refund_to_deposit" name="refund_to_deposit">
+                                <label class="form-check-label" for="refund_to_deposit">Tambahkan refund ke deposit penyewa (jika dicentang, tidak melakukan refund tunai)</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
