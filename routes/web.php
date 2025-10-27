@@ -1354,6 +1354,12 @@ Route::get('/erm/dashboard/visitation-count', [App\Http\Controllers\ERMDashboard
 Route::get('/erm/dashboard/visitation-detail', [App\Http\Controllers\ERMDashboardController::class, 'visitationDetail'])->name('erm.dashboard.visitation-detail');
 Route::get('/labtest/search', [\App\Http\Controllers\ERM\LabTestController::class, 'search'])->name('labtest.search');
 Route::get('/konsultasi/search', [\App\Http\Controllers\ERM\KonsultasiController::class, 'search'])->name('konsultasi.search');
+// Hasil Skincheck - standalone upload endpoint (store image + decoded url)
+Route::post('/erm/hasil-skincheck', [\App\Http\Controllers\ERM\HasilSkincheckController::class, 'store'])->name('erm.hasil_skincheck.store');
+// Decode-only endpoint: accepts image, attempts server-side decode, returns decoded_text/url (no DB save)
+Route::post('/erm/hasil-skincheck/decode', [\App\Http\Controllers\ERM\HasilSkincheckController::class, 'decode'])->name('erm.hasil_skincheck.decode');
+// Riwayat (pasien) - return last records as JSON for AJAX DataTable
+Route::get('/erm/hasil-skincheck/riwayat', [\App\Http\Controllers\ERM\HasilSkincheckController::class, 'riwayat'])->name('erm.hasil_skincheck.riwayat');
 // Cancel visitation (Lab index) - change status_kunjungan to 7
 Route::post('/erm/elab/visitation/{id}/cancel', [\App\Http\Controllers\ERM\ElabController::class, 'cancelVisitation'])
     ->middleware('role:Lab|Admin')

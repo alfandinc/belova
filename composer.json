@@ -10,6 +10,7 @@
         "bacon/bacon-qr-code": "2.0.8",
         "barryvdh/laravel-dompdf": "^3.1",
         "intervention/image-laravel": "^1.5",
+        "khanamiryan/qrcode-detector-decoder": "^2.0",
         "laravel/framework": "^11.31",
         "laravel/tinker": "^2.9",
         "maatwebsite/excel": "^3.1",
