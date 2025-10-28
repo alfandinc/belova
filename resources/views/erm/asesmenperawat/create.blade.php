@@ -47,6 +47,75 @@
     <!-- end page title end breadcrumb -->
 
 @include('erm.partials.card-identitaspasien')
+    
+    @if(isset($visitation) && isset($visitation->dokter->spesialisasi) && strtolower($visitation->dokter->spesialisasi->nama) === 'estetika')
+    @php
+        $existingSkincheck = \App\Models\ERM\HasilSkincheck::where('visitation_id', $visitation->id)->latest()->first();
+    @endphp
+    <div class="card mt-3">
+        <div class="card-body py-2">
+            <div class="row">
+                <div class="col-md-5">
+                    <form id="skincheck-form" enctype="multipart/form-data" onsubmit="return false;">
+                        @csrf
+                        <input type="hidden" name="visitation_id" value="{{ $visitation->id }}">
+                        <input type="hidden" id="skincheck_url_hidden" name="skincheck_url" value="{{ $existingSkincheck->decoded_text ?? '' }}">
+                        <input type="hidden" id="skincheck_pasien_id" name="pasien_id" value="{{ $visitation->pasien_id }}">
+
+                        <label class="font-weight-bold d-block mb-1">Hasil Skincheck (QR)</label>
+                        <div class="input-group input-group-sm mb-2">
+                            <div class="custom-file">
+                                <input type="file" accept="image/*" id="qr_file_input" class="custom-file-input">
+                                <label class="custom-file-label" for="qr_file_input">Pilih file...</label>
+                            </div>
+                        </div>
+
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="btn-group btn-group-sm" role="group" aria-label="skincheck-actions">
+                                <button type="button" id="check_skincheck" class="btn btn-outline-primary">Check URL</button>
+                                <button type="button" id="save_skincheck" class="btn btn-primary">Simpan</button>
+                                <button type="button" id="reset_skincheck" class="btn btn-link text-secondary">Reset</button>
+                            </div>
+                            <a href="#" id="qr_decoded_link" class="btn btn-sm btn-success ml-2" style="display:{{ ($existingSkincheck && $existingSkincheck->url) ? '' : 'none' }};">Lihat Hasil</a>
+                        </div>
+
+                        <small class="form-text text-muted mb-2">Upload QR image, lalu klik <strong>Check URL</strong> untuk memeriksa hasil sebelum menyimpan.</small>
+
+                        <div class="d-flex align-items-start">
+                            <div id="qr_preview_wrapper" style="display:{{ $existingSkincheck ? 'block' : 'none' }};">
+                                <img id="qr_preview" src="{{ $existingSkincheck ? asset('storage/'.$existingSkincheck->qr_image) : '#' }}" alt="QR Preview" class="img-thumbnail" style="width:80px; height:auto;">
+                            </div>
+                            <div class="ml-3 w-100">
+                                <div id="qr_decoded_text" class="small text-muted" style="max-height:64px; overflow:hidden; word-break:break-word;">{{ $existingSkincheck->decoded_text ?? '' }}</div>
+                                <div id="qr_status" class="small text-success mt-1"></div>
+                                <div id="qr_loading" style="display:none; font-size:13px;">Memproses QR...</div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="col-md-7 border-left pl-4">
+                    <h6 class="mb-2">Riwayat Skincheck Pasien</h6>
+                    <div class="table-responsive" style="max-height:220px; overflow:auto;">
+                        <table id="riwayat-skincheck-table" class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:110px">Waktu</th>
+                                    <th style="width:80px">Preview</th>
+                                    <th>Decoded</th>
+                                    <th style="width:80px">Link</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- loaded via AJAX -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
                 
     <div class="card">
         <div class="card-body">
@@ -757,4 +826,273 @@
 
 });
 </script>
+
+<script>
+// JS to handle standalone Hasil Skincheck form (preview + server-side decode via Check URL)
+document.addEventListener('DOMContentLoaded', function () {
+    var fileInput = document.getElementById('qr_file_input');
+    var preview = document.getElementById('qr_preview');
+    var previewWrapper = document.getElementById('qr_preview_wrapper');
+    var decodedLink = document.getElementById('qr_decoded_link');
+    var statusEl = document.getElementById('qr_status');
+    var loading = document.getElementById('qr_loading');
+    var saveBtn = document.getElementById('save_skincheck');
+    var resetBtn = document.getElementById('reset_skincheck');
+    var hiddenUrl = document.getElementById('skincheck_url_hidden');
+
+    var serverDecoded = null; // result from server-side decode when using Check URL
+    var lastFile = null;
+
+    if (!fileInput) return;
+
+    fileInput.addEventListener('change', function (e) {
+        var file = e.target.files[0];
+        lastFile = file || null;
+        serverDecoded = null;
+        statusEl.textContent = '';
+        decodedLink.textContent = '';
+        hiddenUrl.value = '';
+
+        if (!file) {
+            previewWrapper.style.display = 'none';
+            return;
+        }
+
+        // update custom file label (Bootstrap 4 custom-file)
+        try {
+            var label = document.querySelector('label[for="qr_file_input"].custom-file-label');
+            if (!label) label = document.querySelector('.custom-file-label');
+            if (label) label.textContent = file.name;
+        } catch (e) {}
+
+        // show preview only; do NOT attempt client-side decode
+        var reader = new FileReader();
+        reader.onload = function (ev) {
+            preview.src = ev.target.result;
+            previewWrapper.style.display = 'block';
+            var decTextEl = document.getElementById('qr_decoded_text');
+            if (decTextEl) decTextEl.textContent = '';
+        };
+        reader.readAsDataURL(file);
+    });
+
+    var checkBtn = document.getElementById('check_skincheck');
+
+    // Check button: upload file to decode endpoint and show decoded text/url (no DB save)
+    if (checkBtn) {
+        checkBtn.addEventListener('click', function () {
+            if (!lastFile) {
+                statusEl.style.color = 'red';
+                statusEl.textContent = 'Pilih file QR terlebih dahulu.';
+                return;
+            }
+
+            var form = new FormData();
+            form.append('qr_image', lastFile);
+
+            loading.style.display = 'block';
+            statusEl.textContent = '';
+
+            $.ajax({
+                url: '{{ route('erm.hasil_skincheck.decode') }}',
+                method: 'POST',
+                data: form,
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    loading.style.display = 'none';
+                    serverDecoded = res.decoded_text || null;
+                    if (serverDecoded) {
+                        document.getElementById('qr_decoded_text').textContent = serverDecoded;
+                        if (res.url) {
+                            decodedLink.href = res.url;
+                            decodedLink.style.display = '';
+                            decodedLink.className = 'btn btn-sm btn-success ml-2';
+                            decodedLink.textContent = 'Lihat Hasil';
+                        } else {
+                            decodedLink.href = '#';
+                            decodedLink.style.display = 'none';
+                            decodedLink.textContent = '';
+                            decodedLink.className = 'btn btn-sm btn-success ml-2';
+                        }
+                        statusEl.style.color = 'green';
+                        statusEl.textContent = 'Decoded by server. You can save the skincheck.';
+                        hiddenUrl.value = serverDecoded;
+                    } else {
+                        statusEl.style.color = 'orange';
+                        statusEl.textContent = 'Server could not decode the image.';
+                        hiddenUrl.value = '';
+                        decodedLink.href = '#';
+                        decodedLink.style.display = 'none';
+                        decodedLink.textContent = '';
+                        decodedLink.className = 'btn btn-sm btn-success ml-2';
+                    }
+                },
+                error: function (xhr) {
+                    loading.style.display = 'none';
+                    statusEl.style.color = 'red';
+                    var msg = 'Gagal mendecode di server.';
+                    if (xhr.responseJSON?.message) msg = xhr.responseJSON.message;
+                    statusEl.textContent = msg;
+                }
+            });
+        });
+    }
+
+    // Save button: upload the image and decoded text (if any)
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function () {
+            if (!lastFile) {
+                statusEl.style.color = 'red';
+                statusEl.textContent = 'Pilih file QR terlebih dahulu.';
+                return;
+            }
+
+            var form = new FormData();
+                form.append('visitation_id', '{{ $visitation->id }}');
+                form.append('pasien_id', document.getElementById('skincheck_pasien_id')?.value || '');
+            form.append('qr_image', lastFile);
+            // prefer serverDecoded (from Check URL) if available
+            if (serverDecoded) {
+                form.append('decoded_text', serverDecoded);
+            }
+
+            loading.style.display = 'block';
+            statusEl.textContent = '';
+
+            $.ajax({
+                url: '{{ route('erm.hasil_skincheck.store') }}',
+                method: 'POST',
+                data: form,
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    loading.style.display = 'none';
+                    statusEl.style.color = 'green';
+                    statusEl.textContent = 'Tersimpan ke Hasil Skincheck.';
+                    if (res.data?.url) {
+                        decodedLink.href = res.data.url;
+                        decodedLink.textContent = 'Lihat Hasil';
+                        decodedLink.style.display = '';
+                        decodedLink.className = 'btn btn-sm btn-success ml-2';
+                    }
+                    Swal.fire({ title: 'Sukses', text: res.message || 'Hasil skincheck tersimpan', icon: 'success' });
+                    // refresh riwayat table if DataTable is present, otherwise do a full reload
+                    try {
+                        if ($.fn.DataTable && $('#riwayat-skincheck-table').length) {
+                            var dt = $('#riwayat-skincheck-table').DataTable();
+                            if (dt && dt.ajax) {
+                                dt.ajax.reload(null, false);
+                            } else {
+                                setTimeout(function () { location.reload(); }, 700);
+                            }
+                        } else {
+                            setTimeout(function () { location.reload(); }, 700);
+                        }
+                    } catch (e) {
+                        setTimeout(function () { location.reload(); }, 700);
+                    }
+                },
+                error: function (xhr) {
+                    loading.style.display = 'none';
+                    statusEl.style.color = 'red';
+                    var msg = 'Gagal menyimpan hasil skincheck.';
+                    if (xhr.responseJSON?.message) msg = xhr.responseJSON.message;
+                    statusEl.textContent = msg;
+                }
+            });
+        });
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+            fileInput.value = null;
+            if (previewWrapper) previewWrapper.style.display = 'none';
+            if (preview) preview.src = '#';
+            if (decodedLink) decodedLink.href = '#';
+            if (decodedLink) decodedLink.textContent = '';
+            if (decodedLink) decodedLink.style.display = 'none';
+            if (statusEl) statusEl.textContent = '';
+            if (hiddenUrl) hiddenUrl.value = '';
+            lastFile = null; serverDecoded = null;
+        });
+    }
+});
+</script>
+
+<script>
+    // Initialize DataTable for riwayat (AJAX-backed)
+    (function () {
+        $(function () {
+            var tableEl = $('#riwayat-skincheck-table');
+            var pasienId = $('#skincheck_pasien_id').val();
+            if (!pasienId) {
+                // no pasien_id available — show empty placeholder
+                tableEl.find('tbody').html('<tr><td colspan="4" class="small text-muted">Belum ada pasien terpilih.</td></tr>');
+                return;
+            }
+
+            if (tableEl.length && $.fn.DataTable) {
+                tableEl.DataTable({
+                    processing: true,
+                    serverSide: true,
+                    ajax: {
+                        url: '{{ route('erm.hasil_skincheck.riwayat') }}',
+                        type: 'GET',
+                        data: function (d) {
+                            d.pasien_id = pasienId;
+                        }
+                    },
+                    pageLength: 5,
+                    searching: false,
+                    info: false,
+                    ordering: true,
+                    order: [[0, 'desc']],
+                    columns: [
+                        { data: 'created_at', name: 'created_at' },
+                        {
+                            data: 'qr_image',
+                            name: 'qr_image',
+                            render: function (data) {
+                                if (data) return '<button type="button" class="btn btn-sm btn-outline-secondary btn-view-qr" data-src="' + data + '">Lihat QR</button>';
+                                return '-';
+                            }
+                        },
+                        {
+                            data: 'decoded_text',
+                            name: 'decoded_text',
+                            render: function (data) {
+                                var txt = data || '';
+                                var escaped = $('<div>').text(txt).html();
+                                return '<div class="small text-truncate" style="max-width:360px">' + escaped + '</div>';
+                            }
+                        },
+                        {
+                            data: 'url',
+                            name: 'url',
+                            render: function (data) {
+                                if (data) return '<a href="' + data + '" target="_blank" class="btn btn-sm btn-outline-primary">Buka</a>';
+                                return '<span class="small text-muted">-</span>';
+                            }
+                        }
+                    ],
+                    columnDefs: [
+                        { orderable: false, targets: [1, 3] }
+                    ]
+                });
+            }
+
+            // delegated handler for Lihat QR buttons
+            $(document).on('click', '.btn-view-qr', function (e) {
+                e.preventDefault();
+                var src = $(this).data('src');
+                if (src) {
+                    $('#modalQrImage').attr('src', src);
+                    $('#modalQrPreview').modal('show');
+                }
+            });
+        });
+    })();
+</script>
+
 @endsection
