@@ -94,15 +94,16 @@ class KartuStokController extends Controller
                 
                 $kartuStokData = $kartuStokQuery
                     ->select(
-                        'ks.qty as jumlah', 
-                        'ks.tanggal as created_at', 
-                        'ks.tipe', 
-                        'ks.keterangan',
-                        'ks.ref_type',
-                        'ks.ref_id',
-                        'ks.batch',
-                        'ks.stok_setelah',
-                        'g.nama as nama_gudang'
+                        'ks.id',
+                            'ks.qty as jumlah', 
+                            'ks.tanggal as created_at', 
+                            'ks.tipe', 
+                            'ks.keterangan',
+                            'ks.ref_type',
+                            'ks.ref_id',
+                            'ks.batch',
+                            'ks.stok_setelah',
+                            'g.nama as nama_gudang'
                     )
                     ->orderBy('ks.tanggal', 'desc')  // Terbaru di atas
                     ->orderBy('ks.id', 'desc')       // Jika tanggal sama, ID terbesar dulu
@@ -110,6 +111,14 @@ class KartuStokController extends Controller
 
                 // Process kartu stok data
                 $rows = [];
+
+                // Get distinct batches for this obat to compute totals across batches
+                $batches = DB::table('erm_kartu_stok')
+                    ->where('obat_id', $obatId)
+                    ->select('batch')
+                    ->distinct()
+                    ->pluck('batch');
+
                 foreach ($kartuStokData as $row) {
                     // Format reference info dengan nomor dokumen asli
                     $refInfo = '';
@@ -171,8 +180,47 @@ class KartuStokController extends Controller
                     // Format jumlah dengan styling
                     $jumlahFormatted = '<strong>' . number_format($row->jumlah, 0) . '</strong>';
                     
-                    // Format stok setelah
-                    $stokFormatted = '<span class="badge badge-secondary">' . number_format($row->stok_setelah, 0) . '</span>';
+                    // Compute total stock across all batches as of this transaction's timestamp
+                    $totalAll = 0;
+                    try {
+                        foreach ($batches as $batchVal) {
+                            // For null/empty batch values, match where batch is null OR empty string
+                            $batchQuery = DB::table('erm_kartu_stok')->where('obat_id', $obatId);
+                            if (is_null($batchVal) || $batchVal === '') {
+                                $batchQuery->where(function($q) {
+                                    $q->whereNull('batch')->orWhere('batch', '');
+                                });
+                            } else {
+                                $batchQuery->where('batch', $batchVal);
+                            }
+
+                            // Only consider records up to and including this transaction time (and id tie-breaker)
+                            $batchQuery->where(function($q) use ($row) {
+                                $q->where('tanggal', '<', $row->created_at)
+                                  ->orWhere(function($q2) use ($row) {
+                                      $q2->where('tanggal', '=', $row->created_at)->where('id', '<=', isset($row->id) ? $row->id : 0);
+                                  });
+                            });
+
+                            $latest = $batchQuery->orderBy('tanggal', 'desc')->orderBy('id', 'desc')->first();
+                            if ($latest && isset($latest->stok_setelah)) {
+                                $totalAll += (float)$latest->stok_setelah;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // In case of any error, fall back to using the per-row stok_setelah only
+                        $totalAll = (float)$row->stok_setelah;
+                    }
+
+                    // Format stok setelah (per-batch) and also show total across all batches
+                    // Use centered layout and small muted label so alignment matches other cells
+                    $stokFormatted = '<div class="d-flex flex-column align-items-center">';
+                    $stokFormatted .= '<div><span class="badge badge-secondary">' . number_format($row->stok_setelah, 0) . '</span></div>';
+                    $stokFormatted .= '<div class="mt-1 text-center">';
+                    $stokFormatted .= '<small class="text-muted d-block">Total semua<br/>batch</small>';
+                    $stokFormatted .= '<span class="badge badge-dark mt-1">' . number_format($totalAll, 0) . '</span>';
+                    $stokFormatted .= '</div>';
+                    $stokFormatted .= '</div>';
                     
                     // Format keterangan dengan gudang info
                     $infoFormatted = $row->keterangan;
