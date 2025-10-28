@@ -316,22 +316,24 @@ $(function() {
                     debugInfo += `<p>Global Pajak: Rp${parseFloat(res.faktur.global_pajak || 0).toLocaleString('id-ID')}</p>`;
                     debugInfo += `<p>Total: Rp${parseFloat(res.faktur.total || 0).toLocaleString('id-ID')}</p>`;
                     debugInfo += `<p>Calculated Subtotal: Rp${parseFloat(res.faktur.invoiceSubtotalCalculated || 0).toLocaleString('id-ID')}</p>`;
+                    // Keep the items table minimal: only columns necessary for the HPP formula
                     debugInfo += `<h4>Items Info</h4>`;
                     debugInfo += `<table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Obat</th>
-                                <th>Qty</th>
-                                <th>Harga</th>
-                                <th>Item Value</th>
-                                <th>Item Tax</th>
-                                <th>Global Tax Portion</th>
-                                <th>Old HPP</th>
-                                <th>Old Stok</th>
-                                <th>Purchase Cost</th>
-                                <th>New Stok</th>
-                                <th>New HPP</th>
-                                <th>Formula Breakdown</th>
+                                <th>Old Stock</th>
+                                <th>Qty (received)</th>
+                                <th>Purchase Cost<br><small class="text-muted">(total)</small></th>
+                                <!-- HPP group side-by-side -->
+                                <th>Old HPP<br><small class="text-muted">(Rp/unit)</small></th>
+                                <th>HPP/unit<br><small class="text-muted">(purchase)</small></th>
+                                <th>New HPP<br><small class="text-muted">(Rp/unit)</small></th>
+                                <!-- Selling HPP (Jual) -->
+                                <th>HPP Jual/unit<br><small class="text-muted">(selling)</small></th>
+                                <th>New HPP Jual<br><small class="text-muted">(Rp/unit)</small></th>
+                                <th>New Stock</th>
+                                <th>Formula (concise)</th>
                             </tr>
                         </thead>
                         <tbody>`;
@@ -349,26 +351,25 @@ $(function() {
                         let deltaSimple = `Selisih (simple): ${fmt(item.selisihHpp_simple)}`;
                         let deltaSimpleJual = `Selisih Jual (simple): ${fmt(item.selisihHppJual_simple)}`;
 
+                        // Row must match the header order and show HPP columns side-by-side (purchase + jual)
+                        let conciseFormulaPurchase = `(${fmt(item.oldHpp)} + ${fmt(item.hppPerUnit)}) / 2 = ${fmt(item.newHpp)}`;
+                        let conciseFormulaJual = item.hppJualPerUnit ? `(${fmt(item.oldHppJual)} + ${fmt(item.hppJualPerUnit)}) / 2 = ${fmt(item.newHppJual)}` : '';
+                        let conciseDeltaPurchase = `<em>${deltaSimple}</em>`;
+                        let conciseDeltaJual = item.selisihHppJual_simple ? `<br><em>${fmt(item.selisihHppJual_simple)}</em>` : '';
                         debugInfo += `<tr>
                             <td>${item.obat_nama}</td>
-                            <td>${item.qty}</td>
-                            <td>${fmt(item.harga)}</td>
-                            <td>${fmt(item.itemSubtotal)}</td>
-                            <td>${fmt(item.tax_value || item.itemTax)}</td>
-                            <td>${fmt(item.globalTaxPortion)}</td>
-                            <td>${fmt(item.oldHpp)}</td>
                             <td>${num(item.oldStok)}</td>
+                            <td>${num(item.qty)}</td>
                             <td>${fmt(item.purchaseCost)}</td>
-                            <td>${num(item.newStok)}</td>
+                            <td>${fmt(item.oldHpp)}</td>
+                            <td>${fmt(item.hppPerUnit)}</td>
                             <td>${fmt(item.newHpp)}</td>
-                            <td style="font-size: 0.9em;">
-                                <strong>HPP/unit:</strong> ${fmt(item.hppPerUnit)}<br>
-                                <strong>Formula used by system:</strong><br>${simpleFormula}<br>
-                                <em>${deltaSimple}</em>
-                                <hr>
-                                <strong>HPP Jual (per unit):</strong> ${fmt(item.hppJualPerUnit)}<br>
-                                <strong>Formula used by system (HPP Jual):</strong><br> ${simpleFormula.replace(/New HPP/g, 'New HPP Jual').replace(item.newHpp, item.newHppJual)}<br>
-                                <em>${deltaSimpleJual}</em>
+                            <td>${fmt(item.hppJualPerUnit || 0)}</td>
+                            <td>${fmt(item.newHppJual || 0)}</td>
+                            <td>${num(item.newStok)}</td>
+                            <td style="font-size:0.9em;">
+                                <strong>Purchase HPP:</strong><br>${conciseFormulaPurchase}<br>${conciseDeltaPurchase}
+                                ${ conciseFormulaJual ? `<hr><strong>Selling HPP:</strong><br>${conciseFormulaJual}${conciseDeltaJual}` : '' }
                             </td>
                         </tr>`;
                     });
