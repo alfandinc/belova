@@ -208,14 +208,14 @@ class VisitationController extends Controller
     public function storeRujuk(Request $request)
     {
         $request->validate([
-            'pasien_id' => 'required|exists:erm_pasiens,id',
-            'dokter_id' => 'required|string', // dokter tujuan
-            'dokter_pengirim_id' => 'required|string',
-            'tanggal_visitation' => 'required|date',
-            'metode_bayar_id' => 'required',
+            'pasien_id' => 'required',
+            'dokter_id' => 'required', // dokter tujuan
+            'dokter_pengirim_id' => 'required',
+            'tanggal_visitation' => 'required',
+            'metode_bayar_id' => 'nullable',
             // klinik_id will be derived from selected dokter
-            'jenis_permintaan' => 'required|string',
-            'no_antrian' => 'nullable|numeric',
+            'jenis_permintaan' => 'nullable',
+            'no_antrian' => 'nullable',
         ]);
 
         // Create visitation similar to store()
