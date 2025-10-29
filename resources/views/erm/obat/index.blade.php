@@ -235,8 +235,7 @@
                         <th>Zat Aktif</th>
                         <th>Status</th>
                         <th>Aksi</th>
-                           <th>Pemasok</th>
-                           <th>Principal</th>
+                           <th>Farmasi</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -443,15 +442,8 @@
                     orderable: false, 
                     searchable: false,
                     render: function (data, type, row) {
-                        return '<button class="btn btn-sm btn-info btn-relations" data-id="'+row.id+'">Detail</button>';
-                    }
-                },
-                { 
-                    data: null, 
-                    orderable: false, 
-                    searchable: false,
-                    render: function (data, type, row) {
-                        return '<button class="btn btn-sm btn-secondary btn-relations" data-id="'+row.id+'">Detail</button>';
+                        // Single relations button that opens the modal showing both Pemasok and Principal
+                        return '<button class="btn btn-sm btn-info btn-relations" data-id="'+row.id+'">Relasi</button>';
                     }
                 }
             ]
