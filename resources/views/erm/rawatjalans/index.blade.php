@@ -1293,13 +1293,17 @@ var userRole = "{{ $role }}";
                 },
                 success: function(res2) {
                     if (res2.data && res2.data.length > 0) {
-                        let html = '<table class="table table-bordered"><thead><tr><th>Waktu</th><th>Nama Pasien</th><th>Dokter Pengirim</th><th>Dokter Tujuan</th><th>Jenis</th><th>Penunjang</th><th>Keterangan</th></tr></thead><tbody>';
+                        let html = '<table class="table table-bordered"><thead><tr><th>Waktu</th><th>Nama Pasien</th><th>Dokter Pengirim</th><th>Dokter Tujuan</th><th>Jenis</th><th>Penunjang</th><th>Surat</th><th>Keterangan</th></tr></thead><tbody>';
                         res2.data.forEach(function(item) {
                             let waktu = new Date(item.created_at).toLocaleString();
                             let pasien = item.pasien ? item.pasien.nama : '-';
                             let dokterPengirim = item.dokter_pengirim_id && item.dokter_pengirim ? item.dokter_pengirim.user.name : '-';
                             let dokterTujuan = item.dokter_tujuan_id && item.dokter_tujuan ? item.dokter_tujuan.user.name : '-';
-                            html += `<tr><td>${waktu}</td><td>${pasien}</td><td>${dokterPengirim}</td><td>${dokterTujuan}</td><td>${item.jenis_permintaan}</td><td>${item.penunjang || '-'}</td><td>${item.keterangan || '-'}</td></tr>`;
+                            // Build surat link/button (opens printable page in new tab) using named route template to avoid prefix issues
+                            const suratTemplate = '{{ route("erm.rujuk.surat", ["id" => "__ID__"]) }}';
+                            const suratUrl = suratTemplate.replace('__ID__', item.id);
+                            const suratBtn = `<a href="${suratUrl}" target="_blank" class="btn btn-sm btn-secondary" title="Cetak Surat"><i class='fas fa-file-pdf'></i> Surat</a>`;
+                            html += `<tr><td>${waktu}</td><td>${pasien}</td><td>${dokterPengirim}</td><td>${dokterTujuan}</td><td>${item.jenis_permintaan}</td><td>${item.penunjang || '-'}</td><td>${suratBtn}</td><td>${item.keterangan || '-'}</td></tr>`;
                         });
                         html += '</tbody></table>';
                         $('#rujuk-list-content').html(html);

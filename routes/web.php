@@ -503,6 +503,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
+    Route::get('/rujuk/{id}/surat', [App\Http\Controllers\ERM\RawatJalanController::class, 'printRujukSurat'])->name('erm.rujuk.surat');
     Route::get('/rawatjalans/lab-permintaan', [App\Http\Controllers\ERM\RawatJalanController::class, 'listLabPermintaan'])->name('erm.rawatjalans.labpermintaan');
     Route::get('/rawatjalans/lab-permintaan/visitation/{visitationId}', [App\Http\Controllers\ERM\RawatJalanController::class, 'labPermintaanByVisitation'])->name('erm.rawatjalans.labpermintaan.visitation');
     Route::post('/rawatjalans/create', [RawatJalanController::class, 'store'])->name('erm.rawatjalans.store');

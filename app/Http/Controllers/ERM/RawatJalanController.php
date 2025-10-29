@@ -13,6 +13,7 @@ use App\Models\ERM\ScreeningBatuk;
 use App\Models\ERM\Rujuk;
 use App\Models\ERM\LabPermintaan;
 use Illuminate\Support\Facades\Log;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\PasienMerchandise;
@@ -591,6 +592,39 @@ class RawatJalanController extends Controller
         $rujuks = $query->get();
 
         return response()->json(['data' => $rujuks]);
+    }
+
+    /**
+     * Print / render surat rujuk (consultation letter) view for given rujuk id.
+     * Opens a printable HTML page which user can print to PDF via browser.
+     */
+    public function printRujukSurat($id)
+    {
+        try {
+            $rujuk = Rujuk::with(['pasien', 'dokterPengirim.user', 'dokterTujuan.user', 'visitation'])->findOrFail($id);
+
+            // Calculate age string if tanggal_lahir available
+            $age = null;
+            if ($rujuk->pasien && $rujuk->pasien->tanggal_lahir) {
+                $birth = \Carbon\Carbon::parse($rujuk->pasien->tanggal_lahir);
+                $age = $birth->age;
+            }
+
+            // Generate PDF and stream to browser
+            try {
+                $pdf = Pdf::loadView('erm.rujuk.surat_pdf', compact('rujuk', 'age'))
+                    ->setPaper('a4', 'portrait');
+                // Stream the PDF (opens in browser). Use download() to force download.
+                return $pdf->stream('surat_rujuk_' . $rujuk->id . '.pdf');
+            } catch (\Exception $e) {
+                Log::error('PDF generation failed: ' . $e->getMessage(), ['id' => $id]);
+                // Fallback to HTML view if PDF generation fails
+                return view('erm.rujuk.surat', compact('rujuk', 'age'));
+            }
+        } catch (\Exception $e) {
+            Log::error('printRujukSurat error: ' . $e->getMessage(), ['id' => $id]);
+            abort(404, 'Surat rujuk tidak ditemukan');
+        }
     }
 
     /**
