@@ -373,6 +373,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         try {
             return DataTables::of($processedBillings)
                 ->addIndexColumn()
+            ->addColumn('obat_id', function ($row) {
+                try {
+                    // If this billing row is a ResepFarmasi, expose obat id for frontend
+                    if ($row->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
+                        $resep = $row->billable;
+                        if ($resep && isset($resep->obat)) return $resep->obat->id;
+                    }
+
+                    // If billing row itself references an Obat directly
+                    if ($row->billable_type == 'App\\Models\\ERM\\Obat') {
+                        return $row->billable_id;
+                    }
+                } catch (\Exception $e) {
+                    // swallow and return null
+                }
+                return null;
+            })
             ->addColumn('nama_item', function ($row) {
                     // Use optional() to avoid "property on null" errors when relations are missing
                     if (isset($row->is_racikan) && $row->is_racikan) {
@@ -599,9 +616,29 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // Fetch all billing items for this visitation
             $billingItems = Billing::where('visitation_id', $request->visitation_id)->get();
 
+            // Quick debug log to help determine why stock reduction may be skipped
+            try {
+                Log::info('createInvoice debug payload', [
+                    'visitation_id' => $request->visitation_id,
+                    'existing_invoice_id' => $existingInvoice ? $existingInvoice->id : null,
+                    'existing_invoice_amount_paid' => $existingInvoice ? floatval($existingInvoice->amount_paid ?? 0) : null,
+                    'billing_item_count' => $billingItems->count(),
+                    'totals_present' => $request->has('totals'),
+                    'gudang_selections_present' => $request->has('gudang_selections'),
+                    'gudang_selections_sample' => is_array($request->input('gudang_selections', [])) ? array_slice($request->input('gudang_selections', []), 0, 5) : $request->input('gudang_selections', []),
+                    'totals_payload' => $request->input('totals') ?? null,
+                ]);
+            } catch (\Exception $e) {
+                // do not fail flow if logging fails
+                Log::warning('Failed to write createInvoice debug log: ' . $e->getMessage());
+            }
+
             // Check stock availability for medication items BEFORE creating invoice
+            // If frontend provided per-item gudang selections, prefer validating against
+            // that specific gudang; otherwise fallback to total stock across all gudangs.
             $stockErrors = [];
             $kodeTindakanObats = [];
+            $gudangSelections = $request->input('gudang_selections', []);
             
             foreach ($billingItems as $item) {
                 // Check ResepFarmasi items
@@ -615,9 +652,26 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             continue;
                         }
                         
-                        // Get total stock from all gudang using ObatStokGudang
-                        $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
-                            ->sum('stok');
+                        // If a specific gudang was selected for this billing row, validate against that gudang only.
+                        // Frontend sends keys keyed by billing row id (the DataTable row id). As a secondary
+                        // option we also support the legacy key format "resep_{obatId}".
+                        $billingKey = $item->id;
+                        $selectedGudangId = null;
+                        if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
+                            $selectedGudangId = $gudangSelections[$billingKey];
+                        } elseif (isset($gudangSelections['resep_' . $resep->obat->id]) && $gudangSelections['resep_' . $resep->obat->id]) {
+                            $selectedGudangId = $gudangSelections['resep_' . $resep->obat->id];
+                        }
+
+                        if ($selectedGudangId) {
+                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
+                                ->where('gudang_id', $selectedGudangId)
+                                ->sum('stok');
+                        } else {
+                            // Fallback to total stock across all gudangs (existing behavior)
+                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
+                                ->sum('stok');
+                        }
                         
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
@@ -635,9 +689,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     if ($obat) {
                         $qty = intval($item->qty ?? 1);
                         
-                        // Get total stock from all gudang using ObatStokGudang
-                        $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                            ->sum('stok');
+                        // Respect selected gudang for bundled Obat if provided (key: tindakan_{obatId})
+                        $billingKey = $item->id;
+                        $selectedGudangId = null;
+                        if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
+                            $selectedGudangId = $gudangSelections[$billingKey];
+                        } elseif (isset($gudangSelections['tindakan_' . $obat->id]) && $gudangSelections['tindakan_' . $obat->id]) {
+                            $selectedGudangId = $gudangSelections['tindakan_' . $obat->id];
+                        }
+
+                        if ($selectedGudangId) {
+                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                ->where('gudang_id', $selectedGudangId)
+                                ->sum('stok');
+                        } else {
+                            $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                ->sum('stok');
+                        }
                             
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$obat->nama} (bundled) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
@@ -666,8 +734,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $obat = \App\Models\ERM\Obat::find($kodeTindakanMed->obat_id);
                             if ($obat) {
                                 $qty = intval($kodeTindakanMed->qty ?? 1);
-                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                    ->sum('stok');
+                                // For kode tindakan medications, prefer selected gudang key: kode_tindakan_{obatId}
+                                $billingKey = $item->id;
+                                $selectedGudangId = null;
+                                if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
+                                    $selectedGudangId = $gudangSelections[$billingKey];
+                                } elseif (isset($gudangSelections['kode_tindakan_' . $obat->id]) && $gudangSelections['kode_tindakan_' . $obat->id]) {
+                                    $selectedGudangId = $gudangSelections['kode_tindakan_' . $obat->id];
+                                }
+
+                                if ($selectedGudangId) {
+                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                        ->where('gudang_id', $selectedGudangId)
+                                        ->sum('stok');
+                                } else {
+                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                        ->sum('stok');
+                                }
                                     
                                 if ($qty > $currentStock) {
                                     $stockErrors[] = "Stok {$obat->nama} (kode tindakan) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
@@ -678,7 +761,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     'obat_id' => $obat->id,
                                     'qty' => $qty,
                                     'riwayat_tindakan_id' => $riwayatTindakan->id,
-                                    'kode_tindakan_id' => $kodeTindakanMed->kode_tindakan_id
+                                    'kode_tindakan_id' => $kodeTindakanMed->kode_tindakan_id,
+                                    'billing_id' => $item->id // preserve billing id so we can map gudang selection later
                                 ];
                             }
                         }
@@ -903,14 +987,14 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 // If stock is being reduced (positive diff), reduce faktur stock
                                 if ($qtyDiff > 0) {
                                     // Get gudang selection from frontend or use default mapping
-                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $item->id);
                                     
                                     // Reduce stock from selected gudang
                                     $reduced = $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
                                     if ($reduced) $stockReduced = true;
                                 } else if ($qtyDiff < 0) {
                                     // Get gudang selection for stock return
-                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $item->id);
                                     
                                     // Return stock to selected gudang
                                     $returned = $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
@@ -938,7 +1022,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $qty = intval($item->qty ?? 1);
                             
                             // Get gudang selection for bundled obat
-                            $gudangId = $this->getGudangForItem($request, $obat->id, 'tindakan');
+                            $gudangId = $this->getGudangForItem($request, $obat->id, 'tindakan', $item->id);
                             
                             $reduced = $this->reduceGudangStock($obat->id, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
                             if ($reduced) $stockReduced = true;
@@ -964,7 +1048,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $qty = $kodeTindakanObat['qty'];
                     
                     // Get gudang selection for kode tindakan obat
-                    $gudangId = $this->getGudangForItem($request, $obatId, 'kode_tindakan');
+                    $gudangId = $this->getGudangForItem($request, $obatId, 'kode_tindakan', $kodeTindakanObat['billing_id'] ?? null);
                     
                     $reduced = $this->reduceGudangStock($obatId, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
                     if ($reduced) $stockReduced = true;
@@ -1058,12 +1142,30 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                 }
                 
+                // Compute final amount applying discount (percent or nominal) on unit price, then multiply by qty
+                $unitPrice = floatval($item->jumlah ?? 0);
+                $discountVal = floatval($item->diskon ?? 0);
+                $discountType = $item->diskon_type ?? null;
+                if ($discountVal > 0) {
+                    if ($discountType === '%') {
+                        $unitPriceAfter = $unitPrice - ($unitPrice * ($discountVal / 100));
+                    } else {
+                        $unitPriceAfter = $unitPrice - $discountVal;
+                    }
+                    // Ensure non-negative
+                    $unitPriceAfter = max(0, $unitPriceAfter);
+                } else {
+                    $unitPriceAfter = $unitPrice;
+                }
+                $finalAmountComputed = $unitPriceAfter * intval($item->qty ?? 1);
+
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => $name,
                     'description' => $description,
                     'quantity' => intval($item->qty ?? 1),
-                    'unit_price' => floatval($item->jumlah ?? 0),
+                    // store original unit price (before discount) where available
+                    'unit_price' => $unitPrice,
                     'hpp' => (function() use ($item) {
                         try {
                             if (!empty($item->billable_type) && !empty($item->billable_id)) {
@@ -1109,7 +1211,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     })(),
                     'discount' => floatval($item->diskon ?? 0),
                     'discount_type' => $item->diskon_type ?? null,
-                    'final_amount' => floatval($item->jumlah ?? 0) * intval($item->qty ?? 1),
+                    // final_amount must reflect discount application
+                    'final_amount' => $finalAmountComputed,
                     'billable_type' => $item->billable_type ?? null,
                     'billable_id' => $item->billable_id ?? null,
                 ]);
@@ -1161,12 +1264,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 
                                 // For racikan, we need to handle stock operations via StokService only
                                 if ($qtyDiff > 0) {
-                                    // Get gudang selection for racikan obat
-                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    // Get gudang selection for racikan obat (use billing id)
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
                                     $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
                                 } else if ($qtyDiff < 0) {
                                     // Return stock for negative diff (quantity reduction)
-                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep');
+                                    $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
                                     $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
                                 }
                                 
@@ -1810,24 +1913,29 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     /**
      * Get gudang ID for specific item based on frontend selection or mapping
      */
-    private function getGudangForItem($request, $obatId, $transactionType)
+    private function getGudangForItem($request, $obatId, $transactionType, $billingId = null)
     {
         // Check if frontend sent specific gudang selection for this item
         $gudangSelections = $request->input('gudang_selections', []);
+
+        // 1) Prefer direct billing-id keyed selection (frontend uses billing row id as key)
+        if ($billingId !== null && isset($gudangSelections[$billingId]) && $gudangSelections[$billingId]) {
+            return $gudangSelections[$billingId];
+        }
+
+        // 2) Then check typed key e.g. resep_{obatId}, tindakan_{obatId}, kode_tindakan_{obatId}
         $itemKey = $transactionType . '_' . $obatId;
-        
-        if (isset($gudangSelections[$itemKey])) {
+        if (isset($gudangSelections[$itemKey]) && $gudangSelections[$itemKey]) {
             return $gudangSelections[$itemKey];
         }
-        
-        // Fallback to mapping default
+
+        // 3) Fallback to mapping default
         $defaultGudangId = GudangMapping::getDefaultGudangId($transactionType);
-        
         if ($defaultGudangId) {
             return $defaultGudangId;
         }
-        
-        // Last resort: use first available gudang
+
+        // 4) Last resort: use first available gudang
         $defaultGudang = \App\Models\ERM\Gudang::first();
         return $defaultGudang ? $defaultGudang->id : null;
     }

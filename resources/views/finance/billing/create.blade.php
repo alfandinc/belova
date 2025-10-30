@@ -7,6 +7,17 @@
 
 @include('finance.partials.modal-billing-edititem')
 
+<style>
+    /* Highlight billing row when selected gudang stock is lower than required qty */
+    tr.low-stock {
+        background-color: #f8d7da !important; /* light red */
+    }
+    tr.low-stock .stock-cell {
+        color: #721c24; /* dark red text for stock value */
+        font-weight: 600;
+    }
+</style>
+
 <div class="container-fluid">
     <!-- Prefill billing fields with old invoice data if available -->
     <script>
@@ -47,10 +58,15 @@
     <div class="row mb-4">
         <div class="col">
             <div class="card shadow-sm mt-4">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-user-circle mr-2"></i>Data Pasien
                     </h5>
+                    <div>
+                        <a href="{{ route('finance.billing.index') }}" class="btn btn-danger font-weight-bold px-3" title="Kembali ke daftar billing">
+                            <i class="fas fa-arrow-left mr-2"></i> Kembali ke Daftar Billing
+                        </a>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -79,6 +95,10 @@
                                 <tr>
                                     <td><strong>Tanggal Lahir</strong></td>
                                     <td>: {{ $visitation->pasien->tanggal_lahir }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Nomor Invoice</strong></td>
+                                    <td>: <strong>{{ $invoice?->invoice_number ?? '-' }}</strong></td>
                                 </tr>
                             </table>
                         </div>
@@ -111,6 +131,9 @@
                         </div>
                     </div>
                 </div>
+                <div class="card-body pt-0 pb-3">
+                    <small class="form-text text-muted">*Harap konfirmasi ke unit terkait jika melakukan penambahan item dari halaman billing.</small>
+                </div>
             </div>
         </div>
     </div>
@@ -118,7 +141,7 @@
     <div class="row">
         <div class="col-md-9">
             <div class="card shadow-sm mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-file-invoice-dollar mr-2"></i>Rincian Billing
                     </h5>
@@ -134,7 +157,8 @@
                                     <th style="width: 8%">Harga</th>
                                     <th style="width: 5%">Qty</th>
                                     <th style="width: 12%">Gudang</th>
-                                    <th style="width: 8%">Diskon</th>
+                                    <th style="width: 12%">Stok Tersedia</th>
+                                        <th style="width: 8%">Diskon</th>
                                     <th style="width: 8%">Total</th>
                                     <th style="width: 10%">Aksi</th>
                                 </tr>
@@ -460,6 +484,50 @@
                         return selectHtml;
                     }
                 },
+                {
+                    // New column: show stock available in the selected gudang for this item
+                    data: null,
+                    orderable: false,
+                    searchable: false,
+                    width: "12%",
+                    render: function(data, type, row, meta) {
+                        const isObatItem = row.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || 
+                                         row.billable_type === 'App\\Models\\ERM\\Racikan' ||
+                                         (row.deskripsi && row.deskripsi.toLowerCase().includes('obat')) ||
+                                         (row.nama_item && row.nama_item.toLowerCase().includes('obat'));
+
+                        if (!isObatItem) {
+                            return '<span class="text-muted">-</span>';
+                        }
+
+
+                        // Determine obat id if available (ResepFarmasi -> billable.obat.id) or direct Obat
+                        let obatId = null;
+                        try {
+                            if (row.billable_type === 'App\\Models\\ERM\\ResepFarmasi' && row.billable && row.billable.obat) {
+                                obatId = row.billable.obat.id;
+                            } else if (row.billable_type === 'App\\Models\\ERM\\Obat' && row.billable_id) {
+                                obatId = row.billable_id;
+                            } else if (row.obat_id) {
+                                // sometimes payload uses obat_id directly
+                                obatId = row.obat_id;
+                            } else if (row.billable && row.billable.obat) {
+                                obatId = row.billable.obat.id;
+                            } else {
+                                // Fallback: some client-side-added rows use an id like 'obat-123'
+                                const m = (row.id || '').toString().match(/^obat-(\d+)$/);
+                                if (m) obatId = m[1];
+                            }
+                        } catch (e) {
+                            console.debug('Error detecting obatId for row', row, e);
+                            obatId = null;
+                        }
+
+                        // Placeholder - will be filled by AJAX after draw
+                        const itemId = row.id;
+                        return '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + (obatId || '') + '">-</span>';
+                    }
+                },
                 { data: 'diskon', name: 'diskon', width: "8%" },
                 { data: 'harga_akhir', name: 'harga_akhir', width: "8%",
                   render: function(data, type, row) {
@@ -535,6 +603,12 @@
                 // Force table width to match parent container
                 $(this).css('width', '100%');
                 calculateTotals();
+                // Update stock cells for visible rows
+                try {
+                    updateAllStockCells();
+                } catch (e) {
+                    console.error('Failed to update stock cells:', e);
+                }
             }
         });
         
@@ -555,7 +629,119 @@
             }
             
             console.log('Gudang selection updated for item', itemId, 'to gudang', selectedGudangId);
+            // Refresh stock cell for this row
+            const $cell = $('.stock-cell[data-item-id="' + itemId + '"]');
+            if ($cell.length) {
+                loadStockForCell($cell);
+            }
         });
+
+        // Load stock info for a given stock-cell element
+        function loadStockForCell($cell) {
+            const itemId = $cell.data('item-id');
+            const obatId = $cell.data('obat-id');
+            if (!obatId) {
+                $cell.text('-');
+                return;
+            }
+
+            // Try to get selected gudang from select element first
+            let gudangId = $('select.gudang-selector[data-item-id="' + itemId + '"]').val();
+
+            // If not available, try from billingData
+            if (!gudangId) {
+                const item = billingData.find(i => i.id == itemId);
+                if (item && item.selected_gudang_id) gudangId = item.selected_gudang_id;
+            }
+
+            // If still not available, determine default gudang for this item via server-loaded mapping
+            if (!gudangId) {
+                const item = billingData.find(i => i.id == itemId);
+                if (item) gudangId = getDefaultGudangForItem(item);
+            }
+
+            if (!gudangId) {
+                $cell.text('-');
+                return;
+            }
+
+            // Call batch-details endpoint and sum stok
+            // Show loading indicator
+            $cell.text('...');
+            $.getJSON("{{ route('erm.stok-gudang.batch-details') }}", { obat_id: obatId, gudang_id: gudangId })
+                .done(function(resp) {
+                    try {
+                        const data = resp.data || [];
+                        let total = 0;
+                        data.forEach(function(d) {
+                            // prefer numeric stok if present, fallback to stok_display parsing
+                            if (typeof d.stok !== 'undefined') {
+                                total += parseFloat(d.stok) || 0;
+                            } else if (d.stok_display) {
+                                // remove formatting
+                                const num = d.stok_display.toString().replace(/[^0-9\-]/g, '');
+                                total += parseFloat(num) || 0;
+                            }
+                        });
+
+                        // If no batch rows found, show 0 instead of '-'
+                        if (data.length === 0) {
+                            $cell.text('0');
+                        } else {
+                            $cell.text(total);
+                        }
+
+                        // Determine required qty for this billing row
+                        let qty = 1;
+                        try {
+                            const item = billingData.find(i => i.id == itemId);
+                            if (item) {
+                                // racikan uses racikan_bungkus as qty in this UI
+                                if (item.is_racikan && typeof item.racikan_bungkus !== 'undefined') {
+                                    qty = parseInt(item.racikan_bungkus) || 1;
+                                } else {
+                                    qty = parseInt(item.qty) || 1;
+                                }
+                            } else {
+                                // fallback: try to read Qty cell from the row (column index may vary)
+                                const qText = $cell.closest('tr').find('td').eq(4).text().trim();
+                                const qNum = qText.replace(/[^0-9]/g, '');
+                                qty = qNum ? parseInt(qNum) : 1;
+                            }
+                        } catch (err) {
+                            console.debug('Failed to determine qty for item', itemId, err);
+                            qty = 1;
+                        }
+
+                        // Mark row as low-stock if total < qty
+                        const $tr = $cell.closest('tr');
+                        if (Number(total) < Number(qty)) {
+                            $tr.addClass('low-stock');
+                        } else {
+                            $tr.removeClass('low-stock');
+                        }
+
+                        console.debug('Batch details loaded', { obatId: obatId, gudangId: gudangId, total: total, qty: qty, raw: resp });
+                    } catch (e) {
+                        console.error('Error parsing batch-details response', e, resp);
+                            $cell.text('-');
+                            $cell.closest('tr').removeClass('low-stock');
+                    }
+                })
+                .fail(function(xhr) {
+                    console.error('Failed to load batch details for obat', obatId, 'gudang', gudangId, xhr);
+                    // If server returned 404/500 or network failed, keep '-' to indicate unknown
+                        $cell.text('-');
+                        $cell.closest('tr').removeClass('low-stock');
+                });
+        }
+
+        // Update all visible stock cells
+        function updateAllStockCells() {
+            $('.stock-cell').each(function() {
+                loadStockForCell($(this));
+            });
+        }
         
         // Refresh table when gudang data is loaded
         function refreshTableAfterGudangLoad() {
@@ -1133,16 +1319,55 @@ $('#saveAllChangesBtn').on('click', function() {
                                     var icon = stockReduced ? 'success' : 'warning';
                                     var html = 'Invoice berhasil dibuat dengan nomor: <strong>' + (invoiceResponse.invoice_number || invoiceResponse.invoice_number) + '</strong>';
                                     if (stockMessage) {
-                                        html += '<br><small style="display:block;margin-top:8px;color:#555;">' + stockMessage + '</small>';
+                                        // Convert the message to UPPERCASE and emphasize the 'STOK TIDAK DIKURANGI' part
+                                        try {
+                                            var emphasized = (stockMessage || '').toString().toUpperCase();
+                                            emphasized = emphasized.replace(/(STOK TIDAK DIKURANGI)/g, '<strong>$1</strong>');
+                                        } catch (e) {
+                                            var emphasized = (stockMessage || '').toString().toUpperCase();
+                                        }
+                                        html += '<br><small style="display:block;margin-top:8px;color:#555;">' + emphasized + '</small>';
                                     }
 
+                                    // Build print URL using the returned invoice id
+                                    var invoiceId = invoiceResponse.invoice_id || invoiceResponse.id || (invoiceResponse.invoice && invoiceResponse.invoice.id) || null;
+                                    var printUrl = invoiceId ? ('{{ url('/finance/invoice') }}/' + invoiceId + '/print-nota') : null;
+
+                                    // Show the Swal with a side-by-side 'Cetak Nota' (confirm) and 'Tutup' (cancel) buttons
                                     Swal.fire({
                                         title: 'Berhasil!',
                                         html: html,
                                         icon: icon,
-                                        confirmButtonText: 'OK'
-                                    }).then(() => {
-                                        window.location.href = "{{ route('finance.billing.index') }}";
+                                        showCancelButton: true,
+                                        confirmButtonText: 'Cetak Nota',
+                                        cancelButtonText: 'Tutup',
+                                        allowOutsideClick: false
+                                    }).then(function(result) {
+                                        if (result.value) {
+                                            if (printUrl) {
+                                                // Show the print page inside a modal (iframe) and let user print from there
+                                                // Render preview with an iframe and a custom Print button inside the HTML.
+                                                // We hide the built-in confirm button and use the Cancel button as the "Tutup" close control.
+                                                Swal.fire({
+                                                    title: 'Preview Cetak Nota',
+                                                    html: '<div style="min-height:70vh"><iframe id="print-frame" src="' + printUrl + '" frameborder="0" style="width:100%;height:68vh"></iframe></div>',
+                                                    width: '90%',
+                                                    showCloseButton: true,
+                                                    showCancelButton: false,
+                                                    showConfirmButton: false,
+                                                    allowOutsideClick: false,
+                                                    allowEscapeKey: false
+                                                });
+                                            } else {
+                                                // If print URL isn't available, show an informative alert
+                                                Swal.fire({
+                                                    title: 'Info',
+                                                    text: 'URL cetak nota tidak tersedia.',
+                                                    icon: 'info'
+                                                });
+                                            }
+                                        }
+                                        // If cancelled (Tutup) do nothing — keep user on billing page
                                     });
                                 },
                                 error: function(xhr) {

@@ -96,6 +96,12 @@
             padding: 0;
             vertical-align: top;
         }
+        .item-table .discount-inline {
+            white-space: nowrap;
+            display: inline-block;
+            font-size: 7pt;
+            font-weight: normal;
+        }
         .item-table .qty-price {
             width: 60%;
             font-size: 8pt;
@@ -232,12 +238,27 @@
             $lineFinal = $item->final_amount ?? $lineNoDisc;
             $lineDisc = $lineNoDisc - $lineFinal;
 
+            // Detect percent-style discount types (support both '%' and 'percent')
+            $discountTypeRaw = isset($item->discount_type) ? strtolower($item->discount_type) : null;
+            $isPercentType = in_array($discountTypeRaw, ['%', 'percent', 'percentage']);
+
             // Fallback to explicit discount fields if final_amount didn't show a discount
             if (($lineDisc <= 0) && isset($item->discount) && $item->discount > 0) {
-                if (isset($item->discount_type) && $item->discount_type === 'percent') {
+                if ($isPercentType) {
+                    // discount field may be stored as percent value (e.g. 10 for 10%)
                     $lineDisc = ($item->discount / 100) * $lineNoDisc;
                 } else {
                     $lineDisc = $item->discount;
+                }
+            }
+
+            // Prepare display labels: if percent-type, compute percent value to show
+            $displayPercent = null;
+            if ($isPercentType) {
+                if (isset($item->discount) && is_numeric($item->discount)) {
+                    $displayPercent = floatval($item->discount);
+                } elseif ($lineNoDisc > 0) {
+                    $displayPercent = round(($lineDisc / $lineNoDisc) * 100, 2);
                 }
             }
         @endphp
@@ -250,7 +271,13 @@
                 </tr>
                 @if($lineDisc > 0)
                 <tr>
-                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">Diskon: -{{ number_format($lineDisc, 0, ',', '.') }}</td>
+                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
+                        @if($displayPercent !== null)
+                            <span class="discount-inline">Diskon: -{{ rtrim(rtrim(number_format($displayPercent, 2, ',', '.'), '0'), ',') }}% @if($lineDisc > 0) (-{{ number_format($lineDisc, 0, ',', '.') }}) @endif</span>
+                        @else
+                            <span class="discount-inline">Diskon: -{{ number_format($lineDisc, 0, ',', '.') }}</span>
+                        @endif
+                    </td>
                     <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
                 </tr>
                 @endif
@@ -282,10 +309,13 @@
 
                 // Sum per-item discounts as a fallback when invoice-level discount is not set.
                 $itemDiscountTotal = 0;
+                $itemDiscountBaseSum = 0; // sum of line totals used to compute percent for item discounts
+                $subtotalLineTotals = 0; // sum of all line totals (unit * qty) to compute invoice-level discount share
                 foreach ($invoice->items as $it) {
                     $qty = $it->quantity ?? 1;
                     $unit = $it->unit_price ?? 0;
                     $lineNoDisc = $unit * $qty;
+                    $subtotalLineTotals += $lineNoDisc;
 
                     // Preferred: if item has a final_amount field, derive discount from it
                     if (isset($it->final_amount)) {
@@ -299,31 +329,60 @@
 
                     // Fallback: if item has explicit discount fields
                     if (isset($it->discount) && $it->discount > 0) {
-                        // If discount_type exists and is 'percent', compute percent of lineNoDisc
-                        if (isset($it->discount_type) && $it->discount_type === 'percent') {
+                        $itDiscountType = isset($it->discount_type) ? strtolower($it->discount_type) : null;
+                        $itIsPercent = in_array($itDiscountType, ['%', 'percent', 'percentage']);
+                        // If discount_type exists and is percent, compute percent of lineNoDisc
+                        if ($itIsPercent) {
                             $lineDisc = ($it->discount / 100) * $lineNoDisc;
                         } else {
                             // absolute discount per line (assume discount is total for the line)
                             $lineDisc = $it->discount;
                         }
-                        if ($lineDisc > 0) $itemDiscountTotal += $lineDisc;
+                        if ($lineDisc > 0) {
+                            $itemDiscountTotal += $lineDisc;
+                            $itemDiscountBaseSum += $lineNoDisc;
+                        }
                         continue;
                     }
 
                     // If no explicit fields but final_amount is missing or equal, assume no discount for this line
                 }
+                // Determine numeric invoice-level discount (nominal) so we can exclude it from Diskon Total
+                $invoiceLevelDiscountNominal = 0;
+                if ($invoiceDiscountAmount > 0) {
+                    $invoiceLevelDiscountNominal = $invoiceDiscountAmount;
+                } elseif (isset($invoice->discount_type) && isset($invoice->discount_value) && $invoice->discount_value > 0) {
+                    $invDiscType = strtolower($invoice->discount_type);
+                    if (in_array($invDiscType, ['%', 'percent', 'percentage'])) {
+                        $invoiceLevelDiscountNominal = ($invoice->discount_value / 100) * $subtotalLineTotals;
+                    } else {
+                        $invoiceLevelDiscountNominal = $invoice->discount_value;
+                    }
+                }
+
+                // Compute Diskon Total as the sum of per-item discounts plus the invoice-level discount
+                $diskonTotalNominal = $itemDiscountTotal + $invoiceLevelDiscountNominal;
+                if ($diskonTotalNominal < 0) $diskonTotalNominal = 0;
+
+                // Compute percent representation for Diskon Total relative to the invoice subtotal (all line totals)
+                $diskonTotalPercent = null;
+                if ($diskonTotalNominal > 0 && $subtotalLineTotals > 0) {
+                    $diskonTotalPercent = ($diskonTotalNominal / $subtotalLineTotals) * 100;
+                }
             @endphp
 
-            {{-- Prefer invoice-level discount; otherwise show summed item-level discounts --}}
+            {{-- Show invoice-level discount (Diskon) when present, and always show summed item-level discounts as Diskon Total when available --}}
             @if($invoiceDiscountAmount > 0)
             <tr>
                 <td class="total-label">{{ $invoiceDiscountLabel }}</td>
                 <td class="total-amount">-{{ number_format($invoiceDiscountAmount, 0, ',', '.') }}</td>
             </tr>
-            @elseif($itemDiscountTotal > 0)
+            @endif
+
+            @if($diskonTotalNominal > 0)
             <tr>
-                <td class="total-label">Diskon</td>
-                <td class="total-amount">-{{ number_format($itemDiscountTotal, 0, ',', '.') }}</td>
+                <td class="total-label">Diskon Total</td>
+                <td class="total-amount">-{{ number_format($diskonTotalNominal, 0, ',', '.') }}</td>
             </tr>
             @endif
             @if($invoice->tax > 0)
