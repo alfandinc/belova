@@ -103,6 +103,7 @@ class KartuStokController extends Controller
                             'ks.ref_id',
                             'ks.batch',
                             'ks.stok_setelah',
+                            'ks.gudang_id',
                             'g.nama as nama_gudang'
                     )
                     ->orderBy('ks.tanggal', 'desc')  // Terbaru di atas
@@ -180,12 +181,21 @@ class KartuStokController extends Controller
                     // Format jumlah dengan styling
                     $jumlahFormatted = '<strong>' . number_format($row->jumlah, 0) . '</strong>';
                     
-                    // Compute total stock across all batches as of this transaction's timestamp
+                    // Compute total stock across all batches for the SAME GUDANG as this transaction
+                    // (previously this summed across all gudangs; we now limit to the transaction's gudang)
                     $totalAll = 0;
                     try {
                         foreach ($batches as $batchVal) {
                             // For null/empty batch values, match where batch is null OR empty string
                             $batchQuery = DB::table('erm_kartu_stok')->where('obat_id', $obatId);
+                            // Filter by the same gudang as the current transaction row so the "Total semua batch"
+                            // reflects stock within that gudang only.
+                            if (isset($row->gudang_id)) {
+                                $batchQuery->where('gudang_id', $row->gudang_id);
+                            } else {
+                                // transaction had no gudang_id (null), so restrict to null gudang_id records
+                                $batchQuery->whereNull('gudang_id');
+                            }
                             if (is_null($batchVal) || $batchVal === '') {
                                 $batchQuery->where(function($q) {
                                     $q->whereNull('batch')->orWhere('batch', '');
@@ -222,10 +232,10 @@ class KartuStokController extends Controller
                     $stokFormatted .= '</div>';
                     $stokFormatted .= '</div>';
                     
-                    // Format keterangan dengan gudang info
+                    // Format keterangan dengan gudang info (make gudang name more prominent and escape it)
                     $infoFormatted = $row->keterangan;
                     if ($row->nama_gudang) {
-                        $infoFormatted .= '<br><small class="text-info"><i class="fas fa-warehouse"></i> ' . $row->nama_gudang . '</small>';
+                        $infoFormatted .= '<br><div class="text-info"><i class="fas fa-warehouse"></i> <strong>' . e($row->nama_gudang) . '</strong></div>';
                     }
                     
                     $rows[] = [
