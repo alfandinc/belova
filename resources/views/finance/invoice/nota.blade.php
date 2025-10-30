@@ -229,6 +229,13 @@
 
     <div class="items-section">
         @foreach($invoice->items as $item)
+
+        {{-- Skip rendering administrative/shipping items in the itemized list; they are shown separately in totals --}}
+        @php $__name_lower = strtolower(trim($item->name ?? $item->nama_item ?? '')); @endphp
+        @if(strpos($__name_lower, 'biaya administrasi') !== false || strpos($__name_lower, 'biaya admin') !== false || strpos($__name_lower, 'administrasi') !== false || strpos($__name_lower, 'ongkir') !== false || strpos($__name_lower, 'biaya ongkir') !== false || strpos($__name_lower, 'shipping') !== false)
+            @continue
+        @endif
+
         @php
             $qty = $item->quantity ?? 1;
             $unit = $item->unit_price ?? 0;
@@ -285,6 +292,63 @@
         </div>
         @endforeach
     </div>
+
+    @php
+        // Compute subtotal of all item lines (unit_price * qty), but exclude admin/shipping items
+        $subtotalItems = 0;
+        $adminFee = 0;
+        $shippingFee = 0;
+
+        foreach ($invoice->items as $it) {
+            $name = strtolower(trim($it->name ?? $it->nama_item ?? ''));
+
+                // Determine the line totals:
+                // - lineNoDisc: unit_price * qty (always, this is what we want for Subtotal)
+                // - lineFinal: final_amount if present (after discounts), otherwise same as lineNoDisc
+                $lineQty = $it->quantity ?? ($it->qty ?? 1);
+                $lineUnit = $it->unit_price ?? ($it->jumlah_raw ?? ($it->harga_akhir_raw ?? 0));
+                $lineNoDisc = ($lineUnit * $lineQty);
+                $lineFinal = isset($it->final_amount) ? $it->final_amount : $lineNoDisc;
+
+            // Detect admin fee items by name (use pre-discount amount for display and subtotal exclusion)
+            if (strpos($name, 'biaya administrasi') !== false || strpos($name, 'biaya admin') !== false || strpos($name, 'administrasi') !== false) {
+                $adminFee += $lineNoDisc;
+                continue; // don't add to subtotal
+            }
+
+            // Detect shipping/ongkir items by name
+            if (strpos($name, 'ongkir') !== false || strpos($name, 'biaya ongkir') !== false || strpos($name, 'shipping') !== false) {
+                $shippingFee += $lineNoDisc;
+                continue; // don't add to subtotal
+            }
+
+            // Otherwise include the NO-DISCOUNT line total in the subtotal
+            $subtotalItems += $lineNoDisc;
+        }
+    @endphp
+
+    <div class="totals-section" style="margin-bottom:6px;">
+        <table class="totals-table">
+            <tr>
+                <td class="total-label">Subtotal</td>
+                <td class="total-amount">{{ number_format($subtotalItems, 0, ',', '.') }}</td>
+            </tr>
+            @if($adminFee > 0)
+            <tr>
+                <td class="total-label">Biaya Administrasi</td>
+                <td class="total-amount">{{ number_format($adminFee, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+            @if($shippingFee > 0)
+            <tr>
+                <td class="total-label">Biaya Ongkir</td>
+                <td class="total-amount">{{ number_format($shippingFee, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+        </table>
+    </div>
+
+    <div style="border-top:1px solid #000; margin:6px 0;"></div>
 
     <div class="totals-section">
         <table class="totals-table">
@@ -371,14 +435,7 @@
                 }
             @endphp
 
-            {{-- Show invoice-level discount (Diskon) when present, and always show summed item-level discounts as Diskon Total when available --}}
-            @if($invoiceDiscountAmount > 0)
-            <tr>
-                <td class="total-label">{{ $invoiceDiscountLabel }}</td>
-                <td class="total-amount">-{{ number_format($invoiceDiscountAmount, 0, ',', '.') }}</td>
-            </tr>
-            @endif
-
+            {{-- Only show Diskon Total (includes per-item + invoice-level discounts) --}}
             @if($diskonTotalNominal > 0)
             <tr>
                 <td class="total-label">Diskon Total</td>

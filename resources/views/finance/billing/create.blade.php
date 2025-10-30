@@ -132,7 +132,7 @@
                     </div>
                 </div>
                 <div class="card-body pt-0 pb-3">
-                    <small class="form-text text-muted">*Harap konfirmasi ke unit terkait jika melakukan penambahan item dari halaman billing.</small>
+                    <small class="form-text text-danger font-weight-bold">*Harap konfirmasi ke unit terkait jika melakukan penambahan item dari halaman billing.</small>
                 </div>
             </div>
         </div>
