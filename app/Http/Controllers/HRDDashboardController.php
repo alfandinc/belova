@@ -51,8 +51,9 @@ class HRDDashboardController extends Controller
                 })->take(5)->get();
         $pendingRows = collect()->concat([$lembur, $libur, $ganti])->flatten(1);
 
-        // Upcoming birthdays (next 5)
-        $today = Carbon::now();
+    // Upcoming birthdays (next 5)
+    // Use today (midnight) so time-of-day won't make a birthday that occurs today appear as already passed
+    $today = Carbon::today();
         $birthdays = Employee::whereNotNull('tanggal_lahir')
             ->get()
             ->map(function($e) use ($today) {
