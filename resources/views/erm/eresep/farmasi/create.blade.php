@@ -379,68 +379,64 @@
         $('#tambah-resep').on('click', function () {
             let obatId = $('#obat_id').val();
             let obatText = $('#obat_id option:selected').text();
-            let jumlah = $('#jumlah').val();
-            // let harga = $('#obat_id option:selected').data('harga');
-            // Debug the selected data
-    let selectedData = $('#obat_id').select2('data')[0];
-    console.log("Selected data:", selectedData);
-    
-    // Make sure harga is properly formatted as a number
-    let harga = selectedData && selectedData.harga ? parseFloat(selectedData.harga) : null;
-    console.log("Harga value:", harga);
-
-            let stok = $('#obat_id option:selected').data('stok');
+            let jumlah = parseInt($('#jumlah').val() || 0, 10);
+            // Get the currently selected select2 data object
+            let selectedData = $('#obat_id').select2('data')[0] || {};
+            // harga may be on selectedData
+            let harga = selectedData && selectedData.harga ? parseFloat(selectedData.harga) : null;
+            // stok may be provided as stok_gudang or stok on the select2 item
+            let stokAvailable = typeof selectedData.stok_gudang !== 'undefined' ? parseInt(selectedData.stok_gudang || 0, 10) : (typeof selectedData.stok !== 'undefined' ? parseInt(selectedData.stok || 0, 10) : null);
             let aturanPakai = $('#aturan_pakai').val();
             let diskon = $('#diskon').val() || 0;
             let visitationId = $('#visitation_id').val();  // Pastikan id yang digunakan sama
-            
 
             if (!obatId || !jumlah || !aturanPakai) return Swal.fire('Peringatan', "Semua field wajib diisi.", "warning");
 
-            // Kirim data via AJAX
-            $.ajax({
-                url: "{{ route('resepfarmasi.nonracikan.store') }}", // disesuaikan nanti
-                method: "POST",
-                data: {
-                    _token: "{{ csrf_token() }}",
-                    tipe: "nonracikan",
-                    obat_id: obatId,
-                    jumlah: jumlah,
-                    harga: harga,
-                    diskon: diskon,
-                    aturan_pakai: aturanPakai,
-                    visitation_id: visitationId 
-                },
-                success: function (res) {
-                    // const resep = res.data;
-                    $('#resep-table-body .no-data').remove();
-                    const stokGudang = res.data.obat.stok_gudang !== undefined ? parseInt(res.data.obat.stok_gudang) : 0;
-                    const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
-                    $('#resep-table-body').append(`
-                        <tr data-id="${res.data.id}" data-obat-id="${res.data.obat.id}">
-                            <td>${res.data.obat.nama}</td>
-                            <td>${res.data.jumlah}</td>
-                            <td>${res.data.harga}</td>
-                            <td>${res.data.diskon} %</td>                           
-                            <td style="color: ${stokColor};">${stokGudang}</td>
-                            <td>${res.data.aturan_pakai}</td>
-                            <td>
-                                <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
-                                <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
-                            </td>
-                        </tr>
-                    `);
-                    updateTotalPrice();
+            // If stok info is available, block adding when requested jumlah > stok
+            if (stokAvailable !== null && !isNaN(stokAvailable) && jumlah > stokAvailable) {
+                return Swal.fire('Stok Tidak Cukup', `Jumlah yang diminta (${jumlah}) lebih besar dari stok tersedia (${stokAvailable}). Silakan ubah jumlah atau periksa stok.`, 'error');
+            }
 
-                    // Clear the input fields
-                    $('#obat_id').val(null).trigger('change');
-                    $('#jumlah').val('');
-                    $('#aturan_pakai').val('');
-                },
-                error: function (xhr) {
-                    Swal.fire('Error', 'Gagal menambahkan resep: ' + xhr.responseJSON.message, 'error');
-                }
-            });
+            // If stok info not available or jumlah <= stokAvailable, proceed normally
+            submitTambahResep({obatId, jumlah, harga, diskon, aturanPakai, visitationId});
+
+            function submitTambahResep(payload) {
+                $.ajax({
+                    url: "{{ route('resepfarmasi.nonracikan.store') }}", // disesuaikan nanti
+                    method: "POST",
+                    data: Object.assign({ _token: "{{ csrf_token() }}", tipe: "nonracikan" }, payload),
+                    success: function (res) {
+                        // const resep = res.data;
+                        $('#resep-table-body .no-data').remove();
+                        const stokGudang = res.data.obat.stok_gudang !== undefined ? parseInt(res.data.obat.stok_gudang) : 0;
+                        const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
+                        $('#resep-table-body').append(`
+                            <tr data-id="${res.data.id}" data-obat-id="${res.data.obat.id}">
+                                <td>${res.data.obat.nama}</td>
+                                <td>${res.data.jumlah}</td>
+                                <td>${res.data.harga}</td>
+                                <td>${res.data.diskon} %</td>                           
+                                <td style="color: ${stokColor};">${stokGudang}</td>
+                                <td>${res.data.aturan_pakai}</td>
+                                <td>
+                                    <button class="btn btn-success btn-sm edit" data-id="${res.data.id}">Edit</button>
+                                    <button class="btn btn-danger btn-sm hapus" data-id="${res.data.id}">Hapus</button>
+                                </td>
+                            </tr>
+                        `);
+                        updateTotalPrice();
+
+                        // Clear the input fields
+                        $('#obat_id').val(null).trigger('change');
+                        $('#jumlah').val('');
+                        $('#aturan_pakai').val('');
+                    },
+                    error: function (xhr) {
+                        const msg = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unknown error';
+                        Swal.fire('Error', 'Gagal menambahkan resep: ' + msg, 'error');
+                    }
+                });
+            }
         });
 
         //DELETE NON RACIKAN
@@ -1174,10 +1170,36 @@
         $('#submit-all').on('click', function () {
             const $btn = $(this);
             const visitationId = $('#visitation_id').val();
-            
+
+            // Pre-submit stock validation for non-racikan items
+            const stockProblems = [];
+            $('#resep-table-body tr').each(function () {
+                const row = $(this);
+                if (row.hasClass('no-data')) return;
+                // jumlah is in td[1], stok in td[4]
+                const jumlahText = row.find('td').eq(1).text().trim();
+                const stokText = row.find('td').eq(4).text().trim();
+                const jumlahVal = parseInt((jumlahText || '0').replace(/[^0-9-]/g, ''), 10) || 0;
+                const stokVal = parseInt((stokText || '0').replace(/[^0-9-]/g, ''), 10);
+                // If stokVal is NaN (unknown), skip check
+                if (!isNaN(stokVal) && jumlahVal > stokVal) {
+                    const nama = row.find('td').eq(0).text().trim();
+                    stockProblems.push({ nama, jumlah: jumlahVal, stok: stokVal });
+                }
+            });
+
+            if (stockProblems.length > 0) {
+                const lines = stockProblems.map(p => `${p.nama}: diminta ${p.jumlah}, stok ${p.stok}`);
+                return Swal.fire({
+                    title: 'Stok Tidak Cukup',
+                    html: `Beberapa obat memiliki jumlah yang lebih besar dari stok tersedia:<br><ul style="text-align:left">${lines.map(l => `<li>${l}</li>`).join('')}</ul>Harap koreksi sebelum submit.`,
+                    icon: 'error'
+                });
+            }
+
             // Check if already submitted
             const isSubmitted = $btn.hasClass('btn-secondary');
-            
+
             if (isSubmitted) {
                 Swal.fire({
                     title: 'Konfirmasi',
