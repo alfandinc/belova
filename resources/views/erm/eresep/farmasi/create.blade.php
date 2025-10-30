@@ -404,7 +404,16 @@
                 $.ajax({
                     url: "{{ route('resepfarmasi.nonracikan.store') }}", // disesuaikan nanti
                     method: "POST",
-                    data: Object.assign({ _token: "{{ csrf_token() }}", tipe: "nonracikan" }, payload),
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        tipe: "nonracikan",
+                        obat_id: payload.obatId,
+                        jumlah: payload.jumlah,
+                        harga: payload.harga,
+                        diskon: payload.diskon,
+                        aturan_pakai: payload.aturanPakai,
+                        visitation_id: payload.visitationId
+                    },
                     success: function (res) {
                         // const resep = res.data;
                         $('#resep-table-body .no-data').remove();
