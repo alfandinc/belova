@@ -24,6 +24,11 @@
         .hrd-dashboard .pending-approvals .font-weight-bold { font-size:0.95rem; }
         .hrd-dashboard .pending-approvals .small { font-size:0.85rem; }
         .hrd-dashboard .pending-approvals .mr-3 { font-size:0.9rem; }
+    /* Birthday "today" styling */
+    .hrd-dashboard .birthday-today-name { color: #dc3545; font-weight:700; display:inline-flex; align-items:center; gap:0.45rem; }
+    /* make icon clearly visible by placing it inside a small circular background */
+    .hrd-dashboard .birthday-icon { width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:#dc3545; color:#fff; border:1px solid rgba(0,0,0,0.05); box-shadow:0 1px 2px rgba(0,0,0,0.06); margin-left:6px; }
+    .hrd-dashboard .birthday-icon svg { width:14px; height:14px; display:block; fill:currentColor; stroke:currentColor; }
     </style>
     <h2 class="my-4">HRD Dashboard</h2>
 
@@ -153,7 +158,23 @@
                         @forelse($birthdays as $emp)
                             <li class="list-group-item">
                                 <div>
-                                    <div class="font-weight-bold">{{ $emp->nama }}</div>
+                                    <div class="font-weight-bold @if((int)$emp->upcoming_days === 0) birthday-today-name @endif">
+                                        {{ $emp->nama }}
+                                        @if((int)$emp->upcoming_days === 0)
+                                            <span class="birthday-icon" title="Birthday today" aria-hidden="true">
+                                                <!-- small cake + confetti SVG (compact) -->
+                                                <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true">
+                                                    <!-- Simple cake silhouette: two-tier cake + candle, uses currentColor to appear white on red background -->
+                                                    <!-- top candle -->
+                                                    <rect x="11" y="2.5" width="2" height="4" rx="0.5" fill="currentColor" />
+                                                    <!-- top tier -->
+                                                    <rect x="6" y="8" width="12" height="3.5" rx="0.8" fill="currentColor" />
+                                                    <!-- bottom tier -->
+                                                    <rect x="4" y="12.2" width="16" height="6" rx="1" fill="currentColor" />
+                                                </svg>
+                                            </span>
+                                        @endif
+                                    </div>
                                     <div class="small text-muted">{{ $emp->upcoming_date->format('M d') }} — in {{ (int)$emp->upcoming_days }} days · {{ optional($emp->tanggal_lahir)->format('Y') }}</div>
                                 </div>
                             </li>
