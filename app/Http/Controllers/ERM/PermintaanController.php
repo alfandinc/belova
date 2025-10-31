@@ -30,7 +30,7 @@ class PermintaanController extends Controller
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.pemasok_id' => 'required|exists:erm_pemasok,id',
             'items.*.principal_id' => 'nullable|exists:erm_principals,id',
-            'items.*.jumlah_box' => 'required|integer|min:1',
+            'items.*.jumlah_box' => 'required|integer|min:0',
             'items.*.qty_total' => 'required|integer|min:1',
         ]);
         DB::transaction(function () use ($request, $id) {
@@ -144,7 +144,7 @@ class PermintaanController extends Controller
             'items' => 'required|array|min:1',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.pemasok_id' => 'required|exists:erm_pemasok,id',
-            'items.*.jumlah_box' => 'required|integer|min:1',
+            'items.*.jumlah_box' => 'required|integer|min:0',
             'items.*.qty_total' => 'required|integer|min:1',
         ]);
 
