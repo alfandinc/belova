@@ -807,7 +807,8 @@ class RawatJalanController extends Controller
         ]);
 
         $user = Auth::user();
-        if (!$user || (! $user->hasRole('Admin') && ! $user->hasRole('Pendaftaran'))) {
+        // Allow Admin, Pendaftaran or Perawat to perform force delete
+        if (!$user || (! $user->hasRole('Admin') && ! $user->hasRole('Pendaftaran') && ! $user->hasRole('Perawat'))) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
