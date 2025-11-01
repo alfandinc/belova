@@ -18,6 +18,7 @@ class PrSlipGajiDokter extends Model
         'uang_duduk',
         'bagi_hasil',
         'pot_pajak',
+        'jasmed_file',
         'total_pendapatan',
         'total_potongan',
         'total_gaji',

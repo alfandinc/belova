@@ -120,23 +120,29 @@
         // ensure totals calculated on modal show
         $('#createSlipModal').on('shown.bs.modal', function(){ recalcTotals(); });
 
-        // Submit create form
+        // Submit create form (supports file upload)
         $('#createSlipForm').on('submit', function(e){
             e.preventDefault();
             recalcTotals();
-            const form = $(this);
-            const payload = form.serializeArray();
-            // Ensure CSRF token included (Laravel meta token also available)
-            payload.push({ name: '_token', value: '{{ csrf_token() }}' });
+            const formEl = this;
+            const formData = new FormData(formEl);
+            // Ensure totals and csrf
+            formData.set('total_pendapatan', $('#total_pendapatan').val());
+            formData.set('total_potongan', $('#total_potongan').val());
+            formData.set('total_gaji', $('#total_gaji').val());
+            formData.set('_token', '{{ csrf_token() }}');
+
             $.ajax({
                 url: '{{ route('hrd.payroll.slip_gaji_dokter.store') }}',
                 method: 'POST',
-                data: $.param(payload),
+                data: formData,
+                processData: false,
+                contentType: false,
                 success: function(){
                     table.ajax.reload();
                     $('#createSlipModal').modal('hide');
                     Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Slip gaji dokter berhasil dibuat.' });
-                    form[0].reset();
+                    formEl.reset();
                 },
                 error: function(xhr){
                     const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Terjadi kesalahan';
@@ -195,18 +201,24 @@
         // live handlers for edit modal
         $(document).on('input', '.calc-input-edit, .calc-input-right-edit', function(){ recalcTotalsFor('edit_'); });
 
-        // Submit edit form
+        // Submit edit form (supports file upload)
         $('#editSlipForm').on('submit', function(e){
             e.preventDefault();
-            const form = $(this);
+            const formEl = this;
             const id = $('#edit_id').val();
             recalcTotalsFor('edit_');
-            const payload = form.serializeArray();
-            payload.push({ name: '_token', value: '{{ csrf_token() }}' });
+            const formData = new FormData(formEl);
+            formData.set('total_pendapatan', $('#edit_total_pendapatan').val());
+            formData.set('total_potongan', $('#edit_total_potongan').val());
+            formData.set('total_gaji', $('#edit_total_gaji').val());
+            formData.set('_token', '{{ csrf_token() }}');
+
             $.ajax({
                 url: `{{ url('hrd/payroll/slip-gaji-dokter/update') }}/${id}`,
                 method: 'POST',
-                data: $.param(payload),
+                data: formData,
+                processData: false,
+                contentType: false,
                 success: function(){
                     table.ajax.reload();
                     $('#editSlipModal').modal('hide');
@@ -244,6 +256,11 @@
                     <div class="form-group">
                         <label>Bulan</label>
                         <input type="month" name="bulan" id="createBulan" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Lampiran Jasmed (PDF atau gambar)</label>
+                        <input type="file" name="jasmed_file" id="jasmed_file" accept=".pdf,image/*" class="form-control">
                     </div>
 
                     <div class="row">
@@ -342,6 +359,11 @@
                     <div class="form-group">
                         <label>Bulan</label>
                         <input type="month" name="bulan" id="edit_bulan" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Lampiran Jasmed (PDF atau gambar)</label>
+                        <input type="file" name="jasmed_file" id="edit_jasmed_file" accept=".pdf,image/*" class="form-control">
                     </div>
 
                     <div class="row">
