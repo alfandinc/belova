@@ -1510,3 +1510,14 @@ Route::get('/finance/get-notif', [App\Http\Controllers\Finance\BillingController
 Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
 
 // WhatsApp integration test/debug routes removed
+
+// Payroll Slip Gaji Dokter (standalone slips for Dokter)
+Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+    Route::get('/', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'index'])->name('hrd.payroll.slip_gaji_dokter.index');
+    Route::get('/data', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'data'])->name('hrd.payroll.slip_gaji_dokter.data');
+    Route::post('/store', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'store'])->name('hrd.payroll.slip_gaji_dokter.store');
+    Route::get('/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'show'])->name('hrd.payroll.slip_gaji_dokter.show');
+    Route::post('/update/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'update'])->name('hrd.payroll.slip_gaji_dokter.update');
+    Route::delete('/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'destroy'])->name('hrd.payroll.slip_gaji_dokter.destroy');
+    Route::get('/print/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'print'])->name('hrd.payroll.slip_gaji_dokter.print');
+});
