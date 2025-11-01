@@ -16,4 +16,12 @@ class Regency extends Model
     {
         return $this->hasMany(District::class, 'regency_id');
     }
+
+    /**
+     * The province this regency belongs to.
+     */
+    public function province()
+    {
+        return $this->belongsTo(Province::class, 'province_id');
+    }
 }

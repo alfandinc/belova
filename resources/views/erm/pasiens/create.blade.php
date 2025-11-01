@@ -553,21 +553,48 @@
         
         // Handle address selection
         @if($pasien->village && $pasien->village->district && $pasien->village->district->regency && $pasien->village->district->regency->province)
-            // Set province and trigger loading of regencies
-            $('#province').val('{{ $pasien->village->district->regency->province->id }}').trigger('change');
-            
-            // We need timeouts to ensure each cascading dropdown has loaded
-            setTimeout(function() {
-                $('#regency').val('{{ $pasien->village->district->regency->id }}').trigger('change');
-                
-                setTimeout(function() {
-                    $('#district').val('{{ $pasien->village->district->id }}').trigger('change');
-                    
-                    setTimeout(function() {
-                        $('#village').val('{{ $pasien->village_id }}').trigger('change');
-                    }, 500);
-                }, 500);
-            }, 500);
+            (function() {
+                const provId = '{{ $pasien->village->district->regency->province->id }}';
+                const regId  = '{{ $pasien->village->district->regency->id }}';
+                const distId = '{{ $pasien->village->district->id }}';
+                const villId = '{{ $pasien->village_id }}';
+
+                // set province and load regencies via AJAX, then select stored values in sequence
+                $('#province').val(provId).trigger('change');
+
+                $.get('/get-regencies/' + provId, function(regencies) {
+                    let options = '<option value="">Pilih Kabupaten</option>';
+                    regencies.forEach(function(item) {
+                        options += `<option value="${item.id}">${item.name}</option>`;
+                    });
+                    $('#regency').html(options).prop('disabled', false).trigger('change.select2');
+
+                    // select regency and load districts
+                    $('#regency').val(regId).trigger('change');
+
+                    $.get('/get-districts/' + regId, function(districts) {
+                        let dOptions = '<option value="">Pilih Kecamatan</option>';
+                        districts.forEach(function(item) {
+                            dOptions += `<option value="${item.id}">${item.name}</option>`;
+                        });
+                        $('#district').html(dOptions).prop('disabled', false).trigger('change.select2');
+
+                        // select district and load villages
+                        $('#district').val(distId).trigger('change');
+
+                        $.get('/get-villages/' + distId, function(villages) {
+                            let vOptions = '<option value="">Pilih Desa</option>';
+                            villages.forEach(function(item) {
+                                vOptions += `<option value="${item.id}">${item.name}</option>`;
+                            });
+                            $('#village').html(vOptions).prop('disabled', false).trigger('change.select2');
+
+                            // finally select village
+                            $('#village').val(villId).trigger('change');
+                        });
+                    });
+                });
+            })();
         @endif
     @endif
 

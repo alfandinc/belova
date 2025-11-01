@@ -304,7 +304,23 @@ let currentPasienId;
                 $('#info-no-rm').text(response.id);
                 $('#info-nama').text(response.nama);
                 $('#info-nik').text(response.nik);
-                $('#info-alamat').text(response.alamat);
+                // Build combined address: alamat, desa, kecamatan, kabupaten, provinsi
+                const alamat = response.alamat || '';
+                const villageName = response.village && response.village.name ? response.village.name : '';
+                const districtName = response.village && response.village.district && response.village.district.name ? response.village.district.name : '';
+                const regencyName = response.village && response.village.district && response.village.district.regency && response.village.district.regency.name ? response.village.district.regency.name : '';
+                const provinceName = response.village && response.village.district && response.village.district.regency && response.village.district.regency.province && response.village.district.regency.province.name ? response.village.district.regency.province.name : '';
+
+                // Collect non-empty parts and join with comma
+                const parts = [];
+                if (alamat) parts.push(alamat);
+                if (villageName) parts.push(villageName);
+                if (districtName) parts.push(districtName);
+                if (regencyName) parts.push(regencyName);
+                if (provinceName) parts.push(provinceName);
+
+                const fullAddress = parts.join(', ');
+                $('#info-alamat').text(fullAddress);
                 $('#info-tanggal-lahir').text(response.tanggal_lahir);
                 $('#info-jenis-kelamin').text(response.gender);
                 $('#info-agama').text(response.agama);
@@ -315,6 +331,11 @@ let currentPasienId;
                 $('#info-no-hp').text(response.no_hp);
                 $('#info-email').text(response.email);
                 $('#info-instagram').text(response.instagram);
+                // clear any leftover area spans if present
+                $('#info-village').text('');
+                $('#info-district').text('');
+                $('#info-regency').text('');
+                $('#info-province').text('');
                 
                 // Show the modal
                 $('#modalInfoPasien').modal('show');

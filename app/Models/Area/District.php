@@ -16,4 +16,12 @@ class District extends Model
     {
         return $this->hasMany(Village::class, 'district_id');
     }
+
+    /**
+     * The regency this district belongs to.
+     */
+    public function regency()
+    {
+        return $this->belongsTo(Regency::class, 'regency_id');
+    }
 }

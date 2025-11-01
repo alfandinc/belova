@@ -181,7 +181,27 @@
                                 style="background-color:grey; width: 25px; height: 25px;">
                                 <i style="color:white" class="fas fa-home" title="alamat"></i>
                             </span>
-                            <strong>{{ ucfirst($visitation->pasien->alamat ?? '-') }}</strong>
+                            @php
+                                // Build combined address parts safely (alamat, desa, kecamatan, kabupaten, provinsi)
+                                $addressParts = [];
+                                if(!empty($visitation->pasien->alamat)) {
+                                    $addressParts[] = $visitation->pasien->alamat;
+                                }
+                                if(isset($visitation->pasien->village) && !empty($visitation->pasien->village->name)) {
+                                    $addressParts[] = $visitation->pasien->village->name;
+                                }
+                                if(isset($visitation->pasien->village->district) && !empty($visitation->pasien->village->district->name)) {
+                                    $addressParts[] = $visitation->pasien->village->district->name;
+                                }
+                                if(isset($visitation->pasien->village->district->regency) && !empty($visitation->pasien->village->district->regency->name)) {
+                                    $addressParts[] = $visitation->pasien->village->district->regency->name;
+                                }
+                                if(isset($visitation->pasien->village->district->regency->province) && !empty($visitation->pasien->village->district->regency->province->name)) {
+                                    $addressParts[] = $visitation->pasien->village->district->regency->province->name;
+                                }
+                                $fullAddress = count($addressParts) ? ucfirst(implode(', ', $addressParts)) : '-';
+                            @endphp
+                            <strong>{{ $fullAddress }}</strong>
                         </div>
                     </div>
                     

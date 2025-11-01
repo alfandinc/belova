@@ -156,7 +156,7 @@ class PasienController extends Controller
     }
 
     public function create(Request $request)
-{
+    {
     $metodeBayar = MetodeBayar::all();
     $dokters = Dokter::with('spesialisasi')->get();
     $kliniks = Klinik::all();
@@ -166,10 +166,11 @@ class PasienController extends Controller
     $pasien = null;
     $isEditing = false;
     
-    if ($request->has('edit_id')) {
-        $pasien = Pasien::with('village')->find($request->edit_id);
-        $isEditing = true;
-    }
+        if ($request->has('edit_id')) {
+            // eager-load nested area relations so the view can access province/regency/district
+            $pasien = Pasien::with('village.district.regency.province')->find($request->edit_id);
+            $isEditing = true;
+        }
     
     return view('erm.pasiens.create', compact(
         'metodeBayar', 
@@ -296,7 +297,8 @@ class PasienController extends Controller
 
     public function show($id)
     {
-        $pasien = Pasien::with(['village'])->findOrFail($id);
+        // eager-load full area hierarchy so AJAX consumers can display names
+        $pasien = Pasien::with(['village.district.regency.province'])->findOrFail($id);
 
         return response()->json($pasien);
     }
