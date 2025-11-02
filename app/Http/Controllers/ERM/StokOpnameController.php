@@ -422,42 +422,49 @@ class StokOpnameController extends Controller
             
             foreach ($items as $item) {
                 if (!$item->obatStokGudang) continue;
-                
+
                 $stokGudang = $item->obatStokGudang;
-                $selisih = $item->selisih; // positive = surplus, negative = shortage
-                
+
+                // Use current gudang stock as the source of truth instead of the saved snapshot
+                $currentStock = (float) $stokGudang->stok;
+                $targetStock = (float) $item->stok_fisik; // desired physical stock
+                $delta = $targetStock - $currentStock; // positive -> need to add, negative -> need to remove
+
                 // Generate stok opname reference number
                 $opnameRef = "OPNAME-{$stokOpname->periode_bulan}-{$stokOpname->periode_tahun}";
-                
-                if ($selisih > 0) {
-                    // Add stock (found more than system) - TANPA mengubah HPP
+
+                if ($delta > 0) {
+                    // Need to add stock (found more than current system)
                     $stokService->tambahStok(
                         $item->obat_id,
                         $stokOpname->gudang_id,
-                        $selisih,
+                        $delta,
                         $stokGudang->batch,
                         $stokGudang->expiration_date,
-                        null, // rak
-                        null, // lokasi
-                        null, // hargaBeli - TIDAK DIISI agar HPP tidak berubah
-                        null, // hargaBeliJual - TIDAK DIISI agar HPP tidak berubah
-                        'stok_opname', // refType
-                        $stokOpname->id, // refId
-                        "Adjustment Stok Opname {$opnameRef} - Surplus {$selisih}" // keterangan
+                        null,
+                        null,
+                        null,
+                        null,
+                        'stok_opname',
+                        $stokOpname->id,
+                        "Adjustment Stok Opname {$opnameRef} - Surplus {$delta}"
                     );
-                } else {
-                    // Reduce stock (found less than system)
+                } elseif ($delta < 0) {
+                    // Need to remove stock (found less than current system)
+                    $qtyToRemove = abs($delta);
+
+                    // kurangiStok expects there to be sufficient stock in the selected batch; using currentStock ensures this is valid
                     $stokService->kurangiStok(
                         $item->obat_id,
                         $stokOpname->gudang_id,
-                        abs($selisih),
+                        $qtyToRemove,
                         $stokGudang->batch,
-                        'stok_opname', // refType
-                        $stokOpname->id, // refId
-                        "Adjustment Stok Opname {$opnameRef} - Shortage " . abs($selisih) // keterangan
+                        'stok_opname',
+                        $stokOpname->id,
+                        "Adjustment Stok Opname {$opnameRef} - Shortage {$qtyToRemove}"
                     );
                 }
-                
+
                 $updatedCount++;
             }
             
