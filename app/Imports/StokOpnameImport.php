@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Illuminate\Support\Collection;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use Carbon\Carbon;
 
 class StokOpnameImport implements ToCollection, WithHeadingRow
 {
@@ -60,8 +62,27 @@ class StokOpnameImport implements ToCollection, WithHeadingRow
 
             // If expiration_date column provided in import, use it (overrides found expiration)
             if (isset($row['expiration_date']) && $row['expiration_date']) {
-                // let Laravel cast it later; store as string here
-                $expiration = $row['expiration_date'];
+                $raw = $row['expiration_date'];
+                // If Excel provided a numeric serial date (e.g., 45997), convert it
+                if (is_numeric($raw)) {
+                    try {
+                        $dt = ExcelDate::excelToDateTimeObject((float) $raw);
+                        $expiration = $dt->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        // fallback: store raw value
+                        $expiration = $raw;
+                    }
+                } elseif ($raw instanceof \DateTimeInterface) {
+                    $expiration = $raw->format('Y-m-d');
+                } else {
+                    // try parseable string (e.g., 2025-09-06 or 06/09/2025)
+                    try {
+                        $expiration = Carbon::parse($raw)->format('Y-m-d');
+                    } catch (\Exception $e) {
+                        // keep raw if cannot parse
+                        $expiration = $raw;
+                    }
+                }
             }
 
             StokOpnameItem::create([
