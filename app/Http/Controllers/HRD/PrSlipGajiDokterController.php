@@ -29,34 +29,39 @@ class PrSlipGajiDokterController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        // validate basic fields first
+        $validated = $request->validate([
             'dokter_id' => 'nullable|integer',
             'bulan' => 'required|string',
-            'jasa_konsultasi' => 'nullable|numeric',
-            'jasa_tindakan' => 'nullable|numeric',
-            'uang_duduk' => 'nullable|numeric',
-            'bagi_hasil' => 'nullable|numeric',
-            'pot_pajak' => 'nullable|numeric',
             'jasmed_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'status_gaji' => 'nullable|string',
         ]);
 
-        $data = array_merge([
-            'jasa_konsultasi' => 0,
-            'jasa_tindakan' => 0,
-            'uang_duduk' => 0,
-            'bagi_hasil' => 0,
-            'pot_pajak' => 0,
-            'total_pendapatan' => 0,
-            'total_potongan' => 0,
-            'total_gaji' => 0,
-            'status_gaji' => $data['status_gaji'] ?? 'draft',
-        ], $data);
+        // Gather all numeric inputs explicitly to avoid missing keys
+        $numericFields = [
+            'jasa_konsultasi','jasa_tindakan','tunjangan_jabatan','overtime','uang_duduk',
+            'peresepan_obat','rujuk_lab','pembuatan_konten','bagi_hasil','potongan_lain'
+        ];
+
+        $data = $validated;
+        foreach ($numericFields as $f) {
+            // Accept values from request; if missing or not numeric, default to 0
+            $val = $request->input($f);
+            if ($val === null || $val === '') {
+                $data[$f] = 0;
+            } else {
+                // normalize thousand separators and cast to float
+                $val = is_string($val) ? str_replace([',', ' '], ['', ''], $val) : $val;
+                $data[$f] = is_numeric($val) ? (float) $val : 0;
+            }
+        }
 
         // calculate totals
-        // Note: 'bagi_hasil' is treated as a potongan (deduction), not a pendapatan
-        $data['total_pendapatan'] = ($data['jasa_konsultasi'] + $data['jasa_tindakan'] + $data['uang_duduk']);
-        $data['total_potongan'] = ($data['pot_pajak'] + $data['bagi_hasil']);
+        $data['total_pendapatan'] = ($data['jasa_konsultasi'] + $data['jasa_tindakan'] + ($data['tunjangan_jabatan'] ?? 0) + ($data['overtime'] ?? 0) + $data['uang_duduk'] + $data['peresepan_obat'] + $data['rujuk_lab'] + $data['pembuatan_konten']);
+        // pot_pajak is 2.5% of (total_pendapatan - bagi_hasil)
+        $computedBase = max(0, $data['total_pendapatan'] - ($data['bagi_hasil'] ?? 0));
+        $data['pot_pajak'] = round($computedBase * 0.025, 2);
+        $data['total_potongan'] = ($data['pot_pajak'] + ($data['bagi_hasil'] ?? 0) + ($data['potongan_lain'] ?? 0));
         $data['total_gaji'] = $data['total_pendapatan'] - $data['total_potongan'];
 
         // handle jasmed_file upload if present
@@ -76,11 +81,27 @@ class PrSlipGajiDokterController extends Controller
         return response()->json(['data' => $slip]);
     }
 
+    /**
+     * Return basic dokter info used by the create/edit JS (klinik_id).
+     */
+    public function dokterInfo($id)
+    {
+        $dokter = Dokter::with('klinik')->find($id);
+        if (!$dokter) {
+            return response()->json(['data' => null], 404);
+        }
+        return response()->json(['data' => [
+            'id' => $dokter->id,
+            'klinik_id' => $dokter->klinik_id,
+            'klinik' => $dokter->klinik ? ['id' => $dokter->klinik->id, 'nama' => $dokter->klinik->nama ?? null] : null,
+        ]]);
+    }
+
     public function update(Request $request, $id)
     {
         $slip = PrSlipGajiDokter::findOrFail($id);
         $data = $request->only([
-            'jasa_konsultasi', 'jasa_tindakan', 'uang_duduk', 'bagi_hasil', 'pot_pajak', 'status_gaji', 'bulan', 'dokter_id'
+            'jasa_konsultasi', 'jasa_tindakan', 'tunjangan_jabatan', 'overtime', 'uang_duduk', 'peresepan_obat', 'rujuk_lab', 'pembuatan_konten', 'bagi_hasil', 'potongan_lain', 'pot_pajak', 'status_gaji', 'bulan', 'dokter_id'
         ]);
 
         // accept jasmed_file on update as well
@@ -98,11 +119,13 @@ class PrSlipGajiDokterController extends Controller
             if ($v !== null) $slip->{$k} = $v;
         }
 
-        // recalc
+    // recalc
     // Recalculate totals: bagi_hasil is a deduction
-    $slip->total_pendapatan = ($slip->jasa_konsultasi + $slip->jasa_tindakan + $slip->uang_duduk);
-    $slip->total_potongan = ($slip->pot_pajak + $slip->bagi_hasil);
-        $slip->total_gaji = $slip->total_pendapatan - $slip->total_potongan;
+    $slip->total_pendapatan = ($slip->jasa_konsultasi + $slip->jasa_tindakan + ($slip->tunjangan_jabatan ?? 0) + ($slip->overtime ?? 0) + $slip->uang_duduk + ($slip->peresepan_obat ?? 0) + ($slip->rujuk_lab ?? 0) + ($slip->pembuatan_konten ?? 0));
+    $computedBase = max(0, $slip->total_pendapatan - ($slip->bagi_hasil ?? 0));
+    $slip->pot_pajak = round($computedBase * 0.025, 2);
+    $slip->total_potongan = ($slip->pot_pajak + ($slip->bagi_hasil ?? 0) + ($slip->potongan_lain ?? 0));
+    $slip->total_gaji = $slip->total_pendapatan - $slip->total_potongan;
 
         $slip->save();
         return response()->json(['success' => true, 'data' => $slip]);
@@ -175,6 +198,7 @@ class PrSlipGajiDokterController extends Controller
                     $tmpMain = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'slip_main_' . uniqid() . '.pdf';
                     file_put_contents($tmpMain, $pdfMain);
 
+                    /** @var \setasign\Fpdi\Fpdi $mergedPdf */
                     $mergedPdf = new \setasign\Fpdi\Fpdi();
                     // Import main slip pages
                     $pageCount = $mergedPdf->setSourceFile($tmpMain);
@@ -193,7 +217,7 @@ class PrSlipGajiDokterController extends Controller
                         $mergedPdf->useTemplate($tpl);
                     }
 
-                    $output = $mergedPdf->Output('', 'S');
+                    $output = call_user_func([$mergedPdf, 'Output'], '', 'S');
                     // cleanup temp main file
                     @unlink($tmpMain);
                     return response($output, 200, [

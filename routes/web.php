@@ -1520,4 +1520,6 @@ Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Adm
     Route::post('/update/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'update'])->name('hrd.payroll.slip_gaji_dokter.update');
     Route::delete('/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'destroy'])->name('hrd.payroll.slip_gaji_dokter.destroy');
     Route::get('/print/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'print'])->name('hrd.payroll.slip_gaji_dokter.print');
+    // AJAX: get dokter info (klinik) to adjust form fields in create/edit modal
+    Route::get('/dokter/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'dokterInfo']);
 });

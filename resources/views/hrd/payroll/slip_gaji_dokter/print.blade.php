@@ -109,9 +109,30 @@
             <div class="section-title">Pendapatan</div>
             <table class="salary-table">
                 <tr><th>Komponen</th><th class="right">Nominal (Rp)</th></tr>
-                <tr><td>Jasa Konsultasi</td><td class="right">{{ number_format($slip->jasa_konsultasi, 2) }}</td></tr>
-                <tr><td>Jasa Tindakan</td><td class="right">{{ number_format($slip->jasa_tindakan, 2) }}</td></tr>
-                <tr><td>Uang Duduk</td><td class="right">{{ number_format($slip->uang_duduk, 2) }}</td></tr>
+                @if(round((float)($slip->jasa_konsultasi ?? 0), 2) != 0)
+                    <tr><td>Jasa Konsultasi</td><td class="right">{{ number_format($slip->jasa_konsultasi, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->jasa_tindakan ?? 0), 2) != 0)
+                    <tr><td>Jasa Tindakan</td><td class="right">{{ number_format($slip->jasa_tindakan, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->uang_duduk ?? 0), 2) != 0)
+                    <tr><td>Uang Duduk</td><td class="right">{{ number_format($slip->uang_duduk, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->tunjangan_jabatan ?? 0), 2) != 0)
+                    <tr><td>Tunjangan Jabatan</td><td class="right">{{ number_format($slip->tunjangan_jabatan ?? 0, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->overtime ?? 0), 2) != 0)
+                    <tr><td>Overtime</td><td class="right">{{ number_format($slip->overtime ?? 0, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->peresepan_obat ?? 0), 2) != 0)
+                    <tr><td>Peresepan Obat</td><td class="right">{{ number_format($slip->peresepan_obat ?? 0, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->rujuk_lab ?? 0), 2) != 0)
+                    <tr><td>Rujuk Lab</td><td class="right">{{ number_format($slip->rujuk_lab ?? 0, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->pembuatan_konten ?? 0), 2) != 0)
+                    <tr><td>Pembuatan Konten</td><td class="right">{{ number_format($slip->pembuatan_konten ?? 0, 2) }}</td></tr>
+                @endif
                 <!-- Bagi Hasil moved to Potongan column (deduction) -->
                 <tr class="total-row"><td>Total Pendapatan</td><td class="right"><strong>{{ number_format($slip->total_pendapatan, 2) }}</strong></td></tr>
             </table>
@@ -120,9 +141,15 @@
             <div class="section-title">Potongan</div>
             <table class="potongan-table">
                 <tr><th>Komponen</th><th class="right">Nominal (Rp)</th></tr>
-                <tr><td>Potongan Pajak</td><td class="right">{{ number_format($slip->pot_pajak ?? 0, 2) }}</td></tr>
-                <tr><td>Bagi Hasil</td><td class="right">{{ number_format($slip->bagi_hasil ?? 0, 2) }}</td></tr>
-                <tr><td>Potongan Lain</td><td class="right">{{ number_format((($slip->total_potongan ?? 0) - (($slip->pot_pajak ?? 0) + ($slip->bagi_hasil ?? 0))), 2) }}</td></tr>
+                @if(round((float)($slip->pot_pajak ?? 0), 2) != 0)
+                    <tr><td>Potongan Pajak</td><td class="right">{{ number_format($slip->pot_pajak ?? 0, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->bagi_hasil ?? 0), 2) != 0)
+                    <tr><td>Bagi Hasil</td><td class="right">{{ number_format($slip->bagi_hasil ?? 0, 2) }}</td></tr>
+                @endif
+                @if(round((float)($slip->potongan_lain ?? 0), 2) != 0)
+                    <tr><td>Potongan Lain</td><td class="right">{{ number_format($slip->potongan_lain ?? 0, 2) }}</td></tr>
+                @endif
                 <tr class="total-row"><td>Total Potongan</td><td class="right"><strong>{{ number_format($slip->total_potongan ?? 0, 2) }}</strong></td></tr>
             </table>
 
