@@ -67,10 +67,15 @@
                     return `
                         <button class="btn btn-sm btn-secondary btn-edit" data-id="${data.id}">Edit</button>
                         &nbsp;
-            <a href="/hrd/payroll/slip-gaji-dokter/print/${data.id}" class="btn btn-sm btn-primary" target="_blank">Print</a>`;
+                        <a href="/hrd/payroll/slip-gaji-dokter/print/${data.id}" class="btn btn-sm btn-primary" target="_blank">Print</a>
+                        &nbsp;
+                        <button class="btn btn-sm btn-danger btn-delete" data-id="${data.id}">Delete</button>`;
                 }}
             ]
         });
+
+        // Ensure CSRF token is present on all AJAX requests (for DELETE)
+        $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' } });
 
         $('#filterBulan').on('change', function(){ table.ajax.reload(); });
 
@@ -262,6 +267,33 @@
                 $('#editSlipModal').modal('show');
             }).fail(function(){
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal mengambil data.' });
+            });
+        });
+
+        // Delete button click - confirm and call destroy
+        $(document).on('click', '.btn-delete', function(){
+            const id = $(this).data('id');
+            Swal.fire({
+                title: 'Yakin?',
+                text: 'Data slip gaji akan dihapus. Tindakan ini tidak dapat dibatalkan.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Hapus',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (!result.value) return;
+                $.ajax({
+                    url: `/hrd/payroll/slip-gaji-dokter/${id}`,
+                    method: 'DELETE',
+                    success: function(){
+                        table.ajax.reload();
+                        Swal.fire({ icon: 'success', title: 'Terhapus', text: 'Slip gaji berhasil dihapus.' });
+                    },
+                    error: function(xhr){
+                        const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal menghapus data.';
+                        Swal.fire({ icon: 'error', title: 'Error', text: msg });
+                    }
+                });
             });
         });
 
