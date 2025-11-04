@@ -130,14 +130,97 @@ class InventoriesController extends Controller
     {
         try {
             $data = Inventory::with('room')->where('inv_number', $request->id)->first();
-            $history = [];
-            foreach (Fin_jurnal::where('kode_subledger', 'like', '%' . $data->inv_number . '%')->orderby('tanggal', 'desc')->orderby('id', 'desc')->get() as $value) {
-                array_push($history, $value);
-            }
+
+            // Return inventory plus its maintenance records (prefer InventoryMaintenance records)
+            $history = InventoryMaintenance::where('inv_number', $request->id)
+                ->orderBy('tanggal', 'desc')
+                ->get();
+
             $data->history = $history;
             return response()->json($data);
         } catch (\Throwable $th) {
             return response()->json($th->getMessage());
+        }
+    }
+
+    /**
+     * Update a maintenance record (AJAX)
+     */
+    public function updateMaintenance(Request $request)
+    {
+        $this->validate($request, [
+            'id' => 'required|integer',
+            'tanggal' => 'required|date',
+            'catatan' => 'required',
+            'nominal' => 'nullable|numeric',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $maint = InventoryMaintenance::findOrFail($request->id);
+
+            // update the maintenance record
+            $maint->tanggal = $request->tanggal;
+            $maint->description = $request->catatan;
+            $maint->cost = $request->nominal ?? 0;
+            if ($request->vendor_name) $maint->vendor_name = $request->vendor_name;
+            $maint->save();
+
+            // update related journal entries (by doc_id)
+            if (!empty($maint->doc_id)) {
+                // debit entry (linked to inv via kode_subledger)
+                Fin_jurnal::where('doc_id', $maint->doc_id)->update([
+                    'tanggal' => $request->tanggal,
+                    'debet' => $request->nominal ?? 0,
+                    'kredit' => 0,
+                    'kode_subledger' => $maint->inv_number,
+                    'catatan' => $request->catatan,
+                    'user_id' => Auth::id(),
+                ]);
+                // credit counterpart (same doc_id, opposite pos)
+                Fin_jurnal::where('doc_id', $maint->doc_id)->where('pos', 'K')->update([
+                    'tanggal' => $request->tanggal,
+                    'kredit' => $request->nominal ?? 0,
+                    'debet' => 0,
+                    'catatan' => $request->catatan,
+                    'user_id' => Auth::id(),
+                ]);
+            }
+
+            DB::commit();
+            return response()->json(['success' => true, 'data' => $maint]);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete a maintenance record (AJAX)
+     */
+    public function deleteMaintenance(Request $request)
+    {
+        $this->validate($request, [
+            'id' => 'required|integer',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $maint = InventoryMaintenance::findOrFail($request->id);
+
+            // delete related journal entries by doc_id
+            if (!empty($maint->doc_id)) {
+                Fin_jurnal::where('doc_id', $maint->doc_id)->delete();
+            }
+
+            // soft-delete the maintenance record
+            $maint->delete();
+
+            DB::commit();
+            return response()->json(['success' => true]);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
         }
     }
 

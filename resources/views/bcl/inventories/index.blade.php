@@ -314,39 +314,60 @@ $inv = $data;
                 <div class="row mb-2">
                     <div class="col-sm-12">
                         <h5>Catat Perawatan / Perbaikan</h5>
-                        <div class="form-row align-items-end">
-                            <div class="form-group col-md-3">
-                                <label>Tanggal</label>
-                                <input type="date" id="maint_tanggal" class="form-control" value="{{date('Y-m-d')}}">
+                        <div class="p-3 bg-white border rounded">
+                            <div class="form-row">
+                                <div class="form-group col-md-3">
+                                    <label class="mb-1">Tanggal</label>
+                                    <input type="date" id="maint_tanggal" class="form-control" value="{{date('Y-m-d')}}">
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <label class="mb-1">Biaya <small class="text-muted">(Opsional)</small></label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">Rp</span>
+                                        </div>
+                                        <input type="number" id="maint_nominal" class="form-control" placeholder="0">
+                                    </div>
+                                    <small class="form-text text-muted">Masukkan biaya tanpa pemisah ribuan.</small>
+                                </div>
+                                <div class="form-group col-md-6">
+                                    <label class="mb-1">Vendor <small class="text-muted">(Opsional)</small></label>
+                                    <input type="text" id="maint_vendor" class="form-control" placeholder="Nama vendor / penyedia layanan">
+                                </div>
                             </div>
-                            <div class="form-group col-md-3">
-                                <label>Biaya (Opsional)</label>
-                                <input type="number" id="maint_nominal" class="form-control" placeholder="0">
-                            </div>
-                            <div class="form-group col-md-5">
-                                <label>Deskripsi</label>
-                                <input type="text" id="maint_catatan" class="form-control" placeholder="Uraian perbaikan / perawatan">
-                            </div>
-                            <div class="form-group col-md-1">
-                                <button type="button" id="save_maintenance" class="btn btn-primary btn-block">Simpan</button>
+                            <div class="form-row align-items-end mt-2">
+                                <div class="form-group col-md-8">
+                                    <label class="mb-1">Deskripsi</label>
+                                    <input type="text" id="maint_catatan" class="form-control" placeholder="Uraian perbaikan / perawatan">
+                                </div>
+                                <div class="form-group col-md-4 text-right">
+                                    <button type="button" id="save_maintenance" class="btn btn-primary btn-block">Simpan</button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
                 <hr class="hr-dashed mt-2">
                 <div class="row">
-                    <table class="table table-sm">
-                        <thead class="bg-soft-primary">
-                            <tr>
-                                <th>Tanggal</th>
-                                <th>Deskripsi</th>
-                                <th class="text-right">No Transaksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+                    <div class="col-12 px-2">
+                        <div class="table-responsive-sm">
+                            <table class="table table-sm mb-0">
+                                <thead class="bg-soft-primary">
+                                    <tr>
+                                        <th>Tanggal</th>
+                                        <th>Deskripsi</th>
+                                        <th>Vendor</th>
+                                        <th class="text-right">Biaya</th>
+                                        <th class="text-right">No Transaksi</th>
+                                        <th class="text-right">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
 
-                        </tbody>
-                    </table>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
                 <hr class="hr-dashed mt-0">
             </div>
@@ -652,15 +673,64 @@ $inv = $data;
             if (data.room_name != null) {
                 $('#view_no_kamar').html(data.room_name);
             }
+                // populate maintenance history (InventoryMaintenance records)
             $.each(data.history, function(index, value) {
-                var row = '<tr><td>' + value.tanggal + '</td><td>' + value.catatan + '</td><td class="text-right">' + value.doc_id + '</td></tr>';
+                var desc = value.description ? value.description : '';
+                var nominal = value.cost ? value.cost : 0;
+                var vendor = value.vendor_name ? value.vendor_name : '';
+                var row = '<tr data-id="' + value.id + '" data-tanggal="' + value.tanggal + '" data-nominal="' + nominal + '" data-desc="' + $('<div>').text(desc).html() + '" data-vendor="' + $('<div>').text(vendor).html() + '">';
+                row += '<td>' + value.tanggal + '</td>';
+                row += '<td>' + $('<div>').text(desc).html() + '</td>';
+                row += '<td>' + $('<div>').text(vendor).html() + '</td>';
+                var biayaText = (typeof $.number === 'function') ? 'Rp ' + $.number(nominal) : nominal;
+                row += '<td class="text-right">' + biayaText + '</td>';
+                // separate No Transaksi and Action columns
+                row += '<td class="text-right">' + (value.doc_id ? value.doc_id : '') + '</td>';
+                row += '<td class="text-right">';
+                row += '<a href="#" class="btn btn-sm btn-outline-secondary edit-maint" data-id="' + value.id + '" title="Edit"><i class="la la-edit"></i></a> ';
+                row += '<a href="#" class="btn btn-sm btn-danger del-maint" data-id="' + value.id + '" title="Hapus"><i class="la la-trash"></i></a>';
+                row += '</td></tr>';
                 $('#md_history tbody').append(row);
             });
             $('#md_history').modal('show');
         });
     });
     
-    // Save maintenance record
+    // Save or update maintenance record
+    var maintenanceStoreUrl = "{{route('bcl.inventories.maintenance.store')}}";
+    var maintenanceUpdateUrl = "{{route('bcl.inventories.maintenance.update')}}";
+    var maintenanceDeleteUrl = "{{route('bcl.inventories.maintenance.delete')}}";
+
+    function renderMaintenanceRow(m) {
+        var desc = m.description ? m.description : '';
+        var nominal = m.cost ? m.cost : 0;
+        var doc = m.doc_id ? m.doc_id : '';
+        var vendor = m.vendor_name ? m.vendor_name : '';
+
+        var $tr = $('<tr>')
+            .attr('data-id', m.id)
+            .attr('data-tanggal', m.tanggal)
+            .attr('data-nominal', nominal)
+            .attr('data-desc', desc)
+            .attr('data-vendor', vendor);
+
+    $tr.append($('<td>').text(m.tanggal));
+    $tr.append($('<td>').text(desc));
+    $tr.append($('<td>').text(vendor));
+    var biayaText = (typeof $.number === 'function') ? 'Rp ' + $.number(nominal) : nominal;
+    $tr.append($('<td>').addClass('text-right').text(biayaText));
+
+    // create separate No Transaksi cell and Action cell
+    var $docTd = $('<td>').addClass('text-right').text(doc);
+    var $actTd = $('<td>').addClass('text-right');
+    $actTd.append($('<a>').attr('href', '#').addClass('btn btn-sm btn-outline-secondary edit-maint').attr('data-id', m.id).attr('title', 'Edit').html('<i class="la la-edit"></i>'));
+    $actTd.append(' ');
+    $actTd.append($('<a>').attr('href', '#').addClass('btn btn-sm btn-danger del-maint').attr('data-id', m.id).attr('title', 'Hapus').html('<i class="la la-trash"></i>'));
+
+    $tr.append($docTd).append($actTd);
+        return $tr;
+    }
+
     $('#save_maintenance').on('click', function() {
         var inv = $('#view_inv').text().trim();
         if (!inv) {
@@ -674,24 +744,103 @@ $inv = $data;
             $.alert({title: 'Error', content: 'Tanggal dan Deskripsi wajib diisi'});
             return;
         }
-        var address = "{{route('bcl.inventories.maintenance.store')}}";
-        $.post(address, {
+
+        var editingId = $('#save_maintenance').data('editing-id');
+        var address = editingId ? maintenanceUpdateUrl : maintenanceStoreUrl;
+
+        var payload = {
             _token: '{{csrf_token()}}',
             inv_number: inv,
             tanggal: tanggal,
             nominal: nominal,
-            catatan: catatan
-        }, function(resp) {
+            catatan: catatan,
+            vendor_name: $('#maint_vendor').val()
+        };
+        if (editingId) payload.id = editingId;
+        $.post(address, payload, function(resp) {
             if (resp.success) {
-                $.alert({title: 'Berhasil', content: 'Catatan perawatan tersimpan. Halaman akan dimuat ulang.'});
-                setTimeout(function() {
-                    location.reload();
-                }, 800);
+                var m = resp.data;
+                if (editingId) {
+                    // replace existing row
+                    var $existing = $('#md_history tbody').find('tr[data-id="' + m.id + '"]');
+                    if ($existing.length) {
+                        $existing.replaceWith(renderMaintenanceRow(m));
+                    }
+                    $.alert({title: 'Berhasil', content: 'Perubahan tersimpan.'});
+                } else {
+                    // prepend new row
+                    $('#md_history tbody').prepend(renderMaintenanceRow(m));
+                    $.alert({title: 'Berhasil', content: 'Catatan perawatan tersimpan.'});
+                }
+
+                // reset form and editing state
+                $('#save_maintenance').text('Simpan').removeData('editing-id');
+                $('#maint_tanggal').val('{{date("Y-m-d")}}');
+                $('#maint_nominal').val('0');
+                $('#maint_catatan').val('');
             } else {
                 $.alert({title: 'Error', content: resp.message || 'Gagal menyimpan'});
             }
         }).fail(function(xhr) {
             $.alert({title: 'Error', content: xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal menyimpan'});
+        });
+    });
+
+    // Edit maintenance (delegated)
+    $(document).on('click', '.edit-maint', function(e) {
+        e.preventDefault();
+        var tr = $(this).closest('tr');
+        var id = $(this).data('id');
+        var tanggal = tr.data('tanggal');
+        var nominal = tr.data('nominal');
+        var desc = tr.data('desc');
+        var vendor = tr.data('vendor');
+
+        $('#maint_tanggal').val(tanggal);
+        $('#maint_nominal').val(nominal);
+        $('#maint_catatan').val(desc);
+        $('#maint_vendor').val(vendor);
+        // mark button as editing
+        $('#save_maintenance').text('Update').data('editing-id', id);
+    });
+
+    // Cancel editing when modal closed (reset button)
+    $('#md_history').on('hidden.bs.modal', function() {
+        $('#save_maintenance').text('Simpan').removeData('editing-id');
+        // reset fields
+        $('#maint_tanggal').val('{{date("Y-m-d")}}');
+        $('#maint_nominal').val('0');
+        $('#maint_catatan').val('');
+        $('#maint_vendor').val('');
+    });
+
+    // Delete maintenance (delegated)
+    $(document).on('click', '.del-maint', function(e) {
+        e.preventDefault();
+        var id = $(this).data('id');
+        var tr = $(this).closest('tr');
+        $.confirm({
+            title: 'Hapus catatan perawatan?',
+            content: 'Aksi ini akan menghapus catatan dan jurnal terkait',
+            buttons: {
+                confirm: {
+                    text: 'Hapus',
+                    btnClass: 'btn-red',
+                    action: function() {
+                        $.post(maintenanceDeleteUrl, {_token: '{{csrf_token()}}', id: id}, function(resp) {
+                            if (resp.success) {
+                                $.alert({title: 'Berhasil', content: 'Catatan dihapus'});
+                                tr.remove();
+                            } else {
+                                $.alert({title: 'Error', content: resp.message || 'Gagal menghapus'});
+                            }
+                        }).fail(function(xhr) {
+                            $.alert({title: 'Error', content: xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Gagal menghapus'});
+                        });
+                    }
+                },
+                cancel: function() {}
+            }
         });
     });
 </script>

@@ -247,6 +247,8 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::get('/inventories/delete/{id}', [InventoriesController::class, 'destroy'])->name('bcl.inventories.delete');
     Route::get('/inventories/show/{id}', [InventoriesController::class, 'show'])->name('bcl.inventories.show');
     Route::post('/inventories/maintenance', [InventoriesController::class, 'storeMaintenance'])->name('bcl.inventories.maintenance.store');
+    Route::post('/inventories/maintenance/update', [InventoriesController::class, 'updateMaintenance'])->name('bcl.inventories.maintenance.update');
+    Route::post('/inventories/maintenance/delete', [InventoriesController::class, 'deleteMaintenance'])->name('bcl.inventories.maintenance.delete');
 
     Route::get('/pricelist', [PricelistController::class, 'index'])->name('bcl.pricelist.index');
     Route::post('/pricelist/store', [PricelistController::class, 'store'])->name('bcl.pricelist.store');
