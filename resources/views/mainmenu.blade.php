@@ -685,8 +685,15 @@
                     <div class="menu-sub">Cetak & Download</div>
                 </a>
                 
-                <!-- Belova Mengaji (Coming Soon) -->
-                <a href="#" class="menu-tile tile-belova-mengaji animate-item delay-16" id="belova-mengaji-tile" data-filter="mengaji islam belajar doa" onclick="showComingSoon(event, 'Belova Mengaji')">
+                <!-- Belova Mengaji -->
+                @php
+                    // Allow access only to users with role 'Ustad' or 'Admin'
+                    $hasMengajiAccess = count(array_intersect($userRoles, ['Ustad','Admin'])) > 0;
+                @endphp
+                <a href="{{ $hasMengajiAccess ? '/belova-mengaji' : '#' }}" class="menu-tile tile-belova-mengaji animate-item delay-16" id="belova-mengaji-tile" data-filter="mengaji islam belajar doa"
+                   @if(!$hasMengajiAccess)
+                       onclick="showRoleWarning(event, 'Belova Mengaji')"
+                   @endif>
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-book-reader"></i></div>
                         <div class="menu-badge">Coming Soon...</div>

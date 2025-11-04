@@ -89,6 +89,7 @@ use App\Http\Controllers\BCL\{
 
 
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\BelovaMengajiController;
 Route::get('/', function () {
     if (!Auth::check()) {
         return view('auth.main_login');
@@ -199,6 +200,14 @@ Route::post('/admin/internal/whatsapp/scheduled/{id}/failed', [\App\Http\Control
 
 Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');
 Route::post('/customersurvey', [CustSurveyController::class, 'store'])->name('customer.survey');
+
+// Belova Mengaji module
+Route::get('/belova-mengaji', [BelovaMengajiController::class, 'index'])->middleware('auth')->name('belova.mengaji.index');
+Route::get('/belova-mengaji/employees-data', [BelovaMengajiController::class, 'employeesData'])->middleware('auth')->name('belova.mengaji.employees.data');
+Route::post('/belova-mengaji/store', [BelovaMengajiController::class, 'store'])->middleware('auth')->name('belova.mengaji.store');
+// Analytics page for Belova Mengaji (placed with other Belova routes)
+Route::get('/belova-mengaji/analytics', [BelovaMengajiController::class, 'analytics'])->middleware('auth')->name('belova.mengaji.analytics');
+Route::get('/belova-mengaji/analytics/data', [BelovaMengajiController::class, 'analyticsData'])->middleware('auth')->name('belova.mengaji.analytics.data');
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
