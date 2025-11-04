@@ -491,7 +491,8 @@ $(document).ready(function() {
             dataType: 'json',
             delay: 250,
             data: function(params) {
-                return { search: params.term };
+                // EmployeeController.searchForSelect2 expects the query param 'q'
+                return { q: params.term };
             },
             processResults: function(data) {
                 return {
