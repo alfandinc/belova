@@ -208,6 +208,7 @@ Route::post('/belova-mengaji/store', [BelovaMengajiController::class, 'store'])-
 // Analytics page for Belova Mengaji (placed with other Belova routes)
 Route::get('/belova-mengaji/analytics', [BelovaMengajiController::class, 'analytics'])->middleware('auth')->name('belova.mengaji.analytics');
 Route::get('/belova-mengaji/analytics/data', [BelovaMengajiController::class, 'analyticsData'])->middleware('auth')->name('belova.mengaji.analytics.data');
+Route::get('/belova-mengaji/history', [BelovaMengajiController::class, 'history'])->middleware('auth')->name('belova.mengaji.history');
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');

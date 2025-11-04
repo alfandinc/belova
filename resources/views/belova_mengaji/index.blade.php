@@ -45,7 +45,8 @@
                         return '<strong class="total-value">' + out + '</strong>';
                     }
                 },
-                { data: 'catatan', name: 'catatan', orderable: false, searchable: false }
+                { data: 'catatan', name: 'catatan', orderable: false, searchable: false },
+                { data: 'riwayat', name: 'riwayat', orderable: false, searchable: false }
             ],
             responsive: true,
             order: [[0, 'asc']]
@@ -91,6 +92,97 @@
                 })
                 .fail(function(xhr) {
                     Swal.fire({ icon: 'error', title: 'Gagal menyimpan', text: 'Terjadi kesalahan saat menyimpan nilai.' });
+                });
+        });
+
+        // Open riwayat modal when riwayat button clicked
+        $(document).on('click', '.riwayat-btn', function() {
+            var employeeId = $(this).data('employee');
+            if (!employeeId) return;
+            $('#riwayatModal').data('employee', employeeId).modal('show');
+            // fetch history via AJAX
+            fetch('{{ route('belova.mengaji.history') }}?employee_id=' + employeeId, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(r){ return r.json(); })
+                .then(function(json){
+                    if (!json.ok) {
+                        $('#riwayatModal .modal-body').html('<div class="alert alert-warning">Tidak ada riwayat.</div>');
+                        return;
+                    }
+                    var rows = json.data || [];
+                    var meta = json.meta || {};
+                    // helper: format ISO date to '1 januari 2025' (month lowercase)
+                    function formatDateIndo(iso) {
+                        if (!iso) return '';
+                        // try to parse; some values may include time/UTC suffix
+                        var d = new Date(iso);
+                        if (isNaN(d.getTime())) {
+                            // fallback: try substring (YYYY-MM-DD)
+                            var s = iso.toString().substr(0,10);
+                            var parts = s.split('-');
+                            if (parts.length === 3) {
+                                var y = parts[0], m = parseInt(parts[1],10)-1, day = parseInt(parts[2],10);
+                                var months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+                                return day + ' ' + months[m].toLowerCase() + ' ' + y;
+                            }
+                            return iso;
+                        }
+                        var day = d.getDate();
+                        var month = d.getMonth();
+                        var year = d.getFullYear();
+                        var months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+                        return day + ' ' + months[month].toLowerCase() + ' ' + year;
+                    }
+
+                    function formatScore(v) {
+                        if (v === null || v === undefined || v === '') return '';
+                        var n = parseFloat(v);
+                        if (isNaN(n)) return v;
+                        if (Math.floor(n) === n) return n.toString();
+                        // otherwise keep up to 2 decimals but strip trailing .00
+                        var s = n.toFixed(2);
+                        return s.replace(/\.00$/,'');
+                    }
+
+                    // build summary block from meta (render as small cards)
+                    var summaryHtml = '<div class="riwayat-summary d-flex flex-wrap mb-3" style="gap:10px;">';
+                    if (meta && meta.count && meta.count > 0) {
+                        function card(title, val) {
+                            return '<div class="riwayat-card p-2 border rounded text-center" style="min-width:140px; background:#f7f9fc;">'
+                                + '<div class="riwayat-card-title small text-muted">'+title+'</div>'
+                                + '<div class="riwayat-card-value h5 mb-0">'+(val||'-')+'</div>'
+                                + '</div>';
+                        }
+                        // Show only average total (Rata rata nilai) and attendance count (Jumlah Kehadiran)
+                        summaryHtml += card('Rata-rata nilai', formatScore(meta.avg_total));
+                        summaryHtml += card('Jumlah Kehadiran', meta.count);
+                    } else {
+                        summaryHtml += '<div class="text-muted">Belum ada data untuk menghitung rata-rata.</div>';
+                    }
+                    summaryHtml += '</div>';
+
+                    var html = '<table class="table table-sm table-striped"><thead><tr><th>Tanggal</th><th>Makhroj</th><th>Tajwid</th><th>Panjang/Pendek</th><th>Kelancaran</th><th>Total</th><th>Catatan</th></tr></thead><tbody>';
+                    if (rows.length === 0) {
+                        html += '<tr><td colspan="7">Belum ada riwayat.</td></tr>';
+                    } else {
+                        rows.forEach(function(r){
+                            var date = r.date || '';
+                            html += '<tr>' +
+                                '<td>' + formatDateIndo(date) + '</td>' +
+                                '<td>' + formatScore(r.nilai_makhroj) + '</td>' +
+                                '<td>' + formatScore(r.nilai_tajwid) + '</td>' +
+                                '<td>' + formatScore(r.nilai_panjang_pendek) + '</td>' +
+                                '<td>' + formatScore(r.nilai_kelancaran) + '</td>' +
+                                '<td>' + formatScore(r.total_nilai) + '</td>' +
+                                '<td>' + (r.catatan || '') + '</td>' +
+                                '</tr>';
+                        });
+                    }
+                    html += '</tbody></table>';
+                    $('#riwayatModal .modal-body').html(summaryHtml + html);
+                })
+                .catch(function(err){
+                    console.error(err);
+                    $('#riwayatModal .modal-body').html('<div class="alert alert-danger">Gagal memuat riwayat.</div>');
                 });
         });
     });
@@ -154,10 +246,35 @@
         font-weight: 700 !important;
         display: inline-block;
     }
+
+    /* Riwayat modal summary cards */
+    .riwayat-summary { gap: 10px; }
+    .riwayat-card { background: #f7f9fc; border-color: rgba(0,0,0,0.04); }
+    .riwayat-card .riwayat-card-title { font-size: 12px; color: #6c757d; }
+    .riwayat-card .riwayat-card-value { font-size: 18px; font-weight: 700; }
 </style>
 @endpush
 
 @section('content')
+    <!-- Riwayat Modal -->
+    <div class="modal fade" id="riwayatModal" tabindex="-1" role="dialog" aria-labelledby="riwayatModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="riwayatModalLabel">Riwayat Nilai Mengaji</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center text-muted">Memuat...</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
 <div class="container-fluid">
     <div class="row">
         <div class="col-12 mb-3">
@@ -179,6 +296,7 @@
                             <col style="width:12%">
                             <col>
                             <col>
+                            <col>
                         </colgroup>
                         <thead>
                             <tr>
@@ -189,6 +307,7 @@
                                 <th>Kelancaran</th>
                                 <th>Total</th>
                                 <th>Catatan</th>
+                                <th>Riwayat</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -200,4 +319,8 @@
         <!-- single table only; ngaji records are input inline above -->
     </div>
     </div>
+@endsection
+
+@section('modals')
+
 @endsection

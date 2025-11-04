@@ -120,8 +120,42 @@ class BelovaMengajiController extends Controller
                 $val = isset($ngaji[$e->id]) ? $ngaji[$e->id]->catatan : '';
                 return '<input class="form-control ngaji-catatan" data-employee="'.$e->id.'" data-date="'.$date.'" value="'.htmlspecialchars($val).'" type="text">';
             })
-            ->rawColumns(['nilai_makhroj','nilai_tajwid','nilai_panjang_pendek','nilai_kelancaran','catatan'])
+            ->addColumn('riwayat', function($e) {
+                return '<button class="btn btn-sm btn-outline-primary riwayat-btn" data-employee="'.$e->id.'">Riwayat</button>';
+            })
+            ->rawColumns(['nilai_makhroj','nilai_tajwid','nilai_panjang_pendek','nilai_kelancaran','catatan','riwayat'])
             ->make(true);
+    }
+
+    /**
+     * Return history (riwayat) of ngaji nilai for an employee (JSON)
+     */
+    public function history(Request $request)
+    {
+        $employeeId = $request->get('employee_id');
+        if (!$employeeId) {
+            return response()->json(['ok' => false, 'message' => 'employee_id required'], 400);
+        }
+
+        $records = NgajiNilai::where('employee_id', $employeeId)
+            ->orderBy('date', 'desc')
+            ->get(['date','test','nilai_makhroj','nilai_tajwid','nilai_panjang_pendek','nilai_kelancaran','total_nilai','catatan']);
+
+        // compute averages and count for this employee
+        $avgRow = NgajiNilai::where('employee_id', $employeeId)
+            ->select(DB::raw('AVG(nilai_makhroj) as avg_makhroj, AVG(nilai_tajwid) as avg_tajwid, AVG(nilai_panjang_pendek) as avg_panjang, AVG(nilai_kelancaran) as avg_kelancaran, AVG(total_nilai) as avg_total, COUNT(*) as cnt'))
+            ->first();
+
+        $meta = [
+            'avg_makhroj' => $avgRow->avg_makhroj !== null ? (float) $avgRow->avg_makhroj : null,
+            'avg_tajwid' => $avgRow->avg_tajwid !== null ? (float) $avgRow->avg_tajwid : null,
+            'avg_panjang' => $avgRow->avg_panjang !== null ? (float) $avgRow->avg_panjang : null,
+            'avg_kelancaran' => $avgRow->avg_kelancaran !== null ? (float) $avgRow->avg_kelancaran : null,
+            'avg_total' => $avgRow->avg_total !== null ? (float) $avgRow->avg_total : null,
+            'count' => (int) ($avgRow->cnt ?? 0),
+        ];
+
+        return response()->json(['ok' => true, 'data' => $records, 'meta' => $meta]);
     }
 
     /**
