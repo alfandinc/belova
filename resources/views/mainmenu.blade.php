@@ -288,7 +288,7 @@
     .tile-kos { background-color: #ff6fb5; }          /* magenta */
     .tile-insiden { background-color: #d9534f; }      /* alert red */
     .tile-jadwal { background-color: #9b72ff; }       /* schedule violet */
-    .tile-belova-mengaji { background-color: #c7c7c7; } /* pink */
+    .tile-belova-mengaji { background-color: #0ed668; } /* green */
     .tile-wifi { background-color: #00b8d9; }      /* bright cyan */
     .tile-admin { background-color: #34495e; }     /* dark slate for admin */
 
@@ -696,10 +696,10 @@
                    @endif>
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-book-reader"></i></div>
-                        <div class="menu-badge">Coming Soon...</div>
+                        <div class="menu-badge">Religion</div>
                     </div>
                     <div class="menu-title">Belova Mengaji</div>
-                    <div class="menu-sub">Module coming soon</div>
+                    <div class="menu-sub">Belova Mengaji</div>
                 </a>
                 
                 <!-- WiFi Panel -->
