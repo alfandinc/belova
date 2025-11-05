@@ -22,6 +22,9 @@
             </div>
         </div>
         <div class="card-body">
+            <div class="mb-3 d-flex justify-content-end">
+                <button id="exportExcelBtn" class="btn btn-success btn-sm mr-2"><i class="fas fa-file-excel"></i> Export Excel</button>
+            </div>
             <table class="table table-bordered" id="kartuStokTable">
                 <thead>
                     <tr>
@@ -143,6 +146,21 @@ $(function() {
 
     $('#onlyWithTransactions').on('change', function() {
         table.ajax.reload();
+    });
+
+    // Export button
+    $('#exportExcelBtn').on('click', function() {
+        var drp = mainDateRange.data('daterangepicker');
+        var start = drp.startDate.format('YYYY-MM-DD');
+        var end = drp.endDate.format('YYYY-MM-DD');
+        // Build url and open in new tab to trigger download
+        var url = '{{ url("/erm/kartu-stok/export") }}' + '?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end);
+        // Provide brief feedback by disabling button while the download starts
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('Preparing...');
+        // Use window.location to trigger download
+        window.location = url;
+        setTimeout(function() { $btn.prop('disabled', false).html('<i class="fas fa-file-excel"></i> Export Excel'); }, 2000);
     });
 
     // Handle detail button click

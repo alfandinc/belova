@@ -440,6 +440,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::get('/kartu-stok', [App\Http\Controllers\ERM\KartuStokController::class, 'index'])->name('erm.kartustok.index');
         Route::get('/kartu-stok/data', [App\Http\Controllers\ERM\KartuStokController::class, 'data'])->name('erm.kartustok.data');
         Route::get('/kartu-stok/detail', [App\Http\Controllers\ERM\KartuStokController::class, 'detail'])->name('erm.kartustok.detail');
+    Route::get('/kartu-stok/export', [App\Http\Controllers\ERM\KartuStokController::class, 'export'])->name('erm.kartustok.export');
 
         // Gudang Mapping Management
         Route::get('/gudang-mapping', [App\Http\Controllers\ERM\GudangMappingController::class, 'index'])->name('erm.gudang-mapping.index');

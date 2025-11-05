@@ -14,6 +14,153 @@ class KartuStokController extends Controller
         return view('erm.kartu_stok.index');
     }
 
+    public function export(Request $request)
+    {
+        // Build same dataset as the index/data + detail rows for each obat
+        $start = $request->input('start');
+        $end = $request->input('end');
+
+        // Get all obat (we include obat without transactions)
+        $obats = DB::table('erm_obat')->select('id', 'nama')->orderBy('nama')->get();
+
+        $rows = [];
+    // Header rows for excel
+    $rows[] = ['Nama Obat', 'Tipe', 'Tanggal', 'Jumlah', 'Referensi', 'Stok Setelah (per batch)', 'Total Semua Batch', 'Batch', 'Keterangan', 'Gudang'];
+
+        foreach ($obats as $obat) {
+            // Add a separator / title row for this obat
+            $rows[] = ["-- {$obat->nama} --", '', '', '', '', '', '', '', '', ''];
+
+            // Fetch kartu stok transactions for this obat within date range
+            // include id so we can tie-break on same-timestamp rows when computing totals
+            $query = DB::table('erm_kartu_stok as ks')
+                ->leftJoin('erm_gudang as g', 'ks.gudang_id', '=', 'g.id')
+                ->where('ks.obat_id', $obat->id)
+                ->select(
+                    'ks.id',
+                    'ks.gudang_id',
+                    'ks.tipe',
+                    'ks.qty as jumlah',
+                    'ks.tanggal',
+                    'ks.ref_type',
+                    'ks.ref_id',
+                    'ks.stok_setelah',
+                    'ks.batch',
+                    'ks.keterangan',
+                    'g.nama as nama_gudang'
+                )
+                ->orderBy('ks.tanggal', 'desc')
+                ->orderBy('ks.id', 'desc');
+
+            if ($start && $end) {
+                $query->whereBetween('ks.tanggal', [$start, $end]);
+            }
+
+            $transactions = $query->get();
+
+            // get distinct batches for this obat (used to compute total across batches)
+            $batches = DB::table('erm_kartu_stok')
+                ->where('obat_id', $obat->id)
+                ->select('batch')
+                ->distinct()
+                ->pluck('batch');
+
+            if ($transactions->isEmpty()) {
+                $rows[] = ['', 'Tidak ada transaksi', '', '', '', '', '', '', '', ''];
+                continue;
+            }
+
+            foreach ($transactions as $t) {
+                // Build reference number similar to detail() method
+                $refNumber = '';
+                if ($t->ref_type && $t->ref_id) {
+                    try {
+                        switch ($t->ref_type) {
+                            case 'invoice_penjualan':
+                            case 'invoice_return':
+                                $invoice = DB::table('finance_invoices')->where('id', $t->ref_id)->first();
+                                $refNumber = $invoice ? $invoice->invoice_number : '#' . $t->ref_id;
+                                break;
+                            case 'faktur_pembelian':
+                                $faktur = DB::table('erm_fakturbeli')->where('id', $t->ref_id)->first();
+                                $refNumber = $faktur ? $faktur->no_faktur : '#' . $t->ref_id;
+                                break;
+                            case 'mutasi_gudang':
+                                $mutasi = DB::table('erm_mutasi_gudang')->where('id', $t->ref_id)->first();
+                                $refNumber = $mutasi ? $mutasi->nomor_mutasi : '#' . $t->ref_id;
+                                break;
+                            case 'stok_opname':
+                                $opname = DB::table('erm_stok_opname')->where('id', $t->ref_id)->first();
+                                $refNumber = $opname ? 'OPNAME-' . $opname->periode_bulan . '-' . $opname->periode_tahun . ' (#' . $t->ref_id . ')' : '#' . $t->ref_id;
+                                break;
+                            default:
+                                $refNumber = '#' . $t->ref_id;
+                                break;
+                        }
+                    } catch (\Exception $e) {
+                        $refNumber = '#' . $t->ref_id;
+                    }
+                }
+
+                // compute total across batches for the same gudang as this transaction (same logic as detail view)
+                $totalAll = 0;
+                try {
+                    foreach ($batches as $batchVal) {
+                        $batchQuery = DB::table('erm_kartu_stok')->where('obat_id', $obat->id);
+                        if (isset($t->gudang_id)) {
+                            $batchQuery->where('gudang_id', $t->gudang_id);
+                        } else {
+                            $batchQuery->whereNull('gudang_id');
+                        }
+                        if (is_null($batchVal) || $batchVal === '') {
+                            $batchQuery->where(function($q) {
+                                $q->whereNull('batch')->orWhere('batch', '');
+                            });
+                        } else {
+                            $batchQuery->where('batch', $batchVal);
+                        }
+
+                        $batchQuery->where(function($q) use ($t) {
+                            $q->where('tanggal', '<', $t->tanggal)
+                              ->orWhere(function($q2) use ($t) {
+                                  $q2->where('tanggal', '=', $t->tanggal)->where('id', '<=', isset($t->id) ? $t->id : 0);
+                              });
+                        });
+
+                        $latest = $batchQuery->orderBy('tanggal', 'desc')->orderBy('id', 'desc')->first();
+                        if ($latest && isset($latest->stok_setelah)) {
+                            $totalAll += (float)$latest->stok_setelah;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $totalAll = (float)$t->stok_setelah;
+                }
+
+                $rows[] = [
+                    $obat->nama,
+                    $t->tipe,
+                    $t->tanggal,
+                    $t->jumlah,
+                    $refNumber,
+                    $t->stok_setelah,
+                    $totalAll,
+                    $t->batch,
+                    $t->keterangan,
+                    $t->nama_gudang
+                ];
+            }
+        }
+
+        // Use Maatwebsite Excel to export
+        try {
+            $export = new \App\Exports\ERM\KartuStokDetailExport($rows);
+            $filename = 'kartu_stok_' . date('Ymd_His') . '.xlsx';
+            return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Export failed: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function data(Request $request)
     {
         // Get date range from request
