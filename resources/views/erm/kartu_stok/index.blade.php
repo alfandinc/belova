@@ -24,6 +24,7 @@
         <div class="card-body">
             <div class="mb-3 d-flex justify-content-end">
                 <button id="exportExcelBtn" class="btn btn-success btn-sm mr-2"><i class="fas fa-file-excel"></i> Export Excel</button>
+                <button id="exportStokTerakhirBtn" class="btn btn-primary btn-sm"><i class="fas fa-download"></i> Export Stok Terakhir</button>
             </div>
             <table class="table table-bordered" id="kartuStokTable">
                 <thead>
@@ -31,6 +32,7 @@
                         <th>Nama Obat</th>
                         <th>Masuk</th>
                         <th>Keluar</th>
+                        <th>Total Stok Terakhir</th>
                         <th>Detail</th>
                     </tr>
                 </thead>
@@ -136,6 +138,7 @@ $(function() {
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'masuk', name: 'masuk' },
             { data: 'keluar', name: 'keluar' },
+                { data: 'stok_terakhir', name: 'stok_terakhir', render: function(data, type, row) { return data !== undefined && data !== null ? data : 0; } },
             { data: 'detail', name: 'detail', orderable: false, searchable: false }
         ]
     });
@@ -161,6 +164,18 @@ $(function() {
         // Use window.location to trigger download
         window.location = url;
         setTimeout(function() { $btn.prop('disabled', false).html('<i class="fas fa-file-excel"></i> Export Excel'); }, 2000);
+    });
+
+    // Export stok terakhir summary
+    $('#exportStokTerakhirBtn').on('click', function() {
+        var drp = mainDateRange.data('daterangepicker');
+        var start = drp.startDate.format('YYYY-MM-DD');
+        var end = drp.endDate.format('YYYY-MM-DD');
+        var url = '{{ url("/erm/kartu-stok/export-stok-terakhir") }}' + '?start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end);
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('Preparing...');
+        window.location = url;
+        setTimeout(function() { $btn.prop('disabled', false).html('<i class="fas fa-download"></i> Export Stok Terakhir'); }, 2000);
     });
 
     // Handle detail button click

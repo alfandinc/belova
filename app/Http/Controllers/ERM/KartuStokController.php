@@ -14,6 +14,61 @@ class KartuStokController extends Controller
         return view('erm.kartu_stok.index');
     }
 
+    /**
+     * Export summary of stok terakhir (total per-obat across all batches up to end date)
+     */
+    public function exportStokTerakhir(Request $request)
+    {
+        $end = $request->input('end');
+        $cutoff = $end ? (strpos($end, ' ') === false ? ($end . ' 23:59:59') : $end) : date('Y-m-d H:i:s');
+
+        // Get all obat
+        $obats = DB::table('erm_obat')->select('id', 'nama')->orderBy('nama')->get();
+
+        $rows = [];
+        $rows[] = ['Nama Obat', 'Total Stok Terakhir'];
+
+        foreach ($obats as $obat) {
+            $totalAll = 0;
+            try {
+                $batches = DB::table('erm_kartu_stok')
+                    ->where('obat_id', $obat->id)
+                    ->select('batch')
+                    ->distinct()
+                    ->pluck('batch');
+
+                foreach ($batches as $batchVal) {
+                    $batchQuery = DB::table('erm_kartu_stok')->where('obat_id', $obat->id);
+                    if (is_null($batchVal) || $batchVal === '') {
+                        $batchQuery->where(function($q) {
+                            $q->whereNull('batch')->orWhere('batch', '');
+                        });
+                    } else {
+                        $batchQuery->where('batch', $batchVal);
+                    }
+
+                    $batchQuery->where('tanggal', '<=', $cutoff);
+                    $latest = $batchQuery->orderBy('tanggal', 'desc')->orderBy('id', 'desc')->first();
+                    if ($latest && isset($latest->stok_setelah)) {
+                        $totalAll += (float)$latest->stok_setelah;
+                    }
+                }
+            } catch (\Exception $e) {
+                $totalAll = 0;
+            }
+
+            $rows[] = [$obat->nama, (int)$totalAll];
+        }
+
+        try {
+            $export = new \App\Exports\ERM\KartuStokDetailExport($rows);
+            $filename = 'stok_terakhir_' . date('Ymd_His') . '.xlsx';
+            return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Export failed: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function export(Request $request)
     {
         // Build same dataset as the index/data + detail rows for each obat
@@ -190,12 +245,53 @@ class KartuStokController extends Controller
 
         $result = [];
 
+        // Determine cutoff datetime for computing "stok terakhir" (use end date end-of-day if provided)
+        $cutoff = $end ? (strpos($end, ' ') === false ? ($end . ' 23:59:59') : $end) : date('Y-m-d H:i:s');
+
+        // Helper: compute stok terakhir (sum of latest stok_setelah per batch) for a given obat up to cutoff
+        $computeStokTerakhir = function($obatId) use ($cutoff) {
+            $totalAll = 0;
+            try {
+                $batches = DB::table('erm_kartu_stok')
+                    ->where('obat_id', $obatId)
+                    ->select('batch')
+                    ->distinct()
+                    ->pluck('batch');
+
+                foreach ($batches as $batchVal) {
+                    $batchQuery = DB::table('erm_kartu_stok')->where('obat_id', $obatId);
+                    if (is_null($batchVal) || $batchVal === '') {
+                        $batchQuery->where(function($q) {
+                            $q->whereNull('batch')->orWhere('batch', '');
+                        });
+                    } else {
+                        $batchQuery->where('batch', $batchVal);
+                    }
+
+                    // Only consider records up to and including cutoff
+                    $batchQuery->where('tanggal', '<=', $cutoff);
+
+                    $latest = $batchQuery->orderBy('tanggal', 'desc')->orderBy('id', 'desc')->first();
+                    if ($latest && isset($latest->stok_setelah)) {
+                        $totalAll += (float)$latest->stok_setelah;
+                    }
+                }
+            } catch (\Exception $e) {
+                // fallback: 0
+                $totalAll = 0;
+            }
+
+            return (int)$totalAll;
+        };
+
         // Add obat with transactions
         foreach ($kartuStokData as $data) {
+            $stokTerakhir = $computeStokTerakhir($data->obat_id);
             $result[] = [
                 'nama_obat' => $data->nama_obat,
                 'masuk' => (int)$data->total_masuk,
                 'keluar' => (int)$data->total_keluar,
+                'stok_terakhir' => $stokTerakhir,
                 'detail' => '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$data->obat_id.'">Detail</button>'
             ];
         }
@@ -211,10 +307,12 @@ class KartuStokController extends Controller
 
             // Add obat without transactions (0 masuk, 0 keluar)
             foreach ($obatWithoutTransactions as $obat) {
+                $stokTerakhir = $computeStokTerakhir($obat->obat_id);
                 $result[] = [
                     'nama_obat' => $obat->nama_obat,
                     'masuk' => 0,
                     'keluar' => 0,
+                    'stok_terakhir' => $stokTerakhir,
                     'detail' => '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$obat->obat_id.'">Detail</button>'
                 ];
             }
