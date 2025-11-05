@@ -8,6 +8,9 @@ use App\Models\HRD\Employee;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Exports\NgajiPerDateExport;
 
 class BelovaMengajiController extends Controller
 {
@@ -313,5 +316,35 @@ class BelovaMengajiController extends Controller
             'top_active' => $top_active,
             'per_employee_avg' => $per_employee_avg,
         ]);
+    }
+
+    /**
+     * Export ngaji nilai for a specific date as PDF
+     */
+    public function exportPdf(Request $request)
+    {
+        $date = $request->get('date') ?: date('Y-m-d');
+        $rows = NgajiNilai::with('employee')
+            ->where('date', $date)
+            ->orderBy('employee_id')
+            ->get();
+
+        $data = [
+            'rows' => $rows,
+            'date' => $date,
+        ];
+
+        // use barryvdh/laravel-dompdf (installed in composer.json)
+        $pdf = Pdf::loadView('belova_mengaji.export_pdf', $data)->setPaper('a4', 'landscape');
+        return $pdf->download('belova_mengaji_'.$date.'.pdf');
+    }
+
+    /**
+     * Export ngaji nilai for a specific date as Excel
+     */
+    public function exportExcel(Request $request)
+    {
+        $date = $request->get('date') ?: date('Y-m-d');
+        return Excel::download(new NgajiPerDateExport($date), 'belova_mengaji_'.$date.'.xlsx');
     }
 }

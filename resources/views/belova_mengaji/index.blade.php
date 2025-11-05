@@ -52,9 +52,20 @@
             order: [[0, 'asc']]
         });
 
-        // redraw table when date filter changes
+            // helper to keep export links in sync with the selected date
+            function updateExportLinks() {
+                var d = $('#filter-date').val() || new Date().toISOString().slice(0,10);
+                $('#export-pdf').attr('href', '{{ route('belova.mengaji.export.pdf') }}' + '?date=' + encodeURIComponent(d));
+                $('#export-excel').attr('href', '{{ route('belova.mengaji.export.excel') }}' + '?date=' + encodeURIComponent(d));
+            }
+
+            // initialize export links
+            updateExportLinks();
+
+        // redraw table when date filter changes and update export links
         $('#filter-date').on('change', function() {
             empTable.ajax.reload();
+            updateExportLinks();
         });
 
         // Auto-save when any ngaji select or catatan changes
@@ -281,10 +292,14 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="mb-0">Penilaian Mengaji Pegawai</h4>
-                    <div class="d-flex align-items-center">
-                        <label for="filter-date" class="mr-2 mb-0">Tanggal</label>
-                        <input id="filter-date" type="date" class="form-control" value="{{ request('date', date('Y-m-d')) }}">
-                    </div>
+                                <div class="d-flex align-items-center">
+                                    <label for="filter-date" class="mr-2 mb-0">Tanggal</label>
+                                    <input id="filter-date" type="date" class="form-control" value="{{ request('date', date('Y-m-d')) }}">
+                                    <div class="ml-2 d-flex" style="gap:8px;">
+                                        <a id="export-pdf" class="btn btn-sm btn-outline-danger" target="_blank" href="{{ route('belova.mengaji.export.pdf', ['date' => request('date', date('Y-m-d'))]) }}">PDF</a>
+                                        <a id="export-excel" class="btn btn-sm btn-outline-success" target="_blank" href="{{ route('belova.mengaji.export.excel', ['date' => request('date', date('Y-m-d'))]) }}">Excel</a>
+                                    </div>
+                                </div>
                 </div>
                 <div class="card-body table-responsive">
                     <table id="employees-table" class="table table-striped table-bordered dt-responsive nowrap" style="width:100%">

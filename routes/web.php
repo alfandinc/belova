@@ -209,6 +209,9 @@ Route::post('/belova-mengaji/store', [BelovaMengajiController::class, 'store'])-
 Route::get('/belova-mengaji/analytics', [BelovaMengajiController::class, 'analytics'])->middleware('auth')->name('belova.mengaji.analytics');
 Route::get('/belova-mengaji/analytics/data', [BelovaMengajiController::class, 'analyticsData'])->middleware('auth')->name('belova.mengaji.analytics.data');
 Route::get('/belova-mengaji/history', [BelovaMengajiController::class, 'history'])->middleware('auth')->name('belova.mengaji.history');
+// Export routes (per-tanggal) - only include employees that have records that day
+Route::get('/belova-mengaji/export/pdf', [BelovaMengajiController::class, 'exportPdf'])->middleware('auth')->name('belova.mengaji.export.pdf');
+Route::get('/belova-mengaji/export/excel', [BelovaMengajiController::class, 'exportExcel'])->middleware('auth')->name('belova.mengaji.export.excel');
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
