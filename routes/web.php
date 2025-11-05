@@ -1197,6 +1197,9 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Analytics pages  
     Route::get('/revenue', [MarketingController::class, 'revenue'])->name('marketing.revenue');
     Route::get('/patients', [MarketingController::class, 'patients'])->name('marketing.patients');
+    // Social Media analytics (new)
+    Route::get('/social-media-analytics', [\App\Http\Controllers\Marketing\SocialMediaAnalyticsController::class, 'index'])->name('marketing.social-analytics.index');
+    Route::get('/social-media-analytics/data', [\App\Http\Controllers\Marketing\SocialMediaAnalyticsController::class, 'data'])->name('marketing.social-analytics.data');
     Route::get('/services', [MarketingController::class, 'services'])->name('marketing.services');
     Route::get('/products', [MarketingController::class, 'products'])->name('marketing.products');
     Route::get('/clinic-comparison', [MarketingController::class, 'clinicComparison'])->name('marketing.clinic-comparison');
@@ -1250,7 +1253,16 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'show'])->name('marketing.content-plan.show');
     Route::post('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'store'])->name('marketing.content-plan.store');
     Route::put('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'update'])->name('marketing.content-plan.update');
+    // Inline update for specific fields (brand/platform/jenis_konten/status)
+    Route::post('content-plan/{id}/inline-update', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'inlineUpdate'])->name('marketing.content-plan.inline-update');
     Route::delete('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'destroy'])->name('marketing.content-plan.destroy');
+
+    // Content Report
+    Route::get('content-report', [\App\Http\Controllers\Marketing\ContentReportController::class, 'index'])->name('marketing.content-report.index');
+    Route::post('content-report', [\App\Http\Controllers\Marketing\ContentReportController::class, 'store'])->name('marketing.content-report.store');
+    Route::get('content-report/by-plan/{id}', [\App\Http\Controllers\Marketing\ContentReportController::class, 'byPlan'])->name('marketing.content-report.by-plan');
+    Route::get('content-report/{id}', [\App\Http\Controllers\Marketing\ContentReportController::class, 'show'])->name('marketing.content-report.show');
+    Route::put('content-report/{id}', [\App\Http\Controllers\Marketing\ContentReportController::class, 'update'])->name('marketing.content-report.update');
 
     // Hari Penting (Important Days) Calendar
     Route::get('hari-penting', [\App\Http\Controllers\Marketing\HariPentingController::class, 'index'])->name('marketing.hari-penting.index');

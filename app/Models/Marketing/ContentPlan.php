@@ -4,6 +4,7 @@ namespace App\Models\Marketing;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Marketing\ContentReport;
 
 class ContentPlan extends Model
 {
@@ -32,4 +33,9 @@ class ContentPlan extends Model
         'brand' => 'array',
         'tanggal_publish' => 'datetime',
     ];
+
+    public function reports()
+    {
+        return $this->hasMany(ContentReport::class, 'content_plan_id');
+    }
 }

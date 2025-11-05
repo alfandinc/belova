@@ -59,6 +59,7 @@
 </div>
 
 @include('marketing.content_plan.partials.modal')
+@include('marketing.content_plan.partials.content_report_modal')
 @endsection
 
 @push('scripts')
@@ -153,8 +154,11 @@ $(function() {
             { data: 'judul', name: 'judul' },
             { data: 'tanggal_publish', name: 'tanggal_publish', render: function(data) {
                 if (data) {
-                    // Use moment.js to format date in Indonesian
-                    return moment(data).locale('id').format('D MMMM YYYY [jam] HH.mm');
+                    // Use moment.js to format date in Indonesian on two lines: date and time
+                    var m = moment(data).locale('id');
+                    var datePart = m.format('D MMMM YYYY');
+                    var timePart = m.format('HH.mm');
+                    return `<div>${datePart}<br><small style="color:#6c757d">jam ${timePart}</small></div>`;
                 }
                 return '';
             } },
@@ -188,17 +192,31 @@ $(function() {
                 }
                 return '';
             } },
-            { data: 'status', name: 'status', render: function(data) {
-                let color = 'secondary';
-                let label = data;
-                if (!data) return '';
-                switch (data.toLowerCase()) {
-                    case 'draft': color = 'primary'; break;
-                    case 'scheduled': color = 'warning'; break;
-                    case 'published': color = 'success'; break;
-                    case 'cancelled': color = 'danger'; break;
+            { data: 'status', name: 'status', render: function(data, type, row) {
+                // Render as an inline select so user can change status directly
+                var options = ['Draft','Scheduled','Published','Cancelled'];
+                // Map status to colors
+                var map = {
+                    'draft': {bg: '#6c757d', color: '#ffffff'},
+                    'scheduled': {bg: '#ffc107', color: '#212529'},
+                    'published': {bg: '#28a745', color: '#ffffff'},
+                    'cancelled': {bg: '#dc3545', color: '#ffffff'}
+                };
+                var current = data ? data.toLowerCase() : '';
+                var style = '';
+                if (current && map[current]) {
+                    style = `background-color:${map[current].bg};color:${map[current].color};border-color:transparent;`;
                 }
-                return `<span class="badge badge-${color}">${label}</span>`;
+                // Wrap select in a div so we can color the background reliably across browsers
+                var html = `<div class="inline-status-wrap" style="display:inline-block;padding:4px 6px;border-radius:4px;${style}">`;
+                html += `<select class="form-control form-control-sm inline-status" data-id="${row.id}" style="min-width:120px;background:transparent;border:0;box-shadow:none;color:inherit;">`;
+                options.forEach(function(opt) {
+                    var sel = (data && data.toLowerCase() === opt.toLowerCase()) ? 'selected' : '';
+                    html += `<option value="${opt}" ${sel}>${opt}</option>`;
+                });
+                html += `</select>`;
+                html += `</div>`;
+                return html;
             } },
             { data: 'action', orderable: false, searchable: false },
         ],
@@ -350,6 +368,301 @@ $(function() {
     $('#status').select2({
         dropdownParent: $('#contentPlanModal'),
         width: '100%'
+    });
+
+    // Setup CSRF for AJAX
+    $.ajaxSetup({
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+    });
+
+    // Handle inline status change
+    $('#contentPlanTable').on('change', '.inline-status', function() {
+        var $select = $(this);
+        var id = $select.data('id');
+        var value = $select.val();
+        var original = $select.prop('disabled');
+        $select.prop('disabled', true);
+        // update styling immediately for better UX
+        function applyStatusStyle($selectEl, val) {
+            var map = {
+                'draft': {bg: '#6c757d', color: '#ffffff'},
+                'scheduled': {bg: '#ffc107', color: '#212529'},
+                'published': {bg: '#28a745', color: '#ffffff'},
+                'cancelled': {bg: '#dc3545', color: '#ffffff'}
+            };
+            var key = val ? val.toLowerCase() : '';
+            var $wrap = $selectEl.closest('.inline-status-wrap');
+            if ($wrap.length === 0) return;
+            if (map[key]) {
+                $wrap.css({'background-color': map[key].bg, 'color': map[key].color, 'border-color':'transparent'});
+                // ensure select inherits text color
+                $wrap.find('select').css({'color': map[key].color});
+            } else {
+                $wrap.css({'background-color':'', 'color':'', 'border-color':''});
+                $wrap.find('select').css({'color':''});
+            }
+        }
+        applyStatusStyle($select, value);
+
+        $.post(`/marketing/content-plan/${id}/inline-update`, { status: value })
+            .done(function(res) {
+                // Optionally show a small toast or just reload the row
+                table.ajax.reload(null, false);
+            })
+            .fail(function(xhr) {
+                var msg = 'Gagal menyimpan perubahan.';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire('Error', msg, 'error');
+                table.ajax.reload(null, false);
+            })
+            .always(function() {
+                $select.prop('disabled', false);
+            });
+    });
+
+    // Open Content Report modal from actions
+    $('#contentPlanTable').on('click', '.btn-statistics', function() {
+        var id = $(this).data('id');
+        // reset form
+        $('#contentPlanReportForm')[0].reset();
+        $('#cr_id').val('');
+        $('#cr_content_plan_id').val(id);
+        $('#cr_content_plan_title').text('Loading...');
+        // fetch content plan title via existing endpoint
+        $.get(`/marketing/content-plan/${id}`, function(plan) {
+            $('#cr_content_plan_title').text(plan.judul + ' (id:' + id + ')');
+        }).fail(function(){
+            $('#cr_content_plan_title').text('Content Plan #' + id);
+        });
+
+        // fetch all reports for the plan (history)
+        var cr_reports = [];
+        $.get(`/marketing/content-report/by-plan/${id}`, function(reports) {
+            cr_reports = Array.isArray(reports) ? reports : [];
+            var report = cr_reports.length ? cr_reports[0] : null;
+            // populate history table
+            renderHistory(cr_reports);
+
+            if (report) {
+                $('#cr_id').val(report.id);
+                $('#cr_likes').val(report.likes || 0);
+                $('#cr_comments').val(report.comments || 0);
+                $('#cr_saves').val(report.saves || 0);
+                $('#cr_shares').val(report.shares || 0);
+                $('#cr_reach').val(report.reach || 0);
+                $('#cr_impressions').val(report.impressions || 0);
+                // populate readonly ERI and ERR fields if available
+                $('#cr_eri').val(report.eri != null ? Number(report.eri).toFixed(2) : '0.00');
+                $('#cr_err').val(report.err != null ? Number(report.err).toFixed(2) : '0.00');
+                if (report.recorded_at) {
+                    // format to YYYY-MM-DDTHH:MM
+                    var dt = report.recorded_at.replace(' ', 'T').slice(0,16);
+                    $('#cr_recorded_at').val(dt);
+                } else {
+                    // default recorded_at to now (local datetime) when no report exists
+                    var now = new Date();
+                    var local = now.toISOString().slice(0,16);
+                    $('#cr_recorded_at').val(local);
+                }
+            } else {
+                // ensure fields have defaults
+                $('#cr_id').val('');
+                $('#cr_likes').val(0);
+                $('#cr_comments').val(0);
+                $('#cr_saves').val(0);
+                $('#cr_shares').val(0);
+                $('#cr_reach').val(0);
+                $('#cr_impressions').val(0);
+                computeAndShowERIERR();
+                // default recorded_at to now when no existing report
+                var now = new Date();
+                var local = now.toISOString().slice(0,16);
+                $('#cr_recorded_at').val(local);
+            }
+            $('#contentPlanReportModal').modal('show');
+        }).fail(function() {
+            // still show modal even if no report
+            cr_reports = [];
+            renderHistory(cr_reports);
+            // initialize fields with zero to allow live calculation
+            $('#cr_id').val('');
+            $('#cr_likes').val(0);
+            $('#cr_comments').val(0);
+            $('#cr_saves').val(0);
+            $('#cr_shares').val(0);
+            $('#cr_reach').val(0);
+            $('#cr_impressions').val(0);
+            computeAndShowERIERR();
+            // set recorded_at to now by default
+            var now = new Date();
+            var local = now.toISOString().slice(0,16);
+            $('#cr_recorded_at').val(local);
+            $('#contentPlanReportModal').modal('show');
+        });
+    });
+
+    // Compute and display ERI/ERR in modal based on current numeric input values
+    function computeAndShowERIERR() {
+        var likes = parseInt($('#cr_likes').val() || 0, 10);
+        var comments = parseInt($('#cr_comments').val() || 0, 10);
+        var saves = parseInt($('#cr_saves').val() || 0, 10);
+        var shares = parseInt($('#cr_shares').val() || 0, 10);
+        var reach = parseInt($('#cr_reach').val() || 0, 10);
+        var impressions = parseInt($('#cr_impressions').val() || 0, 10);
+        var interactions = (likes || 0) + (comments || 0) + (saves || 0) + (shares || 0);
+        var eri = (impressions > 0) ? (interactions / impressions) * 100 : 0;
+        var err = (reach > 0) ? (interactions / reach) * 100 : 0;
+        // display with 2 decimals
+        $('#cr_eri').val(eri.toFixed(2));
+        $('#cr_err').val(err.toFixed(2));
+    }
+
+    // Bind live calculation to input changes inside the modal
+    $('#contentPlanReportModal').on('input', '#cr_likes, #cr_comments, #cr_saves, #cr_shares, #cr_reach, #cr_impressions', function() {
+        computeAndShowERIERR();
+    });
+
+    // Render history table on the right side of the modal
+    function renderHistory(reports) {
+        var $tb = $('#cr_history_tbody');
+        $tb.empty();
+        if (!reports || reports.length === 0) {
+            $tb.append('<tr><td colspan="4" class="text-muted small">No history</td></tr>');
+            return;
+        }
+        // reports expected in descending order (newest first). Growth is computed
+        // compared to the previous record (the next item in the array, which is older).
+        reports.forEach(function(r, idx) {
+            var when = r.recorded_at ? r.recorded_at : r.created_at;
+            // format when using moment (local timezone)
+            var whenFormatted = '';
+            if (when) {
+                try {
+                    whenFormatted = moment(when).locale('id').format('D MMM YYYY') + '<br><small style="color:#6c757d">' + moment(when).format('HH.mm') + '</small>';
+                } catch (e) {
+                    whenFormatted = when;
+                }
+            }
+            var eri = r.eri != null ? Number(r.eri) : 0;
+            var err = r.err != null ? Number(r.err) : 0;
+
+            // compute growth compared to previous (older) record
+            var growthHtml = '<span class="text-muted">—</span>';
+            var prev = reports[idx+1]; // older record
+            if (prev && prev.eri != null) {
+                var prevEri = Number(prev.eri);
+                if (prevEri === 0) {
+                    // cannot compute percent change from 0
+                    growthHtml = '<span class="text-muted">N/A</span>';
+                } else {
+                    var change = ((eri - prevEri) / prevEri) * 100;
+                    var up = change > 0;
+                    var cls = up ? 'text-success' : (change < 0 ? 'text-danger' : 'text-muted');
+                    var arrow = change > 0 ? '↑' : (change < 0 ? '↓' : '');
+                    growthHtml = `<span class="${cls}">${arrow} ${Math.abs(change).toFixed(2)}%</span>`;
+                }
+            }
+
+            var row = `<tr data-id="${r.id}" style="cursor:pointer"><td style="white-space:nowrap">${whenFormatted}</td><td>${eri.toFixed(2)}</td><td>${err.toFixed(2)}</td><td style="white-space:nowrap">${growthHtml}</td></tr>`;
+            $tb.append(row);
+        });
+    }
+
+    // Click a history row to load that report into the form for viewing/editing
+    $('#cr_history_tbody').on('click', 'tr', function() {
+        var id = $(this).data('id');
+        if (!id) return;
+        // mark selected row
+        $('#cr_history_tbody tr').removeClass('table-active');
+        $(this).addClass('table-active');
+        // Fetch the report by id from server to get full fields (or use cr_reports cache if available)
+        $.get(`/marketing/content-report/${id}`, function(report){
+            if (report) {
+                $('#cr_id').val(report.id);
+                $('#cr_likes').val(report.likes || 0);
+                $('#cr_comments').val(report.comments || 0);
+                $('#cr_saves').val(report.saves || 0);
+                $('#cr_shares').val(report.shares || 0);
+                $('#cr_reach').val(report.reach || 0);
+                $('#cr_impressions').val(report.impressions || 0);
+                $('#cr_eri').val(report.eri != null ? Number(report.eri).toFixed(2) : '0.00');
+                $('#cr_err').val(report.err != null ? Number(report.err).toFixed(2) : '0.00');
+                if (report.recorded_at) {
+                    var dt = report.recorded_at.replace(' ', 'T').slice(0,16);
+                    $('#cr_recorded_at').val(dt);
+                }
+            }
+        }).fail(function(){
+            Swal.fire('Error','Gagal mengambil report','error');
+        });
+    });
+
+    // 'New' button — clear the form and prepare to create a new report
+    $('#cr_new_btn').on('click', function() {
+        $('#cr_id').val('');
+        $('#cr_likes').val(0);
+        $('#cr_comments').val(0);
+        $('#cr_saves').val(0);
+        $('#cr_shares').val(0);
+        $('#cr_reach').val(0);
+        $('#cr_impressions').val(0);
+        computeAndShowERIERR();
+        // set recorded_at to now
+        var now = new Date();
+        var local = now.toISOString().slice(0,16);
+        $('#cr_recorded_at').val(local);
+        // visually deselect any selected history row
+        $('#cr_history_tbody tr').removeClass('table-active');
+    });
+
+    // Submit content plan report (create or update)
+    $('#contentPlanReportForm').on('submit', function(e) {
+        e.preventDefault();
+        var id = $('#cr_id').val();
+        var planId = $('#cr_content_plan_id').val();
+        var fd = {
+            content_plan_id: planId,
+            likes: $('#cr_likes').val() || 0,
+            comments: $('#cr_comments').val() || 0,
+            saves: $('#cr_saves').val() || 0,
+            shares: $('#cr_shares').val() || 0,
+            reach: $('#cr_reach').val() || 0,
+            impressions: $('#cr_impressions').val() || 0,
+            // engagement rate will be calculated server-side (eri/err).
+            recorded_at: $('#cr_recorded_at').val() ? $('#cr_recorded_at').val().replace('T',' ') : null
+        };
+
+        if (!id) {
+            // create
+            $.post('{{ route('marketing.content-report.store') }}', fd)
+                .done(function(res){
+                    $('#contentPlanReportModal').modal('hide');
+                    table.ajax.reload(null, false);
+                    Swal.fire('Sukses','Report disimpan','success');
+                })
+                .fail(function(xhr){
+                    var msg = 'Gagal menyimpan report.';
+                    if (xhr.responseJSON && xhr.responseJSON.errors) msg = Object.values(xhr.responseJSON.errors).join('<br>');
+                    Swal.fire('Error', msg, 'error');
+                });
+        } else {
+            // update
+            $.ajax({
+                url: `/marketing/content-report/${id}`,
+                method: 'PUT',
+                data: fd,
+            }).done(function(res){
+                $('#contentPlanReportModal').modal('hide');
+                table.ajax.reload(null, false);
+                Swal.fire('Sukses','Report diperbarui','success');
+            }).fail(function(xhr){
+                var msg = 'Gagal memperbarui report.';
+                if (xhr.responseJSON && xhr.responseJSON.errors) msg = Object.values(xhr.responseJSON.errors).join('<br>');
+                Swal.fire('Error', msg, 'error');
+            });
+        }
     });
 });
 </script>

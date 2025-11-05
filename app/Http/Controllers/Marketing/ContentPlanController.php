@@ -70,12 +70,25 @@ class ContentPlanController extends Controller
                     return collect($row->platform)->join(', ');
                 })
                 ->editColumn('jenis_konten', function ($row) {
-                    return collect($row->jenis_konten)->join(', ');
+                    if (!$row->jenis_konten || !is_array($row->jenis_konten)) return '';
+                    $badges = collect($row->jenis_konten)->map(function($k) {
+                        $color = 'secondary';
+                        switch (strtolower($k)) {
+                            case 'feed': $color = 'primary'; break;
+                            case 'story': $color = 'info'; break;
+                            case 'reels': $color = 'danger'; break;
+                            case 'artikel': $color = 'success'; break;
+                            case 'other': $color = 'secondary'; break;
+                        }
+                        $class = 'badge badge-' . $color;
+                        return '<span class="' . $class . '" style="margin-right:4px">' . e($k) . '</span>';
+                    });
+                    return $badges->implode(' ');
                 })
                 ->editColumn('tanggal_publish', function ($row) {
                     return $row->tanggal_publish ? $row->tanggal_publish->format('Y-m-d H:i') : '';
                 })
-                ->rawColumns(['action', 'brand'])
+                ->rawColumns(['action', 'brand', 'jenis_konten'])
                 ->make(true);
         }
         return view('marketing.content_plan.index');
@@ -152,5 +165,35 @@ class ContentPlanController extends Controller
                     // This line is misplaced, remove it (already returned in editColumn)
         $plan->delete();
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Inline update for specific fields. Accepts partial data for
+     * 'brand', 'platform', 'jenis_konten', and 'status'.
+     */
+    public function inlineUpdate(Request $request, $id)
+    {
+        $plan = ContentPlan::findOrFail($id);
+        $data = $request->validate([
+            'brand' => 'nullable|array',
+            'platform' => 'nullable|array',
+            'jenis_konten' => 'nullable|array',
+            'status' => 'nullable|string',
+        ]);
+
+        // Normalize arrays to sequential arrays for JSON columns
+        if (isset($data['brand']) && is_array($data['brand'])) {
+            $data['brand'] = array_values($data['brand']);
+        }
+        if (isset($data['platform']) && is_array($data['platform'])) {
+            $data['platform'] = array_values($data['platform']);
+        }
+        if (isset($data['jenis_konten']) && is_array($data['jenis_konten'])) {
+            $data['jenis_konten'] = array_values($data['jenis_konten']);
+        }
+
+        $plan->update($data);
+
+        return response()->json(['success' => true, 'data' => $plan]);
     }
 }

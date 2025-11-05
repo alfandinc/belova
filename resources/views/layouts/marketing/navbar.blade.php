@@ -57,6 +57,9 @@
                 <a href="/marketing/revenue"> <i data-feather="dollar-sign" class="align-self-center menu-icon"></i><span>Revenue</span></a>
             </li>
             <li>
+                <a href="/marketing/social-media-analytics"> <i data-feather="share-2" class="align-self-center menu-icon"></i><span>Social Media Analytics</span></a>
+            </li>
+            <li>
                 <a href="/marketing/patients"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Patient Analytics</span></a>
             </li>
             <li>
