@@ -24,8 +24,10 @@ class NgajiPerDateExport implements FromCollection, WithHeadings
             ->where('date', $this->date)
             ->orderBy('employee_id')
             ->get()
-            ->map(function($r) {
+            ->values()
+            ->map(function($r, $idx) {
                 return [
+                    'No' => $idx + 1,
                     'Nama' => optional($r->employee)->nama,
                     'Tanggal' => $r->date ? $r->date->format('Y-m-d') : '',
                     'Makhroj' => $r->nilai_makhroj,
@@ -42,6 +44,6 @@ class NgajiPerDateExport implements FromCollection, WithHeadings
 
     public function headings(): array
     {
-        return ['Nama','Tanggal','Makhroj','Tajwid','Panjang/Pendek','Kelancaran','Total','Catatan'];
+        return ['No','Nama','Tanggal','Makhroj','Tajwid','Panjang/Pendek','Kelancaran','Total','Catatan'];
     }
 }

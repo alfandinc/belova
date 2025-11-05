@@ -11,6 +11,7 @@
     <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width:100%; font-size:11px;">
         <thead>
             <tr>
+                <th style="width:40px;">No</th>
                 <th>Nama</th>
                 <th>Tanggal</th>
                 <th>Makhroj</th>
@@ -24,6 +25,7 @@
         <tbody>
             @forelse($rows as $r)
                 <tr>
+                    <td style="text-align:center">{{ $loop->iteration }}</td>
                     <td>{{ optional($r->employee)->nama }}</td>
                     <td>{{ $r->date? $r->date->format('Y-m-d') : '' }}</td>
                     <td style="text-align:center">{{ $r->nilai_makhroj }}</td>
@@ -34,7 +36,7 @@
                     <td>{{ $r->catatan }}</td>
                 </tr>
             @empty
-                <tr><td colspan="8" style="text-align:center">Tidak ada data untuk tanggal ini.</td></tr>
+                <tr><td colspan="9" style="text-align:center">Tidak ada data untuk tanggal ini.</td></tr>
             @endforelse
         </tbody>
     </table>
