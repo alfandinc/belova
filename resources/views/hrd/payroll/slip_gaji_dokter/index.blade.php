@@ -83,6 +83,9 @@
         $('#btnBuatSlip').on('click', function(){
             // Pre-fill bulan
             $('#createBulan').val($('#filterBulan').val());
+            // reset tambahan container and add one empty row
+            $('#create_tambahan_container').html('');
+            addTambahanRow('', null);
             $('#createSlipModal').modal('show');
         });
 
@@ -139,6 +142,63 @@
             return isNaN(n) ? 0 : n;
         }
 
+        // ---------- Pendapatan Tambahan helpers ----------
+        function renderTambahanRow(prefix, index, label = '', amount = 0) {
+            // prefix used only for element IDs, names must remain pendapatan_tambahan[...] so server receives array
+            const nameLabel = `pendapatan_tambahan[${index}][label]`;
+            const nameAmt = `pendapatan_tambahan[${index}][amount]`;
+            const idLabel = (prefix ? prefix : '') + `tambahan_label_${index}`;
+            const idAmt = (prefix ? prefix : '') + `tambahan_amount_${index}`;
+            const amtClass = prefix === 'edit_' ? 'form-control tambahan-amount calc-input-edit' : 'form-control tambahan-amount calc-input';
+            return `
+                <div class="form-row tambahan-row" data-index="${index}" style="display:flex; gap:8px; margin-bottom:6px;">
+                    <input type="text" name="${nameLabel}" id="${idLabel}" class="form-control tambahan-label" placeholder="Komponen (contoh: attending event)" value="${label}">
+                    <input type="number" step="0.01" name="${nameAmt}" id="${idAmt}" class="${amtClass}" placeholder="Nominal" value="${parseFloat(amount || 0).toFixed(2)}" style="width:160px;">
+                    <button type="button" class="btn btn-sm btn-danger btn-remove-tambahan">&times;</button>
+                </div>`;
+        }
+
+        function addTambahanRow(prefix, item) {
+            const containerId = prefix === 'edit_' ? '#edit_tambahan_container' : '#create_tambahan_container';
+            const $container = $(containerId);
+            const index = $container.find('.tambahan-row').length;
+            const label = item && item.label ? item.label : '';
+            const amount = item && item.amount ? item.amount : 0;
+            $container.append(renderTambahanRow(prefix, index, label, amount));
+        }
+
+        // Remove tambahan row
+        $(document).on('click', '.btn-remove-tambahan', function(){
+            const $row = $(this).closest('.tambahan-row');
+            const $container = $row.closest('#create_tambahan_container, #edit_tambahan_container');
+            $row.remove();
+            // re-index names inside this container so server receives contiguous array for that form
+            $container.find('.tambahan-row').each(function(i, el){
+                const $el = $(el);
+                $el.attr('data-index', i);
+                $el.find('.tambahan-label').attr('name', `pendapatan_tambahan[${i}][label]`);
+                $el.find('.tambahan-amount').attr('name', `pendapatan_tambahan[${i}][amount]`);
+            });
+            // recalc totals
+            recalcTotals();
+            recalcTotalsFor('edit_');
+        });
+
+    // add tambahan buttons
+    $(document).on('click', '#create_add_tambahan', function(){ addTambahanRow('', null); });
+    $(document).on('click', '#edit_add_tambahan', function(){ addTambahanRow('edit_', null); });
+
+        // Get sum of tambahan for a given container
+        function getTambahanTotal(prefix) {
+            const containerId = prefix === 'edit_' ? '#edit_tambahan_container' : '#create_tambahan_container';
+            let sum = 0;
+            $(containerId).find('.tambahan-amount').each(function(){
+                sum += parseNum($(this).val());
+            });
+            return sum;
+        }
+
+
         function recalcTotals() {
             const jasaKons = parseNum($('#jasa_konsultasi').val());
             const jasaTind = parseNum($('#jasa_tindakan').val());
@@ -151,12 +211,16 @@
             const bagiHasil = parseNum($('#bagi_hasil').val());
             const potonganLain = parseNum($('#potongan_lain').val());
 
-            const totalPend = jasaKons + jasaTind + tunjanganJabatan + overtime + uangDuduk + peresepanObat + rujukLab + pembuatanKonten;
-            // pot pajak = 2.5% dari (total pendapatan - bagi hasil)
-            const baseForPajak = Math.max(0, totalPend - bagiHasil);
+            const basePend = jasaKons + jasaTind + tunjanganJabatan + overtime + uangDuduk + peresepanObat + rujukLab + pembuatanKonten;
+            const tambahanTotal = getTambahanTotal('');
+            const totalPend = basePend + tambahanTotal;
+            // pot pajak = 2.5% dari (base pendapatan EXCLUDING pendapatan tambahan - bagi hasil)
+            const baseForPajak = Math.max(0, basePend - bagiHasil);
             const potPajak = +(baseForPajak * 0.025);
-            // write computed pot_pajak back to the field (readonly)
-            $('#pot_pajak').val(potPajak.toFixed(2));
+            // Only write computed pot_pajak if user hasn't manually overridden it
+            if (!$('#pot_pajak').data('manual')) {
+                $('#pot_pajak').val(potPajak.toFixed(2));
+            }
 
             const totalPot = bagiHasil + potPajak + potonganLain;
             const totalGaji = totalPend - totalPot;
@@ -172,6 +236,11 @@
         // attach live handlers
         $(document).on('input', '.calc-input, .calc-input-right', function(){
             recalcTotals();
+        });
+
+        // If user focuses the pot_pajak inputs, mark them as manually edited so recalc won't overwrite
+        $(document).on('focus', '#pot_pajak, #edit_pot_pajak', function(){
+            $(this).data('manual', true);
         });
 
         // ensure totals calculated on modal show
@@ -222,10 +291,16 @@
             const bagiHasil = parseNum($id('bagi_hasil').val());
             const potonganLain = parseNum($id('potongan_lain').val());
 
-            const totalPend = jasaKons + jasaTind + tunjanganJabatan + overtime + uangDuduk + peresepanObat + rujukLab + pembuatanKonten;
-            const baseForPajak = Math.max(0, totalPend - bagiHasil);
+            const basePend = jasaKons + jasaTind + tunjanganJabatan + overtime + uangDuduk + peresepanObat + rujukLab + pembuatanKonten;
+            const tambahanTotal = getTambahanTotal(prefix);
+            const totalPend = basePend + tambahanTotal;
+            // pot pajak = 2.5% dari (base pendapatan EXCLUDING pendapatan tambahan - bagi hasil)
+            const baseForPajak = Math.max(0, basePend - bagiHasil);
             const potPajak = +(baseForPajak * 0.025);
-            $id('pot_pajak').val(potPajak.toFixed(2));
+            // Only write computed pot_pajak if user hasn't manually overridden it
+            if (!$id('pot_pajak').data('manual')) {
+                $id('pot_pajak').val(potPajak.toFixed(2));
+            }
 
             const totalPot = bagiHasil + potPajak + potonganLain;
             const totalGaji = totalPend - totalPot;
@@ -262,6 +337,20 @@
                 // pot_pajak is computed so we don't set it directly; recalcTotalsFor will set
                 $('#edit_pot_pajak').val(parseFloat(data.pot_pajak || 0).toFixed(2));
                 $('#edit_status_gaji').val(data.status_gaji || 'draft');
+                // show existing attachment preview if present
+                if (data.jasmed_file) {
+                    $('#edit_jasmed_preview').html('<a href="/storage/' + data.jasmed_file + '" target="_blank">Lihat Lampiran</a>');
+                } else {
+                    $('#edit_jasmed_preview').html('');
+                }
+                // populate tambahan
+                $('#edit_tambahan_container').html('');
+                if (data.pendapatan_tambahan && Array.isArray(data.pendapatan_tambahan) && data.pendapatan_tambahan.length) {
+                    data.pendapatan_tambahan.forEach(function(it){ addTambahanRow('edit_', it); });
+                } else {
+                    // ensure at least one empty row
+                    addTambahanRow('edit_', null);
+                }
                 // compute totals
                 recalcTotalsFor('edit_');
                 $('#editSlipModal').modal('show');
@@ -340,7 +429,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form id="createSlipForm">
+            <form id="createSlipForm" enctype="multipart/form-data">
                 <style>
                     /* compact grid to reduce modal vertical length */
                     .compact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -364,6 +453,10 @@
                             <div class="form-group">
                                 <label>Bulan</label>
                                 <input type="month" name="bulan" id="createBulan" class="form-control" value="{{ $bulan }}">
+                            </div>
+                            <div class="form-group">
+                                <label>Lampiran (PDF / JPG / PNG)</label>
+                                <input type="file" name="jasmed_file" id="jasmed_file" accept="application/pdf,image/*" class="form-control-file">
                             </div>
                         </div>
                     </div>
@@ -405,6 +498,13 @@
                                 </div>
                                 <!-- total pendapatan moved below to align with total potongan -->
                             </div>
+
+                            <!-- Pendapatan Tambahan (dynamic rows) -->
+                            <div class="mt-2">
+                                <label class="text-muted">Pendapatan Tambahan</label>
+                                <div id="create_tambahan_container"></div>
+                                <button type="button" id="create_add_tambahan" class="btn btn-sm btn-outline-primary mt-2">Tambah Pendapatan Tambahan</button>
+                            </div>
                         </div>
 
                         <div class="col-md-5">
@@ -416,7 +516,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Pot Pajak (2.5%)</label>
-                                    <input type="number" step="0.01" name="pot_pajak" id="pot_pajak" class="form-control calc-input-right" value="0" readonly>
+                                    <!-- remove from calc-input-right so user's edits aren't immediately overwritten -->
+                                    <input type="number" step="0.01" name="pot_pajak" id="pot_pajak" class="form-control" value="0">
                                 </div>
                                 <div class="form-group">
                                     <label>Potongan Lain</label>
@@ -483,7 +584,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form id="editSlipForm">
+            <form id="editSlipForm" enctype="multipart/form-data">
                 <style>
                     /* reuse compact grid styles for edit modal */
                     /* place inside form to scope it to modal */
@@ -509,6 +610,11 @@
                             <div class="form-group">
                                 <label>Bulan</label>
                                 <input type="month" name="bulan" id="edit_bulan" class="form-control" value="{{ $bulan }}">
+                            </div>
+                            <div class="form-group">
+                                <label>Lampiran (PDF / JPG / PNG)</label>
+                                <input type="file" name="jasmed_file" id="edit_jasmed_file" accept="application/pdf,image/*" class="form-control-file">
+                                <div id="edit_jasmed_preview" class="mt-1"></div>
                             </div>
                         </div>
                     </div>
@@ -550,6 +656,13 @@
                                 </div>
                                 <!-- total pendapatan moved below to align with total potongan -->
                             </div>
+
+                            <!-- Pendapatan Tambahan (dynamic rows) for edit -->
+                            <div class="mt-2">
+                                <label class="text-muted">Pendapatan Tambahan</label>
+                                <div id="edit_tambahan_container"></div>
+                                <button type="button" id="edit_add_tambahan" class="btn btn-sm btn-outline-primary mt-2">Tambah Pendapatan Tambahan</button>
+                            </div>
                         </div>
 
                         <div class="col-md-5">
@@ -561,7 +674,8 @@
                                 </div>
                                 <div class="form-group">
                                     <label>Pot Pajak (2.5%)</label>
-                                    <input type="number" step="0.01" name="pot_pajak" id="edit_pot_pajak" class="form-control calc-input-right-edit" value="0" readonly>
+                                    <!-- editable by user; JS will avoid overwriting when user manually edits -->
+                                    <input type="number" step="0.01" name="pot_pajak" id="edit_pot_pajak" class="form-control" value="0">
                                 </div>
                                 <div class="form-group">
                                     <label>Potongan Lain</label>

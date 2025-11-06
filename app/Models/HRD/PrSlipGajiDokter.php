@@ -29,6 +29,7 @@ class PrSlipGajiDokter extends Model
         'total_potongan',
         'total_gaji',
         'status_gaji',
+        'pendapatan_tambahan',
     ];
 
     /**
@@ -49,6 +50,7 @@ class PrSlipGajiDokter extends Model
         'total_pendapatan' => 'float',
         'total_potongan' => 'float',
         'total_gaji' => 'float',
+        'pendapatan_tambahan' => 'array',
     ];
 
     public function dokter()

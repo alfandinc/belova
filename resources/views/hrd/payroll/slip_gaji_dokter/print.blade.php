@@ -109,29 +109,20 @@
             <div class="section-title">Pendapatan</div>
             <table class="salary-table">
                 <tr><th>Komponen</th><th class="right">Nominal (Rp)</th></tr>
-                @if(round((float)($slip->jasa_konsultasi ?? 0), 2) != 0)
-                    <tr><td>Jasa Konsultasi</td><td class="right">{{ number_format($slip->jasa_konsultasi, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->jasa_tindakan ?? 0), 2) != 0)
-                    <tr><td>Jasa Tindakan</td><td class="right">{{ number_format($slip->jasa_tindakan, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->uang_duduk ?? 0), 2) != 0)
-                    <tr><td>Uang Duduk</td><td class="right">{{ number_format($slip->uang_duduk, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->tunjangan_jabatan ?? 0), 2) != 0)
+                    <tr><td>Jasa Konsultasi</td><td class="right">{{ number_format($slip->jasa_konsultasi ?? 0, 2) }}</td></tr>
+                    <tr><td>Jasa Tindakan</td><td class="right">{{ number_format($slip->jasa_tindakan ?? 0, 2) }}</td></tr>
+                    <tr><td>Uang Duduk</td><td class="right">{{ number_format($slip->uang_duduk ?? 0, 2) }}</td></tr>
                     <tr><td>Tunjangan Jabatan</td><td class="right">{{ number_format($slip->tunjangan_jabatan ?? 0, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->overtime ?? 0), 2) != 0)
                     <tr><td>Overtime</td><td class="right">{{ number_format($slip->overtime ?? 0, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->peresepan_obat ?? 0), 2) != 0)
                     <tr><td>Peresepan Obat</td><td class="right">{{ number_format($slip->peresepan_obat ?? 0, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->rujuk_lab ?? 0), 2) != 0)
                     <tr><td>Rujuk Lab</td><td class="right">{{ number_format($slip->rujuk_lab ?? 0, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->pembuatan_konten ?? 0), 2) != 0)
                     <tr><td>Pembuatan Konten</td><td class="right">{{ number_format($slip->pembuatan_konten ?? 0, 2) }}</td></tr>
+                @if(isset($slip->pendapatan_tambahan) && is_array($slip->pendapatan_tambahan) && count($slip->pendapatan_tambahan))
+                    @foreach($slip->pendapatan_tambahan as $item)
+                        <tr><td>{{ $item['label'] ?? '-' }}</td><td class="right">{{ number_format($item['amount'] ?? 0, 2) }}</td></tr>
+                    @endforeach
+                @else
+                    <tr><td><em>Tidak ada pendapatan tambahan</em></td><td class="right">{{ number_format(0, 2) }}</td></tr>
                 @endif
                 <!-- Bagi Hasil moved to Potongan column (deduction) -->
                 <tr class="total-row"><td>Total Pendapatan</td><td class="right"><strong>{{ number_format($slip->total_pendapatan, 2) }}</strong></td></tr>
@@ -141,15 +132,9 @@
             <div class="section-title">Potongan</div>
             <table class="potongan-table">
                 <tr><th>Komponen</th><th class="right">Nominal (Rp)</th></tr>
-                @if(round((float)($slip->pot_pajak ?? 0), 2) != 0)
                     <tr><td>Potongan Pajak</td><td class="right">{{ number_format($slip->pot_pajak ?? 0, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->bagi_hasil ?? 0), 2) != 0)
                     <tr><td>Bagi Hasil</td><td class="right">{{ number_format($slip->bagi_hasil ?? 0, 2) }}</td></tr>
-                @endif
-                @if(round((float)($slip->potongan_lain ?? 0), 2) != 0)
                     <tr><td>Potongan Lain</td><td class="right">{{ number_format($slip->potongan_lain ?? 0, 2) }}</td></tr>
-                @endif
                 <tr class="total-row"><td>Total Potongan</td><td class="right"><strong>{{ number_format($slip->total_potongan ?? 0, 2) }}</strong></td></tr>
             </table>
 
@@ -170,18 +155,27 @@
     @if(isset($slip->jasmed_file) && $slip->jasmed_file)
         @php
             $filePath = storage_path('app/public/' . $slip->jasmed_file);
-            $imageData = null;
+            $inlineImageData = null;
+            $attachmentLabel = null;
             if (file_exists($filePath)) {
-                $type = mime_content_type($filePath) ?: 'image/jpeg';
-                $data = file_get_contents($filePath);
-                $base64 = base64_encode($data);
-                $imageData = 'data:' . $type . ';base64,' . $base64;
+                $type = mime_content_type($filePath) ?: 'application/octet-stream';
+                // Only prepare a data URI if the attachment is an image
+                if (strpos($type, 'image/') === 0) {
+                    $data = file_get_contents($filePath);
+                    $base64 = base64_encode($data);
+                    $inlineImageData = 'data:' . $type . ';base64,' . $base64;
+                } else {
+                    // For non-image attachments (PDFs etc.) show a small label. The controller
+                    // already merges PDF attachments as separate pages when possible, so we
+                    // avoid embedding PDF as data URI (which produced the large random text).
+                    $attachmentLabel = basename($filePath);
+                }
             }
         @endphp
-        @if($imageData)
+        @if($inlineImageData)
             <div style="margin-top:32px; text-align:left;">
                 <strong>Lampiran:</strong><br>
-                <img src="{{ $imageData }}" alt="Lampiran Jasmed File" style="max-width:320px; max-height:320px; border:1px solid #ccc;">
+                <img src="{{ $inlineImageData }}" alt="Lampiran Jasmed File" style="max-width:320px; max-height:320px; border:1px solid #ccc;">
             </div>
         @endif
     @endif
