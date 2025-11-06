@@ -86,6 +86,8 @@
             // reset tambahan container and add one empty row
             $('#create_tambahan_container').html('');
             addTambahanRow('', null);
+            // clear any previously selected file in create form to avoid stale uploads
+            $('#jasmed_file').val('');
             $('#createSlipModal').modal('show');
         });
 
@@ -329,11 +331,29 @@
         }
 
         // Edit button click - open edit modal and populate
+        // Prefer using the DataTable row data (keeps UI consistent when filter changes).
+        // Fallback to the existing AJAX GET if the row data is missing or incomplete.
         $(document).on('click', '.btn-edit', function(){
             const id = $(this).data('id');
-            $.get(`/hrd/payroll/slip-gaji-dokter/${id}`, function(res){
-                const data = res.data;
-                // populate fields prefixed with edit_
+            // try to read the row data from DataTable first
+            let rowData = null;
+            try {
+                // table is in the outer scope
+                const $tr = $(this).closest('tr');
+                rowData = table.row($tr).data();
+            } catch (e) {
+                rowData = null;
+            }
+
+            const populateModal = function(data){
+                if (!data) {
+                    Swal.fire({ icon: 'error', title: 'Error', text: 'Data tidak tersedia.' });
+                    return;
+                }
+                // clear previous preview and file input to avoid showing stale lampiran
+                $('#edit_jasmed_preview').html('');
+                try { $('#edit_jasmed_file').val(''); } catch(e) {}
+
                 $('#edit_id').val(data.id);
                 $('#edit_dokter_id').val(data.dokter_id);
                 $('#edit_bulan').val(data.bulan);
@@ -349,7 +369,7 @@
                 $('#edit_pembuatan_konten').val(parseFloat(data.pembuatan_konten || 0).toFixed(2));
                 $('#edit_bagi_hasil').val(parseFloat(data.bagi_hasil || 0).toFixed(2));
                 $('#edit_potongan_lain').val(parseFloat(data.potongan_lain || 0).toFixed(2));
-                // pot_pajak is computed so we don't set it directly; recalcTotalsFor will set
+                // set pot_pajak value (recalcTotalsFor may overwrite if not manual)
                 $('#edit_pot_pajak').val(parseFloat(data.pot_pajak || 0).toFixed(2));
                 $('#edit_status_gaji').val(data.status_gaji || 'draft');
                 // show existing attachment preview if present
@@ -366,9 +386,20 @@
                     // ensure at least one empty row
                     addTambahanRow('edit_', null);
                 }
-                // compute totals
+                // compute totals and show modal
                 recalcTotalsFor('edit_');
                 $('#editSlipModal').modal('show');
+            };
+
+            // If rowData exists and seems to match the id, use it.
+            if (rowData && (rowData.id == id || rowData.id === id)) {
+                populateModal(rowData);
+                return;
+            }
+
+            // Fallback: fetch from server
+            $.get(`/hrd/payroll/slip-gaji-dokter/${id}`, function(res){
+                populateModal(res.data);
             }).fail(function(){
                 Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal mengambil data.' });
             });
@@ -431,6 +462,15 @@
                     Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal mengupdate slip.' });
                 }
             });
+        });
+        // When edit modal hides, clear preview and reset form to avoid stale data when opened next
+        $('#editSlipModal').on('hidden.bs.modal', function(){
+            $('#edit_jasmed_preview').html('');
+            // reset form fields (including file input)
+            const f = $('#editSlipForm')[0];
+            if (f) f.reset();
+            // clear tambahan container
+            $('#edit_tambahan_container').html('');
         });
     });
 </script>
