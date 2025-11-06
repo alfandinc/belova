@@ -10,10 +10,18 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const fs = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
+const multer = require('multer');
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
+
+// Prepare temporary upload directory and multer for multipart/form-data
+const tmpDir = path.join(__dirname, 'tmp_uploads');
+if (!fs.existsSync(tmpDir)) {
+  try { fs.mkdirSync(tmpDir, { recursive: true }); } catch (e) { /* ignore */ }
+}
+const uploadTmp = multer({ dest: tmpDir });
 
 // Global handlers to avoid process exit on unexpected errors
 process.on('uncaughtException', (err) => {
@@ -430,7 +438,21 @@ app.get('/qr', async (req, res) => {
   }
 });
 
-app.post('/send', async (req, res) => {
+// Accept either JSON (no files) or multipart/form-data. Try to accept common field names explicitly
+// (attachments, attachments[], file) to avoid Multer 'Unexpected field' errors from clients that use different naming.
+const attachmentsFieldMiddleware = uploadTmp.fields([
+  { name: 'attachments', maxCount: 20 },
+  { name: 'attachments[]', maxCount: 20 },
+  { name: 'file', maxCount: 20 }
+]);
+
+app.post('/send', attachmentsFieldMiddleware, async (req, res) => {
+  // Debug: log incoming multipart info to help diagnose upload issues
+  try {
+    const dbg = { headers: req.headers, filesCount: Array.isArray(req.files) ? req.files.length : 0 };
+    try { fs.appendFileSync(path.join(__dirname, 'logs', 'send-debug.log'), JSON.stringify(dbg) + '\n'); } catch (e) { /* ignore logging errors */ }
+  } catch (e) { /* ignore */ }
+  // If multipart was used, fields may be in req.body; otherwise bodyParser.json populated req.body
   const { number, message, session } = req.body || {};
   if (!number) return res.status(400).json({ success: false, error: 'number is required' });
 
@@ -445,6 +467,57 @@ app.post('/send', async (req, res) => {
     const sanitized = (number + '').replace(/[^0-9]/g, '');
     const id = sanitized.includes('@c.us') ? sanitized : `${sanitized}@c.us`;
 
+    // If files were uploaded via multipart, multer populated req.files
+    if (Array.isArray(req.files) && req.files.length) {
+      // Send files as media messages. Use message as caption for the first file if provided.
+      for (let i = 0; i < req.files.length; i++) {
+        const f = req.files[i];
+        try {
+          const media = MessageMedia.fromFilePath(f.path);
+          const opts = {};
+          if (i === 0 && (message || '') !== '') opts.caption = message;
+          await state.client.sendMessage(id, media, opts);
+        } catch (e) {
+          console.error(`[${clientId}] Error sending media ${f.originalname}:`, e && e.message ? e.message : e);
+          // continue with next file
+        } finally {
+          // cleanup
+          try { fs.unlinkSync(f.path); } catch (er) { /* ignore */ }
+        }
+      }
+      return res.json({ success: true, session: clientId, files: req.files.length });
+    }
+
+    // Alternatively, accept JSON with file_paths (absolute paths on disk) so Laravel can move files into tmp_uploads
+    try {
+      const bodyPaths = (req.body && req.body.file_paths) ? req.body.file_paths : null;
+      if (Array.isArray(bodyPaths) && bodyPaths.length) {
+        for (let i = 0; i < bodyPaths.length; i++) {
+          const p = bodyPaths[i];
+          try {
+            if (!fs.existsSync(p)) {
+              console.warn(`[${clientId}] file path does not exist: ${p}`);
+              continue;
+            }
+            const media = MessageMedia.fromFilePath(p);
+            const opts = {};
+            if (i === 0 && (message || '') !== '') opts.caption = message;
+            await state.client.sendMessage(id, media, opts);
+          } catch (e) {
+            console.error(`[${clientId}] Error sending media from path ${p}:`, e && e.message ? e.message : e);
+            continue;
+          } finally {
+            // attempt cleanup of the file provided by Laravel
+            try { fs.unlinkSync(p); } catch (er) { /* ignore */ }
+          }
+        }
+        return res.json({ success: true, session: clientId, files: bodyPaths.length });
+      }
+    } catch (e) {
+      console.error('Error processing file_paths array:', e && e.message ? e.message : e);
+    }
+
+    // no files -> existing behavior (text message)
     const sent = await state.client.sendMessage(id, message || '');
     return res.json({ success: true, id: sent.id._serialized, session: clientId });
   } catch (e) {
@@ -741,4 +814,18 @@ server.on('error', (err) => {
     console.error('Server error:', err);
     process.exit(1);
   }
+});
+
+// Generic error handler for Express: return JSON for Multer errors so Laravel receives structured error messages
+app.use((err, req, res, next) => {
+  try {
+    const multer = require('multer');
+    if (err instanceof multer.MulterError) {
+      console.error('Multer error on /send:', err);
+      return res.status(400).send({ success: false, error: 'MulterError: ' + err.message });
+    }
+  } catch (e) { /* ignore */ }
+  // fallback to default handler
+  console.error('Unhandled server error:', err && err.stack ? err.stack : err);
+  return res.status(500).send({ success: false, error: err && err.message ? err.message : String(err) });
 });

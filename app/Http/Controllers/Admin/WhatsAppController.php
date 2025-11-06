@@ -45,20 +45,28 @@ class WhatsAppController extends Controller
             'number' => 'required|string',
             'message' => 'nullable|string',
             'session' => 'nullable|string',
+            'attachments.*' => 'file|max:51200', // max 50MB per file (adjust to your needs / php.ini)
         ]);
 
         $number = preg_replace('/[^0-9]/', '', $data['number']);
         $message = $data['message'] ?? '';
 
     $session = $data['session'] ?? null;
-    $result = $whatsappService->sendMessage($number, $message, $session);
+        // If attachments were uploaded, use the multipart forwarding method
+        if ($request->hasFile('attachments')) {
+            $files = $request->file('attachments');
+            $result = $whatsappService->sendMessageWithAttachments($number, $message, $files, $session);
+        } else {
+            $result = $whatsappService->sendMessage($number, $message, $session);
+        }
 
         if (is_array($result) && isset($result['success']) && $result['success']) {
             return redirect()->route('admin.whatsapp.index')->with('success', 'Message queued for sending.');
         }
 
-        $error = is_array($result) && isset($result['error']) ? $result['error'] : 'Unknown error or service disabled.';
-        Log::warning('WhatsApp send failed', ['number' => $number, 'error' => $error]);
+    $error = is_array($result) && isset($result['error']) ? $result['error'] : 'Unknown error or service disabled.';
+    // Log the full result to help debugging (includes response body when available)
+    Log::warning('WhatsApp send failed', ['number' => $number, 'error' => $error, 'result' => $result]);
 
         return redirect()->route('admin.whatsapp.index')->with('error', 'Failed to send message: ' . $error);
     }

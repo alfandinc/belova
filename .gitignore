@@ -46,3 +46,7 @@ yarn-error.log
 # Bot flows (runtime) - global and per-session files
 whatsapp-service/bot-flows.json
 whatsapp-service/bot-flows.*.json
+
+# Temporary uploads created at runtime by the whatsapp-service when Laravel forwards files.
+# These are runtime artifacts and must not be committed.
+/whatsapp-service/tmp_uploads/

@@ -92,6 +92,57 @@ class WhatsAppService
         }
     }
 
+    /**
+     * Send message with one or more attachments by forwarding multipart/form-data to the Node service.
+     * @param string $number
+     * @param string $message
+     * @param array $files Array of UploadedFile instances
+     * @param string|null $session
+     * @return array
+     */
+    public function sendMessageWithAttachments($number, $message, $files = [], $session = null)
+    {
+        $clean = preg_replace('/[^0-9]/', '', (string) $number);
+        if (empty($clean)) {
+            return ['success' => false, 'error' => 'Invalid phone number'];
+        }
+
+        try {
+            // Try simpler approach: move uploaded files into whatsapp-service tmp_uploads folder
+            // and send JSON with absolute file paths to avoid multipart parsing issues.
+            $tmpDir = base_path('whatsapp-service/tmp_uploads');
+            if (!file_exists($tmpDir)) @mkdir($tmpDir, 0755, true);
+
+            $paths = [];
+            foreach ($files as $f) {
+                if (!is_object($f)) continue;
+                $name = time() . '_' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $f->getClientOriginalName());
+                $dest = $tmpDir . DIRECTORY_SEPARATOR . $name;
+                // move the uploaded file to the tmp dir
+                $moved = $f->move($tmpDir, $name);
+                if ($moved) {
+                    $paths[] = $dest;
+                }
+            }
+
+            $body = ['number' => $clean, 'message' => $message ?? ''];
+            if ($session) $body['session'] = $session;
+            if (count($paths)) $body['file_paths'] = $paths;
+
+            // send as JSON; Node will read files from the provided paths
+            $res = Http::timeout(120)->post($this->baseUrl . '/send', $body);
+
+            if ($res->successful()) {
+                return ['success' => true, 'response' => $res->json()];
+            }
+
+            return ['success' => false, 'error' => 'Service returned HTTP ' . $res->status(), 'body' => $res->body()];
+        } catch (\Exception $e) {
+            Log::error('WhatsAppService sendMessageWithAttachments error: ' . $e->getMessage(), ['number' => $number]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
     public function sendVisitationNotification($visitationId)
     {
         // Keep existing API for callers; implement domain-specific message composition here.

@@ -84,7 +84,7 @@
 
             <!-- Send Message Section -->
             <h5>Send Message</h5>
-            <form method="POST" action="{{ route('admin.whatsapp.send') }}">
+            <form method="POST" action="{{ route('admin.whatsapp.send') }}" enctype="multipart/form-data">
                 @csrf
                 <div class="form-group">
                     <label for="session">Session (optional)</label>
@@ -99,6 +99,12 @@
                 <div class="form-group">
                     <label for="message">Message</label>
                     <textarea name="message" id="message" rows="5" class="form-control" placeholder="Your message"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="attachments">Attachment (optional)</label>
+                    <input type="file" name="attachments[]" id="attachments" class="form-control-file" multiple accept="image/*,video/*,audio/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                    <small class="form-text text-muted">You may attach one or more files (images, video, audio, PDF, DOCX). Max size depends on server settings.</small>
                 </div>
 
                 <button class="btn btn-primary" type="submit">Send</button>
