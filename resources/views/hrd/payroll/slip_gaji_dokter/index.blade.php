@@ -216,10 +216,14 @@
             const totalPend = basePend + tambahanTotal;
             // pot pajak = 2.5% dari (base pendapatan EXCLUDING pendapatan tambahan - bagi hasil)
             const baseForPajak = Math.max(0, basePend - bagiHasil);
-            const potPajak = +(baseForPajak * 0.025);
-            // Only write computed pot_pajak if user hasn't manually overridden it
-            if (!$('#pot_pajak').data('manual')) {
-                $('#pot_pajak').val(potPajak.toFixed(2));
+            const computedPotPajak = +(baseForPajak * 0.025);
+            // If user manually entered pot_pajak, use that value for totals; otherwise use computed
+            let potPajak = computedPotPajak;
+            if ($('#pot_pajak').data('manual')) {
+                potPajak = parseNum($('#pot_pajak').val());
+            } else {
+                // update UI with computed value when not manually overridden
+                $('#pot_pajak').val(computedPotPajak.toFixed(2));
             }
 
             const totalPot = bagiHasil + potPajak + potonganLain;
@@ -241,6 +245,15 @@
         // If user focuses the pot_pajak inputs, mark them as manually edited so recalc won't overwrite
         $(document).on('focus', '#pot_pajak, #edit_pot_pajak', function(){
             $(this).data('manual', true);
+        });
+
+        // Recalculate totals if user manually changes pot_pajak inputs
+        $(document).on('input', '#pot_pajak', function(){
+            // Ensure totals reflect manual override
+            recalcTotals();
+        });
+        $(document).on('input', '#edit_pot_pajak', function(){
+            recalcTotalsFor('edit_');
         });
 
         // ensure totals calculated on modal show
@@ -296,10 +309,12 @@
             const totalPend = basePend + tambahanTotal;
             // pot pajak = 2.5% dari (base pendapatan EXCLUDING pendapatan tambahan - bagi hasil)
             const baseForPajak = Math.max(0, basePend - bagiHasil);
-            const potPajak = +(baseForPajak * 0.025);
-            // Only write computed pot_pajak if user hasn't manually overridden it
-            if (!$id('pot_pajak').data('manual')) {
-                $id('pot_pajak').val(potPajak.toFixed(2));
+            const computedPotPajak = +(baseForPajak * 0.025);
+            let potPajak = computedPotPajak;
+            if ($id('pot_pajak').data('manual')) {
+                potPajak = parseNum($id('pot_pajak').val());
+            } else {
+                $id('pot_pajak').val(computedPotPajak.toFixed(2));
             }
 
             const totalPot = bagiHasil + potPajak + potonganLain;
