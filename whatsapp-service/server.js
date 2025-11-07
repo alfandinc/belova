@@ -683,38 +683,66 @@ function startScheduler() {
           continue;
         }
 
-        // send message
+  // send message
         const sanitized = (job.number + '').replace(/[^0-9]/g, '');
         const id = sanitized.includes('@c.us') ? sanitized : `${sanitized}@c.us`;
-        await state.client.sendMessage(id, job.message || '');
+  // increment attempts for this send attempt so 'attempts' reflects how many tries were made
+  job.attempts = (job.attempts || 0) + 1;
+  await state.client.sendMessage(id, job.message || '');
         job.sent = true;
         job.sentAt = new Date().toISOString();
         // if this job is from DB (id starts with db_), notify Laravel to mark it as sent
         try {
           if (String(job.id).startsWith('db_')) {
             const dbId = String(job.id).replace(/^db_/, '');
-            const notifyUrl = `${LARAVEL_BASE}/admin/internal/whatsapp/scheduled/${encodeURIComponent(dbId)}/sent?token=${encodeURIComponent(LARAVEL_TOKEN)}`;
-            await fetch(notifyUrl, { method: 'POST' });
+            // Use GET for notifications to avoid Laravel CSRF; include attempts and last_error as query params
+            const params = new URLSearchParams();
+            params.set('token', String(LARAVEL_TOKEN));
+            params.set('attempts', String(job.attempts || 0));
+            if (job.lastError) params.set('last_error', String(job.lastError));
+            const notifyUrl = `${LARAVEL_BASE}/admin/internal/whatsapp/scheduled/${encodeURIComponent(dbId)}/sent?${params.toString()}`;
+            try {
+              const r = await fetch(notifyUrl);
+              if (!r.ok) {
+                const text = await r.text().catch(() => '');
+                console.warn(`Laravel notify (sent) returned status ${r.status}: ${text}`);
+              } else {
+                console.log(`Laravel notified of sent job ${dbId} (status ${r.status})`);
+              }
+            } catch (e) {
+              console.warn('Failed to notify Laravel about sent job (fetch error):', e && e.message ? e.message : e);
+            }
           }
         } catch (e) {
-          console.warn('Failed to notify Laravel about sent job:', e && e.message ? e.message : e);
+          console.warn('Failed to process Laravel notify for sent job:', e && e.message ? e.message : e);
         }
       } catch (e) {
-        job.attempts = (job.attempts || 0) + 1;
+        // Do not double-increment attempts here; attempts is incremented before send.
         job.lastError = (e && e.message) ? e.message : String(e);
         // If job originates from DB, let Laravel know about failure and attempts
         try {
           if (String(job.id).startsWith('db_')) {
             const dbId = String(job.id).replace(/^db_/, '');
-            const notifyUrl = `${LARAVEL_BASE}/admin/internal/whatsapp/scheduled/${encodeURIComponent(dbId)}/failed?token=${encodeURIComponent(LARAVEL_TOKEN)}`;
-            await fetch(notifyUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ last_error: job.lastError, attempts: job.attempts })
-            });
+            // Use GET to avoid CSRF; include attempts and last_error as query params
+            const params = new URLSearchParams();
+            if (job.attempts != null) params.set('attempts', String(job.attempts));
+            if (job.lastError != null) params.set('last_error', String(job.lastError));
+            params.set('token', String(LARAVEL_TOKEN));
+            const notifyUrl = `${LARAVEL_BASE}/admin/internal/whatsapp/scheduled/${encodeURIComponent(dbId)}/failed?${params.toString()}`;
+            try {
+              const r2 = await fetch(notifyUrl);
+              if (!r2.ok) {
+                const t2 = await r2.text().catch(() => '');
+                console.warn(`Laravel notify (failed) returned status ${r2.status}: ${t2}`);
+              } else {
+                console.log(`Laravel notified of failed job ${dbId} (status ${r2.status})`);
+              }
+            } catch (er2) {
+              console.warn('Failed to notify Laravel about failed job (fetch error):', er2 && er2.message ? er2.message : er2);
+            }
           }
         } catch (er2) {
-          console.warn('Failed to notify Laravel about failed job:', er2 && er2.message ? er2.message : er2);
+          console.warn('Failed to process Laravel notify for failed job:', er2 && er2.message ? er2.message : er2);
         }
         if ((job.attempts || 0) >= (job.maxAttempts || 3)) {
           job.sent = true;

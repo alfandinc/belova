@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\WhatsAppBotFlow;
 use App\Models\WhatsAppScheduledMessage;
+use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 
@@ -55,6 +56,28 @@ class WhatsAppAdminApiController extends Controller
         if ($session) $q->where('session', $session);
         $jobs = $q->orderBy('send_at', 'asc')->get();
         return response()->json(['scheduled' => $jobs]);
+    }
+
+    // DataTables server-side endpoint used by the admin UI
+    public function listScheduledDataTable(Request $req)
+    {
+        $session = $req->query('session');
+        $q = WhatsAppScheduledMessage::query();
+        if ($session) $q->where('session', $session);
+        $q->orderBy('send_at', 'asc');
+
+        return DataTables::of($q)
+            ->addColumn('status', function($j){
+                if ($j->sent) return 'sent';
+                if ($j->failed) return 'failed';
+                return 'pending';
+            })
+            ->addColumn('actions', function($j){
+                return '<button data-id="'.$j->id.'" class="btn btn-sm btn-danger deleteJobBtn">Delete</button>';
+            })
+            ->editColumn('send_at', function($j){ return $j->send_at; })
+            ->rawColumns(['actions'])
+            ->make(true);
     }
 
     // Public endpoints for internal sync (Node -> Laravel)
@@ -127,10 +150,31 @@ class WhatsAppAdminApiController extends Controller
         if (!$this->validateSyncToken($req)) return response()->json(['error' => 'forbidden'], 403);
         $j = WhatsAppScheduledMessage::find($id);
         if (!$j) return response()->json(['error' => 'not_found'], 404);
+        // Accept attempts via query param or POST body so external services can report how many attempts were made
+        $attempts = null;
+        if ($req->query('attempts') !== null) $attempts = $req->query('attempts');
+        elseif ($req->input('attempts') !== null) $attempts = $req->input('attempts');
+
+        if ($attempts !== null) {
+            // sanitize
+            if (is_numeric($attempts)) {
+                $j->attempts = (int)$attempts;
+            } else {
+                // leave existing attempts as-is if not numeric
+                $j->attempts = $j->attempts ?? 0;
+            }
+        } else {
+            $j->attempts = $j->attempts ?? 0;
+        }
+
+        $last_error = null;
+        if ($req->query('last_error') !== null) $last_error = $req->query('last_error');
+        elseif ($req->input('last_error') !== null) $last_error = $req->input('last_error');
+        if ($last_error !== null) $j->last_error = $last_error;
+
         $j->sent = true;
         $j->failed = false;
         $j->sent_at = now();
-        $j->attempts = $j->attempts ?? 0;
         $j->save();
         return response()->json(['success' => true, 'job' => $j]);
     }

@@ -171,9 +171,11 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
     // Sessions proxy (calls Node service)
     Route::get('/sessions', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listSessions']);
 
-        Route::get('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduled']);
-        Route::post('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'createScheduled']);
-        Route::delete('/scheduled/{id}', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'deleteScheduled']);
+            Route::get('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduled']);
+            // DataTables server-side fetch
+            Route::get('/scheduled-data', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduledDataTable']);
+            Route::post('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'createScheduled']);
+            Route::delete('/scheduled/{id}', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'deleteScheduled']);
     });
 
     // Internal endpoints for Node polling (protected by WHATSAPP_SYNC_TOKEN)
@@ -193,8 +195,9 @@ Route::middleware(['auth'])->prefix('admin')->group(function () {
 // These routes are token-protected by WHATSAPP_SYNC_TOKEN in the controller.
 Route::get('/admin/internal/whatsapp/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listFlowsPublic']);
 Route::get('/admin/internal/whatsapp/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduledPublic']);
-Route::post('/admin/internal/whatsapp/scheduled/{id}/sent', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledSent']);
-Route::post('/admin/internal/whatsapp/scheduled/{id}/failed', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledFailed']);
+// Allow both GET and POST for these internal endpoints so external services (Node) can notify Laravel
+Route::match(['get','post'], '/admin/internal/whatsapp/scheduled/{id}/sent', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledSent']);
+Route::match(['get','post'], '/admin/internal/whatsapp/scheduled/{id}/failed', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledFailed']);
 
 
 

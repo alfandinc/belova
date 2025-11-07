@@ -5,33 +5,27 @@
 @endsection
 
 @section('content')
-<div class="container">
+<div class="container-fluid">
   <h1>Scheduled WhatsApp Messages</h1>
   <p class="text-muted">Create, list and delete scheduled messages per session.</p>
 
   <div id="alerts"></div>
 
   <div class="row">
-    <div class="col-md-4">
-      <div class="card">
-        <div class="card-body">
-          <label>Session</label>
-          <select id="sessionSelect" class="form-control mb-2"><option value="">Global</option></select>
-
-          <h5>Scheduled</h5>
-          <ul id="scheduledList" class="list-group"></ul>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-8">
+    <div class="col-md-12">
       <div class="card">
         <div class="card-body">
           <h5>Create Scheduled Message</h5>
           <form id="scheduleForm">
-            <div class="mb-3">
-              <label class="form-label">Number (e.g. 628123...)</label>
-              <input id="schedNumber" class="form-control" required />
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Session</label>
+                <select id="sessionSelect" class="form-control"><option value="">Global</option></select>
+              </div>
+              <div class="col-md-8 mb-3">
+                <label class="form-label">Number (e.g. 628123...)</label>
+                <input id="schedNumber" class="form-control" required />
+              </div>
             </div>
             <div class="mb-3">
               <label class="form-label">Message</label>
@@ -45,11 +39,27 @@
               <label class="form-label">Max Attempts</label>
               <input id="schedMaxAttempts" type="number" class="form-control" value="3" />
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex justify-content-end">
               <button class="btn btn-primary" type="submit">Schedule</button>
-              <button id="refreshBtn" class="btn btn-secondary" type="button">Refresh</button>
+              <button id="refreshBtn" class="btn btn-secondary ml-2" type="button">Refresh</button>
             </div>
           </form>
+
+          <hr />
+          <h5>Scheduled</h5>
+          <table id="scheduledTable" class="table table-sm table-striped" style="width:100%">
+            <thead>
+              <tr>
+                <th>Number</th>
+                <th>Message</th>
+                <th>Send At</th>
+                <th>Attempts</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -84,34 +94,46 @@ async function loadSessions() {
   } catch (e) { showAlert('danger', 'Could not load sessions: ' + e.message); }
 }
 
-async function loadScheduled() {
-  try {
-    const session = document.getElementById('sessionSelect').value || '';
-  const url = apiBase + '/scheduled' + (session ? ('?session=' + encodeURIComponent(session)) : '');
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('Failed to load scheduled messages');
-    const d = await r.json();
-    const ul = document.getElementById('scheduledList');
-    ul.innerHTML = '';
-    (d.scheduled || []).forEach(job => {
-      const li = document.createElement('li');
-      li.className = 'list-group-item';
-      li.innerHTML = `<div><strong>${job.number}</strong> <small class="text-muted">${job.sendAt}</small></div>
-                      <div>${job.message || ''}</div>
-                      <div class="mt-2"><small>Attempts: ${job.attempts || 0} ${job.failed ? ' (failed)' : job.sent ? ' (sent)' : ''}</small></div>
-                      <div class="mt-2"><button data-id="${job.id}" class="btn btn-sm btn-danger deleteJobBtn">Delete</button></div>`;
-      ul.appendChild(li);
-    });
-  } catch (e) { showAlert('danger', 'Failed to load scheduled messages: ' + e.message); }
+let scheduledTable = null;
+function initScheduledTable() {
+  if (scheduledTable) scheduledTable.destroy();
+  scheduledTable = $('#scheduledTable').DataTable({
+    processing: true,
+    serverSide: true,
+    ajax: {
+      url: apiBase + '/scheduled-data',
+      data: function(d) { d.session = document.getElementById('sessionSelect').value || ''; }
+    },
+    columns: [
+      { data: 'number', name: 'number' },
+      { data: 'message', name: 'message' },
+      { data: 'send_at', name: 'send_at' },
+      { data: 'attempts', name: 'attempts' },
+      { data: 'status', name: 'status', render: function(data, type, row) {
+          if (!data) return '';
+          var s = String(data).toLowerCase();
+          if (s === 'sent' || s === 'delivered') return '<span class="badge badge-success">' + data + '</span>';
+          if (s === 'failed' || s === 'error') return '<span class="badge badge-danger">' + data + '</span>';
+          return '<span class="badge badge-secondary">' + data + '</span>';
+        }
+      },
+      { data: 'actions', name: 'actions', orderable: false, searchable: false }
+    ],
+    order: [[2, 'asc']]
+  });
+
+  // Auto refresh every 10s to pick up changes
+  setInterval(() => { if (scheduledTable) scheduledTable.ajax.reload(null, false); }, 10000);
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
   await loadSessions();
   const sel = document.getElementById('sessionSelect');
-  sel.addEventListener('change', loadScheduled);
-  await loadScheduled();
+  initScheduledTable();
+  // reload table when session changes
+  sel.addEventListener('change', () => { if (scheduledTable) scheduledTable.ajax.reload(); });
 
-  document.getElementById('refreshBtn').addEventListener('click', loadScheduled);
+  document.getElementById('refreshBtn').addEventListener('click', () => { if (scheduledTable) scheduledTable.ajax.reload(); });
 
   document.getElementById('scheduleForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -128,21 +150,21 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (!r.ok) throw new Error('Failed to create scheduled message');
       const d = await r.json();
       showAlert('success', 'Scheduled created');
-      await loadScheduled();
+      if (scheduledTable) scheduledTable.ajax.reload();
     } catch (e) { showAlert('danger', 'Failed to schedule: ' + e.message); }
   });
-
-  document.getElementById('scheduledList').addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('.deleteJobBtn');
-    if (!btn) return;
+  // delegated delete handler for rows in DataTable
+  $('#scheduledTable tbody').on('click', '.deleteJobBtn', async function (ev) {
+    const btn = ev.currentTarget;
     const id = btn.getAttribute('data-id');
+    if (!id) return;
     if (!confirm('Delete scheduled job ' + id + '?')) return;
     try {
       const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-  const r = await fetch(apiBase + '/scheduled/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin', headers: {'X-CSRF-TOKEN': csrf} });
+      const r = await fetch(apiBase + '/scheduled/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin', headers: {'X-CSRF-TOKEN': csrf} });
       if (!r.ok) throw new Error('Delete failed');
       showAlert('success', 'Deleted');
-      await loadScheduled();
+      if (scheduledTable) scheduledTable.ajax.reload();
     } catch (e) { showAlert('danger', 'Failed to delete: ' + e.message); }
   });
 });
