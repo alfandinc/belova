@@ -85,20 +85,15 @@
             {{ $lastVisitDate }}
         </span>
     </div>
-    <div class="col-12 text-end mt-3">
+        <div class="col-12 text-end mt-3">
         <span id="lastLabSpan" style="padding: 6px 6px; border: 2px solid #198754; border-radius: 8px; font-weight: bold; background: #f8f9fa; color: #198754; box-shadow: 0 2px 8px 0 rgba(25,135,84,0.10); cursor:pointer;" data-toggle="modal" data-target="#modalLastLabPermintaan">
             Last Lab:
             @if(isset($lastLabVisitDate) && $lastLabVisitDate)
                 @php
                     $labDate = \Carbon\Carbon::parse($lastLabVisitDate);
-                    $now = \Carbon\Carbon::now();
-                    $diffMonths = $labDate->diffInMonths($now);
                 @endphp
-                @if($diffMonths >= 1)
-                    {{ (int)$diffMonths }} month{{ $diffMonths > 1 ? 's' : '' }} ago
-                @else
-                    -
-                @endif
+                {{-- Show formatted date plus relative time so recent labs aren't hidden by a 1-month threshold --}}
+                {{ $labDate->translatedFormat('d F Y') }} @if(method_exists($labDate, 'diffForHumans')) — {{ $labDate->diffForHumans() }} @endif
             @else
                 -
             @endif
