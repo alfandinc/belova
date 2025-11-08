@@ -525,6 +525,19 @@
 
                         // Placeholder - will be filled by AJAX after draw
                         const itemId = row.id;
+                        // If this is a racikan and backend exposed component IDs, render a stock-cell per component
+                        if (row.is_racikan && Array.isArray(row.racikan_obat_ids) && row.racikan_obat_ids.length) {
+                            const names = Array.isArray(row.racikan_obat_list) ? row.racikan_obat_list : [];
+                            let html = '<div class="racikan-stock-list">';
+                            row.racikan_obat_ids.forEach(function(compId, idx) {
+                                const label = names[idx] ? '<small>' + names[idx] + '</small> ' : '';
+                                html += '<div class="racikan-stock-line">' + label + '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + compId + '" data-child-index="' + idx + '">-</span></div>';
+                            });
+                            html += '</div>';
+                            return html;
+                        }
+
+                        // Single-component fallback
                         return '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + (obatId || '') + '">-</span>';
                     }
                 },
@@ -691,19 +704,18 @@
                             $cell.text(total);
                         }
 
-                        // Determine required qty for this billing row
+
+                        // Determine required qty for this billing row (racikan uses racikan_bungkus)
                         let qty = 1;
                         try {
                             const item = billingData.find(i => i.id == itemId);
                             if (item) {
-                                // racikan uses racikan_bungkus as qty in this UI
                                 if (item.is_racikan && typeof item.racikan_bungkus !== 'undefined') {
                                     qty = parseInt(item.racikan_bungkus) || 1;
                                 } else {
                                     qty = parseInt(item.qty) || 1;
                                 }
                             } else {
-                                // fallback: try to read Qty cell from the row (column index may vary)
                                 const qText = $cell.closest('tr').find('td').eq(4).text().trim();
                                 const qNum = qText.replace(/[^0-9]/g, '');
                                 qty = qNum ? parseInt(qNum) : 1;
@@ -713,9 +725,21 @@
                             qty = 1;
                         }
 
-                        // Mark row as low-stock if total < qty
+                        // Recalculate low-stock state for the whole row based on all component stock-cells
                         const $tr = $cell.closest('tr');
-                        if (Number(total) < Number(qty)) {
+                        let anyLow = false;
+                        $tr.find('.stock-cell').each(function() {
+                            const txt = $(this).text().toString().replace(/[^0-9\-\.]/g, '');
+                            const val = txt === '' ? NaN : parseFloat(txt);
+                            if (!isNaN(val)) {
+                                if (Number(val) < Number(qty)) {
+                                    anyLow = true;
+                                }
+                            }
+                            // If value is non-numeric (unknown), don't treat as low-stock
+                        });
+
+                        if (anyLow) {
                             $tr.addClass('low-stock');
                         } else {
                             $tr.removeClass('low-stock');

@@ -312,11 +312,16 @@ class BillingController extends Controller
             // Calculate total price for the racikan
             $totalPrice = 0;
             $obatList = [];
+            $obatIds = [];
             $bungkus = 0;
 
             foreach ($racikanItems as $item) {
                 $totalPrice += $item->jumlah;
                 $obatList[] = $item->billable->obat->nama ?? 'Obat Tidak Diketahui';
+                // collect obat ids for frontend stock checks
+                if (isset($item->billable) && isset($item->billable->obat) && isset($item->billable->obat->id)) {
+                    $obatIds[] = $item->billable->obat->id;
+                }
                 // Get bungkus from the first item only (should be same for all items in racikan)
                 if ($bungkus == 0) {
                     $bungkus = $item->billable->bungkus ?? 0;
@@ -327,6 +332,8 @@ class BillingController extends Controller
             $racikanItem = clone $firstItem;
             $racikanItem->is_racikan = true;
             $racikanItem->racikan_obat_list = $obatList;
+            // Expose obat IDs so frontend can fetch stock for each component
+            $racikanItem->racikan_obat_ids = $obatIds;
             $racikanItem->racikan_total_price = $totalPrice;
             $racikanItem->racikan_bungkus = $bungkus;
             $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
@@ -1249,36 +1256,52 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     
                     $description = implode("\n", $formattedObatList);
                     
-                    // Handle stock adjustments for racikan items only if quantity changed
-                    if ($qtyDiff != 0) {
+                    // Handle stock adjustments for racikan items only when invoice payment triggers reduction
+                    // Compute $qtyDiff for this racikan group. For new invoices or when previous payment was 0,
+                    // treat the full qty as the diff. For updates where invoice was already paid, we avoid
+                    // changing stock here (existing invoice adjustments are handled elsewhere).
+                    $newRacikanQty = intval($qty ?? 0);
+                    $racikanQtyDiff = 0;
+                    if (!$existingInvoice) {
+                        $racikanQtyDiff = $newRacikanQty;
+                    } else {
+                        // If previous invoice had no payment (previousAmountPaid == 0) and now payment increased,
+                        // we should reduce full qty. Otherwise, conservatively set diff to 0 to avoid double-processing.
+                        if (floatval($previousAmountPaid) == 0 && $paymentIncreased) {
+                            $racikanQtyDiff = $newRacikanQty;
+                        } else {
+                            $racikanQtyDiff = 0;
+                        }
+                    }
+
+                    // Only perform stock operations if the invoice reached full payment (shouldReduceStock)
+                    // and there is a non-zero qty difference to apply.
+                    if (!empty($shouldReduceStock) && $racikanQtyDiff != 0) {
                         foreach ($racikanItems as $racikanItem) {
                             if (isset($racikanItem->billable) && $racikanItem->billable->obat) {
                                 $obat = $racikanItem->billable->obat;
-                                
+
                                 Log::info('Processing racikan stock adjustment', [
                                     'obat_id' => $obat->id,
-                                    'qty_diff' => $qtyDiff,
+                                    'qty_diff' => $racikanQtyDiff,
                                     'is_update' => (bool)$existingInvoice,
                                     'invoice_id' => $invoice->id
                                 ]);
-                                
-                                // For racikan, we need to handle stock operations via StokService only
-                                if ($qtyDiff > 0) {
-                                    // Get gudang selection for racikan obat (use billing id)
+
+                                if ($racikanQtyDiff > 0) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
-                                    $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
-                                } else if ($qtyDiff < 0) {
-                                    // Return stock for negative diff (quantity reduction)
+                                    $this->reduceGudangStock($obat->id, $racikanQtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
+                                } else if ($racikanQtyDiff < 0) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
-                                    $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
+                                    $this->returnToGudangStock($obat->id, abs($racikanQtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
                                 }
-                                
+
                                 Log::info('Racikan stock processed', [
                                     'invoice_id' => $invoice->id,
                                     'is_update' => (bool)$existingInvoice,
                                     'racikan_ke' => $racikanKey,
                                     'obat_id' => $obat->id,
-                                    'qty_diff' => $qtyDiff
+                                    'qty_diff' => $racikanQtyDiff
                                 ]);
                             }
                         }
