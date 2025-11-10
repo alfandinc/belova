@@ -249,45 +249,32 @@ class KartuStokController extends Controller
         // Determine cutoff datetime for computing "stok terakhir" (use end date end-of-day if provided)
         $cutoff = $end ? (strpos($end, ' ') === false ? ($end . ' 23:59:59') : $end) : date('Y-m-d H:i:s');
 
-        // Helper: compute stok terakhir (sum of latest stok_setelah per batch) for a given obat up to cutoff
-        $computeStokTerakhir = function($obatId) use ($cutoff) {
-            $totalAll = 0;
-            try {
-                $batches = DB::table('erm_kartu_stok')
-                    ->where('obat_id', $obatId)
-                    ->select('batch')
-                    ->distinct()
-                    ->pluck('batch');
+        // Efficient computation of stok_terakhir for all obat in one query:
+        // For each (obat_id, batch) take the row with MAX(id) where tanggal <= cutoff, then sum stok_setelah per obat.
+        // Subquery: get max id per obat_id+batch up to cutoff
+        $sub = DB::table('erm_kartu_stok')
+            ->select(DB::raw('obat_id, batch, MAX(id) as max_id'))
+            ->where('tanggal', '<=', $cutoff)
+            ->groupBy('obat_id', 'batch');
 
-                foreach ($batches as $batchVal) {
-                    $batchQuery = DB::table('erm_kartu_stok')->where('obat_id', $obatId);
-                    if (is_null($batchVal) || $batchVal === '') {
-                        $batchQuery->where(function($q) {
-                            $q->whereNull('batch')->orWhere('batch', '');
-                        });
-                    } else {
-                        $batchQuery->where('batch', $batchVal);
-                    }
+        // Join back to get stok_setelah values for those max_id rows
+    $stokRows = DB::table('erm_kartu_stok as ks')
+            ->joinSub($sub, 's', function($join) {
+                $join->on('ks.id', '=', 's.max_id');
+            })
+            ->select('ks.obat_id', DB::raw('SUM(ks.stok_setelah) as stok_terakhir'))
+            ->groupBy('ks.obat_id')
+            ->get();
 
-                    // Only consider records up to and including cutoff
-                    $batchQuery->where('tanggal', '<=', $cutoff);
-
-                    $latest = $batchQuery->orderBy('tanggal', 'desc')->orderBy('id', 'desc')->first();
-                    if ($latest && isset($latest->stok_setelah)) {
-                        $totalAll += (float)$latest->stok_setelah;
-                    }
-                }
-            } catch (\Exception $e) {
-                // fallback: 0
-                $totalAll = 0;
-            }
-
-            return (int)$totalAll;
-        };
+        // Map obat_id => stok_terakhir
+        $stokMap = [];
+        foreach ($stokRows as $r) {
+            $stokMap[$r->obat_id] = (int)$r->stok_terakhir;
+        }
 
         // Add obat with transactions
         foreach ($kartuStokData as $data) {
-            $stokTerakhir = $computeStokTerakhir($data->obat_id);
+            $stokTerakhir = isset($stokMap[$data->obat_id]) ? $stokMap[$data->obat_id] : 0;
             $btnDetail = '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$data->obat_id.'">Detail</button>';
             $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$data->obat_id.'"><i class="fas fa-chart-line"></i></button>';
             $result[] = [
@@ -310,7 +297,7 @@ class KartuStokController extends Controller
 
             // Add obat without transactions (0 masuk, 0 keluar)
             foreach ($obatWithoutTransactions as $obat) {
-                $stokTerakhir = $computeStokTerakhir($obat->obat_id);
+                $stokTerakhir = isset($stokMap[$obat->obat_id]) ? $stokMap[$obat->obat_id] : 0;
                 $btnDetail = '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$obat->obat_id.'">Detail</button>';
                 $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$obat->obat_id.'"><i class="fas fa-chart-line"></i></button>';
                 $result[] = [
