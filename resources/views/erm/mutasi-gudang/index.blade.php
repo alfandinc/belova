@@ -48,12 +48,12 @@
                     </div>
 
                     <div class="table-responsive">
-                        <table class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;" id="mutasi-table">
+                        <table class="table table-bordered dt-responsive" style="border-collapse: collapse; border-spacing: 0; width: 100%; table-layout: fixed;" id="mutasi-table">
                             <thead>
                                 <tr>
                                     <th>Tanggal</th>
                                     <th>No Mutasi</th>
-                                    <th>Obat</th>
+                                    <th style="max-width:420px; white-space:normal;">Obat</th>
                                     <th>Dari Gudang</th>
                                     <th>Ke Gudang</th>
                                     <th>Diminta Oleh</th>
@@ -1128,11 +1128,20 @@ $(document).ready(function() {
 </script>
 @endpush
 
-{{-- @push('styles')
+@push('styles')
 <style>
+/* Allow table cells to wrap long content so table doesn't expand beyond viewport */
+.table td, .table th {
+    white-space: normal !important;
+    word-break: break-word !important;
+}
+/* Keep headers readable (allow header wrapping but keep them compact) */
+.table thead th {
+    white-space: nowrap !important;
+}
 .select2-container { width: 100% !important; }
 .select2-selection { width: 100% !important; }
 .select2-selection__rendered { width: 100% !important; }
 .select2-dropdown { z-index: 9999; }
 </style>
-@endpush --}}
+@endpush
