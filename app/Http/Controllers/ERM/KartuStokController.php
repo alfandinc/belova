@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 use App\Models\ERM\Obat;
 
 class KartuStokController extends Controller
@@ -287,12 +288,14 @@ class KartuStokController extends Controller
         // Add obat with transactions
         foreach ($kartuStokData as $data) {
             $stokTerakhir = $computeStokTerakhir($data->obat_id);
+            $btnDetail = '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$data->obat_id.'">Detail</button>';
+            $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$data->obat_id.'"><i class="fas fa-chart-line"></i></button>';
             $result[] = [
                 'nama_obat' => $data->nama_obat,
                 'masuk' => (int)$data->total_masuk,
                 'keluar' => (int)$data->total_keluar,
                 'stok_terakhir' => $stokTerakhir,
-                'detail' => '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$data->obat_id.'">Detail</button>'
+                'detail' => $btnDetail . $btnAnalytics
             ];
         }
 
@@ -308,17 +311,141 @@ class KartuStokController extends Controller
             // Add obat without transactions (0 masuk, 0 keluar)
             foreach ($obatWithoutTransactions as $obat) {
                 $stokTerakhir = $computeStokTerakhir($obat->obat_id);
+                $btnDetail = '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$obat->obat_id.'">Detail</button>';
+                $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$obat->obat_id.'"><i class="fas fa-chart-line"></i></button>';
                 $result[] = [
                     'nama_obat' => $obat->nama_obat,
                     'masuk' => 0,
                     'keluar' => 0,
                     'stok_terakhir' => $stokTerakhir,
-                    'detail' => '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$obat->obat_id.'">Detail</button>'
+                    'detail' => $btnDetail . $btnAnalytics
                 ];
             }
         }
 
         return response()->json(['data' => $result]);
+    }
+
+    /**
+     * Analytics: monthly breakdown of masuk (pembelian) and keluar (penjualan) for an obat
+     * Returns an HTML fragment suitable for injecting into a modal.
+     */
+    public function analytics(Request $request)
+    {
+        try {
+            $obatId = $request->input('obat_id');
+            $start = $request->input('start');
+            $end = $request->input('end');
+
+            if (!$obatId) {
+                return '<div class="text-danger">Parameter obat_id diperlukan.</div>';
+            }
+
+            // default to last 12 months if no range provided
+            if (!$start || !$end) {
+                $endDt = Carbon::now()->endOfMonth();
+                $startDt = Carbon::now()->subMonths(11)->startOfMonth();
+            } else {
+                // If user provided a range, expand to full calendar years spanning the range
+                // so the analytics table shows all months in those years (Jan..Dec)
+                $startDt = Carbon::parse($start)->startOfYear();
+                $endDt = Carbon::parse($end)->endOfYear();
+            }
+
+            $startStr = $startDt->format('Y-m-d H:i:s');
+            $endStr = $endDt->format('Y-m-d H:i:s');
+
+            $raw = DB::table('erm_kartu_stok')
+                ->select(DB::raw("DATE_FORMAT(tanggal, '%Y-%m') as ym"), 'tipe', DB::raw('SUM(qty) as total'))
+                ->where('obat_id', $obatId)
+                ->whereBetween('tanggal', [$startStr, $endStr])
+                ->groupBy('ym', 'tipe')
+                ->orderBy('ym')
+                ->get();
+
+            // pivot
+            $map = [];
+            foreach ($raw as $r) {
+                $ym = $r->ym;
+                if (!isset($map[$ym])) $map[$ym] = ['masuk' => 0, 'keluar' => 0];
+                if ($r->tipe === 'masuk') {
+                    $map[$ym]['masuk'] = (int)$r->total;
+                } else {
+                    $map[$ym]['keluar'] = (int)$r->total;
+                }
+            }
+
+            // build list of months between start and end
+            $months = [];
+            $cursor = $startDt->copy();
+            while ($cursor->lte($endDt)) {
+                $months[] = $cursor->format('Y-m');
+                $cursor->addMonth();
+            }
+
+            $totalMasuk = 0; $totalKeluar = 0;
+            foreach ($months as $m) {
+                $totalMasuk += ($map[$m]['masuk'] ?? 0);
+                $totalKeluar += ($map[$m]['keluar'] ?? 0);
+            }
+
+            $avgKeluar = count($months) ? round($totalKeluar / count($months), 2) : 0;
+
+            // render HTML
+            $html = '<div class="mb-3">';
+            $html .= '<div class="d-flex justify-content-between align-items-center">';
+            $html .= '<div><strong>Periode:</strong> ' . e($startDt->format('d/m/Y')) . ' - ' . e($endDt->format('d/m/Y')) . '</div>';
+            $html .= '<div><small class="text-muted">Total Masuk: <strong>' . number_format($totalMasuk) . '</strong> &nbsp;|&nbsp; Total Keluar: <strong>' . number_format($totalKeluar) . '</strong> &nbsp;|&nbsp; Avg Keluar/bln: <strong>' . number_format($avgKeluar, 2) . '</strong></small></div>';
+            $html .= '</div></div>';
+
+            if (empty($months)) {
+                $html .= '<div class="text-center text-muted py-4"><i class="fas fa-inbox fa-2x mb-2 d-block"></i>Tidak ada data untuk periode ini.</div>';
+                return $html;
+            }
+
+            $html .= '<div class="table-responsive">';
+            $html .= '<table class="table table-sm table-bordered">';
+            $html .= '<thead class="thead-light"><tr><th>Bulan</th><th class="text-right">Masuk</th><th class="text-right">Keluar</th><th class="text-right">Net (Masuk - Keluar)</th></tr></thead><tbody>';
+
+            foreach ($months as $m) {
+                $label = Carbon::createFromFormat('Y-m', $m)->format('M Y');
+                $masuk = $map[$m]['masuk'] ?? 0;
+                $keluar = $map[$m]['keluar'] ?? 0;
+                $net = $masuk - $keluar;
+                $html .= '<tr>';
+                $html .= '<td>' . e($label) . '</td>';
+                $html .= '<td class="text-right">' . number_format($masuk) . '</td>';
+                $html .= '<td class="text-right">' . number_format($keluar) . '</td>';
+                $html .= '<td class="text-right">' . number_format($net) . '</td>';
+                $html .= '</tr>';
+            }
+
+            $html .= '</tbody></table></div>';
+
+            // Prepare chart canvas and data payload (labels + masuk/keluar series)
+            $labels = [];
+            $masukSeries = [];
+            $keluarSeries = [];
+            foreach ($months as $m) {
+                $labels[] = Carbon::createFromFormat('Y-m', $m)->format('M Y');
+                $masukSeries[] = $map[$m]['masuk'] ?? 0;
+                $keluarSeries[] = $map[$m]['keluar'] ?? 0;
+            }
+
+            // Canvas for chart
+            $html .= '<div class="mt-3"><canvas id="analyticsChart" height="120"></canvas></div>';
+
+            // suggestion note for fast/slow moving - simple hint
+            $html .= '<div class="mt-3"><small class="text-muted">Catatan: Gunakan angka "Keluar" rata-rata per bulan sebagai indikasi pergerakan. Obat dengan rata-rata keluar tinggi relatif terhadap stok perlu dipertimbangkan sebagai fast-moving.</small></div>';
+
+            // Embed JSON payload for client-side chart rendering
+            $payload = json_encode(['labels' => $labels, 'masuk' => $masukSeries, 'keluar' => $keluarSeries, 'totalMasuk' => $totalMasuk, 'totalKeluar' => $totalKeluar, 'avgKeluar' => $avgKeluar]);
+            $html .= "<script type=\"application/json\" id=\"analytics-data\">" . $payload . "</script>";
+
+            return $html;
+        } catch (\Exception $e) {
+            return '<div class="text-danger">ERROR: ' . e($e->getMessage()) . '</div>';
+        }
     }
 
         public function detail(Request $request)

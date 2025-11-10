@@ -65,6 +65,7 @@
                                 <i class="fas fa-info-circle"></i> 
                                 Transaksi diurutkan berdasarkan tanggal (terbaru ke terlama)
                             </small>
+                            
                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                         </div>
                     </div>
@@ -86,6 +87,30 @@
                                     <span class="sr-only">Loading...</span>
                                 </div>
                                 <p class="mt-2 text-muted">Memuat detail...</p>
+                            </div>
+                        </div>
+                        <div class="modal-footer bg-light">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Analytics modal (monthly masuk/keluar summary) -->
+            <div class="modal fade" id="analyticsModal" tabindex="-1" role="dialog" aria-labelledby="analyticsModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header bg-light">
+                            <h5 class="modal-title" id="analyticsModalLabel"><i class="fas fa-chart-line"></i> Analytics Kartu Stok</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" id="analyticsModalContent" style="max-height:70vh; overflow:auto;">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="sr-only">Loading...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Memuat analytics...</p>
                             </div>
                         </div>
                         <div class="modal-footer bg-light">
@@ -207,8 +232,8 @@ $(function() {
         
         $('#detailModalLabel').html('<i class="fas fa-pills"></i> Detail Kartu Stok: ' + namaObat);
         $('#detailModalSubtitle').text('Periode: ' + periode);
-        $('#detailModal').modal('show');
-        loadDetailKartuStok(lastObatId);
+    $('#detailModal').modal('show');
+    loadDetailKartuStok(lastObatId);
     });
 
     // Handle view reference button inside detail modal (delegated)
@@ -272,6 +297,112 @@ $(function() {
             }
         });
     })();
+    // Analytics button (delegated) - opens analytics modal for current obat
+    $(document).off('click', '.btn-analytics');
+    $(document).on('click', '.btn-analytics', function(e) {
+        e.preventDefault();
+        var $btn = $(this);
+        var obatId = $btn.data('obat-id') || lastObatId;
+        if (!obatId) {
+            alert('Obat tidak tersedia untuk analytics. Buka detail obat terlebih dahulu.');
+            return;
+        }
+
+        var drp = mainDateRange.data('daterangepicker');
+        var start = drp.startDate.format('YYYY-MM-DD');
+        var end = drp.endDate.format('YYYY-MM-DD');
+
+        // show analytics modal and spinner
+        $('#analyticsModalContent').html('<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Memuat analytics...</p></div>');
+        $('#analyticsModal').modal('show');
+
+        $.ajax({
+            url: '{{ url('/erm/kartu-stok/analytics') }}',
+            method: 'GET',
+            data: { obat_id: obatId, start: start, end: end },
+            success: function(res) {
+                // server returns HTML fragment to inject
+                $('#analyticsModalContent').html(res);
+
+                // After injecting, try to read the embedded JSON payload and render chart
+                var payloadEl = document.getElementById('analytics-data');
+                if (payloadEl) {
+                    var payload = {};
+                    try {
+                        payload = JSON.parse(payloadEl.textContent || payloadEl.innerText);
+                    } catch (err) {
+                        console.error('Failed to parse analytics payload:', err);
+                        return;
+                    }
+
+                    function renderChart() {
+                        try {
+                            var ctx = document.getElementById('analyticsChart');
+                            if (!ctx) return;
+                            // destroy existing instance if present
+                            if (window.analyticsChartInstance) {
+                                try { window.analyticsChartInstance.destroy(); } catch(e){}
+                            }
+
+                            window.analyticsChartInstance = new Chart(ctx.getContext('2d'), {
+                                type: 'line',
+                                data: {
+                                    labels: payload.labels,
+                                    datasets: [
+                                        {
+                                            label: 'Masuk',
+                                            data: payload.masuk,
+                                            borderColor: 'rgba(40,167,69,0.9)',
+                                            backgroundColor: 'rgba(40,167,69,0.15)',
+                                            fill: true,
+                                            tension: 0.3,
+                                            pointRadius: 3
+                                        },
+                                        {
+                                            label: 'Keluar',
+                                            data: payload.keluar,
+                                            borderColor: 'rgba(220,53,69,0.9)',
+                                            backgroundColor: 'rgba(220,53,69,0.15)',
+                                            fill: true,
+                                            tension: 0.3,
+                                            pointRadius: 3
+                                        }
+                                    ]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: {
+                                        y: { beginAtZero: true }
+                                    },
+                                    plugins: {
+                                        legend: { position: 'top' }
+                                    }
+                                }
+                            });
+                        } catch (e) {
+                            console.error('Chart render error', e);
+                        }
+                    }
+
+                    // Ensure Chart.js is loaded; if not, load from CDN and then render
+                    if (typeof Chart === 'undefined') {
+                        var s = document.createElement('script');
+                        s.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                        s.onload = function() { renderChart(); };
+                        s.onerror = function() { console.error('Failed to load Chart.js from CDN'); };
+                        document.head.appendChild(s);
+                    } else {
+                        renderChart();
+                    }
+                }
+            },
+            error: function(xhr, status, err) {
+                console.error('Analytics load error:', status, err, xhr.responseText);
+                $('#analyticsModalContent').html('<div class="text-danger">Gagal memuat analytics. ' + (xhr.responseText || '') + '</div>');
+            }
+        });
+    });
 });
 </script>
 @endpush

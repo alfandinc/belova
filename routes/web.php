@@ -446,6 +446,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::get('/kartu-stok', [App\Http\Controllers\ERM\KartuStokController::class, 'index'])->name('erm.kartustok.index');
         Route::get('/kartu-stok/data', [App\Http\Controllers\ERM\KartuStokController::class, 'data'])->name('erm.kartustok.data');
         Route::get('/kartu-stok/detail', [App\Http\Controllers\ERM\KartuStokController::class, 'detail'])->name('erm.kartustok.detail');
+        Route::get('/kartu-stok/analytics', [App\Http\Controllers\ERM\KartuStokController::class, 'analytics'])->name('erm.kartustok.analytics');
     Route::get('/kartu-stok/export', [App\Http\Controllers\ERM\KartuStokController::class, 'export'])->name('erm.kartustok.export');
     Route::get('/kartu-stok/export-stok-terakhir', [App\Http\Controllers\ERM\KartuStokController::class, 'exportStokTerakhir'])->name('erm.kartustok.export_stok_terakhir');
 
