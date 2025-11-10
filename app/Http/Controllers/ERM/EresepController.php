@@ -875,6 +875,19 @@ class EresepController extends Controller
         
         DB::commit();
         
+        // Notify Kasir users that resep has been submitted
+        try {
+            $message = "Resep untuk kunjungan ID: {$visitationId} telah disubmit ke billing.";
+            $kasirs = \App\Models\User::role('Kasir')->get();
+            foreach ($kasirs as $kasir) {
+                // avoid duplicate DB notifications check is omitted for brevity
+                $kasir->notify(new \App\Notifications\FarmasiToKasirNotification($message));
+            }
+        } catch (\Exception $e) {
+            // Log and continue - notification failure shouldn't block response
+            \Illuminate\Support\Facades\Log::error('Failed notifying Kasir after submitResep: ' . $e->getMessage());
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'Resep berhasil disubmit ke billing!'

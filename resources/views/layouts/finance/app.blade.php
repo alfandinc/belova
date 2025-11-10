@@ -147,5 +147,39 @@
 
     @yield('scripts')
     {{-- @include('partials.farmasi-notif') --}}
+    @if(Auth::user() && Auth::user()->hasRole('Kasir'))
+    <script>
+        // Kasir notification polling: popup + optional sound when Farmasi submits resep
+        window.kasirSoundEnabled = false;
+        $(function() {
+            Swal.fire({
+                title: 'Aktifkan Notifikasi Suara?',
+                text: 'Klik OK untuk mengaktifkan suara notifikasi untuk Kasir. Cukup lakukan sekali.',
+                icon: 'question',
+                confirmButtonText: 'OK',
+            }).then(function() {
+                try { var audio = new Audio('/sounds/confirm.mp3'); audio.play(); } catch(e) {}
+                window.kasirSoundEnabled = true;
+            }).catch(function(){ /* ignore */ });
+        });
+
+        function pollKasirNotifications() {
+            $.get('/finance/get-notif', function(data) {
+                if (data && data.new) {
+                    var title = data.sender ? data.sender : 'Notifikasi';
+                    var text = data.message || 'Ada notifikasi baru.';
+                    Swal.fire({ title: title, text: text, icon: 'info', confirmButtonText: 'OK' });
+                    if (window.kasirSoundEnabled) {
+                        try { var s = new Audio('/sounds/money.mp3'); s.play(); } catch(e) {}
+                    }
+                }
+            }).fail(function(){ /* silent */ });
+        }
+
+        // Poll every 3 seconds
+        setInterval(pollKasirNotifications, 3000);
+        pollKasirNotifications();
+    </script>
+    @endif
 </body>
 </html>

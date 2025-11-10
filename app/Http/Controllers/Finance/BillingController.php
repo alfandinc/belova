@@ -244,7 +244,8 @@ class BillingController extends Controller
     public function getNotif(Request $request)
     {
         $user = Auth::user();
-        if (!$user || !$user->hasRole('Farmasi')) {
+        // Allow both Farmasi and Kasir users (and keep behavior for Farmasi)
+        if (!$user || (! $user->hasRole('Farmasi') && ! $user->hasRole('Kasir'))) {
             return response()->json(['new' => false]);
         }
         $notif = $user->unreadNotifications()->latest()->first();
