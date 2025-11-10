@@ -276,7 +276,7 @@ class KartuStokController extends Controller
         foreach ($kartuStokData as $data) {
             $stokTerakhir = isset($stokMap[$data->obat_id]) ? $stokMap[$data->obat_id] : 0;
             $btnDetail = '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$data->obat_id.'">Detail</button>';
-            $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$data->obat_id.'"><i class="fas fa-chart-line"></i></button>';
+            $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$data->obat_id.'"><i class="fas fa-chart-line"></i> Analytics</button>';
             $result[] = [
                 'nama_obat' => $data->nama_obat,
                 'masuk' => (int)$data->total_masuk,
@@ -299,7 +299,7 @@ class KartuStokController extends Controller
             foreach ($obatWithoutTransactions as $obat) {
                 $stokTerakhir = isset($stokMap[$obat->obat_id]) ? $stokMap[$obat->obat_id] : 0;
                 $btnDetail = '<button class="btn btn-info btn-sm btn-detail" data-obat-id="'.$obat->obat_id.'">Detail</button>';
-                $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$obat->obat_id.'"><i class="fas fa-chart-line"></i></button>';
+                $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$obat->obat_id.'"><i class="fas fa-chart-line"></i> Analytics</button>';
                 $result[] = [
                     'nama_obat' => $obat->nama_obat,
                     'masuk' => 0,
