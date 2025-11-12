@@ -210,7 +210,8 @@ class VisitationController extends Controller
         $request->validate([
             'pasien_id' => 'required',
             'dokter_id' => 'required', // dokter tujuan
-            'dokter_pengirim_id' => 'required',
+            // allow dokter_pengirim_id to be nullable: we'll default it to the current user's Dokter if missing
+            'dokter_pengirim_id' => 'nullable',
             'tanggal_visitation' => 'required',
             'metode_bayar_id' => 'nullable',
             // klinik_id will be derived from selected dokter
@@ -236,11 +237,26 @@ class VisitationController extends Controller
         }
 
         // Determine klinik: if request provides klinik_id use it, otherwise derive from dokter
-        $klinikId = $request->klinink_id ?? null;
+        // (fix typo: use 'klinik_id')
+        $klinikId = $request->klinik_id ?? null;
         if (empty($klinikId)) {
             $dokter = Dokter::find($request->dokter_id);
             if ($dokter) {
                 $klinikId = $dokter->klinik_id;
+            }
+        }
+
+        // Ensure dokter_pengirim_id: if not provided, try to default to the current authenticated user's Dokter record
+        $dokterPengirimId = $request->dokter_pengirim_id;
+        if (empty($dokterPengirimId)) {
+            try {
+                $dokterModel = Dokter::where('user_id', Auth::id())->first();
+                if ($dokterModel) {
+                    $dokterPengirimId = $dokterModel->id;
+                }
+            } catch (\Exception $e) {
+                // ignore and let it be null; Rujuk creation will use whatever value we have
+                Log::warning('Unable to auto-resolve dokter_pengirim_id: ' . $e->getMessage());
             }
         }
 
@@ -269,7 +285,7 @@ class VisitationController extends Controller
         // Create rujuk record
         \App\Models\ERM\Rujuk::create([
             'pasien_id' => $request->pasien_id,
-            'dokter_pengirim_id' => $request->dokter_pengirim_id,
+            'dokter_pengirim_id' => $dokterPengirimId,
             'dokter_tujuan_id' => $request->dokter_id,
             'jenis_permintaan' => $request->jenis_permintaan,
             'keterangan' => $request->keterangan ?? null,
@@ -308,72 +324,72 @@ class VisitationController extends Controller
     /**
      * Send WhatsApp notification for new visitation
      */
-    private function sendVisitationWhatsApp($visitation)
-    {
-        try {
-            // Load pasien data
-            $visitation->load(['pasien', 'dokter.user', 'klinik']);
+    // private function sendVisitationWhatsApp($visitation)
+    // {
+    //     try {
+    //         // Load pasien data
+    //         $visitation->load(['pasien', 'dokter.user', 'klinik']);
             
-            // Check if patient has phone number
-            if (!$visitation->pasien->no_hp) {
-                Log::info('Patient has no phone number, skipping WhatsApp notification', [
-                    'visitation_id' => $visitation->id,
-                    'pasien_id' => $visitation->pasien_id
-                ]);
-                return;
-            }
+    //         // Check if patient has phone number
+    //         if (!$visitation->pasien->no_hp) {
+    //             Log::info('Patient has no phone number, skipping WhatsApp notification', [
+    //                 'visitation_id' => $visitation->id,
+    //                 'pasien_id' => $visitation->pasien_id
+    //             ]);
+    //             return;
+    //         }
 
-            // Create and dispatch WhatsApp job
-            SendVisitationWhatsAppNotification::dispatch($visitation->id);
+    //         // Create and dispatch WhatsApp job
+    //         SendVisitationWhatsAppNotification::dispatch($visitation->id);
             
-            Log::info('WhatsApp notification queued for visitation', [
-                'visitation_id' => $visitation->id,
-                'pasien_id' => $visitation->pasien_id,
-                'patient_phone' => $visitation->pasien->no_hp
-            ]);
+    //         Log::info('WhatsApp notification queued for visitation', [
+    //             'visitation_id' => $visitation->id,
+    //             'pasien_id' => $visitation->pasien_id,
+    //             'patient_phone' => $visitation->pasien->no_hp
+    //         ]);
             
-        } catch (\Exception $e) {
-            Log::error('Error queuing WhatsApp notification for visitation', [
-                'visitation_id' => $visitation->id,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
+    //     } catch (\Exception $e) {
+    //         Log::error('Error queuing WhatsApp notification for visitation', [
+    //             'visitation_id' => $visitation->id,
+    //             'error' => $e->getMessage()
+    //         ]);
+    //     }
+    // }
 
     /**
      * Test WhatsApp functionality for specific visitation
      */
-    public function testVisitationWhatsApp($id)
-    {
-        if (!config('whatsapp.enabled')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'WhatsApp service is disabled'
-            ]);
-        }
+    // public function testVisitationWhatsApp($id)
+    // {
+    //     if (!config('whatsapp.enabled')) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'WhatsApp service is disabled'
+    //         ]);
+    //     }
 
-        $whatsappService = new WhatsAppService();
+    //     $whatsappService = new WhatsAppService();
         
-        // Check service health
-        $health = $whatsappService->getServiceHealth();
-        if ($health['status'] !== 'running') {
-            return response()->json([
-                'success' => false,
-                'message' => 'WhatsApp service is not running: ' . ($health['message'] ?? 'Unknown error')
-            ]);
-        }
+    //     // Check service health
+    //     $health = $whatsappService->getServiceHealth();
+    //     if ($health['status'] !== 'running') {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'WhatsApp service is not running: ' . ($health['message'] ?? 'Unknown error')
+    //         ]);
+    //     }
         
-        if (!$whatsappService->isConnected()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'WhatsApp service is not connected to WhatsApp Web'
-            ]);
-        }
+    //     if (!$whatsappService->isConnected()) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'WhatsApp service is not connected to WhatsApp Web'
+    //         ]);
+    //     }
 
-        $result = $whatsappService->sendVisitationNotification($id);
+    //     $result = $whatsappService->sendVisitationNotification($id);
         
-        return response()->json($result);
-    }
+    //     return response()->json($result);
+    // }
 
     /**
      * Get WhatsApp service status
