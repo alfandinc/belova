@@ -257,43 +257,71 @@ $(function() {
             } else if (refType === 'invoice_penjualan' || refType === 'invoice_return') {
                 // Use printable invoice view
                 url = '{{ route("finance.invoice.print", "__ID__") }}'.replace('__ID__', refId);
+            }
+            if (refType === 'retur_pembelian') {
+                // For retur, open printable PDF in iframe so it behaves like invoice print
+                if ($('#detailModal').hasClass('show')) { $('#detailModal').modal('hide'); }
+                $('#refDetailModal').modal({ backdrop: 'static', keyboard: false });
+                var url = '{{ route("finance.retur-pembelian.print", "__ID__") }}'.replace('__ID__', refId);
+                try {
+                    var iframe = document.createElement('iframe');
+                    iframe.src = url;
+                    iframe.style.width = '100%';
+                    iframe.style.height = '70vh';
+                    iframe.style.border = '0';
+                    $('#refDetailModalContent').empty().append(iframe);
+                } catch (err) {
+                    console.error('Failed to create iframe for retur:', err);
+                    $('#refDetailModal').modal('hide');
+                    window.open(url, '_blank');
+                } finally {
+                    refLoading = false;
+                    $('#refDetailModal').modal({ backdrop: true, keyboard: true });
+                }
             } else {
-                url = '/';
-            }
+                // Other reference types: open in iframe (printable pages)
+                if (refType === 'faktur_pembelian') {
+                    url = '{{ route("erm.fakturbeli.print", "__ID__") }}'.replace('__ID__', refId);
+                } else if (refType === 'invoice_penjualan' || refType === 'invoice_return') {
+                    url = '{{ route("finance.invoice.print", "__ID__") }}'.replace('__ID__', refId);
+                } else {
+                    url = '/';
+                }
 
-            // Provide immediate feedback
-            $('#refDetailModalContent').html('<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Memuat detail...</p></div>');
+                // Provide immediate feedback
+                $('#refDetailModalContent').html('<div class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Memuat detail...</p></div>');
 
-            // Hide the parent detail modal to avoid stacking multiple modals on top
-            if ($('#detailModal').hasClass('show')) {
-                $('#detailModal').modal('hide');
-            }
+                // Hide the parent detail modal to avoid stacking multiple modals on top
+                if ($('#detailModal').hasClass('show')) {
+                    $('#detailModal').modal('hide');
+                }
 
-            // Show ref modal
-            $('#refDetailModal').modal({ backdrop: 'static', keyboard: false });
+                // Show ref modal
+                $('#refDetailModal').modal({ backdrop: 'static', keyboard: false });
 
-            // Embed the target page inside an iframe to isolate layout and scripts
-            try {
-                // Create iframe via DOM API to avoid jQuery attribute quirks
-                var iframe = document.createElement('iframe');
-                iframe.src = url;
-                iframe.style.width = '100%';
-                iframe.style.height = '70vh';
-                iframe.style.border = '0';
-                iframe.onload = function() {
-                    // you could remove spinner or do other things here
-                };
+                // Embed the target page inside an iframe to isolate layout and scripts
+                try {
+                    // Create iframe via DOM API to avoid jQuery attribute quirks
+                    var iframe = document.createElement('iframe');
+                    iframe.src = url;
+                    iframe.style.width = '100%';
+                    iframe.style.height = '70vh';
+                    iframe.style.border = '0';
+                    iframe.onload = function() {
+                        // you could remove spinner or do other things here
+                    };
 
-                // Replace content with iframe (wrap in jQuery for convenience)
-                $('#refDetailModalContent').empty().append(iframe);
-            } catch (err) {
-                console.error('Failed to create iframe for ref:', err);
-                // If iframe fails, hide modal and open in new tab as fallback
-                $('#refDetailModal').modal('hide');
-                window.open(url, '_blank');
-            } finally {
-                refLoading = false;
-                $('#refDetailModal').modal({ backdrop: true, keyboard: true });
+                    // Replace content with iframe (wrap in jQuery for convenience)
+                    $('#refDetailModalContent').empty().append(iframe);
+                } catch (err) {
+                    console.error('Failed to create iframe for ref:', err);
+                    // If iframe fails, hide modal and open in new tab as fallback
+                    $('#refDetailModal').modal('hide');
+                    window.open(url, '_blank');
+                } finally {
+                    refLoading = false;
+                    $('#refDetailModal').modal({ backdrop: true, keyboard: true });
+                }
             }
         });
     })();

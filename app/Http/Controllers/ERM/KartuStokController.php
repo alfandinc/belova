@@ -504,6 +504,11 @@ class KartuStokController extends Controller
                                     $mutasi = DB::table('erm_mutasi_gudang')->where('id', $row->ref_id)->first();
                                     $refNumber = $mutasi ? $mutasi->nomor_mutasi : '#' . $row->ref_id;
                                     break;
+
+                                    case 'retur_pembelian':
+                                        $retur = DB::table('finance_retur_pembelian')->where('id', $row->ref_id)->first();
+                                        $refNumber = $retur ? $retur->retur_number : '#' . $row->ref_id;
+                                        break;
                                     
                                 case 'stok_opname':
                                     $opname = DB::table('erm_stok_opname')->where('id', $row->ref_id)->first();
@@ -519,7 +524,7 @@ class KartuStokController extends Controller
                         }
                         
                         // Only show 'Lihat' button for faktur pembelian and invoice types
-                        $allowedViewTypes = ['faktur_pembelian', 'invoice_penjualan', 'invoice_return'];
+                        $allowedViewTypes = ['faktur_pembelian', 'invoice_penjualan', 'invoice_return', 'retur_pembelian'];
                         $viewBtn = '';
                         if (in_array($row->ref_type, $allowedViewTypes)) {
                             $viewBtn = '<br><a href="#" class="btn btn-sm btn-outline-primary btn-view-ref mt-1" data-ref-type="' . e($row->ref_type) . '" data-ref-id="' . e($row->ref_id) . '">Lihat</a>';

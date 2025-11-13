@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Yajra\DataTables\Facades\DataTables;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReturPembelianController extends Controller
 {
@@ -29,10 +30,13 @@ class ReturPembelianController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $returns = ReturPembelian::with(['invoice', 'user', 'items'])
+            $returns = ReturPembelian::with(['invoice.visitation.pasien', 'user', 'items'])
                 ->orderBy('created_at', 'desc');
 
             return DataTables::of($returns)
+                ->addColumn('patient', function ($row) {
+                    return optional($row->invoice->visitation->pasien)->nama ?? '-';
+                })
                 ->addColumn('action', function ($row) {
                     return '<button class="btn btn-sm btn-info" onclick="viewReturDetail(' . $row->id . ')">
                                 <i class="fas fa-eye"></i> Detail
@@ -242,5 +246,24 @@ class ReturPembelianController extends Controller
             ->findOrFail($id);
 
         return response()->json($retur);
+    }
+
+    /**
+     * Print (PDF) view for retur pembelian
+     */
+    public function print($id)
+    {
+        $retur = ReturPembelian::with(['invoice.visitation.pasien', 'items', 'user'])->findOrFail($id);
+
+        $pdf = Pdf::loadView('finance.retur-pembelian.pdf', compact('retur'))
+            ->setPaper('a5', 'landscape')
+            ->setOptions([
+                'defaultFont' => 'helvetica',
+                'isRemoteEnabled' => true,
+                'isHtml5ParserEnabled' => true,
+                'isFontSubsettingEnabled' => true,
+            ]);
+
+        return $pdf->stream('Retur-' . ($retur->retur_number ?? $retur->id) . '.pdf');
     }
 }

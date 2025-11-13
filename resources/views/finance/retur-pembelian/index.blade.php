@@ -45,6 +45,7 @@
                                     <tr>
                                         <th>No. Retur</th>
                                         <th>No. Invoice</th>
+                                        <th>Patient</th>
                                         <th>Tanggal</th>
                                         <th>Total Amount</th>
                                         <th>Items</th>
@@ -83,6 +84,10 @@
                             <div class="col-md-6">
                                 <label for="dateRange" class="form-label">Pilih Tanggal</label>
                                 <input type="text" class="form-control" id="dateRange" placeholder="Click to select date range">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="invoiceSearch" class="form-label">Cari Pasien / ID</label>
+                                <input type="text" class="form-control" id="invoiceSearch" placeholder="Cari nama pasien atau invoice ID...">
                             </div>
                         </div>
 
@@ -174,6 +179,7 @@
 $(document).ready(function() {
     let selectedInvoice = null;
     let selectedItems = [];
+    let invoicesCache = [];
 
     // Initialize DataTable
     $('#returTable').DataTable({
@@ -183,6 +189,7 @@ $(document).ready(function() {
         columns: [
             { data: 'retur_number', name: 'retur_number' },
             { data: 'invoice.invoice_number', name: 'invoice.invoice_number' },
+            { data: 'patient', name: 'patient' },
             { data: 'processed_date', name: 'processed_date' },
             { data: 'total_amount', name: 'total_amount' },
             { data: 'items_count', name: 'items_count', orderable: false },
@@ -199,7 +206,11 @@ $(document).ready(function() {
         $('#dateRange').daterangepicker({
             locale: {
                 format: 'DD/MM/YYYY'
-            }
+            },
+            // make selection quicker (auto apply) and show dropdowns for easier single-date selection
+            autoApply: true,
+            showDropdowns: true,
+            opens: 'right'
         }, function(start, end, label) {
             filterInvoices();
         });
@@ -240,16 +251,37 @@ $(document).ready(function() {
     });
 
     function filterInvoices() {
-        const dateRange = $('#dateRange').val();
-        
-        if (!dateRange) {
-            alert('Please select a date range');
-            return;
-        }
+        const $dateInput = $('#dateRange');
 
-        const dates = dateRange.split(' - ');
-        const startDate = moment(dates[0], 'DD/MM/YYYY').format('YYYY-MM-DD');
-        const endDate = moment(dates[1], 'DD/MM/YYYY').format('YYYY-MM-DD');
+        // Prefer reading directly from the daterangepicker instance if available
+        const drInstance = $dateInput.data('daterangepicker');
+        let startDate, endDate;
+
+        if (drInstance) {
+            startDate = drInstance.startDate.format('YYYY-MM-DD');
+            endDate = drInstance.endDate.format('YYYY-MM-DD');
+        } else {
+            // Fall back to reading the input value (handles the case where the input value
+            // may not be populated by the picker for some reason)
+            const dateRange = $dateInput.val();
+
+            if (!dateRange || dateRange.trim() === '') {
+                alert('Please select a date or date range');
+                return;
+            }
+
+            // Support both a range "DD/MM/YYYY - DD/MM/YYYY" and a single date "DD/MM/YYYY"
+            if (dateRange.indexOf(' - ') !== -1) {
+                const dates = dateRange.split(' - ');
+                startDate = moment(dates[0], 'DD/MM/YYYY').format('YYYY-MM-DD');
+                endDate = moment(dates[1], 'DD/MM/YYYY').format('YYYY-MM-DD');
+            } else {
+                // single date selected -> use same day for start and end
+                const single = moment(dateRange, 'DD/MM/YYYY').format('YYYY-MM-DD');
+                startDate = single;
+                endDate = single;
+            }
+        }
 
         $.ajax({
             url: "{{ route('finance.retur-pembelian.invoices') }}",
@@ -296,30 +328,37 @@ $(document).ready(function() {
     }
 
     function displayInvoices(invoices) {
+        // Cache invoices for client-side searching
+        invoicesCache = invoices || [];
+        renderInvoiceRows(invoicesCache);
+        $('#invoiceList').show();
+    }
+
+    function renderInvoiceRows(invoices) {
         const tbody = $('#invoiceTableBody');
         tbody.empty();
 
-        if (invoices.length === 0) {
+        if (!invoices || invoices.length === 0) {
             tbody.append('<tr><td colspan="5" class="text-center">Tidak ada invoice ditemukan</td></tr>');
-        } else {
-            invoices.forEach(function(invoice) {
-                const row = `
-                    <tr>
-                        <td>
-                            <input type="radio" name="selected_invoice" value="${invoice.id}" 
-                                   data-invoice-number="${invoice.invoice_number}" class="invoice-radio">
-                        </td>
-                        <td>${invoice.invoice_number}</td>
-                        <td>${new Date(invoice.created_at).toLocaleDateString('id-ID')}</td>
-                        <td>${invoice.visitation?.pasien?.nama || '-'}</td>
-                        <td>Rp ${parseInt(invoice.total_amount).toLocaleString('id-ID')}</td>
-                    </tr>
-                `;
-                tbody.append(row);
-            });
+            return;
         }
 
-        $('#invoiceList').show();
+        invoices.forEach(function(invoice) {
+            const patientName = invoice.visitation && invoice.visitation.pasien ? invoice.visitation.pasien.nama : '-';
+            const row = `
+                <tr>
+                    <td>
+                        <input type="radio" name="selected_invoice" value="${invoice.id}" 
+                               data-invoice-number="${invoice.invoice_number}" class="invoice-radio">
+                    </td>
+                    <td>${invoice.invoice_number}</td>
+                    <td>${new Date(invoice.created_at).toLocaleDateString('id-ID')}</td>
+                    <td>${patientName}</td>
+                    <td>Rp ${parseInt(invoice.total_amount).toLocaleString('id-ID')}</td>
+                </tr>
+            `;
+            tbody.append(row);
+        });
     }
 
     // Handle invoice selection
@@ -348,6 +387,26 @@ $(document).ready(function() {
             }
         });
     }
+
+    // Search input handler - filter cached invoices by invoice number, patient name, or id
+    $(document).on('input', '#invoiceSearch', function() {
+        const q = $(this).val().trim().toLowerCase();
+
+        if (!q) {
+            renderInvoiceRows(invoicesCache);
+            return;
+        }
+
+        const filtered = invoicesCache.filter(function(inv) {
+            const patientName = inv.visitation && inv.visitation.pasien ? inv.visitation.pasien.nama : '';
+            const invoiceNumber = inv.invoice_number ? String(inv.invoice_number) : '';
+            const id = inv.id ? String(inv.id) : '';
+
+            return patientName.toLowerCase().includes(q) || invoiceNumber.toLowerCase().includes(q) || id.includes(q);
+        });
+
+        renderInvoiceRows(filtered);
+    });
 
     function displayInvoiceItems(data) {
         const invoice = data.invoice;

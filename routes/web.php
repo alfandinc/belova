@@ -907,6 +907,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/retur-pembelian', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'index'])->name('finance.retur-pembelian.index');
         Route::post('/retur-pembelian', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'store'])->name('finance.retur-pembelian.store');
         Route::get('/retur-pembelian/{id}', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'show'])->name('finance.retur-pembelian.show');
+        Route::get('/retur-pembelian/{id}/print', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'print'])->name('finance.retur-pembelian.print');
         Route::get('/retur-pembelian/invoices/filter', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoices'])->name('finance.retur-pembelian.invoices');
         Route::get('/retur-pembelian/invoice/{id}/items', [\App\Http\Controllers\Finance\ReturPembelianController::class, 'getInvoiceItems'])->name('finance.retur-pembelian.invoice-items');
         
