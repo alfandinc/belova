@@ -45,6 +45,10 @@
                             });
                         })
                         ->count();
+                    // Count content plans that are scheduled so we can show a badge in the menu
+                    try {
+                        $scheduledCount = \App\Models\Marketing\ContentPlan::where('status', 'Scheduled')->count();
+                    } catch (Exception $e) { $scheduledCount = 0; }
                 } catch (Exception $e) { $hariPentingTodayCount = 0; }
             @endphp
             <li class="menu-label mt-0">Main</li>
@@ -76,7 +80,11 @@
                 <a href="/marketing/followup"> <i data-feather="check-square" class="align-self-center menu-icon"></i><span>Follow Up</span></a>
             </li>
             <li>
-                <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span></a>
+                <a href="/marketing/content-plan"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Content Plan</span>
+                    @if(!empty($scheduledCount) && $scheduledCount > 0)
+                        <span class="badge badge-warning ml-1" style="font-size:10px;">{{ $scheduledCount }}</span>
+                    @endif
+                </a>
             </li>
             <li>
                 <a href="/marketing/hari-penting"> <i data-feather="star" class="align-self-center menu-icon"></i><span>Hari Penting</span>

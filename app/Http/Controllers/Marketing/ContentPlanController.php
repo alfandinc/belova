@@ -32,6 +32,18 @@ class ContentPlanController extends Controller
                     }
                 });
             }
+            // Platform filter (array)
+            if ($request->filled('filter_platform')) {
+                $platforms = $request->filter_platform;
+                if (is_string($platforms)) {
+                    $platforms = [$platforms];
+                }
+                $data->where(function($q) use ($platforms) {
+                    foreach ($platforms as $platform) {
+                        $q->orWhereJsonContains('platform', $platform);
+                    }
+                });
+            }
             // Status filter
             if ($request->filled('filter_status')) {
                 $data->where('status', $request->filter_status);
@@ -100,6 +112,8 @@ class ContentPlanController extends Controller
             'judul' => 'required|string|max:255',
             'brand' => 'nullable|array',
             'deskripsi' => 'nullable|string',
+            'caption' => 'nullable|string',
+            'mention' => 'nullable|string',
             'tanggal_publish' => 'required|date',
             'platform' => 'required|array',
             'status' => 'required|string',
@@ -136,6 +150,8 @@ class ContentPlanController extends Controller
             'judul' => 'required|string|max:255',
             'brand' => 'nullable|array',
             'deskripsi' => 'nullable|string',
+            'caption' => 'nullable|string',
+            'mention' => 'nullable|string',
             'tanggal_publish' => 'required|date',
             'platform' => 'required|array',
             'status' => 'required|string',

@@ -12,26 +12,27 @@
           
           <div class="row" style="max-height:65vh; overflow-y:auto;">
             <div class="col-md-12 mb-2">
-            <label for="brand" class="form-label">Brand</label>
-            <select class="form-control select2" id="brand" name="brand[]" multiple required>
-              <option value="Premiere Belova">Premiere Belova</option>
-              <option value="Belova Skin">Belova Skin</option>
-              <option value="BCL">BCL</option>
-              <option value="dr Fika">dr Fika</option>
-            </select>
-          </div>
-            
-            <div class="col-md-6 mb-2">
               <label for="judul" class="form-label">Judul</label>
               <input type="text" class="form-control" id="judul" name="judul" required>
+            </div>
+
+            <div class="col-md-6 mb-2">
+              <label for="brand" class="form-label">Brand</label>
+              <select class="form-control select2" id="brand" name="brand[]" multiple required>
+                <option value="Premiere Belova">Premiere Belova</option>
+                <option value="Belova Skin">Belova Skin</option>
+                <option value="BCL">BCL</option>
+                <option value="dr Fika">dr Fika</option>
+              </select>
             </div>
             <div class="col-md-6 mb-2">
               <label for="tanggal_publish" class="form-label">Tanggal Publish</label>
               <input type="datetime-local" class="form-control" id="tanggal_publish" name="tanggal_publish" required>
             </div>
+            
             <div class="col-md-12 mb-2">
-              <label for="deskripsi" class="form-label">Deskripsi</label>
-              <textarea class="form-control" id="deskripsi" name="deskripsi"></textarea>
+              <label for="caption" class="form-label">Caption</label>
+              <textarea class="form-control" id="caption" name="caption" placeholder="Caption untuk posting (opsional)"></textarea>
             </div>
             <div class="col-md-6 mb-2">
               <label for="platform" class="form-label">Platform</label>
@@ -58,14 +59,10 @@
               <label for="status" class="form-label">Status</label>
               <select class="form-control" id="status" name="status" required>
                 <option value="Draft">Draft</option>
-                <option value="Scheduled">Scheduled</option>
+                <option value="Scheduled" selected>Scheduled</option>
                 <option value="Published">Published</option>
                 <option value="Cancelled">Cancelled</option>
               </select>
-            </div>
-            <div class="col-md-6 mb-2">
-              <label for="target_audience" class="form-label">Target Audience</label>
-              <input type="text" class="form-control" id="target_audience" name="target_audience">
             </div>
             <div class="col-md-6 mb-2">
               <label for="link_asset" class="form-label">Link Asset</label>
@@ -75,20 +72,11 @@
               <label for="link_publikasi" class="form-label">Link Publikasi</label>
               <input type="text" class="form-control" id="link_publikasi" name="link_publikasi">
             </div>
-            <div class="col-md-12 mb-2">
-              <label for="catatan" class="form-label">Catatan</label>
-              <textarea class="form-control" id="catatan" name="catatan"></textarea>
+            <div class="col-md-6 mb-2">
+              <label for="mention" class="form-label">Mention</label>
+              <input type="text" class="form-control" id="mention" name="mention" placeholder="@user1, @user2 (opsional)">
             </div>
-            <!-- Gambar Referensi (Upload) -->
-            <div class="col-md-12 mb-2">
-              <label for="gambar_referensi" class="form-label">Gambar Referensi</label>
-              <div id="gambarReferensiPreviewWrapper" style="display:none; margin-bottom:8px;">
-                <img id="gambarReferensiPreview" src="" alt="Preview Gambar Referensi" style="max-width: 100%; max-height: 200px; border:1px solid #ddd; border-radius:4px;">
-              </div>
-              <input type="file" class="form-control-file" id="gambar_referensi" name="gambar_referensi" accept="image/*">
-            </div>
-
-</script>
+            
           </div>
         </div>
         <div class="modal-footer">

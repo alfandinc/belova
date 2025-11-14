@@ -1300,6 +1300,10 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Route::get('followup/count-today', [\App\Http\Controllers\Marketing\FollowUpController::class, 'countToday'])->name('marketing.followup.count-today');
     // AJAX: Riwayat RM by pasien
     Route::get('pasien/{pasien}/riwayat-rm', [\App\Http\Controllers\Marketing\MarketingController::class, 'riwayatRM']);
+
+    // Content Briefs - store via AJAX from modal
+    Route::post('content-brief', [\App\Http\Controllers\Marketing\ContentBriefController::class, 'store'])->name('marketing.content-brief.store');
+    Route::get('content-brief/by-plan/{id}', [\App\Http\Controllers\Marketing\ContentBriefController::class, 'latestByPlan'])->name('marketing.content-brief.latest-by-plan');
 });
 
 

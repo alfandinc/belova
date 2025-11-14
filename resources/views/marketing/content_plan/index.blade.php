@@ -6,6 +6,11 @@
     @include('layouts.marketing.navbar')
 @endsection
 
+@push('styles')
+<!-- Summernote CSS (Bootstrap 4) -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs4.min.css" rel="stylesheet">
+@endpush
+
 @section('content')
 <div class="container-fluid mt-4">
     <div class="card">
@@ -29,6 +34,17 @@
                     </select>
                 </div>
                 <div class="col-md-3">
+                    <label for="filterPlatform">Filter Platform</label>
+                    <select id="filterPlatform" class="form-control select2" multiple>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Facebook">Facebook</option>
+                        <option value="TikTok">TikTok</option>
+                        <option value="YouTube">YouTube</option>
+                        <option value="Website">Website</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label for="filterStatus">Filter Status</label>
                     <select id="filterStatus" class="form-control select2">
                         <option value="">Semua Status</option>
@@ -39,7 +55,8 @@
                     </select>
                 </div>
             </div>
-            <table class="table table-bordered" id="contentPlanTable">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="contentPlanTable" style="width:100%">
                 <thead>
                     <tr>
                         <th>No</th>
@@ -54,16 +71,20 @@
                     </tr>
                 </thead>
             </table>
+            </div>
         </div>
     </div>
 </div>
 
 @include('marketing.content_plan.partials.modal')
 @include('marketing.content_plan.partials.content_report_modal')
+@include('marketing.content_plan.partials.brief_modal')
 @endsection
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<!-- Summernote JS (Bootstrap 4) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs4.min.js"></script>
 <script>
 $(function() {
     // Status filter select2
@@ -74,6 +95,16 @@ $(function() {
         dropdownParent: $('#filterStatus').parent()
     });
     $('#filterStatus').on('change', function() {
+        table.ajax.reload();
+    });
+    // Platform filter select2
+    $('#filterPlatform').select2({
+        width: '100%',
+        placeholder: 'Pilih Platform',
+        allowClear: true,
+        dropdownParent: $('#filterPlatform').parent()
+    });
+    $('#filterPlatform').on('change', function() {
         table.ajax.reload();
     });
     // Brand filter select2
@@ -102,31 +133,13 @@ $(function() {
         $(this).val('');
         table.ajax.reload();
     });
-    // Gambar Referensi Preview Logic (moved from modal partial)
-    function updateGambarPreview() {
-        var gambar = $('#gambar_referensi').data('current');
-        if (gambar) {
-            $('#gambarReferensiPreview').attr('src', '/storage/' + gambar);
-            $('#gambarReferensiPreviewWrapper').show();
-        } else {
-            $('#gambarReferensiPreview').attr('src', '');
-            $('#gambarReferensiPreviewWrapper').hide();
-        }
-    }
-    // Always update preview when modal is shown
-    $('#contentPlanModal').on('shown.bs.modal', function() {
-        updateGambarPreview();
-    });
-    // Hide preview on add
-    $('#btnAddContentPlan').on('click', function() {
-        $('#gambarReferensiPreview').attr('src', '');
-        $('#gambarReferensiPreviewWrapper').hide();
-        $('#gambar_referensi').val('');
-        $('#gambar_referensi').removeData('current');
-    });
+    // (Removed image reference inputs and preview per UI simplification)
     let table = $('#contentPlanTable').DataTable({
         processing: true,
         serverSide: true,
+        responsive: true,
+        scrollX: true,
+        autoWidth: false,
         ajax: {
             url: '{{ route('marketing.content-plan.index') }}',
             data: function(d) {
@@ -141,6 +154,10 @@ $(function() {
                 let brands = $('#filterBrand').val();
                 if (brands && brands.length > 0) {
                     d.filter_brand = brands;
+                }
+                let platforms = $('#filterPlatform').val();
+                if (platforms && platforms.length > 0) {
+                    d.filter_platform = platforms;
                 }
                 let status = $('#filterStatus').val();
                 if (status) {
@@ -188,7 +205,7 @@ $(function() {
             { data: 'jenis_konten', name: 'jenis_konten' },
             { data: 'link_publikasi', name: 'link_publikasi', render: function(data) {
                 if (data) {
-                    return `<a href="${data}" target="_blank">${data}</a>`;
+                    return `<a href="${data}" target="_blank" style="word-break:break-word;white-space:normal;">${data}</a>`;
                 }
                 return '';
             } },
@@ -226,6 +243,27 @@ $(function() {
             api.column(0, {search:'applied', order:'applied'}).nodes().each(function(cell, i) {
                 cell.innerHTML = api.page.info().start + i + 1;
             });
+            // Inject 'Add Brief' button into action column for each visible row
+            api.rows({page: 'current'}).nodes().each(function(row, i) {
+                try {
+                    var $row = $(row);
+                    var data = api.row(row).data() || {};
+                    var id = data.id || $row.find('[data-id]').data('id');
+                    var $actionTd = $row.find('td').last();
+                    if ($actionTd.length && $actionTd.find('.btn-add-brief').length === 0) {
+                        var btn = `<button class="btn btn-sm btn-outline-secondary btn-add-brief me-1" data-id="${id}" title="Add Brief">Brief</button>`;
+                        // place before statistics button if present, otherwise append
+                        var $stats = $actionTd.find('.btn-statistics');
+                        if ($stats.length) {
+                            $stats.first().before(btn);
+                        } else {
+                            $actionTd.append(btn);
+                        }
+                    }
+                } catch (e) {
+                    console.error('error injecting add-brief button', e);
+                }
+            });
         }
     });
 
@@ -238,6 +276,8 @@ $(function() {
         $('#contentPlanForm').attr('data-id', '');
         $('.select2').val(null).trigger('change');
         $('#brand').val(null).trigger('change');
+        // default status to Scheduled when creating a new content plan
+        try { $('#status').val('Scheduled').trigger('change'); } catch(e) {}
     });
 
     // Store/Update Content Plan
@@ -299,25 +339,24 @@ $(function() {
             } else {
                 $('#brand').val(null).trigger('change');
             }
-            $('#deskripsi').val(data.deskripsi);
             // Format tanggal_publish to 'YYYY-MM-DDTHH:MM' for datetime-local input
             let tgl = data.tanggal_publish ? data.tanggal_publish.replace(' ', 'T').slice(0,16) : '';
             $('#tanggal_publish').val(tgl);
             $('#platform').val(data.platform).trigger('change');
             $('#status').val(data.status);
             $('#jenis_konten').val(data.jenis_konten).trigger('change');
-            $('#target_audience').val(data.target_audience);
             $('#link_asset').val(data.link_asset);
             $('#link_publikasi').val(data.link_publikasi);
-            $('#catatan').val(data.catatan);
-            // Set gambar referensi preview only (no filename)
-            if (data.gambar_referensi) {
-                $('#gambar_referensi').data('current', data.gambar_referensi);
-                $('#gambarReferensiPreview').attr('src', '/storage/' + data.gambar_referensi).show();
-            } else {
-                $('#gambar_referensi').removeData('current');
-                $('#gambarReferensiPreview').hide();
-            }
+            // populate caption and mention if present
+            try {
+                $('#caption').val(data.caption || '');
+                $('#mention').val(data.mention || '');
+            } catch(e) {}
+            // populate caption and mention if present
+            try {
+                $('#caption').val(data.caption || '');
+                $('#mention').val(data.mention || '');
+            } catch(e) {}
         });
     });
 
@@ -663,6 +702,273 @@ $(function() {
                 Swal.fire('Error', msg, 'error');
             });
         }
+    });
+
+    // Content Brief modal handling (add/edit brief)
+    // Open brief modal when action button is clicked in the datatable (button should have class .btn-add-brief and data-id)
+    $('#contentPlanTable').on('click', '.btn-add-brief', function() {
+        var planId = $(this).data('id');
+        console.log('btn-add-brief clicked, planId=', planId);
+        // reset form
+        $('#contentBriefForm')[0].reset();
+        $('#cb_preview').empty();
+        $('#cb_content_plan_id').val(planId);
+        // clear any previously attached DataTransfer files
+        window._cbDataTransfer = new DataTransfer();
+        // clear any previously loaded brief cache
+        window._cbLoadedBrief = null;
+        window._cbLoadedIsi = null;
+        // init summernote handled on modal shown event
+
+        // Ensure modal is attached to body (avoids stacking-context/z-index issues)
+        var $modal = $('#contentBriefModal');
+        try {
+            $modal.appendTo('body');
+        } catch (e) {
+            console.warn('appendTo body failed', e);
+        }
+
+        // Try Bootstrap 5 modal API first (preferred), otherwise try jQuery plugin
+        try {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                // Ensure static backdrop + keyboard disabled when using the Bootstrap Modal JS API
+                window._cbBsModal = new bootstrap.Modal(document.getElementById('contentBriefModal'), { backdrop: 'static', keyboard: false });
+                window._cbBsModal.show();
+            } else if ($modal && $modal.length && $.fn.modal) {
+                $modal.modal('show');
+            } else {
+                // Last resort: toggle classes manually
+                $modal.addClass('show').css('display','block').attr('aria-modal','true').attr('role','dialog');
+                $('body').addClass('modal-open');
+            }
+        } catch (err) {
+            console.error('Failed to show modal', err);
+        }
+
+        // Fetch latest brief for this plan (if any) and populate form
+        // Also fetch the content plan details to show contextual fields (text-only)
+        $.get(`/marketing/content-plan/${planId}`).done(function(plan){
+            try {
+                var judul = plan.judul || '';
+                var brandStr = '';
+                if (Array.isArray(plan.brand)) brandStr = plan.brand.join(', ');
+                else brandStr = plan.brand || '';
+                var platformStr = '';
+                if (Array.isArray(plan.platform)) platformStr = plan.platform.join(', ');
+                else platformStr = plan.platform || '';
+                var jenis = plan.jenis_konten || '';
+
+                // Set text elements (and fall back to inputs if they exist)
+                if ($('#cb_judul_text').length) { $('#cb_judul_text').text(judul); } else { $('#cb_judul').val(judul); }
+                if ($('#cb_brand_text').length) { $('#cb_brand_text').text(brandStr); } else { $('#cb_brand').val(brandStr); }
+                if ($('#cb_platform_text').length) { $('#cb_platform_text').text(platformStr); } else { $('#cb_platform').val(platformStr); }
+                if ($('#cb_jenis_konten_text').length) { $('#cb_jenis_konten_text').text(jenis); } else { $('#cb_jenis_konten').val(jenis); }
+            } catch(e) {}
+        }).fail(function(){
+            // ignore
+        });
+
+        $.get(`/marketing/content-brief/by-plan/${planId}`)
+            .done(function(res){
+                if (!res) return;
+                window._cbLoadedBrief = res;
+                try {
+                    $('#cb_headline').val(res.headline || '');
+                    $('#cb_sub_headline').val(res.sub_headline || '');
+                } catch(e){}
+                // isi_konten: may need to wait for summernote init; store temporarily
+                window._cbLoadedIsi = res.isi_konten || '';
+
+                // Render existing visual_references (array of storage paths)
+                if (Array.isArray(res.visual_references) && res.visual_references.length) {
+                    var $preview = $('#cb_preview');
+                    $preview.empty();
+                        res.visual_references.forEach(function(p, idx){
+                            var src = '/storage/' + p;
+                            var $wrap = $('<div class="position-relative border rounded bg-white" style="width:100%;height:220px;overflow:hidden;display:block;margin-bottom:12px"></div>');
+                            var $img = $('<img>').attr('src', src).attr('data-full', src).css({'width':'100%','height':'100%','object-fit':'cover','cursor':'zoom-in'});
+                            // mark as existing so removal won't attempt to mutate DataTransfer; simple UI removal hides it
+                            var $remove = $('<button type="button" class="btn btn-sm btn-danger position-absolute" title="Hapus" style="top:6px;right:6px;padding:2px 6px">×</button>');
+                            $remove.on('click', function(){ $wrap.remove(); });
+                            $wrap.append($img).append($remove);
+                            $preview.append($wrap);
+                        });
+                }
+            }).fail(function(xhr){
+                // 204 or 404 will fall here; ignore silently
+            });
+    });
+
+    // Initialize Summernote when modal is shown (Bootstrap 4 event)
+    $('#contentBriefModal').on('shown.bs.modal', function() {
+        if ($.fn.summernote) {
+            try { $('#cb_isi_konten').summernote('destroy'); } catch(e) {}
+            try { $('#cb_isi_konten').summernote({height: 200}); } catch(e) { console.warn('summernote init failed', e); }
+            // if we previously loaded content from server, set it into summernote
+            try {
+                if (window._cbLoadedIsi) {
+                    $('#cb_isi_konten').summernote('code', window._cbLoadedIsi);
+                    window._cbLoadedIsi = null;
+                }
+            } catch(e) { /* ignore */ }
+        }
+    });
+
+    // Destroy Summernote when modal is hidden to avoid duplicate instances
+    $('#contentBriefModal').on('hidden.bs.modal', function() {
+        if ($.fn.summernote) {
+            try { $('#cb_isi_konten').summernote('destroy'); } catch(e) {}
+        }
+    });
+
+    // Drop area interactions
+    (function(){
+        var $drop = $('#cb_drop_area');
+        var $input = $('#cb_visual_references');
+
+        $drop.on('click', function(){ $input.trigger('click'); });
+
+        $drop.on('dragover', function(e){ e.preventDefault(); e.stopPropagation(); $drop.addClass('border-primary'); });
+        $drop.on('dragleave drop', function(e){ e.preventDefault(); e.stopPropagation(); $drop.removeClass('border-primary'); });
+
+        $drop.on('drop', function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            var dt = e.originalEvent.dataTransfer;
+            if (!window._cbDataTransfer) window._cbDataTransfer = new DataTransfer();
+            if (dt && dt.files && dt.files.length) {
+                Array.from(dt.files).forEach(function(f){
+                    if (f.type && f.type.indexOf('image') === 0) window._cbDataTransfer.items.add(f);
+                });
+            }
+            renderCbPreview();
+        });
+
+        // Handle paste (paste screenshot directly into modal)
+        function handlePaste(e){
+            try {
+                var clipboard = (e.originalEvent && e.originalEvent.clipboardData) || (e.clipboardData) || null;
+                if (!clipboard) return;
+                if (!window._cbDataTransfer) window._cbDataTransfer = new DataTransfer();
+                var added = false;
+                // Prefer items (gives access to files)
+                if (clipboard.items && clipboard.items.length) {
+                    Array.from(clipboard.items).forEach(function(item){
+                        if (item.kind === 'file' && item.type.indexOf('image') === 0) {
+                            var file = item.getAsFile();
+                            if (file) { window._cbDataTransfer.items.add(file); added = true; }
+                        }
+                    });
+                }
+                // Fallback to clipboard.files
+                if (!added && clipboard.files && clipboard.files.length) {
+                    Array.from(clipboard.files).forEach(function(f){ if (f.type && f.type.indexOf('image') === 0) { window._cbDataTransfer.items.add(f); added = true; } });
+                }
+                if (added) {
+                    renderCbPreview();
+                    e.preventDefault();
+                }
+            } catch (err) {
+                console.warn('paste handling failed', err);
+            }
+        }
+
+        // Attach paste listener when modal is shown, remove when hidden
+        $('#contentBriefModal').on('shown.bs.modal', function(){
+            $(document).on('paste.cb', handlePaste);
+        });
+        $('#contentBriefModal').on('hidden.bs.modal', function(){
+            $(document).off('paste.cb', handlePaste);
+        });
+
+        $input.on('change', function(e){
+            var files = Array.from(e.target.files || []);
+            if (!window._cbDataTransfer) window._cbDataTransfer = new DataTransfer();
+            files.forEach(function(f){ if (f.type && f.type.indexOf('image') === 0) window._cbDataTransfer.items.add(f); });
+            renderCbPreview();
+            // reset native input so user can re-select same file if needed
+            $input.val('');
+        });
+
+        // Render preview thumbnails
+        function renderCbPreview(){
+            var $preview = $('#cb_preview');
+            $preview.empty();
+            var dt = window._cbDataTransfer || {files: []};
+            Array.from(dt.files).forEach(function(file, idx){
+                var reader = new FileReader();
+                var $wrap = $('<div class="position-relative border rounded bg-white" style="width:100%;height:220px;overflow:hidden;display:block;margin-bottom:12px"></div>');
+                var $remove = $('<button type="button" class="btn btn-sm btn-danger position-absolute" title="Hapus" style="top:6px;right:6px;padding:2px 6px">×</button>');
+                $remove.on('click', function(){
+                    // remove file from DataTransfer
+                    var dt = window._cbDataTransfer;
+                    var newDt = new DataTransfer();
+                    Array.from(dt.files).forEach(function(f, i){ if (i !== idx) newDt.items.add(f); });
+                    window._cbDataTransfer = newDt;
+                    renderCbPreview();
+                });
+                reader.onload = function(e){
+                    var $img = $('<img>').attr('src', e.target.result).attr('data-full', e.target.result).css({'width':'100%','height':'100%','object-fit':'cover','cursor':'zoom-in'});
+                    $wrap.append($img).append($remove);
+                    $preview.append($wrap);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+    })();
+
+    // Click on any preview image: open full-size image in a new tab
+    $('#cb_preview').on('click', 'img', function(){
+        var src = $(this).data('full') || $(this).attr('src');
+        if (!src) return;
+        try {
+            // Open in a new tab/window to let user view or download at native resolution
+            window.open(src, '_blank');
+        } catch (e) {
+            // as a last resort, navigate current window
+            window.location.href = src;
+        }
+    });
+
+    // Submit brief form via AJAX
+    $('#contentBriefForm').on('submit', function(e){
+        e.preventDefault();
+        var $btn = $('#contentBriefModal .btn-primary');
+        $btn.prop('disabled', true).text('Menyimpan...');
+        var fd = new FormData();
+        fd.append('content_plan_id', $('#cb_content_plan_id').val());
+        fd.append('headline', $('#cb_headline').val());
+        fd.append('sub_headline', $('#cb_sub_headline').val());
+        // pull summernote content if available
+        var isi = $('#cb_isi_konten').val();
+        if ($.fn.summernote) isi = $('#cb_isi_konten').summernote('code');
+        fd.append('isi_konten', isi);
+        // append files from DataTransfer
+        var dt = window._cbDataTransfer || {files: []};
+        Array.from(dt.files).forEach(function(f, i){ fd.append('visual_references[]', f); });
+
+        $.ajax({
+            url: '/marketing/content-brief',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+        }).done(function(res){
+            // hide using the Bootstrap Modal instance if we created one, otherwise fallback to jQuery plugin
+            if (window._cbBsModal && typeof window._cbBsModal.hide === 'function') {
+                try { window._cbBsModal.hide(); } catch(e){ $('#contentBriefModal').modal('hide'); }
+            } else {
+                try { $('#contentBriefModal').modal('hide'); } catch(e) { $('#contentBriefModal').removeClass('show').css('display','none'); $('body').removeClass('modal-open'); }
+            }
+            table.ajax.reload(null, false);
+            Swal.fire('Sukses', 'Content brief disimpan', 'success');
+        }).fail(function(xhr){
+            var msg = 'Gagal menyimpan content brief.';
+            if (xhr.responseJSON && xhr.responseJSON.errors) msg = Object.values(xhr.responseJSON.errors).join('<br>');
+            Swal.fire('Error', msg, 'error');
+        }).always(function(){
+            $btn.prop('disabled', false).text('Simpan Brief');
+        });
     });
 });
 </script>

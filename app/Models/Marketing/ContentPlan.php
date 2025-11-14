@@ -5,6 +5,7 @@ namespace App\Models\Marketing;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Marketing\ContentReport;
+use App\Models\Marketing\ContentBrief;
 
 class ContentPlan extends Model
 {
@@ -16,6 +17,8 @@ class ContentPlan extends Model
         'judul',
         'brand',
         'deskripsi',
+        'caption',
+        'mention',
         'tanggal_publish',
         'platform',
         'status',
@@ -37,5 +40,10 @@ class ContentPlan extends Model
     public function reports()
     {
         return $this->hasMany(ContentReport::class, 'content_plan_id');
+    }
+
+    public function briefs()
+    {
+        return $this->hasMany(ContentBrief::class, 'content_plan_id');
     }
 }
