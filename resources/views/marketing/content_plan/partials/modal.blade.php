@@ -68,9 +68,12 @@
               <label for="link_asset" class="form-label">Link Asset</label>
               <input type="text" class="form-control" id="link_asset" name="link_asset">
             </div>
-            <div class="col-md-6 mb-2">
-              <label for="link_publikasi" class="form-label">Link Publikasi</label>
-              <input type="text" class="form-control" id="link_publikasi" name="link_publikasi">
+            <div class="col-md-12 mb-2">
+              <label class="form-label">Link Publikasi per Platform</label>
+              <div id="link_publikasi_wrapper" class="row">
+                <div class="col-12 text-muted small mb-1">Pilih platform di kolom Platform untuk menambahkan link publikasi masing-masing. Anda dapat mengisi lebih dari satu link jika memilih beberapa platform.</div>
+                <!-- dynamic inputs will be injected here: inputs named link_publikasi[Instagram], link_publikasi[Facebook], etc. -->
+              </div>
             </div>
             <div class="col-md-6 mb-2">
               <label for="mention" class="form-label">Mention</label>

@@ -35,6 +35,7 @@ class ContentPlan extends Model
         'jenis_konten' => 'array',
         'brand' => 'array',
         'tanggal_publish' => 'datetime',
+        'link_publikasi' => 'array',
     ];
 
     public function reports()

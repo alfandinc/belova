@@ -120,12 +120,20 @@ class ContentPlanController extends Controller
             'jenis_konten' => 'required|array',
             'target_audience' => 'nullable|string',
             'link_asset' => 'nullable|string',
-            'link_publikasi' => 'nullable|string',
+            'link_publikasi' => 'nullable|array',
+            'link_publikasi.*' => 'nullable|string',
             'catatan' => 'nullable|string',
             'gambar_referensi' => 'nullable|file|image|max:5120',
         ]);
         $data['platform'] = array_values($data['platform']);
         $data['jenis_konten'] = array_values($data['jenis_konten']);
+        // Normalize link_publikasi to sequential associative array if provided
+        if (isset($data['link_publikasi']) && is_array($data['link_publikasi'])) {
+            // remove empty values
+            $data['link_publikasi'] = array_filter($data['link_publikasi'], function($v){ return $v !== null && $v !== '' ; });
+        } else {
+            unset($data['link_publikasi']);
+        }
         if ($request->hasFile('gambar_referensi')) {
             $file = $request->file('gambar_referensi');
             $path = $file->store('uploads/gambar_referensi', 'public');
@@ -158,12 +166,18 @@ class ContentPlanController extends Controller
             'jenis_konten' => 'required|array',
             'target_audience' => 'nullable|string',
             'link_asset' => 'nullable|string',
-            'link_publikasi' => 'nullable|string',
+            'link_publikasi' => 'nullable|array',
+            'link_publikasi.*' => 'nullable|string',
             'catatan' => 'nullable|string',
             'gambar_referensi' => 'nullable|file|image|max:5120',
         ]);
         $data['platform'] = array_values($data['platform']);
         $data['jenis_konten'] = array_values($data['jenis_konten']);
+        if (isset($data['link_publikasi']) && is_array($data['link_publikasi'])) {
+            $data['link_publikasi'] = array_filter($data['link_publikasi'], function($v){ return $v !== null && $v !== '' ; });
+        } else {
+            unset($data['link_publikasi']);
+        }
         if ($request->hasFile('gambar_referensi')) {
             $file = $request->file('gambar_referensi');
             $path = $file->store('uploads/gambar_referensi', 'public');

@@ -65,7 +65,6 @@
                         <th>Tanggal Publish</th>
                         <th>Platform</th>
                         <th>Jenis Konten</th>
-                        <th>Link Publikasi</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -117,14 +116,20 @@ $(function() {
     $('#filterBrand').on('change', function() {
         table.ajax.reload();
     });
-    // Date Range Picker for filter
+    // Date Range Picker for filter (default to current month)
+    var _defaultStart = moment().startOf('month');
+    var _defaultEnd = moment().endOf('month');
     $('#filterDateRange').daterangepicker({
-        autoUpdateInput: false,
+        autoUpdateInput: true,
+        startDate: _defaultStart,
+        endDate: _defaultEnd,
         locale: {
             cancelLabel: 'Clear',
             format: 'DD/MM/YYYY'
         }
     });
+    // set initial value to current month range
+    $('#filterDateRange').val(_defaultStart.format('DD/MM/YYYY') + ' - ' + _defaultEnd.format('DD/MM/YYYY'));
     $('#filterDateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
         table.ajax.reload();
@@ -179,8 +184,8 @@ $(function() {
                 }
                 return '';
             } },
-            { data: 'platform', name: 'platform', render: function(data) {
-                if (!data) return '';
+            { data: 'platform', name: 'platform', render: function(data, type, row) {
+                if (!data) data = [];
                 let icons = {
                     'Instagram': '<i class="fab fa-instagram fa-lg" title="Instagram" style="color:#E4405F; font-size:1.5em;"></i>',
                     'Facebook': '<i class="fab fa-facebook fa-lg" title="Facebook" style="color:#1877F3; font-size:1.5em;"></i>',
@@ -193,22 +198,51 @@ $(function() {
                 if (Array.isArray(data)) {
                     arr = data;
                 } else if (typeof data === 'string') {
-                    // Try to handle comma-separated string (e.g. "Instagram,Facebook")
                     if (data.indexOf(',') !== -1) {
                         arr = data.split(',').map(s => s.trim());
                     } else {
                         arr = [data.trim()];
                     }
                 }
-                return arr.map(p => icons[p] || p).join(' ');
+
+                // normalize links from row.link_publikasi into a mapping by platform
+                var linksMap = {};
+                if (row && row.link_publikasi) {
+                    var lp = row.link_publikasi;
+                    if (Array.isArray(lp)) {
+                        if (lp.length === arr.length) {
+                            arr.forEach(function(p, i){ linksMap[p] = lp[i]; });
+                        } else {
+                            // attempt to map first link to first platform
+                            if (lp.length > 0) linksMap[arr[0]] = lp[0];
+                        }
+                    } else if (typeof lp === 'object') {
+                        linksMap = lp;
+                    } else if (typeof lp === 'string') {
+                        var parts = [];
+                        if (lp.indexOf('||') !== -1) parts = lp.split('||').map(s=>s.trim());
+                        else if (lp.indexOf(',') !== -1) parts = lp.split(',').map(s=>s.trim());
+                        else parts = [lp];
+                        if (parts.length === arr.length) {
+                            arr.forEach(function(p,i){ linksMap[p] = parts[i]; });
+                        } else if (parts.length > 0) {
+                            linksMap[arr[0]] = parts[0];
+                        }
+                    }
+                }
+
+                var htmlParts = arr.map(function(p, idx){
+                    var icon = icons[p] || p;
+                    var link = linksMap[p] || null;
+                    if (link) {
+                        return `<a href="${link}" target="_blank" title="${p}" style="margin-right:8px;">${icon}</a>`;
+                    }
+                    return `<span style="margin-right:8px;">${icon}</span>`;
+                });
+                return htmlParts.join(' ');
             } },
             { data: 'jenis_konten', name: 'jenis_konten' },
-            { data: 'link_publikasi', name: 'link_publikasi', render: function(data) {
-                if (data) {
-                    return `<a href="${data}" target="_blank" style="word-break:break-word;white-space:normal;">${data}</a>`;
-                }
-                return '';
-            } },
+            
             { data: 'status', name: 'status', render: function(data, type, row) {
                 // Render as an inline select so user can change status directly
                 var options = ['Draft','Scheduled','Published','Cancelled'];
@@ -276,6 +310,8 @@ $(function() {
         $('#contentPlanForm').attr('data-id', '');
         $('.select2').val(null).trigger('change');
         $('#brand').val(null).trigger('change');
+        // clear link publikasi inputs
+        $('#link_publikasi_wrapper').find('.link-input-row').remove();
         // default status to Scheduled when creating a new content plan
         try { $('#status').val('Scheduled').trigger('change'); } catch(e) {}
     });
@@ -346,7 +382,8 @@ $(function() {
             $('#status').val(data.status);
             $('#jenis_konten').val(data.jenis_konten).trigger('change');
             $('#link_asset').val(data.link_asset);
-            $('#link_publikasi').val(data.link_publikasi);
+            // render per-platform link inputs
+            try { renderLinkInputs(data.platform, data.link_publikasi); } catch(e) {}
             // populate caption and mention if present
             try {
                 $('#caption').val(data.caption || '');
@@ -407,6 +444,51 @@ $(function() {
     $('#status').select2({
         dropdownParent: $('#contentPlanModal'),
         width: '100%'
+    });
+
+    // Render link_publikasi inputs for selected platforms inside the modal
+    function renderLinkInputs(platforms, existingLinks) {
+        var $wrap = $('#link_publikasi_wrapper');
+        $wrap.find('.link-input-row').remove();
+        if (!platforms) return;
+        var arr = Array.isArray(platforms) ? platforms : (typeof platforms === 'string' ? (platforms.indexOf(',') !== -1 ? platforms.split(',').map(s=>s.trim()) : [platforms]) : []);
+        // normalize existingLinks into a mapping {Platform: url}
+        var map = {};
+        if (existingLinks) {
+            if (Array.isArray(existingLinks)) {
+                if (existingLinks.length === arr.length) {
+                    arr.forEach(function(p, i){ map[p] = existingLinks[i] || ''; });
+                }
+            } else if (typeof existingLinks === 'object') {
+                map = existingLinks;
+            } else if (typeof existingLinks === 'string') {
+                var parts = [];
+                if (existingLinks.indexOf('||') !== -1) parts = existingLinks.split('||').map(s=>s.trim());
+                else if (existingLinks.indexOf(',') !== -1) parts = existingLinks.split(',').map(s=>s.trim());
+                else parts = [existingLinks];
+                if (parts.length === arr.length) {
+                    arr.forEach(function(p,i){ map[p] = parts[i] || ''; });
+                } else if (parts.length > 0) {
+                    map[arr[0]] = parts[0];
+                }
+            }
+        }
+
+        arr.forEach(function(p){
+            var val = map[p] || '';
+            var safeName = p.replace(/\s+/g,'_');
+            var $col = $(`<div class="col-md-6 mb-2 link-input-row">
+                <label class="form-label">${p} - Link Publikasi</label>
+                <input type="text" class="form-control" name="link_publikasi[${p}]" value="${val}">
+            </div>`);
+            $wrap.append($col);
+        });
+    }
+
+    // update link inputs when platform selection changes inside modal
+    $('#platform').on('change', function(){
+        var val = $(this).val();
+        renderLinkInputs(val, null);
     });
 
     // Setup CSRF for AJAX
