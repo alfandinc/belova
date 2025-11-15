@@ -119,7 +119,8 @@ class ObatController extends Controller
                 ->addColumn('saran_harga_jual', function ($obat) use ($PPN, $defaultProfit) {
                     $hpp_jual = floatval($obat->hpp_jual);
                     $profitPercent = $defaultProfit;
-                    $saran = $hpp_jual * ((100 + $profitPercent) / 100) * ((100 + $PPN) / 100);
+                    // Calculate suggested selling price WITHOUT PPN
+                    $saran = $hpp_jual * ((100 + $profitPercent) / 100);
                     return $hpp_jual > 0 ? number_format($saran, 0) : '-';
                 })
                 ->orderColumn('profit_percent', 'profit_percent_value $1')

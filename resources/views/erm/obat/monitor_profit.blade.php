@@ -54,7 +54,7 @@
                                 <th>Nama Obat</th>
                                 <th>HPP</th>
                                 <th>HPP Jual</th>
-                                <th>Saran Harga Jual<br><small>(HPP Jual × 1.3 × 1.11)</small></th>
+                                <th>Saran Harga Jual<br><small>(HPP Jual × 1.3)</small></th>
                                 <th>Harga Jual</th>
                                 <th>Profit (%)<br><small>(Sebelum PPN)</small></th>
                                 <th>Profit (%) Setelah PPN</th>
