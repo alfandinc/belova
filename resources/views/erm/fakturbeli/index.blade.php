@@ -342,20 +342,18 @@ $(function() {
                         const fmt = (v) => 'Rp' + parseFloat(v || 0).toLocaleString('id-ID');
                         const num = (v) => (v === null || v === undefined) ? '-' : v;
 
-                        // Simple-average (system) formula (what StokService uses)
-                        let simpleFormula = `New HPP = (Old HPP + HPP per unit) / 2<br>
-                            = (${num(item.oldHpp)} + ${num(item.hppPerUnit)}) / 2<br>
-                            = ${num(item.newHpp)}`;
+                        // New direct-set formula (no averaging): master HPP/HPP_Jual are set to the discount-excluded per-unit price
+                        const useHppJualPerUnit = item.hppJualPerUnit || item.hppPerUnit || 0;
+                        let directFormulaPurchase = `New HPP (direct) = HPP Jual per unit (exclude discount)<br>= ${fmt(useHppJualPerUnit)}`;
+                        let directFormulaJual = `New HPP Jual (direct) = HPP Jual per unit (exclude discount)<br>= ${fmt(useHppJualPerUnit)}`;
 
-                        // Deltas (selisih) for system simple-average
-                        let deltaSimple = `Selisih (simple): ${fmt(item.selisihHpp_simple)}`;
-                        let deltaSimpleJual = `Selisih Jual (simple): ${fmt(item.selisihHppJual_simple)}`;
+                        // Deltas for direct method
+                        let deltaDirect = `Selisih (direct): ${fmt(item.selisihHpp_direct)}`;
+                        let deltaDirectJual = `Selisih Jual (direct): ${fmt(item.selisihHppJual_direct)}`;
 
-                        // Row must match the header order and show HPP columns side-by-side (purchase + jual)
-                        let conciseFormulaPurchase = `(${fmt(item.oldHpp)} + ${fmt(item.hppPerUnit)}) / 2 = ${fmt(item.newHpp)}`;
-                        let conciseFormulaJual = item.hppJualPerUnit ? `(${fmt(item.oldHppJual)} + ${fmt(item.hppJualPerUnit)}) / 2 = ${fmt(item.newHppJual)}` : '';
-                        let conciseDeltaPurchase = `<em>${deltaSimple}</em>`;
-                        let conciseDeltaJual = item.selisihHppJual_simple ? `<br><em>${fmt(item.selisihHppJual_simple)}</em>` : '';
+                        // Also provide legacy/simple formulas for comparison
+                        let conciseFormulaPurchase = `Direct: ${fmt(item.newHpp)}<br><em>${deltaDirect}</em>`;
+                        let conciseFormulaJual = `Direct: ${fmt(item.newHppJual)}<br><em>${deltaDirectJual}</em>`;
                         debugInfo += `<tr>
                             <td>${item.obat_nama}</td>
                             <td>${num(item.oldStok)}</td>
@@ -368,8 +366,8 @@ $(function() {
                             <td>${fmt(item.newHppJual || 0)}</td>
                             <td>${num(item.newStok)}</td>
                             <td style="font-size:0.9em;">
-                                <strong>Purchase HPP:</strong><br>${conciseFormulaPurchase}<br>${conciseDeltaPurchase}
-                                ${ conciseFormulaJual ? `<hr><strong>Selling HPP:</strong><br>${conciseFormulaJual}${conciseDeltaJual}` : '' }
+                                <strong>Purchase HPP:</strong><br>${conciseFormulaPurchase}
+                                ${ conciseFormulaJual ? `<hr><strong>Selling HPP:</strong><br>${conciseFormulaJual}` : '' }
                             </td>
                         </tr>`;
                     });

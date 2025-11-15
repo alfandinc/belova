@@ -84,18 +84,18 @@ class StokService {
             }
 
             // Update HPP di master obat jika ada harga beli baru (hanya untuk pembelian)
+            // Use the price that excludes discounts (`hargaBeliJual`) when available.
+            // Set master `hpp` and `hpp_jual` directly to the new price (no averaging).
             if ($hargaBeli !== null || $hargaBeliJual !== null) {
                 $obat = Obat::find($obatId);
                 if ($obat) {
-                    // Simple average for HPP (include diskon)
-                    if ($hargaBeli !== null) {
-                        $oldHpp = (float) ($obat->hpp ?? 0);
-                        $obat->hpp = ($oldHpp + $hargaBeli) / 2;
-                    }
-                    // Simple average for HPP Jual (exclude diskon)
                     if ($hargaBeliJual !== null) {
-                        $oldHppJual = (float) ($obat->hpp_jual ?? 0);
-                        $obat->hpp_jual = ($oldHppJual + $hargaBeliJual) / 2;
+                        $priceNoDiscount = (float) $hargaBeliJual;
+                        $obat->hpp = $priceNoDiscount;
+                        $obat->hpp_jual = $priceNoDiscount;
+                    } else {
+                        // Fallback: only hargaBeli provided (may include discount) — set hpp to that value
+                        $obat->hpp = (float) $hargaBeli;
                     }
                     $obat->save();
                 }

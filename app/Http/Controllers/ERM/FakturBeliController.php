@@ -467,7 +467,12 @@ class FakturBeliController extends Controller
                 $hppPerUnit = $qty > 0 ? ($purchaseCost / $qty) : 0; // include diskon
                 $hppJualPerUnit = $qty > 0 ? ($purchaseCostJual / $qty) : 0; // exclude diskon
 
-                // Simple average (system behavior in StokService): newHpp = (oldHpp + hppPerUnit) / 2
+                // New behavior: master HPP and HPP_JUAL are set directly to the discount-excluded per-unit price
+                // (i.e., no averaging). Represent that as 'direct' values for debug display.
+                $newHpp_direct = $hppJualPerUnit; // price excluding discount per unit
+                $newHppJual_direct = $hppJualPerUnit; // same as above
+
+                // Simple average (legacy/system behavior) for reference
                 $newHpp_simple = ($oldHpp + $hppPerUnit) / 2;
                 $newHppJual_simple = ($oldHppJual + $hppJualPerUnit) / 2;
 
@@ -491,16 +496,17 @@ class FakturBeliController extends Controller
                     'oldHppJual' => $oldHppJual,
                     'oldStok' => $oldStok,
                     'newStok' => $newStok,
-                    // Show system (simple average) result as primary
-                    'newHpp' => $newHpp_simple,
-                    'newHppJual' => $newHppJual_simple,
+                    // Show new direct-set behavior as primary (no averaging)
+                    'newHpp' => $newHpp_direct,
+                    'newHppJual' => $newHppJual_direct,
                     // Also include weighted results for comparison
                     'newHpp_weighted' => $newHpp_weighted,
                     'newHppJual_weighted' => $newHppJual_weighted,
                     'hppPerUnit' => $qty > 0 ? $purchaseCost / $qty : 0,
                     'hppJualPerUnit' => $qty > 0 ? $purchaseCostJual / $qty : 0,
-                    'selisihHpp' => $newHpp_simple - $oldHpp,
-                    // Deltas for both simple and weighted
+                    // Deltas for direct, simple and weighted methods
+                    'selisihHpp_direct' => $newHpp_direct - $oldHpp,
+                    'selisihHppJual_direct' => $newHppJual_direct - $oldHppJual,
                     'selisihHpp_simple' => $newHpp_simple - $oldHpp,
                     'selisihHppJual_simple' => $newHppJual_simple - $oldHppJual,
                     'selisihHpp_weighted' => $newHpp_weighted - $oldHpp,
