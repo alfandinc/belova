@@ -8,6 +8,7 @@ use App\Models\ERM\Obat;
 use App\Models\ERM\Supplier;
 use App\Models\ERM\ZatAktif;
 use App\Models\ERM\MetodeBayar;
+use App\Models\ERM\Visitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
@@ -361,6 +362,7 @@ class ObatController extends Controller
     {
         $query = $request->get('q');
         $metodeBayarId = $request->get('metode_bayar_id');
+        $visitationId = $request->get('visitation_id');
 
         // Search by obat name, dosis, satuan, or zat aktif name, and filter by metode_bayar_id if provided
         $obatsQuery = Obat::where('status_aktif', 1)
@@ -372,6 +374,24 @@ class ObatController extends Controller
                       $z->where('nama', 'LIKE', "%{$query}%");
                   });
             });
+        // If visitation_id provided, exclude obat that contain any zat aktif the patient is allergic to
+        if ($visitationId) {
+            $visitation = Visitation::find($visitationId);
+            if ($visitation && $visitation->pasien_id) {
+                $zatAlergi = DB::table('erm_alergi')
+                    ->where('pasien_id', $visitation->pasien_id)
+                    ->whereNotNull('zataktif_id')
+                    ->pluck('zataktif_id')
+                    ->filter()
+                    ->toArray();
+
+                if (!empty($zatAlergi)) {
+                    $obatsQuery->whereDoesntHave('zatAktifs', function ($q) use ($zatAlergi) {
+                        $q->whereIn('erm_zataktif.id', $zatAlergi);
+                    });
+                }
+            }
+        }
         if ($metodeBayarId) {
             $obatsQuery->where('metode_bayar_id', $metodeBayarId);
         }

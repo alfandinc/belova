@@ -19,7 +19,7 @@ class Alergi extends Model
         'status',
         'katakunci',
         'zataktif_id',
-        'verifikasi_status',
+        'verif_status',
         'varifikator_id',
         'user_id',
     ];

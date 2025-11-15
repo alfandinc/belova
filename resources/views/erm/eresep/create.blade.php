@@ -433,7 +433,8 @@
                     var metodeBayarId = {{ $visitation->metode_bayar_id ?? 'null' }};
                     return {
                         q: params.term,
-                        metode_bayar_id: metodeBayarId
+                        metode_bayar_id: metodeBayarId,
+                        visitation_id: $('#visitation_id').val()
                     };
                 },
                 processResults: function (data) {
@@ -851,7 +852,8 @@
                         var metodeBayarId = {{ $visitation->metode_bayar_id ?? 'null' }};
                         return {
                             q: params.term,
-                            metode_bayar_id: metodeBayarId
+                            metode_bayar_id: metodeBayarId,
+                            visitation_id: $('#visitation_id').val()
                         };
                     },
                     processResults: function (data) {
@@ -900,9 +902,10 @@
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
-                        return {
-                            q: params.term // Search term
-                        };
+                            return {
+                                q: params.term, // Search term
+                                visitation_id: $('#visitation_id').val()
+                            };
                     },
                     processResults: function (data) {
                         return {
@@ -1425,7 +1428,7 @@
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {
-                        return { q: params.term };
+                        return { q: params.term, visitation_id: $('#visitation_id').val() };
                     },
                     processResults: function (data) {
                         return { results: data };
@@ -2167,7 +2170,8 @@
                     delay: 250,
                     data: function (params) {
                         return {
-                            q: params.term || ''
+                            q: params.term || '',
+                            visitation_id: $('#visitation_id').val()
                         };
                     },
                     processResults: function (data) {
