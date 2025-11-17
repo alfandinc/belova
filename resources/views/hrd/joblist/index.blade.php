@@ -27,6 +27,7 @@
                     @endforeach
                 </select>
             </div>
+            
         </div>
     </div>
 
@@ -130,6 +131,15 @@ $(function(){
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
     });
+    // Apply query params to filters (so dashboard links can open filtered list)
+    try {
+        var urlParams = new URLSearchParams(window.location.search);
+        var qDivision = urlParams.get('division_id');
+        var qStatus = urlParams.get('status');
+        if (qDivision) $('#filter_division').val(qDivision);
+        if (qStatus) $('#filter_status').val(qStatus);
+    } catch (e) { /* ignore */ }
+
     var table = $('#joblist-table').DataTable({
         processing: true,
         serverSide: true,
@@ -151,6 +161,8 @@ $(function(){
             { data: 'actions', name: 'actions', orderable:false, searchable:false }
         ]
     });
+
+    
 
     $('#btnAddJob').on('click', function(){
         $('#jobForm')[0].reset();

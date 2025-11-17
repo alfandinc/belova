@@ -1122,7 +1122,10 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
 
         // JobList Module (CRUD via AJAX + Datatables)
         Route::get('/joblist', [JobListController::class, 'index'])->name('hrd.joblist.index');
+        // New dashboard view for JobList stats
+        Route::get('/joblist/dashboard', [JobListController::class, 'dashboard'])->name('hrd.joblist.dashboard');
         Route::get('/joblist/data', [JobListController::class, 'data'])->name('hrd.joblist.data');
+        Route::get('/joblist/summary', [JobListController::class, 'summary'])->name('hrd.joblist.summary');
         Route::post('/joblist', [JobListController::class, 'store'])->name('hrd.joblist.store');
         Route::get('/joblist/{id}', [JobListController::class, 'show'])->name('hrd.joblist.show');
         Route::post('/joblist/{id}', [JobListController::class, 'update'])->name('hrd.joblist.update');

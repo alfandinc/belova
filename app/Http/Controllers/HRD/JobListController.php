@@ -18,9 +18,27 @@ class JobListController extends Controller
         return view('hrd.joblist.index', compact('divisions'));
     }
 
+    /**
+     * Dashboard index showing per-division stats (separate page)
+     */
+    public function dashboard()
+    {
+        return view('hrd.joblist.dashboard');
+    }
+
     public function data(Request $request)
     {
         $query = JobList::with(['division', 'creator'])->select('hrd_joblists.*');
+        // Apply due_date range filter when provided (start_date, end_date expected as YYYY-MM-DD)
+        $start = $request->get('start_date');
+        $end = $request->get('end_date');
+        if ($start && $end) {
+            try {
+                $query->whereBetween('due_date', [$start, $end]);
+            } catch (\Exception $e) {
+                // ignore malformed dates
+            }
+        }
         // apply status filter if provided and valid
         $status = $request->get('status');
         $validStatuses = ['progress','done','canceled'];
@@ -97,6 +115,38 @@ class JobListController extends Controller
             })
             ->rawColumns(['actions','status_badge','priority_badge','due_date_display'])
             ->make(true);
+    }
+
+    /**
+     * Return per-division summary counts (ongoing/done) filtered by due_date range.
+     */
+    public function summary(Request $request)
+    {
+        $start = $request->get('start_date');
+        $end = $request->get('end_date');
+        $divisions = \App\Models\HRD\Division::all();
+        $result = [];
+        foreach ($divisions as $d) {
+            $base = JobList::where('division_id', $d->id);
+            if ($start && $end) {
+                try {
+                    $base->whereBetween('due_date', [$start, $end]);
+                } catch (\Exception $e) {
+                    // ignore
+                }
+            }
+            $ongoing = (clone $base)->where('status', 'progress')->count();
+            $done = (clone $base)->where('status', 'done')->count();
+            $canceled = (clone $base)->where('status', 'canceled')->count();
+            $result[] = [
+                'division_id' => $d->id,
+                'division_name' => $d->name,
+                'ongoing' => $ongoing,
+                'done' => $done,
+                'canceled' => $canceled,
+            ];
+        }
+        return response()->json(['success' => true, 'data' => $result]);
     }
 
     public function store(Request $request)
