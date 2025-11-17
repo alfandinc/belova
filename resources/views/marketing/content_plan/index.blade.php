@@ -795,6 +795,7 @@ $(function() {
         $('#contentBriefForm')[0].reset();
         $('#cb_preview').empty();
         $('#cb_content_plan_id').val(planId);
+        $('#cb_id').val('');
         // clear any previously attached DataTransfer files
         window._cbDataTransfer = new DataTransfer();
         // clear any previously loaded brief cache
@@ -862,6 +863,7 @@ $(function() {
                 if (!res) return;
                 window._cbLoadedBrief = res;
                 try {
+                    $('#cb_id').val(res.id || '');
                     $('#cb_headline').val(res.headline || '');
                     $('#cb_sub_headline').val(res.sub_headline || '');
                 } catch(e){}
@@ -1046,6 +1048,9 @@ $(function() {
         // append files from DataTransfer
         var dt = window._cbDataTransfer || {files: []};
         Array.from(dt.files).forEach(function(f, i){ fd.append('visual_references[]', f); });
+        // Always post to the store endpoint; include `id` when updating so server can upsert
+        var existingId = $('#cb_id').val();
+        if (existingId) fd.append('id', existingId);
 
         $.ajax({
             url: '/marketing/content-brief',

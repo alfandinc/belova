@@ -8,6 +8,7 @@
         </div>
         <div class="modal-body">
           <input type="hidden" id="cb_content_plan_id" name="content_plan_id" value="">
+          <input type="hidden" id="cb_id" name="id" value="">
 
           <div class="row">
             <div class="col-md-8">

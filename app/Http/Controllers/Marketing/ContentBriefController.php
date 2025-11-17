@@ -15,6 +15,7 @@ class ContentBriefController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
+            'id' => 'nullable|integer|exists:marketing_content_briefs,id',
             'content_plan_id' => 'required|integer|exists:marketing_content_plans,id',
             'headline' => 'nullable|string|max:255',
             'sub_headline' => 'nullable|string|max:255',
@@ -29,6 +30,30 @@ class ContentBriefController extends Controller
                 $path = $file->store('marketing/content_briefs', 'public');
                 $paths[] = $path;
             }
+        }
+
+        // If id provided, update existing brief, otherwise create new
+        if (!empty($data['id'])) {
+            $brief = ContentBrief::find($data['id']);
+            if (! $brief) {
+                return response()->json(['success' => false, 'message' => 'Brief not found'], 404);
+            }
+
+            $brief->headline = $data['headline'] ?? $brief->headline;
+            $brief->sub_headline = $data['sub_headline'] ?? $brief->sub_headline;
+            $brief->isi_konten = $data['isi_konten'] ?? $brief->isi_konten;
+
+            // merge existing visual references with newly uploaded ones
+            $existing = is_array($brief->visual_references) ? $brief->visual_references : [];
+            if (!empty($paths)) {
+                $brief->visual_references = array_values(array_merge($existing, $paths));
+            } else {
+                $brief->visual_references = $existing;
+            }
+
+            $brief->save();
+
+            return response()->json(['success' => true, 'data' => $brief], 200);
         }
 
         $brief = new ContentBrief();
