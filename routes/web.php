@@ -62,6 +62,7 @@ use App\Http\Controllers\HRD\{
     PerformanceEvaluationController,
     PerformanceQuestionController,
     PerformanceScoreController
+    ,JobListController
 };
 
 
@@ -1118,6 +1119,14 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         // Division routes (for managers)
         Route::get('/my-division', [DivisionController::class, 'showMyDivision'])->name('hrd.division.mine');
         Route::get('/my-team', [DivisionController::class, 'showMyTeam'])->name('hrd.division.team');
+
+        // JobList Module (CRUD via AJAX + Datatables)
+        Route::get('/joblist', [JobListController::class, 'index'])->name('hrd.joblist.index');
+        Route::get('/joblist/data', [JobListController::class, 'data'])->name('hrd.joblist.data');
+        Route::post('/joblist', [JobListController::class, 'store'])->name('hrd.joblist.store');
+        Route::get('/joblist/{id}', [JobListController::class, 'show'])->name('hrd.joblist.show');
+        Route::post('/joblist/{id}', [JobListController::class, 'update'])->name('hrd.joblist.update');
+        Route::delete('/joblist/{id}', [JobListController::class, 'destroy'])->name('hrd.joblist.destroy');
 
         Route::prefix('libur')->name('hrd.libur.')->middleware(['auth'])->group(function () {
                 Route::get('/', [PengajuanLiburController::class, 'index'])->name('index');

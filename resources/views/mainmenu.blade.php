@@ -578,6 +578,18 @@
                     <div class="menu-sub">Manajemen Karyawan</div>
                 </a>
 
+                <a href="/hrd/joblist" class="menu-tile tile-hrd animate-item delay-6" data-filter="joblist task pekerjaan"
+                   @if(!array_intersect($userRoles, ['Hrd','Manager','Employee','Admin']))
+                       onclick="showRoleWarning(event, 'Job List')"
+                   @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-tasks"></i></div>
+                        <div class="menu-badge">Task</div>
+                    </div>
+                    <div class="menu-title">Job List</div>
+                    <div class="menu-sub">Tugas & Deadline</div>
+                </a>
+
                 <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Dokumen Kerja')"
