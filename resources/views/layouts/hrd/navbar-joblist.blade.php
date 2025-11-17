@@ -29,15 +29,15 @@
         <ul class="metismenu left-sidenav-menu">
             <li class="menu-label mt-0">Main</li>
 
-            <li>
+            {{-- <li>
                 <a href="/hrd"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span></a>
-            </li>
+            </li> --}}
 
             <li>
                 <a href="javascript: void(0);"> <i data-feather="check-square" class="align-self-center menu-icon"></i><span>Job List</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.joblist.index') }}"><i class="ti-control-record"></i>Daftar Job</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.joblist.index') }}?view=create"><i class="ti-control-record"></i>Buat Job Baru</a></li>
+                    {{-- <li class="nav-item"><a class="nav-link" href="{{ route('hrd.joblist.index') }}?view=create"><i class="ti-control-record"></i>Buat Job Baru</a></li> --}}
                 </ul>
             </li>
 
