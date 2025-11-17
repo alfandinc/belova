@@ -27,6 +27,11 @@ class JobListController extends Controller
         if ($status && in_array($status, $validStatuses)) {
             $query->where('status', $status);
         }
+        // apply division filter if provided
+        $division = $request->get('division_id');
+        if ($division && is_numeric($division)) {
+            $query->where('division_id', $division);
+        }
         return DataTables::of($query)
             ->addColumn('division_name', function ($row) {
                 return $row->division?->name;

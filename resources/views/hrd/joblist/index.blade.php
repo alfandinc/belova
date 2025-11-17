@@ -18,6 +18,15 @@
                     <option value="canceled">Canceled</option>
                 </select>
             </div>
+            <div class="d-inline-block ml-2">
+                <select id="filter_division" class="form-control">
+                    <option value="">Semua Division</option>
+                    @php $userDivisionId = optional(Auth::user()->employee)->division_id; @endphp
+                    @foreach($divisions as $d)
+                        <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
     </div>
 
@@ -128,6 +137,7 @@ $(function(){
             url: '{!! route("hrd.joblist.data") !!}',
             data: function(d) {
                 d.status = $('#filter_status').val();
+                d.division_id = $('#filter_division').val();
             }
         },
         columns: [
@@ -151,6 +161,9 @@ $(function(){
 
     // reload table when filter changes
     $('#filter_status').on('change', function(){
+        table.ajax.reload();
+    });
+    $('#filter_division').on('change', function(){
         table.ajax.reload();
     });
 
