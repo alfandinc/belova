@@ -791,7 +791,7 @@ $(function() {
     $('#contentPlanTable').on('click', '.btn-add-brief', function() {
         var planId = $(this).data('id');
         console.log('btn-add-brief clicked, planId=', planId);
-        // reset form
+        // reset form and clear previous state to avoid stale data showing
         $('#contentBriefForm')[0].reset();
         $('#cb_preview').empty();
         $('#cb_content_plan_id').val(planId);
@@ -800,6 +800,13 @@ $(function() {
         // clear any previously loaded brief cache
         window._cbLoadedBrief = null;
         window._cbLoadedIsi = null;
+        // Ensure any existing summernote instance is destroyed and emptied
+        try {
+            if ($.fn.summernote) {
+                try { $('#cb_isi_konten').summernote('destroy'); } catch(e) {}
+                try { $('#cb_isi_konten').val(''); } catch(e) {}
+            }
+        } catch(e){ /* ignore */ }
         // init summernote handled on modal shown event
 
         // Ensure modal is attached to body (avoids stacking-context/z-index issues)
@@ -860,6 +867,17 @@ $(function() {
                 } catch(e){}
                 // isi_konten: may need to wait for summernote init; store temporarily
                 window._cbLoadedIsi = res.isi_konten || '';
+
+                // If the modal is already visible and summernote is initialized,
+                // write the loaded content immediately so switching rows updates the editor.
+                try {
+                    if ($.fn.summernote && $('#contentBriefModal').hasClass('show')) {
+                        try {
+                            $('#cb_isi_konten').summernote('code', window._cbLoadedIsi);
+                            window._cbLoadedIsi = null;
+                        } catch (e) { /* ignore */ }
+                    }
+                } catch(e) { /* ignore */ }
 
                 // Render existing visual_references (array of storage paths)
                 if (Array.isArray(res.visual_references) && res.visual_references.length) {
