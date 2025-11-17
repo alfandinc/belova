@@ -27,7 +27,11 @@
 
     <div class="card">
         <div class="card-header bg-primary">
-            <h4 class="card-title text-white">Daftar Resep Kunjungan Rawat Jalan</h4>
+            <h4 class="card-title text-white">Daftar Resep Kunjungan Rawat Jalan
+                <button id="btn-old-notifs" type="button" class="btn btn-light btn-sm float-right ml-2" title="Lihat Notifikasi Lama">
+                    <span style="color:#e74c3c; font-size:14px;">&#10084;</span>
+                </button>
+            </h4>
         </div>
         <div class="card-body">
             <div class="row mb-3">
@@ -78,6 +82,29 @@
                     </tr>
                 </thead>
             </table>
+            <!-- Modal: Old Notifications -->
+            <div class="modal fade" id="modalOldNotifications" tabindex="-1" role="dialog" aria-labelledby="modalOldNotificationsLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="modalOldNotificationsLabel">Notifikasi Lama</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="old-notifs-loading" style="display:none; text-align:center; padding:20px;">
+                                <div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div>
+                            </div>
+                            <div id="old-notifs-empty" style="display:none; text-align:center; color:#666;">Belum ada notifikasi lama.</div>
+                            <ul class="list-group" id="old-notifs-list"></ul>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -200,7 +227,109 @@ function openRescheduleModal(visitationId, namaPasien, pasienId) {
 }
 
 // Notification polling moved to global partial (partials.farmasi-notif)
+
+// URL to fetch old notifications and to mark them read
+var oldNotifsUrl = '{{ route("erm.farmasi.notifications.old") }}';
+var markReadBase = '{{ url("erm/farmasi/notifications") }}';
+var csrfToken = '{{ csrf_token() }}';
+
+// Open modal and load notifications when button is clicked
+$(document).on('click', '#btn-old-notifs', function () {
+    $('#modalOldNotifications').modal('show');
+    loadOldNotifications();
+});
+
+function loadOldNotifications() {
+    $('#old-notifs-list').empty();
+    $('#old-notifs-empty').hide();
+    $('#old-notifs-loading').show();
+
+    $.get(oldNotifsUrl, function (res) {
+        $('#old-notifs-loading').hide();
+
+        var items = [];
+        if (Array.isArray(res)) {
+            items = res;
+        } else if (res && Array.isArray(res.data)) {
+            items = res.data;
+        }
+
+        if (!items || items.length === 0) {
+            $('#old-notifs-empty').show();
+            return;
+        }
+
+        items.forEach(function (n) {
+            var message = n.message || n.title || n.text || JSON.stringify(n);
+            var time = n.created_at || n.time || n.tanggal || '';
+
+            var $li = $("<li class='list-group-item d-flex justify-content-between align-items-start'></li>");
+            var left = '<div class="notif-content">';
+            if (n.read) {
+                left += '<div class="text-muted">' + escapeHtml(message) + '</div>';
+            } else {
+                left += '<div class="font-weight-bold">' + escapeHtml(message) + '</div>';
+            }
+            if (time) left += '<small class="text-muted">' + escapeHtml(time) + '</small>';
+            left += '</div>';
+
+            var right = '<div class="notif-actions">';
+            if (!n.read) {
+                right += '<button class="btn btn-sm btn-primary btn-mark-read" data-id="' + n.id + '">Tandai sudah dibaca</button>';
+            } else {
+                right += '<span class="badge badge-secondary">Sudah dibaca</span>';
+            }
+            right += '</div>';
+
+            $li.html(left + right);
+            $('#old-notifs-list').append($li);
+        });
+    }).fail(function () {
+        $('#old-notifs-loading').hide();
+        $('#old-notifs-empty').text('Gagal memuat notifikasi.').show();
+    });
+}
+
+// Handle mark-as-read click
+$(document).on('click', '.btn-mark-read', function (e) {
+    e.preventDefault();
+    var $btn = $(this);
+    var id = $btn.data('id');
+    if (!id) return;
+
+    $btn.prop('disabled', true).text('Memproses...');
+
+    $.ajax({
+        url: markReadBase + '/' + id + '/mark-read',
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrfToken },
+        success: function (res) {
+            if (res && res.success) {
+                // reload list to reflect change
+                loadOldNotifications();
+            } else {
+                alert('Gagal menandai notifikasi.');
+                $btn.prop('disabled', false).text('Tandai sudah dibaca');
+            }
+        },
+        error: function () {
+            alert('Gagal menandai notifikasi.');
+            $btn.prop('disabled', false).text('Tandai sudah dibaca');
+        }
+    });
+});
+
+function escapeHtml(unsafe) {
+    return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 </script>
 
 
 @endsection
+

@@ -589,6 +589,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Notification Routes
     Route::get('/check-notifications', [NotificationController::class, 'checkNewNotifications'])->name('erm.check.notifications');
     Route::post('/notify-pasien-keluar', [NotificationController::class, 'notifyPasienKeluar'])->name('erm.notify.pasien.keluar');
+    // Return old notifications (used by Farmasi "Old Notifications" modal)
+    Route::get('/farmasi/notifications/old', [NotificationController::class, 'oldNotifications'])->name('erm.farmasi.notifications.old');
+    // Mark single notification as read
+    Route::post('/farmasi/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('erm.farmasi.notifications.markread');
     
     // Paket Racikan Routes
     Route::get('/paket-racikan', [EresepController::class, 'paketRacikanIndex'])->name('erm.paket-racikan.index');
@@ -1544,6 +1548,9 @@ Route::get('hrd/payroll/slip-gaji/kpi-summary', [\App\Http\Controllers\HRD\PrSli
 Route::post('hrd/payroll/slip-gaji/generate-uang-kpi', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'generateUangKpi'])->name('hrd.payroll.slip_gaji.generate_uang_kpi');
 // Public (auth) endpoint for Farmasi clients to poll finance notifications
 Route::get('/finance/get-notif', [App\Http\Controllers\Finance\BillingController::class, 'getNotif'])->middleware('auth');
+// Finance notifications endpoints (used by Finance UI to show old notifications)
+Route::get('/finance/notifications/old', [\App\Http\Controllers\ERM\NotificationController::class, 'oldNotifications'])->middleware('auth')->name('finance.notifications.old');
+Route::post('/finance/notifications/{id}/mark-read', [\App\Http\Controllers\ERM\NotificationController::class, 'markAsRead'])->middleware('auth')->name('finance.notifications.markread');
 // KPI simulation preview route for HRD
 Route::post('/hrd/payroll/slip_gaji/simulate-kpi', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'simulateKpiPreview'])->name('hrd.payroll.slip_gaji.simulate_kpi');
 

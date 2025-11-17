@@ -1,7 +1,9 @@
 @if (Auth::user() && Auth::user()->hasRole('Farmasi'))
 <script>
 window.soundEnabled = false;
-window.lastFarmasiNotifCheck = window.lastFarmasiNotifCheck || 0;
+// Initialize last check to server time so existing unread notifications
+// prior to this page load are not shown as 'new' immediately after login.
+window.lastFarmasiNotifCheck = window.lastFarmasiNotifCheck || {{ time() }};
 // Optional: allow overriding page context from a global variable
 window.farmasiNotifPage = window.farmasiNotifPage || 'index';
 $(function() {

@@ -18,6 +18,11 @@
                                 <div class="d-flex align-items-center" style="flex:0 0 auto;">
                                     <button id="btn-send-farmasi-notif" class="btn btn-sm btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell me-1"></i> Kirim Notif ke Farmasi</button>
                                 </div>
+                                <div class="d-flex align-items-center" style="flex:0 0 auto;">
+                                    <button id="btn-old-notifs-finance" type="button" class="btn btn-light btn-sm" title="Lihat Notifikasi Lama" style="margin-left:.5rem;">
+                                        <span style="color:#007bff; font-size:14px;">&#10084;</span>
+                                    </button>
+                                </div>
                                 <div class="d-flex align-items-center" style="flex:0 0 220px;">
                                     <select id="filter-dokter" class="form-control form-control-sm w-100">
                                         <option value="">Semua Dokter</option>
@@ -91,6 +96,30 @@
                                 </tr>
                             </thead>
                         </table>
+                    </div>
+                    <!-- Modal: Old Notifications (Finance) -->
+                    <div class="modal fade" id="modalOldNotificationsFinance" tabindex="-1" role="dialog" aria-labelledby="modalOldNotificationsFinanceLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="modalOldNotificationsFinanceLabel">Notifikasi Lama (Finance)</h5>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btn-mark-all-finance" style="margin-right:1rem;">Tandai semua sudah dibaca</button>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <div id="old-fin-notifs-loading" style="display:none; text-align:center; padding:20px;">
+                                        <div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div>
+                                    </div>
+                                    <div id="old-fin-notifs-empty" style="display:none; text-align:center; color:#666;">Belum ada notifikasi lama.</div>
+                                    <ul class="list-group" id="old-fin-notifs-list"></ul>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -288,6 +317,95 @@
                 }
             });
         });
+
+        // Finance: Old Notifications modal handlers
+        var oldFinNotifsUrl = '{{ route("finance.notifications.old") }}';
+        var markFinReadBase = '{{ url("finance/notifications") }}';
+        var csrfToken = '{{ csrf_token() }}';
+
+        $(document).on('click', '#btn-old-notifs-finance', function () {
+            $('#modalOldNotificationsFinance').modal('show');
+            loadOldFinNotifications();
+        });
+
+        function loadOldFinNotifications() {
+            $('#old-fin-notifs-list').empty();
+            $('#old-fin-notifs-empty').hide();
+            $('#old-fin-notifs-loading').show();
+
+            $.get(oldFinNotifsUrl, function (res) {
+                $('#old-fin-notifs-loading').hide();
+                var items = Array.isArray(res) ? res : (res && Array.isArray(res.data) ? res.data : []);
+                if (!items || items.length === 0) {
+                    $('#old-fin-notifs-empty').show();
+                    return;
+                }
+
+                items.forEach(function (n) {
+                    var message = n.message || n.title || n.text || JSON.stringify(n);
+                    var time = n.created_at || '';
+                    var $li = $("<li class='list-group-item d-flex justify-content-between align-items-start'></li>");
+                    var left = '<div class="notif-content">';
+                    if (n.read) left += '<div class="text-muted">' + escapeHtml(message) + '</div>';
+                    else left += '<div class="font-weight-bold">' + escapeHtml(message) + '</div>';
+                    if (time) left += '<small class="text-muted">' + escapeHtml(time) + '</small>';
+                    left += '</div>';
+
+                    var right = '<div class="notif-actions">';
+                    if (!n.read) {
+                        right += '<button class="btn btn-sm btn-primary btn-mark-read-fin" data-id="' + n.id + '">Tandai sudah dibaca</button>';
+                    } else {
+                        right += '<span class="badge badge-secondary">Sudah dibaca</span>';
+                    }
+                    right += '</div>';
+
+                    $li.html(left + right);
+                    $('#old-fin-notifs-list').append($li);
+                });
+            }).fail(function () {
+                $('#old-fin-notifs-loading').hide();
+                $('#old-fin-notifs-empty').text('Gagal memuat notifikasi.').show();
+            });
+        }
+
+        $(document).on('click', '.btn-mark-read-fin', function (e) {
+            e.preventDefault();
+            var $btn = $(this);
+            var id = $btn.data('id');
+            if (!id) return;
+            $btn.prop('disabled', true).text('Memproses...');
+
+            $.ajax({
+                url: markFinReadBase + '/' + id + '/mark-read',
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrfToken },
+                success: function (res) {
+                    if (res && res.success) loadOldFinNotifications();
+                    else { alert('Gagal menandai notifikasi.'); $btn.prop('disabled', false).text('Tandai sudah dibaca'); }
+                },
+                error: function () { alert('Gagal menandai notifikasi.'); $btn.prop('disabled', false).text('Tandai sudah dibaca'); }
+            });
+        });
+
+        // Mark all read
+        $(document).on('click', '#btn-mark-all-finance', function () {
+            if (!confirm('Tandai semua notifikasi sebagai sudah dibaca?')) return;
+            // fetch ids then post each (simple approach)
+            $.get(oldFinNotifsUrl, function (res) {
+                var items = Array.isArray(res) ? res : (res && Array.isArray(res.data) ? res.data : []);
+                var unread = items.filter(function(i) { return !i.read; });
+                if (!unread.length) { alert('Tidak ada notifikasi belum dibaca.'); return; }
+                var requests = [];
+                unread.forEach(function (n) {
+                    requests.push($.ajax({ url: markFinReadBase + '/' + n.id + '/mark-read', method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken } }));
+                });
+                $.when.apply($, requests).always(function() { loadOldFinNotifications(); });
+            });
+        });
+
+        function escapeHtml(unsafe) {
+            return String(unsafe).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
 
         $(document).on('click', '.btn-restore-visitation', function() {
             var id = $(this).data('id');
