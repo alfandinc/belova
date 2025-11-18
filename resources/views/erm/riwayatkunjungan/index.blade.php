@@ -272,6 +272,42 @@ $(document).ready(function () {
         $('#modalAlergi').modal('show');
     });
 
+    // Dokumen button: open different pages based on status_dokumen
+    // - if status_dokumen === 'asesmen' -> open Asesmen Dokter create page
+    // - if status_dokumen === 'cppt' -> open CPPT create page
+    $(document).on('click', '.dokumen-btn', function(e) {
+        e.preventDefault();
+
+        // get the DataTable row data for this button's row
+        var $tr = $(this).closest('tr');
+        var rowData = riwayatTable.row($tr).data();
+
+        // fallback: try to read id from data attribute on the button
+        var visitationId = (rowData && (rowData.id || rowData.visitation_id)) ? (rowData.id || rowData.visitation_id) : $(this).data('id');
+        var statusDokumen = rowData && rowData.status_dokumen ? rowData.status_dokumen : $(this).data('status');
+
+        if (!visitationId) {
+            console.error('Visitation id not found for dokumen button.');
+            return;
+        }
+
+        // normalize status to lowercase string when present
+        if (statusDokumen) {
+            statusDokumen = String(statusDokumen).toLowerCase();
+        }
+
+        if (statusDokumen === 'asesmen') {
+            // Open Asesmen Dokter create route
+            window.open('/asesmendokter/' + visitationId + '/create', '_blank');
+        } else if (statusDokumen === 'cppt') {
+            // Open CPPT create route
+            window.open('/cppt/' + visitationId + '/create', '_blank');
+        } else {
+            // Fallback: open resume medis if available
+            window.open('/resume-medis/' + visitationId, '_blank');
+        }
+    });
+
     // Toggle semua bagian tergantung status
         var initialStatusAlergi = $('input[name="statusAlergi"]:checked').val(); // Ambil status yang dipilih awalnya
     
