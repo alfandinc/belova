@@ -73,6 +73,35 @@ class JobListController extends Controller
                 }
                 return '<span class="badge ' . $class . '">' . $label . '</span>';
             })
+            ->addColumn('status_control', function ($row) {
+                $status = $row->status;
+                $opts = ['progress' => 'Progress', 'done' => 'Done', 'canceled' => 'Canceled'];
+                // badge class mapping
+                switch ($status) {
+                    case 'done':
+                        $badgeClass = 'badge-success';
+                        break;
+                    case 'canceled':
+                        $badgeClass = 'badge-danger';
+                        break;
+                    case 'progress':
+                    default:
+                        $badgeClass = 'badge-info';
+                }
+                $label = ucfirst(str_replace('_', ' ', $status));
+
+                $html = '<div class="d-flex align-items-center">';
+                $html .= '<span class="badge ' . $badgeClass . ' mr-2 status-inline-badge">' . $label . '</span>';
+                // hide select initially; badge is shown. Clicking badge will reveal select.
+                $html .= '<select style="display:none; min-width:120px;" class="form-control form-control-sm job-status-select" data-id="' . $row->id . '">';
+                foreach ($opts as $k => $v) {
+                    $sel = ($k === $status) ? ' selected' : '';
+                    $html .= '<option value="' . $k . '"' . $sel . '>' . $v . '</option>';
+                }
+                $html .= '</select>';
+                $html .= '</div>';
+                return $html;
+            })
             ->addColumn('priority_badge', function ($row) {
                 $p = $row->priority;
                 $label = ucfirst(str_replace('_', ' ', $p));
@@ -113,8 +142,25 @@ class JobListController extends Controller
             ->addColumn('actions', function ($row) {
                 return view('hrd.joblist._actions', compact('row'))->render();
             })
-            ->rawColumns(['actions','status_badge','priority_badge','due_date_display'])
+            ->rawColumns(['actions','status_badge','status_control','priority_badge','due_date_display'])
             ->make(true);
+    }
+
+    /**
+     * Inline update for single fields (used by DataTable inline controls)
+     */
+    public function inlineUpdate(Request $request, $id)
+    {
+        $job = JobList::findOrFail($id);
+        $v = Validator::make($request->all(), [
+            'status' => 'required|string|in:progress,done,canceled',
+        ]);
+        if ($v->fails()) {
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
+        $job->status = $request->input('status');
+        $job->save();
+        return response()->json(['success' => true, 'data' => $job]);
     }
 
     /**

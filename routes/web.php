@@ -1129,6 +1129,8 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         Route::post('/joblist', [JobListController::class, 'store'])->name('hrd.joblist.store');
         Route::get('/joblist/{id}', [JobListController::class, 'show'])->name('hrd.joblist.show');
         Route::post('/joblist/{id}', [JobListController::class, 'update'])->name('hrd.joblist.update');
+        // Inline update (used by DataTable inline controls)
+        Route::post('/joblist/{id}/inline-update', [JobListController::class, 'inlineUpdate'])->name('hrd.joblist.inline_update');
         Route::delete('/joblist/{id}', [JobListController::class, 'destroy'])->name('hrd.joblist.destroy');
 
         Route::prefix('libur')->name('hrd.libur.')->middleware(['auth'])->group(function () {

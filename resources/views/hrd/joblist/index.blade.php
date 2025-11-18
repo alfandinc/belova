@@ -155,7 +155,7 @@ $(function(){
             { data: 'title', name: 'title' },
             { data: 'division_name', name: 'division.name' },
             { data: 'priority_badge', name: 'priority', orderable: true, searchable: true },
-            { data: 'status_badge', name: 'status', orderable: true, searchable: true },
+            { data: 'status_control', name: 'status', orderable: true, searchable: true },
             { data: 'due_date_display', name: 'due_date', orderable: true, searchable: false },
             { data: 'creator_name', name: 'creator.name' },
             { data: 'actions', name: 'actions', orderable:false, searchable:false }
@@ -237,6 +237,98 @@ $(function(){
                 }});
             }
         });
+    });
+
+    // Click badge to edit: swap badge -> select
+    $(document).on('click', '.status-inline-badge', function(){
+        var $badge = $(this);
+        var $container = $badge.closest('div');
+        var $select = $container.find('.job-status-select');
+        // store original value
+        $select.data('original', $select.val());
+        $badge.hide();
+        // show select and attempt to open dropdown programmatically so one click suffices
+        $select.show();
+        // focus then dispatch synthetic events; some browsers open native select on click
+        try {
+            $select[0].focus();
+            // small delay to ensure element is visible
+            setTimeout(function(){
+                // trigger jQuery events
+                $select.trigger('mousedown').trigger('mouseup').trigger('click');
+                // dispatch native events as well
+                var el = $select[0];
+                el.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
+                el.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
+                el.dispatchEvent(new MouseEvent('click', {bubbles:true}));
+            }, 10);
+        } catch(e) {
+            // fallback: just focus
+            $select.focus();
+        }
+    });
+
+    // Helper: map status to badge class and label
+    function statusToBadge(status) {
+        var cls = 'badge-info';
+        var label = status.charAt(0).toUpperCase() + status.slice(1);
+        if (status === 'done') cls = 'badge-success';
+        if (status === 'canceled') cls = 'badge-danger';
+        if (status === 'progress') cls = 'badge-info';
+        return { cls: cls, label: label };
+    }
+
+    // On change -> send inline update and update badge in-place
+    $(document).on('change', '.job-status-select', function(){
+        var $select = $(this);
+        var id = $select.data('id');
+        var newStatus = $select.val();
+        var orig = $select.data('original');
+        $.ajax({
+            url: '/hrd/joblist/' + id + '/inline-update',
+            method: 'POST',
+            data: { status: newStatus },
+            success: function(res){
+                if (res.success) {
+                    var info = statusToBadge(newStatus);
+                    var $container = $select.closest('div');
+                    var $badge = $container.find('.status-inline-badge');
+                    $badge.text(info.label).removeClass('badge-info badge-success badge-danger').addClass(info.cls);
+                    $select.hide();
+                    $badge.show();
+                    Swal.fire({icon: 'success', title: 'Status diperbarui'});
+                } else {
+                    $select.val(orig);
+                    $select.hide();
+                    $select.closest('div').find('.status-inline-badge').show();
+                    Swal.fire({icon: 'error', text: 'Gagal memperbarui status'});
+                }
+            },
+            error: function(xhr){
+                var msg = 'Terjadi kesalahan';
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    msg = Object.values(xhr.responseJSON.errors).map(function(v){ return v.join(', '); }).join('\n');
+                }
+                $select.val(orig);
+                $select.hide();
+                $select.closest('div').find('.status-inline-badge').show();
+                Swal.fire({icon:'error', text: msg});
+            }
+        });
+    });
+
+    // If user clicks away without changing, hide select and show badge
+    $(document).on('blur', '.job-status-select', function(){
+        var $select = $(this);
+        // small timeout to allow change event to fire first when applicable
+        setTimeout(function(){
+            if ($select.is(':visible')) {
+                var orig = $select.data('original');
+                $select.val(orig);
+                $select.hide();
+                $select.closest('div').find('.status-inline-badge').show();
+            }
+        }, 200);
     });
 });
 </script>
