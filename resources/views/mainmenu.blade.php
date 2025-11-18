@@ -289,6 +289,7 @@
     .tile-insiden { background-color: #d9534f; }      /* alert red */
     .tile-jadwal { background-color: #9b72ff; }       /* schedule violet */
     .tile-belova-mengaji { background-color: #0ed668; } /* green */
+    .tile-joblist { background-color: #00b8d9; }      /* bright cyan */
     .tile-wifi { background-color: #00b8d9; }      /* bright cyan */
     .tile-admin { background-color: #34495e; }     /* dark slate for admin */
 
@@ -578,18 +579,6 @@
                     <div class="menu-sub">Manajemen Karyawan</div>
                 </a>
 
-                <a href="/hrd/joblist" class="menu-tile tile-hrd animate-item delay-6" data-filter="joblist task pekerjaan"
-                   @if(!array_intersect($userRoles, ['Hrd','Manager','Employee','Admin']))
-                       onclick="showRoleWarning(event, 'Job List')"
-                   @endif>
-                    <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-tasks"></i></div>
-                        <div class="menu-badge">Task</div>
-                    </div>
-                    <div class="menu-title">Job List</div>
-                    <div class="menu-sub">Tugas & Deadline</div>
-                </a>
-
                 <a href="/workdoc" class="menu-tile tile-dokumen animate-item delay-7" data-filter="dokumen workdoc files"
                    @if(!array_intersect($userRoles, ['Hrd','Ceo','Manager','Employee','Admin']))
                        onclick="showRoleWarning(event, 'Dokumen Kerja')"
@@ -715,7 +704,7 @@
                 </a>
                 
                 <!-- WiFi Panel -->
-                <a href="https://wifibelova.duckdns.org" target="_blank" rel="noopener noreferrer" class="menu-tile tile-wifi animate-item delay-17" data-filter="wifi jaringan panel"
+                {{-- <a href="https://wifibelova.duckdns.org" target="_blank" rel="noopener noreferrer" class="menu-tile tile-wifi animate-item delay-17" data-filter="wifi jaringan panel"
                     @if(!array_intersect($userRoles, ['Admin']))
                        onclick="showRoleWarning(event, 'WIFI Panel')"
                     @endif>
@@ -725,6 +714,18 @@
                     </div>
                     <div class="menu-title">WiFi Panel</div>
                     <div class="menu-sub">Akses Pengaturan WiFi</div>
+                </a> --}}
+
+                <a href="/hrd/joblist" class="menu-tile tile-joblist animate-item delay-17" data-filter="joblist task pekerjaan"
+                   @if(!array_intersect($userRoles, ['Hrd','Manager','Employee','Admin']))
+                       onclick="showRoleWarning(event, 'Job List')"
+                   @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-tasks"></i></div>
+                        <div class="menu-badge">Task</div>
+                    </div>
+                    <div class="menu-title">Job List</div>
+                    <div class="menu-sub">Tugas & Deadline</div>
                 </a>
                 
                 <!-- Admin Panel -->
