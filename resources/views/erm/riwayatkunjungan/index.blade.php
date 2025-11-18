@@ -297,11 +297,11 @@ $(document).ready(function () {
         }
 
         if (statusDokumen === 'asesmen') {
-            // Open Asesmen Dokter create route
-            window.open('/asesmendokter/' + visitationId + '/create', '_blank');
+            // Open Asesmen Dokter create route (with /erm prefix)
+            window.open('/erm/asesmendokter/' + visitationId + '/create', '_blank');
         } else if (statusDokumen === 'cppt') {
-            // Open CPPT create route
-            window.open('/cppt/' + visitationId + '/create', '_blank');
+            // Open CPPT create route (with /erm prefix)
+            window.open('/erm/cppt/' + visitationId + '/create', '_blank');
         } else {
             // Fallback: open resume medis if available
             window.open('/resume-medis/' + visitationId, '_blank');

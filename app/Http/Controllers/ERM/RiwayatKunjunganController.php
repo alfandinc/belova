@@ -156,11 +156,12 @@ class RiwayatKunjunganController extends Controller
                     try {
                         $statusDokumen = isset($row->status_dokumen) ? strtolower($row->status_dokumen) : null;
                         if ($statusDokumen === 'cppt') {
-                            $dokumenUrl = route('erm.cppt.create', $row->id);
+                            // use /erm prefix explicitly
+                            $dokumenUrl = url('/erm/cppt/' . $row->id . '/create');
                         } elseif ($statusDokumen === 'asesmen') {
-                            $dokumenUrl = route('erm.asesmendokter.create', ['visitation' => $row->id]);
+                            $dokumenUrl = url('/erm/asesmendokter/' . $row->id . '/create');
                         } else {
-                            // keep resume as fallback
+                            // keep resume as fallback (route name used)
                             $dokumenUrl = route('resume.medis', $row->id);
                         }
                     } catch (\Exception $e) {
