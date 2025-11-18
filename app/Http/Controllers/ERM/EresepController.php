@@ -1506,9 +1506,12 @@ class EresepController extends Controller
     public function printEtiketBiru(Request $request)
     {
         try {
+            // Accept either a single obat_id OR a racikan_ke (group) selection
             $validated = $request->validate([
                 'visitation_id' => 'required|string',
-                'obat_id' => 'required|integer',
+                'obat_id' => 'nullable|integer',
+                'racikan_ke' => 'nullable|integer',
+                'label_name' => 'nullable|string|max:191',
                 'expire_date' => 'required|date',
                 'pagi' => 'nullable|in:0,1',
                 'siang' => 'nullable|in:0,1',
@@ -1516,13 +1519,37 @@ class EresepController extends Controller
                 'malam' => 'nullable|in:0,1',
             ]);
 
+            // Ensure at least one of obat_id or racikan_ke is provided
+            if (empty($validated['obat_id']) && empty($validated['racikan_ke'])) {
+                return response()->json(['success' => false, 'message' => 'The obat id or racikan_ke field is required.'], 422);
+            }
+
             $visitation = Visitation::with(['pasien', 'dokter.user'])->findOrFail($validated['visitation_id']);
-            $obat = Obat::findOrFail($validated['obat_id']);
-            
-            // Get the resep details for this obat in this visitation
-            $resepFarmasi = ResepFarmasi::where('visitation_id', $validated['visitation_id'])
-                ->where('obat_id', $validated['obat_id'])
-                ->first();
+
+            $obat = null;
+            $resepFarmasi = null;
+            // If racikan_ke is provided, fetch the first item of that racikan to use as context,
+            // and create a synthetic obat name like "Racikan 1" to show on the label.
+            if (!empty($validated['racikan_ke'])) {
+                $racikanKe = $validated['racikan_ke'];
+                // Get all items in the racikan group (may be used by the view if needed)
+                $resepGroup = ResepFarmasi::where('visitation_id', $validated['visitation_id'])
+                    ->where('racikan_ke', $racikanKe)
+                    ->with('obat')
+                    ->get();
+
+                // Use a synthetic obat object for naming purposes
+                $obat = (object) ['nama' => 'Racikan ' . $racikanKe];
+                // Provide first resep item for dosis/aturan lookup if needed
+                $resepFarmasi = $resepGroup->first();
+            } else {
+                // Single obat selected
+                $obat = Obat::findOrFail($validated['obat_id']);
+                // Get the resep details for this obat in this visitation
+                $resepFarmasi = ResepFarmasi::where('visitation_id', $validated['visitation_id'])
+                    ->where('obat_id', $validated['obat_id'])
+                    ->first();
+            }
 
             $data = [
                 'pasien' => $visitation->pasien,
@@ -1532,6 +1559,8 @@ class EresepController extends Controller
                 'visitation' => $visitation,
                 'print_date' => now()->format('d/m/Y')
             ];
+            // If a custom label was provided, pass it to the view
+            $data['label_name'] = $validated['label_name'] ?? null;
             // Include checkbox flags (convert to boolean)
             $data['pagi'] = isset($validated['pagi']) && $validated['pagi'] == 1;
             $data['siang'] = isset($validated['siang']) && $validated['siang'] == 1;
@@ -1551,7 +1580,11 @@ class EresepController extends Controller
             $mpdf->SetAutoPageBreak(false);
             $mpdf->WriteHTML($html);
             // Output inline PDF
-            return response($mpdf->Output('etiket-biru-' . $visitation->pasien->nama . '-' . $obat->nama . '.pdf', 'I'))
+            // Ensure filename is safe and readable even for racikan groups
+            // Prefer explicit label_name if provided, otherwise use obat->nama
+            $filenameLabel = $data['label_name'] ?? ($obat->nama ?? 'etiket');
+            $labelName = preg_replace('/[^A-Za-z0-9\-\_ ]/', '', $filenameLabel);
+            return response($mpdf->Output('etiket-biru-' . $visitation->pasien->nama . '-' . $labelName . '.pdf', 'I'))
                 ->header('Content-Type', 'application/pdf');
             
         } catch (\Exception $e) {

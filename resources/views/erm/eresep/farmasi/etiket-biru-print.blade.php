@@ -228,7 +228,7 @@
                 </div>
             </td>
             <td class="middle-column">
-                <div class="obat-name">{{ strtoupper($obat->nama ?? 'OBAT LUAR') }}</div>
+                <div class="obat-name">{{ strtoupper($label_name ?? $obat->nama ?? 'OBAT LUAR') }}</div>
                 <div class="aturan-pakai-title">OBAT LUAR</div>
                 <div class="usage-text">
                         Oles tipis tipis pada wajah/kulit setiap

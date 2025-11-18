@@ -63,6 +63,12 @@
               <option value="">Pilih Obat...</option>
             </select>
           </div>
+
+                    <div class="form-group" id="etiket-racikan-name-group" style="display:none;">
+                        <label for="etiket-racikan-name">Nama Etiket (untuk Racikan)</label>
+                        <input type="text" class="form-control" id="etiket-racikan-name" placeholder="Contoh: Racikan 1 atau Racikan A">
+                        <small class="form-text text-muted">Jika Anda memilih racikan, isi nama ini untuk mengganti teks yang dicetak di etiket biru.</small>
+                    </div>
           
           <div class="form-group">
             <label for="etiket-expire">Tanggal Kedaluwarsa</label>
@@ -1392,16 +1398,49 @@
                         return { q: params.term };
                     },
                     processResults: function (data) {
-                        return {
-                            results: data.map(function(item) {
-                                return {
-                                    id: item.obat_id,
-                                    text: item.obat_nama + (item.racikan_ke ? ' (Racikan ' + item.racikan_ke + ')' : '')
-                                };
-                            })
-                        };
+                            // Group racikan components into a single option per racikan_ke
+                            const results = [];
+                            const seenRacikan = {};
+
+                            data.forEach(function(item) {
+                                if (item.racikan_ke) {
+                                    const key = String(item.racikan_ke);
+                                    if (!seenRacikan[key]) {
+                                        // Add a single racikan option (id prefixed to distinguish)
+                                        results.push({
+                                            id: 'racikan:' + key,
+                                            text: 'Racikan ' + key,
+                                            is_racikan: true,
+                                            racikan_ke: key
+                                        });
+                                        seenRacikan[key] = true;
+                                    }
+                                } else {
+                                    // Normal (non-racikan) obat option
+                                    results.push({
+                                        id: item.obat_id,
+                                        text: item.obat_nama
+                                    });
+                                }
+                            });
+
+                            return { results: results };
                     },
                     cache: true
+                }
+            });
+
+            // Show/hide custom label input when racikan option is selected
+            $('#etiket-obat').on('change', function() {
+                const val = $(this).val();
+                if (val && val.toString().startsWith('racikan:')) {
+                    // extract racikan ke and prefill label
+                    const ke = val.toString().split(':')[1] || '';
+                    $('#etiket-racikan-name').val('Racikan ' + ke);
+                    $('#etiket-racikan-name-group').show();
+                } else {
+                    $('#etiket-racikan-name').val('');
+                    $('#etiket-racikan-name-group').hide();
                 }
             });
         });
@@ -1418,10 +1457,24 @@
             }
 
             // Create form data
+            // Determine whether the selected option is a racikan group
+            let isRacikan = false;
+            let racikanKe = null;
+            if (obatId && obatId.toString().startsWith('racikan:')) {
+                isRacikan = true;
+                racikanKe = obatId.toString().split(':')[1];
+            }
+
             const formData = new FormData();
             formData.append('_token', '{{ csrf_token() }}');
             formData.append('visitation_id', visitationId);
-            formData.append('obat_id', obatId);
+            if (isRacikan) {
+                formData.append('racikan_ke', racikanKe);
+                const customLabel = $('#etiket-racikan-name').val();
+                if (customLabel) formData.append('label_name', customLabel);
+            } else {
+                formData.append('obat_id', obatId);
+            }
             formData.append('expire_date', expireDate);
             // Append checkbox values (1 if checked, 0 if not)
             formData.append('pagi', $('#etiket-pagi').is(':checked') ? 1 : 0);
