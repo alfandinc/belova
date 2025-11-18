@@ -151,7 +151,23 @@ class RiwayatKunjunganController extends Controller
                 ->addColumn('aksi', function ($row) {
                     // $resumeUrl = route('resume.show', $row->id);   // Ubah sesuai kebutuhan
                     $resumeUrl = route('resume.medis', $row->id);
-                    $dokumenUrl = route('erm.asesmendokter.create', ['visitation' => $row->id]);
+                    // Determine Dokumen URL based on status_dokumen
+                    $dokumenUrl = route('resume.medis', $row->id);
+                    try {
+                        $statusDokumen = isset($row->status_dokumen) ? strtolower($row->status_dokumen) : null;
+                        if ($statusDokumen === 'cppt') {
+                            $dokumenUrl = route('erm.cppt.create', $row->id);
+                        } elseif ($statusDokumen === 'asesmen') {
+                            $dokumenUrl = route('erm.asesmendokter.create', ['visitation' => $row->id]);
+                        } else {
+                            // keep resume as fallback
+                            $dokumenUrl = route('resume.medis', $row->id);
+                        }
+                    } catch (\Exception $e) {
+                        // If building route fails, fallback to resume
+                        Log::warning('Error building dokumen URL for visitation ' . $row->id . ': ' . $e->getMessage());
+                        $dokumenUrl = route('resume.medis', $row->id);
+                    }
                     $diagnosisBtn = '<button class="btn btn-sm btn-success diagnosis-btn" data-id="' . $row->id . '">Surat Diagnosis</button>';
 
                     // If jenis_kunjungan is Beli Produk (2) or Laboratorium (3) then only show the specific button(s)
@@ -182,7 +198,7 @@ class RiwayatKunjunganController extends Controller
                     // Default: show Resume, Dokumen and Diagnosis buttons
                     $buttons = '';
                     $buttons .= '<a href="' . $resumeUrl . '" class="btn btn-sm btn-primary" target="_blank">Resume</a> ';
-                    $buttons .= '<a href="' . $dokumenUrl . '" class="btn btn-sm btn-secondary" target="_blank">Dokumen</a> ';
+                    $buttons .= '<a href="' . $dokumenUrl . '" class="btn btn-sm btn-secondary dokumen-btn" target="_blank">Dokumen</a> ';
                     $buttons .= $diagnosisBtn;
 
                     return $buttons;
