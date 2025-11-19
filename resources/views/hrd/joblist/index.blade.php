@@ -19,13 +19,28 @@
                 </select>
             </div>
             <div class="d-inline-block ml-2">
-                <select id="filter_division" class="form-control">
-                    <option value="">Semua Division</option>
-                    @php $userDivisionId = optional(Auth::user()->employee)->division_id; @endphp
-                    @foreach($divisions as $d)
-                        <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
-                    @endforeach
-                </select>
+                @php
+                    $user = Auth::user();
+                    $userDivisionId = optional($user->employee)->division_id;
+                @endphp
+                @if($user && $user->hasAnyRole(['Hrd','Admin','Manager']))
+                    <select id="filter_division" class="form-control">
+                        <option value="">Semua Division</option>
+                        @foreach($divisions as $d)
+                            <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
+                        @endforeach
+                    </select>
+                @else
+                    {{-- Non-privileged users: lock to their division --}}
+                    <select id="filter_division" class="form-control" disabled title="Division locked">
+                        @if($userDivisionId)
+                            @php $current = $divisions->firstWhere('id', $userDivisionId); @endphp
+                            <option value="{{ $userDivisionId }}">{{ $current?->name ?? 'Division' }}</option>
+                        @else
+                            <option value="">- Tidak ada Division -</option>
+                        @endif
+                    </select>
+                @endif
             </div>
             
         </div>
@@ -87,8 +102,8 @@
                 <div class="form-group col-md-6">
                     <label>Priority</label>
                     <select name="priority" id="priority" class="form-control">
-                        <option value="low" selected>Low</option>
-                        <option value="normal">Normal</option>
+                        <option value="low">Low</option>
+                        <option value="normal" selected>Normal</option>
                         <option value="important">Important</option>
                         <option value="very_important">Very Important</option>
                     </select>
@@ -97,13 +112,26 @@
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label>Division</label>
-                    <select name="division_id" id="division_id" class="form-control">
-                        <option value="">-- Pilih Division --</option>
-                        @php $userDivisionId = optional(Auth::user()->employee)->division_id; @endphp
-                        @foreach($divisions as $d)
-                            <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
-                        @endforeach
-                    </select>
+                    @php $user = Auth::user(); $userDivisionId = optional($user->employee)->division_id; @endphp
+                    @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
+                        <select name="division_id" id="division_id" class="form-control">
+                            <option value="">-- Pilih Division --</option>
+                            @foreach($divisions as $d)
+                                <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        {{-- Non-privileged users: show disabled select but include hidden input so form serialize() sends division_id --}}
+                        <select id="division_id" class="form-control" disabled title="Division locked">
+                            @if($userDivisionId)
+                                @php $current = $divisions->firstWhere('id', $userDivisionId); @endphp
+                                <option value="{{ $userDivisionId }}">{{ $current?->name ?? 'Division' }}</option>
+                            @else
+                                <option value="">- Tidak ada Division -</option>
+                            @endif
+                        </select>
+                        <input type="hidden" name="division_id" id="division_id_hidden" value="{{ $userDivisionId ?? '' }}" />
+                    @endif
                 </div>
                 <div class="form-group col-md-6">
                     <label>Due Date</label>
@@ -140,6 +168,9 @@ $(function(){
         if (qStatus) $('#filter_status').val(qStatus);
     } catch (e) { /* ignore */ }
 
+    // Mirror server-side computed user division id for modal behavior
+    var userDivisionId = @json($userDivisionId ?? null);
+
     var table = $('#joblist-table').DataTable({
         processing: true,
         serverSide: true,
@@ -168,6 +199,10 @@ $(function(){
         $('#jobForm')[0].reset();
         $('#job_id').val('');
         $('#jobModalLabel').text('Tambah Job');
+        // Ensure hidden mirror is set for non-privileged users
+        if (typeof userDivisionId !== 'undefined' && $('#division_id_hidden').length) {
+            $('#division_id_hidden').val(userDivisionId);
+        }
         $('#jobModal').modal('show');
     });
 
@@ -213,7 +248,16 @@ $(function(){
             $('#description').val(data.description);
             $('#status').val(data.status);
             $('#priority').val(data.priority);
+            // Set division select and mirror hidden input (if present)
             $('#division_id').val(data.division_id);
+            if ($('#division_id_hidden').length) {
+                $('#division_id_hidden').val(data.division_id);
+                // if the disabled select exists, update its single option text/value
+                var $sel = $('#division_id');
+                if ($sel.prop('disabled')) {
+                    $sel.html('<option value="'+data.division_id+'">'+(data.division_name || data.division_id)+'</option>');
+                }
+            }
             $('#due_date').val(data.due_date);
             $('#jobModalLabel').text('Edit Job');
             $('#jobModal').modal('show');

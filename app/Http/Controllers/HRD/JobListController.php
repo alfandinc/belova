@@ -29,6 +29,23 @@ class JobListController extends Controller
     public function data(Request $request)
     {
         $query = JobList::with(['division', 'creator'])->select('hrd_joblists.*');
+        // Restrict visibility based on user role:
+        // - Users with roles Hrd, Admin, Manager see all records
+        // - Users with role Employee only see records from their division
+        $user = Auth::user();
+        if ($user) {
+            if ($user->hasAnyRole(['Hrd','Admin','Manager'])) {
+                // no restriction
+            } elseif ($user->hasAnyRole('Employee')) {
+                $divisionId = optional($user->employee)->division_id;
+                if ($divisionId) {
+                    $query->where('division_id', $divisionId);
+                } else {
+                    // If employee has no division, return no rows
+                    $query->whereRaw('1 = 0');
+                }
+            }
+        }
         // Apply due_date range filter when provided (start_date, end_date expected as YYYY-MM-DD)
         $start = $request->get('start_date');
         $end = $request->get('end_date');
@@ -142,6 +159,18 @@ class JobListController extends Controller
             ->addColumn('actions', function ($row) {
                 return view('hrd.joblist._actions', compact('row'))->render();
             })
+            ->setRowAttr([
+                'class' => function ($row) {
+                    try {
+                        if ($row->creator && method_exists($row->creator, 'hasRole') && $row->creator->hasRole(['ceo','Ceo','CEO'])) {
+                            return 'table-warning';
+                        }
+                    } catch (\Throwable $e) {
+                        // ignore role check failures
+                    }
+                    return '';
+                }
+            ])
             ->rawColumns(['actions','status_badge','status_control','priority_badge','due_date_display'])
             ->make(true);
     }
@@ -212,7 +241,7 @@ class JobListController extends Controller
         $data = $v->validated();
         // apply defaults if not present
         if (empty($data['status'])) $data['status'] = 'progress';
-        if (empty($data['priority'])) $data['priority'] = 'low';
+        if (empty($data['priority'])) $data['priority'] = 'normal';
         $data['created_by'] = Auth::id();
         $job = JobList::create($data);
         return response()->json(['success' => true, 'data' => $job]);
@@ -240,7 +269,7 @@ class JobListController extends Controller
         }
         $data = $v->validated();
         if (empty($data['status'])) $data['status'] = 'progress';
-        if (empty($data['priority'])) $data['priority'] = 'low';
+        if (empty($data['priority'])) $data['priority'] = 'normal';
         $job->update($data);
         return response()->json(['success' => true, 'data' => $job]);
     }
