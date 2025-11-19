@@ -293,6 +293,8 @@
     .tile-wifi { background-color: #00b8d9; }      /* bright cyan */
     .tile-admin { background-color: #34495e; }     /* dark slate for admin */
 
+    .tile-satusehat { background-color: #009688; }  /* satusehat teal */
+
     /* Hover: subtly darken the existing background for depth */
     .menu-tile:hover { filter: brightness(0.92); }
         .footer {
@@ -422,6 +424,7 @@
         .delay-16 { animation-delay: 1.6s; }
         .delay-17 { animation-delay: 1.7s; }
         .delay-18 { animation-delay: 1.8s; }
+        .delay-19 { animation-delay: 1.9s; }
     </style>
 </head>
 
@@ -739,6 +742,21 @@
                     </div>
                     <div class="menu-title">Admin Panel</div>
                     <div class="menu-sub">Manajemen Pengguna</div>
+                </a>
+                @php
+                    // Allow access only to users with role 'Satusehat' or 'Admin'
+                    $hasSatusehatAccess = count(array_intersect($userRoles, ['Satusehat','Admin'])) > 0;
+                @endphp
+                <a href="{{ $hasSatusehatAccess ? '/satusehat' : '#' }}" class="menu-tile tile-satusehat animate-item delay-19" id="satusehat-tile" data-filter="satusehat bpjs kesehatan"
+                   @if(!$hasSatusehatAccess)
+                       onclick="showRoleWarning(event, 'Satusehat')"
+                   @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-hospital"></i></div>
+                        <div class="menu-badge">SatuSehat</div>
+                    </div>
+                    <div class="menu-title">SatuSehat</div>
+                    <div class="menu-sub">Integrasi Data Kesehatan</div>
                 </a>
                 </div>
             </div>

@@ -91,6 +91,7 @@ use App\Http\Controllers\BCL\{
 
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\BelovaMengajiController;
+use App\Http\Controllers\SatusehatDashboardController;
 Route::get('/', function () {
     if (!Auth::check()) {
         return view('auth.main_login');
@@ -216,6 +217,20 @@ Route::get('/belova-mengaji/history', [BelovaMengajiController::class, 'history'
 // Export routes (per-tanggal) - only include employees that have records that day
 Route::get('/belova-mengaji/export/pdf', [BelovaMengajiController::class, 'exportPdf'])->middleware('auth')->name('belova.mengaji.export.pdf');
 Route::get('/belova-mengaji/export/excel', [BelovaMengajiController::class, 'exportExcel'])->middleware('auth')->name('belova.mengaji.export.excel');
+
+// SatuSehat dashboard (uses ERM layout with custom navbar)
+Route::get('/satusehat', [SatusehatDashboardController::class, 'index'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.index');
+
+Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
+    Route::get('/clinics', [\App\Http\Controllers\SatusehatClinicController::class, 'index'])->name('satusehat.clinics.index');
+    Route::get('/clinics/data', [\App\Http\Controllers\SatusehatClinicController::class, 'data'])->name('satusehat.clinics.data');
+    Route::get('/clinics/create', [\App\Http\Controllers\SatusehatClinicController::class, 'create'])->name('satusehat.clinics.create');
+    Route::post('/clinics', [\App\Http\Controllers\SatusehatClinicController::class, 'store'])->name('satusehat.clinics.store');
+    Route::get('/clinics/{clinicConfig}/edit', [\App\Http\Controllers\SatusehatClinicController::class, 'edit'])->name('satusehat.clinics.edit');
+    Route::put('/clinics/{clinicConfig}', [\App\Http\Controllers\SatusehatClinicController::class, 'update'])->name('satusehat.clinics.update');
+    Route::delete('/clinics/{clinicConfig}', [\App\Http\Controllers\SatusehatClinicController::class, 'destroy'])->name('satusehat.clinics.destroy');
+    Route::post('/clinics/{clinicConfig}/token', [\App\Http\Controllers\SatusehatClinicController::class, 'requestToken'])->name('satusehat.clinics.token');
+});
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
