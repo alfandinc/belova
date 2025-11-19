@@ -1018,7 +1018,7 @@ Terima kasih.
                         <th>Waktu Kunjungan</th> <!-- Add header for waktu_kunjungan -->
                         <th>Spesialisasi</th>
                         <th>Dokter</th>
-                        <th>Selesai Asesmen</th>
+                        <!-- Selesai Asesmen column removed; will show under Dokumen -->
                         <th>Metode Bayar</th>
                         <th>Dokumen</th>
                     </tr>
@@ -1189,14 +1189,13 @@ var userRole = "{{ $role }}";
             { data: 'waktu_kunjungan', name: 'waktu_kunjungan', searchable: false, orderable: false }, // Add waktu_kunjungan column
             { data: 'spesialisasi', name: 'spesialisasi', searchable: false, orderable: false },
             { data: 'dokter_nama', name: 'dokter_nama', searchable: false, orderable: false },
-            { data: 'selesai_asesmen', name: 'selesai_asesmen', searchable: false, orderable: false },
             { data: 'metode_bayar', name: 'metode_bayar', searchable: true, orderable: false },
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
             { targets: 0, width: "8%" }, // Antrian
-            { targets: 6, width: "15%" }, // Dokumen
-            { targets: 9, width: "15%" }, // Dokumen
+            { targets: 6, width: "15%" }, // Dokter
+            { targets: 8, width: "15%" }, // Dokumen
         ],
         createdRow: function(row, data, dataIndex) {
     if (data.status_kunjungan == 2) {

@@ -242,20 +242,20 @@ class RawatJalanController extends Controller
                         $antrianJs = json_encode($v->no_antrian);
                         $additionalBtns .= '<button class="btn btn-sm btn-info ml-1" style="font-weight:bold;" onclick="editAntrian(\'' . $v->id . '\', ' . $antrianJs . ', \'' . htmlspecialchars($waktuKunjungan, ENT_QUOTES, 'UTF-8') . '\')" title="Edit Antrian"><i class=\'fas fa-edit\'></i></button>';
                         $additionalBtns .= '<button class="btn btn-sm btn-danger ml-1" style="font-weight:bold;" onclick="batalkanKunjungan(\'' . $v->id . '\', this)" title="Batalkan"><i class=\'fas fa-times\'></i></button>';
-                    }
-                    return $dokumenBtn . ' ' . $additionalBtns;
-                })
-                ->addColumn('selesai_asesmen', function ($v) {
-                    $asesmenPenunjang = $v->asesmenPenunjang;
-                    $cppt = $v->cppt;
-                    if ($asesmenPenunjang && $asesmenPenunjang->created_at) {
-                        return $asesmenPenunjang->created_at->format('H:i');
-                    } elseif ($cppt && $cppt->created_at) {
-                        return $cppt->created_at->format('H:i');
-                    } else {
-                        return '-';
-                    }
-                })
+                        }
+
+                        // Compute selesai_asesmen time (if any) and append as small text under buttons
+                        $selesaiText = '-';
+                        $asesmenPenunjang = $v->asesmenPenunjang;
+                        $cppt = $v->cppt;
+                        if ($asesmenPenunjang && $asesmenPenunjang->created_at) {
+                            $selesaiText = $asesmenPenunjang->created_at->format('H:i');
+                        } elseif ($cppt && $cppt->created_at) {
+                            $selesaiText = $cppt->created_at->format('H:i');
+                        }
+
+                        return $dokumenBtn . ' ' . $additionalBtns . '<div class="mt-1"><small class="text-muted">Selesai: ' . $selesaiText . '</small></div>';
+                    })
                 ->addColumn('waktu_kunjungan', function ($v) {
                     return $v->waktu_kunjungan ? substr($v->waktu_kunjungan, 0, 5) : '-';
                 })
