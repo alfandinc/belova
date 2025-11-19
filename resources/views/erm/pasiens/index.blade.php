@@ -120,6 +120,35 @@
     </div>
 </div>
 
+<!-- Modal Edit Status Review -->
+<div class="modal fade" id="modalEditStatusReview" tabindex="-1" role="dialog" aria-labelledby="modalEditStatusReviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditStatusReviewLabel">Edit Status Review</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editStatusReviewForm">
+                    <div class="form-group">
+                        <label for="edit_status_review">Status Review</label>
+                        <select class="form-control" id="edit_status_review" name="status_review" required>
+                            <option value="sudah">Sudah</option>
+                            <option value="belum">Belum</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveEditStatusReview">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="container-fluid">
                     <!-- Page-Title -->
                     <div class="row">
@@ -150,44 +179,49 @@
         </div>
         <div class="card-body">
             <div class="row mb-3">
-    <div class="col-md-2">
-        <input type="text" id="filter_no_rm" class="form-control" placeholder="No RM">
-    </div>
-    <div class="col-md-2">
-        <input type="text" id="filter_nama" class="form-control" placeholder="Nama">
-    </div>
-    <div class="col-md-2">
-        <input type="text" id="filter_nik" class="form-control" placeholder="NIK">
-    </div>
-    <div class="col-md-2">
-        <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
-    </div>
-    <div class="col-md-2">
-        <select id="filter_status_pasien" class="form-control">
-            <option value="">Semua Status Pasien</option>
-            <option value="Regular">Regular</option>
-            <option value="VIP">VIP</option>
-            <option value="Familia">Familia</option>
-            <option value="Black Card">Black Card</option>
-            <option value="Red Flag">Red Flag</option>
-        </select>
-    </div>
-    <div class="col-md-2">
-        <select id="filter_status_akses" class="form-control">
-            <option value="">Semua Status Akses</option>
-            <option value="normal">Normal</option>
-            <option value="akses cepat">Akses Cepat</option>
-        </select>
-    </div>
-</div>
-<div class="row mb-3">
-    <div class="col-md-2">
-        <button id="btn-filter" class="btn btn-primary"><i class="fas fa-search-plus mr-2"></i>Cari</button>
-    </div>
-    <div class="col-md-2">
-        <button id="btn-reset" class="btn btn-secondary"><i class="fas fa-undo mr-2"></i>Reset</button>
-    </div>
-</div>
+                <div class="col-md-3 mb-2">
+                    <input type="text" id="filter_no_rm" class="form-control" placeholder="No RM">
+                </div>
+                <div class="col-md-3 mb-2">
+                    <input type="text" id="filter_nama" class="form-control" placeholder="Nama">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <input type="text" id="filter_nik" class="form-control" placeholder="NIK">
+                </div>
+                <div class="col-md-4 mb-2">
+                    <input type="text" id="filter_alamat" class="form-control" placeholder="Alamat">
+                </div>
+            </div>
+            <div class="row mb-3 align-items-center">
+                <div class="col-md-3 mb-2">
+                    <select id="filter_status_pasien" class="form-control">
+                        <option value="">Semua Status Pasien</option>
+                        <option value="Regular">Regular</option>
+                        <option value="VIP">VIP</option>
+                        <option value="Familia">Familia</option>
+                        <option value="Black Card">Black Card</option>
+                        <option value="Red Flag">Red Flag</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <select id="filter_status_akses" class="form-control">
+                        <option value="">Semua Status Akses</option>
+                        <option value="normal">Normal</option>
+                        <option value="akses cepat">Akses Cepat</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-2">
+                    <select id="filter_status_review" class="form-control">
+                        <option value="">Semua Status Review</option>
+                        <option value="sudah">Sudah</option>
+                        <option value="belum">Belum</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-2 d-flex">
+                    <button id="btn-filter" class="btn btn-primary mr-2"><i class="fas fa-search-plus mr-2"></i>Cari</button>
+                    <button id="btn-reset" class="btn btn-secondary"><i class="fas fa-undo mr-2"></i>Reset</button>
+                </div>
+            </div>
             <table class="table table-bordered table-striped" id="pasiens-table">
                 <thead class="text-center font-weight-bold">
                     <tr>
@@ -198,6 +232,7 @@
                         <th>No HP</th>
                         <th>Status Pasien</th>
                         <th>Status Akses</th>
+                        <th>Status Review</th>
                         <th>Merchandise</th>
                         <th>Action</th>
                     </tr>
@@ -229,6 +264,7 @@ $(document).ready(function () {
                 d.alamat = $('#filter_alamat').val();
                 d.status_pasien = $('#filter_status_pasien').val();
                 d.status_akses = $('#filter_status_akses').val();
+                d.status_review = $('#filter_status_review').val();
             }
         },
         columns: [
@@ -239,6 +275,7 @@ $(document).ready(function () {
             { data: 'no_hp', name: 'no_hp' },
             { data: 'status_pasien', name: 'status_pasien', orderable: false, searchable: false },
             { data: 'status_akses', name: 'status_akses', orderable: false, searchable: false },
+            { data: 'status_review', name: 'status_review', orderable: false, searchable: false },
             { data: 'merchandise', name: 'merchandise', orderable: false, searchable: false },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
@@ -246,8 +283,9 @@ $(document).ready(function () {
             { targets: 0, width: '50px' },
             { targets: 5, width: '120px' }, // Status Pasien column
             { targets: 6, width: '120px' }, // Status Akses column
-            { targets: 7, width: '120px' }, // Merchandise column (narrower)
-            { targets: 8, width: '260px' } // Action column
+            { targets: 7, width: '120px' }, // Status Review column
+            { targets: 8, width: '120px' }, // Merchandise column (narrower)
+            { targets: 9, width: '260px' } // Action column
         ]
     });
 
@@ -264,6 +302,7 @@ $(document).ready(function () {
         $('#filter_alamat').val('');
         $('#filter_status_pasien').val('');
         $('#filter_status_akses').val('');
+        $('#filter_status_review').val('');
         
         // Reload table with cleared filters
         table.ajax.reload();
@@ -278,6 +317,11 @@ $(document).ready(function () {
 
     // Add change event for select dropdowns
     $('#filter_status_pasien, #filter_status_akses').on('change', function() {
+        table.ajax.reload();
+    });
+
+    // Add change event for status_review filter
+    $('#filter_status_review').on('change', function () {
         table.ajax.reload();
     });
 
@@ -439,6 +483,54 @@ let currentPasienId;
                     icon: 'error',
                     title: 'Error!',
                     text: 'Gagal memperbarui status akses pasien.',
+                });
+            }
+        });
+
+    });
+
+    // Handle edit status review button click
+    $(document).on('click', '.edit-status-review-btn', function() {
+        let pasienId = $(this).data('pasien-id');
+        let currentStatus = $(this).data('current-status');
+        
+        $('#edit_status_review').val(currentStatus);
+        $('#modalEditStatusReview').data('pasien-id', pasienId);
+        $('#modalEditStatusReview').modal('show');
+    });
+    
+    // Handle save status review
+    $('#saveEditStatusReview').on('click', function() {
+        let pasienId = $('#modalEditStatusReview').data('pasien-id');
+        let newStatus = $('#edit_status_review').val();
+        
+        $.ajax({
+            url: '/erm/pasiens/' + pasienId + '/update-status-review',
+            type: 'POST',
+            data: {
+                _token: $('meta[name="csrf-token"]').attr('content'),
+                status_review: newStatus
+            },
+            success: function(response) {
+                if(response.success) {
+                    $('#modalEditStatusReview').modal('hide');
+                    table.ajax.reload(); // Reload the DataTable
+                    
+                    // Show success message
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil!',
+                        text: 'Status review pasien berhasil diperbarui.',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            },
+            error: function(xhr) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'Gagal memperbarui status review pasien.',
                 });
             }
         });

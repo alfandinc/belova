@@ -21,7 +21,7 @@ class PasienController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp', 'status_pasien', 'status_akses');
+            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp', 'status_pasien', 'status_akses', 'status_review');
 
             if ($request->no_rm) {
                 $pasiens->where('id', $request->no_rm);
@@ -40,6 +40,15 @@ class PasienController extends Controller
             }
             if ($request->status_akses) {
                 $pasiens->where('status_akses', $request->status_akses);
+            }
+            if (isset($request->status_review) && $request->status_review !== '') {
+                if ($request->status_review === 'belum') {
+                    $pasiens->where(function($q) {
+                        $q->whereNull('status_review')->orWhere('status_review', 'belum');
+                    });
+                } else {
+                    $pasiens->where('status_review', $request->status_review);
+                }
             }
 
             return DataTables::of($pasiens)
@@ -104,6 +113,36 @@ class PasienController extends Controller
                     
                     return $statusDisplay;
                 })
+                ->addColumn('status_review', function ($user) {
+                    $status = $user->status_review ?? 'belum';
+
+                    $statusDisplay = '<div class="d-flex align-items-center">';
+
+                    // icon for sudah vs belum
+                    if ($status === 'sudah') {
+                        $statusDisplay .= '<span class="status-review-icon d-inline-flex align-items-center justify-content-center mr-2" '
+                            . 'style="width:20px;height:20px;background-color:#28a745;border-radius:3px;">'
+                            . '<i class="fas fa-check text-white" style="font-size:11px;"></i>'
+                        . '</span>';
+                    } else {
+                        $statusDisplay .= '<span class="status-review-icon d-inline-flex align-items-center justify-content-center mr-2" '
+                            . 'style="width:20px;height:20px;background-color:#6c757d;border-radius:3px;">'
+                            . '<i class="fas fa-times text-white" style="font-size:11px;"></i>'
+                        . '</span>';
+                    }
+
+                    $statusDisplay .= '<span class="status-text text-capitalize mr-2">' . ucfirst($status) . '</span>';
+                    $statusDisplay .= '<button class="btn btn-sm btn-link p-0 ml-2 edit-status-review-btn" '
+                                    . 'data-pasien-id="' . $user->id . '" '
+                                    . 'data-current-status="' . $status . '" '
+                                    . 'title="Edit Status Review">'
+                                    . '<i class="fas fa-edit text-primary"></i>'
+                                . '</button>';
+
+                    $statusDisplay .= '</div>';
+
+                    return $statusDisplay;
+                })
                 ->addColumn('merchandise', function ($user) {
                     return '<button class="btn btn-sm btn-outline-primary btn-merch-checklist" data-id="' . $user->id . '">Lihat</button>';
                 })
@@ -142,7 +181,7 @@ class PasienController extends Controller
                     </div>
                 </div>';
                 })
-                ->rawColumns(['status_pasien', 'status_akses', 'merchandise', 'actions'])
+                ->rawColumns(['status_pasien', 'status_akses', 'status_review', 'merchandise', 'actions'])
                 ->make(true);
         }
 
@@ -432,6 +471,41 @@ class PasienController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat memperbarui status pasien'
+            ], 500);
+        }
+    }
+
+    public function updateStatusReview(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status_review' => 'required|in:sudah,belum'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $pasien = Pasien::findOrFail($id);
+            $pasien->status_review = $request->status_review;
+            $pasien->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status review pasien berhasil diperbarui',
+                'data' => [
+                    'id' => $pasien->id,
+                    'status_review' => $pasien->status_review
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat memperbarui status review pasien'
             ], 500);
         }
     }

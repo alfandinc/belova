@@ -36,6 +36,7 @@ class Pasien extends Model
         'instagram',
         'status_pasien',
         'status_akses',
+        'status_review',
         'user_id', // tambahkan ini
     ];
 

@@ -101,7 +101,8 @@ class RawatJalanController extends Controller
                     'erm_pasiens.gender as gender',
                     'erm_pasiens.tanggal_lahir as tanggal_lahir',
                     'erm_pasiens.status_pasien as status_pasien',
-                    'erm_pasiens.status_akses as status_akses'
+                    'erm_pasiens.status_akses as status_akses',
+                    'erm_pasiens.status_review as status_review'
                 ])
                 // include merchandise count per pasien using subquery
                 ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id) as merchandise_count')
@@ -187,6 +188,10 @@ class RawatJalanController extends Controller
                             . '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width:20px;height:20px;background-color:#1E90FF;border-radius:3px;color:#fff;">'
                             . '<i class="fas fa-shopping-bag" style="font-size:11px;color:#fff"></i>'
                             . '</span></a>';
+                    }
+                    // Show review icon if pasien has been reviewed (status_review === 'sudah')
+                    if (isset($v->status_review) && strtolower($v->status_review) === 'sudah') {
+                        $icons .= ' <span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width:20px;height:20px;background-color:#28a745;border-radius:3px;color:#fff;margin-right:5px;" title="Sudah Review"><i class="fas fa-map-marker-alt" style="font-size:11px;color:#fff"></i></span>';
                     }
                     return $icons . ' ' . $nama;
                 })

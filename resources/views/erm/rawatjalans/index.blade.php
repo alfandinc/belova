@@ -1173,15 +1173,15 @@ var userRole = "{{ $role }}";
                         let iconHtml = '';
                         let status = row.status_pasien || 'Regular';
                         if (status === 'VIP') {
-                            iconHtml = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#FFD700;border-radius:3px;" title="VIP Member"><i class="fas fa-crown text-white" style="font-size:11px;"></i></span>';
+                            iconHtml += '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#FFD700;border-radius:3px;" title="VIP Member"><i class="fas fa-crown text-white" style="font-size:11px;"></i></span>';
                         } else if (status === 'Familia') {
-                            iconHtml = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#32CD32;border-radius:3px;" title="Familia Member"><i class="fas fa-users text-white" style="font-size:11px;"></i></span>';
+                            iconHtml += '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#32CD32;border-radius:3px;" title="Familia Member"><i class="fas fa-users text-white" style="font-size:11px;"></i></span>';
                         } else if (status === 'Black Card') {
-                            iconHtml = '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#2F2F2F;border-radius:3px;" title="Black Card Member"><i class="fas fa-credit-card text-white" style="font-size:11px;"></i></span>';
-                        } else {
-                            // Regular: no icon, just name
-                            iconHtml = '';
+                            iconHtml += '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#2F2F2F;border-radius:3px;" title="Black Card Member"><i class="fas fa-credit-card text-white" style="font-size:11px;"></i></span>';
                         }
+
+                        // NOTE: review icon is rendered server-side to avoid duplication when using server-side processing.
+
                         return iconHtml + data;
                     }
                 },
