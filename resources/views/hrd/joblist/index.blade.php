@@ -274,7 +274,7 @@ $(function(){
             showCancelButton: true,
             confirmButtonText: 'Hapus'
         }).then(function(result){
-            if (result.isConfirmed) {
+            if (result.value) {
                 $.ajax({ url: '/hrd/joblist/' + id, method: 'DELETE', success: function(){
                     table.ajax.reload(null, false);
                     Swal.fire({icon:'success', title:'Terhapus'});
