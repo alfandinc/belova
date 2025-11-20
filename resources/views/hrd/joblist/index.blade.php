@@ -135,7 +135,7 @@
                 </div>
                 <div class="form-group col-md-6">
                     <label>Due Date</label>
-                    <input type="date" name="due_date" id="due_date" class="form-control" />
+                    <input type="text" name="due_date" id="due_date" class="form-control" placeholder="DD-MM-YYYY" autocomplete="off" />
                 </div>
             </div>
         </form>
@@ -171,6 +171,25 @@ $(function(){
     // Mirror server-side computed user division id for modal behavior
     var userDivisionId = @json($userDivisionId ?? null);
 
+    // Initialize due_date as a single-date picker using daterangepicker
+    try {
+        if ($.fn.daterangepicker) {
+            $('#due_date').daterangepicker({
+                singleDatePicker: true,
+                showDropdowns: true,
+                autoUpdateInput: false,
+                locale: { format: 'DD-MM-YYYY' }
+            });
+
+            $('#due_date').on('apply.daterangepicker', function(ev, picker){
+                $(this).val(picker.startDate.format('DD-MM-YYYY'));
+            });
+            $('#due_date').on('cancel.daterangepicker', function(ev, picker){
+                $(this).val('');
+            });
+        }
+    } catch (e) { /* ignore if plugin missing */ }
+
     var table = $('#joblist-table').DataTable({
         processing: true,
         serverSide: true,
@@ -203,6 +222,12 @@ $(function(){
         if (typeof userDivisionId !== 'undefined' && $('#division_id_hidden').length) {
             $('#division_id_hidden').val(userDivisionId);
         }
+        // Clear daterangepicker input for new job
+        if ($('#due_date').length) {
+            $('#due_date').val('');
+            var dr = $('#due_date').data('daterangepicker');
+            if (dr) { dr.setStartDate(moment()); dr.setEndDate(moment()); }
+        }
         $('#jobModal').modal('show');
     });
 
@@ -217,12 +242,26 @@ $(function(){
     $('#saveJobBtn').on('click', function(){
         var id = $('#job_id').val();
         var url = id ? '/hrd/joblist/' + id : '/hrd/joblist';
-        var method = id ? 'POST' : 'POST';
-        var data = $('#jobForm').serialize();
+        var method = 'POST';
+
+        // Serialize form to object so we can normalize due_date format (DD-MM-YYYY -> YYYY-MM-DD)
+        var formArray = $('#jobForm').serializeArray();
+        var payload = {};
+        formArray.forEach(function(item){ payload[item.name] = item.value; });
+
+        if (payload.due_date) {
+            try {
+                var m = moment(payload.due_date, 'DD-MM-YYYY', true);
+                if (m.isValid()) {
+                    payload.due_date = m.format('YYYY-MM-DD');
+                }
+            } catch(e){ /* ignore */ }
+        }
+
         $.ajax({
             url: url,
             method: method,
-            data: data,
+            data: payload,
             success: function(res){
                 $('#jobModal').modal('hide');
                 table.ajax.reload(null, false);
@@ -252,13 +291,27 @@ $(function(){
             $('#division_id').val(data.division_id);
             if ($('#division_id_hidden').length) {
                 $('#division_id_hidden').val(data.division_id);
-                // if the disabled select exists, update its single option text/value
                 var $sel = $('#division_id');
                 if ($sel.prop('disabled')) {
                     $sel.html('<option value="'+data.division_id+'">'+(data.division_name || data.division_id)+'</option>');
                 }
             }
-            $('#due_date').val(data.due_date);
+            // Set daterangepicker date for edit modal
+            if (data.due_date && $('#due_date').length) {
+                // display in DD-MM-YYYY but backend stores YYYY-MM-DD; format accordingly
+                try {
+                    var m = moment(data.due_date, 'YYYY-MM-DD');
+                    $('#due_date').val(m.isValid() ? m.format('DD-MM-YYYY') : data.due_date);
+                } catch(e) {
+                    $('#due_date').val(data.due_date);
+                }
+                var dr = $('#due_date').data('daterangepicker');
+                if (dr) {
+                    try { dr.setStartDate(moment(data.due_date, 'YYYY-MM-DD')); dr.setEndDate(moment(data.due_date, 'YYYY-MM-DD')); } catch(e){/*ignore*/}
+                }
+            } else if ($('#due_date').length) {
+                $('#due_date').val('');
+            }
             $('#jobModalLabel').text('Edit Job');
             $('#jobModal').modal('show');
         });
