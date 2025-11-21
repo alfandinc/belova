@@ -33,13 +33,12 @@
                 <a href="/hrd"> <i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span></a>
             </li> --}}
 
+            <li class="menu-label mt-0">Job List</li>
             <li>
-                <a href="javascript: void(0);"> <i data-feather="check-square" class="align-self-center menu-icon"></i><span>Job List</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.joblist.dashboard') }}"><i class="ti-control-record"></i>Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.joblist.index') }}"><i class="ti-control-record"></i>Daftar Job</a></li>
-                    {{-- <li class="nav-item"><a class="nav-link" href="{{ route('hrd.joblist.index') }}?view=create"><i class="ti-control-record"></i>Buat Job Baru</a></li> --}}
-                </ul>
+                <a href="{{ route('hrd.joblist.dashboard') }}"> <i data-feather="grid" class="align-self-center menu-icon"></i><span>Dashboard</span></a>
+            </li>
+            <li>
+                <a href="{{ route('hrd.joblist.index') }}"> <i data-feather="check-square" class="align-self-center menu-icon"></i><span>Daftar Job</span></a>
             </li>
 
         </ul>
