@@ -22,15 +22,16 @@
                 @php
                     $user = Auth::user();
                     $isManager = $user && $user->hasRole('Manager');
-                    $isCeo = $user && $user->hasRole('Ceo');
-                    $isEmployeeOnly = $user && !$isManager && !$isCeo; // treat as non-manager employee
+                    // Treat Admin and Hrd the same as Ceo for filter/default behavior
+                    $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']);
+                    $isEmployeeOnly = $user && !$isManager && !$isGlobalRole; // treat as non-manager employee
                     // Determine default selection:
                     // - Manager: show all (empty)
                     // - Employee (non-manager): locked to Non-Manager (0)
                     // - Ceo: default to Manager Only (1) but editable
                     $defaultForManager = '';
                     if ($isEmployeeOnly) $defaultForManager = '0';
-                    if ($isCeo) $defaultForManager = '1';
+                    if ($isGlobalRole) $defaultForManager = '1';
                 @endphp
                 <select id="filter_for_manager" class="form-control" @if($isEmployeeOnly) disabled title="Locked to Non-Manager" @endif>
                     <option value="" @if($defaultForManager === '') selected @endif>Semua (Manager/Non-Manager)</option>
@@ -42,13 +43,13 @@
                 @php
                     $user = Auth::user();
                     $userDivisionId = optional($user->employee)->division_id;
-                    $isCeo = $user && $user->hasRole('Ceo');
+                    $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']);
                 @endphp
                 @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
                     <select id="filter_division" class="form-control">
-                        <option value="" @if($isCeo) selected @endif>Semua Division</option>
+                        <option value="" @if($isGlobalRole) selected @endif>Semua Division</option>
                         @foreach($divisions as $d)
-                            <option value="{{ $d->id }}" @if(!$isCeo && $d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
+                            <option value="{{ $d->id }}" @if(!$isGlobalRole && $d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
                         @endforeach
                     </select>
                 @else

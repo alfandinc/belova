@@ -101,12 +101,12 @@ Route::get('/', function () {
     if (!$user) {
         $inProgressCount = 0;
     } else {
-        // CEO sees all progress items
-        if ($user->hasRole('Ceo')) {
+        // CEO, Admin, and Hrd see all progress items
+            if ($user->hasAnyRole(['Ceo', 'Admin', 'Hrd'])) {
             $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')->count();
         }
         // Manager sees items assigned to their division (including all_divisions)
-        elseif ($user->hasRole('Manager')) {
+            elseif ($user->hasRole('Manager')) {
             $divisionId = optional($user->employee)->division_id;
             $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')
                 ->where(function($q) use ($divisionId) {
@@ -119,7 +119,7 @@ Route::get('/', function () {
         }
         // Regular employees: only count non-manager items for their division
         else {
-            $divisionId = optional($user->employee)->division_id;
+                $divisionId = optional($user->employee)->division_id;
             $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')
                 ->where('for_manager', 0)
                 ->where(function($q) use ($divisionId) {
