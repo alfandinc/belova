@@ -249,6 +249,9 @@ $(function(){
                 d.for_manager = $('#filter_for_manager').length ? $('#filter_for_manager').val() : '';
             }
         },
+        // Show all entries by default; include 'All' option in lengthMenu
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+        pageLength: -1,
         columns: [
             { data: 'id', name: 'id', render: function(data, type, row, meta) { return meta.row + meta.settings._iDisplayStart + 1; } },
             { data: 'title', name: 'title' },
