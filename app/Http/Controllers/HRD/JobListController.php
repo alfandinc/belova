@@ -262,21 +262,37 @@ class JobListController extends Controller
         $result = [];
         foreach ($divisions as $d) {
             // include jobs targeted to all divisions, jobs with division_id, and jobs linked via pivot
-                        $base = JobList::where(function($q) use ($d) {
-                                $q->where('all_divisions', true)
-                                    ->orWhere('division_id', $d->id)
-                                    ->orWhereHas('divisions', function($qq) use ($d) { $qq->where('hrd_division.id', $d->id); });
-                        });
+            $baseSelector = function() use ($d) {
+                return JobList::where(function($q) use ($d) {
+                    $q->where('all_divisions', true)
+                      ->orWhere('division_id', $d->id)
+                      ->orWhereHas('divisions', function($qq) use ($d) { $qq->where('hrd_division.id', $d->id); });
+                });
+            };
+
+            // For 'ongoing' (progress) items we filter by due_date range when provided
+            $baseDue = $baseSelector();
             if ($start && $end) {
                 try {
-                    $base->whereBetween('due_date', [$start, $end]);
+                    $baseDue->whereBetween('due_date', [$start, $end]);
                 } catch (\Exception $e) {
-                    // ignore
+                    // ignore malformed dates
                 }
             }
-            $ongoing = (clone $base)->where('status', 'progress')->count();
-            $done = (clone $base)->where('status', 'done')->count();
-            $canceled = (clone $base)->where('status', 'canceled')->count();
+            $ongoing = (clone $baseDue)->where('status', 'progress')->count();
+
+            // For 'done' and 'canceled' items, it's more accurate to consider when the record was updated
+            // (i.e. when status changed). Use updated_at range if provided.
+            $baseStatus = $baseSelector();
+            if ($start && $end) {
+                try {
+                    $baseStatus->whereBetween('updated_at', [$start . ' 00:00:00', $end . ' 23:59:59']);
+                } catch (\Exception $e) {
+                    // ignore malformed dates
+                }
+            }
+            $done = (clone $baseStatus)->where('status', 'done')->count();
+            $canceled = (clone $baseStatus)->where('status', 'canceled')->count();
             $result[] = [
                 'division_id' => $d->id,
                 'division_name' => $d->name,
