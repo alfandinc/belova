@@ -100,6 +100,14 @@ class JobListController extends Controller
                   });
             });
         }
+        // apply for_manager filter if explicitly provided
+        // expected values: '' (all) | '1' (manager only) | '0' (non-manager only)
+        $forManager = $request->get('for_manager');
+        if ($forManager !== null && $forManager !== '') {
+            // cast to integer (0 or 1)
+            $val = (int) $forManager;
+            $query->where('for_manager', $val);
+        }
         return DataTables::of($query)
             ->addColumn('division_name', function ($row) {
                 if (!empty($row->all_divisions)) return 'All Divisions';

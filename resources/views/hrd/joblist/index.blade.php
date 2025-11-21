@@ -21,6 +21,26 @@
             <div class="d-inline-block ml-2">
                 @php
                     $user = Auth::user();
+                    $isManager = $user && $user->hasRole('Manager');
+                    $isCeo = $user && $user->hasRole('Ceo');
+                    $isEmployeeOnly = $user && !$isManager && !$isCeo; // treat as non-manager employee
+                    // Determine default selection:
+                    // - Manager: show all (empty)
+                    // - Employee (non-manager): locked to Non-Manager (0)
+                    // - Ceo: default to Manager Only (1) but editable
+                    $defaultForManager = '';
+                    if ($isEmployeeOnly) $defaultForManager = '0';
+                    if ($isCeo) $defaultForManager = '1';
+                @endphp
+                <select id="filter_for_manager" class="form-control" @if($isEmployeeOnly) disabled title="Locked to Non-Manager" @endif>
+                    <option value="" @if($defaultForManager === '') selected @endif>Semua (Manager/Non-Manager)</option>
+                    <option value="1" @if($defaultForManager === '1') selected @endif>For Manager Only</option>
+                    <option value="0" @if($defaultForManager === '0') selected @endif>Non-Manager Only</option>
+                </select>
+            </div>
+            <div class="d-inline-block ml-2">
+                @php
+                    $user = Auth::user();
                     $userDivisionId = optional($user->employee)->division_id;
                     $isCeo = $user && $user->hasRole('Ceo');
                 @endphp
@@ -225,6 +245,8 @@ $(function(){
             data: function(d) {
                 d.status = $('#filter_status').val();
                 d.division_id = $('#filter_division').val();
+                // send for_manager filter: '' => all, '1' => only manager items, '0' => non-manager items
+                d.for_manager = $('#filter_for_manager').length ? $('#filter_for_manager').val() : '';
             }
         },
         columns: [
@@ -278,6 +300,9 @@ $(function(){
         table.ajax.reload();
     });
     $('#filter_division').on('change', function(){
+        table.ajax.reload();
+    });
+    $('#filter_for_manager').on('change', function(){
         table.ajax.reload();
     });
 
