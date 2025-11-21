@@ -108,6 +108,10 @@ class JobListController extends Controller
             $val = (int) $forManager;
             $query->where('for_manager', $val);
         }
+
+        // Order by priority weight so that 'very_important' items appear first
+        // This is applied as a primary ordering; DataTables additional ordering will follow.
+        $query->orderByRaw("CASE priority WHEN 'very_important' THEN 3 WHEN 'important' THEN 2 WHEN 'normal' THEN 1 ELSE 0 END DESC");
         return DataTables::of($query)
             ->addColumn('division_name', function ($row) {
                 if (!empty($row->all_divisions)) return 'All Divisions';
