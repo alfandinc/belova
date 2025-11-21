@@ -109,9 +109,13 @@ class JobListController extends Controller
             $query->where('for_manager', $val);
         }
 
-        // Order by priority weight so that 'very_important' items appear first
-        // This is applied as a primary ordering; DataTables additional ordering will follow.
-        $query->orderByRaw("CASE priority WHEN 'very_important' THEN 3 WHEN 'important' THEN 2 WHEN 'normal' THEN 1 ELSE 0 END DESC");
+        // Order by priority weight so that 'very_important' items appear first,
+        // then by proximity to today (nearest due_date first). Null due_date values are pushed to the end.
+        // DATEDIFF(due_date, CURDATE()) gives days from today; use ABS() to get proximity regardless past/future.
+        $query->orderByRaw(
+            "CASE priority WHEN 'very_important' THEN 3 WHEN 'important' THEN 2 WHEN 'normal' THEN 1 ELSE 0 END DESC, " .
+            "COALESCE(ABS(DATEDIFF(due_date, CURDATE())), 999999) ASC, due_date ASC"
+        );
         return DataTables::of($query)
             ->addColumn('division_name', function ($row) {
                 if (!empty($row->all_divisions)) return 'All Divisions';
