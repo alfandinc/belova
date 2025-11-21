@@ -271,6 +271,68 @@
 
         .menu-label { position: static; bottom: auto; }
 
+        /* Bell notification top-right and badge bottom-right for tiles */
+        .tile-bell-top {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 6;
+        }
+        .tile-bell-top .bell {
+            width: 36px;
+            height: 36px;
+            display:flex; align-items:center; justify-content:center;
+            border-radius:10px;
+            background: rgba(255,255,255,0.06);
+            color: #fff;
+            font-size: 16px;
+            position: relative;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.18); /* subtle shadow for bell */
+            backdrop-filter: blur(2px);
+        }
+        .tile-bell-top .count {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #ff3b30; /* red */
+            color: #fff;
+            font-size: 11px;
+            padding: 3px 6px;
+            border-radius: 999px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            font-weight:700;
+            line-height:1;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        /* Small label pinned to bottom-right of the tile (e.g. 'Task') */
+        .tile-badge-bottom {
+            position: absolute;
+            right: 16px; /* moved further from the tile edge */
+            bottom: 14px; /* lifted slightly above the edge */
+            font-size:12px;
+            padding:8px 12px; /* more comfortable padding */
+            border-radius:999px;
+            background: rgba(0,0,0,0.18);
+            color: #fff;
+            z-index: 6;
+            box-shadow: none; /* removed shadow per request */
+            font-weight:700;
+            border: 1px solid rgba(255,255,255,0.03);
+            backdrop-filter: blur(2px);
+        }
+
+        /* Reduce sizes a bit on small screens */
+        @media (max-width: 768px) {
+            .tile-bell-top .bell { width: 32px; height: 32px; font-size:14px; }
+            .tile-bell-top .count { top: -5px; right: -5px; padding:2px 5px; font-size:11px; }
+            .tile-badge-bottom { right:12px; bottom:10px; padding:6px 9px; font-size:11px; }
+        }
+
         
     /* Harmonized accessible palette (soft, friendly, good contrast for white icons) */
     .tile-erm { background-color: #1fb6aa; }          /* teal */
@@ -725,10 +787,19 @@
                    @endif>
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-tasks"></i></div>
-                        <div class="menu-badge">Task</div>
                     </div>
+
+                    <div class="tile-bell-top" aria-hidden="true">
+                        <div class="bell"><i class="fas fa-bell"></i></div>
+                        @if(!empty($inProgressCount) && $inProgressCount > 0)
+                            <div class="count">{{ $inProgressCount }}</div>
+                        @endif
+                    </div>
+
                     <div class="menu-title">Job List</div>
                     <div class="menu-sub">Tugas & Deadline</div>
+
+                    <div class="tile-badge-bottom">Task</div>
                 </a>
                 
                 <!-- Admin Panel -->

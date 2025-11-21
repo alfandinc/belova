@@ -22,12 +22,13 @@
                 @php
                     $user = Auth::user();
                     $userDivisionId = optional($user->employee)->division_id;
+                    $isCeo = $user && $user->hasRole('Ceo');
                 @endphp
-                @if($user && $user->hasAnyRole(['Hrd','Admin','Manager']))
+                @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
                     <select id="filter_division" class="form-control">
-                        <option value="">Semua Division</option>
+                        <option value="" @if($isCeo) selected @endif>Semua Division</option>
                         @foreach($divisions as $d)
-                            <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
+                            <option value="{{ $d->id }}" @if(!$isCeo && $d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
                         @endforeach
                     </select>
                 @else
@@ -49,13 +50,14 @@
     <table class="table table-striped" id="joblist-table" style="width:100%">
         <thead>
             <tr>
-                <th>Number</th>
+                <th>No</th>
                 <th>Title</th>
                 <th>Division</th>
                 <th>Priority</th>
                 <th>Status</th>
                 <th>Due Date</th>
                 <th>Creator</th>
+                <th>Updated By</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -114,12 +116,20 @@
                     <label>Division</label>
                     @php $user = Auth::user(); $userDivisionId = optional($user->employee)->division_id; @endphp
                     @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
-                        <select name="division_id" id="division_id" class="form-control">
-                            <option value="">-- Pilih Division --</option>
+                        <select name="divisions[]" id="divisions" class="form-control" multiple style="height:120px;">
                             @foreach($divisions as $d)
                                 <option value="{{ $d->id }}" @if($d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
                             @endforeach
                         </select>
+                        <div class="form-check mt-2">
+                            <input type="checkbox" class="form-check-input" id="all_divisions" name="all_divisions" value="1">
+                            <label for="all_divisions" class="form-check-label">All Divisions</label>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input type="checkbox" class="form-check-input" id="for_manager" name="for_manager" value="1">
+                            <label for="for_manager" class="form-check-label">For Manager Only</label>
+                        </div>
+                        <small class="form-text text-muted">Pilih beberapa division dengan Ctrl/Cmd atau centang "All Divisions" untuk menugaskan ke semua division.</small>
                     @else
                         {{-- Non-privileged users: show disabled select but include hidden input so form serialize() sends division_id --}}
                         <select id="division_id" class="form-control" disabled title="Division locked">
@@ -170,6 +180,23 @@ $(function(){
 
     // Mirror server-side computed user division id for modal behavior
     var userDivisionId = @json($userDivisionId ?? null);
+    // Initialize Select2 for nicer multi-select (if available)
+    if ($('#divisions').length && $.fn.select2) {
+        $('#divisions').select2({
+            placeholder: '-- Pilih Division --',
+            width: '100%'
+        });
+    }
+
+    // Toggle multi-select when All Divisions checkbox changes
+    $(document).on('change', '#all_divisions', function(){
+        var checked = $(this).is(':checked');
+        if ($('#divisions').hasClass('select2-hidden-accessible')) {
+            $('#divisions').prop('disabled', checked).trigger('change.select2');
+        } else {
+            $('#divisions').prop('disabled', checked).trigger('change');
+        }
+    });
 
     // Initialize due_date as a single-date picker using daterangepicker
     try {
@@ -208,6 +235,7 @@ $(function(){
             { data: 'status_control', name: 'status', orderable: true, searchable: true },
             { data: 'due_date_display', name: 'due_date', orderable: true, searchable: false },
             { data: 'creator_name', name: 'creator.name' },
+            { data: 'updater_name', name: 'updater.name' },
             { data: 'actions', name: 'actions', orderable:false, searchable:false }
         ]
     });
@@ -221,6 +249,20 @@ $(function(){
         // Ensure hidden mirror is set for non-privileged users
         if (typeof userDivisionId !== 'undefined' && $('#division_id_hidden').length) {
             $('#division_id_hidden').val(userDivisionId);
+        }
+        // reset multi-select and all_divisions checkbox if present
+        if ($('#all_divisions').length) {
+            $('#all_divisions').prop('checked', false);
+        }
+        if ($('#divisions').length) {
+            if ($('#divisions').hasClass('select2-hidden-accessible')) {
+                $('#divisions').prop('disabled', false).val(null).trigger('change.select2');
+            } else {
+                $('#divisions').prop('disabled', false).val([]).trigger('change');
+            }
+        }
+        if ($('#for_manager').length) {
+            $('#for_manager').prop('checked', false);
         }
         // Clear daterangepicker input for new job
         if ($('#due_date').length) {
@@ -239,15 +281,27 @@ $(function(){
         table.ajax.reload();
     });
 
-    $('#saveJobBtn').on('click', function(){
+        $('#saveJobBtn').on('click', function(){
         var id = $('#job_id').val();
         var url = id ? '/hrd/joblist/' + id : '/hrd/joblist';
         var method = 'POST';
 
-        // Serialize form to object so we can normalize due_date format (DD-MM-YYYY -> YYYY-MM-DD)
+        // Build payload. Use direct select value for multi-select to avoid serialize issues.
         var formArray = $('#jobForm').serializeArray();
         var payload = {};
-        formArray.forEach(function(item){ payload[item.name] = item.value; });
+        formArray.forEach(function(item){
+            payload[item.name] = item.value;
+        });
+
+        // If divisions multi-select exists, prefer its value array
+        if ($('#divisions').length) {
+            var sel = $('#divisions').val();
+            // make sure we send an array (or null)
+            payload.divisions = Array.isArray(sel) ? sel : (sel ? [sel] : []);
+        }
+        // Normalize checkboxes
+        payload.all_divisions = ($('#all_divisions').is(':checked') ? 1 : 0);
+        payload.for_manager = ($('#for_manager').is(':checked') ? 1 : 0);
 
         if (payload.due_date) {
             try {
@@ -287,13 +341,37 @@ $(function(){
             $('#description').val(data.description);
             $('#status').val(data.status);
             $('#priority').val(data.priority);
-            // Set division select and mirror hidden input (if present)
-            $('#division_id').val(data.division_id);
+            // Populate divisions multi-select or legacy hidden input
+            if ($('#divisions').length) {
+                var divIds = [];
+                if (data.all_divisions) {
+                    // do not pre-select any when All Divisions active; just check the box
+                    divIds = [];
+                } else if (Array.isArray(data.divisions) && data.divisions.length) {
+                    divIds = data.divisions.map(function(d){ return d.id; });
+                } else if (data.division_id) {
+                    divIds = [data.division_id];
+                }
+                if ($('#divisions').hasClass('select2-hidden-accessible')) {
+                    $('#divisions').val(divIds).trigger('change.select2');
+                } else {
+                    $('#divisions').val(divIds).trigger('change');
+                }
+                $('#all_divisions').prop('checked', !!data.all_divisions);
+                $('#for_manager').prop('checked', !!data.for_manager);
+                // disable select when all_divisions checked
+                if ($('#divisions').hasClass('select2-hidden-accessible')) {
+                    $('#divisions').prop('disabled', !!data.all_divisions).trigger('change.select2');
+                } else {
+                    $('#divisions').prop('disabled', !!data.all_divisions).trigger('change');
+                }
+            }
             if ($('#division_id_hidden').length) {
-                $('#division_id_hidden').val(data.division_id);
+                var legacyId = data.division_id || (Array.isArray(data.divisions) && data.divisions.length ? data.divisions[0].id : '');
+                $('#division_id_hidden').val(legacyId);
                 var $sel = $('#division_id');
                 if ($sel.prop('disabled')) {
-                    $sel.html('<option value="'+data.division_id+'">'+(data.division_name || data.division_id)+'</option>');
+                    $sel.html('<option value="'+legacyId+'">'+(data.division_name || legacyId)+'</option>');
                 }
             }
             // Set daterangepicker date for edit modal

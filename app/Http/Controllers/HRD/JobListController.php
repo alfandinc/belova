@@ -28,18 +28,45 @@ class JobListController extends Controller
 
     public function data(Request $request)
     {
-        $query = JobList::with(['division', 'creator'])->select('hrd_joblists.*');
+        $query = JobList::with(['division', 'divisions', 'creator', 'updater'])->select('hrd_joblists.*');
         // Restrict visibility based on user role:
         // - Users with roles Hrd, Admin, Manager see all records
         // - Users with role Employee only see records from their division
         $user = Auth::user();
         if ($user) {
             if ($user->hasAnyRole(['Hrd','Admin','Manager'])) {
-                // no restriction
+                // no restriction (admins/hrd/managers keep original full access)
             } elseif ($user->hasAnyRole('Employee')) {
                 $divisionId = optional($user->employee)->division_id;
+                $isManager = $user->hasAnyRole(['Manager','manager']);
                 if ($divisionId) {
-                    $query->where('division_id', $divisionId);
+                    $query->where(function($q) use ($divisionId, $isManager) {
+                        // Jobs visible to all employees in the division (for_manager = false)
+                        $q->where(function($qa) use ($divisionId) {
+                            $qa->where('for_manager', false)
+                               ->where(function($qb) use ($divisionId) {
+                                   $qb->where('all_divisions', true)
+                                      ->orWhere('division_id', $divisionId)
+                                      ->orWhereHas('divisions', function($qq) use ($divisionId) {
+                                          $qq->where('hrd_division.id', $divisionId);
+                                      });
+                               });
+                        });
+
+                        // If the user is a manager, also include jobs marked for_manager in their division
+                        if ($isManager) {
+                            $q->orWhere(function($qc) use ($divisionId) {
+                                $qc->where('for_manager', true)
+                                   ->where(function($qd) use ($divisionId) {
+                                       $qd->where('all_divisions', true)
+                                          ->orWhere('division_id', $divisionId)
+                                          ->orWhereHas('divisions', function($qq) use ($divisionId) {
+                                              $qq->where('hrd_division.id', $divisionId);
+                                          });
+                                   });
+                            });
+                        }
+                    });
                 } else {
                     // If employee has no division, return no rows
                     $query->whereRaw('1 = 0');
@@ -62,17 +89,30 @@ class JobListController extends Controller
         if ($status && in_array($status, $validStatuses)) {
             $query->where('status', $status);
         }
-        // apply division filter if provided
+        // apply division filter if provided (should include all_divisions and pivot)
         $division = $request->get('division_id');
         if ($division && is_numeric($division)) {
-            $query->where('division_id', $division);
+            $query->where(function($q) use ($division) {
+                $q->where('all_divisions', true)
+                  ->orWhere('division_id', $division)
+                  ->orWhereHas('divisions', function($qq) use ($division) {
+                      $qq->where('hrd_division.id', $division);
+                  });
+            });
         }
         return DataTables::of($query)
             ->addColumn('division_name', function ($row) {
+                if (!empty($row->all_divisions)) return 'All Divisions';
+                // prefer pivoted divisions if present
+                $names = $row->divisions->pluck('name')->toArray();
+                if (!empty($names)) return implode(', ', $names);
                 return $row->division?->name;
             })
             ->addColumn('creator_name', function ($row) {
                 return $row->creator?->name;
+            })
+            ->addColumn('updater_name', function ($row) {
+                return $row->updater?->name;
             })
             ->addColumn('status_badge', function ($row) {
                 $status = $row->status;
@@ -202,7 +242,12 @@ class JobListController extends Controller
         $divisions = \App\Models\HRD\Division::all();
         $result = [];
         foreach ($divisions as $d) {
-            $base = JobList::where('division_id', $d->id);
+            // include jobs targeted to all divisions, jobs with division_id, and jobs linked via pivot
+                        $base = JobList::where(function($q) use ($d) {
+                                $q->where('all_divisions', true)
+                                    ->orWhere('division_id', $d->id)
+                                    ->orWhereHas('divisions', function($qq) use ($d) { $qq->where('hrd_division.id', $d->id); });
+                        });
             if ($start && $end) {
                 try {
                     $base->whereBetween('due_date', [$start, $end]);
@@ -231,7 +276,11 @@ class JobListController extends Controller
             'description' => 'nullable|string',
             'status' => 'nullable|string|in:progress,done,canceled',
             'priority' => 'nullable|string|in:low,normal,important,very_important',
-            'division_id' => 'nullable|integer',
+            'division_id' => 'nullable|integer', // legacy single-division support
+            'divisions' => 'nullable|array',
+            'divisions.*' => 'nullable|integer|exists:hrd_division,id',
+            'all_divisions' => 'sometimes|boolean',
+            'for_manager' => 'sometimes|boolean',
             'due_date' => 'nullable|date',
         ]);
         if ($v->fails()) {
@@ -243,13 +292,27 @@ class JobListController extends Controller
         if (empty($data['status'])) $data['status'] = 'progress';
         if (empty($data['priority'])) $data['priority'] = 'normal';
         $data['created_by'] = Auth::id();
+        // handle all_divisions and for_manager flag
+        $data['all_divisions'] = isset($data['all_divisions']) ? (bool)$data['all_divisions'] : false;
+        $data['for_manager'] = isset($data['for_manager']) ? (bool)$data['for_manager'] : false;
         $job = JobList::create($data);
+
+        // assign divisions if provided (or legacy division_id)
+        if (!empty($data['all_divisions'])) {
+            $job->assignDivisions('all');
+        } else {
+            if (!empty($data['divisions'])) {
+                $job->assignDivisions($data['divisions']);
+            } elseif (!empty($data['division_id'])) {
+                $job->assignDivisions([$data['division_id']]);
+            }
+        }
         return response()->json(['success' => true, 'data' => $job]);
     }
 
     public function show($id)
     {
-        $job = JobList::with(['division','creator'])->findOrFail($id);
+        $job = JobList::with(['division','divisions','creator'])->findOrFail($id);
         return response()->json(['success' => true, 'data' => $job]);
     }
 
@@ -261,7 +324,11 @@ class JobListController extends Controller
             'description' => 'nullable|string',
             'status' => 'nullable|string|in:progress,done,canceled',
             'priority' => 'nullable|string|in:low,normal,important,very_important',
-            'division_id' => 'nullable|integer',
+            'division_id' => 'nullable|integer', // legacy
+            'divisions' => 'nullable|array',
+            'divisions.*' => 'nullable|integer|exists:hrd_division,id',
+            'all_divisions' => 'sometimes|boolean',
+            'for_manager' => 'sometimes|boolean',
             'due_date' => 'nullable|date',
         ]);
         if ($v->fails()) {
@@ -270,7 +337,25 @@ class JobListController extends Controller
         $data = $v->validated();
         if (empty($data['status'])) $data['status'] = 'progress';
         if (empty($data['priority'])) $data['priority'] = 'normal';
+        // handle all_divisions and for_manager
+        $data['all_divisions'] = isset($data['all_divisions']) ? (bool)$data['all_divisions'] : false;
+        $data['for_manager'] = isset($data['for_manager']) ? (bool)$data['for_manager'] : false;
+        // set updated_by
+        $data['updated_by'] = Auth::id();
         $job->update($data);
+
+        if (!empty($data['all_divisions'])) {
+            $job->assignDivisions('all');
+        } else {
+            if (!empty($data['divisions'])) {
+                $job->assignDivisions($data['divisions']);
+            } elseif (!empty($data['division_id'])) {
+                $job->assignDivisions([$data['division_id']]);
+            } else {
+                // if no divisions provided, detach existing and clear flag
+                $job->assignDivisions(null);
+            }
+        }
         return response()->json(['success' => true, 'data' => $job]);
     }
 

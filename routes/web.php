@@ -96,7 +96,42 @@ Route::get('/', function () {
     if (!Auth::check()) {
         return view('auth.main_login');
     }
-    return view('mainmenu');
+    // Pass number of in-progress JobList items to the main menu for notification badge
+    $user = Auth::user();
+    if (!$user) {
+        $inProgressCount = 0;
+    } else {
+        // CEO sees all progress items
+        if ($user->hasRole('Ceo')) {
+            $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')->count();
+        }
+        // Manager sees items assigned to their division (including all_divisions)
+        elseif ($user->hasRole('Manager')) {
+            $divisionId = optional($user->employee)->division_id;
+            $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')
+                ->where(function($q) use ($divisionId) {
+                    $q->where('all_divisions', 1)
+                      ->orWhereHas('divisions', function($q2) use ($divisionId) {
+                          $q2->where('hrd_division.id', $divisionId);
+                      })
+                      ->orWhere('division_id', $divisionId);
+                })->count();
+        }
+        // Regular employees: only count non-manager items for their division
+        else {
+            $divisionId = optional($user->employee)->division_id;
+            $inProgressCount = \App\Models\HRD\JobList::where('status', 'progress')
+                ->where('for_manager', 0)
+                ->where(function($q) use ($divisionId) {
+                    $q->where('all_divisions', 1)
+                      ->orWhereHas('divisions', function($q2) use ($divisionId) {
+                          $q2->where('hrd_division.id', $divisionId);
+                      })
+                      ->orWhere('division_id', $divisionId);
+                })->count();
+        }
+    }
+    return view('mainmenu', compact('inProgressCount'));
 });
 
 // Different login pages (GET requests only)
