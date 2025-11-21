@@ -100,12 +100,13 @@ $(function(){
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
-    // default dates: first of month -> today
+    // default dates: current calendar year (Jan 1 -> Dec 31 of this year)
     var now = new Date();
-    var today = now.toISOString().substr(0,10);
-    var firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().substr(0,10);
-    if (!$('#filter_start').val()) $('#filter_start').val(firstOfMonth);
-    if (!$('#filter_end').val()) $('#filter_end').val(today);
+    var year = now.getFullYear();
+    var firstOfYear = new Date(year, 0, 1).toISOString().substr(0,10); // Jan 1
+    var lastOfYear = new Date(year, 11, 31).toISOString().substr(0,10); // Dec 31
+    if (!$('#filter_start').val()) $('#filter_start').val(firstOfYear);
+    if (!$('#filter_end').val()) $('#filter_end').val(lastOfYear);
     loadSummary();
 
     $('#btnRefreshSummary').on('click', function(){ loadSummary(); });
