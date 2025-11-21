@@ -167,6 +167,11 @@
                 <div class="form-group col-md-6">
                     <label>Due Date</label>
                     <input type="text" name="due_date" id="due_date" class="form-control" placeholder="DD-MM-YYYY" autocomplete="off" />
+                    <div id="documents-section" class="mt-3" style="display:none;">
+                        <label>Dokumen (images or documents) — max 10MB each</label>
+                        <input type="file" name="dokumen[]" id="dokumen" class="form-control-file" multiple />
+                        <div id="existing-documents" class="mt-2"></div>
+                    </div>
                 </div>
             </div>
         </form>
@@ -177,6 +182,31 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Upload Documents Modal (for inline 'done' flow) -->
+<div class="modal fade" id="uploadDocumentsModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Dokumen</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="upload-doc-job-id" />
+                <div class="form-group">
+                    <label>Pilih file (maks 10MB masing-masing)</label>
+                    <input type="file" id="upload-doc-input" class="form-control-file" multiple />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="uploadDocBtn">Unggah</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 @endsection
@@ -266,6 +296,19 @@ $(function(){
         ]
     });
 
+    // Show/hide documents section when status == 'done'
+    function toggleDocumentsSection() {
+        var val = $('#status').val();
+        if (val === 'done') {
+            $('#documents-section').show();
+        } else {
+            $('#documents-section').hide();
+            // clear file input when hidden
+            $('#dokumen').val('');
+        }
+    }
+    $(document).on('change', '#status', toggleDocumentsSection);
+
     
 
     $('#btnAddJob').on('click', function(){
@@ -297,6 +340,8 @@ $(function(){
             if (dr) { dr.setStartDate(moment()); dr.setEndDate(moment()); }
         }
         $('#jobModal').modal('show');
+        // ensure documents section hidden for new job default
+        toggleDocumentsSection();
     });
 
     // reload table when filter changes
@@ -341,6 +386,53 @@ $(function(){
             } catch(e){ /* ignore */ }
         }
 
+        // If there are files selected, use FormData to send multipart request
+        var files = $('#dokumen')[0] ? $('#dokumen')[0].files : null;
+        if (files && files.length) {
+            var fd = new FormData();
+            // append simple fields
+            Object.keys(payload).forEach(function(k){
+                var v = payload[k];
+                // skip divisions (we'll append separately)
+                if (k === 'divisions') return;
+                fd.append(k, v);
+            });
+            // append divisions array
+            if (Array.isArray(payload.divisions)) {
+                payload.divisions.forEach(function(d){ fd.append('divisions[]', d); });
+            }
+            // append files
+            for (var i=0;i<files.length;i++) {
+                fd.append('dokumen[]', files[i]);
+            }
+            // include checkboxes explicitly
+            fd.append('all_divisions', payload.all_divisions);
+            fd.append('for_manager', payload.for_manager);
+
+            $.ajax({
+                url: url,
+                method: method,
+                data: fd,
+                cache: false,
+                contentType: false,
+                processData: false,
+                success: function(res){
+                    $('#jobModal').modal('hide');
+                    table.ajax.reload(null, false);
+                    Swal.fire({icon: 'success', title: 'Berhasil'});
+                },
+                error: function(xhr){
+                    var msg = 'Terjadi kesalahan';
+                    if (xhr.responseJSON && xhr.responseJSON.errors) {
+                        msg = Object.values(xhr.responseJSON.errors).map(function(v){ return v.join(', '); }).join('\n');
+                    }
+                    Swal.fire({icon:'error', text: msg});
+                }
+            });
+            return;
+        }
+
+        // fallback: no files -> send as before
         $.ajax({
             url: url,
             method: method,
@@ -419,6 +511,19 @@ $(function(){
             } else if ($('#due_date').length) {
                 $('#due_date').val('');
             }
+            // populate existing documents list (if any)
+            $('#existing-documents').html('');
+            if (data.documents && Array.isArray(data.documents) && data.documents.length) {
+                var list = '<ul class="list-unstyled small">';
+                data.documents.forEach(function(p, idx){
+                    var url = (p.indexOf('http') === 0) ? p : ('/hrd/joblist/' + data.id + '/document/' + idx);
+                    var fileName = p.split('/').pop();
+                    list += '<li><a href="'+url+'" target="_blank">' + fileName + '</a></li>';
+                });
+                list += '</ul>';
+                $('#existing-documents').html(list);
+            }
+            toggleDocumentsSection();
             $('#jobModalLabel').text('Edit Job');
             $('#jobModal').modal('show');
         });
@@ -501,6 +606,13 @@ $(function(){
                     $select.hide();
                     $badge.show();
                     Swal.fire({icon: 'success', title: 'Status diperbarui'});
+                    // If changed to done, optionally prompt for document upload
+                    if (newStatus === 'done') {
+                        // open upload modal and set job id
+                        $('#upload-doc-job-id').val(id);
+                        $('#upload-doc-input').val('');
+                        $('#uploadDocumentsModal').modal('show');
+                    }
                 } else {
                     $select.val(orig);
                     $select.hide();
@@ -516,6 +628,38 @@ $(function(){
                 $select.val(orig);
                 $select.hide();
                 $select.closest('div').find('.status-inline-badge').show();
+                Swal.fire({icon:'error', text: msg});
+            }
+        });
+    });
+
+    // Upload documents modal handler
+    $(document).on('click', '#uploadDocBtn', function(){
+        var id = $('#upload-doc-job-id').val();
+        var files = $('#upload-doc-input')[0] ? $('#upload-doc-input')[0].files : null;
+        if (!files || !files.length) {
+            Swal.fire({icon:'warning', text: 'Pilih file terlebih dahulu'});
+            return;
+        }
+        var fd = new FormData();
+        for (var i=0;i<files.length;i++) fd.append('dokumen[]', files[i]);
+        $.ajax({
+            url: '/hrd/joblist/' + id + '/upload-documents',
+            method: 'POST',
+            data: fd,
+            cache: false,
+            contentType: false,
+            processData: false,
+            success: function(res){
+                $('#uploadDocumentsModal').modal('hide');
+                table.ajax.reload(null, false);
+                Swal.fire({icon:'success', text: 'Dokumen berhasil diunggah'});
+            },
+            error: function(xhr){
+                var msg = 'Terjadi kesalahan';
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    msg = Object.values(xhr.responseJSON.errors).map(function(v){ return v.join(', '); }).join('\n');
+                }
                 Swal.fire({icon:'error', text: msg});
             }
         });

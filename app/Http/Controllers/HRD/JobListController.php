@@ -8,6 +8,8 @@ use App\Models\HRD\JobList;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class JobListController extends Controller
@@ -317,6 +319,7 @@ class JobListController extends Controller
             'all_divisions' => 'sometimes|boolean',
             'for_manager' => 'sometimes|boolean',
             'due_date' => 'nullable|date',
+            'dokumen.*' => 'sometimes|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:10240',
         ]);
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
@@ -342,6 +345,23 @@ class JobListController extends Controller
                 $job->assignDivisions([$data['division_id']]);
             }
         }
+        // Handle uploaded documents on create
+        if ($request->hasFile('dokumen')) {
+            $uploaded = $request->file('dokumen');
+            $stored = $job->documents ?? [];
+            foreach ($uploaded as $f) {
+                if (!$f->isValid()) continue;
+                $ext = $f->getClientOriginalExtension();
+                $name = pathinfo($f->getClientOriginalName(), PATHINFO_FILENAME);
+                $safe = Str::slug(substr($name, 0, 50));
+                $filename = $safe . '-' . time() . '-' . Str::random(6) . '.' . $ext;
+                $path = 'joblist_documents/' . $job->id . '/';
+                $f->storeAs('public/' . $path, $filename);
+                $stored[] = $path . $filename;
+            }
+            $job->documents = $stored;
+            $job->save();
+        }
         return response()->json(['success' => true, 'data' => $job]);
     }
 
@@ -365,6 +385,7 @@ class JobListController extends Controller
             'all_divisions' => 'sometimes|boolean',
             'for_manager' => 'sometimes|boolean',
             'due_date' => 'nullable|date',
+            'dokumen.*' => 'sometimes|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:10240',
         ]);
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
@@ -391,6 +412,23 @@ class JobListController extends Controller
                 $job->assignDivisions(null);
             }
         }
+        // Handle uploaded documents (if any) when updating
+        if ($request->hasFile('dokumen')) {
+            $uploaded = $request->file('dokumen');
+            $stored = $job->documents ?? [];
+            foreach ($uploaded as $f) {
+                if (!$f->isValid()) continue;
+                $ext = $f->getClientOriginalExtension();
+                $name = pathinfo($f->getClientOriginalName(), PATHINFO_FILENAME);
+                $safe = Str::slug(substr($name, 0, 50));
+                $filename = $safe . '-' . time() . '-' . Str::random(6) . '.' . $ext;
+                $path = 'joblist_documents/' . $job->id . '/';
+                $f->storeAs('public/' . $path, $filename);
+                $stored[] = $path . $filename;
+            }
+            $job->documents = $stored;
+            $job->save();
+        }
         return response()->json(['success' => true, 'data' => $job]);
     }
 
@@ -399,5 +437,104 @@ class JobListController extends Controller
         $job = JobList::findOrFail($id);
         $job->delete();
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Upload additional documents for a joblist (used after marking Done inline)
+     */
+    public function uploadDocuments(Request $request, $id)
+    {
+        $job = JobList::findOrFail($id);
+        $v = Validator::make($request->all(), [
+            'dokumen.*' => 'required|file|mimes:jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx|max:10240',
+        ]);
+        if ($v->fails()) {
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
+        $stored = $job->documents ?? [];
+        if ($request->hasFile('dokumen')) {
+            foreach ($request->file('dokumen') as $f) {
+                if (!$f->isValid()) continue;
+                $ext = $f->getClientOriginalExtension();
+                $name = pathinfo($f->getClientOriginalName(), PATHINFO_FILENAME);
+                $safe = Str::slug(substr($name, 0, 50));
+                $filename = $safe . '-' . time() . '-' . Str::random(6) . '.' . $ext;
+                $path = 'joblist_documents/' . $job->id . '/';
+                $f->storeAs('public/' . $path, $filename);
+                $stored[] = $path . $filename;
+            }
+            $job->documents = $stored;
+            $job->save();
+        }
+        return response()->json(['success' => true, 'documents' => $job->documents]);
+    }
+
+    /**
+     * Serve a stored document for a joblist entry.
+     * Uses the public disk storage path and streams or downloads the file via Laravel.
+     */
+    public function downloadDocument(Request $request, $id, $index)
+    {
+        $job = JobList::findOrFail($id);
+        $docs = $job->documents ?? [];
+        if (!is_numeric($index)) {
+            abort(404);
+        }
+        $i = (int) $index;
+        if (!isset($docs[$i])) {
+            abort(404);
+        }
+        $raw = $docs[$i];
+        // Normalize stored path which may be stored as:
+        // - "joblist_documents/4/file.png"
+        // - "/storage/joblist_documents/4/file.png"
+        // - "http://host/storage/joblist_documents/4/file.png"
+        // - or even a full public path
+        $path = $raw;
+        // strip URL if present
+        if (preg_match('#^https?://#i', $path)) {
+            $u = parse_url($path);
+            $path = $u['path'] ?? $path;
+        }
+        // remove leading /storage/ if present
+        if (strpos($path, '/storage/') === 0) {
+            $path = substr($path, strlen('/storage/'));
+            $path = ltrim($path, '/');
+        }
+        // remove any leading slash
+        $path = ltrim($path, '/');
+
+        // first try storage/app/public
+        if (Storage::disk('public')->exists($path)) {
+            $full = storage_path('app/public/' . $path);
+            $mime = @mime_content_type($full) ?: 'application/octet-stream';
+            if (strpos($mime, 'image/') === 0 || $mime === 'application/pdf') {
+                return response()->file($full, ['Content-Type' => $mime]);
+            }
+            return response()->download($full);
+        }
+
+        // next try direct public path (in case files were saved to public/...)
+        $publicCandidate = public_path($path);
+        if (file_exists($publicCandidate)) {
+            $mime = @mime_content_type($publicCandidate) ?: 'application/octet-stream';
+            if (strpos($mime, 'image/') === 0 || $mime === 'application/pdf') {
+                return response()->file($publicCandidate, ['Content-Type' => $mime]);
+            }
+            return response()->download($publicCandidate);
+        }
+
+        // additional fallback: some installs write to storage/app/private/public/... (observed in this environment)
+        $privateCandidate = storage_path('app/private/public/' . $path);
+        if (file_exists($privateCandidate)) {
+            $mime = @mime_content_type($privateCandidate) ?: 'application/octet-stream';
+            if (strpos($mime, 'image/') === 0 || $mime === 'application/pdf') {
+                return response()->file($privateCandidate, ['Content-Type' => $mime]);
+            }
+            return response()->download($privateCandidate);
+        }
+
+        // not found
+        abort(404);
     }
 }

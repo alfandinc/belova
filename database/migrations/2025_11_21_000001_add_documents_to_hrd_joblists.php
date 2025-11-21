@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::table('hrd_joblists', function (Blueprint $table) {
+            // JSON column to store array of uploaded document paths
+            if (!Schema::hasColumn('hrd_joblists', 'documents')) {
+                $table->json('documents')->nullable()->after('updated_by');
+            }
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::table('hrd_joblists', function (Blueprint $table) {
+            if (Schema::hasColumn('hrd_joblists', 'documents')) {
+                $table->dropColumn('documents');
+            }
+        });
+    }
+};

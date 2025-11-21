@@ -1177,6 +1177,9 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         Route::get('/joblist/dashboard', [JobListController::class, 'dashboard'])->name('hrd.joblist.dashboard');
         Route::get('/joblist/data', [JobListController::class, 'data'])->name('hrd.joblist.data');
         Route::get('/joblist/summary', [JobListController::class, 'summary'])->name('hrd.joblist.summary');
+        // Serve uploaded joblist documents via controller to ensure proper access and avoid webserver forbidden errors
+        Route::get('/joblist/{id}/document/{index}', [JobListController::class, 'downloadDocument'])->name('hrd.joblist.document');
+        Route::post('/joblist/{id}/upload-documents', [JobListController::class, 'uploadDocuments'])->name('hrd.joblist.upload_documents');
         Route::post('/joblist', [JobListController::class, 'store'])->name('hrd.joblist.store');
         Route::get('/joblist/{id}', [JobListController::class, 'show'])->name('hrd.joblist.show');
         Route::post('/joblist/{id}', [JobListController::class, 'update'])->name('hrd.joblist.update');

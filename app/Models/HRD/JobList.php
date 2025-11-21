@@ -12,12 +12,13 @@ class JobList extends Model
     protected $table = 'hrd_joblists';
 
     protected $fillable = [
-        'title', 'description', 'status', 'priority', 'division_id', 'due_date', 'created_by', 'updated_by', 'for_manager'
+        'title', 'description', 'status', 'priority', 'division_id', 'due_date', 'created_by', 'updated_by', 'for_manager', 'documents'
     ];
 
     protected $casts = [
         'all_divisions' => 'boolean',
         'for_manager' => 'boolean',
+        'documents' => 'array',
     ];
 
     public function division()
