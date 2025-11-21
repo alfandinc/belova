@@ -109,12 +109,15 @@ class JobListController extends Controller
             $query->where('for_manager', $val);
         }
 
-        // Order by priority weight so that 'very_important' items appear first,
-        // then by proximity to today (nearest due_date first). Null due_date values are pushed to the end.
-        // DATEDIFF(due_date, CURDATE()) gives days from today; use ABS() to get proximity regardless past/future.
+        // Order by priority weight so that 'very_important' items appear first.
+        // Within each priority group, place overdue items (due_date < today) first
+        // and sort overdue items by most-recently-overdue (yesterday = top) using DATEDIFF(CURDATE(), due_date).
+        // Upcoming items are sorted by nearest future date. Null due_date values are pushed to the end.
         $query->orderByRaw(
             "CASE priority WHEN 'very_important' THEN 3 WHEN 'important' THEN 2 WHEN 'normal' THEN 1 ELSE 0 END DESC, " .
-            "COALESCE(ABS(DATEDIFF(due_date, CURDATE())), 999999) ASC, due_date ASC"
+            "CASE WHEN due_date IS NULL THEN 2 WHEN due_date < CURDATE() THEN 0 ELSE 1 END ASC, " .
+            "CASE WHEN due_date IS NULL THEN 999999 WHEN due_date < CURDATE() THEN DATEDIFF(CURDATE(), due_date) ELSE DATEDIFF(due_date, CURDATE()) END ASC, " .
+            "due_date ASC"
         );
         return DataTables::of($query)
             ->addColumn('division_name', function ($row) {
