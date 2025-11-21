@@ -33,15 +33,10 @@
                     <li>
                         <a href="/satusehat"><i data-feather="home" class="align-self-center menu-icon"></i><span>Dashboard</span></a>
                     </li>
-
-                    <!-- Integration -->
+                                        <!-- Klinik Configs -->
                     @hasanyrole('Satusehat|Admin')
                     <li>
-                        <a href="javascript: void(0);"><i data-feather="server" class="align-self-center menu-icon"></i><span>Integrasi</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li><a href="/satusehat/integrasi"><i data-feather="download" class="align-self-center menu-icon"></i><span>Sinkronisasi</span></a></li>
-                            <li><a href="/satusehat/mappings"><i data-feather="layers" class="align-self-center menu-icon"></i><span>Mapping Data</span></a></li>
-                        </ul>
+                        <a href="/satusehat/clinics"><i data-feather="database" class="align-self-center menu-icon"></i><span>Konfigurasi Klinik</span></a>
                     </li>
                     @endhasanyrole
 
@@ -52,23 +47,7 @@
                     </li>
                     @endhasanyrole
 
-                    <!-- Klinik Configs -->
-                    @hasanyrole('Satusehat|Admin')
-                    <li>
-                        <a href="/satusehat/clinics"><i data-feather="database" class="align-self-center menu-icon"></i><span>Konfigurasi Klinik</span></a>
-                    </li>
-                    @endhasanyrole
 
-                    <!-- Logs & Settings -->
-                    @hasrole('Admin')
-                    <li>
-                        <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>Logs & Pengaturan</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                        <ul class="nav-second-level" aria-expanded="false">
-                            <li><a href="/satusehat/logs"><i data-feather="list" class="align-self-center menu-icon"></i><span>Sync Logs</span></a></li>
-                            <li><a href="/satusehat/settings"><i data-feather="settings" class="align-self-center menu-icon"></i><span>Pengaturan</span></a></li>
-                        </ul>
-                    </li>
-                    @endhasrole
                 </ul>
             </div>
         </div>
