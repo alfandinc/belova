@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 use App\Models\ERM\Supplier;
+use App\Models\Satusehat\ObatKfa;
 
 class Obat extends Model
 {
@@ -93,6 +94,14 @@ class Obat extends Model
     public function metodeBayar()
     {
         return $this->belongsTo(MetodeBayar::class, 'metode_bayar_id');
+    }
+
+    /**
+     * KFA mapping (one-to-one)
+     */
+    public function kfa()
+    {
+        return $this->hasOne(ObatKfa::class, 'obat_id');
     }
 
         /**

@@ -4,7 +4,7 @@
     @include('layouts.satusehat.navbar')
 @endsection
 
-@section('title', 'SatuSehat Dashboard')
+@section('title', 'SatuSehat - Klinik Configs')
 
 @section('content')
     <div class="container-fluid">

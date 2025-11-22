@@ -47,6 +47,12 @@
                     </li>
                     @endhasanyrole
 
+                    @hasanyrole('Satusehat|Admin|Pendaftaran|Farmasi|Beautician|Lab|Finance|Dokter|Perawat')
+                    <li>
+                        <a href="/erm/obat-kfa"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat KFA Mapping</span></a>
+                    </li>
+                    @endhasanyrole
+
 
                 </ul>
             </div>

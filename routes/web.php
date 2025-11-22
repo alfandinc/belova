@@ -1638,3 +1638,10 @@ Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Adm
     // AJAX: get dokter info (klinik) to adjust form fields in create/edit modal
     Route::get('/dokter/{id}', [\App\Http\Controllers\HRD\PrSlipGajiDokterController::class, 'dokterInfo']);
 });
+
+// Obat KFA mapping (index + AJAX endpoints)
+Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance')->group(function () {
+    Route::get('/obat-kfa', [\App\Http\Controllers\ERM\ObatKfaController::class, 'index'])->name('erm.obat_kfa.index');
+    Route::match(['get','post'], '/obat-kfa/data', [\App\Http\Controllers\ERM\ObatKfaController::class, 'data'])->name('erm.obat_kfa.data');
+    Route::post('/obat-kfa', [\App\Http\Controllers\ERM\ObatKfaController::class, 'store'])->name('erm.obat_kfa.store');
+});
