@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Jobs\SendVisitationWhatsAppNotification;
 use App\Services\WhatsAppService;
 
@@ -208,15 +209,15 @@ class VisitationController extends Controller
     public function storeRujuk(Request $request)
     {
         $request->validate([
-            'pasien_id' => 'required',
-            'dokter_id' => 'required', // dokter tujuan
-            // allow dokter_pengirim_id to be nullable: we'll default it to the current user's Dokter if missing
-            'dokter_pengirim_id' => 'nullable',
-            'tanggal_visitation' => 'required',
-            'metode_bayar_id' => 'nullable',
+            'pasien_id' => 'required|exists:erm_pasiens,id',
+            'dokter_id' => 'required|exists:erm_dokters,id', // dokter tujuan
+            // allow dokter_pengirim_id to be nullable: but if present ensure it exists
+            'dokter_pengirim_id' => 'nullable|exists:erm_dokters,id',
+            'tanggal_visitation' => 'required|date',
+            'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             // klinik_id will be derived from selected dokter
             'jenis_permintaan' => 'nullable',
-            'no_antrian' => 'nullable',
+            'no_antrian' => 'nullable|integer',
         ]);
 
         // Create visitation similar to store()
@@ -260,40 +261,58 @@ class VisitationController extends Controller
             }
         }
 
-        Visitation::create([
-            'id' => $customId,
-            'pasien_id' => $request->pasien_id,
-            'dokter_id' => $request->dokter_id,
-            'tanggal_visitation' => $request->tanggal_visitation,
-            'waktu_kunjungan' => $request->waktu_kunjungan ?? null,
-            'no_antrian' => $noAntrian,
-            'metode_bayar_id' => $request->metode_bayar_id,
-            'klinik_id' => $klinikId,
-            'status_kunjungan' => 0,
-            'jenis_kunjungan' => 1,
-            'user_id' => Auth::id(),
-        ]);
+        // Wrap creation in a transaction to ensure DB integrity and return clear errors
+        try {
+            DB::beginTransaction();
 
-        // create resep detail
-        $noResep = 'RSP' . $customId;
-        \App\Models\ERM\ResepDetail::create([
-            'visitation_id' => $customId,
-            'no_resep' => $noResep,
-            'catatan_dokter' => null,
-        ]);
+            Visitation::create([
+                'id' => $customId,
+                'pasien_id' => $request->pasien_id,
+                'dokter_id' => $request->dokter_id,
+                'tanggal_visitation' => $request->tanggal_visitation,
+                'waktu_kunjungan' => $request->waktu_kunjungan ?? null,
+                'no_antrian' => $noAntrian,
+                'metode_bayar_id' => $request->metode_bayar_id,
+                'klinik_id' => $klinikId,
+                'status_kunjungan' => 0,
+                'jenis_kunjungan' => 1,
+                'user_id' => Auth::id(),
+            ]);
 
-        // Create rujuk record
-        \App\Models\ERM\Rujuk::create([
-            'pasien_id' => $request->pasien_id,
-            'dokter_pengirim_id' => $dokterPengirimId,
-            'dokter_tujuan_id' => $request->dokter_id,
-            'jenis_permintaan' => $request->jenis_permintaan,
-            'keterangan' => $request->keterangan ?? null,
-            'penunjang' => $request->penunjang ?? null,
-            'visitation_id' => $customId,
-        ]);
+            // create resep detail
+            $noResep = 'RSP' . $customId;
+            \App\Models\ERM\ResepDetail::create([
+                'visitation_id' => $customId,
+                'no_resep' => $noResep,
+                'catatan_dokter' => null,
+            ]);
 
-        return response()->json(['success' => true, 'message' => 'Rujuk and visitation created successfully.']);
+            // Create rujuk record
+            \App\Models\ERM\Rujuk::create([
+                'pasien_id' => $request->pasien_id,
+                'dokter_pengirim_id' => $dokterPengirimId,
+                'dokter_tujuan_id' => $request->dokter_id,
+                'jenis_permintaan' => $request->jenis_permintaan,
+                'keterangan' => $request->keterangan ?? null,
+                'penunjang' => $request->penunjang ?? null,
+                'visitation_id' => $customId,
+            ]);
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => 'Rujuk and visitation created successfully.']);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            DB::rollBack();
+            Log::warning('Validation failed when creating rujuk', ['error' => $ve->getMessage(), 'request' => $request->all()]);
+            throw $ve; // let framework handle returning 422 with errors
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating rujuk/visitation: ' . $e->getMessage(), ['exception' => $e]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Server error while creating rujuk: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

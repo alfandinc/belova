@@ -200,16 +200,34 @@ $(document).ready(function () {
                 });
             },
             error: function (xhr) {
-                let msg = 'Terjadi kesalahan. Pastikan semua data valid.';
-                if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.message) {
+              // Prefer to show detailed validation messages when available
+              let msg = 'Terjadi kesalahan. Pastikan semua data valid.';
+              try {
+                if (xhr.status === 422 && xhr.responseJSON) {
+                  // Laravel validation responses include `errors` object
+                  if (xhr.responseJSON.errors) {
+                    const errs = xhr.responseJSON.errors;
+                    // flatten errors into one message string
+                    msg = Object.values(errs).map(e => e.join(' ')).join('\n');
+                  } else if (xhr.responseJSON.message) {
                     msg = xhr.responseJSON.message;
+                  }
+                } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                  msg = xhr.responseJSON.message;
+                } else if (xhr.responseText) {
+                  // fallback to raw response text for unexpected errors
+                  msg = xhr.responseText.substring(0, 1000);
                 }
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Gagal',
-                    text: msg,
-                    confirmButtonText: 'OK'
-                });
+              } catch (err) {
+                // ignore parsing errors and use generic message
+              }
+
+              Swal.fire({
+                icon: 'error',
+                title: 'Gagal',
+                text: msg,
+                confirmButtonText: 'OK'
+              });
             }
         });
     });
