@@ -6,65 +6,60 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4>Job List</h4>
-        <div>
-            <button id="btnAddJob" class="btn btn-primary">Tambah Job</button>
-            <div class="d-inline-block ml-2">
-                <select id="filter_status" class="form-control">
-                    <option value="">Semua Status</option>
-                    <option value="progress" selected>On Going</option>
-                    <option value="done">Done</option>
-                    <option value="canceled">Canceled</option>
-                </select>
+    <div class="d-flex align-items-center mb-3">
+        <h3 class="mb-0"><strong>JOB LIST</strong></h3>
+        <div class="ml-3 d-flex align-items-center flex-fill"></div>
+        <div class="ml-3">
+            <div class="d-flex justify-content-end">
+                <div>
+                    <button id="btnAddJob" class="btn btn-primary">Tambah Job</button>
+                </div>
             </div>
-            <div class="d-inline-block ml-2">
-                @php
-                    $user = Auth::user();
-                    $isManager = $user && $user->hasRole('Manager');
-                    // Treat Admin and Hrd the same as Ceo for filter/default behavior
-                    $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']);
-                    $isEmployeeOnly = $user && !$isManager && !$isGlobalRole; // treat as non-manager employee
-                    // Determine default selection:
-                    // - Manager: show all (empty)
-                    // - Employee (non-manager): locked to Non-Manager (0)
-                    // - Ceo: default to Manager Only (1) but editable
-                    $defaultForManager = '';
-                    if ($isEmployeeOnly) $defaultForManager = '0';
-                    if ($isGlobalRole) $defaultForManager = '1';
-                @endphp
-                <select id="filter_for_manager" class="form-control" @if($isEmployeeOnly) disabled title="Locked to Non-Manager" @endif>
-                    <option value="" @if($defaultForManager === '') selected @endif>Semua (Manager/Non-Manager)</option>
-                    <option value="1" @if($defaultForManager === '1') selected @endif>For Manager Only</option>
-                    <option value="0" @if($defaultForManager === '0') selected @endif>Non-Manager Only</option>
-                </select>
-            </div>
-            <div class="d-inline-block ml-2">
-                @php
-                    $user = Auth::user();
-                    $userDivisionId = optional($user->employee)->division_id;
-                    $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']);
-                @endphp
-                @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
-                    <select id="filter_division" class="form-control">
-                        <option value="" @if($isGlobalRole) selected @endif>Semua Division</option>
-                        @foreach($divisions as $d)
-                            <option value="{{ $d->id }}" @if(!$isGlobalRole && $d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
-                        @endforeach
-                    </select>
-                @else
-                    {{-- Non-privileged users: lock to their division --}}
-                    <select id="filter_division" class="form-control" disabled title="Division locked">
-                        @if($userDivisionId)
-                            @php $current = $divisions->firstWhere('id', $userDivisionId); @endphp
-                            <option value="{{ $userDivisionId }}">{{ $current?->name ?? 'Division' }}</option>
+            <div class="d-flex justify-content-end mt-2">
+                <div class="form-inline">
+                    <div class="form-check mr-3">
+                        <input class="form-check-input" type="checkbox" id="filter_hide_done" checked />
+                        <label class="form-check-label small ml-2" for="filter_hide_done">SEMBUNYIKAN DONE</label>
+                    </div>
+                    <div class="mr-3">
+                        @php
+                            $user = Auth::user();
+                            $isManager = $user && $user->hasRole('Manager');
+                            $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']);
+                            $isEmployeeOnly = $user && !$isManager && !$isGlobalRole;
+                            $defaultForManager = '';
+                            if ($isEmployeeOnly) $defaultForManager = '0';
+                            if ($isGlobalRole) $defaultForManager = '1';
+                        @endphp
+                        <select id="filter_for_manager" class="form-control form-control-sm" @if($isEmployeeOnly) disabled title="Locked to Non-Manager" @endif>
+                            <option value="" @if($defaultForManager === '') selected @endif>For Manager Only</option>
+                            <option value="1" @if($defaultForManager === '1') selected @endif>For Manager Only</option>
+                            <option value="0" @if($defaultForManager === '0') selected @endif>Non-Manager Only</option>
+                        </select>
+                    </div>
+                    <div>
+                        @php $user = Auth::user(); $userDivisionId = optional($user->employee)->division_id; $isGlobalRole = $user && $user->hasAnyRole(['Ceo','Admin','Hrd']); @endphp
+                        @if($user && $user->hasAnyRole(['Hrd','Admin','Manager','Ceo']))
+                            <select id="filter_division" class="form-control form-control-sm">
+                                <option value="" @if($isGlobalRole) selected @endif>Semua Division</option>
+                                @foreach($divisions as $d)
+                                    <option value="{{ $d->id }}" @if(!$isGlobalRole && $d->id == $userDivisionId) selected @endif>{{ $d->name }}</option>
+                                @endforeach
+                            </select>
                         @else
-                            <option value="">- Tidak ada Division -</option>
+                            <select id="filter_division" class="form-control form-control-sm" disabled title="Division locked">
+                                @if($userDivisionId)
+                                    @php $current = $divisions->firstWhere('id', $userDivisionId); @endphp
+                                    <option value="{{ $userDivisionId }}">{{ $current?->name ?? 'Division' }}</option>
+                                @else
+                                    <option value="">- Tidak ada Division -</option>
+                                @endif
+                            </select>
                         @endif
-                    </select>
-                @endif
+                    </div>
+                </div>
             </div>
-            
+            </div>
         </div>
     </div>
 
@@ -77,8 +72,8 @@
                 <th>Priority</th>
                 <th>Status</th>
                 <th>Due Date</th>
+                <th>Catatan</th>
                 <th>Creator</th>
-                <th>Updated By</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -117,7 +112,8 @@
                 <div class="form-group col-md-6">
                     <label>Status</label>
                     <select name="status" id="status" class="form-control">
-                        <option value="progress" selected>Progress</option>
+                        <option value="delegated" selected>Delegated</option>
+                        <option value="progress">Progress</option>
                         <option value="done">Done</option>
                         <option value="canceled">Canceled</option>
                     </select>
@@ -199,6 +195,8 @@
                 <div class="form-group">
                     <label>Pilih file (maks 10MB masing-masing)</label>
                     <input type="file" id="upload-doc-input" class="form-control-file" multiple />
+                    <small class="form-text text-muted">Anda dapat menempelkan (paste) gambar langsung ke modal menggunakan Ctrl+V / Paste.</small>
+                    <div id="upload-previews" class="mt-2 d-flex flex-wrap"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -208,6 +206,44 @@
         </div>
     </div>
 </div>
+
+            <!-- View Job Modal -->
+            <div class="modal fade" id="viewJobModal" tabindex="-1" role="dialog">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="viewJobTitle">Judul</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="viewJobDescription" style="white-space:pre-wrap;"></div>
+
+                            <div id="viewNotesSection" class="mt-3">
+                                <label>Catatan</label>
+                                <textarea id="view-notes" class="form-control" rows="4" placeholder="Tambahkan catatan..."></textarea>
+                            </div>
+
+                            <div id="viewJobDocuments" class="mt-3">
+                                <!-- Documents will be populated here -->
+                            </div>
+
+                            <div id="viewUploadSection" class="mt-3">
+                                <label>Unggah Bukti (maks 10MB masing-masing)</label>
+                                <input type="file" id="view-upload-input" class="form-control-file" multiple />
+                                <small class="form-text text-muted">Pilih file untuk menambahkan bukti ke job ini.</small>
+                                <div id="view-upload-previews" class="mt-2 d-flex flex-wrap"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                            <button type="button" class="btn btn-success mr-2" id="viewSaveNotesBtn">Simpan Catatan</button>
+                            <button type="button" class="btn btn-primary" id="viewUploadBtn">Unggah</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
 @endsection
 
@@ -276,6 +312,7 @@ $(function(){
             data: function(d) {
                 d.status = $('#filter_status').val();
                 d.division_id = $('#filter_division').val();
+                    d.hide_done = $('#filter_hide_done').length ? ($('#filter_hide_done').is(':checked') ? 1 : 0) : 0;
                 // send for_manager filter: '' => all, '1' => only manager items, '0' => non-manager items
                 d.for_manager = $('#filter_for_manager').length ? $('#filter_for_manager').val() : '';
             }
@@ -290,11 +327,29 @@ $(function(){
             { data: 'priority_badge', name: 'priority', orderable: true, searchable: true },
             { data: 'status_control', name: 'status', orderable: true, searchable: true },
             { data: 'due_date_display', name: 'due_date', orderable: true, searchable: false },
+            { data: 'notes', name: 'notes', orderable: false, searchable: true, render: function(data, type, row){
+                    if (!data) return '';
+                    try {
+                        var display = data.length > 120 ? data.substring(0,120) + '...' : data;
+                        var displayEsc = $('<div/>').text(display).html();
+                        var titleEsc = $('<div/>').text(data).html();
+                        return '<div title="' + titleEsc + '">' + displayEsc + '</div>';
+                    } catch(e) {
+                        return $('<div/>').text(data).html();
+                    }
+                }
+            },
             { data: 'creator_name', name: 'creator.name' },
-            { data: 'updater_name', name: 'updater.name' },
             { data: 'actions', name: 'actions', orderable:false, searchable:false }
         ]
     });
+
+    // pending completion state: when a job is to be marked done but requires upload first
+    var pendingCompleteJobId = null;
+    var pendingCompleteSelectElem = null;
+    var pendingCompleteOrig = null;
+    // fallback store for pasted files when browser doesn't allow setting input.files
+    var pastedFiles = [];
 
     // Show/hide documents section when status == 'done'
     function toggleDocumentsSection() {
@@ -346,6 +401,9 @@ $(function(){
 
     // reload table when filter changes
     $('#filter_status').on('change', function(){
+        table.ajax.reload();
+    });
+    $('#filter_hide_done').on('change', function(){
         table.ajax.reload();
     });
     $('#filter_division').on('change', function(){
@@ -548,6 +606,89 @@ $(function(){
         });
     });
 
+    // Mark as read (Dibaca)
+    $('#joblist-table').on('click', '.btn-dibaca', function(){
+        var id = $(this).data('id');
+        $.ajax({
+            url: '/hrd/joblist/' + id + '/dibaca',
+            method: 'POST',
+            success: function(res){
+                if (res.success) {
+                    table.ajax.reload(null, false);
+                    Swal.fire({icon:'success', title:'Tercatat sebagai dibaca'});
+                } else {
+                    Swal.fire({icon:'error', text:'Gagal mencatat pembacaan'});
+                }
+            },
+            error: function(){
+                Swal.fire({icon:'error', text:'Terjadi kesalahan'});
+            }
+        });
+    });
+
+    // View (Lihat) - show title and description in modal
+    $('#joblist-table').on('click', '.btn-lihat', function(){
+        var id = $(this).data('id');
+        $.get('/hrd/joblist/' + id, function(res){
+            if (res && res.data) {
+                var data = res.data;
+                $('#viewJobTitle').text(data.title || '');
+                $('#viewJobDescription').text(data.description || '');
+                // populate notes
+                $('#view-notes').val(data.notes || '');
+                // populate documents
+                function renderDocs(docs) {
+                    var $ct = $('#viewJobDocuments');
+                    $ct.html('');
+                    if (!docs || !docs.length) {
+                        $ct.html('<div class="small text-muted">Tidak ada bukti terunggah.</div>');
+                        return;
+                    }
+                    var list = '<ul class="list-unstyled small">';
+                    docs.forEach(function(p, idx){
+                        var url = (p.indexOf('http') === 0) ? p : ('/hrd/joblist/' + data.id + '/document/' + idx);
+                        var fileName = p.split('/').pop();
+                        list += '<li><a href="'+url+'" target="_blank">' + fileName + '</a></li>';
+                    });
+                    list += '</ul>';
+                    $ct.html(list);
+                }
+                renderDocs(data.documents || []);
+                // clear upload input and previews
+                $('#view-upload-input').val('');
+                $('#view-upload-previews').html('');
+                // store job id on modal for use by upload handler
+                $('#viewJobModal').data('job-id', data.id);
+                $('#viewJobModal').modal('show');
+            } else {
+                Swal.fire({icon:'error', text: 'Gagal memuat data.'});
+            }
+        }).fail(function(){
+            Swal.fire({icon:'error', text: 'Terjadi kesalahan saat memuat data.'});
+        });
+    });
+
+    // Selesai button: require upload first, then mark done
+    $('#joblist-table').on('click', '.btn-selesai', function(){
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Konfirmasi',
+            text: 'Selesaikan tugas ini? Anda akan diminta mengunggah bukti terlebih dahulu.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Unggah Bukti'
+        }).then(function(result){
+            if (!result.value) return;
+            // Set pending complete and open upload modal. The upload handler will mark status done after successful upload.
+            pendingCompleteJobId = id;
+            pendingCompleteSelectElem = null;
+            pendingCompleteOrig = null;
+            $('#upload-doc-job-id').val(id);
+            $('#upload-doc-input').val('');
+            $('#uploadDocumentsModal').modal('show');
+        });
+    });
+
     // Click badge to edit: swap badge -> select
     $(document).on('click', '.status-inline-badge', function(){
         var $badge = $(this);
@@ -583,16 +724,30 @@ $(function(){
         var label = status.charAt(0).toUpperCase() + status.slice(1);
         if (status === 'done') cls = 'badge-success';
         if (status === 'canceled') cls = 'badge-danger';
-        if (status === 'progress') cls = 'badge-info';
+        // progress should be warning (yellow)
+        if (status === 'progress') cls = 'badge-warning';
+        // delegated should use info (blue)
+        if (status === 'delegated') cls = 'badge-info';
         return { cls: cls, label: label };
     }
 
-    // On change -> send inline update and update badge in-place
+    // On change -> for non-done statuses send inline update; for 'done' open upload modal first
     $(document).on('change', '.job-status-select', function(){
         var $select = $(this);
         var id = $select.data('id');
         var newStatus = $select.val();
         var orig = $select.data('original');
+        if (newStatus === 'done') {
+            // open upload modal first; mark pending so upload handler will complete the status
+            pendingCompleteJobId = id;
+            pendingCompleteSelectElem = $select;
+            pendingCompleteOrig = orig;
+            $('#upload-doc-job-id').val(id);
+            $('#upload-doc-input').val('');
+            $('#uploadDocumentsModal').modal('show');
+            return;
+        }
+        // fallback: immediate update for other statuses
         $.ajax({
             url: '/hrd/joblist/' + id + '/inline-update',
             method: 'POST',
@@ -606,13 +761,6 @@ $(function(){
                     $select.hide();
                     $badge.show();
                     Swal.fire({icon: 'success', title: 'Status diperbarui'});
-                    // If changed to done, optionally prompt for document upload
-                    if (newStatus === 'done') {
-                        // open upload modal and set job id
-                        $('#upload-doc-job-id').val(id);
-                        $('#upload-doc-input').val('');
-                        $('#uploadDocumentsModal').modal('show');
-                    }
                 } else {
                     $select.val(orig);
                     $select.hide();
@@ -636,9 +784,158 @@ $(function(){
     // Upload documents modal handler
     $(document).on('click', '#uploadDocBtn', function(){
         var id = $('#upload-doc-job-id').val();
-        var files = $('#upload-doc-input')[0] ? $('#upload-doc-input')[0].files : null;
-        if (!files || !files.length) {
+        // combine files from input.files and pastedFiles fallback
+        var inputEl = $('#upload-doc-input')[0];
+        var inputFiles = inputEl ? inputEl.files : null;
+        var totalFilesCount = (inputFiles ? inputFiles.length : 0) + (pastedFiles ? pastedFiles.length : 0);
+        if (!totalFilesCount) {
             Swal.fire({icon:'warning', text: 'Pilih file terlebih dahulu'});
+            return;
+        }
+        var fd = new FormData();
+        if (inputFiles && inputFiles.length) {
+            for (var i=0;i<inputFiles.length;i++) fd.append('dokumen[]', inputFiles[i]);
+        }
+        if (pastedFiles && pastedFiles.length) {
+            for (var j=0;j<pastedFiles.length;j++) fd.append('dokumen[]', pastedFiles[j]);
+        }
+        $.ajax({
+            url: '/hrd/joblist/' + id + '/upload-documents',
+            method: 'POST',
+            data: fd,
+            cache: false,
+            contentType: false,
+            processData: false,
+            success: function(res){
+                // If this upload was part of a pending 'complete' action, then mark status as done AFTER successful upload
+                if (pendingCompleteJobId && pendingCompleteJobId.toString() === id.toString()) {
+                    // call inline-update to mark done
+                    $.ajax({
+                        url: '/hrd/joblist/' + id + '/inline-update',
+                        method: 'POST',
+                        data: { status: 'done' },
+                        success: function(ir){
+                            $('#uploadDocumentsModal').modal('hide');
+                            pendingCompleteJobId = null;
+                            // clear pastedFiles after successful upload
+                            pastedFiles = [];
+                            // clear input files as well
+                            try { if (inputEl) inputEl.value = null; } catch(e){}
+                            // ensure select shows updated badge if inline-select was used
+                            if (pendingCompleteSelectElem) {
+                                var $sel = pendingCompleteSelectElem;
+                                var info = statusToBadge('done');
+                                var $container = $sel.closest('div');
+                                var $badge = $container.find('.status-inline-badge');
+                                $badge.text(info.label).removeClass('badge-info badge-success badge-danger').addClass(info.cls);
+                                $sel.hide();
+                                $badge.show();
+                                pendingCompleteSelectElem = null;
+                            }
+                            table.ajax.reload(null, false);
+                            Swal.fire({icon:'success', text: 'Tugas ditandai selesai dan dokumen tersimpan.'});
+                        },
+                        error: function(){
+                            Swal.fire({icon:'error', text: 'Gagal menandai tugas sebagai selesai setelah upload.'});
+                        }
+                    });
+                } else {
+                    // normal upload flow
+                    $('#uploadDocumentsModal').modal('hide');
+                    // clear pastedFiles and previews
+                    pastedFiles = [];
+                    $('#upload-previews').html('');
+                    table.ajax.reload(null, false);
+                    Swal.fire({icon:'success', text: 'Dokumen berhasil diunggah'});
+                }
+            },
+            error: function(xhr){
+                var msg = 'Terjadi kesalahan';
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    msg = Object.values(xhr.responseJSON.errors).map(function(v){ return v.join(', '); }).join('\n');
+                }
+                Swal.fire({icon:'error', text: msg});
+            }
+        });
+    });
+
+    // Paste-to-upload: when modal open, listen for paste events and accept image(s)
+    $('#uploadDocumentsModal').on('shown.bs.modal', function(){
+        // clear previews when opening
+        $('#upload-previews').html('');
+    });
+
+    $('#uploadDocumentsModal').on('paste', function(e){
+        var clipboard = (e.originalEvent || e).clipboardData;
+        if (!clipboard) return;
+        var items = clipboard.items || [];
+        var filesToAdd = [];
+        for (var i=0;i<items.length;i++) {
+            var it = items[i];
+            if (it.kind === 'file' && it.type.indexOf('image/') === 0) {
+                var f = it.getAsFile();
+                if (f) filesToAdd.push(f);
+            }
+        }
+        if (!filesToAdd.length) return;
+        // Attempt to merge with existing input.files using DataTransfer. If not supported
+        // we store pasted files in `pastedFiles` so they are included during upload.
+        var dtSupported = true;
+        try {
+            var dt = new DataTransfer();
+            var currentFiles = $('#upload-doc-input')[0].files;
+            for (var k=0;k<currentFiles.length;k++) dt.items.add(currentFiles[k]);
+            filesToAdd.forEach(function(ff){ dt.items.add(ff); });
+            // try to assign; may throw in some browsers
+            $('#upload-doc-input')[0].files = dt.files;
+        } catch (ex) {
+            dtSupported = false;
+            // push into fallback array
+            filesToAdd.forEach(function(ff){ pastedFiles.push(ff); });
+        }
+
+        // create previews for filesToAdd
+        filesToAdd.forEach(function(ff){
+            try {
+                var url = URL.createObjectURL(ff);
+                var $img = $('<div class="mr-2 mb-2" style="width:96px;height:64px;overflow:hidden;border:1px solid #e9ecef;border-radius:4px;"></div>');
+                var $i = $('<img />').attr('src', url).css({width:'100%',height:'100%',objectFit:'cover'});
+                $img.append($i);
+                $('#upload-previews').append($img);
+            } catch(e){ /* ignore preview errors */ }
+        });
+        if (dtSupported) {
+            toastr && toastr.info && toastr.info('Gambar ditempel dan ditambahkan ke file input');
+        } else {
+            // Inform the user gently: paste accepted but will be uploaded via fallback
+            toastr && toastr.info ? toastr.info('Gambar ditempel (fallback) — akan terunggah saat Anda klik Unggah') : null;
+        }
+    });
+
+    // Preview files selected in the view modal upload input
+    $(document).on('change', '#view-upload-input', function(){
+        var files = this.files || [];
+        var $pre = $('#view-upload-previews');
+        $pre.html('');
+        for (var i=0;i<files.length;i++) {
+            try {
+                var url = URL.createObjectURL(files[i]);
+                var $img = $('<div class="mr-2 mb-2" style="width:96px;height:64px;overflow:hidden;border:1px solid #e9ecef;border-radius:4px;"></div>');
+                var $i = $('<img />').attr('src', url).css({width:'100%',height:'100%',objectFit:'cover'});
+                $img.append($i);
+                $pre.append($img);
+            } catch(e) { /* ignore */ }
+        }
+    });
+
+    // Upload from view modal
+    $(document).on('click', '#viewUploadBtn', function(){
+        var id = $('#viewJobModal').data('job-id');
+        if (!id) { Swal.fire({icon:'error', text:'Job ID tidak ditemukan.'}); return; }
+        var input = $('#view-upload-input')[0];
+        var files = input ? input.files : null;
+        if (!files || !files.length) {
+            Swal.fire({icon:'warning', text:'Pilih file terlebih dahulu.'});
             return;
         }
         var fd = new FormData();
@@ -651,18 +948,87 @@ $(function(){
             contentType: false,
             processData: false,
             success: function(res){
-                $('#uploadDocumentsModal').modal('hide');
-                table.ajax.reload(null, false);
-                Swal.fire({icon:'success', text: 'Dokumen berhasil diunggah'});
+                // reload documents list by fetching job
+                $.get('/hrd/joblist/' + id, function(r){
+                    if (r && r.data) {
+                        var docs = r.data.documents || [];
+                        var $ct = $('#viewJobDocuments');
+                        if (!docs.length) {
+                            $ct.html('<div class="small text-muted">Tidak ada bukti terunggah.</div>');
+                        } else {
+                            var list = '<ul class="list-unstyled small">';
+                            docs.forEach(function(p, idx){
+                                var url = (p.indexOf('http') === 0) ? p : ('/hrd/joblist/' + id + '/document/' + idx);
+                                var fileName = p.split('/').pop();
+                                list += '<li><a href="'+url+'" target="_blank">' + fileName + '</a></li>';
+                            });
+                            list += '</ul>';
+                            $ct.html(list);
+                        }
+                        $('#view-upload-input').val('');
+                        $('#view-upload-previews').html('');
+                        table.ajax.reload(null, false);
+                        Swal.fire({icon:'success', text:'Dokumen berhasil diunggah.'});
+                    }
+                }).fail(function(){
+                    Swal.fire({icon:'success', text:'Dokumen berhasil diunggah.'});
+                    table.ajax.reload(null, false);
+                });
             },
             error: function(xhr){
-                var msg = 'Terjadi kesalahan';
+                var msg = 'Terjadi kesalahan saat mengunggah';
                 if (xhr.responseJSON && xhr.responseJSON.errors) {
                     msg = Object.values(xhr.responseJSON.errors).map(function(v){ return v.join(', '); }).join('\n');
                 }
                 Swal.fire({icon:'error', text: msg});
             }
         });
+    });
+
+    // Save notes from view modal
+    $(document).on('click', '#viewSaveNotesBtn', function(){
+        var id = $('#viewJobModal').data('job-id');
+        if (!id) { Swal.fire({icon:'error', text:'Job ID tidak ditemukan.'}); return; }
+        var notes = $('#view-notes').val();
+        $.ajax({
+            url: '/hrd/joblist/' + id + '/notes',
+            method: 'POST',
+            data: { notes: notes },
+            success: function(res){
+                if (res && res.success) {
+                    table.ajax.reload(null, false);
+                    Swal.fire({icon:'success', text:'Catatan berhasil disimpan.'});
+                } else {
+                    Swal.fire({icon:'error', text:'Gagal menyimpan catatan.'});
+                }
+            },
+            error: function(xhr){
+                var msg = 'Terjadi kesalahan saat menyimpan catatan';
+                if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    msg = Object.values(xhr.responseJSON.errors).map(function(v){ return v.join(', '); }).join('\n');
+                }
+                Swal.fire({icon:'error', text: msg});
+            }
+        });
+    });
+
+    // If modal is closed without uploading while a completion was pending, revert select and clear pending
+    $('#uploadDocumentsModal').on('hidden.bs.modal', function(){
+        if (pendingCompleteJobId) {
+            // revert inline select to original value if present
+            if (pendingCompleteSelectElem) {
+                var $sel = pendingCompleteSelectElem;
+                $sel.val(pendingCompleteOrig);
+                $sel.hide();
+                $sel.closest('div').find('.status-inline-badge').show();
+                pendingCompleteSelectElem = null;
+            }
+            pendingCompleteJobId = null;
+            pendingCompleteOrig = null;
+        }
+        // clear pastedFiles and previews when modal closed
+        pastedFiles = [];
+        $('#upload-previews').html('');
     });
 
     // If user clicks away without changing, hide select and show badge

@@ -12,13 +12,14 @@ class JobList extends Model
     protected $table = 'hrd_joblists';
 
     protected $fillable = [
-        'title', 'description', 'status', 'priority', 'division_id', 'due_date', 'created_by', 'updated_by', 'for_manager', 'documents'
+        'title', 'description', 'notes', 'status', 'priority', 'division_id', 'due_date', 'created_by', 'updated_by', 'for_manager', 'documents', 'dibaca_by', 'dibaca_at'
     ];
 
     protected $casts = [
         'all_divisions' => 'boolean',
         'for_manager' => 'boolean',
         'documents' => 'array',
+        'dibaca_at' => 'datetime',
     ];
 
     public function division()
@@ -72,5 +73,13 @@ class JobList extends Model
     public function updater()
     {
         return $this->belongsTo(\App\Models\User::class, 'updated_by');
+    }
+
+    /**
+     * User who marked the job as read
+     */
+    public function dibacaBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'dibaca_by');
     }
 }

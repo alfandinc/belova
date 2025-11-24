@@ -30,7 +30,7 @@ class JobListController extends Controller
 
     public function data(Request $request)
     {
-        $query = JobList::with(['division', 'divisions', 'creator', 'updater'])->select('hrd_joblists.*');
+        $query = JobList::with(['division', 'divisions', 'creator', 'updater', 'dibacaBy'])->select('hrd_joblists.*');
         // Restrict visibility based on user role:
         // - Users with roles Hrd, Admin, Manager see all records
         // - Users with role Employee only see records from their division
@@ -85,11 +85,16 @@ class JobListController extends Controller
                 // ignore malformed dates
             }
         }
-        // apply status filter if provided and valid
+        // apply status filter if provided and valid. If no explicit status is chosen,
+        // honor the `hide_done` flag to show only delegated/progress when requested.
         $status = $request->get('status');
-        $validStatuses = ['progress','done','canceled'];
+        $hideDone = $request->get('hide_done');
+        $validStatuses = ['progress','done','canceled','delegated'];
         if ($status && in_array($status, $validStatuses)) {
             $query->where('status', $status);
+        } elseif ($hideDone) {
+            // when hide_done is truthy and no explicit status filter set, show delegated + progress
+            $query->whereIn('status', ['delegated', 'progress']);
         }
         // apply division filter if provided (should include all_divisions and pivot)
         $division = $request->get('division_id');
@@ -145,15 +150,20 @@ class JobListController extends Controller
                     case 'canceled':
                         $class = 'badge-danger';
                         break;
+                    // delegated should be info (blue)
+                    case 'delegated':
+                        $class = 'badge-info';
+                        break;
+                    // progress should be warning (yellow)
                     case 'progress':
                     default:
-                        $class = 'badge-info';
+                        $class = 'badge-warning';
                 }
                 return '<span class="badge ' . $class . '">' . $label . '</span>';
             })
             ->addColumn('status_control', function ($row) {
                 $status = $row->status;
-                $opts = ['progress' => 'Progress', 'done' => 'Done', 'canceled' => 'Canceled'];
+                $opts = ['delegated' => 'Delegated', 'progress' => 'Progress', 'done' => 'Done', 'canceled' => 'Canceled'];
                 // badge class mapping
                 switch ($status) {
                     case 'done':
@@ -162,13 +172,21 @@ class JobListController extends Controller
                     case 'canceled':
                         $badgeClass = 'badge-danger';
                         break;
+                    // delegated should be info (blue)
+                    case 'delegated':
+                        $badgeClass = 'badge-info';
+                        break;
+                    // progress should be warning (yellow)
                     case 'progress':
                     default:
-                        $badgeClass = 'badge-info';
+                        $badgeClass = 'badge-warning';
                 }
                 $label = ucfirst(str_replace('_', ' ', $status));
 
-                $html = '<div class="d-flex align-items-center">';
+                // container - keep the badge and select in a horizontal row,
+                // and place the "dibaca" info in a block below the row
+                $html = '<div>';
+                $html .= '<div class="d-flex align-items-center">';
                 $html .= '<span class="badge ' . $badgeClass . ' mr-2 status-inline-badge">' . $label . '</span>';
                 // hide select initially; badge is shown. Clicking badge will reveal select.
                 $html .= '<select style="display:none; min-width:120px;" class="form-control form-control-sm job-status-select" data-id="' . $row->id . '">';
@@ -177,7 +195,41 @@ class JobListController extends Controller
                     $html .= '<option value="' . $k . '"' . $sel . '>' . $v . '</option>';
                 }
                 $html .= '</select>';
-                $html .= '</div>';
+                $html .= '</div>'; // end d-flex
+                // show contextual small text below the badge
+                if (($row->status ?? '') === 'done') {
+                    // show when the job was completed using updated_at
+                    $when = '';
+                    try {
+                        if ($row->updated_at) {
+                            $when = $row->updated_at->format('d-m-Y H:i');
+                        }
+                    } catch (\Throwable $e) {
+                        $when = (string) ($row->updated_at ?? '');
+                    }
+                    if (!empty($when)) {
+                        $html .= '<div class="mt-1"><small class="text-muted">Selesai pada</small><div><small class="text-muted">' . htmlspecialchars($when) . '</small></div></div>';
+                    }
+                } else {
+                    // default: show who marked it read (dibaca)
+                    if (!empty($row->dibacaBy)) {
+                        $when = '';
+                        try {
+                            if ($row->dibaca_at) {
+                                $when = $row->dibaca_at->format('d-m-Y H:i');
+                            }
+                        } catch (\Throwable $e) {
+                            $when = (string) ($row->dibaca_at ?? '');
+                        }
+                        $html .= '<div class="mt-1">';
+                        $html .= '<small class="text-muted">Dibaca oleh ' . htmlspecialchars($row->dibacaBy->name) . '</small>';
+                        if (!empty($when)) {
+                            $html .= '<div><small class="text-muted">' . htmlspecialchars($when) . '</small></div>';
+                        }
+                        $html .= '</div>';
+                    }
+                }
+                $html .= '</div>'; // wrapper
                 return $html;
             })
             ->addColumn('priority_badge', function ($row) {
@@ -243,12 +295,26 @@ class JobListController extends Controller
     {
         $job = JobList::findOrFail($id);
         $v = Validator::make($request->all(), [
-            'status' => 'required|string|in:progress,done,canceled',
+            'status' => 'required|string|in:progress,done,canceled,delegated',
         ]);
         if ($v->fails()) {
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
         $job->status = $request->input('status');
+        $job->save();
+        return response()->json(['success' => true, 'data' => $job]);
+    }
+
+    /**
+     * Mark a joblist item as read by the current user
+     */
+    public function markRead(Request $request, $id)
+    {
+        $job = JobList::findOrFail($id);
+        $job->dibaca_by = Auth::id();
+        $job->dibaca_at = now();
+        // When a user marks as read, advance status to 'progress'
+        $job->status = 'progress';
         $job->save();
         return response()->json(['success' => true, 'data' => $job]);
     }
@@ -311,7 +377,7 @@ class JobListController extends Controller
         $v = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'status' => 'nullable|string|in:progress,done,canceled',
+            'status' => 'nullable|string|in:progress,done,canceled,delegated',
             'priority' => 'nullable|string|in:low,normal,important,very_important',
             'division_id' => 'nullable|integer', // legacy single-division support
             'divisions' => 'nullable|array',
@@ -327,7 +393,7 @@ class JobListController extends Controller
 
         $data = $v->validated();
         // apply defaults if not present
-        if (empty($data['status'])) $data['status'] = 'progress';
+        if (empty($data['status'])) $data['status'] = 'delegated';
         if (empty($data['priority'])) $data['priority'] = 'normal';
         $data['created_by'] = Auth::id();
         // handle all_divisions and for_manager flag
@@ -371,13 +437,31 @@ class JobListController extends Controller
         return response()->json(['success' => true, 'data' => $job]);
     }
 
+    /**
+     * Save notes for a joblist entry via AJAX
+     */
+    public function saveNotes(Request $request, $id)
+    {
+        $job = JobList::findOrFail($id);
+        $v = Validator::make($request->all(), [
+            'notes' => 'nullable|string|max:4000',
+        ]);
+        if ($v->fails()) {
+            return response()->json(['success' => false, 'errors' => $v->errors()], 422);
+        }
+        $job->notes = $request->input('notes');
+        $job->updated_by = Auth::id();
+        $job->save();
+        return response()->json(['success' => true, 'data' => $job]);
+    }
+
     public function update(Request $request, $id)
     {
         $job = JobList::findOrFail($id);
         $v = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'status' => 'nullable|string|in:progress,done,canceled',
+            'status' => 'nullable|string|in:progress,done,canceled,delegated',
             'priority' => 'nullable|string|in:low,normal,important,very_important',
             'division_id' => 'nullable|integer', // legacy
             'divisions' => 'nullable|array',
@@ -391,7 +475,7 @@ class JobListController extends Controller
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
         $data = $v->validated();
-        if (empty($data['status'])) $data['status'] = 'progress';
+        if (empty($data['status'])) $data['status'] = 'delegated';
         if (empty($data['priority'])) $data['priority'] = 'normal';
         // handle all_divisions and for_manager
         $data['all_divisions'] = isset($data['all_divisions']) ? (bool)$data['all_divisions'] : false;

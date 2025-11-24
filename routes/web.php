@@ -1182,12 +1182,15 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         // Serve uploaded joblist documents via controller to ensure proper access and avoid webserver forbidden errors
         Route::get('/joblist/{id}/document/{index}', [JobListController::class, 'downloadDocument'])->name('hrd.joblist.document');
         Route::post('/joblist/{id}/upload-documents', [JobListController::class, 'uploadDocuments'])->name('hrd.joblist.upload_documents');
+        Route::post('/joblist/{id}/notes', [JobListController::class, 'saveNotes'])->name('hrd.joblist.save_notes');
         Route::post('/joblist', [JobListController::class, 'store'])->name('hrd.joblist.store');
         Route::get('/joblist/{id}', [JobListController::class, 'show'])->name('hrd.joblist.show');
         Route::post('/joblist/{id}', [JobListController::class, 'update'])->name('hrd.joblist.update');
         // Inline update (used by DataTable inline controls)
         Route::post('/joblist/{id}/inline-update', [JobListController::class, 'inlineUpdate'])->name('hrd.joblist.inline_update');
         Route::delete('/joblist/{id}', [JobListController::class, 'destroy'])->name('hrd.joblist.destroy');
+        // Mark as read (dibaca)
+        Route::post('/joblist/{id}/dibaca', [JobListController::class, 'markRead'])->name('hrd.joblist.mark_read');
 
         Route::prefix('libur')->name('hrd.libur.')->middleware(['auth'])->group(function () {
                 Route::get('/', [PengajuanLiburController::class, 'index'])->name('index');
