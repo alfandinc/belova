@@ -218,7 +218,8 @@
                             </button>
                         </div>
                         <div class="modal-body">
-                            <div id="viewJobDescription" style="white-space:pre-wrap;"></div>
+                            <label class="font-weight-bold">Deskripsi</label>
+                            <div id="viewJobDescription" style="white-space:pre-wrap;" class="mt-1"></div>
 
                             <div id="viewNotesSection" class="mt-3">
                                 <label>Catatan</label>
