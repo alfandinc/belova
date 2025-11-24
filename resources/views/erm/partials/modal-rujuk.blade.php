@@ -2,6 +2,7 @@
 <div class="modal fade" id="modalRujuk" tabindex="-1" role="dialog" aria-labelledby="modalRujuk" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <form id="form-rujuk">
+      @csrf
       <div class="modal-content">
         <div class="modal-header bg-info text-white">
           <h5 class="modal-title" id="modalLabelRujuk">Buat Rujuk / Konsultasi</h5>

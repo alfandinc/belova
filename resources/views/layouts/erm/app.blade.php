@@ -74,6 +74,26 @@
     </div>
     <!-- Scripts -->
     <script src="{{ asset('dastone/default/assets/js/jquery.min.js') }}"></script>
+    <script>
+        // Ensure AJAX requests include Laravel CSRF token
+        (function(){
+            try {
+                var token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                if (window.jQuery) {
+                    window.jQuery.ajaxSetup({
+                        headers: { 'X-CSRF-TOKEN': token }
+                    });
+                }
+                // If axios is used on the page, set its default header too
+                if (window.axios) {
+                    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+                    window.axios.defaults.withCredentials = true;
+                }
+            } catch (e) {
+                // silent fail: page might not have meta tag or libs yet
+            }
+        })();
+    </script>
     <script src="{{ asset('dastone/default/assets/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('dastone/default/assets/js/metismenu.min.js') }}"></script>
     <script src="{{ asset('dastone/default/assets/js/waves.js') }}"></script>

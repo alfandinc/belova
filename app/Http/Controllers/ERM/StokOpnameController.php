@@ -91,18 +91,35 @@ class StokOpnameController extends Controller
             $keterangan = "Temuan stok saat opname";
             if ($catatan) {
                 $keterangan = $catatan;
-            } else {
-                $keterangan .= " - batch: {$item->batch_name}";
             }
-            
+
+            // Determine which batch to add the temuan to.
+            // For aggregated items (batch_id == null) prefer the nearest-expiry existing batch in the gudang.
+            $targetBatch = $item->batch_name;
+            $targetExp = $item->expiration_date;
+
+            if ($item->batch_id === null) {
+                $nearest = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                    ->where('gudang_id', $item->stokOpname->gudang_id)
+                    ->orderByRaw("CASE WHEN expiration_date IS NULL THEN 1 ELSE 0 END, expiration_date ASC")
+                    ->first();
+
+                if ($nearest) {
+                    $targetBatch = $nearest->batch;
+                    $targetExp = $nearest->expiration_date;
+                }
+            }
+
+            // If no nearest found and we still don't have a batch name, keep behavior to pass null (stokService may create new batch)
+
             // Add to actual stock using StokService
             $stokService = app(\App\Services\ERM\StokService::class);
             $stokService->tambahStok(
                 $item->obat_id,
                 $item->stokOpname->gudang_id,
                 $temuan,
-                $item->batch_name, // batch
-                $item->expiration_date, // expDate
+                $targetBatch, // batch to receive temuan
+                $targetExp, // expDate
                 null, // rak
                 null, // lokasi
                 null, // hargaBeli - don't change HPP
