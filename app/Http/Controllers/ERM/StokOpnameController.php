@@ -288,21 +288,49 @@ class StokOpnameController extends Controller
 
         public function itemsData(Request $request, $id)
     {
-        $items = StokOpnameItem::query()
-            ->leftJoin('erm_obat', 'erm_stok_opname_items.obat_id', '=', 'erm_obat.id')
-            ->select(
-                'erm_stok_opname_items.*', 
-                'erm_obat.nama as nama_obat',
-                'erm_obat.hpp_jual as hpp_jual'
-            )
-            ->where('stok_opname_id', $id)
-            ->orderByRaw('ABS(selisih) DESC');
-        
-        return datatables()->of($items)
-            ->filterColumn('nama_obat', function($query, $keyword) {
-                $query->where('erm_obat.nama', 'like', "%$keyword%");
-            })
-            ->make(true);
+            // Use a query builder so Yajra DataTables can perform server-side paging/filtering.
+            $stokOpname = StokOpname::findOrFail($id);
+            $gudangId = (int) $stokOpname->gudang_id;
+
+                // Subquery to aggregate batches into a single string per obat (batch::stok::exp separated by ||)
+                // Use a single-line SQL string to avoid accidental backslash/newline injection issues.
+                $batchSub = "(SELECT GROUP_CONCAT(CONCAT(g.batch, '::', g.stok, '::', IFNULL(DATE_FORMAT(g.expiration_date, '%d/%m/%Y'), '-')) SEPARATOR '||') FROM erm_obat_stok_gudang g WHERE g.obat_id = erm_stok_opname_items.obat_id AND g.gudang_id = {$gudangId} AND g.stok > 0) as batch_list";
+
+            $query = DB::table('erm_stok_opname_items')
+                ->leftJoin('erm_obat', 'erm_stok_opname_items.obat_id', '=', 'erm_obat.id')
+                ->select(
+                    'erm_stok_opname_items.*',
+                    'erm_obat.nama as nama_obat',
+                    'erm_obat.hpp_jual as hpp_jual',
+                    DB::raw($batchSub)
+                )
+                ->where('stok_opname_id', $id)
+                ->orderByRaw('ABS(selisih) DESC');
+
+            return datatables()->of($query)
+                ->addColumn('batch_name', function($row) {
+                    // $row is stdClass from query
+                    if (!empty($row->batch_id)) {
+                        return e($row->batch_name ?: '-');
+                    }
+
+                    if (empty($row->batch_list)) return '-';
+
+                    $parts = [];
+                    $chunks = explode('||', $row->batch_list);
+                    foreach ($chunks as $c) {
+                        if ($c === '') continue;
+                        [$batch, $stok, $exp] = array_pad(explode('::', $c), 3, '-');
+                        $parts[] = '<strong>'.e($batch).'</strong> (' . number_format((float)$stok, 0, ',', '.') . ') <small>' . e($exp) . '</small>';
+                    }
+
+                    return implode('<br>', $parts);
+                })
+                ->filterColumn('nama_obat', function($query, $keyword) {
+                    $query->where('erm_obat.nama', 'like', "%{$keyword}%");
+                })
+                ->rawColumns(['batch_name'])
+                ->make(true);
     }
 
         public function updateItemNotes(Request $request, $itemId)
@@ -364,26 +392,40 @@ class StokOpnameController extends Controller
             
             // Delete existing items for regeneration
             StokOpnameItem::where('stok_opname_id', $stokOpnameId)->delete();
-            
-            // Get all ObatStokGudang for this gudang with stock > 0
+            // New behavior: generate one aggregated item per obat (single row per obat)
+            // but keep batch details available for allocation when applying opname.
             $stokList = \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
                 ->where('stok', '>', 0)
                 ->with('obat')
                 ->orderBy('obat_id')
                 ->orderBy('batch')
                 ->get();
-            
-            foreach ($stokList as $stokGudang) {
+
+            // Group by obat_id and create one StokOpnameItem per obat
+            $grouped = $stokList->groupBy('obat_id');
+            foreach ($grouped as $obatId => $collection) {
+                $totalStok = $collection->sum('stok');
+                // Capture per-batch snapshot so we can allocate against original batch stocks later
+                $snapshot = $collection->map(function($b) {
+                    return [
+                        'id' => $b->id,
+                        'batch' => $b->batch,
+                        'stok' => (float) $b->stok,
+                        'expiration_date' => $b->expiration_date,
+                    ];
+                })->values()->toArray();
+
                 StokOpnameItem::create([
                     'stok_opname_id' => $stokOpnameId,
-                    'obat_id' => $stokGudang->obat_id,
-                    'batch_id' => $stokGudang->id,
-                    'batch_name' => $stokGudang->batch,
-                    'expiration_date' => $stokGudang->expiration_date,
-                    'stok_sistem' => $stokGudang->stok,
-                    'stok_fisik' => 0, // Will be filled during opname process
-                    'selisih' => -$stokGudang->stok, // Initially negative (system - physical)
+                    'obat_id' => $obatId,
+                    'batch_id' => null,
+                    'batch_name' => null,
+                    'expiration_date' => null,
+                    'stok_sistem' => $totalStok,
+                    'stok_fisik' => 0,
+                    'selisih' => -$totalStok,
                     'notes' => null,
+                    'batch_snapshot' => $snapshot,
                 ]);
             }
             
@@ -421,6 +463,164 @@ class StokOpnameController extends Controller
                 ->get();
             
             foreach ($items as $item) {
+                // If the item was generated per-batch we have obatStokGudang relation.
+                // If the item is aggregated per-obat (batch_id == null), distribute the change across batches.
+                if ($item->batch_id === null) {
+                    // Aggregated flow: allocate target total across batches using expiry rules
+                    $batches = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                        ->where('gudang_id', $stokOpname->gudang_id)
+                        ->orderBy('expiration_date', 'desc')
+                        ->get();
+
+                    if ($batches->isEmpty()) continue;
+
+                    $currentTotal = (float) $batches->sum('stok');
+                    $targetTotal = (float) $item->stok_fisik;
+
+                    // Generate stok opname reference number
+                    $opnameRef = "OPNAME-{$stokOpname->periode_bulan}-{$stokOpname->periode_tahun}";
+
+                    if ($targetTotal > $currentTotal) {
+                        // Add stock: explicitly preserve the farthest-expiry batch stock,
+                        // then allocate the remaining difference to the nearest-expiry batch(es).
+                        // Use timestamp-based sorts to be robust with date formats
+                        $farthest = $batches->sortByDesc(function($b) {
+                            return $b->expiration_date ? \Carbon\Carbon::parse($b->expiration_date)->timestamp : 0;
+                        })->first();
+                        $nearest = $batches->sortBy(function($b) {
+                            return $b->expiration_date ? \Carbon\Carbon::parse($b->expiration_date)->timestamp : PHP_INT_MAX;
+                        })->first();
+
+                        // Build allocations map starting from zero, then set preserved farthest stock
+                        $allocations = [];
+                        foreach ($batches as $b) {
+                            $allocations[$b->id] = 0;
+                        }
+
+                        // Prefer deterministic snapshot-based allocation when snapshot exists.
+                        $snapshot = !empty($item->batch_snapshot) && is_array($item->batch_snapshot) ? $item->batch_snapshot : null;
+                        $batchesById = $batches->keyBy('id');
+
+                        if ($snapshot) {
+                            // Sort snapshot by expiration to find farthest and nearest as captured during generation
+                            $snapCollection = collect($snapshot);
+                            $farthestSnap = $snapCollection->sortByDesc(function($s) {
+                                return isset($s['expiration_date']) ? \Carbon\Carbon::parse($s['expiration_date'])->timestamp : 0;
+                            })->first();
+                            $nearestSnap = $snapCollection->sortBy(function($s) {
+                                return isset($s['expiration_date']) ? \Carbon\Carbon::parse($s['expiration_date'])->timestamp : PHP_INT_MAX;
+                            })->first();
+
+                            $farthestId = $farthestSnap['id'] ?? null;
+                            $nearestId = $nearestSnap['id'] ?? null;
+
+                            $preservedStock = 0;
+                            if ($farthestId && isset($farthestSnap['stok'])) {
+                                $preservedStock = (float) $farthestSnap['stok'];
+                            }
+                            $preservedStock = min($preservedStock, $targetTotal);
+
+                            if ($farthestId && isset($allocations[$farthestId])) {
+                                $allocations[$farthestId] = $preservedStock;
+                            }
+
+                            $remaining = $targetTotal - $preservedStock;
+
+                            if ($remaining > 0) {
+                                // allocate remaining to the nearest snapshot batch if available and different
+                                if ($nearestId && $nearestId != $farthestId) {
+                                    $allocations[$nearestId] = ($allocations[$nearestId] ?? 0) + $remaining;
+                                    $remaining = 0;
+                                } else {
+                                    // fallback to applying remaining to any other existing batch (nearest DB)
+                                    $dbNearest = $batches->sortBy(function($b) {
+                                        return $b->expiration_date ? \Carbon\Carbon::parse($b->expiration_date)->timestamp : PHP_INT_MAX;
+                                    })->first();
+                                    if ($dbNearest) {
+                                        $allocations[$dbNearest->id] = ($allocations[$dbNearest->id] ?? 0) + $remaining;
+                                        $remaining = 0;
+                                    }
+                                }
+                            }
+                        } else {
+                            // No snapshot: fallback to DB-based logic (preserve farthest DB batch)
+                            $preservedStock = $farthest ? (float) $farthest->stok : 0;
+                            $preservedStock = min($preservedStock, $targetTotal);
+                            if ($farthest) {
+                                $allocations[$farthest->id] = $preservedStock;
+                            }
+                            $remaining = $targetTotal - $preservedStock;
+                            if ($remaining > 0) {
+                                if ($nearest && $nearest->id != ($farthest->id ?? null)) {
+                                    $allocations[$nearest->id] = ($allocations[$nearest->id] ?? 0) + $remaining;
+                                    $remaining = 0;
+                                } elseif ($farthest) {
+                                    $allocations[$farthest->id] = ($allocations[$farthest->id] ?? 0) + $remaining;
+                                    $remaining = 0;
+                                }
+                            }
+                        }
+
+                        // Apply per-batch adjustments based on allocations
+                        foreach ($batches as $b) {
+                            $allocated = $allocations[$b->id];
+                            $current = (float) $b->stok;
+                            $deltaBatch = $allocated - $current;
+                            if ($deltaBatch > 0) {
+                                $stokService->tambahStok(
+                                    $item->obat_id,
+                                    $stokOpname->gudang_id,
+                                    $deltaBatch,
+                                    $b->batch,
+                                    $b->expiration_date,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    'stok_opname',
+                                    $stokOpname->id,
+                                    "Adjustment Stok Opname {$opnameRef} - Surplus {$deltaBatch} (aggregated)"
+                                );
+                            } elseif ($deltaBatch < 0) {
+                                $qtyToRemove = abs($deltaBatch);
+                                $stokService->kurangiStok(
+                                    $item->obat_id,
+                                    $stokOpname->gudang_id,
+                                    $qtyToRemove,
+                                    $b->batch,
+                                    'stok_opname',
+                                    $stokOpname->id,
+                                    "Adjustment Stok Opname {$opnameRef} - Shortage {$qtyToRemove} (aggregated)"
+                                );
+                            }
+                        }
+
+                    } elseif ($targetTotal < $currentTotal) {
+                        // Remove stock: remove from nearest-expiry batches first
+                        $toRemove = $currentTotal - $targetTotal;
+                        $batchesAsc = $batches->sortBy('expiration_date');
+                        foreach ($batchesAsc as $b) {
+                            if ($toRemove <= 0) break;
+                            $available = (float) $b->stok;
+                            $remQty = min($toRemove, $available);
+                            if ($remQty <= 0) continue;
+                            $stokService->kurangiStok(
+                                $item->obat_id,
+                                $stokOpname->gudang_id,
+                                $remQty,
+                                $b->batch,
+                                'stok_opname',
+                                $stokOpname->id,
+                                "Adjustment Stok Opname {$opnameRef} - Shortage {$remQty} (aggregated)"
+                            );
+                            $toRemove -= $remQty;
+                        }
+                    }
+
+                    $updatedCount++;
+                    continue;
+                }
+
                 if (!$item->obatStokGudang) continue;
 
                 $stokGudang = $item->obatStokGudang;

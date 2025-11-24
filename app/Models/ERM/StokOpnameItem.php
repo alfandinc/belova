@@ -19,6 +19,11 @@ class StokOpnameItem extends Model
         'stok_fisik',
         'selisih',
         'notes',
+        'batch_snapshot',
+    ];
+
+    protected $casts = [
+        'batch_snapshot' => 'array',
     ];
 
     public function stokOpname()
