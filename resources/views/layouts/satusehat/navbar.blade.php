@@ -49,7 +49,10 @@
 
                     @hasanyrole('Satusehat|Admin|Pendaftaran|Farmasi|Beautician|Lab|Finance|Dokter|Perawat')
                     <li>
-                        <a href="/erm/obat-kfa"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat KFA Mapping</span></a>
+                        <a href="/satusehat/obat-kfa"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat KFA Mapping</span></a>
+                    </li>
+                    <li>
+                        <a href="{{ route('satusehat.dokter_mapping.index') }}"><i data-feather="link" class="align-self-center menu-icon"></i><span>Mapping Dokter</span></a>
                     </li>
                     @endhasanyrole
 

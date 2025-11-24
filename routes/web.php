@@ -267,6 +267,13 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
     Route::post('/clinics/{clinicConfig}/token', [\App\Http\Controllers\SatusehatClinicController::class, 'requestToken'])->name('satusehat.clinics.token');
 });
 
+// Dokter Mapping (SatuSehat)
+Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
+    Route::get('/mapping-dokter', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'index'])->name('satusehat.dokter_mapping.index');
+    Route::match(['get','post'], '/mapping-dokter/data', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'data'])->name('satusehat.dokter_mapping.data');
+    Route::post('/mapping-dokter', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'store'])->name('satusehat.dokter_mapping.store');
+});
+
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
     Route::get('/rooms/edit/{id}', [RoomsController::class, 'edit'])->name('bcl.rooms.edit');
@@ -1643,7 +1650,8 @@ Route::prefix('hrd/payroll/slip-gaji-dokter')->middleware(['auth', 'role:Hrd|Adm
 });
 
 // Obat KFA mapping (index + AJAX endpoints)
-Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance')->group(function () {
+// Moved under satusehat prefix so URL becomes `/satusehat/obat-kfa`.
+Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
     Route::get('/obat-kfa', [\App\Http\Controllers\ERM\ObatKfaController::class, 'index'])->name('erm.obat_kfa.index');
     Route::match(['get','post'], '/obat-kfa/data', [\App\Http\Controllers\ERM\ObatKfaController::class, 'data'])->name('erm.obat_kfa.data');
     Route::post('/obat-kfa', [\App\Http\Controllers\ERM\ObatKfaController::class, 'store'])->name('erm.obat_kfa.store');

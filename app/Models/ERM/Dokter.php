@@ -37,4 +37,8 @@ class Dokter extends Model
     {
         return $this->belongsTo(Klinik::class);
     }
+    public function mapping()
+    {
+        return $this->hasOne(\App\Models\Satusehat\DokterMapping::class, 'dokter_id');
+    }
 }
