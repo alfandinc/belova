@@ -32,7 +32,7 @@
                             if ($isGlobalRole) $defaultForManager = '1';
                         @endphp
                         <select id="filter_for_manager" class="form-control form-control-sm" @if($isEmployeeOnly) disabled title="Locked to Non-Manager" @endif>
-                            <option value="" @if($defaultForManager === '') selected @endif>For Manager Only</option>
+                            <option value="" @if($defaultForManager === '') selected @endif>All</option>
                             <option value="1" @if($defaultForManager === '1') selected @endif>For Manager Only</option>
                             <option value="0" @if($defaultForManager === '0') selected @endif>Non-Manager Only</option>
                         </select>
