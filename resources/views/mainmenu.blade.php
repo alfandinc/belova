@@ -357,6 +357,8 @@
 
     .tile-satusehat { background-color: #009688; }  /* satusehat teal */
 
+    .tile-pusatstatistik { background-color: #2758b6; } /* pusat statistik blue */
+
     /* Hover: subtly darken the existing background for depth */
     .menu-tile:hover { filter: brightness(0.92); }
         .footer {
@@ -828,6 +830,17 @@
                     </div>
                     <div class="menu-title">SatuSehat</div>
                     <div class="menu-sub">Integrasi Data Kesehatan</div>
+                </a>
+                <a href="{{ $hasSatusehatAccess ? '/statistik' : '#' }}" class="menu-tile tile-pusatstatistik animate-item delay-20" id="pusatstatistik-tile" data-filter="pusat statistik analytics"
+                   @if(!$hasSatusehatAccess)
+                       onclick="showRoleWarning(event, 'Pusat Statistik')"
+                   @endif>
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-chart-pie"></i></div>
+                        <div class="menu-badge">Stats</div>
+                    </div>
+                    <div class="menu-title">Pusat Statistik</div>
+                    <div class="menu-sub">Dashboard Statistik</div>
                 </a>
                 </div>
             </div>
