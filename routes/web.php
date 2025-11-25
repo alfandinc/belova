@@ -274,6 +274,7 @@ Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(f
     Route::get('/dokter/{id}/top-patients', [\App\Http\Controllers\PusatStatistikController::class, 'dokterTopPatients'])->name('statistik.dokter.top_patients');
     // Retention / new vs returning patients summary
     Route::get('/dokter/{id}/retention-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterRetentionStats'])->name('statistik.dokter.retention_stats');
+    Route::get('/dokter/{id}/tindakan-stats', [\App\Http\Controllers\PusatStatistikController::class, 'dokterTindakanStats'])->name('statistik.dokter.tindakan_stats');
 });
 
 // SatuSehat dashboard (uses ERM layout with custom navbar)

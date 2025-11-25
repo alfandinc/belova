@@ -136,6 +136,38 @@
                 </div>
             </div>
         </div>
+                                                                        <div class="row mt-3">
+                                                                            <div class="col-12">
+                                                                                <div class="card shadow-sm" style="border-radius:10px;">
+                                                                                    <div class="card-body">
+                                                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                                            <div>
+                                                                                                <h5 class="card-title">Tindakan</h5>
+                                                                                                <p class="text-muted mb-0">Top tindakan untuk dokter (periode saat ini).</p>
+                                                                                            </div>
+                                                                                            <div class="d-flex align-items-center">
+                                                                                                <input type="text" id="tindakanRangePicker" class="form-control form-control-sm" style="width:200px" />
+                                                                                                <button id="tindakanAllTimeBtn" type="button" class="btn btn-sm btn-link ms-2">All time</button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div class="table-responsive">
+                                                                                            <table class="table table-sm table-striped" id="tindakanTable">
+                                                                                                <thead>
+                                                                                                    <tr>
+                                                                                                        <th style="width:6%">#</th>
+                                                                                                        <th>Tindakan</th>
+                                                                                                        <th style="width:18%">Kunjungan</th>
+                                                                                                    </tr>
+                                                                                                </thead>
+                                                                                                <tbody>
+                                                                                                    <tr><td colspan="3">Memuat...</td></tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card shadow-sm" style="border-radius:10px;">
@@ -437,6 +469,9 @@
             // Date range state (patient stats - independent)
             var selectedPatientStart = null;
             var selectedPatientEnd = null;
+            // Date range state (tindakan - independent)
+            var selectedTindakanStart = null;
+            var selectedTindakanEnd = null;
 
             // Initialize daterangepicker (requires moment & daterangepicker plugin loaded in layout)
             function initRangePickerImpl(){
@@ -496,6 +531,23 @@
                             fetchPatientStats(curId, selectedPatientStart, selectedPatientEnd);
                         }
                     });
+
+                    // initialize tindakan range picker (independent)
+                    $('#tindakanRangePicker').daterangepicker({
+                        startDate: start,
+                        endDate: end,
+                        locale: { format: 'YYYY-MM-DD' },
+                        opens: 'left'
+                    });
+
+                    $('#tindakanRangePicker').on('apply.daterangepicker', function(ev, picker){
+                        selectedTindakanStart = picker.startDate.format('YYYY-MM-DD');
+                        selectedTindakanEnd = picker.endDate.format('YYYY-MM-DD');
+                        var curId = sel.value;
+                        if (curId && curId !== '0') {
+                            fetchTindakanStats(curId, selectedTindakanStart, selectedTindakanEnd);
+                        }
+                    });
                 } else {
                     // fallback: set input value to current-month range
                     var inp = document.getElementById('rangePicker');
@@ -551,6 +603,25 @@
                     });
                 }
 
+                // tindakan all-time button (independent)
+                var tAllBtn = document.getElementById('tindakanAllTimeBtn');
+                if (tAllBtn) {
+                    tAllBtn.addEventListener('click', function(){
+                        selectedTindakanStart = null; selectedTindakanEnd = null;
+                        if (window.jQuery && jQuery.fn.daterangepicker && typeof moment !== 'undefined') {
+                            $('#tindakanRangePicker').data('daterangepicker').setStartDate(moment().startOf('month'));
+                            $('#tindakanRangePicker').data('daterangepicker').setEndDate(moment().endOf('month'));
+                            $('#tindakanRangePicker').val('All time');
+                        } else {
+                            var tinp = document.getElementById('tindakanRangePicker'); if (tinp) tinp.value = 'All time';
+                        }
+                        var curId = sel.value;
+                        if (curId && curId !== '0') {
+                            fetchTindakanStats(curId, null, null);
+                        }
+                    });
+                }
+
                 // initial load after datepicker setup
                 (function loadInitial(){
                     var initId = sel.value;
@@ -565,6 +636,9 @@
                         // use patient-specific dates for patient stats (default to visitation range if unset)
                         if (!selectedPatientStart && !selectedPatientEnd) { selectedPatientStart = selectedStart; selectedPatientEnd = selectedEnd; }
                         fetchPatientStats(initId, selectedPatientStart, selectedPatientEnd);
+                        // use tindakan-specific dates for tindakan stats (default to visitation range if unset)
+                        if (!selectedTindakanStart && !selectedTindakanEnd) { selectedTindakanStart = selectedStart; selectedTindakanEnd = selectedEnd; }
+                        fetchTindakanStats(initId, selectedTindakanStart, selectedTindakanEnd);
                     }
                 })();
             }
@@ -629,8 +703,8 @@
                     .then(function(payload){
                         if (!payload || !payload.ok) return;
                         populateBreakdownSummary(payload.breakdown || {}, payload.total || 0, start, end);
-                        // also refresh retention summary for same period
-                        try { fetchRetentionStats(dokterId, start, end); } catch(e){ console.error('fetchRetentionStats error', e); }
+                        // also refresh retention summary and tindakan for same period
+                        try { fetchRetentionStats(dokterId, start, end); fetchTindakanStats(dokterId, start, end); } catch(e){ console.error('fetchRetentionStats error', e); }
                     }).catch(function(e){
                         console.error('Failed to load visitation breakdown', e);
                     });
@@ -722,6 +796,45 @@
                         summaryEl.textContent = 'Periode: Semua waktu';
                     }
                 }
+            }
+
+            // Fetch tindakan stats (top tindakan) for dokter and period
+            function fetchTindakanStats(dokterId, start, end) {
+                if (!dokterId) return;
+                var qsParts = [];
+                if (start && end) { qsParts.push('start=' + encodeURIComponent(start)); qsParts.push('end=' + encodeURIComponent(end)); }
+                else if (!start && !end) { qsParts.push('all=1'); }
+                var qs = qsParts.length ? ('?' + qsParts.join('&')) : '';
+                fetch('/statistik/dokter/' + dokterId + '/tindakan-stats' + qs)
+                    .then(function(res){ if(!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) {
+                            renderTindakanTable([]);
+                            return;
+                        }
+                        renderTindakanTable(payload.tops || []);
+                    }).catch(function(err){
+                        console.error('fetchTindakanStats error', err);
+                        renderTindakanTable([]);
+                    });
+            }
+
+            function renderTindakanTable(list) {
+                var tb = document.querySelector('#tindakanTable tbody');
+                if (!tb) return;
+                tb.innerHTML = '';
+                if (!list || list.length === 0) {
+                    var tr = document.createElement('tr');
+                    var td = document.createElement('td'); td.setAttribute('colspan', '3'); td.className = 'text-muted text-center'; td.textContent = 'Tidak ada data.'; tr.appendChild(td); tb.appendChild(tr); return;
+                }
+                list.forEach(function(r, idx){
+                    var tr = document.createElement('tr');
+                    var td1 = document.createElement('td'); td1.textContent = (idx+1);
+                    var td2 = document.createElement('td'); td2.textContent = r.name || ('Tindakan ' + r.tindakan_id);
+                    var td3 = document.createElement('td'); td3.className = 'text-end'; td3.textContent = r.count || 0;
+                    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+                    tb.appendChild(tr);
+                });
             }
         })();
     </script>
