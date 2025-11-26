@@ -943,34 +943,47 @@ class MarketingController extends Controller
         ];
     }
 
-    private function getPatientRetentionAnalysis($year, $clinicId = null)
+    private function getPatientRetentionAnalysis($year = null, $clinicId = null, $startDate = null, $endDate = null)
     {
-        $query = DB::table('erm_visitations as v1')
-            ->join('erm_visitations as v2', 'v1.pasien_id', '=', 'v2.pasien_id')
-            ->where('v1.tanggal_visitation', '<', 'v2.tanggal_visitation')
-            ->whereYear('v1.tanggal_visitation', $year);
+        // Build visitation query with provided filters (date range preferred)
+        $visitQuery = Visitation::query();
 
-        if ($clinicId) {
-            $query->where('v1.klinik_id', $clinicId)
-                  ->where('v2.klinik_id', $clinicId);
+        if ($startDate && $endDate) {
+            $visitQuery->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+        } else {
+            // fallback to year filter if provided
+            if ($year) {
+                $visitQuery->whereYear('tanggal_visitation', $year);
+            }
         }
 
-        $returnVisits = $query->select('v1.pasien_id')
-            ->distinct()
-            ->count();
+        if ($clinicId) {
+            $visitQuery->where('klinik_id', $clinicId);
+        }
 
-        $totalPatients = Pasien::whereHas('visitations', function ($q) use ($year, $clinicId) {
-            $q->whereYear('tanggal_visitation', $year);
-            if ($clinicId) $q->where('klinik_id', $clinicId);
-        })->count();
+        // Group by patient and count visits per patient within the filtered range
+        $groups = (clone $visitQuery)
+            ->select('pasien_id', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('pasien_id')
+            ->get();
 
-        $retentionRate = $totalPatients > 0 ? round(($returnVisits / $totalPatients) * 100, 1) : 0;
+        $totalPatients = $groups->count();
+        $returningPatients = $groups->where('cnt', '>=', 2)->count();
+
+        // Average visits per patient (use 1 decimal place)
+        $avgVisits = 0;
+        if ($totalPatients > 0) {
+            $avgVisits = round($groups->avg('cnt'), 1);
+        }
+
+        $retentionRate = $totalPatients > 0 ? round(($returningPatients / $totalPatients) * 100, 1) : 0;
 
         return [
             'total_patients' => $totalPatients,
-            'returning_patients' => $returnVisits,
+            'returning_patients' => $returningPatients,
             'retention_rate' => $retentionRate,
-            'one_time_patients' => $totalPatients - $returnVisits
+            'one_time_patients' => max(0, $totalPatients - $returningPatients),
+            'avg_visits_per_patient' => $avgVisits
         ];
     }
 
@@ -1368,6 +1381,48 @@ class MarketingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load analytics data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * AJAX: return list of new patients (JSON) for modal/datatable
+     */
+    public function newPatientsList(Request $request)
+    {
+        try {
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+            $clinicId = $request->input('clinic_id');
+
+            $query = Pasien::select('erm_pasiens.id', 'nama', 'no_hp', 'tanggal_lahir', 'gender', 'alamat', 'created_at');
+
+            // If clinic filter provided, restrict to patients who had visitations in that clinic
+            if ($clinicId) {
+                $query = $query->whereHas('visitations', function ($q) use ($clinicId, $startDate, $endDate) {
+                    $q->where('klinik_id', $clinicId);
+                    if ($startDate && $endDate) {
+                        $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+                    }
+                });
+            }
+
+            // If date range provided, prefer created_at filter for new patients
+            if ($startDate && $endDate) {
+                $query->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+            }
+
+            $patients = $query->orderByDesc('created_at')->limit(1000)->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $patients
+            ]);
+        } catch (\Exception $e) {
+            Log::error('newPatientsList error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load new patients: ' . $e->getMessage()
             ], 500);
         }
     }

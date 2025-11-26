@@ -1449,6 +1449,9 @@ Route::get('/marketing/analytics/patients-data', [\App\Http\Controllers\Marketin
 // AJAX route for clinics data
 Route::get('/marketing/clinics', [\App\Http\Controllers\Marketing\MarketingController::class, 'getClinics'])->name('marketing.clinics');
 
+// AJAX route for new patients list (modal DataTable)
+Route::get('/marketing/patients/new-list', [\App\Http\Controllers\Marketing\MarketingController::class, 'newPatientsList'])->name('marketing.patients.new_list');
+
 Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
 // Route::prefix('admin')->group(
     // function () {

@@ -55,7 +55,7 @@
             </div>
         </div>
         <div class="col-lg-3 col-md-6">
-            <div class="card border-left-success">
+            <div class="card border-left-success" id="newPatientsCard" style="cursor: pointer;">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div>
@@ -243,6 +243,40 @@
         </div>
     </div>
 
+    <!-- New Patients Modal -->
+    <div class="modal fade" id="newPatientsModal" tabindex="-1" role="dialog" aria-labelledby="newPatientsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="newPatientsModalLabel">New Patients</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered" id="newPatientsTable" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>DOB</th>
+                                    <th>Gender</th>
+                                    <th>Address</th>
+                                    <th>Created At</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(255,255,255,0.8); z-index: 9999;">
         <div class="d-flex justify-content-center align-items-center h-100">
@@ -258,10 +292,15 @@
 @section('scripts')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap4.min.css" />
 
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap4.min.js"></script>
 
 <script>
 $(document).ready(function() {
@@ -587,6 +626,57 @@ $(document).ready(function() {
     // Initialize page
     loadClinics();
     loadAnalyticsData();
+
+    // New Patients modal & DataTable
+    let newPatientsTable = null;
+
+    function initNewPatientsTable() {
+        if (newPatientsTable) return;
+
+        newPatientsTable = $('#newPatientsTable').DataTable({
+            processing: true,
+            serverSide: false,
+            ajax: {
+                url: '/marketing/patients/new-list',
+                data: function(d) {
+                    const dateRange = $('#daterange').val();
+                    const clinicId = $('#clinicFilter').val();
+                    if (dateRange) {
+                        const dates = dateRange.split(' - ');
+                        d.start_date = dates[0];
+                        d.end_date = dates[1];
+                    }
+                    if (clinicId) d.clinic_id = clinicId;
+                },
+                dataSrc: function(json) {
+                    if (!json || !json.success) return [];
+                    return json.data || [];
+                }
+            },
+            columns: [
+                { data: 'nama', title: 'Name' },
+                { data: 'no_hp', title: 'Phone', defaultContent: '-' },
+                { data: 'tanggal_lahir', title: 'DOB', render: function(data){ return data ? data : '-'; } },
+                { data: 'gender', title: 'Gender' },
+                { data: 'alamat', title: 'Address', defaultContent: '-' },
+                { data: 'created_at', title: 'Created At', render: function(data){ return data ? moment(data).format('YYYY-MM-DD HH:mm') : '-'; } }
+            ],
+            order: [[5, 'desc']],
+            pageLength: 25,
+            lengthChange: false
+        });
+    }
+
+    $('#newPatientsCard').on('click', function(e) {
+        e.preventDefault();
+        // initialize table if needed then show modal
+        initNewPatientsTable();
+        // reload with current filters
+        if (newPatientsTable) {
+            newPatientsTable.ajax.reload();
+        }
+        $('#newPatientsModal').modal('show');
+    });
 });
 </script>
 
