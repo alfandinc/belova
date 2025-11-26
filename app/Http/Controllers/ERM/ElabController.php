@@ -144,9 +144,11 @@ class ElabController extends Controller
                     return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary">Lihat</a> ';
                 })
                 ->addColumn('is_paid', function($v) {
-                    // Consider paid when there's an invoice and amount_paid is not null and > 0
-                    if ($v->invoice && $v->invoice->amount_paid) {
-                        return true;
+                    // Consider paid when there's an invoice and numeric amount_paid > 0
+                    if ($v->invoice) {
+                        $amount = $v->invoice->amount_paid;
+                        // normalize to numeric and check > 0 to avoid truthy string like "0.00"
+                        return is_numeric($amount) ? (floatval($amount) > 0) : (floatval(str_replace(',', '.', (string)$amount)) > 0);
                     }
                     return false;
                 })
