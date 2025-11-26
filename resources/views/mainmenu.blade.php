@@ -489,6 +489,7 @@
         .delay-17 { animation-delay: 1.7s; }
         .delay-18 { animation-delay: 1.8s; }
         .delay-19 { animation-delay: 1.9s; }
+        .delay-20 { animation-delay: 2.0s; }
     </style>
 </head>
 
