@@ -639,4 +639,57 @@ class PusatStatistikController extends Controller
 
         return response()->json(['ok' => true, 'tops' => $tops]);
     }
+
+    /**
+     * Return lab statistics for a dokter: top lab tests by number of completed lab requests
+     * within an optional date range. Only counts lab requests with status = 'completed'
+     * and visitations where status_kunjungan = 2 (consistent with other statistik endpoints).
+     */
+    public function dokterLabStats(Request $request, $id)
+    {
+        $now = \Illuminate\Support\Carbon::now();
+        if ($request->has('all')) {
+            $start = null; $end = null;
+        } elseif ($request->has('start') && $request->has('end')) {
+            try {
+                $start = \Illuminate\Support\Carbon::parse($request->input('start'))->toDateString();
+                $end = \Illuminate\Support\Carbon::parse($request->input('end'))->toDateString();
+            } catch (\Exception $e) {
+                $start = $now->copy()->startOfMonth()->toDateString();
+                $end = $now->copy()->endOfMonth()->toDateString();
+            }
+        } else {
+            $start = $now->copy()->startOfMonth()->toDateString();
+            $end = $now->copy()->endOfMonth()->toDateString();
+        }
+
+        // Build query: count completed lab_permintaan grouped by lab_test_id
+        $q = \Illuminate\Support\Facades\DB::table('erm_lab_permintaan as lp')
+            ->join('erm_visitations as v', 'lp.visitation_id', '=', 'v.id')
+            ->leftJoin('erm_lab_test as lt', 'lp.lab_test_id', '=', 'lt.id')
+            ->selectRaw('lp.lab_test_id as lab_test_id, COALESCE(lt.nama, "") as name, count(*) as total')
+            ->where('v.dokter_id', $id)
+            ->where('v.status_kunjungan', 2)
+            ->where('lp.status', 'completed');
+
+        if ($start && $end) {
+            $q->whereBetween('v.tanggal_visitation', [$start, $end]);
+        }
+
+        $rows = $q->groupBy('lp.lab_test_id', 'lt.nama')
+            ->orderByRaw('count(*) desc')
+            ->limit(20)
+            ->get();
+
+        $tops = [];
+        foreach ($rows as $r) {
+            $tops[] = [
+                'lab_test_id' => $r->lab_test_id,
+                'name' => $r->name ?: ('Tes ' . $r->lab_test_id),
+                'count' => (int)$r->total,
+            ];
+        }
+
+        return response()->json(['ok' => true, 'tops' => $tops]);
+    }
 }

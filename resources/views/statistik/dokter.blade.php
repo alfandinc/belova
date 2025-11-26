@@ -185,7 +185,7 @@
             </div>
         </div>
                                                                         <div class="row mt-3">
-                                                                            <div class="col-md-6 mb-3">
+                                                                            <div class="col-md-4 mb-3">
                                                                                 <div class="card shadow-sm h-100" style="border-radius:10px;">
                                                                                     <div class="card-body">
                                                                                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -212,7 +212,7 @@
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
-                                                                            <div class="col-md-6 mb-3">
+                                                                            <div class="col-md-4 mb-3">
                                                                                 <div class="card shadow-sm h-100" style="border-radius:10px;">
                                                                                     <div class="card-body">
                                                                                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -228,6 +228,32 @@
                                                                                                     <tr>
                                                                                                         <th style="width:6%">#</th>
                                                                                                         <th>Obat</th>
+                                                                                                        <th style="width:18%">Jumlah</th>
+                                                                                                    </tr>
+                                                                                                </thead>
+                                                                                                <tbody>
+                                                                                                    <tr><td colspan="3">Memuat...</td></tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="col-md-4 mb-3">
+                                                                                <div class="card shadow-sm h-100" style="border-radius:10px;">
+                                                                                    <div class="card-body">
+                                                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                                            <div>
+                                                                                                <h5 class="card-title">Lab</h5>
+                                                                                                <p class="text-muted mb-0">Permintaan lab yang selesai untuk dokter (jumlah per jenis tes).</p>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div class="table-responsive">
+                                                                                            <table class="table table-sm table-striped" id="labTable">
+                                                                                                <thead>
+                                                                                                    <tr>
+                                                                                                        <th style="width:6%">#</th>
+                                                                                                        <th>Tes Lab</th>
                                                                                                         <th style="width:18%">Jumlah</th>
                                                                                                     </tr>
                                                                                                 </thead>
@@ -644,6 +670,7 @@
                             fetchPatientStats(curId, selectedPatientStart, selectedPatientEnd);
                             fetchTindakanStats(curId, selectedTindakanStart, selectedTindakanEnd);
                             fetchObatStats(curId, selectedObatStart, selectedObatEnd);
+                            fetchLabStats(curId, selectedObatStart, selectedObatEnd);
                         }
                     });
 
@@ -663,6 +690,7 @@
                                 fetchPatientStats(curId, null, null);
                                 fetchTindakanStats(curId, null, null);
                                 fetchObatStats(curId, null, null);
+                                fetchLabStats(curId, null, null);
                             }
                         });
                     }
@@ -711,6 +739,9 @@
                         // use obat-specific dates for obat stats (default to visitation range if unset)
                         if (!selectedObatStart && !selectedObatEnd) { selectedObatStart = selectedStart; selectedObatEnd = selectedEnd; }
                         fetchObatStats(initId, selectedObatStart, selectedObatEnd);
+                        // initial load lab stats as well
+                        if (!selectedObatStart && !selectedObatEnd) { /* keep */ }
+                        fetchLabStats(initId, selectedObatStart, selectedObatEnd);
                     }
                 })();
             }
@@ -800,8 +831,8 @@
                     .then(function(payload){
                         if (!payload || !payload.ok) return;
                         populateBreakdownSummary(payload.breakdown || {}, payload.total || 0, start, end);
-                        // also refresh retention summary, tindakan and obat for same period
-                        try { fetchRetentionStats(dokterId, start, end); fetchTindakanStats(dokterId, start, end); fetchObatStats(dokterId, start, end); } catch(e){ console.error('fetchRetentionStats error', e); }
+                        // also refresh retention summary, tindakan, obat and lab for same period
+                        try { fetchRetentionStats(dokterId, start, end); fetchTindakanStats(dokterId, start, end); fetchObatStats(dokterId, start, end); fetchLabStats(dokterId, start, end); } catch(e){ console.error('fetchRetentionStats error', e); }
                     }).catch(function(e){
                         console.error('Failed to load visitation breakdown', e);
                     });
@@ -919,6 +950,42 @@
                         console.error('fetchTindakanStats error', err);
                         renderTindakanTable([]);
                     });
+            }
+
+            // Fetch lab stats (top lab tests by completed requests) for dokter and period
+            function fetchLabStats(dokterId, start, end) {
+                if (!dokterId) return;
+                var qsParts = [];
+                if (start && end) { qsParts.push('start=' + encodeURIComponent(start)); qsParts.push('end=' + encodeURIComponent(end)); }
+                else if (!start && !end) { qsParts.push('all=1'); }
+                var qs = qsParts.length ? ('?' + qsParts.join('&')) : '';
+                fetch('/statistik/dokter/' + dokterId + '/lab-stats' + qs)
+                    .then(function(res){ if(!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) { renderLabTable([]); return; }
+                        renderLabTable(payload.tops || []);
+                    }).catch(function(err){
+                        console.error('fetchLabStats error', err);
+                        renderLabTable([]);
+                    });
+            }
+
+            function renderLabTable(list) {
+                var tb = document.querySelector('#labTable tbody');
+                if (!tb) return;
+                tb.innerHTML = '';
+                if (!list || list.length === 0) {
+                    var tr = document.createElement('tr');
+                    var td = document.createElement('td'); td.setAttribute('colspan', '3'); td.className = 'text-muted text-center'; td.textContent = 'Tidak ada data.'; tr.appendChild(td); tb.appendChild(tr); return;
+                }
+                list.forEach(function(r, idx){
+                    var tr = document.createElement('tr');
+                    var td1 = document.createElement('td'); td1.textContent = (idx+1);
+                    var td2 = document.createElement('td'); td2.textContent = r.name || (r.test_name || ('Tes ' + (r.lab_test_id || '')));
+                    var td3 = document.createElement('td'); td3.className = 'text-end'; td3.textContent = r.count || r.jumlah || 0;
+                    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+                    tb.appendChild(tr);
+                });
             }
 
             function renderTindakanTable(list) {
