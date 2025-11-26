@@ -137,8 +137,8 @@
             </div>
         </div>
                                                                         <div class="row mt-3">
-                                                                            <div class="col-12">
-                                                                                <div class="card shadow-sm" style="border-radius:10px;">
+                                                                            <div class="col-md-6 mb-3">
+                                                                                <div class="card shadow-sm h-100" style="border-radius:10px;">
                                                                                     <div class="card-body">
                                                                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                                                                             <div>
@@ -157,6 +157,36 @@
                                                                                                         <th style="width:6%">#</th>
                                                                                                         <th>Tindakan</th>
                                                                                                         <th style="width:18%">Kunjungan</th>
+                                                                                                    </tr>
+                                                                                                </thead>
+                                                                                                <tbody>
+                                                                                                    <tr><td colspan="3">Memuat...</td></tr>
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div class="col-md-6 mb-3">
+                                                                                <div class="card shadow-sm h-100" style="border-radius:10px;">
+                                                                                    <div class="card-body">
+                                                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                                            <div>
+                                                                                                <h5 class="card-title">Obat</h5>
+                                                                                                <p class="text-muted mb-0">Obat yang diresepkan oleh dokter (jumlah per obat).</p>
+                                                                                            </div>
+                                                                                            <div class="d-flex align-items-center">
+                                                                                                <input type="text" id="obatRangePicker" class="form-control form-control-sm" style="width:200px" />
+                                                                                                <button id="obatAllTimeBtn" type="button" class="btn btn-sm btn-link ms-2">All time</button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div class="table-responsive">
+                                                                                            <table class="table table-sm table-striped" id="obatTable">
+                                                                                                <thead>
+                                                                                                    <tr>
+                                                                                                        <th style="width:6%">#</th>
+                                                                                                        <th>Obat</th>
+                                                                                                        <th style="width:18%">Jumlah</th>
                                                                                                     </tr>
                                                                                                 </thead>
                                                                                                 <tbody>
@@ -472,11 +502,14 @@
             // Date range state (tindakan - independent)
             var selectedTindakanStart = null;
             var selectedTindakanEnd = null;
+            // Date range state (obat - independent)
+            var selectedObatStart = null;
+            var selectedObatEnd = null;
 
             // Initialize daterangepicker (requires moment & daterangepicker plugin loaded in layout)
             function initRangePickerImpl(){
                 var start, end;
-                if (typeof moment !== 'undefined' && typeof moment().endOfMonth === 'function') {
+                if (typeof moment !== 'undefined' && typeof moment().endOf === 'function') {
                     // Default to current month
                     start = moment().startOf('month');
                     end = moment().endOf('month');
@@ -546,6 +579,23 @@
                         var curId = sel.value;
                         if (curId && curId !== '0') {
                             fetchTindakanStats(curId, selectedTindakanStart, selectedTindakanEnd);
+                        }
+                    });
+
+                    // initialize obat range picker (independent)
+                    $('#obatRangePicker').daterangepicker({
+                        startDate: start,
+                        endDate: end,
+                        locale: { format: 'YYYY-MM-DD' },
+                        opens: 'left'
+                    });
+
+                    $('#obatRangePicker').on('apply.daterangepicker', function(ev, picker){
+                        selectedObatStart = picker.startDate.format('YYYY-MM-DD');
+                        selectedObatEnd = picker.endDate.format('YYYY-MM-DD');
+                        var curId = sel.value;
+                        if (curId && curId !== '0') {
+                            fetchObatStats(curId, selectedObatStart, selectedObatEnd);
                         }
                     });
                 } else {
@@ -622,6 +672,25 @@
                     });
                 }
 
+                // obat all-time button (independent)
+                var oAllBtn = document.getElementById('obatAllTimeBtn');
+                if (oAllBtn) {
+                    oAllBtn.addEventListener('click', function(){
+                        selectedObatStart = null; selectedObatEnd = null;
+                        if (window.jQuery && jQuery.fn.daterangepicker && typeof moment !== 'undefined') {
+                            $('#obatRangePicker').data('daterangepicker').setStartDate(moment().startOf('month'));
+                            $('#obatRangePicker').data('daterangepicker').setEndDate(moment().endOf('month'));
+                            $('#obatRangePicker').val('All time');
+                        } else {
+                            var oinp = document.getElementById('obatRangePicker'); if (oinp) oinp.value = 'All time';
+                        }
+                        var curId = sel.value;
+                        if (curId && curId !== '0') {
+                            fetchObatStats(curId, null, null);
+                        }
+                    });
+                }
+
                 // initial load after datepicker setup
                 (function loadInitial(){
                     var initId = sel.value;
@@ -639,6 +708,9 @@
                         // use tindakan-specific dates for tindakan stats (default to visitation range if unset)
                         if (!selectedTindakanStart && !selectedTindakanEnd) { selectedTindakanStart = selectedStart; selectedTindakanEnd = selectedEnd; }
                         fetchTindakanStats(initId, selectedTindakanStart, selectedTindakanEnd);
+                        // use obat-specific dates for obat stats (default to visitation range if unset)
+                        if (!selectedObatStart && !selectedObatEnd) { selectedObatStart = selectedStart; selectedObatEnd = selectedEnd; }
+                        fetchObatStats(initId, selectedObatStart, selectedObatEnd);
                     }
                 })();
             }
@@ -832,6 +904,42 @@
                     var td1 = document.createElement('td'); td1.textContent = (idx+1);
                     var td2 = document.createElement('td'); td2.textContent = r.name || ('Tindakan ' + r.tindakan_id);
                     var td3 = document.createElement('td'); td3.className = 'text-end'; td3.textContent = r.count || 0;
+                    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+                    tb.appendChild(tr);
+                });
+            }
+
+            // Fetch obat stats (top obat by jumlah) for dokter and period
+            function fetchObatStats(dokterId, start, end) {
+                if (!dokterId) return;
+                var qsParts = [];
+                if (start && end) { qsParts.push('start=' + encodeURIComponent(start)); qsParts.push('end=' + encodeURIComponent(end)); }
+                else if (!start && !end) { qsParts.push('all=1'); }
+                var qs = qsParts.length ? ('?' + qsParts.join('&')) : '';
+                fetch('/statistik/dokter/' + dokterId + '/obat-stats' + qs)
+                    .then(function(res){ if(!res.ok) throw res; return res.json(); })
+                    .then(function(payload){
+                        if (!payload || !payload.ok) { renderObatTable([]); return; }
+                        renderObatTable(payload.tops || []);
+                    }).catch(function(err){
+                        console.error('fetchObatStats error', err);
+                        renderObatTable([]);
+                    });
+            }
+
+            function renderObatTable(list) {
+                var tb = document.querySelector('#obatTable tbody');
+                if (!tb) return;
+                tb.innerHTML = '';
+                if (!list || list.length === 0) {
+                    var tr = document.createElement('tr');
+                    var td = document.createElement('td'); td.setAttribute('colspan', '3'); td.className = 'text-muted text-center'; td.textContent = 'Tidak ada data.'; tr.appendChild(td); tb.appendChild(tr); return;
+                }
+                list.forEach(function(r, idx){
+                    var tr = document.createElement('tr');
+                    var td1 = document.createElement('td'); td1.textContent = (idx+1);
+                    var td2 = document.createElement('td'); td2.textContent = r.name || ('Obat ' + r.obat_id);
+                    var td3 = document.createElement('td'); td3.className = 'text-end'; td3.textContent = r.jumlah || 0;
                     tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
                     tb.appendChild(tr);
                 });

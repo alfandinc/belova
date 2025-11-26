@@ -366,6 +366,56 @@ class PusatStatistikController extends Controller
     }
 
     /**
+     * Return obat statistics for a dokter: top obat by total jumlah in resep farmasi for the selected period.
+     */
+    public function dokterObatStats(Request $request, $id)
+    {
+        $now = \Illuminate\Support\Carbon::now();
+        if ($request->has('all')) {
+            $start = null; $end = null;
+        } elseif ($request->has('start') && $request->has('end')) {
+            try {
+                $start = \Illuminate\Support\Carbon::parse($request->input('start'))->toDateString();
+                $end = \Illuminate\Support\Carbon::parse($request->input('end'))->toDateString();
+            } catch (\Exception $e) {
+                $start = $now->copy()->startOfMonth()->toDateString();
+                $end = $now->copy()->endOfMonth()->toDateString();
+            }
+        } else {
+            $start = $now->copy()->startOfMonth()->toDateString();
+            $end = $now->copy()->endOfMonth()->toDateString();
+        }
+
+        // Build query: join resep farmasi to visitations and obat metadata
+        $q = \Illuminate\Support\Facades\DB::table('erm_resepfarmasi as r')
+            ->join('erm_visitations as v', 'r.visitation_id', '=', 'v.id')
+            ->leftJoin('erm_obat as o', 'r.obat_id', '=', 'o.id')
+            ->where('v.dokter_id', $id)
+            ->where('v.status_kunjungan', 2);
+
+        if ($start && $end) {
+            $q->whereBetween('v.tanggal_visitation', [$start, $end]);
+        }
+
+        $rows = $q->selectRaw('r.obat_id as obat_id, o.nama as name, SUM(COALESCE(r.jumlah,0)) as total')
+            ->groupBy('r.obat_id', 'o.nama')
+            ->orderByRaw('SUM(COALESCE(r.jumlah,0)) desc')
+            ->limit(20)
+            ->get();
+
+        $tops = [];
+        foreach ($rows as $r) {
+            $tops[] = [
+                'obat_id' => $r->obat_id,
+                'name' => $r->name ?: ('Obat ' . $r->obat_id),
+                'jumlah' => (int)$r->total,
+            ];
+        }
+
+        return response()->json(['ok' => true, 'tops' => $tops]);
+    }
+
+    /**
      * Return patient-level statistics for a dokter: total unique patients (in date range),
      * gender distribution, age buckets and pasien status counts.
      */
