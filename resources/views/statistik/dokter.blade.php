@@ -26,14 +26,23 @@
         }
     </style>
     <div class="container-fluid mt-3 statistik-blue">
-        <div class="mb-3">
-            <label for="dokterSelect" class="form-label">Pilih Dokter</label>
-            <select id="dokterSelect" class="form-control" aria-label="Pilih Dokter">
-                <option value="0">-- Pilih Dokter --</option>
-                @foreach($dokterList as $d)
-                    <option value="{{ $d->id }}" {{ ($dokter && $dokter->id == $d->id) ? 'selected' : '' }}>{{ $d->user->name ?? ('Dokter ' . $d->id) }} @if($d->spesialisasi) - {{ $d->spesialisasi->nama }} @endif</option>
-                @endforeach
-            </select>
+        <div class="mb-3 d-flex justify-content-between align-items-center">
+            <div style="flex:1; margin-right:12px;">
+                <label for="dokterSelect" class="form-label">Pilih Dokter</label>
+                <select id="dokterSelect" class="form-control" aria-label="Pilih Dokter">
+                    <option value="0">-- Pilih Dokter --</option>
+                    @foreach($dokterList as $d)
+                        <option value="{{ $d->id }}" {{ ($dokter && $dokter->id == $d->id) ? 'selected' : '' }}>{{ $d->user->name ?? ('Dokter ' . $d->id) }} @if($d->spesialisasi) - {{ $d->spesialisasi->nama }} @endif</option>
+                    @endforeach
+                </select>
+            </div>
+            <div style="width:320px; text-align:right;">
+                <label for="globalRangePicker" class="form-label" style="visibility:hidden; display:block;">Range</label>
+                <div class="d-flex justify-content-end">
+                    <input type="text" id="globalRangePicker" class="form-control form-control-sm" style="width:220px;" />
+                    <button id="globalAllTimeBtn" type="button" class="btn btn-sm btn-link ms-2">All time</button>
+                </div>
+            </div>
         </div>
         <div class="row">
             <div class="col-lg-4 mb-3">
@@ -75,10 +84,7 @@
 
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <div id="statsHeader" style="font-weight:700; color:#2c2f45; font-size:1.05rem;">Visitation</div>
-                            <div class="d-flex align-items-center">
-                                <input type="text" id="rangePicker" class="form-control form-control-sm" style="width:220px" />
-                                <button id="allTimeBtn" type="button" class="btn btn-sm btn-link ms-2">All time</button>
-                            </div>
+                            <div class="text-muted" style="font-size:0.9rem;">Filter: use the global range next to Dokter selector</div>
                         </div>
 
                         <div id="statisticContent" style="min-height:260px;">
@@ -171,10 +177,7 @@
                                                                                                 <h5 class="card-title">Tindakan</h5>
                                                                                                 <p class="text-muted mb-0">Top tindakan untuk dokter (periode saat ini).</p>
                                                                                             </div>
-                                                                                            <div class="d-flex align-items-center">
-                                                                                                <input type="text" id="tindakanRangePicker" class="form-control form-control-sm" style="width:200px" />
-                                                                                                <button id="tindakanAllTimeBtn" type="button" class="btn btn-sm btn-link ms-2">All time</button>
-                                                                                            </div>
+                                                                                            <!-- Filters removed: using global range picker -->
                                                                                         </div>
                                                                                         <div class="table-responsive">
                                                                                             <table class="table table-sm table-striped" id="tindakanTable">
@@ -201,10 +204,7 @@
                                                                                                 <h5 class="card-title">Obat</h5>
                                                                                                 <p class="text-muted mb-0">Obat yang diresepkan oleh dokter (jumlah per obat).</p>
                                                                                             </div>
-                                                                                            <div class="d-flex align-items-center">
-                                                                                                <input type="text" id="obatRangePicker" class="form-control form-control-sm" style="width:200px" />
-                                                                                                <button id="obatAllTimeBtn" type="button" class="btn btn-sm btn-link ms-2">All time</button>
-                                                                                            </div>
+                                                                                            <!-- Filters removed: using global range picker -->
                                                                                         </div>
                                                                                         <div class="table-responsive">
                                                                                             <table class="table table-sm table-striped" id="obatTable">
@@ -230,10 +230,7 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h4 class="mb-0" style="font-weight:700; color:#2c2f45;">Statistik Pasien</h4>
-                            <div class="d-flex align-items-center">
-                                <input type="text" id="patientRangePicker" class="form-control form-control-sm" style="width:200px" />
-                                <button id="patientAllTimeBtn" type="button" class="btn btn-sm btn-link ms-2">All time</button>
-                            </div>
+                            <div class="text-muted" style="font-size:0.9rem;">Periode dikendalikan oleh picker global di samping pemilih dokter.</div>
                         </div>
                         <div id="patientSummary" class="mb-2 text-muted">Periode: Semua waktu</div>
                         <div class="row">
@@ -530,6 +527,8 @@
                             fetchBreakdown(id, selectedStart, selectedEnd);
                             // fetch patient stats using patient-specific range
                             fetchPatientStats(id, selectedPatientStart, selectedPatientEnd);
+                            // fetch obat stats (independent) so obat table updates when doctor changes
+                            try { fetchObatStats(id, selectedObatStart, selectedObatEnd); } catch(e){ console.error('fetchObatStats error', e); }
                         }
                     })
                     .catch(function(err){
@@ -573,165 +572,80 @@
                 }
 
                 if (window.jQuery && jQuery.fn.daterangepicker && typeof moment !== 'undefined') {
-                    $('#rangePicker').daterangepicker({
+                    // Initialize a single global picker with presets
+                    $('#globalRangePicker').daterangepicker({
                         startDate: start,
                         endDate: end,
                         locale: { format: 'YYYY-MM-DD' },
-                        opens: 'left'
+                        opens: 'left',
+                        ranges: {
+                            'Today': [moment(), moment()],
+                            'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                            'This Week': [moment().startOf('week'), moment().endOf('week')],
+                            'This Month': [moment().startOf('month'), moment().endOf('month')],
+                            '3 Months': [moment().subtract(3, 'months').startOf('month'), moment().endOf('month')],
+                            '6 Months': [moment().subtract(6, 'months').startOf('month'), moment().endOf('month')],
+                            'This Year': [moment().startOf('year'), moment().endOf('year')],
+                            'All time': [moment('1970-01-01'), moment()]
+                        }
                     });
 
-                    $('#rangePicker').on('apply.daterangepicker', function(ev, picker){
-                        selectedStart = picker.startDate.format('YYYY-MM-DD');
-                        selectedEnd = picker.endDate.format('YYYY-MM-DD');
-                        // reload visitation stats for current dokter
+                    // Per-section pickers removed; global picker controls all sections.
+
+                    $('#globalRangePicker').on('apply.daterangepicker', function(ev, picker){
+                        var chosen = picker.chosenLabel || null;
+                        if (chosen === 'All time') {
+                            selectedStart = null; selectedEnd = null;
+                            $('#globalRangePicker').val('All time');
+                        } else {
+                            selectedStart = picker.startDate.format('YYYY-MM-DD');
+                            selectedEnd = picker.endDate.format('YYYY-MM-DD');
+                            $('#globalRangePicker').val(selectedStart + ' - ' + selectedEnd);
+                        }
+
+                        // propagate to per-section state variables (they will be read by their fetchers)
+                        selectedPatientStart = selectedStart; selectedPatientEnd = selectedEnd;
+                        selectedTindakanStart = selectedStart; selectedTindakanEnd = selectedEnd;
+                        selectedObatStart = selectedStart; selectedObatEnd = selectedEnd;
+
+                        // trigger reloads for all stats
                         var curId = sel.value;
                         if (curId && curId !== '0') {
                             fetchAndRenderStats(curId, selectedStart, selectedEnd);
                             fetchBreakdown(curId, selectedStart, selectedEnd);
-                            // keep patient range independent; do not overwrite patient selection here
-                        }
-                    });
-
-                    // initialize patient range picker (independent)
-                    $('#patientRangePicker').daterangepicker({
-                        startDate: start,
-                        endDate: end,
-                        locale: { format: 'YYYY-MM-DD' },
-                        opens: 'left'
-                    });
-
-                    $('#patientRangePicker').on('apply.daterangepicker', function(ev, picker){
-                        selectedPatientStart = picker.startDate.format('YYYY-MM-DD');
-                        selectedPatientEnd = picker.endDate.format('YYYY-MM-DD');
-                        var curId = sel.value;
-                        if (curId && curId !== '0') {
                             fetchPatientStats(curId, selectedPatientStart, selectedPatientEnd);
-                        }
-                    });
-
-                    // initialize tindakan range picker (independent)
-                    $('#tindakanRangePicker').daterangepicker({
-                        startDate: start,
-                        endDate: end,
-                        locale: { format: 'YYYY-MM-DD' },
-                        opens: 'left'
-                    });
-
-                    $('#tindakanRangePicker').on('apply.daterangepicker', function(ev, picker){
-                        selectedTindakanStart = picker.startDate.format('YYYY-MM-DD');
-                        selectedTindakanEnd = picker.endDate.format('YYYY-MM-DD');
-                        var curId = sel.value;
-                        if (curId && curId !== '0') {
                             fetchTindakanStats(curId, selectedTindakanStart, selectedTindakanEnd);
-                        }
-                    });
-
-                    // initialize obat range picker (independent)
-                    $('#obatRangePicker').daterangepicker({
-                        startDate: start,
-                        endDate: end,
-                        locale: { format: 'YYYY-MM-DD' },
-                        opens: 'left'
-                    });
-
-                    $('#obatRangePicker').on('apply.daterangepicker', function(ev, picker){
-                        selectedObatStart = picker.startDate.format('YYYY-MM-DD');
-                        selectedObatEnd = picker.endDate.format('YYYY-MM-DD');
-                        var curId = sel.value;
-                        if (curId && curId !== '0') {
                             fetchObatStats(curId, selectedObatStart, selectedObatEnd);
                         }
                     });
+
+                    // global all-time button
+                    var gAllBtn = document.getElementById('globalAllTimeBtn');
+                    if (gAllBtn) {
+                        gAllBtn.addEventListener('click', function(){
+                            selectedStart = null; selectedEnd = null;
+                            $('#globalRangePicker').val('All time');
+                            selectedPatientStart = selectedPatientEnd = null;
+                            selectedTindakanStart = selectedTindakanEnd = null;
+                            selectedObatStart = selectedObatEnd = null;
+                            var curId = sel.value;
+                            if (curId && curId !== '0') {
+                                fetchAndRenderStats(curId, null, null);
+                                fetchBreakdown(curId, null, null);
+                                fetchPatientStats(curId, null, null);
+                                fetchTindakanStats(curId, null, null);
+                                fetchObatStats(curId, null, null);
+                            }
+                        });
+                    }
+
+                    // per-section All-time buttons removed; global All-time button is authoritative
                 } else {
-                    // fallback: set input value to current-month range
-                    var inp = document.getElementById('rangePicker');
-                    if (inp) {
-                        if (typeof moment !== 'undefined') inp.value = start.format('YYYY-MM-DD') + ' - ' + end.format('YYYY-MM-DD');
-                        else inp.value = selectedStart + ' - ' + selectedEnd;
-                    }
-                    var pinp = document.getElementById('patientRangePicker');
-                    if (pinp) {
-                        if (typeof moment !== 'undefined') pinp.value = start.format('YYYY-MM-DD') + ' - ' + end.format('YYYY-MM-DD');
-                        else pinp.value = selectedStart + ' - ' + selectedEnd;
-                        selectedPatientStart = selectedStart; selectedPatientEnd = selectedEnd;
-                    }
-                }
-
-                var allBtn = document.getElementById('allTimeBtn');
-                if (allBtn) {
-                    allBtn.addEventListener('click', function(){
-                        selectedStart = null; selectedEnd = null;
-                        // clear daterangepicker display if present
-                        if (window.jQuery && jQuery.fn.daterangepicker && typeof moment !== 'undefined') {
-                            $('#rangePicker').data('daterangepicker').setStartDate(moment().startOf('month'));
-                            $('#rangePicker').data('daterangepicker').setEndDate(moment().endOf('month'));
-                            $('#rangePicker').val('All time');
-                        } else {
-                            var inp = document.getElementById('rangePicker'); if (inp) inp.value = 'All time';
-                        }
-                        var curId = sel.value;
-                        if (curId && curId !== '0') {
-                            fetchAndRenderStats(curId, null, null);
-                            fetchBreakdown(curId, null, null);
-                            // keep patient range independent
-                        }
-                    });
-                }
-
-                // patient all-time button (independent)
-                var pAllBtn = document.getElementById('patientAllTimeBtn');
-                if (pAllBtn) {
-                    pAllBtn.addEventListener('click', function(){
-                        selectedPatientStart = null; selectedPatientEnd = null;
-                        if (window.jQuery && jQuery.fn.daterangepicker && typeof moment !== 'undefined') {
-                            $('#patientRangePicker').data('daterangepicker').setStartDate(moment().startOf('month'));
-                            $('#patientRangePicker').data('daterangepicker').setEndDate(moment().endOf('month'));
-                            $('#patientRangePicker').val('All time');
-                        } else {
-                            var pinp = document.getElementById('patientRangePicker'); if (pinp) pinp.value = 'All time';
-                        }
-                        var curId = sel.value;
-                        if (curId && curId !== '0') {
-                            fetchPatientStats(curId, null, null);
-                        }
-                    });
-                }
-
-                // tindakan all-time button (independent)
-                var tAllBtn = document.getElementById('tindakanAllTimeBtn');
-                if (tAllBtn) {
-                    tAllBtn.addEventListener('click', function(){
-                        selectedTindakanStart = null; selectedTindakanEnd = null;
-                        if (window.jQuery && jQuery.fn.daterangepicker && typeof moment !== 'undefined') {
-                            $('#tindakanRangePicker').data('daterangepicker').setStartDate(moment().startOf('month'));
-                            $('#tindakanRangePicker').data('daterangepicker').setEndDate(moment().endOf('month'));
-                            $('#tindakanRangePicker').val('All time');
-                        } else {
-                            var tinp = document.getElementById('tindakanRangePicker'); if (tinp) tinp.value = 'All time';
-                        }
-                        var curId = sel.value;
-                        if (curId && curId !== '0') {
-                            fetchTindakanStats(curId, null, null);
-                        }
-                    });
-                }
-
-                // obat all-time button (independent)
-                var oAllBtn = document.getElementById('obatAllTimeBtn');
-                if (oAllBtn) {
-                    oAllBtn.addEventListener('click', function(){
-                        selectedObatStart = null; selectedObatEnd = null;
-                        if (window.jQuery && jQuery.fn.daterangepicker && typeof moment !== 'undefined') {
-                            $('#obatRangePicker').data('daterangepicker').setStartDate(moment().startOf('month'));
-                            $('#obatRangePicker').data('daterangepicker').setEndDate(moment().endOf('month'));
-                            $('#obatRangePicker').val('All time');
-                        } else {
-                            var oinp = document.getElementById('obatRangePicker'); if (oinp) oinp.value = 'All time';
-                        }
-                        var curId = sel.value;
-                        if (curId && curId !== '0') {
-                            fetchObatStats(curId, null, null);
-                        }
+                    // fallback: no daterangepicker available — set textual global value
+                    var gInp = document.getElementById('globalRangePicker'); if (gInp) gInp.value = selectedStart + ' - ' + selectedEnd;
+                    var gAllBtn = document.getElementById('globalAllTimeBtn'); if (gAllBtn) gAllBtn.addEventListener('click', function(){
+                        selectedStart = null; selectedEnd = null; if (gInp) gInp.value = 'All time';
+                        var curId = sel.value; if (curId && curId !== '0') { fetchAndRenderStats(curId, null, null); fetchBreakdown(curId, null, null); fetchPatientStats(curId, null, null); fetchTindakanStats(curId, null, null); fetchObatStats(curId, null, null); }
                     });
                 }
 
@@ -819,8 +733,8 @@
                     .then(function(payload){
                         if (!payload || !payload.ok) return;
                         populateBreakdownSummary(payload.breakdown || {}, payload.total || 0, start, end);
-                        // also refresh retention summary and tindakan for same period
-                        try { fetchRetentionStats(dokterId, start, end); fetchTindakanStats(dokterId, start, end); } catch(e){ console.error('fetchRetentionStats error', e); }
+                        // also refresh retention summary, tindakan and obat for same period
+                        try { fetchRetentionStats(dokterId, start, end); fetchTindakanStats(dokterId, start, end); fetchObatStats(dokterId, start, end); } catch(e){ console.error('fetchRetentionStats error', e); }
                     }).catch(function(e){
                         console.error('Failed to load visitation breakdown', e);
                     });

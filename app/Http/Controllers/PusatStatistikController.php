@@ -442,6 +442,7 @@ class PusatStatistikController extends Controller
         }
 
         // Build query: join resep farmasi to visitations and obat metadata
+        // Filter obat stats by the visitation's dokter_id to match other statistik endpoints
         $q = \Illuminate\Support\Facades\DB::table('erm_resepfarmasi as r')
             ->join('erm_visitations as v', 'r.visitation_id', '=', 'v.id')
             ->leftJoin('erm_obat as o', 'r.obat_id', '=', 'o.id')
