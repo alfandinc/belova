@@ -7,7 +7,25 @@
 @endsection
 
 @section('content')
-    <div class="container-fluid mt-3">
+    <style>
+        /* Page-scoped card outline for Statistik Dokter (thicker/ticker outline) */
+        .statistik-blue .card {
+            border: 2px solid #4f7df0 !important;
+            box-shadow: 0 4px 12px rgba(79,125,240,0.08) !important;
+            transition: box-shadow .15s ease, transform .15s ease;
+        }
+        .statistik-blue .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(79,125,240,0.12) !important;
+        }
+        .statistik-blue .card .card-body {
+            /* keep existing spacing */
+        }
+        .statistik-blue .card .card-title {
+            color: #2c2f45;
+        }
+    </style>
+    <div class="container-fluid mt-3 statistik-blue">
         <div class="mb-3">
             <label for="dokterSelect" class="form-label">Pilih Dokter</label>
             <select id="dokterSelect" class="form-control" aria-label="Pilih Dokter">
