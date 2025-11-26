@@ -48,6 +48,22 @@
             <div class="col-lg-4 mb-3">
                 <div class="card shadow-sm h-100" style="border-radius:12px; overflow:hidden;">
                     <div style="position:relative;">
+                        <style>
+                            .spec-badge {
+                                position: absolute;
+                                right: 12px;
+                                top: 12px;
+                                background: #fff;
+                                border: 2px solid #4f7df0;
+                                color: #111;
+                                padding: 6px 12px;
+                                border-radius: 999px;
+                                font-weight:700;
+                                box-shadow: 0 4px 10px rgba(79,125,240,0.12);
+                                z-index: 5;
+                            }
+                        </style>
+                        <div id="dokterSpecBadge" class="spec-badge" style="display: {{ $dokter && $dokter->spesialisasi ? 'block' : 'none' }}">{{ $dokter->spesialisasi->nama ?? '' }}</div>
                         @if($dokter && $dokter->photo)
                             <img id="dokterPhoto" src="{{ asset('storage/' . ltrim($dokter->photo, '/')) }}" alt="foto dokter" class="card-img-top" style="height:300px; object-fit:cover; display:block;">
                         @else
@@ -469,6 +485,20 @@
                 // name bar
                 var nameBar = document.getElementById('dokterNameBar');
                 if (nameBar) nameBar.textContent = data.name || '-';
+                // specialization badge
+                try {
+                    var specEl = document.getElementById('dokterSpecBadge');
+                    if (specEl) {
+                        var specName = '';
+                        if (!data) specName = '';
+                        else if (typeof data.spesialisasi === 'string') specName = data.spesialisasi;
+                        else if (data.spesialisasi && data.spesialisasi.nama) specName = data.spesialisasi.nama;
+                        else if (data.spesialisasi_name) specName = data.spesialisasi_name;
+                        else if (data.spesialisasi_nama) specName = data.spesialisasi_nama;
+                        specEl.textContent = specName || '';
+                        specEl.style.display = specName ? 'block' : 'none';
+                    }
+                } catch(e) { /* ignore */ }
                 // list items
                 var list = document.getElementById('dokterMeta');
                 if (list) {
@@ -490,11 +520,12 @@
                 // specialization badge removed — nothing to update here
             }
 
-            sel.addEventListener('change', function(){
-                var id = this.value;
+            // Extract handler so it can be triggered by both native change and Select2 events
+            function handleDokterChangeEvent(evt) {
+                var target = (evt && evt.target) ? evt.target : sel;
+                var id = target.value || (typeof target === 'string' ? target : null);
+                console.debug('handleDokterChangeEvent invoked, raw target:', target, 'resolved id:', id);
                 if (!id || id === '0') {
-                    // reset to first or show placeholder (we'll reload initial page state)
-                    // simply load index (first dokter) via AJAX: use index route's first dokter id if available
                     var firstOption = sel.querySelector('option:not([value="0"])');
                     if (firstOption) {
                         sel.value = firstOption.value;
@@ -505,36 +536,33 @@
                 }
 
                 fetch('/statistik/dokter/' + id + '/data')
-                    .then(function(res){
-                        if(!res.ok) throw res;
-                        return res.json();
-                    })
+                    .then(function(res){ if(!res.ok) throw res; return res.json(); })
                     .then(function(payload){
                         if (payload && payload.ok && payload.data) {
                             updateDoctorCard(payload.data);
-                            // update right panel heading (use element ID)
-                            var heading = document.getElementById('dokterHeading');
-                            if (heading) {
-                                // specialization removed from heading
-                                heading.innerHTML = '';
-                            }
-                            // Clear / placeholder statistic content for now
-                            var statEl = document.getElementById('statisticContent');
-                            if (statEl) statEl.innerHTML = '<div class="text-muted">Memuat statistik untuk ' + (payload.data.name || 'dokter') + '...</div>';
-                            // fetch visitation stats and render chart (respect selected date range)
+                            var heading = document.getElementById('dokterHeading'); if (heading) heading.innerHTML = '';
+                            var statEl = document.getElementById('statisticContent'); if (statEl) statEl.innerHTML = '<div class="text-muted">Memuat statistik untuk ' + (payload.data.name || 'dokter') + '...</div>';
                             fetchAndRenderStats(id, selectedStart, selectedEnd);
-                            // fetch breakdown (summary numbers) with range
                             fetchBreakdown(id, selectedStart, selectedEnd);
-                            // fetch patient stats using patient-specific range
                             fetchPatientStats(id, selectedPatientStart, selectedPatientEnd);
-                            // fetch obat stats (independent) so obat table updates when doctor changes
                             try { fetchObatStats(id, selectedObatStart, selectedObatEnd); } catch(e){ console.error('fetchObatStats error', e); }
                         }
-                    })
-                    .catch(function(err){
-                        console.error('Failed to load dokter data', err);
+                    }).catch(function(err){ console.error('Failed to load dokter data', err); });
+            }
+
+            // Bind native change
+            sel.addEventListener('change', handleDokterChangeEvent);
+
+            // If Select2 is present, also bind Select2-specific events to ensure selection updates trigger the same handler
+            try {
+                if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+                    var $dok = $('#dokterSelect');
+                    $dok.off('.statistik');
+                    $dok.on('select2:select.statistik change.statistik', function(e){
+                        handleDokterChangeEvent({ target: this });
                     });
-            });
+                }
+            } catch (e) { /* ignore binding errors */ }
 
             // Date range state (visitation)
             var selectedStart = null;
@@ -640,6 +668,20 @@
                     }
 
                     // per-section All-time buttons removed; global All-time button is authoritative
+
+                    // Initialize Select2 for dokter selector now that scripts are loaded
+                    try {
+                        if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+                            $('#dokterSelect').select2({
+                                placeholder: '-- Pilih Dokter --',
+                                width: 'resolve',
+                                dropdownParent: $('#dokterSelect').parent()
+                            });
+                            console.info('Select2 initialized for #dokterSelect');
+                        } else {
+                            console.info('Select2 not found at init time');
+                        }
+                    } catch (e) { console.warn('Select2 init failed', e); }
                 } else {
                     // fallback: no daterangepicker available — set textual global value
                     var gInp = document.getElementById('globalRangePicker'); if (gInp) gInp.value = selectedStart + ' - ' + selectedEnd;
@@ -683,6 +725,31 @@
                         try { initRangePickerImpl(); } catch(e){ console.error('Failed to init range picker', e); }
                     }
                 }, 100);
+            })();
+
+            // Robust Select2 initializer: retry until select2 is available, then init and bind events.
+            (function ensureSelect2Init(){
+                var attempts = 0;
+                var max = 30; // ~6 seconds
+                var iv2 = setInterval(function(){
+                    attempts++;
+                    if (window.jQuery && jQuery.fn && jQuery.fn.select2) {
+                        try {
+                            var $dok = $('#dokterSelect');
+                            if ($dok && $dok.length && !$dok.hasClass('select2-initialized')) {
+                                $dok.select2({ placeholder: '-- Pilih Dokter --', width: 'resolve', dropdownParent: $dok.parent() });
+                                $dok.addClass('select2-initialized');
+                                console.info('Select2 initialized (retry) for #dokterSelect');
+                                // rebind our statistik events
+                                $dok.off('.statistik');
+                                $dok.on('select2:select.statistik change.statistik', function(e){ handleDokterChangeEvent({ target: this }); });
+                            }
+                        } catch (e) { console.warn('Select2 init retry failed', e); }
+                        clearInterval(iv2);
+                        return;
+                    }
+                    if (attempts >= max) { clearInterval(iv2); console.info('Select2 not detected after retries'); }
+                }, 200);
             })();
 
             // Attach click handlers for sorting top patients table (delegated)
