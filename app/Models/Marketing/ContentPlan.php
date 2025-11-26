@@ -23,6 +23,7 @@ class ContentPlan extends Model
         'platform',
         'status',
         'jenis_konten',
+        'konten_pilar',
         'target_audience',
         'link_asset',
         'link_publikasi',

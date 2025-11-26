@@ -56,6 +56,17 @@
               </select>
             </div>
             <div class="col-md-6 mb-2">
+              <label for="konten_pilar" class="form-label">Konten Pilar</label>
+              <select class="form-control select2" id="konten_pilar" name="konten_pilar">
+                <option value="">Pilih Konten Pilar</option>
+                <option value="Edukasi">Edukasi</option>
+                <option value="Awareness">Awareness</option>
+                <option value="Engagement/Interaktif">Engagement/Interaktif</option>
+                <option value="Promo/Testimoni">Promo/Testimoni</option>
+                <option value="Lifestyle/Tips">Lifestyle/Tips</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
               <label for="status" class="form-label">Status</label>
               <select class="form-control" id="status" name="status" required>
                 <option value="Draft">Draft</option>

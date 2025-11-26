@@ -20,11 +20,11 @@
         </div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label for="filterDateRange">Filter Tanggal Publish</label>
                     <input type="text" id="filterDateRange" class="form-control" autocomplete="off" placeholder="Pilih rentang tanggal">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label for="filterBrand">Filter Brand</label>
                     <select id="filterBrand" class="form-control select2" multiple>
                         <option value="Premiere Belova">Premiere Belova</option>
@@ -33,7 +33,7 @@
                         <option value="dr Fika">dr Fika</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label for="filterPlatform">Filter Platform</label>
                     <select id="filterPlatform" class="form-control select2" multiple>
                         <option value="Instagram">Instagram</option>
@@ -44,7 +44,18 @@
                         <option value="Other">Other</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label for="filterKontenPilar">Filter Konten Pilar</label>
+                    <select id="filterKontenPilar" class="form-control select2">
+                        <option value="">Semua Pilar</option>
+                        <option value="Edukasi">Edukasi</option>
+                        <option value="Awareness">Awareness</option>
+                        <option value="Engagement/Interaktif">Engagement/Interaktif</option>
+                        <option value="Promo/Testimoni">Promo/Testimoni</option>
+                        <option value="Lifestyle/Tips">Lifestyle/Tips</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <label for="filterStatus">Filter Status</label>
                     <select id="filterStatus" class="form-control select2">
                         <option value="">Semua Status</option>
@@ -65,6 +76,7 @@
                         <th>Tanggal Publish</th>
                         <th>Platform</th>
                         <th>Jenis Konten</th>
+                            <th>Konten Pilar</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -94,6 +106,16 @@ $(function() {
         dropdownParent: $('#filterStatus').parent()
     });
     $('#filterStatus').on('change', function() {
+        table.ajax.reload();
+    });
+    // Konten Pilar filter select2
+    $('#filterKontenPilar').select2({
+        width: '100%',
+        placeholder: 'Pilih Konten Pilar',
+        allowClear: true,
+        dropdownParent: $('#filterKontenPilar').parent()
+    });
+    $('#filterKontenPilar').on('change', function() {
         table.ajax.reload();
     });
     // Platform filter select2
@@ -167,6 +189,10 @@ $(function() {
                 let status = $('#filterStatus').val();
                 if (status) {
                     d.filter_status = status;
+                }
+                let kontenPilar = $('#filterKontenPilar').val();
+                if (kontenPilar) {
+                    d.filter_konten_pilar = kontenPilar;
                 }
             }
         },
@@ -242,6 +268,26 @@ $(function() {
                 return htmlParts.join(' ');
             } },
             { data: 'jenis_konten', name: 'jenis_konten' },
+            { data: 'konten_pilar', name: 'konten_pilar', render: function(data, type, row) {
+                if (!data) return '';
+                var map = {
+                    'Edukasi': { cls: 'primary', style: '' },
+                    'Awareness': { cls: 'warning', style: '' },
+                    'Engagement/Interaktif': { cls: 'success', style: '' },
+                    'Promo/Testimoni': { cls: 'danger', style: '' },
+                    'Lifestyle/Tips': { cls: 'info', style: '' }
+                };
+                var v = (typeof data === 'string') ? data : (Array.isArray(data) ? data.join(', ') : '');
+                // If multiple values are present (unexpected), render first or all separated
+                if (Array.isArray(data)) {
+                    return data.map(function(d){
+                        var m = map[d] || { cls: 'secondary', style: '' };
+                        return `<span class="badge badge-${m.cls}" style="${m.style};margin-right:6px">${d}</span>`;
+                    }).join(' ');
+                }
+                var m = map[v] || { cls: 'secondary', style: '' };
+                return `<span class="badge badge-${m.cls}" style="${m.style}">${v}</span>`;
+            } },
             
             { data: 'status', name: 'status', render: function(data, type, row) {
                 // Render as an inline select so user can change status directly
@@ -310,6 +356,7 @@ $(function() {
         $('#contentPlanForm').attr('data-id', '');
         $('.select2').val(null).trigger('change');
         $('#brand').val(null).trigger('change');
+        $('#konten_pilar').val(null).trigger('change');
         // clear link publikasi inputs
         $('#link_publikasi_wrapper').find('.link-input-row').remove();
         // default status to Scheduled when creating a new content plan
@@ -381,6 +428,7 @@ $(function() {
             $('#platform').val(data.platform).trigger('change');
             $('#status').val(data.status);
             $('#jenis_konten').val(data.jenis_konten).trigger('change');
+            $('#konten_pilar').val(data.konten_pilar).trigger('change');
             $('#link_asset').val(data.link_asset);
             // render per-platform link inputs
             try { renderLinkInputs(data.platform, data.link_publikasi); } catch(e) {}
@@ -444,6 +492,12 @@ $(function() {
     $('#status').select2({
         dropdownParent: $('#contentPlanModal'),
         width: '100%'
+    });
+    $('#konten_pilar').select2({
+        dropdownParent: $('#contentPlanModal'),
+        width: '100%',
+        placeholder: 'Pilih Konten Pilar',
+        allowClear: true
     });
 
     // Render link_publikasi inputs for selected platforms inside the modal

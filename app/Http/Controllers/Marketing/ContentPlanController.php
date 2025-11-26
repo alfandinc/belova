@@ -48,6 +48,10 @@ class ContentPlanController extends Controller
             if ($request->filled('filter_status')) {
                 $data->where('status', $request->filter_status);
             }
+            // Konten Pilar filter
+            if ($request->filled('filter_konten_pilar')) {
+                $data->where('konten_pilar', $request->filter_konten_pilar);
+            }
             return DataTables::of($data)
                 ->addColumn('action', function ($row) {
                     return view('marketing.content_plan.partials.actions', compact('row'))->render();
@@ -97,10 +101,13 @@ class ContentPlanController extends Controller
                     });
                     return $badges->implode(' ');
                 })
+                ->editColumn('konten_pilar', function ($row) {
+                    return $row->konten_pilar ? e($row->konten_pilar) : '';
+                })
                 ->editColumn('tanggal_publish', function ($row) {
                     return $row->tanggal_publish ? $row->tanggal_publish->format('Y-m-d H:i') : '';
                 })
-                ->rawColumns(['action', 'brand', 'jenis_konten'])
+                ->rawColumns(['action', 'brand', 'jenis_konten', 'konten_pilar'])
                 ->make(true);
         }
         return view('marketing.content_plan.index');
@@ -117,6 +124,7 @@ class ContentPlanController extends Controller
             'tanggal_publish' => 'required|date',
             'platform' => 'required|array',
             'status' => 'required|string',
+            'konten_pilar' => 'nullable|string|in:Edukasi,Awareness,Engagement/Interaktif,Promo/Testimoni,Lifestyle/Tips',
             'jenis_konten' => 'required|array',
             'target_audience' => 'nullable|string',
             'link_asset' => 'nullable|string',
@@ -163,6 +171,7 @@ class ContentPlanController extends Controller
             'tanggal_publish' => 'required|date',
             'platform' => 'required|array',
             'status' => 'required|string',
+            'konten_pilar' => 'nullable|string|in:Edukasi,Awareness,Engagement/Interaktif,Promo/Testimoni,Lifestyle/Tips',
             'jenis_konten' => 'required|array',
             'target_audience' => 'nullable|string',
             'link_asset' => 'nullable|string',
