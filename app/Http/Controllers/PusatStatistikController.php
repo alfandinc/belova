@@ -147,60 +147,84 @@ class PusatStatistikController extends Controller
             }
         }
 
-        // If daily, build day labels and group by date. Otherwise group by month as before.
+        // Build period format and labels
         if ($useDaily) {
+            $periodFmt = "DATE(v.tanggal_visitation)";
             $start = \Illuminate\Support\Carbon::parse($request->input('start'))->startOfDay()->toDateString();
             $end = \Illuminate\Support\Carbon::parse($request->input('end'))->endOfDay()->toDateString();
-
-            $days = [];
             $period = new \Carbon\CarbonPeriod($start, '1 day', $end);
-            foreach ($period as $dt) {
-                $days[] = $dt->format('Y-m-d');
-            }
-
-            $results = \App\Models\ERM\Visitation::selectRaw("DATE(tanggal_visitation) as ymd, count(*) as total")
-                ->where('dokter_id', $id)
-                ->where('status_kunjungan', 2)
-                ->whereBetween('tanggal_visitation', [$start, $end])
-                ->groupBy('ymd')
-                ->pluck('total', 'ymd')
-                ->toArray();
-
-            $series = [];
-            foreach ($days as $d) {
-                $series[] = isset($results[$d]) ? (int)$results[$d] : 0;
-            }
-
-            return response()->json(['ok' => true, 'labels' => $days, 'series' => $series]);
+            $labels = array_map(function($d){ return $d->format('Y-m-d'); }, iterator_to_array($period));
         } else {
-            // month aggregation
-            // build month labels between start and end (inclusive)
-            $months = [];
-            $period = new \Carbon\CarbonPeriod($startDt->copy()->startOfMonth(), '1 month', $endDt->copy()->endOfMonth());
-            foreach ($period as $dt) {
-                $months[] = $dt->format('Y-m');
-            }
-
-            // start and end date strings for query
+            $periodFmt = "DATE_FORMAT(v.tanggal_visitation, '%Y-%m')";
             $start = $startDt->toDateString();
             $end = $endDt->toDateString();
-
-            // fetch counts grouped by year-month
-            $results = \App\Models\ERM\Visitation::selectRaw("DATE_FORMAT(tanggal_visitation, '%Y-%m') as ym, count(*) as total")
-                ->where('dokter_id', $id)
-                ->where('status_kunjungan', 2)
-                ->whereBetween('tanggal_visitation', [$start, $end])
-                ->groupBy('ym')
-                ->pluck('total', 'ym')
-                ->toArray();
-
-            $series = [];
-            foreach ($months as $m) {
-                $series[] = isset($results[$m]) ? (int)$results[$m] : 0;
-            }
-
-            return response()->json(['ok' => true, 'labels' => $months, 'series' => $series]);
+            $periodRange = new \Carbon\CarbonPeriod($startDt->copy()->startOfMonth(), '1 month', $endDt->copy()->endOfMonth());
+            $labels = array_map(function($d){ return $d->format('Y-m'); }, iterator_to_array($periodRange));
         }
+
+        // Query visit counts grouped by period and jenis_kunjungan
+        $visQ = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+            ->selectRaw("{$periodFmt} as period, v.jenis_kunjungan as jenis, count(*) as total")
+            ->where('v.dokter_id', $id)
+            ->where('v.status_kunjungan', 2);
+        if ($start && $end) $visQ->whereBetween('v.tanggal_visitation', [$start, $end]);
+        $visRows = $visQ->groupBy('period','jenis')->get();
+
+        // Query konsultasi-with-lab counts grouped by period
+        $labQ = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+            ->join('erm_lab_permintaan as l', 'l.visitation_id', '=', 'v.id')
+            ->selectRaw("{$periodFmt} as period, count(distinct v.id) as total")
+            ->where('v.dokter_id', $id)
+            ->where('v.status_kunjungan', 2)
+            ->where('v.jenis_kunjungan', 1);
+        if ($start && $end) $labQ->whereBetween('v.tanggal_visitation', [$start, $end]);
+        $labRows = $labQ->groupBy('period')->get();
+
+        // Build maps
+        $mapJenis = [];
+        foreach ($visRows as $r) {
+            $p = $r->period;
+            $j = (int)$r->jenis;
+            if (!isset($mapJenis[$p])) $mapJenis[$p] = [];
+            $mapJenis[$p][$j] = (int)$r->total;
+        }
+        $mapLab = [];
+        foreach ($labRows as $r) { $mapLab[$r->period] = (int)$r->total; }
+
+        // Prepare series arrays
+        $seriesMap = [
+            'Total' => [],
+            'Konsultasi' => [],
+            'Konsultasi (Tanpa Lab)' => [],
+            'Konsultasi (Dengan Lab)' => [],
+            'Beli Produk' => [],
+            'Lab' => [],
+        ];
+
+        foreach ($labels as $labl) {
+            $counts = isset($mapJenis[$labl]) ? $mapJenis[$labl] : [];
+            $kons = isset($counts[1]) ? (int)$counts[1] : 0;
+            $beli = isset($counts[2]) ? (int)$counts[2] : 0;
+            $lab = isset($counts[3]) ? (int)$counts[3] : 0;
+            $konsWithLab = isset($mapLab[$labl]) ? (int)$mapLab[$labl] : 0;
+            $konsNoLab = max(0, $kons - $konsWithLab);
+            $total = $kons + $beli + $lab;
+
+            $seriesMap['Total'][] = $total;
+            $seriesMap['Konsultasi'][] = $kons;
+            $seriesMap['Konsultasi (Tanpa Lab)'][] = $konsNoLab;
+            $seriesMap['Konsultasi (Dengan Lab)'][] = $konsWithLab;
+            $seriesMap['Beli Produk'][] = $beli;
+            $seriesMap['Lab'][] = $lab;
+        }
+
+        // Convert to ApexCharts series format
+        $seriesOut = [];
+        foreach ($seriesMap as $name => $arr) {
+            $seriesOut[] = ['name' => $name, 'data' => $arr];
+        }
+
+        return response()->json(['ok' => true, 'labels' => $labels, 'series' => $seriesOut]);
     }
 
     /**
@@ -229,7 +253,38 @@ class PusatStatistikController extends Controller
             $breakdown[$k] = isset($counts[$k]) ? (int)$counts[$k] : 0;
         }
 
-        $total = array_sum($breakdown);
+        // Further split Konsultasi into with/without LabPermintaan
+        $konsultasiWithLab = 0;
+        $konsultasiNoLab = 0;
+        try {
+            $visQ = \Illuminate\Support\Facades\DB::table('erm_visitations as v')
+                ->where('v.dokter_id', $id)
+                ->where('v.status_kunjungan', 2)
+                ->where('v.jenis_kunjungan', 1);
+            if ($request->has('start') && $request->has('end')) {
+                $s = \Illuminate\Support\Carbon::parse($request->input('start'))->toDateString();
+                $e = \Illuminate\Support\Carbon::parse($request->input('end'))->toDateString();
+                $visQ->whereBetween('v.tanggal_visitation', [$s, $e]);
+            }
+
+            // count with lab (exists in erm_lab_permintaan)
+            $withLab = (clone $visQ)->join('erm_lab_permintaan as l', 'l.visitation_id', '=', 'v.id')
+                ->selectRaw('count(distinct v.id) as cnt')
+                ->value('cnt');
+            $konsultasiWithLab = (int)($withLab ?: 0);
+
+            // total konsultasi from earlier breakdown for jenis_kunjungan=1
+            $totalKons = $breakdown[1] ?? 0;
+            $konsultasiNoLab = max(0, $totalKons - $konsultasiWithLab);
+        } catch (\Exception $e) {
+            // ignore DB errors and leave zeros
+        }
+
+        // expose both legacy numeric keys and new detailed keys
+        $breakdown['konsultasi_with_lab'] = $konsultasiWithLab;
+        $breakdown['konsultasi_no_lab'] = $konsultasiNoLab;
+
+        $total = array_sum([($breakdown[1] ?? 0), ($breakdown[2] ?? 0), ($breakdown[3] ?? 0)]);
 
         return response()->json(['ok' => true, 'breakdown' => $breakdown, 'total' => (int)$total]);
     }

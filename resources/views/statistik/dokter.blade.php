@@ -102,9 +102,17 @@
                                                     <td><strong>Total</strong></td>
                                                     <td class="text-end"><span id="totalVisits">-</span></td>
                                                 </tr>
-                                                <tr>
-                                                    <td>Konsultasi</td>
+                                                <tr id="kunjungan1_row">
+                                                    <td><span id="kunjungan1_caret" style="display:inline-block; width:18px;">▸</span> Konsultasi</td>
                                                     <td class="text-end"><span id="kunjungan1">-</span></td>
+                                                </tr>
+                                                <tr class="konsultasi-detail d-none">
+                                                    <td style="padding-left:18px;">Konsultasi (Tanpa Lab)</td>
+                                                    <td class="text-end"><span id="kunjungan1_nolab">-</span></td>
+                                                </tr>
+                                                <tr class="konsultasi-detail d-none">
+                                                    <td style="padding-left:18px;">Konsultasi dengan Lab</td>
+                                                    <td class="text-end"><span id="kunjungan1_withlab">-</span></td>
                                                 </tr>
                                                 <tr>
                                                     <td>Beli Produk</td>
@@ -288,47 +296,65 @@
                 return;
             }
 
-            // convert labels: support both 'YYYY-MM' (month) and 'YYYY-MM-DD' (day)
-            var categories = labels.map(function(l){
+                // convert labels: support both 'YYYY-MM' (month) and 'YYYY-MM-DD' (day)
+                var categories = labels.map(function(l){
+                    try {
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(l)) {
+                            return (typeof moment !== 'undefined') ? moment(l).format('DD MMM') : l;
+                        } else if (/^\d{4}-\d{2}$/.test(l)) {
+                            return (typeof moment !== 'undefined') ? moment(l + '-01').format('MMM YYYY') : l;
+                        } else {
+                            return l;
+                        }
+                    } catch(e){ return l; }
+                });
+
+                // Normalize seriesData: support legacy array of numbers or new [{name,data},...]
+                var series = [];
+                if (!seriesData) {
+                    series = [];
+                } else if (Array.isArray(seriesData) && seriesData.length && typeof seriesData[0] === 'number') {
+                    series = [{ name: 'Kunjungan', data: seriesData }];
+                } else if (Array.isArray(seriesData)) {
+                    series = seriesData;
+                }
+
+                var colorMap = {
+                    'Total': '#1f77b4',
+                    'Kunjungan': '#1f77b4',
+                    'Konsultasi': '#ff7f0e',
+                    'Konsultasi (Tanpa Lab)': '#2ca02c',
+                    'Konsultasi (Dengan Lab)': '#d62728',
+                    'Beli Produk': '#9467bd',
+                    'Lab': '#8c564b'
+                };
+
+                var colors = series.map(function(s){ return colorMap[s.name] || '#333333'; });
+
+                var options = {
+                    chart: { type: 'line', height: 360, toolbar: { show: false } },
+                    stroke: { curve: 'smooth', width: 2 },
+                    series: series,
+                    colors: colors,
+                    xaxis: { categories: categories, labels: { rotate: -45 } },
+                    dataLabels: { enabled: false },
+                    yaxis: { labels: { formatter: function(v){ return Math.round(v); } } },
+                    tooltip: { shared: true, intersect: false }
+                };
+
+                var el = document.getElementById('statisticContent');
+                if (!el) return;
+                el.innerHTML = '<div id="visitationChart"></div>';
+
+                if (_visitationChart) {
+                    try { _visitationChart.destroy(); } catch(e){}
+                    _visitationChart = null;
+                }
+
                 try {
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(l)) {
-                        // daily label
-                        return (typeof moment !== 'undefined') ? moment(l).format('DD MMM') : l;
-                    } else if (/^\d{4}-\d{2}$/.test(l)) {
-                        // monthly label
-                        return (typeof moment !== 'undefined') ? moment(l + '-01').format('MMM YYYY') : l;
-                    } else {
-                        return l;
-                    }
-                } catch(e){ return l; }
-            });
-
-            var options = {
-                chart: { type: 'area', height: 260, toolbar: { show: false } },
-                series: [{ name: 'Visitation', data: seriesData }],
-                xaxis: { categories: categories, labels: { rotate: -45 } },
-                stroke: { curve: 'smooth' },
-                dataLabels: { enabled: false },
-                colors: ['#4f7df0'],
-                yaxis: { labels: { formatter: function(v){ return Math.round(v); } } },
-                tooltip: { y: { formatter: function(v){ return v + ' visits'; } } }
-            };
-
-            var el = document.getElementById('statisticContent');
-            if (!el) return;
-            el.innerHTML = '<div id="visitationChart"></div>';
-
-            if (_visitationChart) {
-                try { _visitationChart.destroy(); } catch(e){}
-                _visitationChart = null;
-            }
-
-            try {
-                _visitationChart = new ApexCharts(document.querySelector('#visitationChart'), options);
-                _visitationChart.render();
-            } catch(err) {
-                console.error('Error creating ApexCharts instance', err);
-            }
+                    _visitationChart = new ApexCharts(document.querySelector('#visitationChart'), options);
+                    _visitationChart.render();
+                } catch(err) { console.error('Error creating ApexCharts instance', err); }
         }
 
         // Render gender donut chart. Expects object like { male: n, female: n, other: n }
@@ -838,6 +864,11 @@
             function populateBreakdownSummary(breakdown, total, start, end) {
                 document.getElementById('totalVisits').textContent = total || 0;
                 document.getElementById('kunjungan1').textContent = (breakdown[1] || 0);
+                // detailed konsultasi counts
+                var kNo = (typeof breakdown.konsultasi_no_lab !== 'undefined') ? breakdown.konsultasi_no_lab : 0;
+                var kWith = (typeof breakdown.konsultasi_with_lab !== 'undefined') ? breakdown.konsultasi_with_lab : 0;
+                var elNo = document.getElementById('kunjungan1_nolab'); if (elNo) elNo.textContent = kNo;
+                var elWith = document.getElementById('kunjungan1_withlab'); if (elWith) elWith.textContent = kWith;
                 document.getElementById('kunjungan2').textContent = (breakdown[2] || 0);
                 document.getElementById('kunjungan3').textContent = (breakdown[3] || 0);
                 var summaryEl = document.getElementById('breakdownSummary');
@@ -962,6 +993,19 @@
                     tb.appendChild(tr);
                 });
             }
+
+            // Toggle konsulatasi detail rows (collapsed by default)
+            (function(){
+                var konsRow = document.getElementById('kunjungan1_row');
+                if (!konsRow) return;
+                konsRow.style.cursor = 'pointer';
+                konsRow.addEventListener('click', function(){
+                    var details = document.querySelectorAll('.konsultasi-detail');
+                    details.forEach(function(el){ el.classList.toggle('d-none'); });
+                    var caret = document.getElementById('kunjungan1_caret');
+                    if (caret) caret.textContent = (caret.textContent === '▾') ? '▸' : '▾';
+                });
+            })();
         })();
     </script>
     
