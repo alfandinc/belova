@@ -319,6 +319,7 @@ class StokOpnameController extends Controller
                     'erm_stok_opname_items.*',
                     'erm_obat.nama as nama_obat',
                     'erm_obat.hpp_jual as hpp_jual',
+                    'erm_obat.satuan as satuan',
                     DB::raw($batchSub)
                 )
                 ->where('stok_opname_id', $id)

@@ -177,6 +177,7 @@
                     <th>Obat ID</th>
                     <th>Nama Obat</th>
                     <th>Batch</th>
+                    <th>Satuan</th>
                     <th>Stok Sistem</th>
                     <th>Stok Fisik</th>
                     <th>Nilai Stok</th>
@@ -240,13 +241,14 @@ $(function () {
         ajax: "{{ route('erm.stokopname.itemsData', $stokOpname->id) }}",
         columnDefs: [
             { targets: 1, width: '220px', className: 'nama-obat-cell', render: function(data, type, row) { return '<div class="nama-obat-cell">'+data+'</div>'; } },
-            { targets: 7, width: '280px' }, // Temuan column - make it wider
-            { targets: 8, width: '100px' }, // List Temuan column
+            { targets: 8, width: '280px' }, // Temuan column - make it wider (index shifted after adding Satuan)
+            { targets: 9, width: '100px' }, // List Temuan column
         ],
         columns: [
             {data: 'obat_id', name: 'obat_id'},
             {data: 'nama_obat', name: 'nama_obat'},
             {data: 'batch_name', name: 'batch_name', defaultContent: '-'},
+            {data: 'satuan', name: 'satuan', defaultContent: '-'},
             {data: 'stok_sistem', name: 'stok_sistem'},
                 {
                     data: 'stok_fisik',
@@ -329,9 +331,9 @@ $(function () {
                     setTimeout(() => input.removeClass('is-valid'), 1000);
                     // Get row index
                     var rowIdx = table.row(input.closest('tr')).index();
-                    // Update selisih cell (column indexes shifted after removing Exp Date)
-                    // New Columns: 0 Obat ID,1 Nama,2 Batch,3 Stok Sistem,4 Stok Fisik,5 Nilai Stok,6 Selisih,7 Temuan,8 List Temuan
-                    var selisihCell = $(table.cell(rowIdx, 6).node()); // Index 6 untuk kolom Selisih
+                    // Update selisih cell (column indexes shifted after adding Satuan)
+                    // New Columns: 0 Obat ID,1 Nama,2 Batch,3 Satuan,4 Stok Sistem,5 Stok Fisik,6 Nilai Stok,7 Selisih,8 Temuan,9 List Temuan
+                    var selisihCell = $(table.cell(rowIdx, 7).node()); // Index 7 untuk kolom Selisih
                     var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
                     selisihCell.html(res.selisih + ' ' + icon);
 
@@ -339,7 +341,7 @@ $(function () {
                     var rowData = table.row(rowIdx).data();
                     var hpp = parseFloat(rowData.hpp_jual) || 0;
                     var nilai = hpp * (parseFloat(res.stok_fisik) || 0);
-                    var nilaiCell = $(table.cell(rowIdx, 5).node()); // Index 5 untuk Nilai Stok
+                    var nilaiCell = $(table.cell(rowIdx, 6).node()); // Index 6 untuk Nilai Stok
                     nilaiCell.html('Rp ' + nilai.toLocaleString('id-ID'));
                     
                     // Also update table's internal data for stok_fisik and selisih so future redraws have correct values
@@ -397,18 +399,18 @@ $(function () {
                     var rowIdx = table.row(btn.closest('tr')).index();
                     
                     // Update Stok Fisik cell
-                    var stokFisikInput = $(table.cell(rowIdx, 4).node()).find('.stok-fisik-input');
+                    var stokFisikInput = $(table.cell(rowIdx, 5).node()).find('.stok-fisik-input');
                     stokFisikInput.val(res.stok_fisik);
                     
                     // Update Nilai Stok cell
                     var rowData = table.row(rowIdx).data();
                     var hpp = parseFloat(rowData.hpp_jual) || 0;
                     var nilai = hpp * parseFloat(res.stok_fisik);
-                    var nilaiCell = $(table.cell(rowIdx, 5).node());
+                    var nilaiCell = $(table.cell(rowIdx, 6).node());
                     nilaiCell.html('Rp ' + nilai.toLocaleString('id-ID'));
                     
                     // Update Selisih cell
-                    var selisihCell = $(table.cell(rowIdx, 6).node());
+                    var selisihCell = $(table.cell(rowIdx, 7).node());
                     var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
                     selisihCell.html(res.selisih + ' ' + icon);
                     

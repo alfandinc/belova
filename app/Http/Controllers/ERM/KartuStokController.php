@@ -546,55 +546,108 @@ class KartuStokController extends Controller
                     $jumlahFormatted = '<strong>' . number_format($row->jumlah, 0) . '</strong>';
                     
                     // Compute total stock across all batches for the SAME GUDANG as this transaction
-                    // (previously this summed across all gudangs; we now limit to the transaction's gudang)
+                    // Use a single aggregated SQL: pick the latest kartu_stok row per (obat_id,batch)
+                    // up to this transaction time (and same gudang), then sum their stok_setelah.
                     $totalAll = 0;
                     try {
-                        foreach ($batches as $batchVal) {
-                            // For null/empty batch values, match where batch is null OR empty string
-                            $batchQuery = DB::table('erm_kartu_stok')->where('obat_id', $obatId);
-                            // Filter by the same gudang as the current transaction row so the "Total semua batch"
-                            // reflects stock within that gudang only.
-                            if (isset($row->gudang_id)) {
-                                $batchQuery->where('gudang_id', $row->gudang_id);
-                            } else {
-                                // transaction had no gudang_id (null), so restrict to null gudang_id records
-                                $batchQuery->whereNull('gudang_id');
-                            }
-                            if (is_null($batchVal) || $batchVal === '') {
-                                $batchQuery->where(function($q) {
-                                    $q->whereNull('batch')->orWhere('batch', '');
-                                });
-                            } else {
-                                $batchQuery->where('batch', $batchVal);
-                            }
+                        $sub = DB::table('erm_kartu_stok')
+                            ->select(DB::raw('MAX(id) as max_id'))
+                            ->where('obat_id', $obatId)
+                            ->where('tanggal', '<=', $row->created_at);
 
-                            // Only consider records up to and including this transaction time (and id tie-breaker)
-                            $batchQuery->where(function($q) use ($row) {
-                                $q->where('tanggal', '<', $row->created_at)
-                                  ->orWhere(function($q2) use ($row) {
-                                      $q2->where('tanggal', '=', $row->created_at)->where('id', '<=', isset($row->id) ? $row->id : 0);
-                                  });
-                            });
-
-                            $latest = $batchQuery->orderBy('tanggal', 'desc')->orderBy('id', 'desc')->first();
-                            if ($latest && isset($latest->stok_setelah)) {
-                                $totalAll += (float)$latest->stok_setelah;
-                            }
+                        if (isset($row->gudang_id)) {
+                            $sub->where('gudang_id', $row->gudang_id);
+                        } else {
+                            $sub->whereNull('gudang_id');
                         }
+
+                        // group by batch so we take latest per-batch
+                        $sub->groupBy('batch');
+
+                        $sumRow = DB::table('erm_kartu_stok as ks2')
+                            ->joinSub($sub, 's2', function($join) {
+                                $join->on('ks2.id', '=', 's2.max_id');
+                            })
+                            ->select(DB::raw('SUM(ks2.stok_setelah) as total_all'))
+                            ->first();
+
+                        $totalAll = $sumRow && isset($sumRow->total_all) ? (float)$sumRow->total_all : 0;
                     } catch (\Exception $e) {
-                        // In case of any error, fall back to using the per-row stok_setelah only
+                        // fallback to per-row value
                         $totalAll = (float)$row->stok_setelah;
                     }
 
-                    // Format stok setelah (per-batch) and also show total across all batches
-                    // Use centered layout and small muted label so alignment matches other cells
-                    $stokFormatted = '<div class="d-flex flex-column align-items-center">';
-                    $stokFormatted .= '<div><span class="badge badge-secondary">' . number_format($row->stok_setelah, 0) . '</span></div>';
-                    $stokFormatted .= '<div class="mt-1 text-center">';
-                    $stokFormatted .= '<small class="text-muted d-block">Total semua<br/>batch</small>';
-                    $stokFormatted .= '<span class="badge badge-dark mt-1">' . number_format($totalAll, 0) . '</span>';
-                    $stokFormatted .= '</div>';
-                    $stokFormatted .= '</div>';
+                    // Prefer to display live values from `erm_obat_stok_gudang` (current gudang stock)
+                    // Only include batches that exist and have stok > 0. Fall back to kartu_stok.stok_setelah when missing.
+                    try {
+                        $perBatchStok = null;
+                        if (isset($row->gudang_id)) {
+                            $stokQuery = DB::table('erm_obat_stok_gudang')
+                                ->where('obat_id', $obatId)
+                                ->where('gudang_id', $row->gudang_id);
+                        } else {
+                            $stokQuery = DB::table('erm_obat_stok_gudang')
+                                ->where('obat_id', $obatId)
+                                ->whereNull('gudang_id');
+                        }
+
+                        if ($row->batch === null || $row->batch === '') {
+                            $stokQuery->where(function($q) { $q->whereNull('batch')->orWhere('batch', ''); });
+                        } else {
+                            $stokQuery->where('batch', $row->batch);
+                        }
+
+                        $stokRow = $stokQuery->first();
+                        if ($stokRow && isset($stokRow->stok)) {
+                            $perBatchStok = (float)$stokRow->stok;
+                        }
+
+                        // Total across batches for same gudang: sum stok where stok > 0
+                        if (isset($row->gudang_id)) {
+                            $totalAllRow = DB::table('erm_obat_stok_gudang')
+                                ->where('obat_id', $obatId)
+                                ->where('gudang_id', $row->gudang_id)
+                                ->where('stok', '>', 0)
+                                ->select(DB::raw('SUM(stok) as total_all'))
+                                ->first();
+                        } else {
+                            $totalAllRow = DB::table('erm_obat_stok_gudang')
+                                ->where('obat_id', $obatId)
+                                ->whereNull('gudang_id')
+                                ->where('stok', '>', 0)
+                                ->select(DB::raw('SUM(stok) as total_all'))
+                                ->first();
+                        }
+
+                        $totalAllFromGudang = $totalAllRow && isset($totalAllRow->total_all) ? (float)$totalAllRow->total_all : 0;
+                    } catch (\Exception $e) {
+                        $perBatchStok = null;
+                        $totalAllFromGudang = 0;
+                    }
+
+                    // Use gudang values when available, otherwise fall back to kartu_stok's stok_setelah
+                    $displayPerBatch = isset($perBatchStok) ? $perBatchStok : (isset($row->stok_setelah) ? (float)$row->stok_setelah : 0);
+                    $displayTotalAll = $totalAllFromGudang > 0 ? $totalAllFromGudang : $totalAll;
+
+                    // Format stok setelah
+                    // For stok_opname rows, show the TOTAL across all batches as the main badge (snapshot/aggregate view)
+                    // For other rows, show the per-batch stok as main badge and total across batches as secondary
+                    if ($row->ref_type === 'stok_opname') {
+                        $stokFormatted = '<div class="d-flex flex-column align-items-center">';
+                        $stokFormatted .= '<div><span class="badge badge-dark">' . number_format($displayTotalAll, 0) . '</span></div>';
+                        $stokFormatted .= '<div class="mt-1 text-center">';
+                        $stokFormatted .= '<small class="text-muted d-block">Total semua<br/>batch</small>';
+                        $stokFormatted .= '</div>';
+                        $stokFormatted .= '</div>';
+                    } else {
+                        $stokFormatted = '<div class="d-flex flex-column align-items-center">';
+                        $stokFormatted .= '<div><span class="badge badge-secondary">' . number_format($displayPerBatch, 0) . '</span></div>';
+                        $stokFormatted .= '<div class="mt-1 text-center">';
+                        $stokFormatted .= '<small class="text-muted d-block">Total semua<br/>batch</small>';
+                        $stokFormatted .= '<span class="badge badge-dark mt-1">' . number_format($displayTotalAll, 0) . '</span>';
+                        $stokFormatted .= '</div>';
+                        $stokFormatted .= '</div>';
+                    }
                     
                     // Format keterangan dengan gudang info (make gudang name more prominent and escape it)
                     $infoFormatted = $row->keterangan;
@@ -602,14 +655,49 @@ class KartuStokController extends Controller
                         $infoFormatted .= '<br><div class="text-info"><i class="fas fa-warehouse"></i> <strong>' . e($row->nama_gudang) . '</strong></div>';
                     }
                     
+                    // For stok_opname rows, display all batches in the same gudang that have stok > 0
+                    // so user can see batch-level details even when a specific batch didn't change.
+                    try {
+                        $batchDisplay = '';
+                        if ($row->ref_type === 'stok_opname') {
+                            $batchQuery = DB::table('erm_obat_stok_gudang')
+                                ->where('obat_id', $obatId)
+                                ->where('stok', '>', 0);
+
+                            if (isset($row->gudang_id)) {
+                                $batchQuery->where('gudang_id', $row->gudang_id);
+                            } else {
+                                $batchQuery->whereNull('gudang_id');
+                            }
+
+                            $batchRows = $batchQuery->select('batch', 'stok')->orderBy('batch')->get();
+
+                            if ($batchRows && $batchRows->count() > 0) {
+                                $parts = [];
+                                foreach ($batchRows as $b) {
+                                    $batchName = $b->batch ? e($b->batch) : '<em>no-batch</em>';
+                                    $parts[] = '<code>' . $batchName . '</code> <small class="text-muted">(' . number_format($b->stok, 0) . ')</small>';
+                                }
+                                $batchDisplay = implode('<br>', $parts);
+                            } else {
+                                $batchDisplay = $row->batch ? '<code>' . e($row->batch) . '</code>' : '<span class="text-muted">-</span>';
+                            }
+                        } else {
+                            $batchDisplay = $row->batch ? '<code>' . e($row->batch) . '</code>' : '<span class="text-muted">-</span>';
+                        }
+                    } catch (\Exception $e) {
+                        $batchDisplay = $row->batch ? '<code>' . e($row->batch) . '</code>' : '<span class="text-muted">-</span>';
+                    }
+
                     $rows[] = [
                         'tipe' => $tipeDisplay,
                         'tanggal' => $tanggalFormatted,
                         'jumlah' => $jumlahFormatted,
                         'no_ref' => $refInfo,
                         'stok' => $stokFormatted,
-                        'batch' => $row->batch ? '<code>' . $row->batch . '</code>' : '<span class="text-muted">-</span>',
-                        'info' => $infoFormatted
+                        'batch' => $batchDisplay,
+                        'info' => $infoFormatted,
+                        'row_class' => ($row->ref_type === 'stok_opname') ? 'table-warning' : ''
                     ];
                 }
 
@@ -636,14 +724,15 @@ class KartuStokController extends Controller
                     $html .= '</td></tr>';
                 } else {
                     foreach ($rows as $row) {
-                        $html .= '<tr>';
-                        $html .= '<td class="text-center">' . $row['tipe'] . '</td>';
-                        $html .= '<td>' . $row['tanggal'] . '</td>';
-                        $html .= '<td class="text-right">' . $row['jumlah'] . '</td>';
-                        $html .= '<td>' . $row['no_ref'] . '</td>';
-                        $html .= '<td class="text-center">' . $row['stok'] . '</td>';
-                        $html .= '<td class="text-center">' . $row['batch'] . '</td>';
-                        $html .= '<td>' . $row['info'] . '</td>';
+                        $trClass = isset($row['row_class']) && $row['row_class'] ? ' class="' . $row['row_class'] . '"' : '';
+                        $html .= '<tr' . $trClass . '>';
+                        $html .= '<td class="text-center">' . ($row['tipe'] ?? '') . '</td>';
+                        $html .= '<td>' . ($row['tanggal'] ?? '') . '</td>';
+                        $html .= '<td class="text-right">' . ($row['jumlah'] ?? '') . '</td>';
+                        $html .= '<td>' . ($row['no_ref'] ?? '') . '</td>';
+                        $html .= '<td class="text-center">' . ($row['stok'] ?? '') . '</td>';
+                        $html .= '<td class="text-center">' . ($row['batch'] ?? '') . '</td>';
+                        $html .= '<td>' . ($row['info'] ?? '') . '</td>';
                         $html .= '</tr>';
                     }
                 }
