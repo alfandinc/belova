@@ -34,13 +34,19 @@ class VisitationController extends Controller
             // 'waktu_kunjungan' => 'date_format:H:i', // Validasi waktu kunjungan
             'metode_bayar_id' => 'required',
             'klinik_id' => 'required', // Add validation for klinik_id
+            'jenis_kunjungan' => 'nullable|integer', // allow caller to specify visit type
         ]);
 
         // Cek apakah pasien sudah didaftarkan di hari yang sama dan dokter yang sama
+        // Only treat as duplicate if the existing visitation has the same "jenis_kunjungan".
+        $jenis = $request->jenis_kunjungan ?? 1; // default to jenis 1 for regular store()
+
         $exists = Visitation::where('pasien_id', $request->pasien_id)
             ->whereDate('tanggal_visitation', $request->tanggal_visitation)
             ->where('dokter_id', $request->dokter_id)
+            ->where('jenis_kunjungan', $jenis)
             ->exists();
+
         if ($exists) {
             return response()->json([
                 'success' => false,
@@ -59,7 +65,7 @@ class VisitationController extends Controller
             'waktu_kunjungan' => $request->waktu_kunjungan, // Menyimpan waktu kunjungan
             'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id,
-            'jenis_kunjungan' => 1,
+            'jenis_kunjungan' => $jenis,
             'klinik_id' => $request->klinik_id, // Add this line to store klinik_id
             'status_kunjungan' => 0,
             'user_id' => Auth::id(), // Menyimpan ID user yang login
