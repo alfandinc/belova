@@ -111,12 +111,16 @@
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label>Status</label>
-                    <select name="status" id="status" class="form-control">
+                    <!-- Status is locked in the modal. Use the row actions (Dibaca / Selesai) to change status. -->
+                    <select id="status" class="form-control" disabled>
                         <option value="delegated" selected>Delegated</option>
                         <option value="progress">Progress</option>
                         <option value="done">Done</option>
                         <option value="canceled">Canceled</option>
                     </select>
+                    <!-- Hidden field contains the status that will actually be submitted -->
+                    <input type="hidden" name="status" id="status_hidden" value="delegated" />
+                    <small class="form-text text-muted">Status dikunci — gunakan tombol "Dibaca" atau "Selesai" pada daftar untuk mengubah status.</small>
                 </div>
                 <div class="form-group col-md-6">
                     <label>Priority</label>
@@ -257,6 +261,18 @@ $(function(){
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
     });
+
+    // Ensure any inline selects rendered by the server are disabled after each draw
+    try {
+        table.on('draw', function(){
+            $('.job-status-select').prop('disabled', true).hide();
+            $('.job-status-select').each(function(){
+                var $s = $(this);
+                var orig = $s.data('original');
+                if (typeof orig !== 'undefined' && orig !== null) $s.val(orig);
+            });
+        });
+    } catch(e) { /* ignore if table not ready */ }
     // Apply query params to filters (so dashboard links can open filtered list)
     try {
         var urlParams = new URLSearchParams(window.location.search);
@@ -395,6 +411,10 @@ $(function(){
             var dr = $('#due_date').data('daterangepicker');
             if (dr) { dr.setStartDate(moment()); dr.setEndDate(moment()); }
         }
+        // ensure status hidden field has default and keep select disabled
+        try { $('#status').val('delegated'); } catch(e){}
+        try { $('#status_hidden').val('delegated'); } catch(e){}
+        try { $('#status').prop('disabled', true); } catch(e){}
         $('#jobModal').modal('show');
         // ensure documents section hidden for new job default
         toggleDocumentsSection();
@@ -520,6 +540,9 @@ $(function(){
             $('#title').val(data.title);
             $('#description').val(data.description);
             $('#status').val(data.status);
+            $('#status_hidden').val(data.status);
+            // keep status select locked in modal
+            $('#status').prop('disabled', true);
             $('#priority').val(data.priority);
             // Populate divisions multi-select or legacy hidden input
             if ($('#divisions').length) {
@@ -690,33 +713,14 @@ $(function(){
         });
     });
 
-    // Click badge to edit: swap badge -> select
+    // Click badge: disabled inline editing — instruct user to use Dibaca / Selesai actions
     $(document).on('click', '.status-inline-badge', function(){
-        var $badge = $(this);
-        var $container = $badge.closest('div');
-        var $select = $container.find('.job-status-select');
-        // store original value
-        $select.data('original', $select.val());
-        $badge.hide();
-        // show select and attempt to open dropdown programmatically so one click suffices
-        $select.show();
-        // focus then dispatch synthetic events; some browsers open native select on click
-        try {
-            $select[0].focus();
-            // small delay to ensure element is visible
-            setTimeout(function(){
-                // trigger jQuery events
-                $select.trigger('mousedown').trigger('mouseup').trigger('click');
-                // dispatch native events as well
-                var el = $select[0];
-                el.dispatchEvent(new MouseEvent('mousedown', {bubbles:true}));
-                el.dispatchEvent(new MouseEvent('mouseup', {bubbles:true}));
-                el.dispatchEvent(new MouseEvent('click', {bubbles:true}));
-            }, 10);
-        } catch(e) {
-            // fallback: just focus
-            $select.focus();
-        }
+        Swal.fire({
+            icon: 'info',
+            title: 'Ubah Status',
+            text: 'Untuk mengganti status gunakan tombol "Dibaca" atau "Selesai" pada baris terkait. Editing status langsung melalui badge/select dinonaktifkan.'
+        });
+        return;
     });
 
     // Helper: map status to badge class and label
@@ -732,54 +736,16 @@ $(function(){
         return { cls: cls, label: label };
     }
 
-    // On change -> for non-done statuses send inline update; for 'done' open upload modal first
+    // Inline selects are disabled — intercept change and revert, instruct user to use row actions
     $(document).on('change', '.job-status-select', function(){
         var $select = $(this);
-        var id = $select.data('id');
-        var newStatus = $select.val();
         var orig = $select.data('original');
-        if (newStatus === 'done') {
-            // open upload modal first; mark pending so upload handler will complete the status
-            pendingCompleteJobId = id;
-            pendingCompleteSelectElem = $select;
-            pendingCompleteOrig = orig;
-            $('#upload-doc-job-id').val(id);
-            $('#upload-doc-input').val('');
-            $('#uploadDocumentsModal').modal('show');
-            return;
-        }
-        // fallback: immediate update for other statuses
-        $.ajax({
-            url: '/hrd/joblist/' + id + '/inline-update',
-            method: 'POST',
-            data: { status: newStatus },
-            success: function(res){
-                if (res.success) {
-                    var info = statusToBadge(newStatus);
-                    var $container = $select.closest('div');
-                    var $badge = $container.find('.status-inline-badge');
-                    $badge.text(info.label).removeClass('badge-info badge-success badge-danger').addClass(info.cls);
-                    $select.hide();
-                    $badge.show();
-                    Swal.fire({icon: 'success', title: 'Status diperbarui'});
-                } else {
-                    $select.val(orig);
-                    $select.hide();
-                    $select.closest('div').find('.status-inline-badge').show();
-                    Swal.fire({icon: 'error', text: 'Gagal memperbarui status'});
-                }
-            },
-            error: function(xhr){
-                var msg = 'Terjadi kesalahan';
-                if (xhr.responseJSON && xhr.responseJSON.errors) {
-                    msg = Object.values(xhr.responseJSON.errors).map(function(v){ return v.join(', '); }).join('\n');
-                }
-                $select.val(orig);
-                $select.hide();
-                $select.closest('div').find('.status-inline-badge').show();
-                Swal.fire({icon:'error', text: msg});
-            }
-        });
+        // revert
+        try { $select.val(orig); } catch(e){}
+        $select.hide();
+        $select.closest('div').find('.status-inline-badge').show();
+        Swal.fire({icon:'info', title:'Ubah Status Dinonaktifkan', text: 'Gunakan tombol "Dibaca" atau "Selesai" di baris untuk mengubah status.'});
+        return;
     });
 
     // Upload documents modal handler
