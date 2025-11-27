@@ -339,6 +339,24 @@ class BillingController extends Controller
             $racikanItem->racikan_bungkus = $bungkus;
             $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
 
+            // Build per-component metadata including stored stok_dikurangi (ResepFarmasi.jumlah)
+            $components = [];
+            foreach ($racikanItems as $it) {
+                try {
+                    $billable = $it->billable ?? null;
+                    $obatModel = $billable && isset($billable->obat) ? $billable->obat : null;
+                    $components[] = [
+                        'obat_id' => $obatModel ? ($obatModel->id ?? null) : null,
+                        'nama' => $obatModel ? ($obatModel->nama ?? '') : ($it->billable_name ?? ''),
+                        // stok_dikurangi persisted into ResepFarmasi.jumlah for racikan components
+                        'stok_dikurangi' => $billable ? (int)($billable->jumlah ?? 0) : 0,
+                    ];
+                } catch (\Exception $e) {
+                    $components[] = ['obat_id' => null, 'nama' => '', 'stok_dikurangi' => 0];
+                }
+            }
+            $racikanItem->racikan_components = $components;
+
             $processedBillings[] = $racikanItem;
         }
 
@@ -1282,19 +1300,29 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             if (isset($racikanItem->billable) && $racikanItem->billable->obat) {
                                 $obat = $racikanItem->billable->obat;
 
+                                // For racikan components, prefer using the stored 'jumlah' value
+                                // (which we persist as 'stok_dikurangi' during resep submit). Fall
+                                // back to the racikan group qty diff if not present.
+                                $componentQty = intval($racikanItem->billable->jumlah ?? 0);
+                                if ($componentQty <= 0) {
+                                    // fallback to group diff
+                                    $componentQty = intval($racikanQtyDiff);
+                                }
+
                                 Log::info('Processing racikan stock adjustment', [
                                     'obat_id' => $obat->id,
-                                    'qty_diff' => $racikanQtyDiff,
+                                    'component_qty' => $componentQty,
+                                    'group_qty_diff' => $racikanQtyDiff,
                                     'is_update' => (bool)$existingInvoice,
                                     'invoice_id' => $invoice->id
                                 ]);
 
-                                if ($racikanQtyDiff > 0) {
+                                if ($componentQty > 0) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
-                                    $this->reduceGudangStock($obat->id, $racikanQtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
-                                } else if ($racikanQtyDiff < 0) {
+                                    $this->reduceGudangStock($obat->id, $componentQty, $gudangId, $invoice->id, $invoice->invoice_number);
+                                } else if ($componentQty < 0) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
-                                    $this->returnToGudangStock($obat->id, abs($racikanQtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
+                                    $this->returnToGudangStock($obat->id, abs($componentQty), $gudangId, $invoice->id, $invoice->invoice_number);
                                 }
 
                                 Log::info('Racikan stock processed', [
@@ -1302,7 +1330,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     'is_update' => (bool)$existingInvoice,
                                     'racikan_ke' => $racikanKey,
                                     'obat_id' => $obat->id,
-                                    'qty_diff' => $racikanQtyDiff
+                                    'component_qty' => $componentQty
                                 ]);
                             }
                         }

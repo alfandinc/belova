@@ -529,17 +529,25 @@
                         // If this is a racikan and backend exposed component IDs, render a stock-cell per component
                         if (row.is_racikan && Array.isArray(row.racikan_obat_ids) && row.racikan_obat_ids.length) {
                             const names = Array.isArray(row.racikan_obat_list) ? row.racikan_obat_list : [];
+                            const comps = Array.isArray(row.racikan_components) ? row.racikan_components : [];
                             let html = '<div class="racikan-stock-list">';
                             row.racikan_obat_ids.forEach(function(compId, idx) {
                                 const label = names[idx] ? '<small>' + names[idx] + '</small> ' : '';
-                                html += '<div class="racikan-stock-line">' + label + '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + compId + '" data-child-index="' + idx + '">-</span></div>';
+                                const stokD = (comps[idx] && typeof comps[idx].stok_dikurangi !== 'undefined') ? parseInt(comps[idx].stok_dikurangi) : null;
+                                const stokDHtml = (stokD !== null && !isNaN(stokD)) ? '<small class="text-muted stok-dikurangi" title="Stok Dikurangi"> (-' + stokD + ')</small>' : '';
+                                html += '<div class="racikan-stock-line">' + label + '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + compId + '" data-child-index="' + idx + '">-</span>' + stokDHtml + '</div>';
                             });
                             html += '</div>';
                             return html;
                         }
 
-                        // Single-component fallback
-                        return '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + (obatId || '') + '">-</span>';
+                        // Single-component fallback - include stok_dikurangi if available
+                        let stokDsingle = null;
+                        try {
+                            if (row.billable && typeof row.billable.jumlah !== 'undefined') stokDsingle = parseInt(row.billable.jumlah) || null;
+                        } catch (e) { stokDsingle = null; }
+                        const stokDsingleHtml = (stokDsingle !== null && !isNaN(stokDsingle)) ? ' <small class="text-muted stok-dikurangi" title="Stok Dikurangi">(-' + stokDsingle + ')</small>' : '';
+                        return '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + (obatId || '') + '">-</span>' + stokDsingleHtml;
                     }
                 },
                 { data: 'diskon', name: 'diskon', width: "8%" },
@@ -706,24 +714,41 @@
                         }
 
 
-                        // Determine required qty for this billing row (racikan uses racikan_bungkus)
-                        let qty = 1;
+                        // Determine required qty for this billing row or component.
+                        // For racikan components prefer the stored `stok_dikurangi` per component.
+                        let requiredQty = 1;
                         try {
                             const item = billingData.find(i => i.id == itemId);
                             if (item) {
-                                if (item.is_racikan && typeof item.racikan_bungkus !== 'undefined') {
-                                    qty = parseInt(item.racikan_bungkus) || 1;
+                                if (item.is_racikan) {
+                                    // If this cell represents a component (has data-child-index), prefer its stok_dikurangi
+                                    const childIndex = $cell.data('child-index');
+                                    if (typeof childIndex !== 'undefined' && Array.isArray(item.racikan_components) && item.racikan_components[childIndex]) {
+                                        const comp = item.racikan_components[childIndex];
+                                        if (comp && typeof comp.stok_dikurangi !== 'undefined' && comp.stok_dikurangi !== null) {
+                                            requiredQty = Math.abs(parseInt(comp.stok_dikurangi)) || 0;
+                                        } else {
+                                            requiredQty = parseInt(item.racikan_bungkus) || 1;
+                                        }
+                                    } else {
+                                        requiredQty = parseInt(item.racikan_bungkus) || 1;
+                                    }
                                 } else {
-                                    qty = parseInt(item.qty) || 1;
+                                    // Non-racikan: prefer billable.jumlah if present (we persist stok_dikurangi there), else qty
+                                    if (item.billable && typeof item.billable.jumlah !== 'undefined' && item.billable.jumlah !== null) {
+                                        requiredQty = Math.abs(parseInt(item.billable.jumlah)) || parseInt(item.qty) || 1;
+                                    } else {
+                                        requiredQty = parseInt(item.qty) || 1;
+                                    }
                                 }
                             } else {
                                 const qText = $cell.closest('tr').find('td').eq(4).text().trim();
                                 const qNum = qText.replace(/[^0-9]/g, '');
-                                qty = qNum ? parseInt(qNum) : 1;
+                                requiredQty = qNum ? parseInt(qNum) : 1;
                             }
                         } catch (err) {
-                            console.debug('Failed to determine qty for item', itemId, err);
-                            qty = 1;
+                            console.debug('Failed to determine requiredQty for item', itemId, err);
+                            requiredQty = 1;
                         }
 
                         // Recalculate low-stock state for the whole row based on all component stock-cells
@@ -733,7 +758,7 @@
                             const txt = $(this).text().toString().replace(/[^0-9\-\.]/g, '');
                             const val = txt === '' ? NaN : parseFloat(txt);
                             if (!isNaN(val)) {
-                                if (Number(val) < Number(qty)) {
+                                if (Number(val) < Number(requiredQty)) {
                                     anyLow = true;
                                 }
                             }
@@ -746,7 +771,7 @@
                             $tr.removeClass('low-stock');
                         }
 
-                        console.debug('Batch details loaded', { obatId: obatId, gudangId: gudangId, total: total, qty: qty, raw: resp });
+                        console.debug('Batch details loaded', { obatId: obatId, gudangId: gudangId, total: total, requiredQty: requiredQty, raw: resp });
                     } catch (e) {
                         console.error('Error parsing batch-details response', e, resp);
                             $cell.text('-');

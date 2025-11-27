@@ -847,6 +847,27 @@ class EresepController extends Controller
 
         // Fetch all related prescriptions
         $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
+        // For racikan entries, compute stok dikurangi and persist to `jumlah` so billing/stock reduction
+        // can use this value per component while invoice qty remains as `bungkus`.
+        foreach ($reseps as $r) {
+            if ($r->racikan_ke && $r->racikan_ke > 0) {
+                $prescribedDosis = 0;
+                $baseDosis = 0;
+                if (preg_match('/(\d+(?:[.,]\d+)?)/', $r->dosis ?? '', $m)) {
+                    $prescribedDosis = (float) str_replace(',', '.', $m[1]);
+                }
+                if ($r->obat && !empty($r->obat->dosis) && preg_match('/(\d+(?:[.,]\d+)?)/', $r->obat->dosis, $m2)) {
+                    $baseDosis = (float) str_replace(',', '.', $m2[1]);
+                }
+                $bungkus = $r->bungkus ?? 1;
+                $stokDikurangi = ($baseDosis > 0) ? ceil(($prescribedDosis * (float)$bungkus) / $baseDosis) : 0;
+                // Only update if different to avoid unnecessary writes
+                if ((int)$r->jumlah !== (int)$stokDikurangi) {
+                    $r->jumlah = (int)$stokDikurangi;
+                    try { $r->save(); } catch (\Exception $ex) { Log::warning('Failed to save stokDikurangi for resep id '.$r->id.': '.$ex->getMessage()); }
+                }
+            }
+        }
         
         // Update resepdetail status to 1
         \App\Models\ERM\ResepDetail::updateOrCreate(

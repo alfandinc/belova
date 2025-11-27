@@ -249,11 +249,12 @@
                         <table class="table table-bordered">
                             <thead>
                                 <tr>
-                                    <th>Nama Obat</th>
-                                    <th>Dosis</th>
-                                    <th>Stok</th>
-                                    <th>Aksi</th>
-                                </tr>
+                                            <th>Nama Obat</th>
+                                            <th>Dosis</th>
+                                            <th>Stok</th>
+                                            <th>Stok Dikurangi</th>
+                                            <th>Aksi</th>
+                                        </tr>
                             </thead>
                             <tbody class="resep-table-body">
                                 @foreach ($items as $resep)
@@ -263,10 +264,24 @@
                                         @php
                                             $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
                                             $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : 0;
+                                            // compute stok dikurangi = (dosis_input * bungkus) / dosis_obat
+                                            $prescribedDosis = 0;
+                                            $baseDosis = 0;
+                                            if (preg_match('/(\d+(?:[.,]\d+)?)/', $resep->dosis ?? '', $m)) {
+                                                $prescribedDosis = (float) str_replace(',', '.', $m[1]);
+                                            }
+                                            if (!empty($resep->obat->dosis) && preg_match('/(\d+(?:[.,]\d+)?)/', $resep->obat->dosis, $m2)) {
+                                                $baseDosis = (float) str_replace(',', '.', $m2[1]);
+                                            }
+                                            $bungkusGroup = $items->first()->bungkus ?? 1;
+                                            $stokDikurangi = ($baseDosis > 0) ? ($prescribedDosis * (float)$bungkusGroup) / $baseDosis : 0;
+                                            // Round up to the next integer (0.2 -> 1, 0.8 -> 1)
+                                            $stokDikurangiDisplay = is_numeric($stokDikurangi) ? (int) ceil($stokDikurangi) : 0;
                                         @endphp
                                         <td style="color: {{ ($stokGudang < 10 ? 'red' : ($stokGudang < 100 ? 'yellow' : 'green')) }};">
                                             {{ (int) $stokGudang }}
                                         </td>
+                                        <td class="stok-dikurangi" style="color: {{ ($stokDikurangi > $stokGudang ? 'red' : 'inherit') }};">{{ $stokDikurangiDisplay }}</td>
                                         <td>
                                             <button class="btn btn-warning btn-sm edit-obat" disabled>Edit</button>
                                             <button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button>
@@ -636,6 +651,29 @@
                             const hargaAkhir = (baseDosis > 0 && dosisRacik > 0) ? (dosisRacik / baseDosis) * hargaSatuan : 0;
                             racikanTotal += hargaAkhir;
 
+                            // compute stok dikurangi for this row using current bungkus value on the card
+                            const currentBungkus = parseFloat(card.find('.jumlah_bungkus').val() || card.find('.bungkus').val()) || 1;
+                            let stokDikurangi = 0;
+                            if (baseDosis > 0) {
+                                stokDikurangi = (dosisRacik * currentBungkus) / baseDosis;
+                            }
+                            // round up to nearest integer
+                            const stokDikurangiDisplay = Number.isFinite(stokDikurangi) ? Math.ceil(stokDikurangi) : 0;
+                            // update the DOM cell if present
+                            try {
+                                const rowStokCell = row.find('.stok-dikurangi');
+                                if (rowStokCell.length) {
+                                    // Determine stok available for coloring if known
+                                    const stokCellText = row.find('td').eq(2).text().trim();
+                                    const stokAvailable = parseFloat(stokCellText.replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
+                                    rowStokCell.text(stokDikurangiDisplay);
+                                    if (stokDikurangi > stokAvailable) rowStokCell.css('color', 'red');
+                                    else rowStokCell.css('color', 'inherit');
+                                }
+                            } catch (e) {
+                                // ignore DOM update errors
+                            }
+
                             cardItems.push({
                                 obatId,
                                 dosisStr,
@@ -723,12 +761,13 @@
                                 <th>Nama Obat</th>
                                 <th>Dosis</th>
                                 <th>Stok</th>
+                                <th>Stok Dikurangi</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
                         <tbody class="resep-table-body">
                             <tr class="no-data">
-                                <td colspan="4" class="text-center text-muted">Belum ada data</td>
+                                <td colspan="5" class="text-center text-muted">Belum ada data</td>
                             </tr>
                         </tbody>
                     </table>
@@ -920,7 +959,7 @@
                             tbody.empty();
                             response.obats.forEach(function(ob){
                                 const stokColor = ob.stok_gudang < 10 ? 'red' : (ob.stok_gudang < 100 ? 'yellow' : 'green');
-                                tbody.append(`<tr data-id="${ob.id}" data-obat-id="${ob.obat_id}" data-dosis="${ob.dosis}" data-jumlah="${ob.jumlah}"><td data-id="${ob.obat_id}">${ob.obat_nama ?? ''}</td><td>${ob.dosis}</td><td><span style=\"color: ${stokColor};\">${ob.stok_gudang}</span></td><td><button class=\"btn btn-danger btn-sm hapus-obat\">Hapus</button></td></tr>`);
+                                tbody.append(`<tr data-id="${ob.id}" data-obat-id="${ob.obat_id}" data-dosis="${ob.dosis}" data-jumlah="${ob.jumlah}"><td data-id="${ob.obat_id}">${ob.obat_nama ?? ''}</td><td>${ob.dosis}</td><td><span style=\"color: ${stokColor};\">${ob.stok_gudang}</span></td><td class=\"stok-dikurangi\">-</td><td><button class=\"btn btn-danger btn-sm hapus-obat\">Hapus</button></td></tr>`);
                             });
                             // Ensure totals updated after injecting server-side obat rows
                             updateTotalPrice();
@@ -965,12 +1004,24 @@
             const tbody = card.find('.resep-table-body');
             tbody.find('.no-data').remove();
 
+            // Determine current bungkus value for this card (may be empty yet)
+            const currentBungkus = parseFloat(card.find('.bungkus').val() || card.find('.jumlah_bungkus').val()) || 1;
+            // Compute stok dikurangi = (dosisAkhir * bungkus) / baseDosis
+            const baseDosis = parseFloat(selectedOption.dosis) || 0;
+            let stokDikurangi = 0;
+            if (baseDosis > 0) {
+                stokDikurangi = (dosisAkhir * currentBungkus) / baseDosis;
+            }
+            // round up to nearest integer for display
+            const stokDikurangiDisplay = Number.isFinite(stokDikurangi) ? String(Math.ceil(stokDikurangi)) : '0';
+
             // Append the new row to the table (do NOT include empty data-id attribute)
             tbody.append(`
                 <tr data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-jumlah="1">
                     <td data-id="${obatId}">${obatText}</td>
                     <td>${dosisAkhir} ${satuan}</td>
                     <td><span style="color: ${stokColor};">${stokGudang}</span></td>
+                    <td class="stok-dikurangi" style="color: ${parseFloat(stokDikurangi) > stokGudang ? 'red' : 'inherit'};">${stokDikurangiDisplay}</td>
                     <td><button class="btn btn-danger btn-sm hapus-obat">Hapus</button></td>
                 </tr>
             `);
@@ -1042,6 +1093,10 @@
                                 let stokGudang = typeof obat.stok_gudang !== 'undefined' ? parseInt(obat.stok_gudang) : 0;
                                 let stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
                                 row.find('td').eq(2).html(`<span style="color: ${stokColor};">${stokGudang}</span>`);
+                                // placeholder for stok dikurangi; will be recomputed by updateTotalPrice()
+                                if (row.find('td').eq(3).length) {
+                                    row.find('td').eq(3).html('-');
+                                }
                             });
                         }
             // Refresh totals after racikan saved
@@ -1079,7 +1134,7 @@
             $(this).closest('tr').remove();
             const card = $(this).closest('.racikan-card');
             if (card.find('.resep-table-body tr').length === 0) {
-                card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="4" class="text-center text-muted">Belum ada data</td></tr>`);
+                card.find('.resep-table-body').append(`<tr class="no-data"><td colspan="5" class="text-center text-muted">Belum ada data</td></tr>`);
             }
             updateTotalPrice();
         });
@@ -1574,6 +1629,7 @@
                         <td data-id="${item.obat?.id ?? ''}">${item.obat?.nama ?? '-'}</td>
                         <td>${dosis}</td>
                         <td>${item.obat?.stok ?? 0}</td>
+                        <td class="stok-dikurangi">-</td>
 <td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
                     </tr>`;
             }).join('');
@@ -1594,6 +1650,7 @@
                                 <th>Nama Obat</th>
                                 <th>Dosis</th>
                                 <th>Stok</th>
+                                <th>Stok Dikurangi</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
