@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Laravel\Facades\Image;
 use Intervention\Image\Typography\FontFactory;
+use Illuminate\Support\Facades\Log;
 
 class BirthdayImageService
 {
@@ -19,6 +20,9 @@ class BirthdayImageService
             
             // Format name with prefix if available
             $displayName = $prefix ? "$prefix $name" : $name;
+
+            // Choose text color based on klinik id (white for klinik 1)
+            $textColor = ($klinikId == 1) ? '#ffffff' : '#6c3483';
             
             // Get image dimensions
             $width = $img->width();
@@ -32,26 +36,26 @@ class BirthdayImageService
             $ageY = $height / 2 + 55;
             $dateY = $height - 45;
             // Name text
-            $img->text($displayName, $x, $nameY, function ($font) {
+            $img->text($displayName, $x, $nameY, function ($font) use ($textColor) {
                 $font->filename(public_path('fonts/Poppins-Bold.ttf'));
                 $font->size(60);
-                $font->color('#6c3483'); // dark purple
+                $font->color($textColor);
                 $font->align('center');
                 $font->valign('middle');
             });
             // Age text
-            $img->text("$age tahun", $x, $ageY, function ($font) {
+            $img->text("$age tahun", $x, $ageY, function ($font) use ($textColor) {
                 $font->filename(public_path('fonts/Poppins-Regular.ttf'));
                 $font->size(40);
-                $font->color('#6c3483'); // dark purple
+                $font->color($textColor);
                 $font->align('center');
                 $font->valign('middle');
             });
             // Date text
-            $img->text(now()->format('d F Y'), $x, $dateY, function ($font) {
+            $img->text(now()->format('d F Y'), $x, $dateY, function ($font) use ($textColor) {
                 $font->filename(public_path('fonts/Poppins-Italic.ttf'));
                 $font->size(20);
-                $font->color('#6c3483'); // dark purple
+                $font->color($textColor);
                 $font->align('center');
                 $font->valign('bottom');
             });
@@ -71,7 +75,7 @@ class BirthdayImageService
             return $path;
         } 
         catch (\Throwable $e) {
-            \Log::error("Birthday image generation error: " . $e->getMessage());
+            Log::error("Birthday image generation error: " . $e->getMessage());
             return null;
         }
     }
@@ -81,7 +85,7 @@ class BirthdayImageService
         // Different templates based on klinik_id
         switch ($klinikId) {
             case 1:
-                return 'img/templates/birthday_premiere.jpg';
+                return 'img/templates/birthday_premierebelova.jpg';
             case 2:
                 return 'img/templates/birthday_belovaskin.jpg';
             default:
