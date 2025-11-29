@@ -124,6 +124,7 @@
                                                             <option value="Pcs">Pcs</option>
                                                             <option value="Pack">Pack</option>
                                                             <option value="IU">IU</option>
+                                                            <option value="Softbag">Softbag</option>
 
                                                             <option value="Lainnya">Lainnya</option>
                                                         </select>
