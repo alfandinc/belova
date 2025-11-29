@@ -122,6 +122,8 @@
                                                             <option value="Sachet">Sachet</option>
                                                             <option value="Vial">Vial</option>
                                                             <option value="Pcs">Pcs</option>
+                                                            <option value="Pack">Pack</option>
+
                                                             <option value="Lainnya">Lainnya</option>
                                                         </select>
                                                     </div>
