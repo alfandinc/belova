@@ -347,6 +347,10 @@ class StokOpnameController extends Controller
                 ->filterColumn('nama_obat', function($query, $keyword) {
                     $query->where('erm_obat.nama', 'like', "%{$keyword}%");
                 })
+                // Ensure searching by 'satuan' targets the joined `erm_obat.satuan` column
+                ->filterColumn('satuan', function($query, $keyword) {
+                    $query->where('erm_obat.satuan', 'like', "%{$keyword}%");
+                })
                 ->rawColumns(['batch_name'])
                 ->make(true);
     }
