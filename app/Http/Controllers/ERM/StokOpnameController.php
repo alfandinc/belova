@@ -323,7 +323,7 @@ class StokOpnameController extends Controller
                     DB::raw($batchSub)
                 )
                 ->where('stok_opname_id', $id)
-                ->orderByRaw('ABS(selisih) DESC');
+                ->orderBy('selisih', 'asc');
 
             return datatables()->of($query)
                 ->addColumn('batch_name', function($row) {
