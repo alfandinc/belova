@@ -300,12 +300,10 @@ class PrSlipGajiController extends Controller
     public function update(Request $request, $id)
     {
         $slip = PrSlipGaji::findOrFail($id);
+        // Accept basic editable fields
         $slip->status_gaji = $request->input('status_gaji', $slip->status_gaji);
         $slip->total_hari_masuk = $request->input('total_hari_masuk', $slip->total_hari_masuk);
         $slip->kpi_poin = $request->input('kpi_poin', $slip->kpi_poin);
-        $slip->total_pendapatan = $request->input('total_pendapatan', $slip->total_pendapatan);
-        $slip->total_potongan = $request->input('total_potongan', $slip->total_potongan);
-        $slip->total_gaji = $request->input('total_gaji', $slip->total_gaji);
         $slip->gaji_pokok = $request->input('gaji_pokok', $slip->gaji_pokok);
         $slip->tunjangan_jabatan = $request->input('tunjangan_jabatan', $slip->tunjangan_jabatan);
         $slip->tunjangan_masa_kerja = $request->input('tunjangan_masa_kerja', $slip->tunjangan_masa_kerja);
@@ -334,6 +332,56 @@ class PrSlipGajiController extends Controller
             $path = $file->store('jasmed_files', 'public');
             $slip->jasmed_file = $path;
         }
+
+        // Process pendapatan_tambahan array (label + amount)
+        $tambahan = [];
+        $tambahanTotal = 0;
+        if ($request->has('pendapatan_tambahan') && is_array($request->input('pendapatan_tambahan'))) {
+            foreach ($request->input('pendapatan_tambahan') as $item) {
+                $label = isset($item['label']) ? trim($item['label']) : null;
+                $amt = isset($item['amount']) ? $item['amount'] : 0;
+                $amt = is_string($amt) ? str_replace([',', ' '], ['', ''], $amt) : $amt;
+                $amt = is_numeric($amt) ? (float) $amt : 0;
+                if ($label && $amt != 0) {
+                    $tambahan[] = ['label' => $label, 'amount' => $amt];
+                    $tambahanTotal += $amt;
+                }
+            }
+        }
+        if ($tambahan) {
+            $slip->pendapatan_tambahan = $tambahan;
+        }
+
+        // Recalculate totals
+        $existingTambahan = is_array($slip->pendapatan_tambahan) ? array_sum(array_column($slip->pendapatan_tambahan, 'amount')) : 0;
+        $sumTambahan = $existingTambahan;
+
+        $basePendapatan = (
+            ($slip->gaji_pokok ?? 0)
+            + ($slip->tunjangan_jabatan ?? 0)
+            + ($slip->tunjangan_masa_kerja ?? 0)
+            + ($slip->uang_makan ?? 0)
+            + ($slip->uang_lembur ?? 0)
+            + ($slip->jasa_medis ?? 0)
+            + ($slip->uang_kpi ?? 0)
+        );
+
+        $slip->total_pendapatan = $basePendapatan + $sumTambahan;
+
+        // Recompute total potongan if not explicitly provided
+        if ($request->has('total_potongan')) {
+            $slip->total_potongan = $request->input('total_potongan', $slip->total_potongan);
+        } else {
+            $slip->total_potongan = (
+                ($slip->potongan_pinjaman ?? 0)
+                + ($slip->potongan_bpjs_kesehatan ?? 0)
+                + ($slip->potongan_jamsostek ?? 0)
+                + ($slip->potongan_penalty ?? 0)
+                + ($slip->potongan_lain ?? 0)
+            );
+        }
+
+        $slip->total_gaji = ($slip->total_pendapatan ?? 0) - ($slip->total_potongan ?? 0);
 
         $slip->save();
 

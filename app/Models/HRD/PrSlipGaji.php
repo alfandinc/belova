@@ -36,11 +36,32 @@ class PrSlipGaji extends Model
         'benefit_jkk',
         'benefit_jkm',
         'total_pendapatan',
+        'pendapatan_tambahan',
         'total_potongan',
     'total_gaji',
     'status_gaji',
         'total_hari_scheduled',
         'total_hari_masuk',
+    ];
+
+    /**
+     * Cast numeric and array fields for consistency.
+     */
+    protected $casts = [
+        'pendapatan_tambahan' => 'array',
+        'gaji_perhari' => 'float',
+        'gaji_perjam' => 'float',
+        'gaji_pokok' => 'float',
+        'tunjangan_jabatan' => 'float',
+        'tunjangan_masa_kerja' => 'float',
+        'uang_makan' => 'float',
+        'uang_kpi' => 'float',
+        'jasa_medis' => 'float',
+        'total_jam_lembur' => 'float',
+        'uang_lembur' => 'float',
+        'total_pendapatan' => 'float',
+        'total_potongan' => 'float',
+        'total_gaji' => 'float',
     ];
 
     public function employee()

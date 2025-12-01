@@ -132,6 +132,11 @@
                 <tr><td>Jasa Medis</td><td class="right">{{ number_format($slip->jasa_medis, 2) }}</td></tr>
                 <tr><td>Uang Lembur</td><td class="right">{{ number_format($slip->uang_lembur, 2) }}</td></tr>
                 <tr><td>Uang KPI</td><td class="right">{{ number_format($slip->uang_kpi, 2) }}</td></tr>
+                @if(!empty($slip->pendapatan_tambahan) && is_array($slip->pendapatan_tambahan))
+                    @foreach($slip->pendapatan_tambahan as $pt)
+                        <tr><td>{{ $pt['label'] ?? '-' }}</td><td class="right">{{ number_format($pt['amount'] ?? 0, 2) }}</td></tr>
+                    @endforeach
+                @endif
                 <tr class="total-row"><td>Total Pendapatan</td><td class="right"><strong>{{ number_format($slip->total_pendapatan, 2) }}</strong></td></tr>
             </table>
             <div class="section-title">Benefit</div>

@@ -27,6 +27,7 @@
                 </td>
             </tr>
         </table>
+        
     </div>
     <div class="col-md-6">
         <table class="table table-bordered">
@@ -82,7 +83,40 @@ $(function() {
             <tr><th>Total Benefit</th><td><input type="number" step="0.01" class="form-control" name="total_benefit" id="total_benefit" value="{{ $slip->total_benefit ?? 0 }}" readonly></td></tr>
 <script>
 $(function() {
-    // ...existing code...
+    // Pendapatan tambahan dynamic rows handling
+    var tambahanIndex = 0;
+
+    function addPendapatanRow(label, amount) {
+        var idx = tambahanIndex++;
+        var $row = $(
+            '<div class="input-group mb-2 pendapatan-tambahan-row" data-idx="'+idx+'">'
+            + '<input type="text" class="form-control mr-2 pendapatan-tambahan-label" name="pendapatan_tambahan['+idx+'][label]" placeholder="Komponen (contoh: attending event)" value="'+(label?label:'')+'">'
+            + '<input type="number" step="0.01" class="form-control pendapatan-tambahan-amount" name="pendapatan_tambahan['+idx+'][amount]" placeholder="0.00" value="'+(amount?amount:'')+'">'
+            + '<div class="input-group-append">'
+                + '<button class="btn btn-danger btn-remove-pendapatan" type="button">&times;</button>'
+            + '</div>'
+            + '</div>'
+        );
+        $('#pendapatanTambahanContainer').append($row);
+        // bind remove
+        $row.find('.btn-remove-pendapatan').on('click', function() {
+            $row.remove();
+            updateTotalGaji();
+        });
+        // bind change to recalc
+        $row.find('.pendapatan-tambahan-amount').on('input', function() {
+            updateTotalGaji();
+        });
+    }
+
+    // Initialize with existing pendapatan_tambahan from server
+    var existingTambahan = {!! json_encode($slip->pendapatan_tambahan ?? []) !!};
+    if (Array.isArray(existingTambahan) && existingTambahan.length > 0) {
+        existingTambahan.forEach(function(it) {
+            addPendapatanRow(it.label || '', it.amount || '');
+        });
+    }
+
     function sumPendapatan() {
         var fields = [
             'gaji_pokok', 'tunjangan_jabatan', 'tunjangan_masa_kerja', 'uang_makan', 'uang_kpi', 'uang_lembur', 'jasa_medis'
@@ -91,6 +125,11 @@ $(function() {
         fields.forEach(function(name) {
             var val = parseFloat($('[name="'+name+'"]').val()) || 0;
             total += val;
+        });
+        // include pendapatan tambahan amounts
+        $('.pendapatan-tambahan-amount').each(function() {
+            var v = parseFloat($(this).val()) || 0;
+            total += v;
         });
         $('#total_pendapatan').val(total.toFixed(2));
         return total;
@@ -126,13 +165,19 @@ $(function() {
         var totalGaji = pendapatan - potongan;
         $('#total_gaji').val(totalGaji.toFixed(2));
     }
+
     // Trigger update saat input berubah
-    $('[name="gaji_pokok"], [name="tunjangan_jabatan"], [name="tunjangan_masa_kerja"], [name="uang_makan"], [name="uang_kpi"], [name="uang_lembur"], [name="jasa_medis"], [name="benefit_bpjs_kesehatan"], [name="benefit_jht"], [name="benefit_jkk"], [name="benefit_jkm"], [name="potongan_pinjaman"], [name="potongan_bpjs_kesehatan"], [name="potongan_jamsostek"], [name="potongan_penalty"], [name="potongan_lain"]')
-        .on('input', function() {
-            updateTotalGaji();
-            sumBenefit();
-        });
-    // Inisialisasi saat modal dibuka
+    $(document).on('input', '[name="gaji_pokok"], [name="tunjangan_jabatan"], [name="tunjangan_masa_kerja"], [name="uang_makan"], [name="uang_kpi"], [name="uang_lembur"], [name="jasa_medis"], [name="benefit_bpjs_kesehatan"], [name="benefit_jht"], [name="benefit_jkk"], [name="benefit_jkm"], [name="potongan_pinjaman"], [name="potongan_bpjs_kesehatan"], [name="potongan_jamsostek"], [name="potongan_penalty"], [name="potongan_lain"]', function() {
+        updateTotalGaji();
+        sumBenefit();
+    });
+
+    // Add new row button
+    $(document).on('click', '#btnTambahPendapatanTambahan', function() {
+        addPendapatanRow('', '');
+    });
+
+    // Initialize totals
     updateTotalGaji();
     sumBenefit();
 });
@@ -152,6 +197,15 @@ $(function() {
             <tr><th>Uang KPI</th><td><input type="number" step="0.01" class="form-control" name="uang_kpi" value="{{ $slip->uang_kpi }}"></td></tr>
             <tr><th>Uang Lembur</th><td><input type="number" step="0.01" class="form-control" name="uang_lembur" value="{{ $slip->uang_lembur }}"></td></tr>
             <tr><th>Jasa Medis</th><td><input type="number" step="0.01" class="form-control" name="jasa_medis" value="{{ $slip->jasa_medis }}"></td></tr>
+            <tr>
+                <th>Pendapatan Tambahan</th>
+                <td>
+                    <div id="pendapatanTambahanContainer"><!-- Dynamic additional income rows will be injected here --></div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="btnTambahPendapatanTambahan">Tambah Pendapatan Tambahan</button>
+                    </div>
+                </td>
+            </tr>
         </table>
         <h5 class="mt-4">Benefit</h5>
         <table class="table table-bordered bg-light">
