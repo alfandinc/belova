@@ -625,9 +625,17 @@ class KartuStokController extends Controller
                         $totalAllFromGudang = 0;
                     }
 
-                    // Use gudang values when available, otherwise fall back to kartu_stok's stok_setelah
-                    $displayPerBatch = isset($perBatchStok) ? $perBatchStok : (isset($row->stok_setelah) ? (float)$row->stok_setelah : 0);
-                    $displayTotalAll = $totalAllFromGudang > 0 ? $totalAllFromGudang : $totalAll;
+                    // Prefer the historical `stok_setelah` value recorded on the kartu_stok row
+                    // because that represents the stock AFTER that transaction. Only fall
+                    // back to the current gudang stock table when the historical value
+                    // is missing (for example, legacy rows without stok_setelah).
+                    $displayPerBatch = isset($row->stok_setelah) ? (float)$row->stok_setelah : (isset($perBatchStok) ? $perBatchStok : 0);
+
+                    // For the "total all batches" value prefer the historical computed
+                    // total ($totalAll) which sums `stok_setelah` up to the transaction
+                    // moment. If that is not available (zero/unknown), fall back to the
+                    // current gudang aggregate ($totalAllFromGudang).
+                    $displayTotalAll = ($totalAll > 0) ? $totalAll : ($totalAllFromGudang > 0 ? $totalAllFromGudang : 0);
 
                     // Format stok setelah
                     // For stok_opname rows, show the TOTAL across all batches as the main badge (snapshot/aggregate view)
