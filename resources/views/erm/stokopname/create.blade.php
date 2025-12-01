@@ -239,6 +239,8 @@ $(function () {
         processing: true,
         serverSide: true,
         ajax: "{{ route('erm.stokopname.itemsData', $stokOpname->id) }}",
+        // Default order: Selisih column (index 7) ascending so biggest negative values appear first
+        order: [[7, 'asc']],
         columnDefs: [
             { targets: 1, width: '220px', className: 'nama-obat-cell', render: function(data, type, row) { return '<div class="nama-obat-cell">'+data+'</div>'; } },
             { targets: 8, width: '280px' }, // Temuan column - make it wider (index shifted after adding Satuan)

@@ -322,8 +322,7 @@ class StokOpnameController extends Controller
                     'erm_obat.satuan as satuan',
                     DB::raw($batchSub)
                 )
-                ->where('stok_opname_id', $id)
-                ->orderBy('selisih', 'asc');
+                ->where('stok_opname_id', $id);
 
             return datatables()->of($query)
                 ->addColumn('batch_name', function($row) {
