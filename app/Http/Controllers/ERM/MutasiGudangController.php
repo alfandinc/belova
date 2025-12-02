@@ -118,6 +118,12 @@ class MutasiGudangController extends Controller
                 return $labels[$mutasi->status];
             })
             ->addColumn('action', function ($mutasi) {
+                // Hide action buttons for Admin role for security / UI requirement
+                $user = Auth::user();
+                if ($user && $user->hasRole('Admin')) {
+                    return '';
+                }
+
                 $buttons = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$mutasi->id.'" title="Detail"><i class="fas fa-eye"></i></button>';
 
                 // Approve / Reject for pending

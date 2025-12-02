@@ -387,6 +387,8 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
+    // Flag for current user's Admin role (used to hide action column client-side)
+    var isAdmin = @json(optional(Auth::user())->hasRole('Admin'));
     var table = $('#mutasi-table').DataTable({
         processing: true,
         serverSide: true,
@@ -416,6 +418,13 @@ $(document).ready(function() {
         ],
         order: [[0, 'desc']]
     });
+
+    // If current user is Admin, hide the action column (last column)
+    if (isAdmin) {
+        // action column is the last column (index starting at 0)
+        var actionIdx = table.columns().count() - 1;
+        table.column(actionIdx).visible(false);
+    }
 
     $('#filter_gudang, #filter_status').change(function() {
         table.draw();
