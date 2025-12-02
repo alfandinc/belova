@@ -1,5 +1,5 @@
 @extends('layouts.erm.app')
-@section('title', 'Finance | Billing')
+@section('title', 'Farmasi | Mutasi Gudang')
 @section('navbar')
     @include('layouts.erm.navbar-farmasi')
 @endsection

@@ -482,6 +482,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/bulk-obat-preview', [MutasiGudangController::class, 'getBulkObatPreview'])->name('erm.mutasi-gudang.bulk-obat-preview');
     Route::post('/obat-baru', [MutasiGudangController::class, 'storeObatBaru'])->name('erm.mutasi-gudang.store-obat-baru');
     Route::post('/bulk-obat-baru', [MutasiGudangController::class, 'storeBulkObatBaru'])->name('erm.mutasi-gudang.store-bulk-obat-baru');
+    // Cetak/print mutasi (PDF)
+    Route::get('/{id}/print', [MutasiGudangController::class, 'print'])->name('erm.mutasi-gudang.print');
     
     // Route dengan parameter {id} HARUS DI AKHIR
     Route::get('/{id}', [MutasiGudangController::class, 'show'])->name('erm.mutasi-gudang.show');

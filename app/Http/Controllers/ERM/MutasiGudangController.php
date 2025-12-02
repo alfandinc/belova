@@ -118,17 +118,65 @@ class MutasiGudangController extends Controller
                 return $labels[$mutasi->status];
             })
             ->addColumn('action', function ($mutasi) {
-                $buttons = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$mutasi->id.'"><i class="fas fa-eye"></i></button>';
-                
+                $buttons = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$mutasi->id.'" title="Detail"><i class="fas fa-eye"></i></button>';
+
+                // Approve / Reject for pending
                 if ($mutasi->status === 'pending') {
-                    $buttons .= ' <button type="button" class="btn btn-sm btn-success btn-approve" data-id="'.$mutasi->id.'"><i class="fas fa-check"></i></button>';
-                    $buttons .= ' <button type="button" class="btn btn-sm btn-danger btn-reject" data-id="'.$mutasi->id.'"><i class="fas fa-times"></i></button>';
+                    $buttons .= ' <button type="button" class="btn btn-sm btn-success btn-approve" data-id="'.$mutasi->id.'" title="Setujui"><i class="fas fa-check"></i></button>';
+                    $buttons .= ' <button type="button" class="btn btn-sm btn-danger btn-reject" data-id="'.$mutasi->id.'" title="Tolak"><i class="fas fa-times"></i></button>';
                 }
-                
+
+                // Print button (open PDF in new tab)
+                $printUrl = route('erm.mutasi-gudang.print', $mutasi->id);
+                $buttons .= ' <a href="'.$printUrl.'" class="btn btn-sm btn-secondary" target="_blank" title="Cetak"><i class="fas fa-print"></i></a>';
+
                 return $buttons;
             })
             ->rawColumns(['status_label', 'action'])
             ->make(true);
+    }
+
+    /**
+     * Print mutasi as PDF
+     */
+    public function print($id)
+    {
+        $mutasi = MutasiGudang::with(['items.obat', 'obat', 'gudangAsal', 'gudangTujuan', 'requestedBy', 'approvedBy'])
+            ->findOrFail($id);
+
+        // Prepare stock before/after per item
+        $items = $mutasi->items;
+        foreach ($items as $item) {
+            $stokAsalNow = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                ->where('gudang_id', $mutasi->gudang_asal_id)
+                ->sum('stok');
+
+            $stokTujuanNow = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                ->where('gudang_id', $mutasi->gudang_tujuan_id)
+                ->sum('stok');
+
+            if ($mutasi->status === 'approved') {
+                // If already approved, the current values reflect post-mutation state
+                $item->stok_asal_setelah = $stokAsalNow;
+                $item->stok_asal_sebelum = $stokAsalNow + $item->jumlah;
+
+                $item->stok_tujuan_setelah = $stokTujuanNow;
+                $item->stok_tujuan_sebelum = max(0, $stokTujuanNow - $item->jumlah);
+            } else {
+                // Pending/rejected: show current as 'sebelum' and predicted 'setelah'
+                $item->stok_asal_sebelum = $stokAsalNow;
+                $item->stok_asal_setelah = max(0, $stokAsalNow - $item->jumlah);
+
+                $item->stok_tujuan_sebelum = $stokTujuanNow;
+                $item->stok_tujuan_setelah = $stokTujuanNow + $item->jumlah;
+            }
+        }
+
+        $pdf = \PDF::loadView('erm.mutasi-gudang.print', compact('mutasi'))
+            ->setPaper('a4', 'landscape');
+
+        $filename = 'mutasi-' . ($mutasi->nomor_mutasi ?: $mutasi->id) . '.pdf';
+        return $pdf->stream($filename);
     }
 
     public function store(Request $request)
