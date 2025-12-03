@@ -6,23 +6,36 @@
 
 @section('content')
     <style>
-        /* Constrain items column so long lists don't stretch the whole table */
-        #pengajuanTable { table-layout: fixed; }
+        /* Constrain items column without forcing table-layout: fixed which collapses other columns */
         #pengajuanTable td.items-list-cell {
-            max-width: 360px; /* increased to better contain long faktur lists; adjust as needed */
+            max-width: 360px; /* adjust as needed */
             white-space: normal !important;
             word-break: break-word;
             overflow: hidden;
             text-overflow: ellipsis;
             vertical-align: top;
         }
-        /* ensure inner lists wrap nicely */
+        /* Small, fixed width for the 'No' column */
+        #pengajuanTable td.col-no, #pengajuanTable th.col-no {
+            text-align: center;
+            white-space: nowrap;
+            padding-left: 6px;
+            padding-right: 6px;
+            font-size: 13px;
+            max-width: 36px;
+            min-width: 28px;
+            width: 32px;
+        }
+        /* ensure inner lists wrap nicely and stay scrollable when long */
+        #pengajuanTable td.items-list-cell > * {
+            display: block;
+            max-height: 140px;
+            overflow: auto;
+        }
         #pengajuanTable td.items-list-cell ul,
         #pengajuanTable td.items-list-cell ol {
             margin: 0;
             padding-left: 16px;
-            max-height: 160px;
-            overflow: auto;
         }
     </style>
 <div class="page-content">
@@ -61,14 +74,13 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table id="pengajuanTable" class="table table-bordered dt-responsive nowrap" style="width:100%">
+                            <table id="pengajuanTable" class="table table-bordered dt-responsive" style="width:100%">
                                 <thead>
                                     <tr>
-                                        <th>No</th>
+                                        <th class="col-no">No</th>
                                         <th>Kode</th>
                                         <th>Employee</th>
                                         <th>Tanggal</th>
-                                        <th>Jenis</th>
                                         <th>Items</th>
                                         <th>Grand Total</th>
                                         <th>Approvals</th>
@@ -319,7 +331,14 @@ $(document).ready(function() {
         serverSide: true,
         autoWidth: false,
         columnDefs: [
-            { targets: 5, width: '360px', className: 'items-list-cell' }
+            { targets: 0, width: '32px', className: 'col-no' },
+            { targets: 1, width: '140px' },
+            { targets: 2, width: '220px' },
+            { targets: 3, width: '120px' },
+            { targets: 4, width: '360px', className: 'items-list-cell' },
+            { targets: 5, width: '120px' },
+            { targets: 6, width: '160px' },
+            { targets: 7, width: '120px' }
         ],
         ajax: {
             url: '{!! route('finance.pengajuan.data') !!}',
@@ -359,7 +378,6 @@ $(document).ready(function() {
                     return data;
                 }
             },
-            { data: 'jenis_pengajuan', name: 'jenis_pengajuan' },
             { data: 'items_list', name: 'items_list', orderable: false, searchable: false },
             { data: 'grand_total', name: 'grand_total', render: function(data, type, row, meta) {
                     if (data === null || data === undefined) return '0.00';
@@ -378,8 +396,29 @@ $(document).ready(function() {
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
         createdRow: function(row, data, dataIndex) {
-            // items_list is at column index 5 (0-based) — mark it so CSS can constrain it
-            try { $(row).find('td').eq(5).addClass('items-list-cell'); } catch(e) {}
+            try {
+            // items_list is now at column index 4 — mark it so CSS can constrain it
+            $(row).find('td').eq(4).addClass('items-list-cell');
+            // mark first cell as 'col-no' to apply narrow styling
+            $(row).find('td').eq(0).addClass('col-no');
+
+                // Move jenis_pengajuan into the Kode cell as a badge below the kode text
+                var jenis = data.jenis_pengajuan || '';
+                if (jenis) {
+                    var badgeClass = 'badge-secondary';
+                    var k = jenis.toString().toLowerCase();
+                    if (k.indexOf('operasional') !== -1) badgeClass = 'badge-primary';
+                    else if (k.indexOf('pembelian') !== -1) badgeClass = 'badge-success';
+                    else if (k.indexOf('remburse') !== -1 || k.indexOf('remburse') !== -1) badgeClass = 'badge-warning';
+                    // append small badge under the kode cell
+                    var $kodeCell = $(row).find('td').eq(1);
+                    // avoid duplicating if server-side already included badge
+                    if ($kodeCell.find('.jenis-badge').length === 0) {
+                        var $badge = $('<div class="mt-1 jenis-badge"><small><span class="badge '+badgeClass+'">'+jenis+'</span></small></div>');
+                        $kodeCell.append($badge);
+                    }
+                }
+            } catch(e) {}
         },
         responsive: true,
         // tanggal_pengajuan is now at column index 3 (0-based), so order by that
