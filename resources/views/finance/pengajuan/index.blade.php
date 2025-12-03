@@ -5,6 +5,26 @@
 @endsection
 
 @section('content')
+    <style>
+        /* Constrain items column so long lists don't stretch the whole table */
+        #pengajuanTable { table-layout: fixed; }
+        #pengajuanTable td.items-list-cell {
+            max-width: 320px; /* adjust as needed */
+            white-space: normal !important;
+            word-break: break-word;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: top;
+        }
+        /* ensure inner lists wrap nicely */
+        #pengajuanTable td.items-list-cell ul,
+        #pengajuanTable td.items-list-cell ol {
+            margin: 0;
+            padding-left: 16px;
+            max-height: 160px;
+            overflow: auto;
+        }
+    </style>
 <div class="page-content">
     <div class="container-fluid">
         <!-- start page title -->
@@ -353,6 +373,10 @@ $(document).ready(function() {
             { data: 'approvals_list', name: 'approvals_list', orderable: false, searchable: false },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
+        createdRow: function(row, data, dataIndex) {
+            // items_list is at column index 5 (0-based) — mark it so CSS can constrain it
+            try { $(row).find('td').eq(5).addClass('items-list-cell'); } catch(e) {}
+        },
         responsive: true,
         // tanggal_pengajuan is now at column index 3 (0-based), so order by that
         order: [[3, 'desc']]
