@@ -9,7 +9,7 @@
         /* Constrain items column so long lists don't stretch the whole table */
         #pengajuanTable { table-layout: fixed; }
         #pengajuanTable td.items-list-cell {
-            max-width: 320px; /* adjust as needed */
+            max-width: 360px; /* increased to better contain long faktur lists; adjust as needed */
             white-space: normal !important;
             word-break: break-word;
             overflow: hidden;
@@ -317,6 +317,10 @@ $(document).ready(function() {
     var table = $('#pengajuanTable').DataTable({
         processing: true,
         serverSide: true,
+        autoWidth: false,
+        columnDefs: [
+            { targets: 5, width: '360px', className: 'items-list-cell' }
+        ],
         ajax: {
             url: '{!! route('finance.pengajuan.data') !!}',
             data: function(d) {
