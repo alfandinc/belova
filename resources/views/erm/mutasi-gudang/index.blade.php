@@ -8,17 +8,6 @@
     <div class="row">
         <div class="col-12">
             <div class="page-title-box">
-                <div class="page-title-right text-right" style="float: right;">
-                    <button type="button" class="btn btn-warning mr-2" data-toggle="modal" data-target="#modalMigrateStok">
-                        <i class="fas fa-database"></i> Migrasi Stok Obat
-                    </button>
-                    <button type="button" class="btn btn-success mr-2" data-toggle="modal" data-target="#modalObatBaru">
-                        <i class="fas fa-plus-circle"></i> Mutasi Obat Baru
-                    </button>
-                    <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalMutasi">
-                        <i class="fas fa-plus"></i> Buat Permintaan
-                    </button>
-                </div>
                 <h4 class="page-title">Mutasi Gudang</h4>
             </div>
         </div>
@@ -28,7 +17,7 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-body">
-                    <div class="row mb-3">
+                    <div class="row mb-3 align-items-center">
                         <div class="col-md-3">
                             <select class="form-control" id="filter_gudang">
                                 <option value="">Semua Gudang</option>
@@ -45,6 +34,19 @@
                                 <option value="rejected">Ditolak</option>
                             </select>
                         </div>
+                        <div class="col-md-6 text-md-right mt-2 mt-md-0">
+                            <div class="btn-group" role="group" aria-label="Actions">
+                                <button type="button" class="btn btn-warning mr-2" data-toggle="modal" data-target="#modalMigrateStok">
+                                    <i class="fas fa-database"></i> Migrasi Stok Obat
+                                </button>
+                                <button type="button" class="btn btn-success mr-2" data-toggle="modal" data-target="#modalObatBaru">
+                                    <i class="fas fa-plus-circle"></i> Mutasi Obat Baru
+                                </button>
+                                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalMutasi">
+                                    <i class="fas fa-plus"></i> Buat Permintaan
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="table-responsive">
@@ -52,12 +54,10 @@
                             <thead>
                                 <tr>
                                     <th>Tanggal</th>
-                                    <th>No Mutasi</th>
                                     <th style="max-width:420px; white-space:normal;">Obat</th>
                                     <th>Dari Gudang</th>
                                     <th>Ke Gudang</th>
-                                    <th>Diminta Oleh</th>
-                                    <th>Disetujui Oleh</th>
+                                    <th>Diminta / Disetujui</th>
                                     <th>Status</th>
                                     <th>Aksi</th>
                                 </tr>
@@ -71,7 +71,7 @@
 </div>
 <!-- Modal Mutasi -->
 <div class="modal fade" id="modalMutasi" tabindex="-1" role="dialog" aria-labelledby="modalMutasiLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="modalMutasiLabel">Buat Mutasi Gudang</h5>
@@ -115,7 +115,7 @@
                                     <thead>
                                         <tr>
                                             <th style="width:40%">Obat</th>
-                                            <th style="width:20%">Jumlah</th>
+                                            <th style="width:20%">Jumlah Diminta</th>
                                             <th style="width:30%">Keterangan</th>
                                             <th style="width:10%"><button type="button" id="add-item" class="btn btn-sm btn-primary">Tambah</button></th>
                                         </tr>
@@ -406,13 +406,28 @@ $(document).ready(function() {
             feather.replace();
         },
         columns: [
-            { data: 'tanggal', name: 'created_at' },
-            { data: 'nomor_mutasi', name: 'nomor_mutasi' },
+            {
+                data: 'tanggal',
+                name: 'created_at',
+                render: function(data, type, row) {
+                    var nomor = row.nomor_mutasi ? '<br><small class="text-muted">' + row.nomor_mutasi + '</small>' : '';
+                    return data + nomor;
+                }
+            },
             { data: 'nama_obat', name: 'items' },
             { data: 'gudang_asal', name: 'gudangAsal.nama' },
             { data: 'gudang_tujuan', name: 'gudangTujuan.nama' },
-            { data: 'requested_by', name: 'requestedBy.name' },
-            { data: 'approved_by', name: 'approvedBy.name' },
+            {
+                data: null,
+                name: 'requestedBy.name',
+                render: function(data, type, row) {
+                    var requester = row.requested_by || '';
+                    var approver = row.approved_by || '';
+                    var requesterHtml = requester ? '<i class="fas fa-user text-primary mr-1"></i>' + requester : '-';
+                    var approverHtml = approver ? '<br><small class="text-muted"><i class="fas fa-user-check text-success mr-1"></i>Disetujui: ' + approver + '</small>' : '';
+                    return requesterHtml + approverHtml;
+                }
+            },
             { data: 'status_label', name: 'status' },
             { data: 'action', name: 'action', orderable: false, searchable: false }
         ],
@@ -471,7 +486,14 @@ $(document).ready(function() {
     }
 
     function formatObatSelection(obat) {
-        return obat.nama || obat.text;
+        if (!obat) return '';
+        var name = obat.nama || obat.text || '';
+        var stok = (obat.stok !== undefined && obat.stok !== null) ? obat.stok : null;
+        var satuan = obat.satuan ? (' ' + obat.satuan) : '';
+        if (stok !== null) {
+            return name + ' (Tersedia ' + stok + satuan + ')';
+        }
+        return name;
     }
 
     // --- Dynamic items management for multi-obat mutasi ---
@@ -499,6 +521,19 @@ $(document).ready(function() {
             templateResult: formatObat,
             templateSelection: formatObatSelection
         });
+        // when an obat is selected, update the unit display in the same row
+        $select.on('select2:select', function(e) {
+            var obat = e.params && e.params.data ? e.params.data : null;
+            var $row = $(this).closest('tr');
+            var satuan = obat && obat.satuan ? obat.satuan : '';
+            $row.find('.item-satuan').text(satuan);
+        });
+
+        // when selection is cleared, reset satuan
+        $select.on('select2:unselecting', function(e) {
+            var $row = $(this).closest('tr');
+            $row.find('.item-satuan').text('');
+        });
     }
 
     function addItemRow(data) {
@@ -506,7 +541,12 @@ $(document).ready(function() {
         var rowId = Date.now() + Math.floor(Math.random() * 1000);
         var $tr = $('<tr data-row-id="' + rowId + '"></tr>');
         var obatSelect = '<select name="items['+rowId+'][obat_id]" class="form-control item-obat" required><option value="">Pilih Obat</option></select>';
-        var jumlahInput = '<input type="number" min="1" name="items['+rowId+'][jumlah]" class="form-control item-jumlah" required value="1">';
+            var jumlahInput = '<div class="input-group">'
+                + '<input type="number" min="1" name="items['+rowId+'][jumlah]" class="form-control item-jumlah" required value="1">'
+                + '<div class="input-group-append">'
+                    + '<span class="input-group-text item-satuan" style="min-width:60px"></span>'
+                + '</div>'
+            + '</div>';
         var ketInput = '<input type="text" name="items['+rowId+'][keterangan]" class="form-control item-keterangan">';
         var removeBtn = '<button type="button" class="btn btn-sm btn-danger btn-remove-item">Hapus</button>';
 
@@ -525,6 +565,10 @@ $(document).ready(function() {
             $newSelect.append(option).trigger('change');
             $tr.find('.item-jumlah').val(data.jumlah || 1);
             $tr.find('.item-keterangan').val(data.keterangan || '');
+            if (data.satuan) {
+                $tr.find('.item-satuan').text(data.satuan);
+            }
+            // stock is shown in the select2 selection label; no separate stock cell
         }
     }
 
@@ -546,40 +590,8 @@ $(document).ready(function() {
         $(this).closest('tr').remove();
     });
 
-    // Fungsi untuk update stok tersedia
-    function updateStokTersedia() {
-        var gudangId = $('#gudang_asal_id').val();
-        var obatId = $('#obat_id').val();
-        if (!gudangId || !obatId) {
-            $('#stok-tersedia').text('0');
-            return;
-        }
-        $.get("{{ url('erm/mutasi-gudang/obat') }}", { gudang_id: gudangId, q: '' }, function(res) {
-            var stok = 0;
-            if (res.results && res.results.length > 0) {
-                var found = res.results.find(function(item) { return item.id == obatId; });
-                if (found) stok = found.stok;
-            }
-            $('#stok-tersedia').text(stok);
-        });
-    }
-
-    // Update stok tersedia saat gudang asal berubah
-    $('#gudang_asal_id').on('change', function() {
-        // Reset select2 obat
-        $('#obat_id').val('').trigger('change');
-        updateStokTersedia();
-    });
-
-    // Update stok tersedia saat obat berubah
-    $('#obat_id').on('change', function() {
-        updateStokTersedia();
-    });
-
-    // Update stok tersedia when obat is selected
-    $('#obat_id').on('select2:select', function(e) {
-        updateStokTersedia();
-    });
+    // Note: stock is displayed inline in the obat select2 selection.
+    // The per-item unit is updated by `initItemSelect2` when an obat is selected.
 
     // Handle detail button
     $(document).on('click', '.btn-detail', function() {
