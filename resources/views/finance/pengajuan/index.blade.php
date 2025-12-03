@@ -26,6 +26,17 @@
             min-width: 28px;
             width: 32px;
         }
+        /* Force grand total values to align to the right edge of the cell */
+        #pengajuanTable td.grand-total-cell, #pengajuanTable th.grand-total-cell {
+            text-align: right !important;
+            padding-right: 12px;
+        }
+        /* Ensure any inner elements also align right and span full width */
+        #pengajuanTable td.grand-total-cell > * {
+            display: block;
+            width: 100%;
+            text-align: right !important;
+        }
         /* blinking badge for empty approvals */
         @keyframes blinkAnim { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
         /* apply animation directly to approvals-empty so it blinks */
@@ -341,7 +352,7 @@ $(document).ready(function() {
             { targets: 2, width: '220px' },
             { targets: 3, width: '120px' },
             { targets: 4, width: '360px', className: 'items-list-cell' },
-            { targets: 5, width: '120px' },
+            { targets: 5, width: '120px', className: 'text-end grand-total-cell' },
             { targets: 6, width: '160px' },
             { targets: 7, width: '120px' }
         ],
@@ -385,15 +396,17 @@ $(document).ready(function() {
             },
             { data: 'items_list', name: 'items_list', orderable: false, searchable: false },
             { data: 'grand_total', name: 'grand_total', render: function(data, type, row, meta) {
-                    if (data === null || data === undefined) return '0.00';
+                    if (data === null || data === undefined) data = 0;
                     if (type === 'display' || type === 'filter') {
                         try {
                             var n = Number(data);
-                            return n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            // Prefix Indonesian Rupiah symbol and format number
+                            return 'Rp ' + n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                         } catch (e) {
                             return data;
                         }
                     }
+                    // raw data used for ordering/searching
                     return data;
                 }, orderable: false, searchable: false },
             // server returns rendered HTML list for approvals (approver name + date)
