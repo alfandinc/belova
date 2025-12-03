@@ -26,6 +26,11 @@
             min-width: 28px;
             width: 32px;
         }
+        /* blinking badge for empty approvals */
+        @keyframes blinkAnim { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
+        /* apply animation directly to approvals-empty so it blinks */
+        .approvals-empty { animation: blinkAnim 1.2s linear infinite; }
+        .approvals-empty .fa { margin-right: 6px; }
         /* ensure inner lists wrap nicely and stay scrollable when long */
         #pengajuanTable td.items-list-cell > * {
             display: block;
@@ -417,6 +422,13 @@ $(document).ready(function() {
                         var $badge = $('<div class="mt-1 jenis-badge"><small><span class="badge '+badgeClass+'">'+jenis+'</span></small></div>');
                         $kodeCell.append($badge);
                     }
+                }
+                // If approvals list empty, show blinking warning badge in approvals column (index 6)
+                var approvalsRaw = (data.approvals_list || '').toString().trim();
+                var $approvalsCell = $(row).find('td').eq(6);
+                if (!approvalsRaw) {
+                    var warnHtml = '<div class="jenis-badge"><small><span class="badge badge-warning approvals-empty"><i class="fa fa-exclamation-triangle"></i> Menunggu Persetujuan</span></small></div>';
+                    $approvalsCell.html(warnHtml);
                 }
             } catch(e) {}
         },
