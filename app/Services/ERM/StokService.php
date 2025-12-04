@@ -66,16 +66,19 @@ class StokService {
             $stok = ObatStokGudang::where('obat_id', $obatId)
                 ->where('gudang_id', $gudangId)
                 ->where('batch', $batch)
+                ->lockForUpdate()
                 ->first();
 
             if ($stok) {
-                $stok->increment('stok', $jumlah);
+                // Use precise float arithmetic and assign directly to avoid implicit integer casting
+                $current = (float) $stok->stok;
+                $stok->stok = $current + (float) $jumlah;
                 $stok->save();
             } else {
                 $stok = ObatStokGudang::create([
                     'obat_id' => $obatId,
                     'gudang_id' => $gudangId,
-                    'stok' => $jumlah,
+                    'stok' => (float) $jumlah,
                     'batch' => $batch,
                     'expiration_date' => $expDate ? Carbon::parse($expDate) : null,
                     'rak' => $rak,
@@ -133,6 +136,21 @@ class StokService {
     public function kurangiStok($obatId, $gudangId, $jumlah, $batch = null, $refType = null, $refId = null, $keterangan = null)
     {
         return DB::transaction(function () use ($obatId, $gudangId, $jumlah, $batch, $refType, $refId, $keterangan) {
+            // Debug: log incoming parameters and types to diagnose rounding/truncation issues
+            try {
+                \Illuminate\Support\Facades\Log::info('StokService::kurangiStok called', [
+                    'obat_id' => $obatId,
+                    'gudang_id' => $gudangId,
+                    'batch' => $batch,
+                    'jumlah' => $jumlah,
+                    'jumlah_type' => gettype($jumlah),
+                    'refType' => $refType,
+                    'refId' => $refId,
+                ]);
+            } catch (\Exception $e) {
+                // ignore logging errors
+            }
+
             $query = ObatStokGudang::where('obat_id', $obatId)
                 ->where('gudang_id', $gudangId);
 
@@ -140,13 +158,17 @@ class StokService {
                 $query->where('batch', $batch);
             }
 
-            $stok = $query->first();
+            // Lock the stock row for update to avoid race conditions when modifying stok
+            $stok = $query->lockForUpdate()->first();
 
-            if (!$stok || $stok->stok < $jumlah) {
+            if (!$stok || (float)$stok->stok < (float)$jumlah) {
                 throw new \Exception('Stok tidak mencukupi');
             }
 
-            $stok->decrement('stok', $jumlah);
+            // Perform precise subtraction and save to ensure decimals preserved
+            $current = (float) $stok->stok;
+            $stok->stok = $current - (float)$jumlah;
+            $stok->save();
 
             // Catat di kartu stok dengan referensi
             $this->catatKartuStok(
@@ -373,8 +395,8 @@ class StokService {
             'gudang_id' => $gudangId,
             'tanggal' => now(),
             'tipe' => $tipe, // 'masuk' atau 'keluar'
-            'qty' => $jumlah,
-            'stok_setelah' => $stokAkhir,
+            'qty' => (float) $jumlah,
+            'stok_setelah' => (float) $stokAkhir,
             'batch' => $batch,
             'keterangan' => $keterangan,
             'ref_type' => $refType,  // misalnya 'pembelian', 'penjualan', 'mutasi', 'opname'

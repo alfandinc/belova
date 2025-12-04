@@ -58,7 +58,7 @@ class KartuStokController extends Controller
                 $totalAll = 0;
             }
 
-            $rows[] = [$obat->nama, (int)$totalAll];
+            $rows[] = [$obat->nama, (float)$totalAll];
         }
 
         try {
@@ -269,7 +269,7 @@ class KartuStokController extends Controller
         // Map obat_id => stok_terakhir
         $stokMap = [];
         foreach ($stokRows as $r) {
-            $stokMap[$r->obat_id] = (int)$r->stok_terakhir;
+            $stokMap[$r->obat_id] = (float)$r->stok_terakhir;
         }
 
         // Add obat with transactions
@@ -279,8 +279,8 @@ class KartuStokController extends Controller
             $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$data->obat_id.'"><i class="fas fa-chart-line"></i> Analytics</button>';
             $result[] = [
                 'nama_obat' => $data->nama_obat,
-                'masuk' => (int)$data->total_masuk,
-                'keluar' => (int)$data->total_keluar,
+                'masuk' => (float)$data->total_masuk,
+                'keluar' => (float)$data->total_keluar,
                 'stok_terakhir' => $stokTerakhir,
                 'detail' => $btnDetail . $btnAnalytics
             ];
@@ -302,8 +302,8 @@ class KartuStokController extends Controller
                 $btnAnalytics = ' <button class="btn btn-outline-info btn-sm btn-analytics ml-2" title="Analytics" data-obat-id="'.$obat->obat_id.'"><i class="fas fa-chart-line"></i> Analytics</button>';
                 $result[] = [
                     'nama_obat' => $obat->nama_obat,
-                    'masuk' => 0,
-                    'keluar' => 0,
+                    'masuk' => 0.0,
+                    'keluar' => 0.0,
                     'stok_terakhir' => $stokTerakhir,
                     'detail' => $btnDetail . $btnAnalytics
                 ];
@@ -356,9 +356,9 @@ class KartuStokController extends Controller
                 $ym = $r->ym;
                 if (!isset($map[$ym])) $map[$ym] = ['masuk' => 0, 'keluar' => 0];
                 if ($r->tipe === 'masuk') {
-                    $map[$ym]['masuk'] = (int)$r->total;
+                    $map[$ym]['masuk'] = (float)$r->total;
                 } else {
-                    $map[$ym]['keluar'] = (int)$r->total;
+                    $map[$ym]['keluar'] = (float)$r->total;
                 }
             }
 
@@ -382,7 +382,7 @@ class KartuStokController extends Controller
             $html = '<div class="mb-3">';
             $html .= '<div class="d-flex justify-content-between align-items-center">';
             $html .= '<div><strong>Periode:</strong> ' . e($startDt->format('d/m/Y')) . ' - ' . e($endDt->format('d/m/Y')) . '</div>';
-            $html .= '<div><small class="text-muted">Total Masuk: <strong>' . number_format($totalMasuk) . '</strong> &nbsp;|&nbsp; Total Keluar: <strong>' . number_format($totalKeluar) . '</strong> &nbsp;|&nbsp; Avg Keluar/bln: <strong>' . number_format($avgKeluar, 2) . '</strong></small></div>';
+            $html .= '<div><small class="text-muted">Total Masuk: <strong>' . number_format($totalMasuk, 2) . '</strong> &nbsp;|&nbsp; Total Keluar: <strong>' . number_format($totalKeluar, 2) . '</strong> &nbsp;|&nbsp; Avg Keluar/bln: <strong>' . number_format($avgKeluar, 2) . '</strong></small></div>';
             $html .= '</div></div>';
 
             if (empty($months)) {
@@ -401,9 +401,9 @@ class KartuStokController extends Controller
                 $net = $masuk - $keluar;
                 $html .= '<tr>';
                 $html .= '<td>' . e($label) . '</td>';
-                $html .= '<td class="text-right">' . number_format($masuk) . '</td>';
-                $html .= '<td class="text-right">' . number_format($keluar) . '</td>';
-                $html .= '<td class="text-right">' . number_format($net) . '</td>';
+                $html .= '<td class="text-right">' . number_format($masuk, 2) . '</td>';
+                $html .= '<td class="text-right">' . number_format($keluar, 2) . '</td>';
+                $html .= '<td class="text-right">' . number_format($net, 2) . '</td>';
                 $html .= '</tr>';
             }
 
@@ -542,8 +542,8 @@ class KartuStokController extends Controller
                     // Format tanggal yang lebih baik
                     $tanggalFormatted = date('d/m/Y H:i', strtotime($row->created_at));
                     
-                    // Format jumlah dengan styling
-                    $jumlahFormatted = '<strong>' . number_format($row->jumlah, 0) . '</strong>';
+                    // Format jumlah dengan styling (preserve decimals)
+                    $jumlahFormatted = '<strong>' . number_format($row->jumlah, 2) . '</strong>';
                     
                     // Compute total stock across all batches for the SAME GUDANG as this transaction
                     // Use a single aggregated SQL: pick the latest kartu_stok row per (obat_id,batch)
@@ -640,19 +640,19 @@ class KartuStokController extends Controller
                     // Format stok setelah
                     // For stok_opname rows, show the TOTAL across all batches as the main badge (snapshot/aggregate view)
                     // For other rows, show the per-batch stok as main badge and total across batches as secondary
-                    if ($row->ref_type === 'stok_opname') {
+                        if ($row->ref_type === 'stok_opname') {
                         $stokFormatted = '<div class="d-flex flex-column align-items-center">';
-                        $stokFormatted .= '<div><span class="badge badge-dark">' . number_format($displayTotalAll, 0) . '</span></div>';
+                        $stokFormatted .= '<div><span class="badge badge-dark">' . number_format($displayTotalAll, 2) . '</span></div>';
                         $stokFormatted .= '<div class="mt-1 text-center">';
                         $stokFormatted .= '<small class="text-muted d-block">Total semua<br/>batch</small>';
                         $stokFormatted .= '</div>';
                         $stokFormatted .= '</div>';
                     } else {
                         $stokFormatted = '<div class="d-flex flex-column align-items-center">';
-                        $stokFormatted .= '<div><span class="badge badge-secondary">' . number_format($displayPerBatch, 0) . '</span></div>';
+                        $stokFormatted .= '<div><span class="badge badge-secondary">' . number_format($displayPerBatch, 2) . '</span></div>';
                         $stokFormatted .= '<div class="mt-1 text-center">';
                         $stokFormatted .= '<small class="text-muted d-block">Total semua<br/>batch</small>';
-                        $stokFormatted .= '<span class="badge badge-dark mt-1">' . number_format($displayTotalAll, 0) . '</span>';
+                        $stokFormatted .= '<span class="badge badge-dark mt-1">' . number_format($displayTotalAll, 2) . '</span>';
                         $stokFormatted .= '</div>';
                         $stokFormatted .= '</div>';
                     }
@@ -684,7 +684,7 @@ class KartuStokController extends Controller
                                 $parts = [];
                                 foreach ($batchRows as $b) {
                                     $batchName = $b->batch ? e($b->batch) : '<em>no-batch</em>';
-                                    $parts[] = '<code>' . $batchName . '</code> <small class="text-muted">(' . number_format($b->stok, 0) . ')</small>';
+                                    $parts[] = '<code>' . $batchName . '</code> <small class="text-muted">(' . number_format($b->stok, 2) . ')</small>';
                                 }
                                 $batchDisplay = implode('<br>', $parts);
                             } else {

@@ -64,8 +64,37 @@ class KodeTindakanController extends Controller
      */
     public function data(Request $request)
     {
-        $query = KodeTindakan::query();
-        return DataTables::of($query)->make(true);
+        $query = KodeTindakan::with(['obats' => function($q) {
+            // include `satuan` so the listing can show units when building the summary
+            $q->select('erm_obat.id', 'nama', 'satuan');
+        }])->select('erm_kode_tindakan.*');
+
+        return DataTables::of($query)
+            ->addColumn('obats_summary', function($row) {
+                // Build summary like: "Paracetamol (0.5 Pcs), Ibuprofen (1 Tablet)"
+                $parts = [];
+                if ($row->obats && $row->obats->count()) {
+                    foreach ($row->obats as $obat) {
+                        $pivot = $obat->pivot;
+                        $qty = isset($pivot->qty) ? (float)$pivot->qty : 0;
+                        $satuan = $pivot->satuan_dosis ?? ($obat->satuan ?? '');
+                        // Normalize unit to lowercase for display (e.g., 'Pcs' -> 'pcs', 'Ml' -> 'ml')
+                        $unitDisplay = $satuan ? strtolower(trim($satuan)) : '';
+                        // Format qty: remove trailing zeros (1.00 -> 1, 0.50 -> 0.5)
+                        $qtyStr = rtrim(rtrim(number_format($qty, 2, '.', ''), '0'), '.');
+                        $label = htmlspecialchars($obat->nama, ENT_QUOTES, 'UTF-8');
+                        if ($unitDisplay) {
+                            $parts[] = $label . ' (' . $qtyStr . ' ' . htmlspecialchars($unitDisplay, ENT_QUOTES, 'UTF-8') . ')';
+                        } else {
+                            $parts[] = $label . ' (' . $qtyStr . ')';
+                        }
+                    }
+                }
+                // Return HTML with <br> separators so each obat appears on its own line
+                return implode('<br>', $parts);
+            })
+            ->rawColumns(['obats_summary'])
+            ->make(true);
     }
 
     /**
@@ -82,7 +111,7 @@ class KodeTindakanController extends Controller
             'harga_bottom' => 'nullable|numeric',
             'obats' => 'array',
             'obats.*.obat_id' => 'required|exists:erm_obat,id',
-            'obats.*.qty' => 'required|integer|min:1',
+            'obats.*.qty' => 'required|numeric|min:0.01',
             'obats.*.dosis' => 'nullable|string',
             'obats.*.satuan_dosis' => 'nullable|string',
         ]);
@@ -92,7 +121,7 @@ class KodeTindakanController extends Controller
             $pivotData = [];
             foreach ($request->obats as $obat) {
                 $pivotData[$obat['obat_id']] = [
-                    'qty' => $obat['qty'],
+                    'qty' => floatval($obat['qty']),
                     'dosis' => $obat['dosis'] ?? null,
                     'satuan_dosis' => $obat['satuan_dosis'] ?? null,
                 ];
@@ -117,7 +146,7 @@ class KodeTindakanController extends Controller
             'harga_bottom' => 'nullable|numeric',
             'obats' => 'array',
             'obats.*.obat_id' => 'required|exists:erm_obat,id',
-            'obats.*.qty' => 'required|integer|min:1',
+            'obats.*.qty' => 'required|numeric|min:0.01',
             'obats.*.dosis' => 'nullable|string',
             'obats.*.satuan_dosis' => 'nullable|string',
         ]);
@@ -127,7 +156,7 @@ class KodeTindakanController extends Controller
         if ($request->has('obats')) {
             foreach ($request->obats as $obat) {
                 $pivotData[$obat['obat_id']] = [
-                    'qty' => $obat['qty'],
+                    'qty' => floatval($obat['qty']),
                     'dosis' => $obat['dosis'] ?? null,
                     'satuan_dosis' => $obat['satuan_dosis'] ?? null,
                 ];
@@ -143,7 +172,7 @@ class KodeTindakanController extends Controller
     public function show($id)
     {
         $kodeTindakan = KodeTindakan::with(['obats' => function($q) {
-            $q->select('erm_obat.id', 'nama');
+            $q->select('erm_obat.id', 'nama', 'satuan');
         }])->findOrFail($id);
         $obats = [];
         foreach ($kodeTindakan->obats as $obat) {
@@ -154,6 +183,7 @@ class KodeTindakanController extends Controller
                 'qty' => $pivot->qty,
                 'dosis' => $pivot->dosis,
                 'satuan_dosis' => $pivot->satuan_dosis,
+                'satuan' => $obat->satuan ?? null,
             ];
         }
         $data = $kodeTindakan->toArray();

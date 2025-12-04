@@ -158,7 +158,7 @@ class StokGudangController extends Controller {
                 return '<span class="badge badge-success">Normal</span>';
             })
             ->editColumn('total_stok', function ($row) {
-                return number_format($row->total_stok, 0);
+                return number_format($row->total_stok, 2);
             })
             ->filterColumn('status_stok', function($query, $keyword) {
                 // Custom filter untuk status stok akan dihandle di client side
@@ -182,7 +182,8 @@ class StokGudangController extends Controller {
                 'id' => $item->id,
                 'batch' => $item->batch,
                 'stok' => $item->stok, // Raw value for editing
-                'stok_display' => number_format($item->stok, 0), // Formatted for display
+                // Use Indonesian formatting: dot thousands separator and comma decimal
+                'stok_display' => number_format($item->stok, 2, ',', '.'), // Formatted for display (2 decimals)
                 'expiration_date' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('d-m-Y') : '-',
                 'expiration_date_raw' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('Y-m-d') : '',
                 'status' => $this->getExpirationStatus($item->expiration_date)
@@ -386,7 +387,7 @@ class StokGudangController extends Controller {
 
             $exportRows->push([
                 $nama,
-                (int) $totalStok,
+                (float) $totalStok,
                 $hpp,
                 $hppJual,
                 $kategori,

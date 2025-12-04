@@ -26,6 +26,18 @@ class GudangMappingController extends Controller
                 ->addColumn('gudang_nama', function ($row) {
                     return $row->gudang ? $row->gudang->nama : '-';
                 })
+                ->addColumn('entity', function ($row) {
+                    if ($row->entity_type && $row->entity_id) {
+                        switch ($row->entity_type) {
+                            case 'spesialisasi':
+                                $s = \App\Models\ERM\Spesialisasi::find($row->entity_id);
+                                return $s ? 'Spesialisasi: ' . $s->nama : 'Spesialisasi: #' . $row->entity_id;
+                            default:
+                                return $row->entity_type . ': #' . $row->entity_id;
+                        }
+                    }
+                    return '-';
+                })
                 ->addColumn('status', function ($row) {
                     if ($row->is_active) {
                         return '<span class="badge badge-success">Aktif</span>';
@@ -48,8 +60,9 @@ class GudangMappingController extends Controller
 
         $gudangs = Gudang::orderBy('nama')->get();
         $transactionTypes = GudangMapping::getTransactionTypes();
+        $spesialisasis = \App\Models\ERM\Spesialisasi::orderBy('nama')->get();
 
-        return view('erm.gudang-mapping.index', compact('gudangs', 'transactionTypes'));
+        return view('erm.gudang-mapping.index', compact('gudangs', 'transactionTypes', 'spesialisasis'));
     }
 
     /**
@@ -62,12 +75,20 @@ class GudangMappingController extends Controller
         $request->validate([
             'transaction_type' => 'required|string|in:' . $validTransactionTypes,
             'gudang_id' => 'required|exists:erm_gudang,id',
+            'entity_type' => 'nullable|string',
+            'entity_id' => 'nullable|integer'
         ]);
 
         try {
-            GudangMapping::setActiveMapping(
+            $entityType = $request->input('entity_type');
+            $entityId = $request->input('entity_id');
+
+            // Use new entity-aware setter
+            GudangMapping::setActiveMappingForEntity(
                 $request->transaction_type,
-                $request->gudang_id
+                $request->gudang_id,
+                $entityType,
+                $entityId
             );
 
             return response()->json([
@@ -101,22 +122,34 @@ class GudangMappingController extends Controller
         $request->validate([
             'transaction_type' => 'required|string|in:' . $validTransactionTypes,
             'gudang_id' => 'required|exists:erm_gudang,id',
+            'entity_type' => 'nullable|string',
+            'entity_id' => 'nullable|integer'
         ]);
 
         try {
             $mapping = GudangMapping::findOrFail($id);
-            
-            // If we're making this active, deactivate others of same type
+
+            $entityType = $request->input('entity_type');
+            $entityId = $request->input('entity_id');
+
+            // If we're making this active, deactivate others of same type and entity scope
             if ($request->is_active) {
-                GudangMapping::where('transaction_type', $request->transaction_type)
-                             ->where('id', '!=', $id)
-                             ->update(['is_active' => false]);
+                $q = GudangMapping::where('transaction_type', $request->transaction_type)
+                                   ->where('id', '!=', $id);
+                if ($entityType && $entityId) {
+                    $q->where('entity_type', $entityType)->where('entity_id', $entityId);
+                } else {
+                    $q->whereNull('entity_type')->whereNull('entity_id');
+                }
+                $q->update(['is_active' => false]);
             }
 
             $mapping->update([
                 'transaction_type' => $request->transaction_type,
                 'gudang_id' => $request->gudang_id,
                 'is_active' => $request->is_active ?? false,
+                'entity_type' => $entityType,
+                'entity_id' => $entityId,
             ]);
 
             return response()->json([

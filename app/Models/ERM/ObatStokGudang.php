@@ -92,14 +92,16 @@ class ObatStokGudang extends Model
     // Method untuk menambah stok
     public function addStock($amount)
     {
-        $this->increment('stok', $amount);
+        $this->stok = ((float)$this->stok) + (float)$amount;
+        $this->save();
     }
 
     // Method untuk mengurangi stok
     public function reduceStock($amount)
     {
-        if ($this->stok >= $amount) {
-            $this->decrement('stok', $amount);
+        if ((float)$this->stok >= (float)$amount) {
+            $this->stok = ((float)$this->stok) - (float)$amount;
+            $this->save();
             return true;
         }
         return false;

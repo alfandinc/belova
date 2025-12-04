@@ -348,8 +348,8 @@ class BillingController extends Controller
                     $components[] = [
                         'obat_id' => $obatModel ? ($obatModel->id ?? null) : null,
                         'nama' => $obatModel ? ($obatModel->nama ?? '') : ($it->billable_name ?? ''),
-                        // stok_dikurangi persisted into ResepFarmasi.jumlah for racikan components
-                        'stok_dikurangi' => $billable ? (int)($billable->jumlah ?? 0) : 0,
+                        // stok_dikurangi persisted into ResepFarmasi.jumlah for racikan components (allow decimals)
+                        'stok_dikurangi' => $billable ? floatval($billable->jumlah ?? 0) : 0,
                     ];
                 } catch (\Exception $e) {
                     $components[] = ['obat_id' => null, 'nama' => '', 'stok_dikurangi' => 0];
@@ -671,7 +671,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                     $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                     if ($resep && $resep->obat) {
-                        $qty = intval($item->qty ?? 1);
+                        $qty = floatval($item->qty ?? 1);
                         
                         // Skip racikan items for individual stock validation (will be handled in bulk)
                         if ($resep->racikan_ke > 0) {
@@ -713,7 +713,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ) {
                     $obat = \App\Models\ERM\Obat::find($item->billable_id);
                     if ($obat) {
-                        $qty = intval($item->qty ?? 1);
+                        $qty = floatval($item->qty ?? 1);
                         
                         // Respect selected gudang for bundled Obat if provided (key: tindakan_{obatId})
                         $billingKey = $item->id;
@@ -758,8 +758,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             
                         foreach ($kodeTindakanMeds as $kodeTindakanMed) {
                             $obat = \App\Models\ERM\Obat::find($kodeTindakanMed->obat_id);
-                            if ($obat) {
-                                $qty = intval($kodeTindakanMed->qty ?? 1);
+                                if ($obat) {
+                                $qty = floatval($kodeTindakanMed->qty ?? 1);
                                 // For kode tindakan medications, prefer selected gudang key: kode_tindakan_{obatId}
                                 $billingKey = $item->id;
                                 $selectedGudangId = null;
@@ -954,12 +954,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             
             foreach ($billingItems as $item) {
                 $itemKey = $item->billable_type . '-' . $item->billable_id;
-                $newQty = intval($item->qty ?? 1);
+                $newQty = floatval($item->qty ?? 1);
 
                 if ($existingInvoice) {
                     // For updates, only adjust the difference
                     $oldItem = $oldInvoiceItems[$itemKey] ?? null;
-                    $oldQty = $oldItem ? intval($oldItem->quantity) : 0;
+                    $oldQty = $oldItem ? floatval($oldItem->quantity) : 0;
 
                     // If this invoice was previously unpaid (no stock reductions performed)
                     // and payment has just increased, treat old quantity as 0 so we reduce full qty
@@ -969,8 +969,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                     $qtyDiff = $newQty - $oldQty;
 
-                    // Skip if no quantity change
-                    if ($qtyDiff === 0) {
+                    // Skip if no quantity change (tolerant float comparison)
+                    if (abs($qtyDiff) < 0.00001) {
                         continue;
                     }
                 } else {
@@ -1001,7 +1001,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             
                             $obat = $resep->obat;
                             
-                            if ($qtyDiff != 0) {
+                            if (abs($qtyDiff) > 0.00001) {
                                 Log::info('Stock adjustment', [
                                     'invoice_id' => $invoice->id,
                                     'is_update' => (bool)$existingInvoice,
@@ -1045,7 +1045,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     ) {
                         $obat = \App\Models\ERM\Obat::find($item->billable_id);
                         if ($obat) {
-                            $qty = intval($item->qty ?? 1);
+                            $qty = floatval($item->qty ?? 1);
                             
                             // Get gudang selection for bundled obat
                             $gudangId = $this->getGudangForItem($request, $obat->id, 'tindakan', $item->id);
@@ -1183,13 +1183,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 } else {
                     $unitPriceAfter = $unitPrice;
                 }
-                $finalAmountComputed = $unitPriceAfter * intval($item->qty ?? 1);
+                $finalAmountComputed = $unitPriceAfter * floatval($item->qty ?? 1);
 
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => $name,
                     'description' => $description,
-                    'quantity' => intval($item->qty ?? 1),
+                    'quantity' => floatval($item->qty ?? 1),
                     // store original unit price (before discount) where available
                     'unit_price' => $unitPrice,
                     'hpp' => (function() use ($item) {
@@ -1263,8 +1263,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                     
                     // Use the qty/bungkus from the first item (should be the same for all items in racikan)
-                    if ($qty == 0) {
-                        $qty = intval($item->billable->bungkus ?? $item->qty ?? 30); // Default to 30 if not specified
+                        if ($qty == 0) {
+                        $qty = floatval($item->billable->bungkus ?? $item->qty ?? 30); // Default to 30 if not specified
                     }
                 }
                 
@@ -1279,7 +1279,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // Compute $qtyDiff for this racikan group. For new invoices or when previous payment was 0,
                     // treat the full qty as the diff. For updates where invoice was already paid, we avoid
                     // changing stock here (existing invoice adjustments are handled elsewhere).
-                    $newRacikanQty = intval($qty ?? 0);
+                    $newRacikanQty = floatval($qty ?? 0);
                     $racikanQtyDiff = 0;
                     if (!$existingInvoice) {
                         $racikanQtyDiff = $newRacikanQty;
@@ -1303,10 +1303,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 // For racikan components, prefer using the stored 'jumlah' value
                                 // (which we persist as 'stok_dikurangi' during resep submit). Fall
                                 // back to the racikan group qty diff if not present.
-                                $componentQty = intval($racikanItem->billable->jumlah ?? 0);
+                                $componentQty = floatval($racikanItem->billable->jumlah ?? 0);
                                 if ($componentQty <= 0) {
                                     // fallback to group diff
-                                    $componentQty = intval($racikanQtyDiff);
+                                    $componentQty = floatval($racikanQtyDiff);
                                 }
 
                                 Log::info('Processing racikan stock adjustment', [
@@ -1917,6 +1917,21 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                 $qtyToReduce = min($remainingQty, $stok->stok);
                 
+                // Debug: log the computed qty and types just before calling StokService
+                try {
+                    Log::info('About to call StokService::kurangiStok', [
+                        'obat_id' => $obatId,
+                        'gudang_id' => $gudangId,
+                        'batch' => $stok->batch,
+                        'qtyToReduce' => $qtyToReduce,
+                        'qtyToReduce_type' => gettype($qtyToReduce),
+                        'stok_value' => $stok->stok,
+                        'stok_value_type' => gettype($stok->stok),
+                    ]);
+                } catch (\Exception $e) {
+                    // swallow logging errors
+                }
+
                 // Kurangi stok menggunakan StokService dengan referensi invoice
                 $stokService->kurangiStok(
                     $obatId, 
@@ -1981,10 +1996,32 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             return $gudangSelections[$itemKey];
         }
 
-        // 3) Fallback to mapping default
-        $defaultGudangId = GudangMapping::getDefaultGudangId($transactionType);
+        // 3) For kode_tindakan try to resolve by spesialisasi (if billing row references RiwayatTindakan)
+        if ($transactionType === 'kode_tindakan') {
+            try {
+                if ($billingId) {
+                    $billingRow = \App\Models\Finance\Billing::find($billingId);
+                    if ($billingRow && isset($billingRow->billable_type) && $billingRow->billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
+                        $riwayat = \App\Models\ERM\RiwayatTindakan::with('tindakan')->find($billingRow->billable_id);
+                        if ($riwayat && $riwayat->tindakan && isset($riwayat->tindakan->spesialis_id)) {
+                            $spesialisId = $riwayat->tindakan->spesialis_id;
+                            $mapping = GudangMapping::resolveGudangForTransaction($transactionType, 'spesialisasi', $spesialisId);
+                            if ($mapping && $mapping->gudang_id) {
+                                return $mapping->gudang_id;
+                            }
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // ignore and fallback to default mapping
+                \Illuminate\Support\Facades\Log::warning('Failed to resolve gudang by spesialisasi: ' . $e->getMessage());
+            }
+        }
+
+        // 4) Fallback to mapping default (transaction-only)
+        $defaultGudangId = GudangMapping::resolveGudangForTransaction($transactionType);
         if ($defaultGudangId) {
-            return $defaultGudangId;
+            return $defaultGudangId->gudang_id ?? ($defaultGudangId);
         }
 
         // 4) Last resort: use first available gudang

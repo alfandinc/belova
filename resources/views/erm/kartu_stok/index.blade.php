@@ -161,9 +161,9 @@ $(function() {
         },
         columns: [
             { data: 'nama_obat', name: 'nama_obat' },
-            { data: 'masuk', name: 'masuk' },
-            { data: 'keluar', name: 'keluar' },
-                { data: 'stok_terakhir', name: 'stok_terakhir', render: function(data, type, row) { return data !== undefined && data !== null ? data : 0; } },
+            { data: 'masuk', name: 'masuk', render: function(data, type, row) { var v = (data !== undefined && data !== null) ? Number(data) : 0; return v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); } },
+            { data: 'keluar', name: 'keluar', render: function(data, type, row) { var v = (data !== undefined && data !== null) ? Number(data) : 0; return v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); } },
+            { data: 'stok_terakhir', name: 'stok_terakhir', render: function(data, type, row) { var v = (data !== undefined && data !== null) ? Number(data) : 0; return v.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 }); } },
             { data: 'detail', name: 'detail', orderable: false, searchable: false }
         ]
     });

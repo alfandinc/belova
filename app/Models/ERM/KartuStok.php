@@ -22,6 +22,8 @@ class KartuStok extends Model
 
     protected $casts = [
         'tanggal' => 'datetime',
+        'qty' => 'decimal:4',
+        'stok_setelah' => 'decimal:4'
     ];
 
     public function obat()

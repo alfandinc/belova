@@ -17,13 +17,16 @@
             <table id="kodeTindakanTable" class="table table-bordered table-striped" style="width:100%">
                 <thead>
                     <tr>
-                        <th>Kode</th>
-                        <th>Nama</th>
+                        <th style="width:10%">Kode</th>
+                        <th style="width:40%">Nama</th>
+                        <th style="width:40%">Obat / Jumlah</th>
+                        <!-- Removed from UI for now: HPP / Harga Jasmed / Harga Jual / Harga Bottom
                         <th>HPP</th>
                         <th>Harga Jasmed</th>
                         <th>Harga Jual</th>
                         <th>Harga Bottom</th>
-                        <th>Aksi</th>
+                        -->
+                        <th style="width:10%">Aksi</th>
                     </tr>
                 </thead>
             </table>
@@ -34,9 +37,9 @@
 <!-- Modal -->
 <!-- Make this modal non-dismissible by backdrop click or Escape; only the header X immediately closes -->
 <div class="modal fade" id="kodeTindakanModal" tabindex="-1" role="dialog" aria-labelledby="kodeTindakanModalLabel" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document" style="max-width:1100px;">
     <div class="modal-content">
-      <form id="kodeTindakanForm">
+    <form id="kodeTindakanForm" novalidate>
         <div class="modal-header">
           <h5 class="modal-title" id="kodeTindakanModalLabel">Tambah Kode Tindakan</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -55,6 +58,7 @@
                             <input type="text" class="form-control" id="nama" name="nama" required>
                         </div>
                     </div>
+                    <!-- HPP and price inputs temporarily removed from UI. Uncomment to restore.
                     <div class="form-row">
                         <div class="form-group col-md-3">
                             <label for="hpp">HPP</label>
@@ -73,16 +77,16 @@
                             <input type="number" step="0.01" class="form-control" id="harga_jasmed" name="harga_jasmed">
                         </div>
                     </div>
+                    -->
                     <hr>
                     <label>Obat dan BHP</label>
                     <table class="table table-bordered" id="obatTable">
                         <thead>
                             <tr>
-                                <th>Obat</th>
-                                <th>Qty</th>
-                                <th>Dosis</th>
-                                <th>Satuan Dosis</th>
-                                <th></th>
+                                <th style="width:60%">Obat dan BHP</th>
+                                <th style="width:12%">Jumlah</th>
+                                <th style="width:24%">Satuan Dosis</th>
+                                <th style="width:4%"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -111,19 +115,28 @@ $(document).ready(function() {
             url: '{{ route('marketing.kode_tindakan.data') }}',
             type: 'GET'
         },
+        // enforce column widths so Nama and Obat/Jumlah share the same proportion
+        columnDefs: [
+            { width: '10%', targets: 0 },
+            { width: '40%', targets: 1 },
+            { width: '40%', targets: 2 },
+            { width: '10%', targets: 3 }
+        ],
         columns: [
             { data: 'kode', name: 'kode' },
             { data: 'nama', name: 'nama' },
-            { data: 'hpp', name: 'hpp', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
+            { data: 'obats_summary', name: 'obats_summary', orderable: false, searchable: false, defaultContent: '-' },
+            // HPP / Harga fields removed from UI — keep code here commented for easy restore
+            /* { data: 'hpp', name: 'hpp', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
             { data: 'harga_jasmed', name: 'harga_jasmed', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
             { data: 'harga_jual', name: 'harga_jual', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
-            { data: 'harga_bottom', name: 'harga_bottom', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
+            { data: 'harga_bottom', name: 'harga_bottom', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } }, */
             {
                 data: null,
                 orderable: false,
                 searchable: false,
                 render: function(data, type, row) {
-                    return `<button class="btn btn-sm btn-warning btn-edit" data-id="${row.id}">Edit</button>
+                        return `<button class="btn btn-sm btn-warning btn-edit" data-id="${row.id}">Edit</button>
                             <button class="btn btn-sm btn-danger btn-delete" data-id="${row.id}">Hapus</button>`;
                 }
             }
@@ -135,18 +148,15 @@ $(document).ready(function() {
         const satuanOptions = [
             'Mg', 'Ml', 'Gram', 'Tablet', 'Kapsul', 'Botol', 'Strip', 'Tube', 'Ampul', 'Sachet', 'Vial', 'Pcs', 'Lainnya'
         ];
-        let satuanDropdown = `<select name="obats[${idx}][satuan_dosis]" class="form-control">
-            <option value="">Pilih Satuan</option>`;
-        satuanOptions.forEach(opt => {
-            satuanDropdown += `<option value="${opt}"${obat.satuan_dosis === opt ? ' selected' : ''}>${opt}</option>`;
-        });
-        satuanDropdown += `</select>`;
-        return `<tr>
-            <td><select name="obats[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select></td>
-            <td><input type="number" name="obats[${idx}][qty]" class="form-control" min="1" value="${obat.qty || 1}" required></td>
-            <td><input type="text" name="obats[${idx}][dosis]" class="form-control" value="${obat.dosis || ''}"></td>
-            <td>${satuanDropdown}</td>
-            <td><button type="button" class="btn btn-danger btn-sm remove-obat">Hapus</button></td>
+        // Satuan will be shown as read-only text pulled from the selected Obat
+        const satuanValue = obat.satuan_dosis || obat.satuan || '';
+        let satuanField = `<input type="text" name="obats[${idx}][satuan_dosis]" class="form-control satuan-text" value="${satuanValue}" readonly>`;
+
+            return `<tr>
+            <td style="width:60%"><select name="obats[${idx}][obat_id]" class="form-control obat-select" required style="width:100%"></select></td>
+            <td style="width:12%"><input type="number" name="obats[${idx}][qty]" class="form-control" min="0.01" step="0.01" inputmode="decimal" pattern="^\\d+(\\.\\d{1,2})?$" data-rule-min="0.01" data-msg-min="Jumlah harus minimal 0.01" value="${obat.qty || 1}" required></td>
+            <td style="width:24%">${satuanField}</td>
+            <td style="width:4%"><button type="button" class="btn btn-danger btn-sm remove-obat">Hapus</button></td>
         </tr>`;
     }
 
@@ -174,10 +184,31 @@ $(document).ready(function() {
                     return { q: params.term };
                 },
                 processResults: function(data) {
+                    // Normalize results and strip packaging suffixes like " - 14 Pcs"
+                    function cleanResult(item) {
+                        if (!item) return item;
+                        // If server returned label as 'text', use it; otherwise try 'nama' or 'name'
+                        let raw = item.text || item.nama || item.name || '';
+                        // Remove trailing patterns like " - 14 Pcs", " - 100", etc. (case-insensitive)
+                        let display = raw.replace(/\s*-\s*\d+\s*(pcs)?$/i, '').trim();
+                        // Preserve original raw text in a separate prop in case we need it
+                        item._raw_text = raw;
+                        // Overwrite text used by select2 with cleaned display
+                        item.text = display || raw;
+                        return item;
+                    }
+
                     if (Array.isArray(data.results)) {
-                        return { results: data.results };
+                        return { results: data.results.map(cleanResult) };
+                    } else if (Array.isArray(data)) {
+                        return { results: data.map(cleanResult) };
+                    } else if (data && Array.isArray(data.data)) {
+                        // In case server returns { data: [...] }
+                        return { results: data.data.map(cleanResult) };
+                    } else if (data) {
+                        return { results: [cleanResult(data)] };
                     } else {
-                        return { results: data };
+                        return { results: [] };
                     }
                 },
                 cache: true
@@ -185,9 +216,29 @@ $(document).ready(function() {
             width: '100%',
             allowClear: true
         });
+        // When an obat is selected, populate the satuan field from returned data
+        $(context).find('.obat-select').on('select2:select', function(e) {
+            const data = e.params.data || {};
+            const satuan = data.satuan || data.satuan_dosis || '';
+            const $row = $(this).closest('tr');
+            $row.find('.satuan-text').val(satuan);
+        });
+
+        // When cleared, empty the satuan field
+        $(context).find('.obat-select').on('select2:clear', function() {
+            const $row = $(this).closest('tr');
+            $row.find('.satuan-text').val('');
+        });
+
         if (selected) {
-            let option = new Option(selected.text, selected.id, true, true);
+            // selected may include satuan property provided by server when editing
+            // Clean common packaging suffixes (e.g. " - 14 Pcs") for the displayed text
+            let rawText = selected.text || '';
+            let displayText = rawText.replace(/\s*-\s*\d+\s*pcs$/i, '');
+            let option = new Option(displayText, selected.id, true, true);
             $(context).find('.obat-select').append(option).trigger('change');
+            const satuan = selected.satuan || selected.satuan_dosis || '';
+            $(context).find('.satuan-text').val(satuan);
         }
     }
 
@@ -210,9 +261,6 @@ $(document).ready(function() {
         $('#kodeTindakanForm')[0].reset();
         $('#kodeTindakanId').val('');
         $('#obatTable tbody').empty();
-        $('#harga_jasmed').val('');
-        $('#harga_jual').val('');
-        $('#harga_bottom').val('');
         $('#kodeTindakanModalLabel').text('Tambah Kode Tindakan');
         $('#kodeTindakanModal').modal('show');
     });
@@ -240,16 +288,18 @@ $(document).ready(function() {
             $('#kodeTindakanId').val(data.id);
             $('#kode').val(data.kode);
             $('#nama').val(data.nama);
-            $('#hpp').val(data.hpp);
-            $('#harga_jasmed').val(data.harga_jasmed);
-            $('#harga_jual').val(data.harga_jual);
-            $('#harga_bottom').val(data.harga_bottom);
+            // HPP / Harga fields are removed from UI; these were previously set here:
+            // $('#hpp').val(data.hpp);
+            // $('#harga_jasmed').val(data.harga_jasmed);
+            // $('#harga_jual').val(data.harga_jual);
+            // $('#harga_bottom').val(data.harga_bottom);
             $('#obatTable tbody').empty();
             if (data.obats && data.obats.length) {
                 data.obats.forEach(function(obat, idx) {
                     let $row = $(obatRow(idx, obat));
                     $('#obatTable tbody').append($row);
-                    initObatSelect2($row, {id: obat.obat_id, text: obat.obat_nama});
+                    // Pass unit info so the select2 initializer can populate the satuan field
+                    initObatSelect2($row, {id: obat.obat_id, text: obat.obat_nama, satuan: (obat.satuan_dosis || obat.satuan || '')});
                 });
             }
             $('#kodeTindakanModalLabel').text('Edit Kode Tindakan');

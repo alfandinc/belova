@@ -32,6 +32,7 @@
                             <thead>
                                 <tr>
                                     <th>Tipe Transaksi</th>
+                                    <th>Entity</th>
                                     <th>Gudang</th>
                                     <th>Status</th>
                                     <th>Dibuat</th>
@@ -69,6 +70,26 @@
                             @foreach($transactionTypes as $key => $label)
                                 <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="entityType">Entity (opsional)</label>
+                        <select class="form-control" id="entityType" name="entity_type">
+                            <option value="">-- Default (tidak spesifik) --</option>
+                            <option value="spesialisasi">Spesialisasi</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="entitySelectorWrapper" style="display:none;">
+                        <label for="entityId">Pilih Spesialisasi</label>
+                        <select class="form-control" id="entityId" name="entity_id">
+                            <option value="">-- Pilih Spesialisasi --</option>
+                            @isset($spesialisasis)
+                                @foreach($spesialisasis as $s)
+                                    <option value="{{ $s->id }}">{{ $s->nama }}</option>
+                                @endforeach
+                            @endisset
                         </select>
                     </div>
                     
@@ -121,6 +142,10 @@ $(document).ready(function() {
             { 
                 data: 'transaction_type_label',
                 name: 'transaction_type_label'
+            },
+            { 
+                data: 'entity',
+                name: 'entity'
             },
             { 
                 data: 'gudang_nama',
@@ -180,6 +205,18 @@ $(document).ready(function() {
             $('#transactionType').val(data.transaction_type);
             $('#gudangId').val(data.gudang_id);
             $('#isActive').prop('checked', data.is_active);
+            // Set entity fields
+            if (data.entity_type) {
+                $('#entityType').val(data.entity_type);
+                $('#entitySelectorWrapper').show();
+                if (data.entity_type === 'spesialisasi') {
+                    $('#entityId').val(data.entity_id);
+                }
+            } else {
+                $('#entityType').val('');
+                $('#entitySelectorWrapper').hide();
+                $('#entityId').val('');
+            }
         });
     };
 
@@ -223,6 +260,8 @@ $(document).ready(function() {
         const formData = {
             transaction_type: $('#transactionType').val(),
             gudang_id: $('#gudangId').val(),
+            entity_type: $('#entityType').val() || null,
+            entity_id: $('#entityId').val() || null,
             is_active: $('#isActive').is(':checked'),
             _token: "{{ csrf_token() }}"
         };
@@ -255,6 +294,17 @@ $(document).ready(function() {
                 Swal.fire('Error!', message, 'error');
             }
         });
+    });
+
+    // Show/hide entity selector when entityType changes
+    $('#entityType').on('change', function() {
+        const v = $(this).val();
+        if (v) {
+            $('#entitySelectorWrapper').show();
+        } else {
+            $('#entitySelectorWrapper').hide();
+            $('#entityId').val('');
+        }
     });
 });
 </script>
