@@ -870,6 +870,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/', [\App\Http\Controllers\ERM\StokOpnameController::class, 'store'])->name('erm.stokopname.store');
     Route::get('/{id}/create', [\App\Http\Controllers\ERM\StokOpnameController::class, 'create'])->name('erm.stokopname.create');
     Route::get('/{id}/download-excel', [\App\Http\Controllers\ERM\StokOpnameController::class, 'downloadExcel'])->name('erm.stokopname.downloadExcel');
+    // Export stok opname results (items) to Excel
+    Route::get('/{id}/export-results', [\App\Http\Controllers\ERM\StokOpnameController::class, 'exportResultsExcel'])->name('erm.stokopname.exportResults');
     Route::post('/{id}/upload-excel', [\App\Http\Controllers\ERM\StokOpnameController::class, 'uploadExcel'])->name('erm.stokopname.uploadExcel');
     // Stok Opname Items DataTable AJAX
     Route::get('/{id}/items-data', [\App\Http\Controllers\ERM\StokOpnameController::class, 'itemsData'])->name('erm.stokopname.itemsData');

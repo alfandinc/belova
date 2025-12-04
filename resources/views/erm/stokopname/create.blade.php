@@ -138,8 +138,8 @@
                             <i class="fa fa-check"></i> Update Stock from Opname
                         </button>
                     </div>
-                    <hr>
-                    <div class="d-flex align-items-center">
+                    {{-- <hr> --}}
+                    {{-- <div class="d-flex align-items-center">
                         <a href="{{ route('erm.stokopname.downloadExcel', $stokOpname->id) }}" class="btn btn-warning mr-2"><i class="fa fa-download"></i> Download</a>
                         <form action="{{ route('erm.stokopname.uploadExcel', $stokOpname->id) }}" method="POST" enctype="multipart/form-data" role="form" class="d-flex align-items-center">
                             @csrf
@@ -154,7 +154,7 @@
                                 </div>
                             </div>
                         </form>
-                    </div>
+                    </div> --}}
                     @if(session('success'))
                         <div class="alert alert-success mt-3">{{ session('success') }}</div>
                     @endif
