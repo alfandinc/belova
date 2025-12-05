@@ -393,66 +393,80 @@ $(document).ready(function() {
     // Initial load
     loadAnalyticsData();
 
-    // Populate and show modal table when button clicked
+    // When View All clicked, fetch full list (not limited) from server and populate modal
+    let bestSellingProductsAllData = null;
     $('#viewAllProductsBtn').on('click', function() {
         const $tbody = $('#viewAllProductsTable tbody');
         $tbody.empty();
 
-        if (!bestSellingProductsData || !bestSellingProductsData.labels || bestSellingProductsData.labels.length === 0) {
-            $tbody.append('<tr><td colspan="5" class="text-center text-muted py-4">No data available</td></tr>');
-            return;
-        }
+        const dateRange = $('#dateRange').data('daterangepicker');
+        const startDate = dateRange.startDate.format('YYYY-MM-DD');
+        const endDate = dateRange.endDate.format('YYYY-MM-DD');
+        const clinicId = $('#clinicFilter').val();
+        const kategori = $('#categoryFilter').val();
 
-        const labels = bestSellingProductsData.labels;
-        const values = bestSellingProductsData.values || [];
-        const revenue = bestSellingProductsData.revenue || [];
-        const categories = bestSellingProductsData.categories || [];
+        // Show a loading row
+        $tbody.append('<tr><td colspan="5" class="text-center text-muted py-4">Loading...</td></tr>');
 
-        for (let i = 0; i < labels.length; i++) {
-            const name = labels[i] || '-';
-            const qty = (values[i] != null) ? values[i] : '-';
-            const rev = (revenue[i] != null) ? revenue[i] : '-';
-            const cat = (categories[i] != null) ? categories[i] : '-';
-
-            const row = `<tr>
-                <td>${i+1}</td>
-                <td>${name}</td>
-                <td>${cat}</td>
-                <td>${qty}</td>
-                <td>Rp ${typeof rev === 'number' ? rev.toLocaleString() : rev}</td>
-            </tr>`;
-
-            $tbody.append(row);
-        }
+        $.ajax({
+            url: '{{ route("marketing.products.analytics.all") }}',
+            method: 'GET',
+            data: {
+                start_date: startDate,
+                end_date: endDate,
+                clinic_id: clinicId,
+                kategori: kategori
+            },
+            success: function(res) {
+                $tbody.empty();
+                if (res.success && res.data && res.data.length > 0) {
+                    bestSellingProductsAllData = res.data;
+                    for (let i = 0; i < res.data.length; i++) {
+                        const row = res.data[i];
+                        const rev = row.total_revenue != null ? parseFloat(row.total_revenue) : 0;
+                        const qty = row.total_quantity != null ? row.total_quantity : '';
+                        $tbody.append(`<tr>
+                            <td>${i+1}</td>
+                            <td>${row.product_name}</td>
+                            <td>${row.category || '-'}</td>
+                            <td>${qty}</td>
+                            <td>Rp ${rev ? rev.toLocaleString() : '-'}</td>
+                        </tr>`);
+                    }
+                } else {
+                    bestSellingProductsAllData = null;
+                    $tbody.append('<tr><td colspan="5" class="text-center text-muted py-4">No data available</td></tr>');
+                }
+            },
+            error: function(xhr) {
+                $tbody.empty();
+                $tbody.append('<tr><td colspan="5" class="text-center text-danger py-4">Failed to load data</td></tr>');
+                console.error('Error fetching full products list', xhr);
+            }
+        });
     });
 
-    // Download excel from the cached bestSellingProductsData
+    // Export the full products list previously fetched from server
     $('#downloadExcelBtn').on('click', function() {
-        if (!bestSellingProductsData || !bestSellingProductsData.labels || bestSellingProductsData.labels.length === 0) {
-            alert('No data to export');
+        if (!bestSellingProductsAllData || bestSellingProductsAllData.length === 0) {
+            alert('No data to export. Open "View All" first to load data.');
             return;
         }
 
-        const labels = bestSellingProductsData.labels;
-        const values = bestSellingProductsData.values || [];
-        const revenue = bestSellingProductsData.revenue || [];
-        const categories = bestSellingProductsData.categories || [];
-
-        const rows = [];
-        for (let i = 0; i < labels.length; i++) {
-            rows.push({
-                No: i+1,
-                Product: labels[i] || '',
-                Category: categories[i] || '',
-                Quantity: values[i] != null ? values[i] : '',
-                Revenue: revenue[i] != null ? revenue[i] : ''
-            });
-        }
+        const rows = bestSellingProductsAllData.map(function(r, idx) {
+            return {
+                No: idx + 1,
+                Product: r.product_name || '',
+                Category: r.category || '',
+                Quantity: r.total_quantity != null ? r.total_quantity : '',
+                Revenue: r.total_revenue != null ? r.total_revenue : ''
+            };
+        });
 
         const worksheet = XLSX.utils.json_to_sheet(rows);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'BestSelling');
-        XLSX.writeFile(workbook, `best_selling_products_${moment().format('YYYYMMDD')}.xlsx`);
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'AllProducts');
+        XLSX.writeFile(workbook, `products_sold_all_${moment().format('YYYYMMDD')}.xlsx`);
     });
 
     // Initialize Feather icons

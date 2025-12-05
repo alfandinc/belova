@@ -1509,6 +1509,57 @@ class MarketingController extends Controller
         }
     }
 
+    /**
+     * AJAX: return full list of sold products for given filters (no limit)
+     */
+    public function productsAnalyticsAllData(Request $request)
+    {
+        try {
+            $clinicId = $request->get('clinic_id');
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+            $kategori = $request->get('kategori');
+
+            $query = InvoiceItem::join('finance_invoices', 'finance_invoice_items.invoice_id', '=', 'finance_invoices.id')
+                ->join('erm_visitations', 'finance_invoices.visitation_id', '=', 'erm_visitations.id')
+                ->join('erm_resepfarmasi', 'finance_invoice_items.billable_id', '=', 'erm_resepfarmasi.id')
+                ->join('erm_obat', 'erm_resepfarmasi.obat_id', '=', 'erm_obat.id')
+                ->where('finance_invoice_items.billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+                ->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate])
+                ->where('finance_invoices.amount_paid', '>', 0);
+
+            if ($clinicId) {
+                $query->where('erm_visitations.klinik_id', $clinicId);
+            }
+
+            if ($kategori) {
+                $query->where('erm_obat.kategori', $kategori);
+            }
+
+            $data = $query->select(
+                'erm_obat.id as product_id',
+                'erm_obat.nama as product_name',
+                'erm_obat.kategori as category',
+                DB::raw('SUM(finance_invoice_items.quantity) as total_quantity'),
+                DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue')
+            )
+                ->groupBy('erm_obat.id', 'erm_obat.nama', 'erm_obat.kategori')
+                ->orderBy('total_quantity', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching full products analytics list: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching products list: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     // Helper methods for products analytics
     private function getTotalProductsSold($startDate, $endDate, $clinicId = null, $kategori = null)
     {
