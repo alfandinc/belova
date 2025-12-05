@@ -453,7 +453,17 @@
                 <td class="total-amount bold total-row">{{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
             </tr>
             <tr>
-                <td class="total-label payment-separator">{{ $invoice->payment_method === 'cash' ? 'Tunai' : ($invoice->payment_method === 'non_cash' ? 'Non Tunai' : 'Campuran') }}</td>
+                @php
+                    $pmLabel = 'Campuran';
+                    if ($invoice->payment_method === 'cash') {
+                        $pmLabel = 'Tunai';
+                    } elseif ($invoice->payment_method === 'non_cash') {
+                        $pmLabel = 'Non Tunai';
+                    } elseif ($invoice->payment_method === 'asuransi_inhealth') {
+                        $pmLabel = 'Asuransi InHealth';
+                    }
+                @endphp
+                <td class="total-label payment-separator">{{ $pmLabel }}</td>
                 <td class="total-amount payment-separator">{{ number_format($invoice->amount_paid, 0, ',', '.') }}</td>
             </tr>
             <tr>

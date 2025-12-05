@@ -254,6 +254,7 @@
                                     <option value="shopee">Shopee</option>
                                     <option value="tiktokshop">Tiktokshop</option>
                                     <option value="tokopedia">Tokopedia</option>
+                                    <option value="asuransi_inhealth">Asuransi InHealth</option>
                                 </select>
                             </div>
                         </div>
