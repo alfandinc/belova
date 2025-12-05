@@ -1046,6 +1046,59 @@ class MarketingController extends Controller
         ];
     }
 
+    /**
+     * AJAX: return full list of popular treatments (no limit) for given filters
+     */
+    public function servicesAnalyticsAllData(Request $request)
+    {
+        try {
+            $clinicId = $request->get('clinic_id');
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            // Determine date range
+            if (!$startDate || !$endDate) {
+                // default to current month if not provided
+                $endDate = now()->toDateString();
+                $startDate = now()->startOfMonth()->toDateString();
+            }
+
+            $query = InvoiceItem::whereHas('invoice', function ($q) use ($startDate, $endDate) {
+                $q->whereHas('visitation', function ($v) use ($startDate, $endDate) {
+                    $v->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+                })->where('amount_paid', '>', 0);
+            })->where('billable_type', 'App\\Models\\ERM\\Tindakan');
+
+            if ($clinicId) {
+                $query->whereHas('invoice.visitation', function ($q) use ($clinicId) {
+                    $q->where('klinik_id', $clinicId);
+                });
+            }
+
+            $data = $query->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
+                ->select(
+                    'finance_invoice_items.billable_id as treatment_id',
+                    'erm_tindakan.nama as treatment_name',
+                    DB::raw('COUNT(*) as total_count'),
+                    DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue')
+                )
+                ->groupBy('finance_invoice_items.billable_id', 'erm_tindakan.nama')
+                ->orderBy('total_count', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching full services analytics list: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching services list: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     private function getPackagePerformance($clinicId = null, $year = null, $month = null, $startDate = null, $endDate = null)
     {
         // Determine date range

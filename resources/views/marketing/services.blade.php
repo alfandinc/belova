@@ -136,9 +136,14 @@
         <div class="row">
             <div class="col-lg-6">
                 <div class="card">
-                    <div class="card-header">
-                        <h4 class="card-title">Popular Treatments</h4>
-                    </div>
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                                <h4 class="card-title mb-0">Popular Treatments</h4>
+                                <div>
+                                    <button id="viewAllTreatmentsBtn" type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#viewAllTreatmentsModal">
+                                        View All
+                                    </button>
+                                </div>
+                            </div>
                     <div class="card-body">
                         <div id="popular_treatments_chart"></div>
                     </div>
@@ -195,9 +200,44 @@
         </div>
     </div>
 </div>
+    <!-- View All Treatments Modal -->
+    <div class="modal fade" id="viewAllTreatmentsModal" tabindex="-1" role="dialog" aria-labelledby="viewAllTreatmentsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewAllTreatmentsModalLabel">All Treatments</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <button id="downloadTreatmentsExcelBtn" type="button" class="btn btn-sm btn-success">Download Excel</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table id="viewAllTreatmentsTable" class="table table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Treatment</th>
+                                    <th>Count</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
 @endsection
 
 @section('scripts')
+<!-- SheetJS for client-side Excel export -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <script>
 $(document).ready(function() {
     console.log('Services analytics page loaded');
@@ -564,6 +604,77 @@ $(document).ready(function() {
     // Initial load
     console.log('Starting initial load...');
     loadAnalyticsData();
+
+    // Fetch full list of treatments when modal opened
+    let allTreatmentsData = null;
+    $('#viewAllTreatmentsBtn').on('click', function() {
+        const $tbody = $('#viewAllTreatmentsTable tbody');
+        $tbody.empty();
+
+        const dateRange = $('#daterange').val().split(' - ');
+        const clinicId = $('#clinic_filter').val();
+        const startDate = dateRange[0];
+        const endDate = dateRange[1];
+
+        $tbody.append('<tr><td colspan="4" class="text-center text-muted py-4">Loading...</td></tr>');
+
+        $.ajax({
+            url: '{{ route("marketing.services.analytics.all") }}',
+            method: 'GET',
+            data: {
+                start_date: startDate,
+                end_date: endDate,
+                clinic_id: clinicId
+            },
+            success: function(res) {
+                $tbody.empty();
+                if (res.success && res.data && res.data.length > 0) {
+                    allTreatmentsData = res.data;
+                    for (let i = 0; i < res.data.length; i++) {
+                        const r = res.data[i];
+                        const rev = r.total_revenue != null ? parseFloat(r.total_revenue) : 0;
+                        const cnt = r.total_count != null ? r.total_count : '';
+                        $tbody.append(`<tr>
+                            <td>${i+1}</td>
+                            <td>${r.treatment_name}</td>
+                            <td>${cnt}</td>
+                            <td>Rp ${rev ? rev.toLocaleString() : '-'}</td>
+                        </tr>`);
+                    }
+                } else {
+                    allTreatmentsData = null;
+                    $tbody.append('<tr><td colspan="4" class="text-center text-muted py-4">No data available</td></tr>');
+                }
+            },
+            error: function(xhr) {
+                $tbody.empty();
+                $tbody.append('<tr><td colspan="4" class="text-center text-danger py-4">Failed to load data</td></tr>');
+                console.error('Error fetching treatments', xhr);
+            }
+        });
+    });
+
+    // Download Excel for treatments
+    $('#downloadTreatmentsExcelBtn').on('click', function() {
+        if (!allTreatmentsData || allTreatmentsData.length === 0) {
+            alert('No data to export. Open "View All" first to load data.');
+            return;
+        }
+
+        const rows = allTreatmentsData.map(function(r, idx) {
+            return {
+                No: idx + 1,
+                Treatment: r.treatment_name || '',
+                Count: r.total_count != null ? r.total_count : '',
+                Revenue: r.total_revenue != null ? r.total_revenue : ''
+            };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Treatments');
+        XLSX.writeFile(workbook, `treatments_all_${moment().format('YYYYMMDD')}.xlsx`);
+    });
 });
 </script>
 @endsection

@@ -1442,6 +1442,8 @@ Route::get('/marketing/patients-analytics-data', [\App\Http\Controllers\Marketin
 
 // AJAX route for services analytics charts
 Route::get('/marketing/services-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'servicesAnalyticsData'])->name('marketing.services.analytics.data');
+// AJAX route for full services list (for modal / export)
+Route::get('/marketing/services-analytics-all', [\App\Http\Controllers\Marketing\MarketingController::class, 'servicesAnalyticsAllData'])->name('marketing.services.analytics.all');
 
 // AJAX route for products analytics charts
 Route::get('/marketing/products-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'productsAnalyticsData'])->name('marketing.products.analytics.data');
