@@ -122,9 +122,10 @@ class FinancePengajuanDanaController extends Controller
                             }
                         }
 
-                        // sequencing: ensure higher tingkat approvers for this jenis have approved
+                        // sequencing: ensure each higher tingkat (level) that has approvers for this jenis
+                        // has at least one approval before allowing current approver to act.
                         $approverTingkat = intval($approver->tingkat ?: 1);
-                        $higherApprovers = FinanceDanaApprover::where('aktif', 1)
+                        $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
                             ->where(function($q) use ($pengajuanJenis) {
                                 if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
                                     $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
@@ -133,12 +134,31 @@ class FinancePengajuanDanaController extends Controller
                                 }
                             })
                             ->where('tingkat', '>', $approverTingkat)
-                            ->get();
+                            ->distinct()
+                            ->pluck('tingkat')
+                            ->toArray();
 
                         $canApprove = true;
-                        foreach ($higherApprovers as $ha) {
-                            $hasApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)->where('approver_id', $ha->id)->exists();
-                            if (!$hasApproved) { $canApprove = false; break; }
+                        foreach ($higherTingkatValues as $ht) {
+                            $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
+                                ->where(function($q) use ($pengajuanJenis) {
+                                    if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
+                                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
+                                    } else {
+                                        $q->whereNull('jenis')->orWhere('jenis', '');
+                                    }
+                                })
+                                ->where('tingkat', $ht)
+                                ->pluck('id')
+                                ->toArray();
+
+                            if (empty($approverIdsAtLevel)) continue;
+
+                            $hasAnyApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
+                                ->whereIn('approver_id', $approverIdsAtLevel)
+                                ->exists();
+
+                            if (!$hasAnyApproved) { $canApprove = false; break; }
                         }
 
                         if ($canApprove) {
@@ -196,23 +216,45 @@ class FinancePengajuanDanaController extends Controller
             }
         }
 
-        // Check sequencing: any approver with higher `tingkat` for this jenis must approve first
+        // Check sequencing: for each higher `tingkat` (level) that has approvers for this jenis,
+        // require at least ONE approval from that tingkat before allowing the current approver.
         $approverTingkat = intval($approver->tingkat ?: 1);
-        $higherApprovers = FinanceDanaApprover::where('aktif', 1)
+
+        // Find distinct higher tingkat values that apply to this pengajuan's jenis
+        $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
             ->where(function($q) use ($pengajuanJenis) {
                 if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
                     $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
                 } else {
-                    // pengajuan has no jenis, include approvers that are global or have empty jenis
                     $q->whereNull('jenis')->orWhere('jenis', '');
                 }
             })
             ->where('tingkat', '>', $approverTingkat)
-            ->get();
+            ->distinct()
+            ->pluck('tingkat')
+            ->toArray();
 
-        foreach ($higherApprovers as $ha) {
-            $hasApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)->where('approver_id', $ha->id)->exists();
-            if (!$hasApproved) {
+        foreach ($higherTingkatValues as $ht) {
+            // get approver ids at that tingkat applicable to this jenis
+            $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
+                ->where(function($q) use ($pengajuanJenis) {
+                    if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
+                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
+                    } else {
+                        $q->whereNull('jenis')->orWhere('jenis', '');
+                    }
+                })
+                ->where('tingkat', $ht)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($approverIdsAtLevel)) continue; // no approvers at this level for this jenis
+
+            $hasAnyApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+                ->whereIn('approver_id', $approverIdsAtLevel)
+                ->exists();
+
+            if (!$hasAnyApproved) {
                 return response()->json(['success' => false, 'message' => 'Awaiting approval from higher level approver(s) before you can approve.'], 403);
             }
         }
