@@ -39,26 +39,71 @@
 
 <!-- Modal History Temuan -->
 <div class="modal fade" id="temuanHistoryModal" tabindex="-1" role="dialog" aria-labelledby="temuanHistoryModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="temuanHistoryModalLabel">History Temuan</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div id="temuanHistoryContent">
-          <div class="text-center">
-            <i class="fa fa-spinner fa-spin"></i> Loading...
-          </div>
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="temuanHistoryModalLabel">History Temuan</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="temuanHistoryContent">
+                    <div class="text-center">
+                        <i class="fa fa-spinner fa-spin"></i> Loading...
+                    </div>
+                </div>
+
+                <!-- Add Temuan Form (record-only) -->
+                <div class="card mt-3 mb-2">
+                        <div class="card-body">
+                                <form id="temuanAddForm" class="form-inline">
+                                        <input type="hidden" id="temuan_item_id" value="">
+                                        <div class="form-group mr-2">
+                                                <label class="sr-only" for="temuan_qty">Qty</label>
+                                                <input type="number" step="0.0001" class="form-control form-control-sm" id="temuan_qty" placeholder="Qty" style="width:110px;">
+                                        </div>
+                                        <div class="form-group mr-2">
+                                            <label class="sr-only" for="temuan_jenis">Jenis</label>
+                                            <select id="temuan_jenis" class="form-control form-control-sm" style="width:120px;">
+                                                <option value="kurang">Kurang</option>
+                                                <option value="lebih">Lebih</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group mr-2" style="flex:1;">
+                                                <label class="sr-only" for="temuan_keterangan">Catatan</label>
+                                                <input type="text" class="form-control form-control-sm" id="temuan_keterangan" placeholder="Catatan..." style="width:100%;">
+                                        </div>
+                                        <button type="button" id="temuanAddBtn" class="btn btn-primary btn-sm"><i class="fa fa-plus"></i> Tambah</button>
+                                </form>
+                        </div>
+                </div>
+
+                <!-- Table list of temuan records in this opname item -->
+                <div class="table-responsive">
+                        <table class="table table-sm table-bordered" id="temuanRecordsTable">
+                                <thead class="bg-light">
+                                        <tr>
+                                            <th>Tanggal</th>
+                                            <th>Qty</th>
+                                            <th>Jenis</th>
+                                            <th>Catatan</th>
+                                            <th>Oleh</th>
+                                            <th>Action</th>
+                                        </tr>
+                                </thead>
+                                <tbody>
+                                        <!-- Filled dynamically -->
+                                </tbody>
+                        </table>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
         </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-      </div>
     </div>
-  </div>
 </div>
 
 <div class="container-fluid">
@@ -182,8 +227,8 @@
                     <th>Stok Fisik</th>
                     <th>Nilai Stok</th>
                     <th>Selisih</th>
+                    <th>Total Temuan</th>
                     <th>Temuan</th>
-                    <th>List Temuan</th>
                 </tr>
             </thead>
             <tbody></tbody>
@@ -206,15 +251,27 @@
 @push('scripts')
 <script>
 $(function () {
+    // Helper to format qty with 2 decimals
+    function formatQty(q) {
+        var n = parseFloat(q);
+        if (isNaN(n)) return q;
+        // If number is whole integer, show without decimals. Otherwise show up to 2 decimals.
+        if (Math.abs(n - Math.round(n)) < 1e-9) {
+            return String(Math.round(n));
+        }
+        return n.toFixed(2);
+    }
     // Ensure nama obat column is constrained and text truncates
     $('#stokOpnameItemsTable').addClass('text-truncate');
+
+    // Global flag: whether this stok opname is completed
+    var isCompleted = '{{ $stokOpname->status }}' === 'selesai';
+
     // Check button states on page load
     checkButtonStates();
     
     function checkButtonStates() {
         var hasItems = {{ $items->count() > 0 ? 'true' : 'false' }};
-        var isCompleted = '{{ $stokOpname->status }}' === 'selesai';
-        
         // Update button states based on current conditions
         if (isCompleted) {
             $('#generateItemsBtn').prop('disabled', true);
@@ -243,8 +300,8 @@ $(function () {
         order: [[7, 'asc']],
         columnDefs: [
             { targets: 1, width: '220px', className: 'nama-obat-cell', render: function(data, type, row) { return '<div class="nama-obat-cell">'+data+'</div>'; } },
-            { targets: 8, width: '280px' }, // Temuan column - make it wider (index shifted after adding Satuan)
-            { targets: 9, width: '100px' }, // List Temuan column
+            { targets: 8, width: '140px' }, // Total Temuan column
+            { targets: 9, width: '280px' }, // Temuan column - make it wider
         ],
         columns: [
             {data: 'obat_id', name: 'obat_id'},
@@ -256,7 +313,8 @@ $(function () {
                     data: 'stok_fisik',
                     name: 'stok_fisik',
                     render: function(data, type, row) {
-                        return `<input type="number" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${data}" style="width:90px;">`;
+                        var disabledAttr = isCompleted ? 'disabled' : '';
+                        return `<input type="number" class="form-control form-control-sm stok-fisik-input" data-id="${row.id}" value="${data}" style="width:90px;" ${disabledAttr}>`;
                     }
                 },
                 {
@@ -275,11 +333,22 @@ $(function () {
                 data: 'selisih',
                 name: 'selisih',
                 render: function(data, type, row) {
-                    if (data != 0) {
-                        return data + ' <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>';
+                    var txt = formatQty(data);
+                    if (parseFloat(data) != 0) {
+                        return txt + ' <i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>';
                     } else {
-                        return data + ' <i class="fa fa-check text-success" title="Sesuai"></i>';
+                        return txt + ' <i class="fa fa-check text-success" title="Sesuai"></i>';
                     }
+                }
+            },
+            {
+                data: 'total_temuan',
+                name: 'total_temuan',
+                orderable: false,
+                searchable: false,
+                render: function(data, type, row) {
+                    if (data === null || data === undefined) return '0';
+                    return formatQty(data);
                 }
             },
             {
@@ -289,29 +358,13 @@ $(function () {
                 searchable: false,
                 render: function(data, type, row) {
                     return `
-                        <div class="d-flex align-items-center">
-                            <input type="number" class="form-control form-control-sm temuan-input" data-id="${row.id}" placeholder="Qty" style="width:60px; margin-right:8px;">
-                            <input type="text" class="form-control form-control-sm temuan-catatan-input" data-id="${row.id}" placeholder="Catatan..." style="flex:1; margin-right:8px; font-size:0.85rem;">
-                            <button type="button" class="btn btn-success btn-sm temuan-submit-btn" data-id="${row.id}" title="Submit Temuan">
-                                <i class="fa fa-plus"></i>
-                            </button>
-                        </div>
-                    `;
-                }
-            },
-            {
-                data: null,
-                name: 'list_temuan',
-                orderable: false,
-                searchable: false,
-                render: function(data, type, row) {
-                    return `
-                        <button type="button" class="btn btn-info btn-sm lihat-temuan-btn" data-id="${row.id}" data-toggle="modal" data-target="#temuanHistoryModal" title="Lihat History Temuan">
-                            <i class="fa fa-list"></i> Lihat
+                        <button type="button" class="btn btn-info btn-sm lihat-temuan-btn" data-id="${row.id}" data-toggle="modal" data-target="#temuanHistoryModal" title="Kelola Temuan">
+                            <i class="fa fa-list"></i> Kelola
                         </button>
                     `;
                 }
             },
+            // Removed duplicate List Temuan column; 'Kelola' button is shown in Temuan column
         ]
     });
 
@@ -334,7 +387,7 @@ $(function () {
                     // Get row index
                     var rowIdx = table.row(input.closest('tr')).index();
                     // Update selisih cell (column indexes shifted after adding Satuan)
-                    // New Columns: 0 Obat ID,1 Nama,2 Batch,3 Satuan,4 Stok Sistem,5 Stok Fisik,6 Nilai Stok,7 Selisih,8 Temuan,9 List Temuan
+                    // New Columns: 0 Obat ID,1 Nama,2 Batch,3 Satuan,4 Stok Sistem,5 Stok Fisik,6 Nilai Stok,7 Selisih,8 Total Temuan,9 Temuan
                     var selisihCell = $(table.cell(rowIdx, 7).node()); // Index 7 untuk kolom Selisih
                     var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
                     selisihCell.html(res.selisih + ' ' + icon);
@@ -360,112 +413,19 @@ $(function () {
             });
         });
     
-    // Temuan submit handler
-    $('#stokOpnameItemsTable').on('click', '.temuan-submit-btn', function() {
-        var itemId = $(this).data('id');
-        var temuanInput = $(this).closest('tr').find('.temuan-input');
-        var catatanInput = $(this).closest('tr').find('.temuan-catatan-input');
-        var temuan = temuanInput.val();
-        var catatan = catatanInput.val();
-        
-        if (!temuan || temuan <= 0) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Masukkan jumlah temuan yang valid',
-                timer: 1500,
-                showConfirmButton: false
-            });
-            return;
-        }
-        
-        var btn = $(this);
-        btn.prop('disabled', true);
-        
-        Swal.fire({
-            title: 'Menyimpan temuan...',
-            allowOutsideClick: false,
-            didOpen: () => { Swal.showLoading(); }
-        });
-        
-        $.ajax({
-            url: '/erm/stokopname-item/' + itemId + '/submit-temuan',
-            method: 'POST',
-            data: {
-                temuan: temuan,
-                catatan: catatan,
-                _token: '{{ csrf_token() }}'
-            },
-            success: function(res) {
-                if (res.success) {
-                    // Get row index
-                    var rowIdx = table.row(btn.closest('tr')).index();
-                    
-                    // Update Stok Fisik cell
-                    var stokFisikInput = $(table.cell(rowIdx, 5).node()).find('.stok-fisik-input');
-                    stokFisikInput.val(res.stok_fisik);
-                    
-                    // Update Nilai Stok cell
-                    var rowData = table.row(rowIdx).data();
-                    var hpp = parseFloat(rowData.hpp_jual) || 0;
-                    var nilai = hpp * parseFloat(res.stok_fisik);
-                    var nilaiCell = $(table.cell(rowIdx, 6).node());
-                    nilaiCell.html('Rp ' + nilai.toLocaleString('id-ID'));
-                    
-                    // Update Selisih cell
-                    var selisihCell = $(table.cell(rowIdx, 7).node());
-                    var icon = res.selisih != 0 ? '<i class="fa fa-exclamation-triangle text-warning blink-warning" title="Ada selisih"></i>' : '<i class="fa fa-check text-success" title="Sesuai"></i>';
-                    selisihCell.html(res.selisih + ' ' + icon);
-                    
-                    // Clear both temuan inputs
-                    temuanInput.val('');
-                    catatanInput.val('');
-                    
-                    // Update table's internal data
-                    rowData.stok_fisik = res.stok_fisik;
-                    rowData.selisih = res.selisih;
-                    table.row(rowIdx).data(rowData);
-                    
-                    Swal.fire({
-                        icon: 'success',
-                        title: res.message,
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: res.message || 'Gagal menyimpan temuan',
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                }
-            },
-            error: function(xhr) {
-                var message = 'Gagal menyimpan temuan';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    message = xhr.responseJSON.message;
-                }
-                Swal.fire({
-                    icon: 'error',
-                    title: message,
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-            },
-            complete: function() {
-                btn.prop('disabled', false);
-            }
-        });
-    });
+    // Inline temuan inputs removed: temuan are managed via modal only
     
     // Handle lihat temuan history button
     $('#stokOpnameItemsTable').on('click', '.lihat-temuan-btn', function() {
         var itemId = $(this).data('id');
-        
         // Reset modal content to loading state
         $('#temuanHistoryContent').html('<div class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</div>');
-        
-        // Fetch temuan history
+        $('#temuan_item_id').val(itemId);
+        $('#temuan_qty').val('');
+        $('#temuan_keterangan').val('');
+        $('#temuanRecordsTable tbody').empty();
+
+        // Fetch temuan history + record-only temuan
         $.get('/erm/stokopname-item/' + itemId + '/temuan-history')
             .done(function(res) {
                 if (res.success) {
@@ -478,54 +438,51 @@ $(function () {
                         </div>
                         <hr>
                     `;
-                    
-                    if (res.history.length > 0) {
-                        content += `
-                            <h6><strong>History Temuan</strong></h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-bordered">
-                                    <thead class="bg-light">
-                                        <tr>
-                                            <th>Tanggal & Waktu</th>
-                                            <th>Qty Temuan</th>
-                                            <th>Catatan</th>
-                                            <th>Stok Setelah</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                        `;
-                        
-                        res.history.forEach(function(record) {
-                            content += `
-                                <tr>
-                                    <td>${record.tanggal}</td>
-                                    <td class="text-center">${record.qty}</td>
-                                    <td>${record.keterangan || '-'}</td>
-                                    <td class="text-center">${record.stok_setelah}</td>
-                                </tr>
-                            `;
-                        });
-                        
-                        content += `
-                                    </tbody>
-                                </table>
-                            </div>
-                        `;
-                    } else {
-                        content += `
-                            <div class="alert alert-info text-center">
-                                <i class="fa fa-info-circle"></i> Belum ada temuan untuk item ini.
-                            </div>
-                        `;
-                    }
-                    
+
                     $('#temuanHistoryContent').html(content);
+
+                    // Populate kartu stok-based history (if any) in the modal (append under header)
+                    if (res.history && res.history.length > 0) {
+                        var h = '<h6><strong>History (kartu stok)</strong></h6>' +
+                            '<div class="table-responsive"><table class="table table-sm table-bordered"><thead class="bg-light"><tr><th>Tanggal & Waktu</th><th>Qty Temuan</th><th>Catatan</th><th>Stok Setelah</th></tr></thead><tbody>';
+                        res.history.forEach(function(record) {
+                            h += `<tr><td>${record.tanggal}</td><td class="text-center">${formatQty(record.qty)}</td><td>${record.keterangan || '-'}</td><td class="text-center">${record.stok_setelah}</td></tr>`;
+                        });
+                        h += '</tbody></table></div>';
+                        $('#temuanHistoryContent').append(h);
+                    }
+
+                    // Populate simple temuan records into the temuanRecordsTable
+                    if (res.temuan_records && res.temuan_records.length > 0) {
+                        res.temuan_records.forEach(function(r) {
+                            var jenisLabel = r.jenis === 'lebih' ? 'Lebih' : (r.jenis === 'kurang' ? 'Kurang' : '-');
+                            var actionBtn = '';
+                            if (r.process_status && parseInt(r.process_status) === 1) {
+                                // Already processed: show disabled 'Diproses' and do not allow deletion
+                                actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;
+                            } else {
+                                // Not processed: allow process and delete actions
+                                actionBtn = `<button class="btn btn-sm btn-primary proses-temuan-btn mr-1" data-id="${r.id}">Proses Stok</button>` +
+                                            `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
+                            }
+                            var tr = `<tr data-id="${r.id}"><td>${r.tanggal}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${r.keterangan || '-'}</td><td>${r.created_by_name || '-'}</td><td class="text-center">${actionBtn}</td></tr>`;
+                            $('#temuanRecordsTable tbody').append(tr);
+                            // bind handlers (if buttons exist)
+                            var row = $('#temuanRecordsTable').find(`tr[data-id="${r.id}"]`);
+                            row.find('.proses-temuan-btn').on('click', prosesTemuanHandler);
+                            row.find('.delete-temuan-btn').on('click', deleteTemuanHandler);
+                        });
+                    } else {
+                        $('#temuanRecordsTable tbody').html('<tr><td colspan="6" class="text-center">Belum ada temuan tercatat.</td></tr>');
+                    }
+
                 } else {
                     $('#temuanHistoryContent').html(`
                         <div class="alert alert-danger">
                             <i class="fa fa-exclamation-triangle"></i> ${res.message || 'Gagal memuat data history temuan'}
                         </div>
                     `);
+                    $('#temuanRecordsTable tbody').html('<tr><td colspan="6" class="text-center">Gagal memuat data.</td></tr>');
                 }
             })
             .fail(function() {
@@ -534,8 +491,141 @@ $(function () {
                         <i class="fa fa-exclamation-triangle"></i> Gagal memuat data history temuan
                     </div>
                 `);
+                $('#temuanRecordsTable tbody').html('<tr><td colspan="6" class="text-center">Gagal memuat data.</td></tr>');
             });
     });
+
+    // Handle adding a record-only temuan from modal
+    $('#temuanAddBtn').on('click', function() {
+        var itemId = $('#temuan_item_id').val();
+        var qty = $('#temuan_qty').val();
+        var keterangan = $('#temuan_keterangan').val();
+
+        if (!qty || parseFloat(qty) <= 0) {
+            Swal.fire({ icon: 'warning', title: 'Masukkan qty temuan yang valid', timer: 1500, showConfirmButton: false });
+            return;
+        }
+
+        var btn = $(this);
+        btn.prop('disabled', true);
+        $.ajax({
+            url: '/erm/stokopname-item/' + itemId + '/add-temuan-record',
+            method: 'POST',
+            data: {
+                    qty: qty,
+                    jenis: $('#temuan_jenis').val(),
+                    keterangan: keterangan,
+                    _token: '{{ csrf_token() }}'
+                },
+            success: function(res) {
+                if (res.success) {
+                    // append new record to table
+                    var r = res.record;
+                    var jenisLabel = r.jenis === 'lebih' ? 'Lebih' : (r.jenis === 'kurang' ? 'Kurang' : '-');
+                    var actionBtn = '';
+                    if (r.process_status && parseInt(r.process_status) === 1) {
+                        actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;
+                    } else {
+                        actionBtn = `<button class="btn btn-sm btn-primary proses-temuan-btn mr-1" data-id="${r.id}">Proses Stok</button>` +
+                                    `<button class="btn btn-sm btn-danger delete-temuan-btn" data-id="${r.id}">Hapus</button>`;
+                    }
+                    var tr = `<tr data-id="${r.id}"><td>${r.tanggal}</td><td class="text-center">${formatQty(r.qty)}</td><td class="text-center">${jenisLabel}</td><td>${r.keterangan || '-'}</td><td>${r.created_by_name || '-'}</td><td class="text-center">${actionBtn}</td></tr>`;
+                    // if table previously had 'no data' row, remove it
+                    var first = $('#temuanRecordsTable tbody tr:first');
+                    if (first.length && first.find('td').length === 1) {
+                        $('#temuanRecordsTable tbody').empty();
+                    }
+                    $('#temuanRecordsTable tbody').prepend(tr);
+                    // attach button handlers for the newly created row (if present)
+                    var newRow = $('#temuanRecordsTable').find(`tr[data-id="${r.id}"]`);
+                    newRow.find('.proses-temuan-btn').on('click', prosesTemuanHandler);
+                    newRow.find('.delete-temuan-btn').on('click', deleteTemuanHandler);
+                    // reload main DataTable so Total Temuan updates immediately
+                    if (typeof table !== 'undefined') table.ajax.reload(null, false);
+                    $('#temuan_qty').val('');
+                    $('#temuan_keterangan').val('');
+                    Swal.fire({ icon: 'success', title: res.message, timer: 1200, showConfirmButton: false });
+                } else {
+                    Swal.fire({ icon: 'error', title: res.message || 'Gagal menyimpan', timer: 1500, showConfirmButton: false });
+                }
+            },
+            error: function(xhr) {
+                var msg = 'Gagal menyimpan temuan';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire({ icon: 'error', title: msg, timer: 1500, showConfirmButton: false });
+            },
+            complete: function() {
+                btn.prop('disabled', false);
+            }
+        });
+    });
+
+    // Handler to process temuan into actual stok
+    function prosesTemuanHandler(e) {
+        var btn = $(this);
+        var temuanId = btn.data('id');
+        btn.prop('disabled', true).text('Processing...');
+        $.ajax({
+            url: '/erm/stokopname-temuan/' + temuanId + '/process',
+            method: 'POST',
+            data: { _token: '{{ csrf_token() }}' },
+            success: function(res) {
+                if (res.success) {
+                    Swal.fire({ icon: 'success', title: res.message || 'Berhasil diproses', timer: 1200, showConfirmButton: false });
+                    btn.removeClass('btn-primary').addClass('btn-secondary').text('Diproses').prop('disabled', true);
+                    // refresh main table totals so Total Temuan updates
+                    if (typeof table !== 'undefined') table.ajax.reload();
+                } else {
+                    Swal.fire({ icon: 'error', title: res.message || 'Gagal memproses', timer: 1500, showConfirmButton: false });
+                    btn.prop('disabled', false).text('Proses Stok');
+                }
+            },
+            error: function(xhr) {
+                var msg = 'Gagal memproses temuan';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire({ icon: 'error', title: msg, timer: 1500, showConfirmButton: false });
+                btn.prop('disabled', false).text('Proses Stok');
+            }
+        });
+    }
+
+    function deleteTemuanHandler(e) {
+        var btn = $(this);
+        var temuanId = btn.data('id');
+        Swal.fire({
+            title: 'Hapus temuan?',
+            text: 'Data temuan akan dihapus dan tidak bisa dikembalikan.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Hapus',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (!result.value) return;
+            btn.prop('disabled', true).text('Menghapus...');
+            $.ajax({
+                url: '/erm/stokopname-temuan/' + temuanId + '/delete',
+                method: 'POST',
+                data: { _token: '{{ csrf_token() }}' },
+                success: function(res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: res.message || 'Dihapus', timer: 1000, showConfirmButton: false });
+                        // remove row from table
+                        $('#temuanRecordsTable').find(`tr[data-id="${temuanId}"]`).remove();
+                        if (typeof table !== 'undefined') table.ajax.reload();
+                    } else {
+                        Swal.fire({ icon: 'error', title: res.message || 'Gagal menghapus', timer: 1500, showConfirmButton: false });
+                        btn.prop('disabled', false).text('Hapus');
+                    }
+                },
+                error: function(xhr) {
+                    var msg = 'Gagal menghapus temuan';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    Swal.fire({ icon: 'error', title: msg, timer: 1500, showConfirmButton: false });
+                    btn.prop('disabled', false).text('Hapus');
+                }
+            });
+        });
+    }
 
     // Show selected file name in upload
     $('#file').on('change', function() {

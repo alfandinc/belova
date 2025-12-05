@@ -521,6 +521,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::post('stokopname-item/{id}/update-stok-fisik', [App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFisik'])->name('erm.stokopnameitem.update-stok-fisik');
         Route::post('stokopname-item/{id}/submit-temuan', [App\Http\Controllers\ERM\StokOpnameController::class, 'submitTemuan'])->name('erm.stokopnameitem.submit-temuan');
         Route::get('stokopname-item/{id}/temuan-history', [App\Http\Controllers\ERM\StokOpnameController::class, 'getTemuanHistory'])->name('erm.stokopnameitem.temuan-history');
+        // Record-only temuan entries (added from modal)
+        Route::post('stokopname-item/{id}/add-temuan-record', [App\Http\Controllers\ERM\StokOpnameController::class, 'addTemuanRecord'])->name('erm.stokopnameitem.add-temuan-record');
     // AJAX endpoints for select2 (controller)
     Route::get('ajax/obat', [App\Http\Controllers\ERM\MasterFakturController::class, 'ajaxObat']);
     // Single obat details for AJAX (used by various JS fallbacks)
@@ -1689,3 +1691,8 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
     Route::match(['get','post'], '/obat-kfa/data', [\App\Http\Controllers\ERM\ObatKfaController::class, 'data'])->name('erm.obat_kfa.data');
     Route::post('/obat-kfa', [\App\Http\Controllers\ERM\ObatKfaController::class, 'store'])->name('erm.obat_kfa.store');
 });
+
+// Process temuan record (apply to stok gudang)
+Route::post('/erm/stokopname-temuan/{id}/process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanRecord'])->middleware('auth');
+// Delete temuan record
+Route::post('/erm/stokopname-temuan/{id}/delete', [\App\Http\Controllers\ERM\StokOpnameController::class, 'deleteTemuanRecord'])->middleware('auth');

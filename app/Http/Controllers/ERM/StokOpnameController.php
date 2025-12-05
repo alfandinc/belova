@@ -64,6 +64,7 @@ class StokOpnameController extends Controller
         $request->validate([
             'temuan' => 'required|numeric|min:0',
             'catatan' => 'nullable|string|max:255',
+            'operation' => 'nullable|in:add,remove,record', // add = tambah stok (default), remove = kurangi stok, record = only record temuan
         ]);
 
         try {
@@ -72,69 +73,139 @@ class StokOpnameController extends Controller
             $item = StokOpnameItem::with(['stokOpname', 'obat', 'obatStokGudang'])->findOrFail($itemId);
             $temuan = (float) $request->temuan;
             $catatan = $request->catatan;
+            $operation = $request->operation ?? 'add';
             
             if ($temuan <= 0) {
                 return response()->json(['success' => false, 'message' => 'Jumlah temuan harus lebih dari 0'], 400);
             }
-            
-            // Update stok fisik in opname item
-            $item->stok_fisik += $temuan;
-            $item->selisih = $item->stok_fisik - $item->stok_sistem;
-            
+
+            // Update stok fisik in opname item depending on operation
+            // - 'add' or 'record' : increase stok_fisik by temuan
+            // - 'remove' : decrease stok_fisik by temuan
+            if ($operation === 'remove') {
+                $item->stok_fisik = max(0, $item->stok_fisik - $temuan);
+            } else {
+                $item->stok_fisik = $item->stok_fisik + $temuan;
+            }
+            // Include net record-only temuan (lebih as +, kurang as -) when calculating selisih
+            $recordNet = DB::table('erm_stok_opname_temuan')
+                ->where('stok_opname_item_id', $item->id)
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->first();
+            $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+            $item->selisih = ($item->stok_fisik - $item->stok_sistem) + $netTemuan;
+
             // Also update notes if provided
             if ($catatan) {
                 $item->notes = $catatan;
             }
-            
-            $item->save();
-            
-            // Prepare keterangan for kartu stok
-            $keterangan = "Temuan stok saat opname";
-            if ($catatan) {
-                $keterangan = $catatan;
-            }
 
-            // Determine which batch to add the temuan to.
-            // For aggregated items (batch_id == null) prefer the nearest-expiry existing batch in the gudang.
+            $item->save();
+
+            // Prepare keterangan for kartu stok / logging
+            $keterangan = $catatan ?: "Temuan stok saat opname";
+
+            // Determine batch reference and expiration when needed
             $targetBatch = $item->batch_name;
             $targetExp = $item->expiration_date;
-
             if ($item->batch_id === null) {
                 $nearest = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
                     ->where('gudang_id', $item->stokOpname->gudang_id)
                     ->orderByRaw("CASE WHEN expiration_date IS NULL THEN 1 ELSE 0 END, expiration_date ASC")
                     ->first();
-
                 if ($nearest) {
                     $targetBatch = $nearest->batch;
                     $targetExp = $nearest->expiration_date;
                 }
             }
 
-            // If no nearest found and we still don't have a batch name, keep behavior to pass null (stokService may create new batch)
-
-            // Add to actual stock using StokService
             $stokService = app(\App\Services\ERM\StokService::class);
-            $stokService->tambahStok(
-                $item->obat_id,
-                $item->stokOpname->gudang_id,
-                $temuan,
-                $targetBatch, // batch to receive temuan
-                $targetExp, // expDate
-                null, // rak
-                null, // lokasi
-                null, // hargaBeli - don't change HPP
-                null, // hargaBeliJual - don't change HPP
-                'temuan_stok_opname', // refType
-                $item->stok_opname_id, // refId
-                $keterangan // use catatan as keterangan
-            );
+
+            if ($operation === 'record') {
+                // Only record the temuan as a KartuStok entry (no stock mutation)
+                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                    ->where('gudang_id', $item->stokOpname->gudang_id)
+                    ->sum('stok');
+
+                \App\Models\ERM\KartuStok::create([
+                    'obat_id' => $item->obat_id,
+                    'gudang_id' => $item->stokOpname->gudang_id,
+                    'tanggal' => now(),
+                    'tipe' => 'temuan',
+                    'qty' => $temuan,
+                    'stok_setelah' => $currentStock,
+                    'ref_type' => 'temuan_stok_opname',
+                    'ref_id' => $item->stok_opname_id,
+                    'batch' => $targetBatch,
+                    'keterangan' => $keterangan,
+                ]);
+
+            } elseif ($operation === 'add') {
+                // Add found stock to actual gudang stock (existing behavior)
+                $stokService->tambahStok(
+                    $item->obat_id,
+                    $item->stokOpname->gudang_id,
+                    $temuan,
+                    $targetBatch,
+                    $targetExp,
+                    null,
+                    null,
+                    null,
+                    null,
+                    'temuan_stok_opname',
+                    $item->stok_opname_id,
+                    $keterangan
+                );
+
+            } else {
+                // operation === 'remove' : reduce stock from gudang
+                $toRemove = $temuan;
+
+                if ($item->batch_id) {
+                    // remove from specific batch
+                    $stokService->kurangiStok(
+                        $item->obat_id,
+                        $item->stokOpname->gudang_id,
+                        $toRemove,
+                        $item->batch_name,
+                        'temuan_stok_opname',
+                        $item->stok_opname_id,
+                        $keterangan
+                    );
+                } else {
+                    // aggregated item: remove from nearest-expiry batches first
+                    $batches = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                        ->where('gudang_id', $item->stokOpname->gudang_id)
+                        ->orderByRaw("CASE WHEN expiration_date IS NULL THEN 1 ELSE 0 END, expiration_date ASC")
+                        ->get();
+
+                    foreach ($batches as $b) {
+                        if ($toRemove <= 0) break;
+                        $available = (float) $b->stok;
+                        if ($available <= 0) continue;
+                        $remQty = min($available, $toRemove);
+                        $stokService->kurangiStok(
+                            $item->obat_id,
+                            $item->stokOpname->gudang_id,
+                            $remQty,
+                            $b->batch,
+                            'temuan_stok_opname',
+                            $item->stok_opname_id,
+                            $keterangan
+                        );
+                        $toRemove -= $remQty;
+                    }
+                }
+            }
             
             DB::commit();
-            
+
+            $opLabel = $operation === 'remove' ? 'dikurangi' : ($operation === 'record' ? 'dicatat' : 'ditambahkan');
+
             return response()->json([
                 'success' => true,
-                'message' => "Temuan {$temuan} berhasil ditambahkan",
+                'message' => "Temuan {$temuan} berhasil {$opLabel}",
+                'operation' => $operation,
                 'stok_fisik' => $item->stok_fisik,
                 'selisih' => $item->selisih,
                 'temuan' => $temuan,
@@ -166,6 +237,11 @@ class StokOpnameController extends Controller
                 ->where('batch', $item->batch_name)
                 ->orderBy('tanggal', 'desc')
                 ->get();
+
+            // Also get simple temuan records stored in the new temuan table (record-only)
+            $temuanRecords = \App\Models\ERM\StokOpnameTemuan::where('stok_opname_item_id', $item->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
             
             $itemInfo = [
                 'obat_nama' => $item->obat ? $item->obat->nama : 'Unknown',
@@ -195,6 +271,24 @@ class StokOpnameController extends Controller
                         'keterangan' => $record->keterangan,
                         'stok_setelah' => $record->stok_setelah
                     ];
+                }),
+                // Simple record-only temuan entries
+                'temuan_records' => $temuanRecords->map(function($r) {
+                    $userName = null;
+                    if (!empty($r->created_by)) {
+                        $u = \App\Models\User::find($r->created_by);
+                        $userName = $u ? $u->name : null;
+                    }
+                    return [
+                        'id' => $r->id,
+                        'tanggal' => $r->created_at ? $r->created_at->format('d/m/Y H:i') : $r->created_at,
+                        'qty' => $r->qty,
+                        'jenis' => $r->jenis ?? null,
+                        'process_status' => isset($r->process_status) ? (int)$r->process_status : 0,
+                        'keterangan' => $r->keterangan,
+                        'created_by' => $r->created_by,
+                        'created_by_name' => $userName
+                    ];
                 })
             ]);
             
@@ -203,6 +297,209 @@ class StokOpnameController extends Controller
                 'success' => false, 
                 'message' => 'Gagal mengambil data history temuan: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Add a record-only temuan entry (no stock mutation)
+     */
+    public function addTemuanRecord(Request $request, $itemId)
+    {
+        $request->validate([
+            'qty' => 'required|numeric|min:0.0001',
+            'jenis' => 'required|in:kurang,lebih',
+            'keterangan' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $item = StokOpnameItem::with('stokOpname')->findOrFail($itemId);
+
+            $r = \App\Models\ERM\StokOpnameTemuan::create([
+                'stok_opname_id' => $item->stok_opname_id,
+                'stok_opname_item_id' => $item->id,
+                'qty' => $request->qty,
+                'jenis' => $request->jenis,
+                'keterangan' => $request->keterangan,
+                'created_by' => auth()->id()
+            ]);
+
+            $createdByName = auth()->user() ? auth()->user()->name : null;
+
+            // Recalculate and persist selisih on the opname item
+            $recordNet = DB::table('erm_stok_opname_temuan')
+                ->where('stok_opname_item_id', $item->id)
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->first();
+            $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+            $item->selisih = ($item->stok_fisik - $item->stok_sistem) + $netTemuan;
+            $item->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Temuan berhasil dicatat',
+                'record' => [
+                    'id' => $r->id,
+                    'tanggal' => $r->created_at ? $r->created_at->format('d/m/Y H:i') : null,
+                    'qty' => $r->qty,
+                    'jenis' => $r->jenis,
+                    'process_status' => isset($r->process_status) ? (int)$r->process_status : 0,
+                    'keterangan' => $r->keterangan,
+                    'created_by' => $r->created_by,
+                    'created_by_name' => $createdByName
+                ],
+                'selisih' => $item->selisih
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan temuan: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Process a record-only temuan: apply stock mutation based on jenis (lebih/kurang)
+     */
+    public function processTemuanRecord(Request $request, $temuanId)
+    {
+        try {
+            $r = \App\Models\ERM\StokOpnameTemuan::findOrFail($temuanId);
+
+            $item = StokOpnameItem::with('stokOpname')->findOrFail($r->stok_opname_item_id);
+            $stokOpname = $item->stokOpname;
+
+            $qty = (float) $r->qty;
+            $jenis = $r->jenis ?? 'kurang';
+            $keterangan = 'temuan stok opname';
+            if ($r->keterangan) $keterangan .= ' - ' . $r->keterangan;
+
+            $stokService = app(\App\Services\ERM\StokService::class);
+
+            if ($jenis === 'lebih') {
+                // add stock
+                $targetBatch = $item->batch_name;
+                $targetExp = $item->expiration_date;
+                // If no specific batch on the opname item, add to the nearest-expiry existing batch in gudang
+                if (empty($targetBatch)) {
+                    $nearest = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                        ->where('gudang_id', $stokOpname->gudang_id)
+                        ->orderByRaw("CASE WHEN expiration_date IS NULL THEN 1 ELSE 0 END, expiration_date ASC")
+                        ->first();
+                    if ($nearest) {
+                        $targetBatch = $nearest->batch;
+                        $targetExp = $nearest->expiration_date;
+                    }
+                }
+
+                $stokService->tambahStok(
+                    $item->obat_id,
+                    $stokOpname->gudang_id,
+                    $qty,
+                    $targetBatch,
+                    $targetExp,
+                    null,
+                    null,
+                    null,
+                    null,
+                    'temuan_stok_opname',
+                    $stokOpname->id,
+                    $keterangan
+                );
+            } else {
+                // kurang -> reduce stock
+                // if batch available, remove from that batch, otherwise remove across batches
+                if ($item->batch_id) {
+                    $stokService->kurangiStok(
+                        $item->obat_id,
+                        $stokOpname->gudang_id,
+                        $qty,
+                        $item->batch_name,
+                        'temuan_stok_opname',
+                        $stokOpname->id,
+                        $keterangan
+                    );
+                } else {
+                    // remove from nearest expiry first
+                    $toRemove = $qty;
+                    $batches = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                        ->where('gudang_id', $stokOpname->gudang_id)
+                        ->orderByRaw("CASE WHEN expiration_date IS NULL THEN 1 ELSE 0 END, expiration_date ASC")
+                        ->get();
+                    foreach ($batches as $b) {
+                        if ($toRemove <= 0) break;
+                        $available = (float) $b->stok;
+                        if ($available <= 0) continue;
+                        $remQty = min($available, $toRemove);
+                        $stokService->kurangiStok(
+                            $item->obat_id,
+                            $stokOpname->gudang_id,
+                            $remQty,
+                            $b->batch,
+                            'temuan_stok_opname',
+                            $stokOpname->id,
+                            $keterangan
+                        );
+                        $toRemove -= $remQty;
+                    }
+                }
+            }
+
+            // mark temuan as processed
+            $r->process_status = 1;
+            try {
+                $r->save();
+            } catch (\Exception $e) {
+                // non-fatal: log and continue
+                Log::warning('Failed to mark temuan processed: ' . $e->getMessage());
+            }
+
+            // After processing, update the opname item's selisih to include current net record-only temuan
+            $newSelisih = null;
+            try {
+                $itemForSelisih = StokOpnameItem::find($r->stok_opname_item_id);
+                if ($itemForSelisih) {
+                    $recordNet = DB::table('erm_stok_opname_temuan')
+                        ->where('stok_opname_item_id', $itemForSelisih->id)
+                        ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                        ->first();
+                    $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+                    $itemForSelisih->selisih = ($itemForSelisih->stok_fisik - $itemForSelisih->stok_sistem) + $netTemuan;
+                    $itemForSelisih->save();
+                    $newSelisih = $itemForSelisih->selisih;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to recalc selisih after processing temuan: ' . $e->getMessage());
+            }
+
+            return response()->json(['success' => true, 'message' => 'Temuan berhasil diproses ke stok', 'selisih' => $newSelisih]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal memproses temuan: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete a record-only temuan entry
+     */
+    public function deleteTemuanRecord(Request $request, $temuanId)
+    {
+        try {
+            $r = \App\Models\ERM\StokOpnameTemuan::findOrFail($temuanId);
+            $item = StokOpnameItem::find($r->stok_opname_item_id);
+            $r->delete();
+
+            // Recalculate and persist selisih on the opname item
+            if ($item) {
+                $recordNet = DB::table('erm_stok_opname_temuan')
+                    ->where('stok_opname_item_id', $item->id)
+                    ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                    ->first();
+                $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+                $item->selisih = ($item->stok_fisik - $item->stok_sistem) + $netTemuan;
+                $item->save();
+            }
+
+            return response()->json(['success' => true, 'message' => 'Temuan berhasil dihapus', 'selisih' => $item ? $item->selisih : null]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal menghapus temuan: ' . $e->getMessage()], 500);
         }
     }
     public function index(Request $request)
@@ -330,6 +627,21 @@ class StokOpnameController extends Controller
                 // Use a single-line SQL string to avoid accidental backslash/newline injection issues.
                 $batchSub = "(SELECT GROUP_CONCAT(CONCAT(g.batch, '::', g.stok, '::', IFNULL(DATE_FORMAT(g.expiration_date, '%d/%m/%Y'), '-')) SEPARATOR '||') FROM erm_obat_stok_gudang g WHERE g.obat_id = erm_stok_opname_items.obat_id AND g.gudang_id = {$gudangId} AND g.stok > 0) as batch_list";
 
+                // Sum temuan quantities from kartu_stok (ref_type temuan_stok_opname) for this opname and obat/gudang
+                $kartuQueryNoAlias = "(SELECT COALESCE(SUM(ks.qty),0) FROM erm_kartu_stok ks WHERE ks.ref_type = 'temuan_stok_opname' AND ks.ref_id = erm_stok_opname_items.stok_opname_id AND ks.obat_id = erm_stok_opname_items.obat_id AND ks.gudang_id = {$gudangId})";
+
+                // Sum temuan quantities from the new record-only temuan table per item (absolute sum)
+                $recordQueryNoAlias = "(SELECT COALESCE(SUM(t.qty),0) FROM erm_stok_opname_temuan t WHERE t.stok_opname_item_id = erm_stok_opname_items.id)";
+
+                // Net record-only temuan: treat 'lebih' as +qty and 'kurang' as -qty
+                $recordNetQuery = "(SELECT COALESCE(SUM(CASE WHEN t.jenis = 'lebih' THEN t.qty WHEN t.jenis = 'kurang' THEN -t.qty ELSE 0 END),0) FROM erm_stok_opname_temuan t WHERE t.stok_opname_item_id = erm_stok_opname_items.id)";
+
+                // Total temuan: use only record-only temuan (net of jenis: 'lebih' as +, 'kurang' as -)
+                $totalTemuanSub = "COALESCE((" . $recordNetQuery . "),0) as total_temuan";
+
+                // Adjusted selisih = (stok_fisik - stok_sistem) + net_record_temuan
+                $adjustedSelisihSub = "((erm_stok_opname_items.stok_fisik - erm_stok_opname_items.stok_sistem) + COALESCE((" . $recordNetQuery . "),0)) as adjusted_selisih";
+
             $query = DB::table('erm_stok_opname_items')
                 ->leftJoin('erm_obat', 'erm_stok_opname_items.obat_id', '=', 'erm_obat.id')
                 ->select(
@@ -337,11 +649,22 @@ class StokOpnameController extends Controller
                     'erm_obat.nama as nama_obat',
                     'erm_obat.hpp_jual as hpp_jual',
                     'erm_obat.satuan as satuan',
-                    DB::raw($batchSub)
+                    DB::raw($batchSub),
+                    DB::raw($kartuQueryNoAlias . ' as kartu_temuan_sum'),
+                    DB::raw($recordQueryNoAlias . ' as record_temuan_sum'),
+                    DB::raw($recordNetQuery . ' as record_temuan_net'),
+                    DB::raw($totalTemuanSub),
+                    DB::raw($adjustedSelisihSub)
                 )
                 ->where('stok_opname_id', $id);
 
             return datatables()->of($query)
+                // Override selisih column to show adjusted selisih that includes unprocessed record-only temuan
+                ->addColumn('selisih', function($row) {
+                    // $row is stdClass; use adjusted_selisih if present, else fallback to stored selisih
+                    if (isset($row->adjusted_selisih)) return $row->adjusted_selisih;
+                    return $row->selisih;
+                })
                 ->addColumn('batch_name', function($row) {
                     // $row is stdClass from query
                     if (!empty($row->batch_id)) {
