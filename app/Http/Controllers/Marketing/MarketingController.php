@@ -997,42 +997,36 @@ class MarketingController extends Controller
             $end = now();
             $start = $this->getStartDate('year'); // Default to year if no range specified
         }
+        // Use finance_billing records where the billable is a RiwayatTindakan
+        $billingQuery = DB::table('finance_billing')
+            ->join('erm_riwayat_tindakan', 'finance_billing.billable_id', '=', 'erm_riwayat_tindakan.id')
+            ->join('erm_tindakan', 'erm_riwayat_tindakan.tindakan_id', '=', 'erm_tindakan.id')
+            ->join('erm_visitations', 'finance_billing.visitation_id', '=', 'erm_visitations.id')
+            ->leftJoin('finance_invoices', 'finance_billing.visitation_id', '=', 'finance_invoices.visitation_id')
+            ->where('finance_billing.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+            ->whereBetween('erm_visitations.tanggal_visitation', [$start, $end])
+            ->where('finance_invoices.amount_paid', '>', 0);
 
-        $query = InvoiceItem::whereHas('invoice', function ($q) use ($start, $end) {
-            $q->whereHas('visitation', function ($v) use ($start, $end) {
-                $v->whereBetween('tanggal_visitation', [$start, $end]);
-            })
-                ->where('amount_paid', '>', 0);
-        })
-            ->where('billable_type', 'App\\Models\\ERM\\Tindakan');
-        
         if ($clinicId) {
-            $query->whereHas('invoice.visitation', function ($q) use ($clinicId) {
-                $q->where('klinik_id', $clinicId);
-            });
+            $billingQuery->where('erm_visitations.klinik_id', $clinicId);
         }
-        
+
         if (!$startDate && !$endDate) {
             if ($year) {
-                $query->whereHas('invoice.visitation', function ($q) use ($year) {
-                    $q->whereYear('tanggal_visitation', $year);
-                });
+                $billingQuery->whereYear('erm_visitations.tanggal_visitation', $year);
             }
             if ($month) {
-                $query->whereHas('invoice.visitation', function ($q) use ($month) {
-                    $q->whereMonth('tanggal_visitation', $month);
-                });
+                $billingQuery->whereMonth('erm_visitations.tanggal_visitation', $month);
             }
         }
-        
-        $data = $query->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
-            ->select(
-                'finance_invoice_items.billable_id',
+
+        $data = $billingQuery->select(
+                'erm_tindakan.id as billable_id',
                 'erm_tindakan.nama as treatment_name',
                 DB::raw('COUNT(*) as count'),
-                DB::raw('SUM(finance_invoice_items.final_amount) as revenue')
+                DB::raw('SUM(finance_billing.jumlah) as revenue')
             )
-            ->groupBy('finance_invoice_items.billable_id', 'erm_tindakan.nama')
+            ->groupBy('erm_tindakan.id', 'erm_tindakan.nama')
             ->orderBy('count', 'desc')
             ->limit(10)
             ->get();
@@ -1063,26 +1057,27 @@ class MarketingController extends Controller
                 $startDate = now()->startOfMonth()->toDateString();
             }
 
-            $query = InvoiceItem::whereHas('invoice', function ($q) use ($startDate, $endDate) {
-                $q->whereHas('visitation', function ($v) use ($startDate, $endDate) {
-                    $v->whereBetween('tanggal_visitation', [$startDate, $endDate]);
-                })->where('amount_paid', '>', 0);
-            })->where('billable_type', 'App\\Models\\ERM\\Tindakan');
+            // Use finance_billing where billable is RiwayatTindakan
+            $billingQuery = DB::table('finance_billing')
+                ->join('erm_riwayat_tindakan', 'finance_billing.billable_id', '=', 'erm_riwayat_tindakan.id')
+                ->join('erm_tindakan', 'erm_riwayat_tindakan.tindakan_id', '=', 'erm_tindakan.id')
+                ->join('erm_visitations', 'finance_billing.visitation_id', '=', 'erm_visitations.id')
+                ->leftJoin('finance_invoices', 'finance_billing.visitation_id', '=', 'finance_invoices.visitation_id')
+                ->where('finance_billing.billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+                ->whereBetween('erm_visitations.tanggal_visitation', [$startDate, $endDate])
+                ->where('finance_invoices.amount_paid', '>', 0);
 
             if ($clinicId) {
-                $query->whereHas('invoice.visitation', function ($q) use ($clinicId) {
-                    $q->where('klinik_id', $clinicId);
-                });
+                $billingQuery->where('erm_visitations.klinik_id', $clinicId);
             }
 
-            $data = $query->join('erm_tindakan', 'finance_invoice_items.billable_id', '=', 'erm_tindakan.id')
-                ->select(
-                    'finance_invoice_items.billable_id as treatment_id',
+            $data = $billingQuery->select(
+                    'erm_tindakan.id as treatment_id',
                     'erm_tindakan.nama as treatment_name',
                     DB::raw('COUNT(*) as total_count'),
-                    DB::raw('SUM(finance_invoice_items.final_amount) as total_revenue')
+                    DB::raw('SUM(finance_billing.jumlah) as total_revenue')
                 )
-                ->groupBy('finance_invoice_items.billable_id', 'erm_tindakan.nama')
+                ->groupBy('erm_tindakan.id', 'erm_tindakan.nama')
                 ->orderBy('total_count', 'desc')
                 ->get();
 
