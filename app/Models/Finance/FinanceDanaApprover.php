@@ -15,6 +15,8 @@ class FinanceDanaApprover extends Model
         'user_id',
         'jabatan',
         'aktif',
+        'tingkat',
+        'jenis',
     ];
 
     public function user()

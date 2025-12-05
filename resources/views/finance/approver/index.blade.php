@@ -42,6 +42,8 @@
                                         <th>ID</th>
                                         <th>User</th>
                                         <th>Jabatan</th>
+                                        <th>Tingkat</th>
+                                        <th>Jenis</th>
                                         <th>Aktif</th>
                                         <th>Action</th>
                                     </tr>
@@ -88,6 +90,24 @@
                         <div class="invalid-feedback" id="jabatan-error"></div>
                     </div>
 
+                    <div class="form-group">
+                        <label for="tingkat">Tingkat (urutan approval, higher first)</label>
+                        <input type="number" class="form-control" id="tingkat" name="tingkat" min="1" value="1">
+                        <div class="invalid-feedback" id="tingkat-error"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="jenis">Jenis Pengajuan (kosong = semua)</label>
+                        <select id="jenis" name="jenis" class="form-control">
+                            <option value="">-- Semua Jenis --</option>
+                            <option value="Operasional">Operasional</option>
+                            <option value="Pembelian">Pembelian</option>
+                            <option value="Remburse">Remburse</option>
+                            <option value="Pattycash">Pattycash</option>
+                        </select>
+                        <div class="invalid-feedback" id="jenis-error"></div>
+                    </div>
+
                     <div class="form-group form-check">
                         <input type="checkbox" class="form-check-input" id="aktif" name="aktif" value="1" checked>
                         <label class="form-check-label" for="aktif">Aktif</label>
@@ -120,6 +140,8 @@ $(document).ready(function() {
             { data: 'id', name: 'id' },
             { data: 'user.name', name: 'user.name', defaultContent: '' },
             { data: 'jabatan', name: 'jabatan' },
+            { data: 'tingkat', name: 'tingkat' },
+            { data: 'jenis', name: 'jenis' },
             { data: 'aktif_label', name: 'aktif_label', orderable: false, searchable: false },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
@@ -135,6 +157,9 @@ $(document).ready(function() {
         $('.invalid-feedback').text('');
         $('.is-invalid').removeClass('is-invalid');
         if (typeof $('#user_id').select2 === 'function') { $('#user_id').val('').trigger('change'); }
+        // default tingkat to 1 and jenis to empty (all)
+        $('#tingkat').val(1);
+        $('#jenis').val('');
         $('#approverModal').modal('show');
     });
 
@@ -148,6 +173,8 @@ $(document).ready(function() {
         var data = {
             user_id: $('#user_id').val(),
             jabatan: $('#jabatan').val(),
+            tingkat: parseInt($('#tingkat').val() || 1),
+            jenis: $('#jenis').val() || '',
             aktif: $('#aktif').is(':checked') ? 1 : 0,
             _token: $('meta[name="csrf-token"]').attr('content')
         };
@@ -199,6 +226,8 @@ $(document).ready(function() {
                 $('#approver_id').val(res.id);
                 $('#user_id').val(res.user_id).trigger('change');
                 $('#jabatan').val(res.jabatan);
+                $('#tingkat').val(res.tingkat || 1);
+                $('#jenis').val(res.jenis || '');
                 $('#aktif').prop('checked', res.aktif == 1);
                 $('#approverModal').modal('show');
             },

@@ -21,6 +21,8 @@ class FinanceApproverController extends Controller
             ->addColumn('aktif_label', function ($row) {
                 return $row->aktif ? 'Ya' : 'Tidak';
             })
+            ->addColumn('tingkat', function($row) { return $row->tingkat ?? 1; })
+            ->addColumn('jenis', function($row) { return $row->jenis ?? ''; })
             ->addColumn('actions', function ($row) {
                 $btns = '<div class="btn-group" role="group">';
                 $btns .= '<button class="btn btn-sm btn-primary edit-approver" data-id="' . $row->id . '">Edit</button>';
@@ -37,6 +39,8 @@ class FinanceApproverController extends Controller
         $data = $request->validate([
             'user_id' => 'required|integer|exists:users,id',
             'jabatan' => 'nullable|string',
+            'tingkat' => 'nullable|integer|min:1',
+            'jenis' => 'nullable|string',
             'aktif' => 'nullable|boolean',
         ]);
 
@@ -56,6 +60,8 @@ class FinanceApproverController extends Controller
         $data = $request->validate([
             'user_id' => 'required|integer|exists:users,id',
             'jabatan' => 'nullable|string',
+            'tingkat' => 'nullable|integer|min:1',
+            'jenis' => 'nullable|string',
             'aktif' => 'nullable|boolean',
         ]);
 

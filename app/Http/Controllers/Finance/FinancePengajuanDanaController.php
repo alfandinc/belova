@@ -108,13 +108,44 @@ class FinancePengajuanDanaController extends Controller
                     $btns .= '<button class="btn btn-sm btn-danger delete-pengajuan" data-id="' . $row->id . '">Delete</button>';
                 }
 
-                // render approve button only if current user is an approver and hasn't approved
+                // render approve button only if current user is an approver, it's their jenis, and it's their turn
                 if ($user) {
                     $approver = FinanceDanaApprover::where('user_id', $user->id)->first();
                     if ($approver) {
-                        $already = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)->where('approver_id', $approver->id)->exists();
-                        if (!$already) {
-                            $btns .= '<button class="btn btn-sm btn-success approve-pengajuan ms-1" data-id="' . $row->id . '">Approve</button>';
+                        $pengajuanJenis = $row->jenis_pengajuan ?? '';
+                        // check approver is allowed for this jenis (empty = global)
+                        if ($approver->jenis && trim($approver->jenis) !== '') {
+                            if (strcasecmp(trim($approver->jenis), trim($pengajuanJenis)) !== 0) {
+                                // not authorized for this jenis, skip approve button
+                            } else {
+                                // proceed to sequencing check below
+                            }
+                        }
+
+                        // sequencing: ensure higher tingkat approvers for this jenis have approved
+                        $approverTingkat = intval($approver->tingkat ?: 1);
+                        $higherApprovers = FinanceDanaApprover::where('aktif', 1)
+                            ->where(function($q) use ($pengajuanJenis) {
+                                if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
+                                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
+                                } else {
+                                    $q->whereNull('jenis')->orWhere('jenis', '');
+                                }
+                            })
+                            ->where('tingkat', '>', $approverTingkat)
+                            ->get();
+
+                        $canApprove = true;
+                        foreach ($higherApprovers as $ha) {
+                            $hasApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)->where('approver_id', $ha->id)->exists();
+                            if (!$hasApproved) { $canApprove = false; break; }
+                        }
+
+                        if ($canApprove) {
+                            $already = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)->where('approver_id', $approver->id)->exists();
+                            if (!$already) {
+                                $btns .= '<button class="btn btn-sm btn-success approve-pengajuan ms-1" data-id="' . $row->id . '">Approve</button>';
+                            }
                         }
                     }
                 }
@@ -156,6 +187,35 @@ class FinancePengajuanDanaController extends Controller
         }
 
         $pengajuan = FinancePengajuanDana::findOrFail($id);
+        // ensure this approver is configured for this jenis_pengajuan (or global when approver.jenis empty)
+        $pengajuanJenis = $pengajuan->jenis_pengajuan ?? '';
+        if ($approver->jenis && trim($approver->jenis) !== '') {
+            // Only allow if approver->jenis matches pengajuan jenis
+            if (strcasecmp(trim($approver->jenis), trim($pengajuanJenis)) !== 0) {
+                return response()->json(['success' => false, 'message' => 'You are not authorized to approve this jenis pengajuan'], 403);
+            }
+        }
+
+        // Check sequencing: any approver with higher `tingkat` for this jenis must approve first
+        $approverTingkat = intval($approver->tingkat ?: 1);
+        $higherApprovers = FinanceDanaApprover::where('aktif', 1)
+            ->where(function($q) use ($pengajuanJenis) {
+                if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
+                } else {
+                    // pengajuan has no jenis, include approvers that are global or have empty jenis
+                    $q->whereNull('jenis')->orWhere('jenis', '');
+                }
+            })
+            ->where('tingkat', '>', $approverTingkat)
+            ->get();
+
+        foreach ($higherApprovers as $ha) {
+            $hasApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)->where('approver_id', $ha->id)->exists();
+            if (!$hasApproved) {
+                return response()->json(['success' => false, 'message' => 'Awaiting approval from higher level approver(s) before you can approve.'], 403);
+            }
+        }
         // check if already approved by this approver
         $existing = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)->where('approver_id', $approver->id)->first();
         if ($existing) {

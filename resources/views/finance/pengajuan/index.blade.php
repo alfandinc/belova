@@ -194,6 +194,7 @@
                             <label for="jenis_pengajuan">Jenis</label>
                             <select id="jenis_pengajuan" name="jenis_pengajuan" class="form-control">
                                 <option value="Operasional">Operasional</option>
+                                <option value="Pattycash">Pattycash</option>
                                 <option value="Pembelian">Pembelian</option>
                                 <option value="Remburse">Remburse</option>
                             </select>
@@ -427,7 +428,8 @@ $(document).ready(function() {
                     var k = jenis.toString().toLowerCase();
                     if (k.indexOf('operasional') !== -1) badgeClass = 'badge-primary';
                     else if (k.indexOf('pembelian') !== -1) badgeClass = 'badge-success';
-                    else if (k.indexOf('remburse') !== -1 || k.indexOf('remburse') !== -1) badgeClass = 'badge-warning';
+                    else if (k.indexOf('pattycash') !== -1) badgeClass = 'badge-info';
+                    else if (k.indexOf('remburse') !== -1) badgeClass = 'badge-warning';
                     // append small badge under the kode cell
                     var $kodeCell = $(row).find('td').eq(1);
                     // avoid duplicating if server-side already included badge
