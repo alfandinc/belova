@@ -114,8 +114,13 @@
         <!-- Best Selling Products Chart -->
         <div class="col-lg-8">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex align-items-center justify-content-between">
                     <h5 class="card-title mb-0">Best Selling Products</h5>
+                    <div>
+                        <button id="viewAllProductsBtn" type="button" class="btn btn-sm btn-primary" data-toggle="modal" data-target="#viewAllProductsModal">
+                            View All
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="bestSellingProductsChart" style="height: 350px;"></div>
@@ -135,6 +140,41 @@
             </div>
         </div>
     </div>
+    </div>
+
+    <!-- View All Products Modal -->
+    <div class="modal fade" id="viewAllProductsModal" tabindex="-1" role="dialog" aria-labelledby="viewAllProductsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewAllProductsModalLabel">All Sold Products</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <button id="downloadExcelBtn" type="button" class="btn btn-sm btn-success">Download Excel</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table id="viewAllProductsTable" class="table table-striped table-sm">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Product</th>
+                                    <th>Category</th>
+                                    <th>Quantity</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 @endsection
 
@@ -144,12 +184,16 @@
 <script src="{{ asset('js/daterangepicker.js') }}"></script>
 <script src="{{ asset('js/select2.min.js') }}"></script>
 <script src="{{ asset('js/apexcharts.min.js') }}"></script>
+<!-- SheetJS for client-side Excel export -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <script>
 $(document).ready(function() {
     // Chart instances
     let bestSellingProductsChart;
     let medicationTrendsChart;
+    // cached best selling products data for modal/export
+    let bestSellingProductsData = null;
     
     // Initialize date range picker
     const today = moment();
@@ -216,6 +260,12 @@ $(document).ready(function() {
                 if (response.success) {
                     updateSummaryCards(response.data.summary);
                     updateCharts(response.data.charts);
+                    // cache best selling products for modal/export
+                    if (response.data && response.data.charts && response.data.charts.best_selling_products) {
+                        bestSellingProductsData = response.data.charts.best_selling_products;
+                    } else {
+                        bestSellingProductsData = null;
+                    }
                 } else {
                     console.error('Error:', response.message);
                     alert('Error loading data: ' + response.message);
@@ -342,6 +392,68 @@ $(document).ready(function() {
 
     // Initial load
     loadAnalyticsData();
+
+    // Populate and show modal table when button clicked
+    $('#viewAllProductsBtn').on('click', function() {
+        const $tbody = $('#viewAllProductsTable tbody');
+        $tbody.empty();
+
+        if (!bestSellingProductsData || !bestSellingProductsData.labels || bestSellingProductsData.labels.length === 0) {
+            $tbody.append('<tr><td colspan="5" class="text-center text-muted py-4">No data available</td></tr>');
+            return;
+        }
+
+        const labels = bestSellingProductsData.labels;
+        const values = bestSellingProductsData.values || [];
+        const revenue = bestSellingProductsData.revenue || [];
+        const categories = bestSellingProductsData.categories || [];
+
+        for (let i = 0; i < labels.length; i++) {
+            const name = labels[i] || '-';
+            const qty = (values[i] != null) ? values[i] : '-';
+            const rev = (revenue[i] != null) ? revenue[i] : '-';
+            const cat = (categories[i] != null) ? categories[i] : '-';
+
+            const row = `<tr>
+                <td>${i+1}</td>
+                <td>${name}</td>
+                <td>${cat}</td>
+                <td>${qty}</td>
+                <td>Rp ${typeof rev === 'number' ? rev.toLocaleString() : rev}</td>
+            </tr>`;
+
+            $tbody.append(row);
+        }
+    });
+
+    // Download excel from the cached bestSellingProductsData
+    $('#downloadExcelBtn').on('click', function() {
+        if (!bestSellingProductsData || !bestSellingProductsData.labels || bestSellingProductsData.labels.length === 0) {
+            alert('No data to export');
+            return;
+        }
+
+        const labels = bestSellingProductsData.labels;
+        const values = bestSellingProductsData.values || [];
+        const revenue = bestSellingProductsData.revenue || [];
+        const categories = bestSellingProductsData.categories || [];
+
+        const rows = [];
+        for (let i = 0; i < labels.length; i++) {
+            rows.push({
+                No: i+1,
+                Product: labels[i] || '',
+                Category: categories[i] || '',
+                Quantity: values[i] != null ? values[i] : '',
+                Revenue: revenue[i] != null ? revenue[i] : ''
+            });
+        }
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'BestSelling');
+        XLSX.writeFile(workbook, `best_selling_products_${moment().format('YYYYMMDD')}.xlsx`);
+    });
 
     // Initialize Feather icons
     if (typeof feather !== 'undefined') {
