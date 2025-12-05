@@ -234,6 +234,7 @@
                                     <option value="tetap" {{ old('status', $employee->status ?? '') == 'tetap' ? 'selected' : '' }}>Tetap</option>
                                     <option value="kontrak" {{ old('status', $employee->status ?? '') == 'kontrak' ? 'selected' : '' }}>Kontrak</option>
                                     <option value="tidak aktif" {{ old('status', $employee->status ?? '') == 'tidak aktif' ? 'selected' : '' }}>Tidak Aktif</option>
+                                    <option value="freelance" {{ old('status', $employee->status ?? '') == 'freelance' ? 'selected' : '' }}>Freelance</option>
                                 </select>
                             </div>
                             <div class="form-group col-md-6">
