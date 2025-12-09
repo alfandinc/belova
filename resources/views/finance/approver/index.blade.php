@@ -100,7 +100,7 @@
                         <label for="jenis">Sumber Dana (kosong = semua)</label>
                         <select id="jenis" name="jenis" class="form-control">
                             <option value="">-- Semua Sumber Dana --</option>
-                            <option value="Kas Besar">Kas Besar</option>
+                            <option value="Kas Bank">Kas Bank</option>
                             <option value="Kas Kecil">Kas Kecil</option>
                         </select>
                         <div class="invalid-feedback" id="jenis-error"></div>

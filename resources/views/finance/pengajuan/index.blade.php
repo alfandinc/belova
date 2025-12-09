@@ -177,7 +177,7 @@
                             <label for="sumber_dana" class="required">Sumber Dana</label>
                             <select id="sumber_dana" name="sumber_dana" class="form-control">
                                 <option value="">-- Pilih Sumber Dana --</option>
-                                <option value="Kas Besar">Kas Besar</option>
+                                <option value="Kas Bank">Kas Bank</option>
                                 <option value="Kas Kecil">Kas Kecil</option>
                             </select>
                         </div>
@@ -187,6 +187,7 @@
                                 <option value="">-- Pilih Perusahaan --</option>
                                 <option value="CV Belia Abadi">CV Belia Abadi</option>
                                 <option value="CV Belova Indonesia">CV Belova Indonesia</option>
+                                <option value="Belova Corp">Belova Corp</option>
                                 <option value="CV Grha Asri">CV Grha Asri</option>
                             </select>
                         </div>
