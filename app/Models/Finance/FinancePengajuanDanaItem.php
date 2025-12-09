@@ -14,6 +14,7 @@ class FinancePengajuanDanaItem extends Model
     protected $fillable = [
         'pengajuan_id',
         'employee_id',
+        'notes',
         'nama_item',
         'jumlah',
         'harga_satuan',

@@ -17,6 +17,8 @@ class FinancePengajuanDana extends Model
         'division_id',
         'tanggal_pengajuan',
         'jenis_pengajuan',
+        'sumber_dana',
+        'perusahaan',
         'deskripsi',
         'status',
         'rekening_id',

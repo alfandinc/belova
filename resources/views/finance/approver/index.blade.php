@@ -43,7 +43,7 @@
                                         <th>User</th>
                                         <th>Jabatan</th>
                                         <th>Tingkat</th>
-                                        <th>Jenis</th>
+                                        <th>Sumber Dana</th>
                                         <th>Aktif</th>
                                         <th>Action</th>
                                     </tr>
@@ -97,13 +97,11 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="jenis">Jenis Pengajuan (kosong = semua)</label>
+                        <label for="jenis">Sumber Dana (kosong = semua)</label>
                         <select id="jenis" name="jenis" class="form-control">
-                            <option value="">-- Semua Jenis --</option>
-                            <option value="Operasional">Operasional</option>
-                            <option value="Pembelian">Pembelian</option>
-                            <option value="Remburse">Remburse</option>
-                            <option value="Pattycash">Pattycash</option>
+                            <option value="">-- Semua Sumber Dana --</option>
+                            <option value="Kas Besar">Kas Besar</option>
+                            <option value="Kas Kecil">Kas Kecil</option>
                         </select>
                         <div class="invalid-feedback" id="jenis-error"></div>
                     </div>

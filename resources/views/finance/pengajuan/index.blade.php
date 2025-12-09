@@ -13,7 +13,7 @@
             word-break: break-word;
             overflow: hidden;
             text-overflow: ellipsis;
-            vertical-align: top;
+            vertical-align: middle; /* center vertically like other cells */
         }
         /* Small, fixed width for the 'No' column */
         #pengajuanTable td.col-no, #pengajuanTable th.col-no {
@@ -30,6 +30,7 @@
         #pengajuanTable td.grand-total-cell, #pengajuanTable th.grand-total-cell {
             text-align: right !important;
             padding-right: 12px;
+            vertical-align: middle; /* center vertically */
         }
         /* Ensure any inner elements also align right and span full width */
         #pengajuanTable td.grand-total-cell > * {
@@ -53,6 +54,10 @@
             margin: 0;
             padding-left: 16px;
         }
+        /* Ensure form labels in the pengajuan modal use Title Case instead of all-caps */
+        #pengajuanModal label { text-transform: capitalize !important; }
+        /* show red asterisk for required fields */
+        #pengajuanModal label.required:after { content: " *"; color: #e74c3c; margin-left: 4px; }
     </style>
 <div class="page-content">
     <div class="container-fluid">
@@ -94,11 +99,12 @@
                                 <thead>
                                     <tr>
                                         <th class="col-no">No</th>
-                                        <th>Kode</th>
-                                        <th>Employee</th>
-                                        <th>Tanggal</th>
+                                        <th>Detail</th>
+                                        <th>Nama Pengaju</th>
+                                        <th class="d-none">Tanggal</th>
                                         <th>Items</th>
-                                        <th>Grand Total</th>
+                                        <th>Total</th>
+                                        <th>Diajukan ke</th>
                                         <th>Approvals</th>
                                         <th>Action</th>
                                     </tr>
@@ -112,6 +118,37 @@
         </div>
     </div>
 </div>
+
+            <!-- Bukti Modal: show existing bukti and allow uploading additional files -->
+            <div class="modal fade" id="buktiModal" tabindex="-1" aria-labelledby="buktiModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="buktiModalLabel">Upload Bukti Transaksi</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-2">
+                                <strong>Gambar tersimpan:</strong>
+                                <div id="buktiModalPreview" class="mt-2 d-flex flex-wrap"></div>
+                            </div>
+                            <hr />
+                            <div class="mb-2">
+                                <label class="form-label">Tambah file</label>
+                                <div class="d-flex align-items-center">
+                                    <input type="file" id="buktiModalInput" name="bukti_transaksi[]" accept="image/*" multiple style="display:block">
+                                    <div class="ml-2"><small id="buktiModalFilesLabel" class="text-muted">Tidak ada file terpilih</small></div>
+                                </div>
+                                <div id="buktiModalNewPreview" class="mt-2 d-flex flex-wrap"></div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                            <button type="button" id="buktiModalUpload" class="btn btn-primary">Upload</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
 <!-- Add/Edit Pengajuan Modal (skeleton) -->
 <div class="modal fade" id="pengajuanModal" tabindex="-1" aria-labelledby="pengajuanModalLabel" aria-hidden="true">
@@ -130,41 +167,31 @@
                 <div class="modal-body">
         
                     <!-- Minimal inputs for now; expand later -->
+                    <!-- Compact 2-row layout: Row 1 (kode, sumber, perusahaan, employee), Row 2 (tanggal, jenis, rekening, bukti) -->
                     <div class="form-row g-2 pengajuan-compact">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="kode_pengajuan">Kode Pengajuan</label>
                             <input type="text" class="form-control" id="kode_pengajuan" name="kode_pengajuan" readonly>
                         </div>
-
-                        <div class="col-md-4">
-                            <label for="rekening_id">Rekening (Bank / No. Rekening / Atas Nama)</label>
-                            <div class="d-flex align-items-center">
-                                    <div style="flex:1">
-                                    <select id="rekening_id" name="rekening_id" class="form-control select2" style="width:100%">
-                                        <option value="">-- Pilih Rekening --</option>
-                                        @php $reks = \App\Models\Finance\FinanceRekening::orderBy('bank')->get(); @endphp
-                                        @foreach($reks as $r)
-                                            <option value="{{ $r->id }}">{{ $r->bank }} / {{ $r->no_rekening }} / {{ $r->atas_nama }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <button type="button" class="btn btn-outline-secondary ml-2" id="btnToggleRekInline" title="Tambah Rekening"><i class="fa fa-plus"></i></button>
-                            </div>
+                        <div class="col-md-3">
+                            <label for="sumber_dana" class="required">Sumber Dana</label>
+                            <select id="sumber_dana" name="sumber_dana" class="form-control">
+                                <option value="">-- Pilih Sumber Dana --</option>
+                                <option value="Kas Besar">Kas Besar</option>
+                                <option value="Kas Kecil">Kas Kecil</option>
+                            </select>
                         </div>
-
-                        <div class="col-md-4">
-                            <label for="bukti_transaksi">Bukti Transaksi (Gambar) - bisa pilih beberapa file</label>
-                            <input type="file" class="form-control" id="bukti_transaksi" name="bukti_transaksi[]" accept="image/*" multiple>
-                            <small class="form-text text-muted">Maks 2MB per file. Format: jpg, png, gif.</small>
-                            <div id="bukti_preview" class="mt-1" style="display:none">
-                                <!-- multiple thumbnails will be injected here -->
-                            </div>
+                        <div class="col-md-3">
+                            <label for="perusahaan">Perusahaan</label>
+                            <select id="perusahaan" name="perusahaan" class="form-control">
+                                <option value="">-- Pilih Perusahaan --</option>
+                                <option value="CV Belia Abadi">CV Belia Abadi</option>
+                                <option value="CV Belova Indonesia">CV Belova Indonesia</option>
+                                <option value="CV Grha Asri">CV Grha Asri</option>
+                            </select>
                         </div>
-                    </div>
-
-                    <div class="form-row g-2 mt-2 pengajuan-compact">
-                        <div class="col-md-4">
-                            <label for="employee_id">Employee</label>
+                        <div class="col-md-3">
+                            <label for="employee_id" class="required">Nama Pengaju</label>
                             <select id="employee_id" name="employee_id" class="form-control select2" style="width:100%">
                                 <option value="">-- Pilih Employee --</option>
                                 @php $employees = \App\Models\HRD\Employee::with('user')->orderBy('nama')->get(); @endphp
@@ -176,30 +203,53 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label for="division_id">Division</label>
-                            <select id="division_id" name="division_id" class="form-control select2" style="width:100%">
-                                <option value="">-- Pilih Division --</option>
-                                @php $divs = \App\Models\HRD\Division::orderBy('name')->get(); @endphp
-                                @foreach($divs as $d)
-                                    <option value="{{ $d->id }}">{{ $d->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                        <input type="hidden" id="division_id" name="division_id" value="">
+                    </div>
+
+                    <div class="form-row g-2 mt-2 pengajuan-compact">
                         <div class="col-md-2">
-                            <label for="tanggal_pengajuan">Tanggal</label>
+                            <label for="tanggal_pengajuan" class="required">Tanggal</label>
                             <input type="date" class="form-control" id="tanggal_pengajuan" name="tanggal_pengajuan">
                         </div>
-                        <div class="col-md-3">
-                            <label for="jenis_pengajuan">Jenis</label>
+                        <div class="col-md-2">
+                            <label for="jenis_pengajuan" class="required">Jenis</label>
                             <select id="jenis_pengajuan" name="jenis_pengajuan" class="form-control">
+                                <option value="Pembayaran Inkaso">Pembayaran Inkaso</option>
+                                <option value="Pembelian Barang">Pembelian Barang</option>
                                 <option value="Operasional">Operasional</option>
-                                <option value="Pattycash">Pattycash</option>
-                                <option value="Pembelian">Pembelian</option>
-                                <option value="Remburse">Remburse</option>
                             </select>
                         </div>
+                        <div class="col-md-4">
+                            <label for="rekening_id">Rekening <small class="text-muted" style="font-weight:400;">(Bank / No. Rekening / Atas Nama)</small></label>
+                            <div class="d-flex align-items-center">
+                                <div style="flex:1">
+                                    <select id="rekening_id" name="rekening_id" class="form-control select2" style="width:100%">
+                                        <option value="">-- Pilih Rekening --</option>
+                                        @php $reks = \App\Models\Finance\FinanceRekening::orderBy('bank')->get(); @endphp
+                                        @foreach($reks as $r)
+                                            <option value="{{ $r->id }}">{{ $r->bank }} / {{ $r->no_rekening }} / {{ $r->atas_nama }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <button type="button" class="btn btn-outline-secondary ml-2" id="btnToggleRekInline" title="Tambah Rekening"><i class="fa fa-plus"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="bukti_transaksi">Bukti Transaksi <small class="text-muted" style="font-weight:400;">(Gambar) - bisa pilih beberapa file</small></label>
+                            <div class="input-group">
+                                <input type="file" class="d-none" id="bukti_transaksi" name="bukti_transaksi[]" accept="image/*" multiple>
+                                <div class="input-group-prepend">
+                                    <button type="button" class="btn btn-outline-secondary" id="btnChooseBukti"><i class="fa fa-upload"></i> Pilih File</button>
+                                </div>
+                                <input type="text" id="bukti_files_label" class="form-control" readonly placeholder="Tidak ada file terpilih">
+                            </div>
+                            <small class="form-text text-muted">Maks 2MB per file. Format: jpg, png, gif.</small>
+                            <div id="bukti_preview" class="mt-2" style="display:none">
+                                <!-- multiple thumbnails will be injected here -->
+                            </div>
+                        </div>
                     </div>
+
                     <!-- Deskripsi removed as per request (duplicate rekening block removed) -->
 
                     <!-- inline rekening inputs (moved to top area) -->
@@ -273,7 +323,7 @@
                                     <tr>
                                         <th style="width:4%">#</th>
                                         <th>Nama Item</th>
-                                        <th>Pegawai</th>
+                                        <th>Notes</th>
                                         <th style="width:10%">Qty</th>
                                         <th style="width:15%">Harga</th>
                                         <th style="width:15%">Total</th>
@@ -284,7 +334,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="5" class="text-end"><strong>Grand Total</strong></td>
+                                        <td colspan="5" class="text-end"><strong>Total</strong></td>
                                         <td><input type="text" id="grand_total_display" class="form-control" readonly></td>
                                         <td class="text-end">
                                             <div class="d-flex justify-content-end align-items-center">
@@ -316,7 +366,7 @@ $(document).ready(function() {
     // server-provided current employee id (logged-in user) to default main employee select
     var __currentEmployeeId = '{{ auth()->check() && optional(auth()->user()->employee)->id ? auth()->user()->employee->id : '' }}';
     if (typeof $.fn.select2 === 'function') {
-        $('#employee_id, #division_id, #rekening_id').select2({ dropdownParent: $('#pengajuanModal'), width: '100%' });
+        $('#employee_id, #rekening_id').select2({ dropdownParent: $('#pengajuanModal'), width: '100%' });
     }
 
     // Make pengajuan modal only closable via the X button (no backdrop click, no ESC)
@@ -354,8 +404,9 @@ $(document).ready(function() {
             { targets: 3, width: '120px' },
             { targets: 4, width: '360px', className: 'items-list-cell' },
             { targets: 5, width: '120px', className: 'text-end grand-total-cell' },
-            { targets: 6, width: '160px' },
-            { targets: 7, width: '120px' }
+            { targets: 6, width: '200px' },
+            { targets: 7, width: '160px' },
+            { targets: 8, width: '120px' }
         ],
         ajax: {
             url: '{!! route('finance.pengajuan.data') !!}',
@@ -378,10 +429,10 @@ $(document).ready(function() {
                     return meta.settings._iDisplayStart + meta.row + 1;
                 }
             },
-        { data: 'kode_pengajuan', name: 'kode_pengajuan', orderable: false },
-        { data: 'employee_display', name: 'employee_display', defaultContent: '', orderable: false },
+        { data: 'kode_pengajuan', name: 'kode_pengajuan', orderable: true, orderData: [3] },
+        { data: 'employee_display', name: 'employee_display', defaultContent: '', orderable: true, orderData: [3] },
         // format tanggal_pengajuan for display as '1 Januari 2025' (Indonesian)
-        { data: 'tanggal_pengajuan', name: 'tanggal_pengajuan', render: function(data, type, row, meta) {
+        { data: 'tanggal_pengajuan', name: 'tanggal_pengajuan', visible: false, render: function(data, type, row, meta) {
                     if (!data) return '';
                     // keep raw data for ordering/searching; only format for display/filter
                     if (type === 'display' || type === 'filter') {
@@ -410,9 +461,10 @@ $(document).ready(function() {
                     // raw data used for ordering/searching
                     return data;
                 }, orderable: false, searchable: false },
+            { data: 'diajukan_ke', name: 'diajukan_ke', orderable: false, searchable: false, className: 'diajukan-cell' },
             // server returns rendered HTML list for approvals (approver name + date)
-            { data: 'approvals_list', name: 'approvals_list', orderable: false, searchable: false },
-            { data: 'actions', name: 'actions', orderable: false, searchable: false }
+            { data: 'approvals_list', name: 'approvals_list', orderable: false, searchable: false, className: 'approvals-cell' },
+            { data: 'actions', name: 'actions', orderable: false, searchable: false, className: 'actions-cell' }
         ],
         createdRow: function(row, data, dataIndex) {
             try {
@@ -421,29 +473,63 @@ $(document).ready(function() {
             // mark first cell as 'col-no' to apply narrow styling
             $(row).find('td').eq(0).addClass('col-no');
 
-                // Move jenis_pengajuan into the Kode cell as a badge below the kode text
+                // Move jenis_pengajuan and tanggal into the Kode cell; show tanggal first then jenis badge
                 var jenis = data.jenis_pengajuan || '';
+                var $kodeCell = $(row).find('td').eq(1);
+                // append tanggal under the Nama Pengaju (employee_display) cell (below division text)
+                try {
+                    var tanggalRaw = data.tanggal_pengajuan || '';
+                    var $empCell = $(row).find('td').eq(2);
+                    if (tanggalRaw && $empCell.find('.tanggal-badge').length === 0) {
+                        var d = new Date(tanggalRaw);
+                        if (!isNaN(d.getTime())) {
+                            var formatted = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+                            var $tgl = $('<div class="mt-1 tanggal-badge"><small class="text-muted">'+formatted+'</small></div>');
+                            // if employee display container exists, append there; otherwise append to the cell
+                            var $empDisplay = $empCell.find('.employee-display').first();
+                            if ($empDisplay.length) {
+                                $empDisplay.append($tgl);
+                            } else {
+                                $empCell.append($tgl);
+                            }
+                        }
+                    }
+                } catch(e) {}
+
                 if (jenis) {
                     var badgeClass = 'badge-secondary';
                     var k = jenis.toString().toLowerCase();
                     if (k.indexOf('operasional') !== -1) badgeClass = 'badge-primary';
                     else if (k.indexOf('pembelian') !== -1) badgeClass = 'badge-success';
-                    else if (k.indexOf('pattycash') !== -1) badgeClass = 'badge-info';
-                    else if (k.indexOf('remburse') !== -1) badgeClass = 'badge-warning';
-                    // append small badge under the kode cell
-                    var $kodeCell = $(row).find('td').eq(1);
+                    else if (k.indexOf('inkaso') !== -1 || k.indexOf('pembayaran') !== -1) badgeClass = 'badge-warning';
                     // avoid duplicating if server-side already included badge
                     if ($kodeCell.find('.jenis-badge').length === 0) {
                         var $badge = $('<div class="mt-1 jenis-badge"><small><span class="badge '+badgeClass+'">'+jenis+'</span></small></div>');
                         $kodeCell.append($badge);
                     }
                 }
-                // If approvals list empty, show blinking warning badge in approvals column (index 6)
+                // append rekening info under kode if present
+                try {
+                    var rek = data.rekening || null;
+                    if (rek && $kodeCell.find('.rekening-badge').length === 0) {
+                        var rekText = '';
+                        if (rek.bank) rekText += rek.bank;
+                        if (rek.no_rekening) rekText += (rekText ? ' / ' : '') + rek.no_rekening;
+                        if (rek.atas_nama) rekText += (rekText ? ' / ' : '') + rek.atas_nama;
+                        if (rekText) {
+                            var $rek = $('<div class="mt-1 rekening-badge">'+rekText+'</div>');
+                            $kodeCell.append($rek);
+                        }
+                    }
+                } catch(e) {}
+                // If approvals list empty, show blinking warning badge in approvals column
                 var approvalsRaw = (data.approvals_list || '').toString().trim();
-                var $approvalsCell = $(row).find('td').eq(6);
-                if (!approvalsRaw) {
-                    var warnHtml = '<div class="jenis-badge"><small><span class="badge badge-warning approvals-empty"><i class="fa fa-exclamation-triangle"></i> Menunggu Persetujuan</span></small></div>';
-                    $approvalsCell.html(warnHtml);
+                var $approvalsCell = $(row).find('td.approvals-cell').first();
+                if ($approvalsCell.length) {
+                    if (!approvalsRaw) {
+                        var warnHtml = '<div class="jenis-badge"><small><span class="badge badge-warning approvals-empty"><i class="fa fa-exclamation-triangle"></i> Menunggu Persetujuan</span></small></div>';
+                        $approvalsCell.html(warnHtml);
+                    }
                 }
             } catch(e) {}
         },
@@ -471,9 +557,11 @@ $(document).ready(function() {
         $('#itemsTable tbody').empty();
         addItemRow();
         recalcItems();
-        // clear rekening select, file input and preview, grand total and hidden items_json
+        // clear rekening select, division hidden, file input and preview, grand total and hidden items_json
         if (typeof $('#rekening_id').select2 === 'function') { $('#rekening_id').val('').trigger('change'); }
+        $('#division_id').val('');
         $('#bukti_transaksi').val('');
+        $('#bukti_files_label').val('Tidak ada file terpilih');
         $('#bukti_preview').hide();
         $('#bukti_preview img').attr('src', '');
         $('#grand_total_display').val('0.00');
@@ -506,9 +594,10 @@ $(document).ready(function() {
         $('.invalid-feedback').text('');
         $('.is-invalid').removeClass('is-invalid');
         if (typeof $('#employee_id').select2 === 'function') { $('#employee_id').val('').trigger('change'); }
-        if (typeof $('#division_id').select2 === 'function') { $('#division_id').val('').trigger('change'); }
+        $('#division_id').val('');
         if (typeof $('#rekening_id').select2 === 'function') { $('#rekening_id').val('').trigger('change'); }
         $('#bukti_transaksi').val('');
+        $('#bukti_files_label').val('Tidak ada file terpilih');
         $('#bukti_preview').hide();
         $('#bukti_preview img').attr('src', '');
         $('#grand_total_display').val('0.00');
@@ -526,6 +615,15 @@ $(document).ready(function() {
         var files = this.files || [];
         var $preview = $('#bukti_preview');
         $preview.empty();
+        // update label with filenames or count
+        if (!files || files.length === 0) {
+            $('#bukti_files_label').val('Tidak ada file terpilih');
+        } else if (files.length === 1) {
+            $('#bukti_files_label').val(files[0].name);
+        } else {
+            $('#bukti_files_label').val(files.length + ' file terpilih');
+        }
+
         if (files.length) {
             // render thumbnails for each selected file
             Array.from(files).forEach(function(file){
@@ -544,6 +642,11 @@ $(document).ready(function() {
         }
     });
 
+    // wire Choose File button to the hidden input
+    $(document).on('click', '#btnChooseBukti', function(){
+        $('#bukti_transaksi').trigger('click');
+    });
+
     // Items table management
     function recalcItems() {
         var grand = 0;
@@ -559,15 +662,13 @@ $(document).ready(function() {
     }
 
     function addItemRow(data) {
-        // default qty is empty so auto-appended blank rows won't be counted as items
-        data = data || {desc:'', qty:'', price:0};
+    // default qty is empty so auto-appended blank rows won't be counted as items
+    data = data || {desc:'', qty:'', price:0, notes: ''};
         var $tr = $('<tr>');
         $tr.append('<td class="align-middle text-center"></td>');
         $tr.append('<td><input type="text" class="form-control item-desc" placeholder="Nama Item" value="'+(data.desc||'')+'"></td>');
-        // employee select: clone options from main #employee_id to keep consistency
-        var empOptions = '';
-        try { if ($('#employee_id').length) empOptions = $('#employee_id').html(); } catch(e) { empOptions = ''; }
-        $tr.append('<td><select class="form-control item-employee" name="item_employee_id[]"><option value="">-- Pilih Pegawai --</option>'+empOptions+'</select></td>');
+    // notes input (replaces per-item employee select)
+    $tr.append('<td><input type="text" class="form-control item-notes" name="item_notes[]" placeholder="Catatan" value="'+(data.notes||'')+'"></td>');
         $tr.append('<td><input type="number" min="0" step="1" class="form-control item-qty" value="'+(data.qty||'')+'"></td>');
         $tr.append('<td><input type="number" min="0" step="0.01" class="form-control item-price" value="'+(data.price||0)+'"></td>');
         $tr.append('<td><input type="text" readonly class="form-control item-total" value="0.00"></td>');
@@ -576,17 +677,9 @@ $(document).ready(function() {
         $('#itemsTable tbody').append($tr);
         // focus the newly added row's description for quick entry
         $tr.find('.item-desc').focus();
-        // initialize select2 for the dynamic employee select if available
-        if (typeof $.fn.select2 === 'function') {
-            $tr.find('.item-employee').select2({ dropdownParent: $('#pengajuanModal'), width: '100%' });
-            // only set per-item employee when explicit data.employee_id is provided (edit flow)
-            if (data.employee_id) {
-                $tr.find('.item-employee').val(data.employee_id).trigger('change');
-            }
-        } else {
-            if (data.employee_id) {
-                $tr.find('.item-employee').val(data.employee_id);
-            }
+        // populate notes if provided (edit flow)
+        if (data.notes) {
+            $tr.find('.item-notes').val(data.notes);
         }
         recalcItems();
     }
@@ -682,14 +775,14 @@ $(document).ready(function() {
             var descTrim = desc ? desc.toString().trim() : '';
             var qty = parseFloat($tr.find('.item-qty').val()||0);
             var price = parseFloat($tr.find('.item-price').val()||0);
-            var empId = $tr.find('.item-employee').val() || null;
+            var notes = $tr.find('.item-notes').val() || null;
             // If the row is a faktur row, we embed fakturbeli_id into payload
             var fakturId = $tr.data('fakturbeli-id') || null;
             if (descTrim !== '') {
                 if (fakturId) {
-                    items.push({desc: descTrim, qty: 1, price: price || 0, fakturbeli_id: fakturId, employee_id: empId});
+                    items.push({desc: descTrim, qty: 1, price: price || 0, fakturbeli_id: fakturId, notes: notes});
                 } else {
-                    items.push({desc: descTrim, qty: qty || 0, price: price || 0, employee_id: empId});
+                    items.push({desc: descTrim, qty: qty || 0, price: price || 0, notes: notes});
                 }
             }
         });
@@ -849,10 +942,10 @@ $(document).ready(function() {
                 $('#division_id').val(res.division_id).trigger('change');
                 $('#tanggal_pengajuan').val(res.tanggal_pengajuan);
                 $('#jenis_pengajuan').val(res.jenis_pengajuan);
+                // populate new fields
+                $('#sumber_dana').val(res.sumber_dana || '');
+                $('#perusahaan').val(res.perusahaan || '');
                 $('#rekening_id').val(res.rekening_id).trigger('change');
-                $('#nama_bank').val(res.nama_bank || '');
-                $('#no_rekening').val(res.no_rekening || '');
-                $('#atas_nama').val(res.atas_nama || '');
                 if (res.bukti_transaksi) {
                     // res.bukti_transaksi may be JSON array or single path
                     var preview = $('#bukti_preview');
@@ -866,17 +959,20 @@ $(document).ready(function() {
                                 preview.append($img);
                             });
                             preview.show();
+                            try { $('#bukti_files_label').val((arr.length||0) + ' file tersimpan'); } catch(e){}
                         } else {
                             // treat as single path
                             var url = '/storage/' + res.bukti_transaksi;
                             preview.append($('<img>').attr('src', url).css({ 'max-width':'120px', 'max-height':'80px' }));
                             preview.show();
+                            try { var fn = url.split('/').pop(); $('#bukti_files_label').val(fn); } catch(e){}
                         }
                     } catch (e) {
                         // fallback: treat as single path string
                         var url = '/storage/' + res.bukti_transaksi;
                         preview.append($('<img>').attr('src', url).css({ 'max-width':'120px', 'max-height':'80px' }));
                         preview.show();
+                        try { var fn = url.split('/').pop(); $('#bukti_files_label').val(fn); } catch(e){}
                     }
                 } else {
                     $('#bukti_preview').hide();
@@ -886,7 +982,7 @@ $(document).ready(function() {
                 $('#itemsTable tbody').empty();
                 if (res.items && res.items.length) {
                     res.items.forEach(function(it){
-                        var rowData = { desc: it.nama_item, qty: it.jumlah, price: it.harga_satuan, employee_id: it.employee_id || '' };
+                        var rowData = { desc: it.nama_item, qty: it.jumlah, price: it.harga_satuan, notes: it.notes || '' };
                         addItemRow(rowData);
                         // if item is faktur-type, mark row so serialization and UI are correct
                         if (it.fakturbeli_id) {
@@ -981,6 +1077,121 @@ $(document).ready(function() {
                     }
                 }
             });
+        });
+    });
+
+    // Decline pengajuan (simple confirm; no reason required)
+    $('#pengajuanTable').on('click', '.decline-pengajuan', function() {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Tolak pengajuan?',
+            text: 'Anda akan menolak pengajuan ini.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Tolak',
+            cancelButtonText: 'Batal'
+        }).then(function(result){
+            if (!result.value) return; // cancelled
+            $.ajax({
+                url: '/finance/pengajuan-dana/' + id + '/decline',
+                method: 'POST',
+                data: {},
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                success: function(res){
+                    Swal.fire('Ditolak', res.message || 'Pengajuan telah ditolak', 'success');
+                    table.ajax.reload(null, false);
+                },
+                error: function(xhr){
+                    if (xhr.status === 422 || xhr.status === 400) {
+                        Swal.fire('Gagal', xhr.responseJSON.message || 'Validasi gagal', 'warning');
+                    } else {
+                        Swal.fire('Error', 'Terjadi kesalahan pada server', 'error');
+                    }
+                }
+            });
+        });
+    });
+
+    // Upload bukti handler - open file picker and POST files to upload endpoint
+    $('#pengajuanTable').on('click', '.upload-bukti', function() {
+        // open Bukti modal and load existing images; allow uploading more
+        var id = $(this).data('id');
+        if (!id) return;
+        // clear modal state
+        $('#buktiModal').data('id', id);
+        $('#buktiModalPreview').empty();
+        $('#buktiModalInput').val('');
+        $('#buktiModalFilesLabel').text('Tidak ada file terpilih');
+
+        // fetch existing bukti via the pengajuan GET endpoint (same used for edit)
+        $.ajax({
+            url: '/finance/pengajuan-dana/' + id,
+            method: 'GET',
+            success: function(res){
+                if (!res) return;
+                var preview = $('#buktiModalPreview');
+                preview.empty();
+                try {
+                    var arr = null;
+                    if (res.bukti_transaksi) {
+                        arr = (typeof res.bukti_transaksi === 'string') ? JSON.parse(res.bukti_transaksi) : res.bukti_transaksi;
+                    }
+                    if (Array.isArray(arr)) {
+                        arr.forEach(function(p){ if (!p) return; var $img = $('<img>').attr('src','/storage/' + p).css({'max-width':'160px','max-height':'120px','margin-right':'8px','margin-bottom':'8px'}); preview.append($img); });
+                    } else if (res.bukti_transaksi) {
+                        var url = '/storage/' + res.bukti_transaksi;
+                        preview.append($('<img>').attr('src', url).css({'max-width':'160px','max-height':'120px'}));
+                    }
+                } catch(e) {
+                    var url = '/storage/' + res.bukti_transaksi;
+                    preview.append($('<img>').attr('src', url).css({'max-width':'160px','max-height':'120px'}));
+                }
+                $('#buktiModal').modal('show');
+            },
+            error: function(){ Swal.fire('Error', 'Gagal memuat bukti', 'error'); }
+        });
+    });
+
+    // file input change inside bukti modal - update label and preview of selected files
+    $(document).on('change', '#buktiModalInput', function(e){
+        var files = this.files || [];
+        var $label = $('#buktiModalFilesLabel');
+        var $preview = $('#buktiModalNewPreview');
+        $preview.empty();
+        if (!files || files.length === 0) {
+            $label.text('Tidak ada file terpilih');
+            return;
+        }
+        if (files.length === 1) $label.text(files[0].name); else $label.text(files.length + ' file terpilih');
+        Array.from(files).forEach(function(file){ if (!file.type || file.type.indexOf('image') === -1) return; var reader = new FileReader(); reader.onload = function(evt){ var $img = $('<img>').attr('src', evt.target.result).css({'max-width':'120px','max-height':'90px','margin-right':'6px','margin-bottom':'6px'}); $preview.append($img); }; reader.readAsDataURL(file); });
+    });
+
+    // Upload files from Bukti modal
+    $(document).on('click', '#buktiModalUpload', function(){
+        var id = $('#buktiModal').data('id');
+        if (!id) return;
+        var input = document.getElementById('buktiModalInput');
+        var files = input.files || [];
+        if (!files || files.length === 0) {
+            Swal.fire('Info', 'Pilih file terlebih dahulu', 'info');
+            return;
+        }
+        var fd = new FormData();
+        Array.from(files).forEach(function(f){ fd.append('bukti_transaksi[]', f); });
+        $.ajax({
+            url: '/finance/pengajuan-dana/' + id + '/upload-bukti',
+            method: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+            beforeSend: function(){ Swal.fire({ title: 'Uploading...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } }); },
+            success: function(res){
+                Swal.fire('Sukses', res.message || 'Upload berhasil', 'success');
+                $('#buktiModal').modal('hide');
+                table.ajax.reload(null, false);
+            },
+            error: function(xhr){ var msg = 'Terjadi kesalahan pada server'; if (xhr && xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message; Swal.fire('Error', msg, 'error'); }
         });
     });
 
@@ -1106,6 +1317,94 @@ $(document).ready(function() {
             });
         });
     }
+
+    // Show approvals modal when badge/button clicked
+    function _esc(s) { return $('<div>').text(s || '').html(); }
+    $(document).on('click', '.show-approvals', function(e){
+        e.preventDefault();
+        var id = $(this).data('id');
+        if (!id) return;
+        var url = '{{ url('finance/pengajuan-dana') }}' + '/' + id + '/approvals';
+        $.get(url, function(res, status, xhr){
+            // if response is HTML (e.g., redirect to login), treat as failure
+            var contentType = (xhr && xhr.getResponseHeader) ? xhr.getResponseHeader('Content-Type') : '';
+            if (contentType && contentType.indexOf('application/json') === -1) {
+                // not JSON — likely a redirect or error page
+                Swal.fire('Error', 'Gagal memuat data persetujuan', 'error');
+                return;
+            }
+            if (!res || !res.success) {
+                Swal.fire('Error', 'Gagal memuat data persetujuan', 'error');
+                return;
+            }
+            var list = res.data || [];
+            var html = '';
+            html += '<div class="modal fade" id="approvalsModal" tabindex="-1" aria-hidden="true">';
+            html += '<div class="modal-dialog">';
+            html += '<div class="modal-content">';
+            html += '<div class="modal-header">';
+            html += '<h5 class="modal-title">Daftar Persetujuan</h5>';
+            html += '<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
+            html += '</div>';
+            html += '<div class="modal-body">';
+            html += '<table class="table table-sm table-bordered">';
+            html += '<thead><tr><th style="width:6%">#</th><th>Nama</th><th>Jabatan</th><th style="width:28%">Tanggal</th><th style="width:8%">Status</th></tr></thead>';
+            html += '<tbody>';
+            if (list.length) {
+                // group by tingkat (level)
+                var groups = {};
+                list.forEach(function(it){
+                    var lvl = (typeof it.tingkat !== 'undefined' && it.tingkat !== null && it.tingkat !== '') ? it.tingkat : '0';
+                    if (!groups[lvl]) groups[lvl] = [];
+                    groups[lvl].push(it);
+                });
+                // sort tingkat numeric ascending
+                var levels = Object.keys(groups).sort(function(a,b){ return Number(a) - Number(b); });
+                var counter = 1;
+                levels.forEach(function(lvl){
+                    // group header row to indicate tingkat
+                    html += '<tr class="table-secondary"><td colspan="4"><strong>Tingkat ' + _esc(lvl) + '</strong></td><td></td></tr>';
+                    groups[lvl].forEach(function(it){
+                        html += '<tr>';
+                        html += '<td>' + (counter++) + '</td>';
+                        html += '<td>' + _esc(it.name) + '</td>';
+                        html += '<td>' + _esc(it.jabatan) + '</td>';
+                        html += '<td>' + _esc(it.date) + '</td>';
+                        var icon = '';
+                        try {
+                            if (it.status === 'approved') {
+                                icon = '<i class="fa fa-check-circle text-success" title="Disetujui"></i>';
+                            } else if (it.status === 'declined' || it.status === 'rejected') {
+                                icon = '<i class="fa fa-times-circle text-danger" title="Ditolak"></i>';
+                            } else {
+                                icon = '<i class="fa fa-clock text-muted" title="Menunggu"></i>';
+                            }
+                        } catch(e) { icon = ''; }
+                        html += '<td class="text-center">' + icon + '</td>';
+                        html += '</tr>';
+                    });
+                });
+            } else {
+                html += '<tr><td colspan="5" class="text-center">Belum ada persetujuan</td></tr>';
+            }
+            html += '</tbody></table>';
+            // informational note: only one approval needed per tingkat (styled red)
+            html += '<div class="mt-2"><small class="text-danger">Catatan: Hanya perlu 1 approval tiap tingkat.</small></div>';
+            html += '</div>';
+            html += '<div class="modal-footer">';
+            html += '<button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>';
+            html += '</div></div></div></div>';
+
+            // ensure only one approvals modal exists
+            $('#approvalsModal').remove();
+            $('body').append(html);
+            $('#approvalsModal').modal({ backdrop: 'static', keyboard: false });
+            $('#approvalsModal').modal('show');
+        }).fail(function(){
+            Swal.fire('Error', 'Gagal memuat data persetujuan', 'error');
+        });
+    });
+
 });
 </script>
 @endsection

@@ -37,7 +37,7 @@ class FinancePengajuanDanaController extends Controller
 
     public function data(Request $request)
     {
-        $query = FinancePengajuanDana::with(['employee.user', 'division', 'approvals.approver.user']);
+        $query = FinancePengajuanDana::with(['employee.user', 'division', 'approvals.approver.user', 'rekening']);
         // apply optional date range filter (tanggal_pengajuan)
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
@@ -79,6 +79,35 @@ class FinancePengajuanDanaController extends Controller
                 return $html;
             })
 
+            ->addColumn('diajukan_ke', function($row) {
+                $s = trim($row->sumber_dana ?? '');
+                $p = trim($row->perusahaan ?? '');
+                $parts = [];
+                if ($s !== '') {
+                    $parts[] = '<div><strong>' . e($s) . '</strong></div>';
+                }
+                if ($p !== '') {
+                    // choose badge color per perusahaan
+                    $label = e($p);
+                    $lc = strtolower($p);
+                    $badgeStyle = '';
+                    if (strpos($lc, 'belia') !== false) {
+                        // pink
+                        $badgeStyle = 'background-color:#ff69b4;color:#fff;';
+                    } elseif (strpos($lc, 'belova') !== false) {
+                        // blue (bootstrap primary)
+                        $badgeStyle = 'background-color:#007bff;color:#fff;';
+                    } elseif (strpos($lc, 'grha') !== false) {
+                        // orange
+                        $badgeStyle = 'background-color:#fd7e14;color:#fff;';
+                    } else {
+                        $badgeStyle = 'background-color:#6c757d;color:#fff;';
+                    }
+                    $parts[] = '<div><small><span class="badge" style="' . $badgeStyle . '">' . $label . '</span></small></div>';
+                }
+                return implode('', $parts);
+            })
+
             ->addColumn('items_list', function($row) {
                 // render a compact list of items (name and qty)
                 $parts = [];
@@ -93,8 +122,8 @@ class FinancePengajuanDanaController extends Controller
             ->addColumn('actions', function ($row) {
                 $btns = '<div class="btn-group" role="group">';
 
-                // View (PDF) button - opens PDF in new tab
-                $btns .= '<a class="btn btn-sm btn-secondary" href="/finance/pengajuan-dana/' . $row->id . '/pdf" target="_blank" title="Lihat">View</a>';
+                // PDF/Print button - opens PDF in new tab (text label)
+                $btns .= '<a class="btn btn-sm btn-secondary" href="/finance/pengajuan-dana/' . $row->id . '/pdf" target="_blank" title="Cetak PDF">PDF</a>';
 
                 // Only show edit/delete to the employee who created the pengajuan
                 $user = Auth::user();
@@ -103,68 +132,102 @@ class FinancePengajuanDanaController extends Controller
                     $currentEmployeeId = $user->employee->id;
                 }
 
-                if ($currentEmployeeId !== null && $row->employee_id == $currentEmployeeId) {
-                    $btns .= '<button class="btn btn-sm btn-primary edit-pengajuan" data-id="' . $row->id . '">Edit</button>';
-                    $btns .= '<button class="btn btn-sm btn-danger delete-pengajuan" data-id="' . $row->id . '">Delete</button>';
-                }
+                    if ($currentEmployeeId !== null && $row->employee_id == $currentEmployeeId) {
+                        $btns .= '<button class="btn btn-sm btn-primary edit-pengajuan" data-id="' . $row->id . '" title="Edit"><i class="fa fa-edit"></i></button>';
+                        $btns .= '<button class="btn btn-sm btn-danger delete-pengajuan" data-id="' . $row->id . '" title="Delete"><i class="fa fa-trash"></i></button>';
+                    }
+
+                    // Upload bukti button: visible to everyone (icon)
+                    $btns .= '<button class="btn btn-sm btn-outline-secondary upload-bukti ms-1" data-id="' . $row->id . '" title="Upload Bukti"><i class="fa fa-upload"></i></button>';
 
                 // render approve button only if current user is an approver, it's their jenis, and it's their turn
                 if ($user) {
                     $approver = FinanceDanaApprover::where('user_id', $user->id)->first();
                     if ($approver) {
-                        $pengajuanJenis = $row->jenis_pengajuan ?? '';
-                        // check approver is allowed for this jenis (empty = global)
+                        $pengajuanSumber = $row->sumber_dana ?? '';
+                        // check approver is allowed for this sumber_dana (empty = global)
+                        $allowedForSumber = true;
                         if ($approver->jenis && trim($approver->jenis) !== '') {
-                            if (strcasecmp(trim($approver->jenis), trim($pengajuanJenis)) !== 0) {
-                                // not authorized for this jenis, skip approve button
-                            } else {
-                                // proceed to sequencing check below
+                            if (strcasecmp(trim($approver->jenis), trim($pengajuanSumber)) !== 0) {
+                                // not authorized for this sumber_dana
+                                $allowedForSumber = false;
                             }
                         }
 
-                        // sequencing: ensure each higher tingkat (level) that has approvers for this jenis
-                        // has at least one approval before allowing current approver to act.
-                        $approverTingkat = intval($approver->tingkat ?: 1);
-                        $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
-                            ->where(function($q) use ($pengajuanJenis) {
-                                if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
-                                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
-                                } else {
-                                    $q->whereNull('jenis')->orWhere('jenis', '');
-                                }
-                            })
-                            ->where('tingkat', '>', $approverTingkat)
-                            ->distinct()
-                            ->pluck('tingkat')
-                            ->toArray();
-
-                        $canApprove = true;
-                        foreach ($higherTingkatValues as $ht) {
-                            $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
-                                ->where(function($q) use ($pengajuanJenis) {
-                                    if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
-                                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
+                        // only proceed if approver is allowed for this sumber_dana
+                        if ($allowedForSumber) {
+                            // sequencing: ensure each higher tingkat (level) that has approvers for this sumber_dana
+                            // has at least one approval before allowing current approver to act.
+                            $approverTingkat = intval($approver->tingkat ?: 1);
+                            $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
+                                ->where(function($q) use ($pengajuanSumber) {
+                                    if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
                                     } else {
                                         $q->whereNull('jenis')->orWhere('jenis', '');
                                     }
                                 })
-                                ->where('tingkat', $ht)
+                                ->where('tingkat', '>', $approverTingkat)
+                                ->distinct()
+                                ->pluck('tingkat')
+                                ->toArray();
+
+                            $canApprove = true;
+                            // if any approver at a higher tingkat has declined, do not allow approval
+                            $higherApproverIds = FinanceDanaApprover::where('aktif', 1)
+                                ->where(function($q) use ($pengajuanSumber) {
+                                    if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                                    } else {
+                                        $q->whereNull('jenis')->orWhere('jenis', '');
+                                    }
+                                })
+                                ->whereIn('tingkat', $higherTingkatValues)
                                 ->pluck('id')
                                 ->toArray();
 
-                            if (empty($approverIdsAtLevel)) continue;
+                            $hasHigherDeclined = false;
+                            if (!empty($higherApproverIds)) {
+                                $hasHigherDeclined = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
+                                    ->whereIn('approver_id', $higherApproverIds)
+                                    ->where('status', 'declined')
+                                    ->exists();
+                            }
 
-                            $hasAnyApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
-                                ->whereIn('approver_id', $approverIdsAtLevel)
-                                ->exists();
+                            if ($hasHigherDeclined) {
+                                $canApprove = false;
+                            }
 
-                            if (!$hasAnyApproved) { $canApprove = false; break; }
-                        }
+                            foreach ($higherTingkatValues as $ht) {
+                                $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
+                                    ->where(function($q) use ($pengajuanSumber) {
+                                        if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                                            $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                                        } else {
+                                            $q->whereNull('jenis')->orWhere('jenis', '');
+                                        }
+                                    })
+                                    ->where('tingkat', $ht)
+                                    ->pluck('id')
+                                    ->toArray();
 
-                        if ($canApprove) {
-                            $already = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)->where('approver_id', $approver->id)->exists();
-                            if (!$already) {
-                                $btns .= '<button class="btn btn-sm btn-success approve-pengajuan ms-1" data-id="' . $row->id . '">Approve</button>';
+                                if (empty($approverIdsAtLevel)) continue;
+
+                                $hasAnyApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
+                                    ->whereIn('approver_id', $approverIdsAtLevel)
+                                    ->exists();
+
+                                if (!$hasAnyApproved) { $canApprove = false; break; }
+                            }
+
+                            if ($canApprove) {
+                                $already = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)->where('approver_id', $approver->id)->exists();
+                                if (!$already) {
+                                    // Keep approve button as text per UI requirement; add a decline option
+                                    $btns .= '<button class="btn btn-sm btn-success approve-pengajuan ms-1" data-id="' . $row->id . '" title="Approve">Approve</button>';
+                                    // Decline button (localized 'Tolak') — shown next to approve
+                                    $btns .= '<button class="btn btn-sm btn-danger decline-pengajuan ms-1" data-id="' . $row->id . '" title="Tolak">Tolak</button>';
+                                }
                             }
                         }
                     }
@@ -174,22 +237,54 @@ class FinancePengajuanDanaController extends Controller
                 return $btns;
             })
             ->addColumn('approvals_list', function($row) {
-                $items = [];
-                foreach ($row->approvals as $ap) {
-                    if ($ap->approver && $ap->approver->user) {
-                        $name = $ap->approver->user->name;
-                        $date = $ap->tanggal_approve ? Carbon::parse($ap->tanggal_approve)->format('d M Y') : '';
-                        // escape values to avoid injecting raw user input, but we return HTML container
-                        $items[] = '<div class="approval-item mb-1">'
-                            . '<div>' . e($name) . '</div>'
-                            . '<div><small class="text-muted">' . e($date) . '</small></div>'
-                            . '</div>';
+                // Simplified: return a single clickable badge indicating approval progress.
+                $pengajuanSumber = $row->sumber_dana ?? '';
+                $approversForJenis = FinanceDanaApprover::where('aktif', 1)
+                    ->where(function($q) use ($pengajuanSumber) {
+                        if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                            $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                        } else {
+                            $q->whereNull('jenis')->orWhere('jenis', '');
+                        }
+                    })
+                    ->get();
+
+                $levels = $approversForJenis->pluck('tingkat')->unique()->sort()->values()->all();
+                $totalLevels = count($levels);
+                $approvedLevels = 0;
+                if ($totalLevels > 0) {
+                    foreach ($levels as $lvl) {
+                        $idsAtLevel = $approversForJenis->where('tingkat', $lvl)->pluck('id')->toArray();
+                        $hasApprovedAtLevel = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
+                            ->whereIn('approver_id', $idsAtLevel)
+                            ->exists();
+                        if ($hasApprovedAtLevel) $approvedLevels++;
                     }
                 }
-                return implode('', $items);
+
+                // if any approver has declined, show red 'Ditolak' badge
+                $hasDeclined = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
+                    ->where(function($q){
+                        $q->where('status', 'declined')->orWhere('status', 'rejected');
+                    })->exists();
+
+                if ($hasDeclined) {
+                    $badge = '<small><span class="badge" style="background-color:#dc3545;color:#fff;">Ditolak</span></small>';
+                } elseif ($totalLevels > 0 && $approvedLevels >= $totalLevels) {
+                    $badge = '<small><span class="badge" style="background-color:#28a745;color:#fff;">Approved</span></small>';
+                } elseif ($totalLevels > 0) {
+                    $badge = '<small><span class="badge" style="background-color:#ffc107;color:#212529;">Menunggu ' . intval($approvedLevels) . '/' . intval($totalLevels) . '</span></small>';
+                } else {
+                    // no approvers configured for this sumber_dana
+                    $badge = '<small><span class="badge badge-secondary">Belum Dikonfigurasi</span></small>';
+                }
+
+                // wrap in a button so user can click to open modal showing full approval list
+                $html = '<button type="button" class="btn btn-sm btn-light show-approvals" data-id="' . $row->id . '" title="Lihat Daftar Persetujuan">' . $badge . '</button>';
+                return $html;
             })
-            // actions, approvals_list, employee_display and items_list contain HTML, mark them as raw so they are not escaped
-            ->rawColumns(['actions', 'approvals_list', 'employee_display', 'items_list'])
+            // actions, approvals_list, employee_display, diajukan_ke and items_list contain HTML, mark them as raw so they are not escaped
+            ->rawColumns(['actions', 'approvals_list', 'employee_display', 'diajukan_ke', 'items_list'])
             ->make(true);
     }
 
@@ -207,12 +302,12 @@ class FinancePengajuanDanaController extends Controller
         }
 
         $pengajuan = FinancePengajuanDana::findOrFail($id);
-        // ensure this approver is configured for this jenis_pengajuan (or global when approver.jenis empty)
-        $pengajuanJenis = $pengajuan->jenis_pengajuan ?? '';
+        // ensure this approver is configured for this sumber_dana (or global when approver.jenis empty)
+        $pengajuanSumber = $pengajuan->sumber_dana ?? '';
         if ($approver->jenis && trim($approver->jenis) !== '') {
-            // Only allow if approver->jenis matches pengajuan jenis
-            if (strcasecmp(trim($approver->jenis), trim($pengajuanJenis)) !== 0) {
-                return response()->json(['success' => false, 'message' => 'You are not authorized to approve this jenis pengajuan'], 403);
+            // Only allow if approver->jenis matches pengajuan sumber_dana
+            if (strcasecmp(trim($approver->jenis), trim($pengajuanSumber)) !== 0) {
+                return response()->json(['success' => false, 'message' => 'You are not authorized to approve this pengajuan sumber dana'], 403);
             }
         }
 
@@ -222,9 +317,9 @@ class FinancePengajuanDanaController extends Controller
 
         // Find distinct higher tingkat values that apply to this pengajuan's jenis
         $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
-            ->where(function($q) use ($pengajuanJenis) {
-                if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
-                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
+            ->where(function($q) use ($pengajuanSumber) {
+                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
                 } else {
                     $q->whereNull('jenis')->orWhere('jenis', '');
                 }
@@ -234,12 +329,35 @@ class FinancePengajuanDanaController extends Controller
             ->pluck('tingkat')
             ->toArray();
 
+        // If any approver at a higher tingkat has declined, block this approval
+        $higherApproverIds = FinanceDanaApprover::where('aktif', 1)
+            ->where(function($q) use ($pengajuanSumber) {
+                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                } else {
+                    $q->whereNull('jenis')->orWhere('jenis', '');
+                }
+            })
+            ->whereIn('tingkat', $higherTingkatValues)
+            ->pluck('id')
+            ->toArray();
+
+        if (!empty($higherApproverIds)) {
+            $higherDeclined = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+                ->whereIn('approver_id', $higherApproverIds)
+                ->where('status', 'declined')
+                ->exists();
+            if ($higherDeclined) {
+                return response()->json(['success' => false, 'message' => 'Pengajuan telah ditolak pada tingkat lebih tinggi. Anda tidak dapat menyetujui.'], 403);
+            }
+        }
+
         foreach ($higherTingkatValues as $ht) {
             // get approver ids at that tingkat applicable to this jenis
-            $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
-                ->where(function($q) use ($pengajuanJenis) {
-                    if ($pengajuanJenis && trim($pengajuanJenis) !== '') {
-                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanJenis);
+                $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
+                ->where(function($q) use ($pengajuanSumber) {
+                    if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
                     } else {
                         $q->whereNull('jenis')->orWhere('jenis', '');
                     }
@@ -274,12 +392,138 @@ class FinancePengajuanDanaController extends Controller
         return response()->json(['success' => true, 'message' => 'Pengajuan approved', 'data' => $approval]);
     }
 
+    /**
+     * Decline (reject) an individual pengajuan
+     */
+    public function decline(Request $request, $id)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $approver = FinanceDanaApprover::where('user_id', $user->id)->first();
+        if (!$approver) {
+            return response()->json(['success' => false, 'message' => 'You are not configured as an approver'], 403);
+        }
+
+        $pengajuan = FinancePengajuanDana::findOrFail($id);
+        // ensure this approver is configured for this sumber_dana (or global when approver.jenis empty)
+        $pengajuanSumber = $pengajuan->sumber_dana ?? '';
+        if ($approver->jenis && trim($approver->jenis) !== '') {
+            if (strcasecmp(trim($approver->jenis), trim($pengajuanSumber)) !== 0) {
+                return response()->json(['success' => false, 'message' => 'You are not authorized to decline this pengajuan sumber dana'], 403);
+            }
+        }
+
+        // Check sequencing same as approve: must be allowed to act now
+        $approverTingkat = intval($approver->tingkat ?: 1);
+        $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
+            ->where(function($q) use ($pengajuanSumber) {
+                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                } else {
+                    $q->whereNull('jenis')->orWhere('jenis', '');
+                }
+            })
+            ->where('tingkat', '>', $approverTingkat)
+            ->distinct()
+            ->pluck('tingkat')
+            ->toArray();
+
+        foreach ($higherTingkatValues as $ht) {
+            $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
+                ->where(function($q) use ($pengajuanSumber) {
+                    if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                    } else {
+                        $q->whereNull('jenis')->orWhere('jenis', '');
+                    }
+                })
+                ->where('tingkat', $ht)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($approverIdsAtLevel)) continue;
+
+            $hasAnyApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+                ->whereIn('approver_id', $approverIdsAtLevel)
+                ->exists();
+
+            if (!$hasAnyApproved) {
+                return response()->json(['success' => false, 'message' => 'Awaiting approval from higher level approver(s) before you can act.'], 403);
+            }
+        }
+
+        // check if already acted by this approver
+        $existing = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)->where('approver_id', $approver->id)->first();
+        if ($existing) {
+            return response()->json(['success' => false, 'message' => 'You have already acted on this pengajuan']);
+        }
+
+        $note = $request->input('note') ?: null;
+
+        $approval = FinancePengajuanDanaApproval::create([
+            'pengajuan_id' => $pengajuan->id,
+            'approver_id' => $approver->id,
+            'status' => 'declined',
+            'tanggal_approve' => Carbon::now(),
+            'note' => $note,
+        ]);
+
+        // mark pengajuan overall status as declined so downstream approvers cannot act
+        try {
+            $pengajuan->status = 'declined';
+            $pengajuan->save();
+        } catch (\Exception $e) {
+            // ignore save errors to avoid blocking decline action
+        }
+
+        return response()->json(['success' => true, 'message' => 'Pengajuan ditolak', 'data' => $approval]);
+    }
+
+    /**
+     * Upload bukti_transaksi files for an existing pengajuan (available to all users)
+     */
+    public function uploadBukti(Request $request, $id)
+    {
+        $pengajuan = FinancePengajuanDana::findOrFail($id);
+
+        $request->validate([
+            'bukti_transaksi' => 'required',
+            'bukti_transaksi.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $paths = [];
+        if ($request->hasFile('bukti_transaksi')) {
+            foreach ($request->file('bukti_transaksi') as $file) {
+                if ($file && $file->isValid()) {
+                    $paths[] = $file->store('finance/pengajuan', 'public');
+                }
+            }
+        }
+
+        // merge with existing bukti_transaksi if any
+        $existing = $pengajuan->bukti_transaksi ?: [];
+        if (!is_array($existing)) {
+            try { $existing = json_decode($existing, true) ?: []; } catch (\Exception $e) { $existing = []; }
+        }
+
+        $merged = array_values(array_filter(array_merge($existing, $paths)));
+        $pengajuan->bukti_transaksi = json_encode($merged);
+        $pengajuan->save();
+
+        return response()->json(['success' => true, 'message' => 'Bukti transaksi berhasil diupload', 'paths' => $merged]);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
             'kode_pengajuan' => 'required|string|unique:finance_pengajuan_dana,kode_pengajuan',
             'employee_id' => 'nullable|integer',
             'division_id' => 'nullable|integer',
+            'sumber_dana' => 'nullable|string',
+            'perusahaan' => 'nullable|string',
             'tanggal_pengajuan' => 'nullable|date',
             'jenis_pengajuan' => 'nullable|string',
             'status' => 'nullable|string',
@@ -288,6 +532,18 @@ class FinancePengajuanDanaController extends Controller
             'bukti_transaksi' => 'nullable',
             'bukti_transaksi.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
+
+        // If division_id wasn't provided, attempt to infer it from selected employee
+        if (empty($data['division_id']) && !empty($data['employee_id'])) {
+            try {
+                $emp = \App\Models\HRD\Employee::find($data['employee_id']);
+                if ($emp && !empty($emp->division_id)) {
+                    $data['division_id'] = $emp->division_id;
+                }
+            } catch (\Exception $e) {
+                // ignore and proceed with null division_id
+            }
+        }
 
         // Handle multiple file uploads if present
         if ($request->hasFile('bukti_transaksi')) {
@@ -333,6 +589,7 @@ class FinancePengajuanDanaController extends Controller
                     $qty = isset($it['qty']) ? intval($it['qty']) : 1;
                     $price = isset($it['price']) ? floatval($it['price']) : 0;
                     $itemEmployeeId = isset($it['employee_id']) && $it['employee_id'] !== '' ? intval($it['employee_id']) : null;
+                    $itemNotes = isset($it['notes']) && $it['notes'] !== '' ? $it['notes'] : null;
 
                     // faktur-type item: server-side authoritative snapshot
                     $fakturbeliId = isset($it['fakturbeli_id']) ? intval($it['fakturbeli_id']) : null;
@@ -352,6 +609,7 @@ class FinancePengajuanDanaController extends Controller
                                 'jumlah' => 1,
                                 'harga_satuan' => $price,
                                 'employee_id' => $itemEmployeeId,
+                                'notes' => $itemNotes,
                                 'fakturbeli_id' => $fakturbeliId,
                                 'is_faktur' => true,
                                 'harga_total_snapshot' => $price,
@@ -367,6 +625,7 @@ class FinancePengajuanDanaController extends Controller
                         'jumlah' => $qty,
                         'harga_satuan' => $price,
                         'employee_id' => $itemEmployeeId,
+                        'notes' => $itemNotes,
                     ]);
                 }
             }
@@ -515,6 +774,8 @@ class FinancePengajuanDanaController extends Controller
         $data = $request->validate([
             'employee_id' => 'nullable|integer',
             'division_id' => 'nullable|integer',
+            'sumber_dana' => 'nullable|string',
+            'perusahaan' => 'nullable|string',
             'tanggal_pengajuan' => 'nullable|date',
             'jenis_pengajuan' => 'nullable|string',
             'status' => 'nullable|string',
@@ -522,6 +783,18 @@ class FinancePengajuanDanaController extends Controller
             'items_json' => 'nullable|json',
             'bukti_transaksi' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
+
+        // If division_id not provided on update, try to infer from employee relation
+        if (empty($data['division_id']) && !empty($data['employee_id'])) {
+            try {
+                $emp = \App\Models\HRD\Employee::find($data['employee_id']);
+                if ($emp && !empty($emp->division_id)) {
+                    $data['division_id'] = $emp->division_id;
+                }
+            } catch (\Exception $e) {
+                // ignore
+            }
+        }
 
         // Handle file upload: delete old file if exists and replace
         if ($request->hasFile('bukti_transaksi')) {
@@ -584,6 +857,7 @@ class FinancePengajuanDanaController extends Controller
                         $qty = isset($it['qty']) ? intval($it['qty']) : 1;
                         $price = isset($it['price']) ? floatval($it['price']) : 0;
                         $itemEmployeeId = isset($it['employee_id']) && $it['employee_id'] !== '' ? intval($it['employee_id']) : null;
+                        $itemNotes = isset($it['notes']) && $it['notes'] !== '' ? $it['notes'] : null;
                         $fakturbeliId = isset($it['fakturbeli_id']) ? intval($it['fakturbeli_id']) : null;
                         if ($fakturbeliId) {
                             $faktur = FakturBeli::find($fakturbeliId);
@@ -599,6 +873,7 @@ class FinancePengajuanDanaController extends Controller
                                     'jumlah' => 1,
                                     'harga_satuan' => $price,
                                     'employee_id' => $itemEmployeeId,
+                                    'notes' => $itemNotes,
                                     'fakturbeli_id' => $fakturbeliId,
                                     'is_faktur' => true,
                                     'harga_total_snapshot' => $price,
@@ -612,6 +887,7 @@ class FinancePengajuanDanaController extends Controller
                             'jumlah' => $qty,
                             'harga_satuan' => $price,
                             'employee_id' => $itemEmployeeId,
+                            'notes' => $itemNotes,
                         ]);
                     }
                 }
@@ -628,5 +904,66 @@ class FinancePengajuanDanaController extends Controller
         $pengajuan = FinancePengajuanDana::findOrFail($id);
         $pengajuan->delete();
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Return approvals details for a pengajuan (for modal display)
+     */
+    public function approvalsDetails($id)
+    {
+        $pengajuan = FinancePengajuanDana::findOrFail($id);
+
+        // determine applicable approvers for this pengajuan's sumber_dana
+        $pengajuanSumber = $pengajuan->sumber_dana ?? '';
+        $approvers = FinanceDanaApprover::where('aktif', 1)
+            ->where(function($q) use ($pengajuanSumber) {
+                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                } else {
+                    $q->whereNull('jenis')->orWhere('jenis', '');
+                }
+            })
+            ->orderBy('tingkat')
+            ->get();
+
+        // map approvals by approver_id for quick lookup
+        $existingApprovals = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+            ->get()->keyBy('approver_id');
+
+        $list = [];
+        foreach ($approvers as $app) {
+            $name = '';
+            if ($app->user) {
+                $name = $app->user->name ?? '';
+            } else {
+                $name = $app->nama ?? '';
+            }
+            $jabatan = $app->jabatan ?? '';
+            $status = 'waiting';
+            $date = '';
+            if ($existingApprovals->has($app->id)) {
+                $ap = $existingApprovals->get($app->id);
+                // Normalize status values so the frontend can render correct icons
+                if (isset($ap->status) && $ap->status === 'approved') {
+                    $status = 'approved';
+                } elseif (isset($ap->status) && ($ap->status === 'declined' || $ap->status === 'rejected')) {
+                    $status = 'declined';
+                } else {
+                    // fallback to the raw status or mark as approved if unknown (preserve behavior)
+                    $status = $ap->status ?: 'waiting';
+                }
+                $date = $ap->tanggal_approve ? Carbon::parse($ap->tanggal_approve)->format('d M Y') : '';
+            }
+            $list[] = [
+                'approver_id' => $app->id,
+                'name' => $name,
+                'jabatan' => $jabatan,
+                'tingkat' => $app->tingkat,
+                'status' => $status,
+                'date' => $date,
+            ];
+        }
+
+        return response()->json(['success' => true, 'data' => $list]);
     }
 }

@@ -1015,8 +1015,11 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::post('/pengajuan-dana', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'store'])->name('finance.pengajuan.store');
     Route::get('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'show'])->name('finance.pengajuan.show');
     Route::get('/pengajuan-dana/{id}/pdf', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'pdf'])->name('finance.pengajuan.pdf');
+    Route::get('/pengajuan-dana/{id}/approvals', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'approvalsDetails'])->name('finance.pengajuan.approvals');
     Route::put('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'update'])->name('finance.pengajuan.update');
     Route::post('/pengajuan-dana/{id}/approve', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'approve'])->name('finance.pengajuan.approve');
+    Route::post('/pengajuan-dana/{id}/decline', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'decline'])->name('finance.pengajuan.decline');
+    Route::post('/pengajuan-dana/{id}/upload-bukti', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'uploadBukti'])->name('finance.pengajuan.upload_bukti');
     Route::delete('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'destroy'])->name('finance.pengajuan.destroy');
 
     // Rekening management
