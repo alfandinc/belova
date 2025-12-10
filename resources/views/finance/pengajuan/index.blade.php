@@ -87,13 +87,13 @@
                                 <!-- reduce max width so button stays on same line; use flex-nowrap to avoid wrapping -->
                                 <input type="text" id="filter_tanggal" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:220px; width:220px;" placeholder="Pilih rentang tanggal" readonly>
                                 <select id="filter_jenis" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
-                                    <option value="">Semua</option>
+                                    <option value="">Semua Jenis Pembayaran</option>
                                     <option value="Pembayaran Inkaso">Pembayaran Inkaso</option>
                                     <option value="Pembelian Barang">Pembelian Barang</option>
                                     <option value="Operasional">Operasional</option>
                                 </select>
                                 <select id="filter_sumber" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
-                                    <option value="">Semua</option>
+                                    <option value="">Semua Sumber Dana</option>
                                     <option value="Kas Bank">Kas Bank</option>
                                     <option value="Kas Kecil">Kas Kecil</option>
                                 </select>
