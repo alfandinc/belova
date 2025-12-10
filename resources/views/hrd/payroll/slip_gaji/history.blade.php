@@ -43,7 +43,7 @@
                 type: 'GET'
             },
             columns: [
-                { data: 'bulan', name: 'bulan' },
+                { data: 'bulan_label', name: 'bulan_label' },
                 { data: 'total_gaji', name: 'total_gaji', className: 'text-right' },
                 { data: 'status', name: 'status' },
                 { data: 'action', name: 'action', orderable: false, searchable: false }

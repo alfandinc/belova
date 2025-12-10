@@ -762,8 +762,25 @@ class PrSlipGajiController extends Controller
         $query = PrSlipGaji::where('employee_id', $employee->id)->orderBy('bulan', 'desc');
 
         return datatables()->of($query)
-            ->addColumn('bulan', function($row) {
-                return $row->bulan;
+            ->addColumn('bulan_label', function($row) {
+                // Expecting bulan in format YYYY-MM or YYYY-MM-DD
+                $raw = $row->bulan;
+                // Normalize to YYYY-MM
+                if (preg_match('/^(\d{4})-(\d{2})/', $raw, $m)) {
+                    $year = $m[1];
+                    $month = intval($m[2]);
+                } else {
+                    // fallback to current month
+                    $year = date('Y');
+                    $month = intval(date('m'));
+                }
+                $months = [
+                    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                    5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                    9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+                ];
+                $label = (isset($months[$month]) ? $months[$month] : 'Bulan') . ' ' . $year;
+                return $label;
             })
             ->addColumn('total_gaji', function($row) {
                 return number_format($row->total_gaji ?? 0, 2);
