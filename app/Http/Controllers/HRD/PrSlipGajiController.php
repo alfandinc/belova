@@ -759,7 +759,10 @@ class PrSlipGajiController extends Controller
             return datatables()->of(collect([]))->make(true);
         }
 
-        $query = PrSlipGaji::where('employee_id', $employee->id)->orderBy('bulan', 'desc');
+        // Only include slips that have been paid
+        $query = PrSlipGaji::where('employee_id', $employee->id)
+            ->where('status_gaji', 'paid')
+            ->orderBy('bulan', 'desc');
 
         return datatables()->of($query)
             ->addColumn('bulan_label', function($row) {
