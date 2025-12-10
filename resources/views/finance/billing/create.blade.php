@@ -255,6 +255,7 @@
                                     <option value="tiktokshop">Tiktokshop</option>
                                     <option value="tokopedia">Tokopedia</option>
                                     <option value="asuransi_inhealth">Asuransi InHealth</option>
+                                    <option value="asuransi_brilife">Asuransi Brilife</option>
                                 </select>
                             </div>
                         </div>
