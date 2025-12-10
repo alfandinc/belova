@@ -86,6 +86,12 @@
                             <div class="col-auto d-flex align-items-center flex-nowrap">
                                 <!-- reduce max width so button stays on same line; use flex-nowrap to avoid wrapping -->
                                 <input type="text" id="filter_tanggal" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:220px; width:220px;" placeholder="Pilih rentang tanggal" readonly>
+                                <select id="filter_jenis" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
+                                    <option value="">Semua</option>
+                                    <option value="Pembayaran Inkaso">Pembayaran Inkaso</option>
+                                    <option value="Pembelian Barang">Pembelian Barang</option>
+                                    <option value="Operasional">Operasional</option>
+                                </select>
                                 <select id="filter_approval" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
                                     <option value="menunggu" selected>Menunggu</option>
                                     <option value="approved">Approved</option>
@@ -427,7 +433,8 @@ $(document).ready(function() {
                 }
                 d.start_date = start;
                 d.end_date = end;
-                // include approval status filter (menunggu / approved / declined)
+                // include jenis and approval status filters
+                d.jenis = $('#filter_jenis').val() || '';
                 var approval = $('#filter_approval').val();
                 d.approval_status = approval || 'menunggu';
             }
@@ -1212,6 +1219,10 @@ $(document).ready(function() {
 
     // Approval status filter change -> reload table
     $(document).on('change', '#filter_approval', function() {
+        table.ajax.reload();
+    });
+    // Jenis filter change -> reload table
+    $(document).on('change', '#filter_jenis', function() {
         table.ajax.reload();
     });
 

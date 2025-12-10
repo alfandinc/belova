@@ -56,6 +56,11 @@ class FinancePengajuanDanaController extends Controller
                 // if parsing fails, ignore the filter
             }
         }
+        // jenis (type) filter: empty or null means show all
+        $jenis = $request->input('jenis', null);
+        if ($jenis !== null && trim($jenis) !== '') {
+            $query->where('jenis_pengajuan', trim($jenis));
+        }
         // Approval status filter: accepted values: 'approved', 'menunggu' (pending), 'declined'
         $approvalStatus = $request->input('approval_status', 'menunggu');
         // build correlated subqueries for level counts and declined checks
