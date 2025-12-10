@@ -76,7 +76,7 @@
             <tr>
                 <th style="width:4%">#</th>
                 <th>Nama Item</th>
-                <th style="width:18%">Pegawai</th>
+                <th style="width:18%">Notes</th>
                 <th style="width:10%">Qty</th>
                 <th style="width:18%">Harga Satuan</th>
                 <th style="width:18%">Total</th>
@@ -87,7 +87,7 @@
             <tr>
                 <td class="text-center">{{ $i+1 }}</td>
                 <td>{{ $it->nama_item }}</td>
-                <td>{{ optional($it->employee && $it->employee->user ? $it->employee->user : $it->employee)->name ?? optional($it->employee)->nama ?? '-' }}</td>
+                <td>{{ $it->notes ?? '-' }}</td>
                 <td class="text-right">{{ $it->jumlah ?? $it->qty ?? 1 }}</td>
     
                 <td class="text-right">Rp {{ number_format($it->harga_satuan ?? 0, 2, ',', '.') }}</td>
