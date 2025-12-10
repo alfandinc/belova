@@ -85,6 +85,30 @@ class FinancePengajuanDanaController extends Controller
         }
 
         return DataTables::of($query)
+            ->filter(function($q) use ($request) {
+                // global search: allow matching kode, perusahaan, sumber_dana,
+                // employee name (user.name or employee.nama), division.name, and item.nama_item
+                $search = $request->input('search.value');
+                if ($search && trim($search) !== '') {
+                    $s = trim($search);
+                    $q->where(function($qq) use ($s) {
+                        $qq->where('kode_pengajuan', 'like', "%{$s}%")
+                           ->orWhere('perusahaan', 'like', "%{$s}%")
+                           ->orWhere('sumber_dana', 'like', "%{$s}%")
+                           ->orWhereHas('employee', function($qe) use ($s) {
+                               $qe->whereHas('user', function($qu) use ($s) {
+                                   $qu->where('name', 'like', "%{$s}%");
+                               })->orWhere('nama', 'like', "%{$s}%");
+                           })
+                           ->orWhereHas('division', function($qd) use ($s) {
+                               $qd->where('name', 'like', "%{$s}%");
+                           })
+                           ->orWhereHas('items', function($qi) use ($s) {
+                               $qi->where('nama_item', 'like', "%{$s}%");
+                           });
+                    });
+                }
+            })
             ->addColumn('employee_display', function($row) {
                 // show employee name and division under it
                 $name = '';
