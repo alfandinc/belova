@@ -421,8 +421,8 @@ function verifyPasswordAndGetSlip() {
             } else {
                 // Password is correct and slip is available
                 $('#passwordVerificationModal').modal('hide');
-                // Open the PDF in a new window
-                window.open(response.url, '_blank');
+                // Redirect user to their slip history page
+                window.location.href = response.url;
             }
             
             // Clear the password field

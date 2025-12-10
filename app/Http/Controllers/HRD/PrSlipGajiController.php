@@ -41,34 +41,11 @@ class PrSlipGajiController extends Controller
             ]);
         }
 
-        $slip = PrSlipGaji::where('employee_id', $employee->id)
-                         ->orderBy('bulan', 'desc')
-                         ->first();
-
-        if (!$slip) {
-            return response()->json([
-                'success' => false,
-                'type' => 'error',
-                'title' => 'Error',
-                'message' => 'Slip gaji belum tersedia.'
-            ]);
-        }
-
-        // Check if the slip status is paid
-        if ($slip->status_gaji !== 'paid') {
-            return response()->json([
-                'success' => false,
-                'type' => 'warning',
-                'title' => 'Slip Belum Tersedia',
-                'message' => 'Slip gaji Anda masih dalam proses. Silahkan cek kembali nanti.'
-            ]);
-        }
-
+        // After successful password verification, always redirect user to their slip history page
         if ($request->isMethod('post')) {
-            // Return success response with a URL to fetch the PDF
             return response()->json([
                 'success' => true,
-                'url' => route('hrd.payroll.slip_gaji.download', ['id' => $slip->id])
+                'url' => route('hrd.payroll.slip_gaji.history')
             ]);
         }
 
@@ -757,6 +734,46 @@ class PrSlipGajiController extends Controller
             ->addColumn('action', function($row) {
                 return '<button class="btn btn-info btn-sm btn-detail">Detail Slip</button> '
                     . '<button class="btn btn-primary btn-sm btn-print">Print</button>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    /**
+     * Show history page for the currently authenticated employee.
+     */
+    public function historyPage()
+    {
+        return view('hrd.payroll.slip_gaji.history');
+    }
+
+    /**
+     * Return DataTable JSON for slips belonging to the logged-in employee.
+     */
+    public function historyData(Request $request)
+    {
+        $user = Auth::user();
+        $employee = $user ? $user->employee : null;
+
+        if (!$employee) {
+            return datatables()->of(collect([]))->make(true);
+        }
+
+        $query = PrSlipGaji::where('employee_id', $employee->id)->orderBy('bulan', 'desc');
+
+        return datatables()->of($query)
+            ->addColumn('bulan', function($row) {
+                return $row->bulan;
+            })
+            ->addColumn('total_gaji', function($row) {
+                return number_format($row->total_gaji ?? 0, 2);
+            })
+            ->addColumn('status', function($row) {
+                return $row->status_gaji;
+            })
+            ->addColumn('action', function($row) {
+                $printUrl = url('hrd/payroll/slip-gaji/print/' . $row->id);
+                return '<a href="' . $printUrl . '" class="btn btn-sm btn-primary" target="_blank">Cetak PDF</a>';
             })
             ->rawColumns(['action'])
             ->make(true);

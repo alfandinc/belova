@@ -1646,6 +1646,15 @@ Route::get('hrd/payroll/slip-gaji/jasmed/{id}', [App\Http\Controllers\HRD\PrSlip
     ->middleware(['auth'])
     ->name('hrd.payroll.slip_gaji.jasmed');
 
+// Employee slip history page & data (after password verification user will be redirected here)
+Route::get('hrd/payroll/slip-gaji/history', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'historyPage'])
+    ->middleware(['auth'])
+    ->name('hrd.payroll.slip_gaji.history');
+
+Route::get('hrd/payroll/slip-gaji/history/data', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'historyData'])
+    ->middleware(['auth'])
+    ->name('hrd.payroll.slip_gaji.history.data');
+
 // Payroll Slip Gaji Routes
 Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'index'])->name('hrd.payroll.slip_gaji.index');
