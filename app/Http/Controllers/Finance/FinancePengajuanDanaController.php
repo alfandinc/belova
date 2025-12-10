@@ -61,6 +61,11 @@ class FinancePengajuanDanaController extends Controller
         if ($jenis !== null && trim($jenis) !== '') {
             $query->where('jenis_pengajuan', trim($jenis));
         }
+        // sumber_dana filter: empty or null means show all
+        $sumber = $request->input('sumber_dana', null);
+        if ($sumber !== null && trim($sumber) !== '') {
+            $query->where('sumber_dana', trim($sumber));
+        }
         // Approval status filter: accepted values: 'approved', 'menunggu' (pending), 'declined'
         $approvalStatus = $request->input('approval_status', 'menunggu');
         // build correlated subqueries for level counts and declined checks

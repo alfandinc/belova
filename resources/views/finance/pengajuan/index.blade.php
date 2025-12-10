@@ -92,6 +92,11 @@
                                     <option value="Pembelian Barang">Pembelian Barang</option>
                                     <option value="Operasional">Operasional</option>
                                 </select>
+                                <select id="filter_sumber" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
+                                    <option value="">Semua</option>
+                                    <option value="Kas Bank">Kas Bank</option>
+                                    <option value="Kas Kecil">Kas Kecil</option>
+                                </select>
                                 <select id="filter_approval" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
                                     <option value="menunggu" selected>Menunggu</option>
                                     <option value="approved">Approved</option>
@@ -433,8 +438,9 @@ $(document).ready(function() {
                 }
                 d.start_date = start;
                 d.end_date = end;
-                // include jenis and approval status filters
+                // include jenis, sumber_dana and approval status filters
                 d.jenis = $('#filter_jenis').val() || '';
+                d.sumber_dana = $('#filter_sumber').val() || '';
                 var approval = $('#filter_approval').val();
                 d.approval_status = approval || 'menunggu';
             }
@@ -1223,6 +1229,10 @@ $(document).ready(function() {
     });
     // Jenis filter change -> reload table
     $(document).on('change', '#filter_jenis', function() {
+        table.ajax.reload();
+    });
+    // Sumber Dana filter change -> reload table
+    $(document).on('change', '#filter_sumber', function() {
         table.ajax.reload();
     });
 
