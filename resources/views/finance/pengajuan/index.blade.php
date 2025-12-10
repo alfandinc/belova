@@ -86,6 +86,11 @@
                             <div class="col-auto d-flex align-items-center flex-nowrap">
                                 <!-- reduce max width so button stays on same line; use flex-nowrap to avoid wrapping -->
                                 <input type="text" id="filter_tanggal" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:220px; width:220px;" placeholder="Pilih rentang tanggal" readonly>
+                                <select id="filter_approval" class="form-control form-control-sm mr-2" style="min-width:140px; max-width:180px; width:160px;">
+                                    <option value="menunggu" selected>Menunggu</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="declined">Ditolak</option>
+                                </select>
                                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="clearFilterTanggal" title="Clear filter">Clear</button>
                                 <button type="button" class="btn btn-primary ml-2" id="btnAddPengajuan">
                                     <i class="fas fa-plus mr-1"></i> Buat Pengajuan
@@ -422,6 +427,9 @@ $(document).ready(function() {
                 }
                 d.start_date = start;
                 d.end_date = end;
+                // include approval status filter (menunggu / approved / declined)
+                var approval = $('#filter_approval').val();
+                d.approval_status = approval || 'menunggu';
             }
         },
         columns: [
@@ -1199,6 +1207,11 @@ $(document).ready(function() {
     // Clear date filter button
     $(document).on('click', '#clearFilterTanggal', function() {
         $('#filter_tanggal').val('');
+        table.ajax.reload();
+    });
+
+    // Approval status filter change -> reload table
+    $(document).on('change', '#filter_approval', function() {
         table.ajax.reload();
     });
 

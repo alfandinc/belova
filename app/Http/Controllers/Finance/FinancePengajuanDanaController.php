@@ -56,6 +56,23 @@ class FinancePengajuanDanaController extends Controller
                 // if parsing fails, ignore the filter
             }
         }
+        // Approval status filter: accepted values: 'approved', 'menunggu' (pending), 'declined'
+        $approvalStatus = $request->input('approval_status', 'menunggu');
+        // build correlated subqueries for level counts and declined checks
+        $totalLevelsSql = "(SELECT COUNT(DISTINCT fda.tingkat) FROM finance_dana_approver fda WHERE fda.aktif = 1 AND ( (fda.jenis IS NULL OR fda.jenis = '') OR fda.jenis = finance_pengajuan_dana.sumber_dana ))";
+        $approvedLevelsSql = "(SELECT COUNT(DISTINCT fda.tingkat) FROM finance_dana_approver fda JOIN finance_pengajuan_dana_approval ap ON ap.approver_id = fda.id AND ap.pengajuan_id = finance_pengajuan_dana.id AND ap.status = 'approved' WHERE fda.aktif = 1 AND ( (fda.jenis IS NULL OR fda.jenis = '') OR fda.jenis = finance_pengajuan_dana.sumber_dana ))";
+        $declinedExistsSql = "(SELECT 1 FROM finance_pengajuan_dana_approval ap2 WHERE ap2.pengajuan_id = finance_pengajuan_dana.id AND (ap2.status = 'declined' OR ap2.status = 'rejected') LIMIT 1)";
+
+        if ($approvalStatus === 'declined') {
+            // only those with at least one declined approval
+            $query->whereRaw("EXISTS {$declinedExistsSql}");
+        } elseif ($approvalStatus === 'approved') {
+            // fully approved: have at least one approver level configured and approved levels >= total levels and no decline
+            $query->whereRaw("{$totalLevelsSql} > 0 AND {$approvedLevelsSql} >= {$totalLevelsSql} AND NOT EXISTS {$declinedExistsSql}");
+        } else {
+            // pending (menunggu): not declined and not fully approved
+            $query->whereRaw("NOT EXISTS {$declinedExistsSql} AND NOT ({$totalLevelsSql} > 0 AND {$approvedLevelsSql} >= {$totalLevelsSql})");
+        }
         $currentUser = Auth::user();
         $currentApprover = null;
         if ($currentUser) {
