@@ -442,14 +442,41 @@ class KartuStokController extends Controller
                 $start = $request->input('start');
                 $end = $request->input('end');
 
+                // Default date range: current month if not provided
+                if (!$start || !$end) {
+                    $startDt = Carbon::now()->startOfMonth();
+                    $endDt = Carbon::now()->endOfMonth();
+                } else {
+                    try {
+                        $startDt = Carbon::parse($start)->startOfDay();
+                    } catch (\Exception $e) {
+                        $startDt = Carbon::now()->startOfMonth();
+                    }
+                    try {
+                        $endDt = Carbon::parse($end)->endOfDay();
+                    } catch (\Exception $e) {
+                        $endDt = Carbon::now()->endOfMonth();
+                    }
+                }
+
+                $startStr = $startDt->format('Y-m-d H:i:s');
+                $endStr = $endDt->format('Y-m-d H:i:s');
+                $startYmd = $startDt->format('Y-m-d');
+                $endYmd = $endDt->format('Y-m-d');
+
                 // Get transactions from kartu_stok table (more accurate and complete)
                 $kartuStokQuery = DB::table('erm_kartu_stok as ks')
                     ->leftJoin('erm_gudang as g', 'ks.gudang_id', '=', 'g.id')
                     ->where('ks.obat_id', $obatId);
-                    
-                if ($start && $end) {
-                    $kartuStokQuery->whereBetween('ks.tanggal', [$start, $end]);
+
+                // If a gudang is specified, limit kartu stok to that gudang only
+                $gudangId = $request->input('gudang_id');
+                if ($gudangId !== null && $gudangId !== '') {
+                    $kartuStokQuery->where('ks.gudang_id', $gudangId);
                 }
+                    
+                // Always filter by the determined date range
+                $kartuStokQuery->whereBetween('ks.tanggal', [$startStr, $endStr]);
                 
                 $kartuStokData = $kartuStokQuery
                     ->select(
@@ -472,12 +499,13 @@ class KartuStokController extends Controller
                 // Process kartu stok data
                 $rows = [];
 
-                // Get distinct batches for this obat to compute totals across batches
-                $batches = DB::table('erm_kartu_stok')
-                    ->where('obat_id', $obatId)
-                    ->select('batch')
-                    ->distinct()
-                    ->pluck('batch');
+                // Get distinct batches for this obat (and gudang if provided) to compute totals across batches
+                $batchesQuery = DB::table('erm_kartu_stok')
+                    ->where('obat_id', $obatId);
+                if ($gudangId !== null && $gudangId !== '') {
+                    $batchesQuery->where('gudang_id', $gudangId);
+                }
+                $batches = $batchesQuery->select('batch')->distinct()->pluck('batch');
 
                 foreach ($kartuStokData as $row) {
                     // Format reference info dengan nomor dokumen asli
@@ -523,27 +551,20 @@ class KartuStokController extends Controller
                             $refNumber = '#' . $row->ref_id;
                         }
                         
-                        // Only show 'Lihat' button for faktur pembelian and invoice types
+                        // Make the reference text clickable for certain document types
                         $allowedViewTypes = ['faktur_pembelian', 'invoice_penjualan', 'invoice_return', 'retur_pembelian'];
-                        $viewBtn = '';
+                        $refNumberEsc = '<strong>' . e($refNumber) . '</strong>';
                         if (in_array($row->ref_type, $allowedViewTypes)) {
-                            $viewBtn = '<br><a href="#" class="btn btn-sm btn-outline-primary btn-view-ref mt-1" data-ref-type="' . e($row->ref_type) . '" data-ref-id="' . e($row->ref_id) . '">Lihat</a>';
+                            // Wrap the reference text in a link that existing JS (selector `.btn-view-ref`) can handle
+                            $refNumberEsc = '<a href="#" class="btn-view-ref" data-ref-type="' . e($row->ref_type) . '" data-ref-id="' . e($row->ref_id) . '">' . $refNumberEsc . '</a>';
                         }
-                        $refInfo = '<small class="text-muted">' . $refTypeFormatted . '</small><br><strong>' . $refNumber . '</strong>' . $viewBtn;
+                        $refInfo = '<small class="text-muted">' . $refTypeFormatted . '</small><br>' . $refNumberEsc;
                     } else {
                         $refInfo = '<span class="text-muted">-</span>';
                     }
                     
-                    // Badge styling untuk tipe
-                    $tipeDisplay = $row->tipe == 'masuk'
-                        ? '<span class="badge badge-success"><i class="fas fa-arrow-up"></i> Masuk</span>'
-                        : '<span class="badge badge-danger"><i class="fas fa-arrow-down"></i> Keluar</span>';
-                    
                     // Format tanggal yang lebih baik
                     $tanggalFormatted = date('d/m/Y H:i', strtotime($row->created_at));
-                    
-                    // Format jumlah dengan styling (preserve decimals)
-                    $jumlahFormatted = '<strong>' . number_format($row->jumlah, 2) . '</strong>';
                     
                     // Compute total stock across all batches for the SAME GUDANG as this transaction
                     // Use a single aggregated SQL: pick the latest kartu_stok row per (obat_id,batch)
@@ -657,11 +678,8 @@ class KartuStokController extends Controller
                         $stokFormatted .= '</div>';
                     }
                     
-                    // Format keterangan dengan gudang info (make gudang name more prominent and escape it)
+                    // Format keterangan (do NOT include per-row gudang name; summary badge covers selected gudang)
                     $infoFormatted = $row->keterangan;
-                    if ($row->nama_gudang) {
-                        $infoFormatted .= '<br><div class="text-info"><i class="fas fa-warehouse"></i> <strong>' . e($row->nama_gudang) . '</strong></div>';
-                    }
                     
                     // For stok_opname rows, display all batches in the same gudang that have stok > 0
                     // so user can see batch-level details even when a specific batch didn't change.
@@ -697,36 +715,128 @@ class KartuStokController extends Controller
                         $batchDisplay = $row->batch ? '<code>' . e($row->batch) . '</code>' : '<span class="text-muted">-</span>';
                     }
 
+                    // Put jumlah into either 'masuk' or 'keluar' column depending on tipe
+                    $masukVal = $row->tipe === 'masuk' ? (float)$row->jumlah : 0.0;
+                    $keluarVal = $row->tipe === 'keluar' ? (float)$row->jumlah : 0.0;
+
                     $rows[] = [
-                        'tipe' => $tipeDisplay,
                         'tanggal' => $tanggalFormatted,
-                        'jumlah' => $jumlahFormatted,
-                        'no_ref' => $refInfo,
-                        'stok' => $stokFormatted,
-                        'batch' => $batchDisplay,
-                        'info' => $infoFormatted,
+                        'referensi' => $refInfo,
+                        'masuk' => number_format($masukVal, 2),
+                        'keluar' => number_format($keluarVal, 2),
+                        'keterangan' => $infoFormatted,
                         'row_class' => ($row->ref_type === 'stok_opname') ? 'table-warning' : ''
                     ];
                 }
 
+                // Build summary block (obat name, stok, nilai stok) to display above the table
+                $summaryHtml = '';
+                try {
+                    $obat = Obat::find($obatId);
+                    $obatNama = $obat ? $obat->nama : '';
+                    $gudangId = $request->input('gudang_id');
+                    if ($gudangId) {
+                        $stokSum = DB::table('erm_obat_stok_gudang')
+                            ->where('obat_id', $obatId)
+                            ->where('gudang_id', $gudangId)
+                            ->select(DB::raw('COALESCE(SUM(stok),0) as stok_sum'))
+                            ->value('stok_sum');
+                    } else {
+                        $stokSum = DB::table('erm_obat_stok_gudang')
+                            ->where('obat_id', $obatId)
+                            ->select(DB::raw('COALESCE(SUM(stok),0) as stok_sum'))
+                            ->value('stok_sum');
+                    }
+                    $stokSum = $stokSum !== null ? (float)$stokSum : 0.0;
+                    $hpp = ($obat && isset($obat->hpp)) ? (float)$obat->hpp : 0.0;
+                    $nilai = $stokSum * $hpp;
+                    $satuan = $obat && isset($obat->satuan) ? trim($obat->satuan) : '';
+                    if ($satuan !== '') {
+                        $satuan = function_exists('mb_strtolower') ? mb_strtolower($satuan) : strtolower($satuan);
+                    }
+
+                    // Name on top-left, gudang on top-right, then a horizontal row with Stok and Nilai Stok below
+                    // Get gudang name (if provided)
+                    $gudangName = '';
+                    try {
+                        $gudangIdLookup = $request->input('gudang_id');
+                        if ($gudangIdLookup !== null && $gudangIdLookup !== '') {
+                            $gudangName = DB::table('erm_gudang')->where('id', $gudangIdLookup)->value('nama') ?? '';
+                        }
+                    } catch (\Exception $e) {
+                        $gudangName = '';
+                    }
+
+                    $summaryHtml .= '<div class="mb-3 p-3 border rounded">';
+                    // Render gudang name as a colored badge (different color per gudang)
+                    $gudangBadgeHtml = '';
+                    if ($gudangName) {
+                        $key = function_exists('mb_strtolower') ? mb_strtolower(trim($gudangName)) : strtolower(trim($gudangName));
+                        $badgeMap = [
+                            'apotek farmasi' => 'badge-primary',
+                            'gudang utama farmasi' => 'badge-success',
+                            'kabin gigi' => 'badge-info',
+                            'kabin beautician' => 'badge-warning',
+                            'kabin penyakit dalam' => 'badge-danger',
+                        ];
+                        $badgeClass = isset($badgeMap[$key]) ? $badgeMap[$key] : 'badge-secondary';
+                        $gudangBadgeHtml = '<span class="badge ' . $badgeClass . '">' . e($gudangName) . '</span>';
+                    }
+
+                    // Layout: left = obat name + stok/nilai, right = gudang badge + daterange under it
+                    $summaryHtml .= '<div class="d-flex justify-content-between">';
+                    // Left column: name and stock/value
+                    $summaryHtml .= '<div>';
+                    $summaryHtml .= '<strong>' . e($obatNama) . '</strong>';
+                    $summaryHtml .= '<div class="mt-2">';
+                    $summaryHtml .= '<span class="mr-4">Stok <strong>' . number_format($stokSum, 2) . ($satuan ? ' ' . e($satuan) : '') . '</strong></span>';
+                    $summaryHtml .= '<span>Nilai Stok <strong>Rp ' . number_format($nilai, 0, ',', '.') . '</strong></span>';
+                    $summaryHtml .= '</div>'; // .mt-2
+                    $summaryHtml .= '</div>';
+
+                    // Right column: badge on top, daterange picker underneath
+                    $summaryHtml .= '<div class="text-right">';
+                    $summaryHtml .= $gudangBadgeHtml;
+                    $summaryHtml .= '<div class="mt-2"><input type="text" id="kartu-detail-range-'.intval($obatId).'" class="form-control form-control-sm" value="'.e($startYmd).' - '.e($endYmd).'" readonly /></div>';
+                    $summaryHtml .= '</div>';
+
+                    $summaryHtml .= '</div>'; // .d-flex
+                    $summaryHtml .= '</div>'; // outer rounded
+                } catch (\Exception $e) {
+                    $summaryHtml = '';
+                }
+
+                // Small script to initialize daterangepicker and reload detail on apply
+                $script = '<script>';
+                $script .= '$(function(){';
+                $script .= 'var input = $("#kartu-detail-range-'.intval($obatId).'");';
+                $script .= 'try {';
+                $script .= 'input.daterangepicker({ autoUpdateInput: true, locale: { format: "YYYY-MM-DD" }, startDate: "'.e($startYmd).'", endDate: "'.e($endYmd).'" });';
+                $script .= 'input.on("apply.daterangepicker", function(ev, picker) {';
+                $script .= 'var s = picker.startDate.format("YYYY-MM-DD"); var en = picker.endDate.format("YYYY-MM-DD");';
+                $script .= '$.ajax({ url: "'.route('erm.kartustok.detail').'", type: "GET", data: { obat_id: '.intval($obatId).', gudang_id: '.($gudangId ? intval($gudangId) : '""').', start: s, end: en }, success: function(resp) {';
+                $script .= '$("#kartu-stok-panel").html(resp); $("[data-toggle=\\"tooltip\\"]").tooltip(); feather.replace(); }, error: function() { alert("Gagal memuat kartu stok."); } });';
+                $script .= '});';
+                $script .= '} catch(e) { /* daterangepicker not available */ }';
+                $script .= '});';
+                $script .= '</script>';
+
                 // Enhanced HTML table with better styling
-                $html = '';
+                $html = $summaryHtml . $script;
                 $html .= '<div class="table-responsive">';
                 $html .= '<table class="table table-sm table-bordered table-striped table-hover">';
                 $html .= '<thead class="thead-light">';
                 $html .= '<tr>';
-                $html .= '<th width="10%">Tipe</th>';
                 $html .= '<th width="15%">Tanggal</th>';
-                $html .= '<th width="10%">Jumlah</th>';
-                $html .= '<th width="15%">Referensi</th>';
-                $html .= '<th width="10%">Stok Setelah</th>';
-                $html .= '<th width="10%">Batch</th>';
+                $html .= '<th width="35%">Referensi</th>';
+                $html .= '<th width="10%" class="text-right">Masuk</th>';
+                $html .= '<th width="10%" class="text-right">Keluar</th>';
                 $html .= '<th width="30%">Keterangan</th>';
                 $html .= '</tr>';
                 $html .= '</thead><tbody>';
                 
-                if (count($rows) === 0) {
-                    $html .= '<tr><td colspan="7" class="text-center text-muted py-4">';
+                    if (count($rows) === 0) {
+                    $html .= '<tr><td colspan="6" class="text-center text-muted py-4">';
                     $html .= '<i class="fas fa-inbox fa-2x mb-2 d-block"></i>';
                     $html .= 'Tidak ada transaksi ditemukan dalam periode ini.';
                     $html .= '</td></tr>';
@@ -734,17 +844,18 @@ class KartuStokController extends Controller
                     foreach ($rows as $row) {
                         $trClass = isset($row['row_class']) && $row['row_class'] ? ' class="' . $row['row_class'] . '"' : '';
                         $html .= '<tr' . $trClass . '>';
-                        $html .= '<td class="text-center">' . ($row['tipe'] ?? '') . '</td>';
                         $html .= '<td>' . ($row['tanggal'] ?? '') . '</td>';
-                        $html .= '<td class="text-right">' . ($row['jumlah'] ?? '') . '</td>';
-                        $html .= '<td>' . ($row['no_ref'] ?? '') . '</td>';
-                        $html .= '<td class="text-center">' . ($row['stok'] ?? '') . '</td>';
-                        $html .= '<td class="text-center">' . ($row['batch'] ?? '') . '</td>';
-                        $html .= '<td>' . ($row['info'] ?? '') . '</td>';
+                        $html .= '<td>' . ($row['referensi'] ?? '') . '</td>';
+                        $html .= '<td class="text-right">' . ($row['masuk'] ?? '0.00') . '</td>';
+                        $html .= '<td class="text-right">' . ($row['keluar'] ?? '0.00') . '</td>';
+                        $html .= '<td>' . ($row['keterangan'] ?? '') . '</td>';
                         $html .= '</tr>';
                     }
                 }
                 $html .= '</tbody></table></div>';
+
+                
+
                 return $html;
             } catch (\Exception $e) {
                 return '<div class="text-danger">ERROR: ' . $e->getMessage() . '</div>';

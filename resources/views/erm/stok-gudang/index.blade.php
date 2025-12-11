@@ -6,6 +6,35 @@
 @section('content')
 <div class="container-fluid">
     <!-- Page-Title -->
+    <style>
+        /* Fix table layout and column widths so long names wrap into multiple lines */
+        #stok-table { table-layout: fixed !important; width: 100% !important; }
+        #stok-table th, #stok-table td { overflow: hidden; }
+        /* Clickable headers: pointer cursor for sortable feel */
+        #stok-table th { cursor: pointer; }
+        /* Column widths (adjust proportions) */
+        #stok-table th:nth-child(1), #stok-table td:nth-child(1) { width: 8%; white-space: nowrap; }
+        #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 44%; white-space: normal; word-break: break-word; }
+        #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 10%; white-space: nowrap; text-align: right; }
+        #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 18%; white-space: nowrap; }
+        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 12%; white-space: nowrap; text-align: center; }
+        /* Make actions column slightly wider and allow overflow so buttons are not clipped */
+        #stok-table th:nth-child(6), #stok-table td:nth-child(6) { width: 10%; white-space: nowrap; text-align: center; overflow: visible; }
+        /* Ensure button itself doesn't wrap and displays correctly */
+        #stok-table td:nth-child(6) .btn { white-space: nowrap; display: inline-block; }
+        #stok-table td { vertical-align: middle; }
+        /* Ensure buttons don't force expansion, but allow obat name links to wrap */
+        #stok-table .btn { white-space: nowrap; }
+        #stok-table td:nth-child(2) a { white-space: normal; display: inline-block; max-width:100%; overflow-wrap: anywhere; word-wrap: break-word; }
+        /* Compact filter styles */
+        .compact-filters .form-group { margin-bottom: 6px; }
+        .compact-filters label { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+        .compact-filters .form-control-sm { height: calc(1.6rem + 2px); padding: .25rem .5rem; font-size: .875rem; }
+        .compact-filters .btn-sm { padding: .35rem .55rem; font-size: .85rem; }
+        .compact-filters .form-check-label { font-size: 13px; font-weight:700; }
+        .compact-filters .form-text { font-size: 11px; margin-top: 2px; }
+    </style>
+
     <div class="row">
         <div class="col-sm-12">
             <div class="page-title-box">
@@ -23,7 +52,7 @@
     </div>
 
     <div class="row">
-        <div class="col-12">
+        <div class="col-md-7">
             <div class="card">
                 <div class="card-header">
                     <div class="row align-items-center mb-3">
@@ -31,12 +60,12 @@
                             <h4 class="card-title">Data Stok Obat per Gudang</h4>
                         </div>
                     </div>
-                    <!-- Filter Row -->
-                    <div class="row">
+                    <!-- Filter Row (compact) -->
+                    <div class="row compact-filters">
                         <div class="col-md-3">
                             <div class="form-group">
-                                <label for="filter_gudang">Pilih Gudang:</label>
-                                <select class="form-control select2" id="filter_gudang">
+                                <label for="filter_gudang">Pilih Gudang</label>
+                                <select class="form-control form-control-sm" id="filter_gudang">
                                     @foreach($gudangs as $gudang)
                                         <option value="{{ $gudang->id }}" {{ $gudang->id === $defaultGudang->id ? 'selected' : '' }}>
                                             {{ $gudang->nama }}
@@ -47,64 +76,65 @@
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">
-                                <label for="search_obat">Cari Obat:</label>
-                                <input type="text" class="form-control" id="search_obat" placeholder="Ketik nama obat atau kode obat...">
+                                <label for="search_obat">Cari Obat</label>
+                                <input type="text" class="form-control form-control-sm" id="search_obat" placeholder="Ketik nama obat atau kode...">
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="form-group">
-                                <label for="filter_status">Filter Status:</label>
-                                <select class="form-control" id="filter_status">
-                                    <option value="">Semua Status</option>
-                                    <option value="minimum">Stok Minimum</option>
-                                    <option value="maksimum">Stok Maksimum</option>
-                                    <option value="normal">Normal</option>
+                                <label for="filter_kategori">Filter Kategori</label>
+                                <select class="form-control form-control-sm" id="filter_kategori">
+                                    <option value="">Semua Kategori</option>
+                                    @foreach($kategoris as $kategori)
+                                        <option value="{{ $kategori }}">{{ $kategori }}</option>
+                                    @endforeach
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <div class="form-group">
+                        <div class="col-md-2 d-flex align-items-end justify-content-end">
+                            <div class="form-group mb-0 d-flex align-items-center">
+                                <!-- Hidden checkbox remains for existing JS listeners; toggle via icon button -->
+                                <input type="checkbox" id="hide_inactive_obat" checked style="display:none;" />
+                                <button type="button" id="btn-toggle-hide-inactive" class="btn btn-outline-primary btn-sm mr-2" data-toggle="tooltip" title="">
+                                    <i class="fas fa-eye"></i>
+                                </button>
                                 <div class="btn-group" role="group">
-                                    <button type="button" class="btn btn-secondary" id="btn-reset-filter">
-                                        <i class="fas fa-undo"></i> Reset Filter
-                                    </button>
-                                    <button type="button" class="btn btn-success" id="btn-export-excel">
-                                        <i class="fas fa-file-excel"></i> Export Excel
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-filter">
+                                        <i class="fas fa-undo"></i>
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Additional Filter Row -->
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="hide_inactive_obat" checked>
-                                <label class="form-check-label" for="hide_inactive_obat">
-                                    <strong>Sembunyikan obat yang tidak aktif</strong>
-                                </label>
-                                <small class="form-text text-muted">Centang untuk hanya menampilkan obat yang aktif saja</small>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-bordered dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;" id="stok-table">
+                        <table class="table table-bordered table-striped table-hover dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;" id="stok-table">
                             <thead>
                                 <tr>
-                                    <th>Kode Obat</th>
+                                    <th>Kode</th>
                                     <th>Nama Obat</th>
-                                    <th>Gudang</th>
+                                    <th>Stok</th>
                                     <th>Nilai Stok</th>
-                                    <th>Total Stok</th>
-                                    <th>Min Stok</th>
-                                    <th>Max Stok</th>
                                     <th>Status Stok</th>
                                     <th>Aksi</th>
                                 </tr>
                             </thead>
                         </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">Detail Kartu Stok</h4>
+                </div>
+                <div class="card-body" id="kartu-stok-panel">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-info-circle fa-2x mb-2"></i>
+                        <div>Pilih sebuah obat dari daftar di kiri untuk melihat kartu stok detail di sini.</div>
                     </div>
                 </div>
             </div>
@@ -212,37 +242,31 @@ $(document).ready(function() {
         processing: true,
         serverSide: true,
         searching: false, // Disable built-in search
+        autoWidth: false,
         ajax: {
             url: '{{ route("erm.stok-gudang.data") }}',
             data: function(d) {
                 d.gudang_id = $('#filter_gudang').val();
                 d.search_obat = $('#search_obat').val();
-                d.filter_status = $('#filter_status').val();
+                    d.kategori = $('#filter_kategori').val();
                 d.hide_inactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
             }
         },
         columns: [
             { data: 'kode_obat', name: 'kode_obat', searchable: false },
             { data: 'nama_obat', name: 'nama_obat', searchable: false },
-            { data: 'nama_gudang', name: 'nama_gudang', searchable: false },
-            { data: 'nilai_stok', name: 'nilai_stok', searchable: false },
             { data: 'total_stok', name: 'total_stok', searchable: false },
-            { data: 'min_stok', name: 'min_stok', searchable: false },
-            { data: 'max_stok', name: 'max_stok', searchable: false },
+            { data: 'nilai_stok', name: 'nilai_stok', searchable: false },
             { 
                 data: 'status_stok', 
                 name: 'status_stok',
                 searchable: true,
-                render: function(data) {
-                    return data;
+                orderable: true,
+                render: function(data, type, row) {
+                    return data; // badge only
                 }
             },
-            { 
-                data: 'actions', 
-                name: 'actions',
-                orderable: false,
-                searchable: false
-            }
+            { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
         order: [[1, 'asc']],
         pageLength: 25,
@@ -297,24 +321,9 @@ $(document).ready(function() {
         }, 500); // 500ms delay
     });
 
-    // Filter status change - client side filtering
-    $('#filter_status').change(function() {
-        var status = $(this).val();
-        if (status === '') {
-            // Show all rows
-            table.column(7).search('').draw();
-        } else {
-            // Filter by status
-            var searchTerm = '';
-            if (status === 'minimum') {
-                searchTerm = 'Stok Minimum';
-            } else if (status === 'maksimum') {
-                searchTerm = 'Stok Maksimum';
-            } else if (status === 'normal') {
-                searchTerm = 'Normal';
-            }
-            table.column(7).search(searchTerm).draw();
-        }
+    // Kategori filter: reload table when changed (server-side filter applied)
+    $('#filter_kategori').change(function() {
+        table.ajax.reload();
     });
 
     // Reload table when checkbox filter changes
@@ -322,31 +331,45 @@ $(document).ready(function() {
         table.ajax.reload();
     });
 
+    // Toggle hidden checkbox when icon button is clicked and update icon/tooltip
+    function updateHideIcon() {
+        var checked = $('#hide_inactive_obat').is(':checked');
+        var btn = $('#btn-toggle-hide-inactive');
+        // If checked => we are HIDING inactive obat, so show eye-slash (means hidden)
+        if (checked) {
+            btn.find('i').removeClass('fa-eye').addClass('fa-eye-slash');
+            btn.attr('title', 'Tampilkan obat yang tidak aktif');
+            btn.removeClass('btn-outline-primary').addClass('btn-outline-secondary');
+        } else {
+            // Not checked => inactive are visible, show regular eye icon
+            btn.find('i').removeClass('fa-eye-slash').addClass('fa-eye');
+            btn.attr('title', 'Sembunyikan obat yang tidak aktif');
+            btn.removeClass('btn-outline-secondary').addClass('btn-outline-primary');
+        }
+        // Re-init tooltip
+        try { btn.tooltip('dispose'); } catch(e) {}
+        btn.tooltip();
+    }
+
+    $('#btn-toggle-hide-inactive').on('click', function() {
+        var cb = $('#hide_inactive_obat');
+        cb.prop('checked', !cb.is(':checked'));
+        cb.trigger('change');
+        updateHideIcon();
+    });
+
+    // Initialize icon state
+    updateHideIcon();
+
     // Reset filter button
     $('#btn-reset-filter').click(function() {
         $('#search_obat').val('');
-        $('#filter_status').val('');
+        $('#filter_kategori').val('');
         $('#hide_inactive_obat').prop('checked', true); // Reset to default (checked)
         table.ajax.reload();
     });
 
-    // Export Excel button
-    $('#btn-export-excel').click(function() {
-        var gudangId = $('#filter_gudang').val();
-        var searchObat = $('#search_obat').val();
-        var hideInactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
-
-        var params = [];
-        if (gudangId) params.push('gudang_id=' + encodeURIComponent(gudangId));
-        if (searchObat) params.push('search_obat=' + encodeURIComponent(searchObat));
-        if (hideInactive !== undefined) params.push('hide_inactive=' + encodeURIComponent(hideInactive));
-
-        var url = '{{ route("erm.stok-gudang.export") }}';
-        if (params.length) url += '?' + params.join('&');
-
-        // Open in new tab to trigger download without interfering with current page
-        window.open(url, '_blank');
-    });
+    
 
     // Handle batch details button click
     $(document).on('click', '.show-batch-details', function() {
@@ -434,6 +457,35 @@ $(document).ready(function() {
             },
             error: function() {
                 alert('Terjadi kesalahan saat mengambil data batch');
+            }
+        });
+    });
+
+    // Handle kartu stok button click - load kartu stok detail into right panel
+    $(document).on('click', '.btn-kartu-stok', function(e) {
+        e.preventDefault();
+        var obatId = $(this).data('obat-id');
+        var gudangId = $(this).data('gudang-id');
+
+        // Optional: show loading state
+        $('#kartu-stok-panel').html('<div class="text-center py-5"><i class="fas fa-spinner fa-spin fa-2x mb-2"></i><div>Memuat kartu stok...</div></div>');
+
+        $.ajax({
+            url: '{{ route("erm.kartustok.detail") }}',
+            type: 'GET',
+            data: {
+                obat_id: obatId,
+                gudang_id: gudangId
+                // Keep date range empty (controller will use defaults). If you want to pass start/end, add inputs and send here.
+            },
+            success: function(response) {
+                $('#kartu-stok-panel').html(response);
+                // Re-initialize any tooltips or icons inside the loaded HTML
+                $('[data-toggle="tooltip"]').tooltip();
+                feather.replace();
+            },
+            error: function() {
+                $('#kartu-stok-panel').html('<div class="text-danger">Gagal memuat kartu stok.</div>');
             }
         });
     });

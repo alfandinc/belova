@@ -31,26 +31,39 @@ class StokGudangController extends Controller {
     {
         $gudangs = Gudang::all();
         $defaultGudang = $gudangs->first(); // Get first warehouse as default
-        return view('erm.stok-gudang.index', compact('gudangs', 'defaultGudang'));
+
+        // Get distinct obat kategori values to populate the kategori filter
+        $kategoris = Obat::select('kategori')
+            ->distinct()
+            ->whereNotNull('kategori')
+            ->where('kategori', '<>', '')
+            ->pluck('kategori')
+            ->sort()
+            ->values();
+
+        return view('erm.stok-gudang.index', compact('gudangs', 'defaultGudang', 'kategoris'));
     }
 
     public function getData(Request $request)
     {
-        // Determine which relation to use based on hide_inactive filter
-        $obatRelation = ($request->hide_inactive == 1) ? 'obatAktif' : 'obat';
-        
         // Compute aggregated totals and status in SQL so status immediately reflects min/max changes
-        $query = ObatStokGudang::with([$obatRelation, 'gudang'])
+        // Join obat and gudang tables so we can support server-side ordering by obat name / kode
+        $table = (new ObatStokGudang())->getTable();
+        $query = ObatStokGudang::leftJoin('erm_obat as o', 'o.id', $table . '.obat_id')
+            ->leftJoin('erm_gudang as g', 'g.id', $table . '.gudang_id')
             ->select(
-                'obat_id',
-                'gudang_id',
-                DB::raw('SUM(stok) as total_stok'),
-                DB::raw('MIN(min_stok) as min_stok'),
-                DB::raw('MAX(max_stok) as max_stok'),
+                $table . '.obat_id',
+                $table . '.gudang_id',
+                DB::raw('SUM(' . $table . '.stok) as total_stok'),
+                DB::raw('MIN(' . $table . '.min_stok) as min_stok'),
+                DB::raw('MAX(' . $table . '.max_stok) as max_stok'),
                 // status_stok: 'minimum' if total <= min, 'maksimum' if total >= max, otherwise 'normal'
-                DB::raw("CASE WHEN SUM(stok) <= COALESCE(MIN(min_stok),0) THEN 'minimum' WHEN SUM(stok) >= COALESCE(MAX(max_stok),0) THEN 'maksimum' ELSE 'normal' END as status_stok")
+                DB::raw("CASE WHEN SUM(" . $table . ".stok) <= COALESCE(MIN(" . $table . ".min_stok),0) THEN 'minimum' WHEN SUM(" . $table . ".stok) >= COALESCE(MAX(" . $table . ".max_stok),0) THEN 'maksimum' ELSE 'normal' END as status_stok"),
+                'o.nama as obat_nama',
+                'o.kode_obat as obat_kode',
+                'g.nama as gudang_nama'
             )
-            ->groupBy('obat_id', 'gudang_id');
+            ->groupBy($table . '.obat_id', $table . '.gudang_id', 'o.nama', 'o.kode_obat', 'g.nama');
 
         // Filter by gudang
         if ($request->gudang_id) {
@@ -63,99 +76,75 @@ class StokGudangController extends Controller {
             }
         }
 
-        // Search obat by name or code
+        // Search obat by name or code (use joined columns)
         if ($request->search_obat) {
             $searchTerm = $request->search_obat;
-            $query->whereHas('obat', function($q) use ($searchTerm, $request) {
-                if ($request->hide_inactive == 1) {
-                    // Default behavior - only show active obat
-                    $q->where('status_aktif', 1);
-                } else {
-                    // Include inactive obat
-                    $q->withInactive();
-                }
-                $q->where('nama', 'like', "%{$searchTerm}%")
-                  ->orWhere('kode_obat', 'like', "%{$searchTerm}%");
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('o.nama', 'like', "%{$searchTerm}%")
+                  ->orWhere('o.kode_obat', 'like', "%{$searchTerm}%");
             });
-        } else {
-            // Apply hide_inactive filter even when no search
-            if ($request->hide_inactive == 1) {
-                $query->whereHas('obat', function($q) {
-                    $q->where('status_aktif', 1);
-                });
-            }
+        }
+
+        // Apply hide_inactive filter if requested (filter on joined obat table)
+        if ($request->hide_inactive == 1) {
+            $query->where('o.status_aktif', 1);
+        }
+
+        // Apply kategori filter if provided (filter on joined obat table)
+        if ($request->kategori) {
+            $query->where('o.kategori', $request->kategori);
         }
 
         return DataTables::of($query)
             ->addColumn('nama_obat', function ($row) use ($request) {
-                // Use the appropriate relation based on filter
-                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
-                
-                if (!$obat) {
-                    if ($request->hide_inactive == 1) {
-                        return '<span class="text-muted">[Obat tidak aktif - disembunyikan]</span>';
-                    } else {
-                        return '<span class="text-danger">[Obat tidak ditemukan - ID: '.$row->obat_id.']</span>';
-                    }
+                $nama = $row->obat_nama ?? null;
+                if (!$nama) {
+                    return '<span class="text-danger">[Obat tidak ditemukan - ID: '.$row->obat_id.']</span>';
                 }
-                
-                $nama = $obat->nama ?? '-';
-                
-                // Tambahkan badge untuk status obat (hanya jika menampilkan semua obat)
-                if ($request->hide_inactive != 1) {
-                    if ($obat->status_aktif == 0) {
-                        $nama .= ' <span class="badge badge-warning">Tidak Aktif</span>';
-                    } else {
-                        $nama .= ' <span class="badge badge-success">Aktif</span>';
-                    }
+
+                // Append badge for inactive if not hiding inactive
+                if ($request->hide_inactive != 1 && isset($row->status_aktif) && $row->status_aktif == 0) {
+                    $nama .= ' <span class="badge badge-warning">Tidak Aktif</span>';
                 }
-                
-                return $nama;
+
+                $link = '<a href="#" class="show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'">' . $nama . '</a>';
+                return $link;
             })
             ->addColumn('kode_obat', function ($row) use ($request) {
-                // Use the appropriate relation based on filter
-                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
-                
-                if (!$obat) {
-                    return '<span class="text-muted">-</span>';
-                }
-                
-                return $obat->kode_obat ?? '-';
+                return $row->obat_kode ?? '-';
             })
             ->addColumn('nama_gudang', function ($row) {
                 return $row->gudang->nama ?? '-';
             })
             ->addColumn('nilai_stok', function ($row) use ($request) {
-                // Calculate nilai stok per row using master cost (hpp)
-                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
-                $hpp = $obat ? ($obat->hpp ?? 0) : 0;
-                $nilai = ($row->total_stok ?? 0) * $hpp;
+                // If HPP is available via join this would be used; otherwise fallback to zero
+                $hpp = isset($row->hpp) ? $row->hpp : 0;
+                if (empty($hpp)) {
+                    $nilai = 0;
+                } else {
+                    $nilai = ($row->total_stok ?? 0) * $hpp;
+                }
                 return 'Rp ' . number_format($nilai, 0, ',', '.');
             })
             ->addColumn('actions', function ($row) use ($request) {
-                // Use the appropriate relation based on filter
-                $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
-                
-                if (!$obat) {
-                    return '<button class="btn btn-sm btn-secondary" disabled>
-                        <i class="fas fa-ban"></i> Obat tidak tersedia
-                    </button>';
-                }
-                
-                // Detail batch button + Edit Min/Max button
-                $html  = '<button class="btn btn-sm btn-info show-batch-details mr-1" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'">';
-                $html .= '<i class="fas fa-list"></i> Detail Batch</button>';
-                $html .= '<button class="btn btn-sm btn-warning btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($row->min_stok ?? 0).'" data-max="'.($row->max_stok ?? 0).'">';
-                $html .= '<i class="fas fa-edit"></i> Edit Min/Max</button>';
+                // Render the Kartu Stok button in the actions column
+                // Use obat id and gudang id present in the aggregated row
+                $obatId = $row->obat_id;
+                $gudangId = $row->gudang_id;
+                if (!$obatId) return '';
 
-                return $html;
+                $btn = '<div class="text-center"><button class="btn btn-sm btn-primary btn-kartu-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'">Kartu Stok</button></div>';
+                return $btn;
             })
             ->addColumn('status_stok', function ($row) {
                 // status_stok is computed in the SQL select
                 $status = $row->status_stok ?? 'normal';
-                if ($status === 'minimum') return '<span class="badge badge-danger">Stok Minimum</span>';
-                if ($status === 'maksimum') return '<span class="badge badge-warning">Stok Maksimum</span>';
-                return '<span class="badge badge-success">Normal</span>';
+                $min = isset($row->min_stok) ? $row->min_stok : 0;
+                $max = isset($row->max_stok) ? $row->max_stok : 0;
+                // Render badge as clickable element that opens the Edit Min/Max modal via existing JS handler
+                if ($status === 'minimum') return '<span style="cursor:pointer" class="badge badge-danger btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'">Stok Minimum</span>';
+                if ($status === 'maksimum') return '<span style="cursor:pointer" class="badge badge-warning btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'">Stok Maksimum</span>';
+                return '<span style="cursor:pointer" class="badge badge-success btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'">Normal</span>';
             })
             ->editColumn('total_stok', function ($row) {
                 return number_format($row->total_stok, 2);
@@ -163,6 +152,10 @@ class StokGudangController extends Controller {
             ->filterColumn('status_stok', function($query, $keyword) {
                 // Custom filter untuk status stok akan dihandle di client side
             })
+            // Allow ordering by obat name and kode via the joined columns
+            ->orderColumn('nama_obat', 'o.nama $1')
+            ->orderColumn('kode_obat', 'o.kode_obat $1')
+            ->orderColumn('total_stok', 'total_stok $1')
             ->rawColumns(['nama_obat', 'kode_obat', 'status_stok', 'actions'])
             ->make(true);
     }
