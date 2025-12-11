@@ -719,13 +719,34 @@ class KartuStokController extends Controller
                     $masukVal = $row->tipe === 'masuk' ? (float)$row->jumlah : 0.0;
                     $keluarVal = $row->tipe === 'keluar' ? (float)$row->jumlah : 0.0;
 
+                    // Determine row class: stok_opname (warning) takes precedence,
+                    // otherwise green for masuk and red for keluar.
+                    $rowClass = '';
+                    if (isset($row->ref_type) && $row->ref_type === 'stok_opname') {
+                        $rowClass = 'table-warning';
+                    } elseif (isset($row->tipe) && $row->tipe === 'keluar') {
+                        $rowClass = 'table-danger';
+                    } elseif (isset($row->tipe) && $row->tipe === 'masuk') {
+                        $rowClass = 'table-success';
+                    }
+
+                    // Format numeric display: bold non-zero values
+                    $masukDisplay = number_format($masukVal, 2);
+                    $keluarDisplay = number_format($keluarVal, 2);
+                    if ((float)$masukVal != 0.0) {
+                        $masukDisplay = '<strong>' . $masukDisplay . '</strong>';
+                    }
+                    if ((float)$keluarVal != 0.0) {
+                        $keluarDisplay = '<strong>' . $keluarDisplay . '</strong>';
+                    }
+
                     $rows[] = [
                         'tanggal' => $tanggalFormatted,
                         'referensi' => $refInfo,
-                        'masuk' => number_format($masukVal, 2),
-                        'keluar' => number_format($keluarVal, 2),
+                        'masuk' => $masukDisplay,
+                        'keluar' => $keluarDisplay,
                         'keterangan' => $infoFormatted,
-                        'row_class' => ($row->ref_type === 'stok_opname') ? 'table-warning' : ''
+                        'row_class' => $rowClass
                     ];
                 }
 
@@ -787,7 +808,11 @@ class KartuStokController extends Controller
                     $summaryHtml .= '<div class="d-flex justify-content-between">';
                     // Left column: name and stock/value
                     $summaryHtml .= '<div>';
-                    $summaryHtml .= '<strong>' . e($obatNama) . '</strong>';
+                    $displayName = e($obatNama);
+                    if ($satuan) {
+                        $displayName .= ' (' . e($satuan) . ')';
+                    }
+                    $summaryHtml .= '<strong>' . $displayName . '</strong>';
                     $summaryHtml .= '<div class="mt-2">';
                     $summaryHtml .= '<span class="mr-4">Stok <strong>' . number_format($stokSum, 2) . ($satuan ? ' ' . e($satuan) : '') . '</strong></span>';
                     $summaryHtml .= '<span>Nilai Stok <strong>Rp ' . number_format($nilai, 0, ',', '.') . '</strong></span>';
