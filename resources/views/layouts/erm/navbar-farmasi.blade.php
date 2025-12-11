@@ -103,9 +103,11 @@
                                 <a href="/erm/obat-keluar"><i data-feather="log-out" class="align-self-center menu-icon"></i><span>Obat Keluar</span></a>
                             </li> --}}
 
+                            {{--
                             <li>
                                 <a href="/erm/kartu-stok"><i data-feather="credit-card" class="align-self-center menu-icon"></i><span>Kartu Stok</span></a>
                             </li>
+                            --}}
                             <li>
                                 <a href="/erm/stok-gudang"><i data-feather="database" class="align-self-center menu-icon"></i><span>Stok per Gudang</span></a>
                             </li>
