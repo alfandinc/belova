@@ -109,7 +109,7 @@
                             </li>
                             --}}
                             <li>
-                                <a href="/erm/stok-gudang"><i data-feather="database" class="align-self-center menu-icon"></i><span>Stok per Gudang</span></a>
+                                <a href="/erm/stok-gudang"><i data-feather="database" class="align-self-center menu-icon"></i><span>Manajemen Stok</span></a>
                             </li>
                             <li>
                                 <a href="/erm/mutasi-gudang"><i data-feather="repeat" class="align-self-center menu-icon"></i><span>Mutasi Antar Gudang</span></a>

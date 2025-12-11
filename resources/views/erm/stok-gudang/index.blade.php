@@ -1,5 +1,5 @@
 @extends('layouts.erm.app')
-@section('title', 'Farmasi | Stok per Gudang')
+@section('title', 'Farmasi | Manajemen Stok')
 @section('navbar')
     @include('layouts.erm.navbar-farmasi')
 @endsection
@@ -40,10 +40,10 @@
             <div class="page-title-box">
                 <div class="row">
                     <div class="col">
-                        <h4 class="page-title">Stok per Gudang</h4>
+                        <h4 class="page-title">Manajemen Stok</h4>
                         <ol class="breadcrumb">
                             <li class="breadcrumb-item"><a href="javascript:void(0);">Farmasi</a></li>
-                            <li class="breadcrumb-item active">Stok per Gudang</li>
+                            <li class="breadcrumb-item active">Manajemen Stok</li>
                         </ol>
                     </div>
                 </div>
