@@ -17,32 +17,38 @@
                 </div>
                 <div class="card-body">
                     <form id="notulensi-form">
+                        @csrf
                         <div class="row mb-3">
                             <div class="col-md-8">
                                 <label for="title">Judul</label>
                                 <input type="text" name="title" id="title" class="form-control" required
-                                    value="{{ isset($notulensi) ? $notulensi->title : '' }}" {{ isset($notulensi) ? 'readonly' : '' }}>
+                                    value="{{ isset($notulensi) ? $notulensi->title : '' }}">
                             </div>
                             <div class="col-md-4">
                                 <label for="date">Tanggal</label>
                                 <input type="date" name="date" id="date" class="form-control" required
-                                    value="{{ isset($notulensi) ? $notulensi->date : '' }}" {{ isset($notulensi) ? 'readonly' : '' }}>
+                                    value="{{ isset($notulensi) ? $notulensi->date : '' }}">
                             </div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="notulen">Notulen</label>
                                 <small class="text-muted d-block mb-1">Notulen adalah informasi yang dapat dilihat oleh semua karyawan.</small>
-                                <textarea name="notulen" id="notulen" class="form-control summernote" required {{ isset($notulensi) ? 'readonly' : '' }}>{{ isset($notulensi) ? $notulensi->notulen : '' }}</textarea>
+                                <textarea name="notulen" id="notulen" class="form-control summernote" required>{{ isset($notulensi) ? $notulensi->notulen : '' }}</textarea>
                             </div>
                             <div class="col-md-6">
                                 <label for="memo">Memo</label>
                                 <small class="text-muted d-block mb-1">Memo hanya dapat dilihat oleh manager.</small>
-                                <textarea name="memo" id="memo" class="form-control summernote" {{ isset($notulensi) ? 'readonly' : '' }}>{{ isset($notulensi) ? $notulensi->memo : '' }}</textarea>
+                                <textarea name="memo" id="memo" class="form-control summernote">{{ isset($notulensi) ? $notulensi->memo : '' }}</textarea>
                             </div>
                         </div>
                         @if(!isset($notulensi))
                         <button type="submit" class="btn btn-primary">Simpan</button>
+                        @else
+                        <div class="mt-2">
+                            <button type="submit" id="update-notulensi" class="btn btn-primary" style="display:none">Update</button>
+                            <button type="button" id="cancel-edit" class="btn btn-secondary" style="display:none">Cancel</button>
+                        </div>
                         @endif
                     </form>
                 </div>
@@ -103,15 +109,78 @@ $(document).ready(function() {
     $('.summernote').summernote({
         height: 200
     });
+
+    // Keep original values to detect changes (only when editing existing notulensi)
+    @if(isset($notulensi))
+        var original = {
+            title: $('#title').val() || '',
+            date: $('#date').val() || '',
+            notulen: $('#notulen').summernote('code') || '',
+            memo: $('#memo').summernote('code') || ''
+        };
+
+        function isChanged() {
+            var now = {
+                title: $('#title').val() || '',
+                date: $('#date').val() || '',
+                notulen: $('#notulen').summernote('code') || '',
+                memo: $('#memo').summernote('code') || ''
+            };
+            return now.title !== original.title || now.date !== original.date || now.notulen !== original.notulen || now.memo !== original.memo;
+        }
+
+        function toggleUpdateButtons() {
+            if (isChanged()) {
+                $('#update-notulensi, #cancel-edit').show();
+            } else {
+                $('#update-notulensi, #cancel-edit').hide();
+            }
+        }
+
+        // wire change listeners
+        $('#title, #date').on('input change', function() { toggleUpdateButtons(); });
+        $('#notulen').on('summernote.change', function(we, contents, $editable) { toggleUpdateButtons(); });
+        $('#memo').on('summernote.change', function(we, contents, $editable) { toggleUpdateButtons(); });
+
+        // Cancel: revert to original values without reload
+        $('#cancel-edit').on('click', function() {
+            $('#title').val(original.title);
+            $('#date').val(original.date);
+            $('#notulen').summernote('code', original.notulen);
+            $('#memo').summernote('code', original.memo);
+            toggleUpdateButtons();
+        });
+
+    @endif
+
+    // Submit (create or update depending on context)
     $('#notulensi-form').on('submit', function(e) {
         e.preventDefault();
+        var isEditMode = @json(isset($notulensi)) && $('#update-notulensi').is(':visible');
+        var url = isEditMode ? '{{ route('workdoc.notulensi-rapat.update', $notulensi->id ?? 0) }}' : '{{ route('workdoc.notulensi-rapat.store') }}';
+        var data = $(this).serialize() + (isEditMode ? '&_method=PUT' : '');
         $.ajax({
-            url: '{{ route('workdoc.notulensi-rapat.store') }}',
+            url: url,
             method: 'POST',
-            data: $(this).serialize(),
+            data: data,
             success: function(res) {
                 if (res.success) {
-                    window.location.href = '{{ route('workdoc.notulensi-rapat.index') }}';
+                    if (isEditMode) {
+                        // update original values so further edits require changes
+                        @if(isset($notulensi))
+                        original.title = $('#title').val() || '';
+                        original.date = $('#date').val() || '';
+                        original.notulen = $('#notulen').summernote('code') || '';
+                        original.memo = $('#memo').summernote('code') || '';
+                        toggleUpdateButtons();
+                        // show a small success indicator
+                        alert('Notulensi berhasil diperbarui');
+                        @else
+                        location.reload();
+                        @endif
+                    } else {
+                        window.location.href = '{{ route('workdoc.notulensi-rapat.index') }}';
+                    }
                 }
             },
             error: function(xhr) {
@@ -134,6 +203,8 @@ $(document).ready(function() {
             { data: 'action', name: 'action', orderable: false, searchable: false },
         ]
     });
+
+    
 
     // Add To-Do
     $('#todo-form').on('submit', function(e) {

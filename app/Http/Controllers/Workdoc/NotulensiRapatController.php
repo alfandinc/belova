@@ -72,6 +72,30 @@ class NotulensiRapatController extends Controller
         return response()->json(['success' => true]);
     }
 
+    // Update existing notulensi
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'date' => 'required|date',
+            'notulen' => 'required|string',
+            'memo' => 'nullable|string',
+        ]);
+        $notulensi = NotulensiRapat::findOrFail($id);
+        $user = Auth::user();
+        $isCreator = $notulensi->created_by === $user->id;
+        $hasRole = $user->hasRole(['Manager', 'Hrd', 'Ceo','Admin']);
+        if (! $isCreator && ! $hasRole) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        $notulensi->title = $request->input('title');
+        $notulensi->date = $request->input('date');
+        $notulensi->notulen = $request->input('notulen');
+        $notulensi->memo = $request->input('memo');
+        $notulensi->save();
+        return response()->json(['success' => true]);
+    }
+
         // AJAX DataTable for todos
     public function todos(Request $request, $id)
     {

@@ -925,6 +925,8 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::post('/notulensi-rapat/{id}/todos', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'storeTodo'])->name('workdoc.notulensi-rapat.todos.store');
     Route::delete('/notulensi-rapat/{notulensiId}/todos/{todoId}', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'deleteTodo'])->name('workdoc.notulensi-rapat.todos.delete');
     Route::post('/notulensi-rapat/{notulensiId}/todos/{todoId}/approve', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'approveTodo'])->name('workdoc.notulensi-rapat.todos.approve');
+    // Update notulensi (AJAX)
+    Route::put('/notulensi-rapat/{id}', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'update'])->name('workdoc.notulensi-rapat.update');
 });
 
 
