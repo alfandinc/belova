@@ -142,11 +142,11 @@
                         <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
                         <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
                         <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal">Etiket Biru</button>
-                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}">
+                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
                             Riwayat Dokter
                         </button>
 
-                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}">
+                        <button class="btn btn-sm btn-warning btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
                             Riwayat Farmasi
                         </button>
                         <button id="submit-all" class="btn btn-success btn-sm">Submit Resep</button>
@@ -1356,6 +1356,21 @@
         $(document).on('click', '.btn-riwayat', function () {
             console.log('Button clicked'); // Debugging
             let url = $(this).data('url');
+            // Set modal title dynamically from data-title attribute (fallback to generic)
+            const title = $(this).data('title') || 'Riwayat Resep';
+            $('#riwayatModalTitle').text(title);
+
+            // Set header color based on data-type (dokter => blue, farmasi => yellow)
+            const type = $(this).data('type') || '';
+            const header = $('#riwayatModal .modal-header');
+            // remove any previously applied bg/text classes
+            header.removeClass('bg-primary bg-warning text-white text-dark');
+            if (type === 'dokter') {
+                header.addClass('bg-primary text-white');
+            } else if (type === 'farmasi') {
+                header.addClass('bg-warning text-dark');
+            }
+
             $('#riwayatModal').modal('show');
             $('#riwayatModalContent').html('<p class="text-center">Loading...</p>');
 
