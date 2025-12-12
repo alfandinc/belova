@@ -339,6 +339,8 @@ Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/inventories/maintenance', [InventoriesController::class, 'storeMaintenance'])->name('bcl.inventories.maintenance.store');
     Route::post('/inventories/maintenance/update', [InventoriesController::class, 'updateMaintenance'])->name('bcl.inventories.maintenance.update');
     Route::post('/inventories/maintenance/delete', [InventoriesController::class, 'deleteMaintenance'])->name('bcl.inventories.maintenance.delete');
+    // Export inventories PDF (form posts with selected rooms)
+    Route::post('/inventories/export/pdf', [InventoriesController::class, 'exportPdf'])->name('bcl.inventories.export.pdf');
 
     Route::get('/pricelist', [PricelistController::class, 'index'])->name('bcl.pricelist.index');
     Route::post('/pricelist/store', [PricelistController::class, 'store'])->name('bcl.pricelist.store');

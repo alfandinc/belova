@@ -20,6 +20,7 @@ $inv = $data;
                     <!-- <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#md_perbaikan_inv"><i class="mdi mdi-wrench"></i> Perbaikan/Perawatan Inventaris</button> -->
                     {{-- @can('Tambah Inventaris') --}}
                     <button class="btn btn-sm btn-primary" data-toggle="modal" data-target="#md_tambah_inv"><i class="mdi mdi-plus"></i> Tambah Inventaris</button>
+                    <button class="btn btn-sm btn-secondary ml-2" data-toggle="modal" data-target="#md_export_inv"><i class="far fa-file-pdf"></i> Export PDF</button>
                     {{-- @endcan --}}
                 </div>
             </div><!--end row-->
@@ -197,7 +198,39 @@ $inv = $data;
         </div>
     </div>
 </div>
-<div class="modal fade" id="md_edit_inv" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
+        <!-- Export PDF modal -->
+        <div class="modal fade" id="md_export_inv" tabindex="-1" role="dialog" aria-labelledby="mdExportLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header bg-dark">
+                        <h6 class="modal-title m-0 text-white" id="mdExportLabel">Export Inventaris ke PDF</h6>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true"><i class="la la-times"></i></span>
+                        </button>
+                    </div>
+                    <form action="{{ route('bcl.inventories.export.pdf') }}" method="POST" target="_blank">
+                        @csrf
+                        <div class="modal-body">
+                            <p>Pilih kamar yang ingin diekspor (boleh memilih lebih dari satu). Kosongkan pilihan untuk mengekspor semua inventaris.</p>
+                            <div class="form-group">
+                                <label>Pilih Kamar</label>
+                                <select id="export_rooms" name="rooms[]" class="form-control select2" multiple style="width:100%" data-placeholder="Pilih kamar...">
+                                    @foreach($rooms as $r)
+                                    <option value="{{ $r->id }}">{{ $r->room_name }} ({{ $r->category_name }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Tutup</button>
+                            <button type="submit" class="btn btn-primary btn-sm">Cetak (Buka PDF)</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="md_edit_inv" tabindex="-1" role="dialog" aria-labelledby="exampleModalDefaultLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header bg-dark">
@@ -843,5 +876,14 @@ $inv = $data;
             }
         });
     });
-</script>
-@stop
+        // initialize export rooms select when modal shown
+        $('#md_export_inv').on('shown.bs.modal', function() {
+            if ($('#export_rooms').data('select2')) return;
+            $('#export_rooms').select2({
+                dropdownParent: $('#md_export_inv'),
+                width: '100%'
+            });
+        });
+
+    </script>
+    @stop

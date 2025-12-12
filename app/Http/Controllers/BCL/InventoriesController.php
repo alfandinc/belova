@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\BCL\InventoryMaintenance;
 use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf as PDF;
 
 class InventoriesController extends Controller
 {
@@ -369,5 +370,68 @@ class InventoriesController extends Controller
             DB::rollBack();
             return response()->json(['success' => false, 'message' => $th->getMessage()], 500);
         }
+    }
+
+    /**
+     * Export inventories filtered by rooms to PDF and stream to browser
+     */
+    public function exportPdf(Request $request)
+    {
+        $this->validate($request, [
+            'rooms' => 'nullable|array',
+            'rooms.*' => 'integer'
+        ]);
+
+        $roomsInput = $request->input('rooms', []);
+
+        // build groups per room. If rooms specified, use that order; otherwise all rooms
+        $groups = [];
+        if (!empty($roomsInput)) {
+            $roomsModel = Rooms::leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
+                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'room_category.category_name')
+                ->whereIn('bcl_rooms.id', $roomsInput)
+                ->orderByRaw("FIELD(bcl_rooms.id, " . implode(',', array_map('intval', $roomsInput)) . ")")
+                ->get();
+        } else {
+            $roomsModel = Rooms::leftjoin('bcl_room_category as room_category', 'room_category.id_category', '=', 'bcl_rooms.room_category')
+                ->select('bcl_rooms.id', 'bcl_rooms.room_name', 'room_category.category_name')
+                ->orderBy('bcl_rooms.room_name')
+                ->get();
+        }
+
+        foreach ($roomsModel as $r) {
+            $items = Inventory::where('assigned_to', $r->id)->orderBy('inv_number')->get();
+            $groups[] = [
+                'room_id' => $r->id,
+                'room_name' => $r->room_name,
+                'category_name' => $r->category_name,
+                'items' => $items
+            ];
+        }
+
+        // include unassigned inventories if no specific rooms requested
+        if (empty($roomsInput)) {
+            $unassigned = Inventory::whereNull('assigned_to')->orWhere('assigned_to', 0)->orderBy('inv_number')->get();
+            if ($unassigned->count()) {
+                $groups[] = [
+                    'room_id' => null,
+                    'room_name' => 'Umum',
+                    'category_name' => '',
+                    'items' => $unassigned
+                ];
+            }
+        }
+
+        // roomTitle is useful when only one group
+        $roomTitle = null;
+        if (count($groups) === 1) {
+            $g = $groups[0];
+            $roomTitle = $g['room_name'] . ($g['category_name'] ? ' (' . $g['category_name'] . ')' : '');
+        }
+
+        $pdf = PDF::loadView('bcl.inventories.export_pdf', compact('groups', 'roomTitle'))
+            ->setPaper('a5', 'portrait');
+
+        return $pdf->stream('inventories.pdf');
     }
 }
