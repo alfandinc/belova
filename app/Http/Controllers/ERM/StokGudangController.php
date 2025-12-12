@@ -216,7 +216,8 @@ class StokGudangController extends Controller {
     {
         $request->validate([
             'id' => 'required|exists:erm_obat_stok_gudang,id',
-            'stok' => 'required|numeric|min:0'
+            'stok' => 'required|numeric|min:0',
+            'keterangan' => 'nullable|string'
         ]);
 
         try {
@@ -228,12 +229,23 @@ class StokGudangController extends Controller {
             
             // Update stok
             $stokGudang->update(['stok' => $stokBaru]);
-            
+
             // Log perubahan ke kartu stok
             $selisih = $stokBaru - $stokLama;
-            $keterangan = "Edit stok batch {$stokGudang->batch}: {$stokLama} → {$stokBaru}";
-            
+            // Use keterangan provided by user when present; otherwise fallback to generated message
+            $keteranganUser = $request->input('keterangan');
+            $generatedKeterangan = "Edit stok batch {$stokGudang->batch}: {$stokLama} → {$stokBaru}";
+
             if ($selisih != 0) {
+                // Require keterangan when there is a change
+                if (empty($keteranganUser) || trim($keteranganUser) === '') {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Keterangan wajib diisi saat mengubah stok.'
+                    ], 422);
+                }
+
                 \App\Models\ERM\KartuStok::create([
                     'obat_id' => $stokGudang->obat_id,
                     'gudang_id' => $stokGudang->gudang_id,
@@ -241,7 +253,7 @@ class StokGudangController extends Controller {
                     'tipe' => $selisih > 0 ? 'masuk' : 'keluar', // Sesuaikan enum
                     'qty' => abs($selisih),
                     'stok_setelah' => $stokBaru,
-                    'keterangan' => $keterangan,
+                    'keterangan' => trim($keteranganUser) !== '' ? $keteranganUser : $generatedKeterangan,
                     'batch' => $stokGudang->batch,
                     'ref_type' => 'manual_edit',
                     'ref_id' => $stokGudang->id

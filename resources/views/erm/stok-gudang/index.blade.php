@@ -406,6 +406,8 @@ $(document).ready(function() {
                     tableHtml += '<span class="stok-display">' + item.stok_display + '</span>';
                     // Use decimal step and allow decimal input (2 decimals)
                     tableHtml += '<input type="number" class="form-control stok-input" value="' + item.stok + '" style="display:none;" step="0.01" min="0">';
+                    // Keterangan input (hidden until edit) - required when performing an edit that changes stok
+                    tableHtml += '<input type="text" class="form-control form-control-sm mt-2 keterangan-input" placeholder="Keterangan (wajib saat edit)" style="display:none;">';
                     tableHtml += '</td>';
                     tableHtml += '<td>' + item.expiration_date + '</td>';
                     tableHtml += '<td>' + item.status + '</td>';
@@ -495,6 +497,7 @@ $(document).ready(function() {
         var row = $(this).closest('tr');
         var stokDisplay = row.find('.stok-display');
         var stokInput = row.find('.stok-input');
+        var keteranganInput = row.find('.keterangan-input');
         var btnEdit = row.find('.btn-edit-stok');
         var btnSave = row.find('.btn-save-stok');
         var btnCancel = row.find('.btn-cancel-stok');
@@ -505,6 +508,7 @@ $(document).ready(function() {
         // Switch to edit mode
         stokDisplay.hide();
         stokInput.show().focus();
+        keteranganInput.show();
         btnEdit.hide();
         btnSave.show();
         btnCancel.show();
@@ -517,16 +521,19 @@ $(document).ready(function() {
         var row = $(this).closest('tr');
         var stokDisplay = row.find('.stok-display');
         var stokInput = row.find('.stok-input');
+        var keteranganInput = row.find('.keterangan-input');
         var btnEdit = row.find('.btn-edit-stok');
         var btnSave = row.find('.btn-save-stok');
         var btnCancel = row.find('.btn-cancel-stok');
         
         // Restore original value
         stokInput.val(stokInput.data('original-value'));
+        keteranganInput.val('');
         
         // Switch back to display mode
         stokDisplay.show();
         stokInput.hide();
+        keteranganInput.hide();
         btnEdit.show();
         btnSave.hide();
         btnCancel.hide();
@@ -543,22 +550,32 @@ $(document).ready(function() {
         var row = button.closest('tr');
         var id = button.data('id');
         var stokBaruRaw = row.find('.stok-input').val();
+        var keteranganVal = row.find('.keterangan-input').val() || '';
         // Parse as float and round to 2 decimals
         var stokBaru = parseFloat(Number(stokBaruRaw || 0));
         if (isNaN(stokBaru)) stokBaru = 0;
         stokBaru = Math.round(stokBaru * 100) / 100;
-        
+
         if (isNaN(stokBaru) || stokBaru < 0) {
             alert('Stok tidak boleh negatif');
             return;
         }
-        
+
+        // Check whether stok actually changed; if so require keterangan
+        var originalVal = parseFloat(Number(row.find('.stok-input').data('original-value') || 0));
+        var selisih = Math.round((stokBaru - originalVal) * 100) / 100;
+        if (selisih !== 0 && keteranganVal.trim() === '') {
+            alert('Keterangan wajib diisi jika ada perubahan stok');
+            return;
+        }
+
         button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
-        
+
         $.ajax({
             url: '{{ route("erm.stok-gudang.update-batch-stok") }}',
             type: 'POST',
             data: {
+                keterangan: keteranganVal,
                 _token: '{{ csrf_token() }}',
                 id: id,
                 stok: stokBaru
