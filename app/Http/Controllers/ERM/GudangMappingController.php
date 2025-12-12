@@ -198,6 +198,7 @@ class GudangMappingController extends Controller
         return response()->json([
             'resep' => $mappings['resep'] ?? null,
             'tindakan' => $mappings['tindakan'] ?? null,
+            'retur_pembelian' => $mappings['retur_pembelian'] ?? null,
         ]);
     }
 

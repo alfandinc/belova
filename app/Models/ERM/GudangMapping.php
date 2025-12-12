@@ -142,6 +142,7 @@ class GudangMapping extends Model
             'resep' => 'Resep Farmasi',
             // 'tindakan' => 'Tindakan Medis',
             'kode_tindakan' => 'Kode Tindakan Obat',
+            'retur_pembelian' => 'Retur Pembelian',
         ];
     }
 }

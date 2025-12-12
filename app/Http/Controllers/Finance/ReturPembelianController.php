@@ -10,6 +10,7 @@ use App\Models\Finance\InvoiceItem;
 use App\Models\ERM\Obat;
 use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\KartuStok;
+use App\Models\ERM\GudangMapping;
 use App\Services\ERM\StokService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -206,8 +207,9 @@ class ReturPembelianController extends Controller
     private function handleStockReturn($obatId, $quantity, $retur)
     {
         // For return, we need to add stock back
-        // We'll use the default gudang (assuming gudang_id = 1, adjust as needed)
-        $gudangId = 1; // You might want to make this configurable
+        // Resolve target gudang via GudangMapping for 'retur_pembelian'
+        // Fallback to gudang_id = 1 when no mapping configured
+        $gudangId = GudangMapping::getDefaultGudangId('retur_pembelian') ?? 1;
         
         // Try to find the original batch that was used when this item was sold
         // Look for the original "keluar" transaction in kartu_stok for this invoice
