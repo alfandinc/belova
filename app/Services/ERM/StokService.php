@@ -8,6 +8,7 @@ use App\Models\ERM\Gudang;
 use App\Models\ERM\KartuStok;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 class StokService {
     /**
@@ -389,7 +390,7 @@ class StokService {
             $stokAkhir = 0;
         }
 
-        // Buat record kartu stok
+        // Buat record kartu stok, sertakan user_id jika tersedia
         return KartuStok::create([
             'obat_id' => $obatId,
             'gudang_id' => $gudangId,
@@ -400,7 +401,8 @@ class StokService {
             'batch' => $batch,
             'keterangan' => $keterangan,
             'ref_type' => $refType,  // misalnya 'pembelian', 'penjualan', 'mutasi', 'opname'
-            'ref_id' => $refId       // ID referensi dari transaksi terkait
+            'ref_id' => $refId,      // ID referensi dari transaksi terkait
+            'user_id' => Auth::id()
         ]);
     }
 

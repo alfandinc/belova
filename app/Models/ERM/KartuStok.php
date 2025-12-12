@@ -17,7 +17,8 @@ class KartuStok extends Model
         'ref_type',
         'ref_id',
         'batch',
-        'keterangan'
+        'keterangan',
+        'user_id'
     ];
 
     protected $casts = [

@@ -255,8 +255,9 @@ class StokGudangController extends Controller {
                     'stok_setelah' => $stokBaru,
                     'keterangan' => trim($keteranganUser) !== '' ? $keteranganUser : $generatedKeterangan,
                     'batch' => $stokGudang->batch,
-                    'ref_type' => 'manual_edit',
-                    'ref_id' => $stokGudang->id
+                          'ref_type' => 'manual_edit',
+                          'ref_id' => $stokGudang->id,
+                          'user_id' => Auth::id()
                 ]);
             }
 
