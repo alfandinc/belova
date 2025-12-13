@@ -52,6 +52,7 @@ use App\Http\Controllers\ERM\{
     MutasiGudangController,
     GudangController
 };
+use App\Http\Controllers\ERM\ObatMappingController;
 
 use App\Http\Controllers\HRD\{
     EmployeeController,
@@ -1716,3 +1717,12 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
 Route::post('/erm/stokopname-temuan/{id}/process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanRecord'])->middleware('auth');
 // Delete temuan record
 Route::post('/erm/stokopname-temuan/{id}/delete', [\App\Http\Controllers\ERM\StokOpnameController::class, 'deleteTemuanRecord'])->middleware('auth');
+
+// Obat Mapping UI (Farmasi/Admin)
+Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
+    Route::get('/obat-mapping', [ObatMappingController::class, 'index'])->name('erm.obat-mapping.index');
+    Route::get('/obat-mapping/{id}', [ObatMappingController::class, 'show']);
+    Route::post('/obat-mapping', [ObatMappingController::class, 'store'])->name('erm.obat-mapping.store');
+    Route::put('/obat-mapping/{id}', [ObatMappingController::class, 'update'])->name('erm.obat-mapping.update');
+    Route::delete('/obat-mapping/{id}', [ObatMappingController::class, 'destroy'])->name('erm.obat-mapping.destroy');
+});

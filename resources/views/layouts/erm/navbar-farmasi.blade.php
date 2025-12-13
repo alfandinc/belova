@@ -67,6 +67,9 @@
                             <li>
                                 <a href="/erm/statistic"><i data-feather="bar-chart-2" class="align-self-center menu-icon"></i><span>Statistik Resep</span></a>
                             </li>
+                                <li>
+                                    <a href="/erm/obat-mapping"><i data-feather="link" class="align-self-center menu-icon"></i><span>Obat Mapping</span></a>
+                                </li>
                         </ul>
                     </li>
                     @endhasanyrole

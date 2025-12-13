@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ERM;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Models\ERM\Obat;
+use App\Models\ERM\ObatMapping;
 use App\Models\ERM\Supplier;
 use App\Models\ERM\ZatAktif;
 use App\Models\ERM\MetodeBayar;
@@ -394,7 +395,20 @@ class ObatController extends Controller
             }
         }
         if ($metodeBayarId) {
-            $obatsQuery->where('metode_bayar_id', $metodeBayarId);
+            // Allow obat for the same metode_bayar_id OR obat whose metode_bayar_id
+            // is mapped to this visitation metode_bayar via `erm_obat_mappings`.
+            $mapped = ObatMapping::where('visitation_metode_bayar_id', $metodeBayarId)
+                ->where('is_active', true)
+                ->pluck('obat_metode_bayar_id')
+                ->filter()
+                ->unique()
+                ->values()
+                ->toArray();
+
+            // Include the visitation metode bayars itself
+            $allowedMetodeBayarIds = array_merge([$metodeBayarId], $mapped);
+
+            $obatsQuery->whereIn('metode_bayar_id', $allowedMetodeBayarIds);
         }
         $obats = $obatsQuery->limit(10)->get();
 
