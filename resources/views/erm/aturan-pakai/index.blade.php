@@ -46,23 +46,41 @@
 @section('scripts')
 <script>
 $(function(){
-    const table = $('#aturanTable');
-    function load(){
-        $.get('{{ route("erm.aturan-pakai.index") }}',{_ajax:1}, function(res){
-            table.find('tbody').html('');
-            res.data.forEach(function(r){
-                table.find('tbody').append(`<tr><td>${r.template}</td><td>${r.is_active}</td><td>${r.created_at}</td><td>${r.aksi}</td></tr>`);
-            });
-        });
-    }
-    load();
+    var table = $('#aturanTable');
+    var dt = table.DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{{ route("erm.aturan-pakai.index") }}',
+            type: 'GET'
+        },
+        columns: [
+            { data: 'template', name: 'template' },
+            { data: 'is_active', name: 'is_active' },
+            { data: 'created_at', name: 'created_at' },
+            { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
+        ],
+        order: [[2, 'desc']]
+    });
 
     $('#addAturanBtn').click(function(){ $('#aturanForm')[0].reset(); $('#aturanId').val(''); $('#aturanModal').modal('show'); });
 
     window.editAturan = function(id){ $.get('{{ url('/erm/aturan-pakai') }}/'+id, function(data){ $('#aturanId').val(data.id); $('#template').val(data.template); $('#is_active').prop('checked', data.is_active); $('#aturanModal').modal('show'); }); }
-    window.deleteAturan = function(id){ if(!confirm('Hapus?')) return; $.ajax({url: '{{ url('/erm/aturan-pakai') }}/'+id, type: 'DELETE', data:{_token:'{{ csrf_token() }}'}, success:function(){ load(); alert('Dihapus');}}); }
+    window.deleteAturan = function(id){ if(!confirm('Hapus?')) return; $.ajax({url: '{{ url('/erm/aturan-pakai') }}/'+id, type: 'DELETE', data:{_token:'{{ csrf_token() }}'}, success:function(){ dt.ajax.reload(); alert('Dihapus');}}); }
 
-    $('#aturanForm').submit(function(e){ e.preventDefault(); const id = $('#aturanId').val(); const url = id ? '{{ url('/erm/aturan-pakai') }}/'+id : '{{ route('erm.aturan-pakai.store') }}'; const method = id ? 'PUT' : 'POST'; $.ajax({ url: url, type: method, data: { template: $('#template').val(), is_active: $('#is_active').is(':checked')?1:0, _token: '{{ csrf_token() }}' }, success:function(){ $('#aturanModal').modal('hide'); load(); } , error:function(xhr){ alert('Error'); } }); });
+    $('#aturanForm').submit(function(e){
+        e.preventDefault();
+        const id = $('#aturanId').val();
+        const url = id ? '{{ url('/erm/aturan-pakai') }}/'+id : '{{ route('erm.aturan-pakai.store') }}';
+        const method = id ? 'PUT' : 'POST';
+        $.ajax({
+            url: url,
+            type: method,
+            data: { template: $('#template').val(), is_active: $('#is_active').is(':checked')?1:0, _token: '{{ csrf_token() }}' },
+            success:function(){ $('#aturanModal').modal('hide'); dt.ajax.reload(); } ,
+            error:function(xhr){ alert('Error'); }
+        });
+    });
 });
 </script>
 @endsection

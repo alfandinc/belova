@@ -5,23 +5,26 @@ namespace App\Http\Controllers\ERM;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\AturanPakai;
+use Yajra\DataTables\Facades\DataTables;
 
 class AturanPakaiController extends Controller
 {
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $items = AturanPakai::orderBy('id', 'desc')->get();
-            $data = $items->map(function($it) {
-                return [
-                    'id' => $it->id,
-                    'template' => $it->template,
-                    'is_active' => $it->is_active ? 'Aktif' : 'Non Aktif',
-                    'created_at' => $it->created_at ? $it->created_at->format('Y-m-d H:i') : '',
-                    'aksi' => '<button class="btn btn-sm btn-info" onclick="editAturan(' . $it->id . ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteAturan(' . $it->id . ')">Hapus</button>'
-                ];
-            });
-            return response()->json(['data' => $data]);
+            $query = AturanPakai::orderBy('id', 'desc');
+            return DataTables::of($query)
+                ->addColumn('is_active', function ($it) {
+                    return $it->is_active ? 'Aktif' : 'Non Aktif';
+                })
+                ->addColumn('created_at', function ($it) {
+                    return $it->created_at ? $it->created_at->format('Y-m-d H:i') : '';
+                })
+                ->addColumn('aksi', function ($it) {
+                    return '<button class="btn btn-sm btn-info" onclick="editAturan(' . $it->id . ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteAturan(' . $it->id . ')">Hapus</button>';
+                })
+                ->rawColumns(['aksi'])
+                ->make(true);
         }
 
         return view('erm.aturan-pakai.index');
