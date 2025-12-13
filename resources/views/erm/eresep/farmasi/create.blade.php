@@ -167,7 +167,7 @@
                 <!-- NON RACIKAN -->
                 <h5 style="color: blue;"><strong>Resep Non Racikan</strong></h5>
                 <div class="racikan-card mb-4 p-3 border rounded">
-                    <div class="row mb-3">
+                    <div class="row add-obat-row mb-3">
                         <div class="col-md-4">
                             <label>Nama Obat</label>
                             <select class="form-control select2-obat" name="obat_id" id="obat_id">
@@ -180,7 +180,12 @@
                         </div>
                         <div class="col-md-4">
                             <label>Aturan Pakai</label>
-                            <input type="text" id="aturan_pakai" class="form-control" placeholder="Tulisakan Aturan Pakai...">
+                            <div class="mb-1">
+                                <select id="aturan_pakai_template" class="form-control select2-aturan-template" style="width:100%">
+                                    <option value=""></option>
+                                </select>
+                            </div>
+                            <input type="hidden" id="aturan_pakai" name="aturan_pakai">
                         </div>
                         <div class="col-md-1">
                             <label for="diskon">Disc (%)</label>
@@ -394,6 +399,80 @@
                 cache: true
             },
 
+        });
+
+        // Initialize Select2 for Aturan Pakai templates (AJAX-only, template-only selection)
+        $('.select2-aturan-template').select2({
+            width: '100%',
+            placeholder: '-- Pilih Template Aturan Pakai --',
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: '{{ route('erm.aturan-pakai.list.active') }}',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return { q: params.term };
+                },
+                processResults: function(data) {
+                    return {
+                        results: (data || []).map(function(item){
+                            return {
+                                id: item.id,
+                                text: item.template.length > 80 ? item.template.substring(0,80) + '...' : item.template,
+                                template: item.template
+                            };
+                        })
+                    };
+                },
+                cache: true
+            },
+            templateResult: function(item){
+                return item && item.template ? $('<div>').text(item.template) : item.text;
+            },
+            templateSelection: function(item){
+                return item && item.template ? item.template : item.text;
+            },
+            escapeMarkup: function(m){ return m; }
+        });
+
+        // Initialize Select2 for edit modal aturan pakai (used when editing non-racikan)
+        $('.select2-edit-aturan').select2({
+            width: '100%',
+            placeholder: '-- Pilih Template Aturan Pakai --',
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: '{{ route('erm.aturan-pakai.list.active') }}',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) { return { q: params.term }; },
+                processResults: function(data) {
+                    return { results: (data || []).map(function(item){ return { id: item.id, text: item.template.length > 80 ? item.template.substring(0,80) + '...' : item.template, template: item.template }; }) };
+                },
+                cache: true
+            },
+            templateResult: function(item){ return item && item.template ? $('<div>').text(item.template) : item.text; },
+            templateSelection: function(item){ return item && item.template ? item.template : item.text; },
+            escapeMarkup: function(m){ return m; }
+        });
+
+        // Sync selected template into hidden input for modal
+        $('#edit-aturan-select').on('select2:select', function(e){
+            const tpl = e.params && e.params.data && e.params.data.template ? e.params.data.template : (e.params && e.params.data ? e.params.data.text : '');
+            $('#edit-aturan').val(tpl);
+        });
+        $('#edit-aturan-select').on('select2:clear', function(){ $('#edit-aturan').val(''); });
+
+        // When a template is selected, copy template text into hidden input only
+        $('#aturan_pakai_template').on('select2:select', function(e){
+            const data = e.params && e.params.data ? e.params.data : null;
+            const tpl = data && data.template ? data.template : data && data.text ? data.text : '';
+            $('#aturan_pakai').val(tpl);
+        });
+
+        $('#aturan_pakai_template').on('select2:clear', function(){
+            $('#aturan_pakai').val('');
         });
 
         // STORE NON RACIKAN
@@ -785,7 +864,10 @@
                         </div>
                         <div class="col-md-6">
                             <label>Aturan Pakai</label>
-                            <input type="text" class="form-control aturan_pakai">
+                            <select class="form-control select2-aturan-template-racikan" style="width:100%">
+                                <option value=""></option>
+                            </select>
+                            <input type="hidden" class="aturan_pakai" />
                         </div>
                     </div>
 
@@ -852,6 +934,39 @@
                     cache: true
                 },
             });
+
+            // Initialize Select2 for aturan pakai on the newly added racikan card
+            const $tplSel = $('.select2-aturan-template-racikan').last();
+            $tplSel.select2({
+                width: '100%',
+                placeholder: '-- Pilih Template Aturan Pakai --',
+                allowClear: true,
+                minimumInputLength: 2,
+                ajax: {
+                    url: '{{ route('erm.aturan-pakai.list.active') }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) { return { q: params.term }; },
+                    processResults: function(data) {
+                        return {
+                            results: (data || []).map(function(item){
+                                return { id: item.id, text: item.template.length > 80 ? item.template.substring(0,80) + '...' : item.template, template: item.template };
+                            })
+                        };
+                    },
+                    cache: true
+                },
+                templateResult: function(item){ return item && item.template ? $('<div>').text(item.template) : item.text; },
+                templateSelection: function(item){ return item && item.template ? item.template : item.text; },
+                escapeMarkup: function(m){ return m; }
+            });
+
+            // When a template is selected, copy to the hidden .aturan_pakai in the same card
+            $tplSel.on('select2:select', function(e){
+                const tpl = e.params && e.params.data && e.params.data.template ? e.params.data.template : (e.params && e.params.data ? e.params.data.text : '');
+                $(this).closest('.racikan-card').find('.aturan_pakai').val(tpl);
+            });
+            $tplSel.on('select2:clear', function(){ $(this).closest('.racikan-card').find('.aturan_pakai').val(''); });
 
             // Update totals when a new (empty) racikan card is added
             updateTotalPrice();
@@ -944,9 +1059,18 @@
                     if (response.success) {
                         Swal.fire('Sukses', response.message, 'success');
                         card.find('.wadah, .bungkus, .jumlah_bungkus, .aturan_pakai').prop('disabled', true);
+                        // also disable Select2 control if present
+                        try {
+                            const $tpl = card.find('.select2-aturan-template-racikan');
+                            if ($tpl.length) {
+                                $tpl.prop('disabled', true).trigger('change.select2');
+                            }
+                        } catch (e) {
+                            console.error('Error disabling select2 after update', e);
+                        }
                         card.find('.update-resepracikan').addClass('d-none');
                         card.find('.tambah-resepracikan').removeClass('d-none');
-                        card.find('.hapus-obat').prop('disabled', true);
+                        card.find('.hapus-obat, .edit-obat').prop('disabled', true);
                         card.find('.jumlah_bungkus, .bungkus').val(bungkus);
                         card.find('.aturan_pakai').val(aturanPakai);
                         card.attr('data-racikan-ke', originalRacikanKe);
@@ -1017,7 +1141,7 @@
 
             // Append the new row to the table (do NOT include empty data-id attribute)
             tbody.append(`
-                <tr data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-jumlah="1">
+                <tr data-obat-id="${obatId}" data-dosis="${dosisAkhir}" data-base-dosis="${baseDosis}" data-jumlah="1">
                     <td data-id="${obatId}">${obatText}</td>
                     <td>${dosisAkhir} ${satuan}</td>
                     <td><span style="color: ${stokColor};">${stokGudang}</span></td>
@@ -1074,6 +1198,24 @@
                 success: function (res) {
                     Swal.fire('Sukses', res.message, 'success');
                     card.find('.tambah-resepracikan').prop('disabled', true).text('Disimpan');
+                    // Disable inputs in the card after saving: wadah (select2), bungkus, jumlah_bungkus
+                    try {
+                        card.find('.wadah, .bungkus, .jumlah_bungkus').prop('disabled', true);
+                        const $wadahSel = card.find('.select2-wadah-racikan');
+                        if ($wadahSel.length) {
+                            $wadahSel.prop('disabled', true).trigger('change.select2');
+                        }
+                        const $tpl = card.find('.select2-aturan-template-racikan');
+                        if ($tpl.length) {
+                            $tpl.prop('disabled', true).trigger('change.select2');
+                        }
+                        const $hidden = card.find('.aturan_pakai');
+                        if ($hidden.length) $hidden.prop('disabled', true);
+                    } catch (e) {
+                        console.error('Error disabling racikan inputs after save', e);
+                    }
+                    // Disable per-row edit/hapus buttons for obat rows in this card
+                    try { card.find('.edit-obat, .hapus-obat').prop('disabled', true); } catch(e){}
                     // Ensure Update button is present but hidden
                     if (card.find('.update-resepracikan').length === 0) {
                         card.append('<button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update</button>');
@@ -1099,7 +1241,21 @@
                                 }
                             });
                         }
-            // Refresh totals after racikan saved
+                        // After saving, disable aturan pakai selector (or input) to prevent edits
+                        try {
+                            const $tpl = card.find('.select2-aturan-template-racikan');
+                            if ($tpl.length) {
+                                $tpl.prop('disabled', true).trigger('change.select2');
+                            }
+                            const $hidden = card.find('.aturan_pakai');
+                            if ($hidden.length) {
+                                $hidden.prop('disabled', true);
+                            }
+                        } catch (e) {
+                            console.error('Error disabling aturan_pakai after save', e);
+                        }
+
+                        // Refresh totals after racikan saved
             updateTotalPrice();
                 }
             });
@@ -1125,7 +1281,29 @@
             // Find the row by index and update data + cell
             const row = $('.racikan-card .resep-table-body tr').eq(rowIndex);
             row.data('dosis', newDosis);
+            row.attr('data-dosis', newDosis);
             row.find('td').eq(1).text(newDosis); // update cell display
+
+            // Recalculate stok dikurangi for this row if base dose and stok available
+            try {
+                const card = row.closest('.racikan-card');
+                const baseDosis = parseFloat(row.attr('data-base-dosis') || row.data('base-dosis') || 0) || 0;
+                const currentBungkus = parseFloat(card.find('.bungkus').val() || card.find('.jumlah_bungkus').val()) || 1;
+                const stokCell = row.find('td').eq(2).text() || row.find('td').eq(2).text();
+                const stokAvailable = parseFloat((stokCell || '').toString().replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
+                if (baseDosis > 0) {
+                    const stokDikurangi = Math.ceil((parseFloat(newDosis) * currentBungkus) / baseDosis) || 0;
+                    const sdCell = row.find('.stok-dikurangi');
+                    sdCell.text(stokDikurangi);
+                    sdCell.css('color', stokDikurangi > stokAvailable ? 'red' : 'inherit');
+                }
+            } catch (e) {
+                console.error('Error recalculating stok dikurangi after dosis edit', e);
+            }
+
+            // Trigger a full price/stock recalculation as well
+            updateTotalPrice();
+
             $('#editDosisModal').modal('hide');
         });
 
@@ -1201,7 +1379,19 @@
             $('#edit-resep-id').val(id);
             $('#edit-jumlah').val(jumlah);
             $('#edit-diskon').val(diskonValue);
+            // populate hidden and select2 with current aturan_pakai
             $('#edit-aturan').val(aturan);
+            const $sel = $('#edit-aturan-select');
+            // clear previous selection
+            $sel.val(null).trigger('change');
+            if (aturan) {
+                // create a temporary option to display the current text
+                const tmpId = 'tmp_' + Date.now();
+                const newOption = new Option(aturan, tmpId, true, true);
+                $sel.append(newOption).trigger('change');
+                // ensure hidden input synced (select2:select handler will also set it)
+                $('#edit-aturan').val(aturan);
+            }
             $('#editResepModal').modal('show');
         });
 
@@ -1718,7 +1908,10 @@ $(document).on('click', '.edit-racikan', function () {
     console.log('Edit racikan clicked - fields enabled, hapus-obat and edit-obat enabled');
 
     // If the add-obat form doesn't exist in this card, insert it so user can add obat while editing
-    if (card.find('.add-obat-row').length === 0) {
+    // Prevent duplicate add-rows: if a select2 for obat already exists, don't insert another
+    if (card.find('.select2-obat-racikan').length === 0) {
+        // remove any stray add-obat-row remnants to avoid duplicates
+        card.find('.add-obat-row').not(':first').remove();
         const addRow = `
             <div class="row add-obat-row mb-3">
                 <div class="col-md-6">
@@ -1747,8 +1940,8 @@ $(document).on('click', '.edit-racikan', function () {
         // Insert the add row right above the table inside the card
         card.find('table').before(addRow);
 
-        // Initialize select2 for the newly inserted select
-        card.find('.select2-obat-racikan').select2({
+        // Initialize select2 for the newly inserted select (only on the last one)
+        card.find('.select2-obat-racikan').last().select2({
             placeholder: 'Search obat...',
             ajax: {
                 url: '{{ route("obat.search") }}',
@@ -1785,6 +1978,65 @@ $(document).on('click', '.edit-racikan', function () {
         // If the form exists, just ensure the add button is enabled
         card.find('.tambah-obat').prop('disabled', false);
     }
+
+    // Ensure aturan_pakai is editable: convert existing disabled text input into a select2 + hidden input
+    (function handleAturanPakaiConversion() {
+        // If there's already a select2 control, just enable it
+        const $existingSelect = card.find('.select2-aturan-template-racikan');
+        if ($existingSelect.length) {
+            $existingSelect.prop('disabled', false).trigger('change.select2');
+            card.find('.aturan_pakai').prop('disabled', false);
+            return;
+        }
+
+        // Find plain input (server-rendered) and replace it with select + hidden input
+        const $plain = card.find('.aturan_pakai').filter(function(){ return $(this).is('input[type=text]') || $(this).is('input'); }).first();
+        if ($plain.length) {
+            const currentVal = $plain.val() || '';
+            // Build elements
+            const selHtml = `<select class="form-control select2-aturan-template-racikan" style="width:100%"><option value=""></option></select>`;
+            const hiddenHtml = `<input type="hidden" class="aturan_pakai" value="${(currentVal+'').replace(/"/g,'&quot;')}">`;
+            $plain.replaceWith(selHtml + hiddenHtml);
+
+            const $sel = card.find('.select2-aturan-template-racikan').last();
+            // initialize select2 like other instances
+            $sel.select2({
+                width: '100%',
+                placeholder: '-- Pilih Template Aturan Pakai --',
+                allowClear: true,
+                minimumInputLength: 2,
+                ajax: {
+                    url: '{{ route('erm.aturan-pakai.list.active') }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) { return { q: params.term }; },
+                    processResults: function(data) {
+                        return {
+                            results: (data || []).map(function(item){ return { id: item.id, text: item.template.length > 80 ? item.template.substring(0,80) + '...' : item.template, template: item.template }; })
+                        };
+                    },
+                    cache: true
+                },
+                templateResult: function(item){ return item && item.template ? $('<div>').text(item.template) : item.text; },
+                templateSelection: function(item){ return item && item.template ? item.template : item.text; },
+                escapeMarkup: function(m){ return m; }
+            });
+
+            // If there was an existing value, insert it as a temporary option so it shows
+            if (currentVal) {
+                const tmpId = 'tmp_' + Date.now();
+                const newOption = new Option(currentVal, tmpId, true, true);
+                $sel.append(newOption).trigger('change');
+            }
+
+            // Sync selection into hidden input
+            $sel.on('select2:select', function(e){
+                const tpl = e.params && e.params.data && e.params.data.template ? e.params.data.template : (e.params && e.params.data ? e.params.data.text : '');
+                $(this).closest('.racikan-card').find('.aturan_pakai').val(tpl);
+            });
+            $sel.on('select2:clear', function(){ $(this).closest('.racikan-card').find('.aturan_pakai').val(''); });
+        }
+    })();
 });
 
 

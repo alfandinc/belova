@@ -993,7 +993,7 @@ class EresepController extends Controller
 
         return response()->json([
             'success' => true,
-            'nonRacikans' => $nonRacikans,
+            'non_racikans' => $nonRacikans,
             'racikans' => $racikans
         ]);
     }

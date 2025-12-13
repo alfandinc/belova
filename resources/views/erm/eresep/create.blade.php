@@ -510,6 +510,8 @@
 
         });
 
+        // Aturan pakai template not used on dokter resep page (only farmasi uses it)
+
         // Function to refresh row colors based on farmasi prescriptions
         function refreshRowColors() {
             // Handle non-racikan rows

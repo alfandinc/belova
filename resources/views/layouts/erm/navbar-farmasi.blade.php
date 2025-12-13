@@ -43,6 +43,9 @@
                                     <a href="/erm/obat"><i data-feather="package" class="align-self-center menu-icon"></i><span>Master Obat & BHP</span></a>
                                 </li>
                                 <li>
+                                    <a href="/erm/aturan-pakai"><i data-feather="clipboard" class="align-self-center menu-icon"></i><span>Master Aturan Pakai</span></a>
+                                </li>
+                                <li>
                                     <a href="/erm/pemasok"><i data-feather="truck" class="align-self-center menu-icon"></i><span>Master Pemasok</span></a>
                                 </li>
                                 <li>

@@ -53,6 +53,7 @@ use App\Http\Controllers\ERM\{
     GudangController
 };
 use App\Http\Controllers\ERM\ObatMappingController;
+use App\Http\Controllers\ERM\AturanPakaiController;
 
 use App\Http\Controllers\HRD\{
     EmployeeController,
@@ -896,6 +897,17 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     Route::post('/rujuk', [App\Http\Controllers\ERM\VisitationController::class, 'storeRujuk'])->name('erm.rujuk.store');
     
+});
+
+// Aturan Pakai master (ERM)
+Route::prefix('erm')->middleware('role:Admin|Farmasi')->group(function () {
+    Route::get('/aturan-pakai', [AturanPakaiController::class, 'index'])->name('erm.aturan-pakai.index');
+    Route::get('/aturan-pakai/{id}', [AturanPakaiController::class, 'show']);
+    Route::post('/aturan-pakai', [AturanPakaiController::class, 'store'])->name('erm.aturan-pakai.store');
+    Route::put('/aturan-pakai/{id}', [AturanPakaiController::class, 'update'])->name('erm.aturan-pakai.update');
+    Route::delete('/aturan-pakai/{id}', [AturanPakaiController::class, 'destroy'])->name('erm.aturan-pakai.destroy');
+    // Public list endpoint for resep pages (no auth to keep simple) - but still in erm prefix
+    Route::get('/aturan-pakai/list/active', [AturanPakaiController::class, 'listActive'])->name('erm.aturan-pakai.list.active');
 });
 
 Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
