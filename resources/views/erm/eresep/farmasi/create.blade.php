@@ -10,6 +10,7 @@
 @include('erm.partials.modal-resepedukasi')
 
 @include('erm.partials.modal-editnonracikan-farmasi')
+@include('erm.partials.modal-paketracikan-farmasi')
 
 <!-- Modal Edit Dosis Racikan Obat -->
 <div class="modal fade" id="editDosisModal" tabindex="-1" role="dialog" aria-labelledby="editDosisModalLabel" aria-hidden="true">
@@ -142,6 +143,7 @@
                         <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
                         <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
                         <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal">Etiket Biru</button>
+                        <button id="paket-racikan" class="btn btn-sm btn-warning">Paket Racikan</button>
                         <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
                             Riwayat Dokter
                         </button>
@@ -456,6 +458,33 @@
             templateSelection: function(item){ return item && item.template ? item.template : item.text; },
             escapeMarkup: function(m){ return m; }
         });
+
+        // Initialize Select2 for Aturan Pakai (Farmasi modal only)
+        function initAturanPakaiSelect2(selector, dropdownParent) {
+            $(selector).select2({
+                width: '100%',
+                placeholder: '-- Pilih Template Aturan Pakai --',
+                allowClear: true,
+                minimumInputLength: 0,
+                ajax: {
+                    url: '{{ route('erm.aturan-pakai.list.active') }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) { return { q: params.term }; },
+                    processResults: function(data) {
+                        return { results: (data || []).map(function(item){
+                            if (typeof item === 'string') return { id: item, text: item };
+                            return { id: item.template || item.id || item, text: item.template || item.name || item };
+                        }) };
+                    },
+                    cache: true
+                },
+                templateResult: function(item){ return item && item.text ? $('<div>').text(item.text) : item.text; },
+                templateSelection: function(item){ return item && item.text ? item.text : item.text; },
+                dropdownParent: dropdownParent || undefined,
+                escapeMarkup: function(m){ return m; }
+            });
+        }
 
         // Sync selected template into hidden input for modal
         $('#edit-aturan-select').on('select2:select', function(e){
@@ -1775,7 +1804,512 @@
         });
            
         updateTotalPrice(); // <--- Tambahkan ini
-    
+
+        // PAKET RACIKAN FUNCTIONALITY (copied from dokter page)
+        let obatPaketCount = 0;
+
+        // Open Paket Racikan Modal
+        $(document).on('click', '#paket-racikan', function() {
+            // Reset form first
+            resetFormPaket();
+            // Load list
+            loadPaketRacikanList();
+            // Show modal
+            $('#paketRacikanModalFarmasi').modal('show');
+        });
+
+        // Initialize selects when modal is fully shown
+        $('#paketRacikanModalFarmasi').on('shown.bs.modal', function() {
+            initializePaketRacikanSelects();
+            // init aturan pakai select2 for farmasi modal and ensure prefilled value shows
+            initAturanPakaiSelect2('.select2-aturan-pakai-farmasi', $('#paketRacikanModalFarmasi'));
+            $('.select2-aturan-pakai-farmasi').each(function(){
+                const v = $(this).val();
+                if (v && $(this).find('option[value="'+v+'"]').length === 0) {
+                    $(this).append(new Option(v, v, true, true)).trigger('change');
+                }
+            });
+        });
+
+        // Reset button click handler (Farmasi)
+        $(document).on('click', '#resetFormPaketBtnFarmasi', function() {
+            resetFormPaket();
+        });
+
+        // Load Paket Racikan List (robust to different response shapes)
+        function loadPaketRacikanList() {
+            $.ajax({
+                url: "{{ route('erm.paket-racikan.list') }}",
+                method: 'GET',
+                success: function(response) {
+                    let paketList = [];
+                    if (!response) {
+                        paketList = [];
+                    } else if (Array.isArray(response)) {
+                        paketList = response;
+                    } else if (Array.isArray(response.data)) {
+                        paketList = response.data;
+                    } else if (response.success && Array.isArray(response.data)) {
+                        paketList = response.data;
+                    } else if (response.success && Array.isArray(response.pakets)) {
+                        paketList = response.pakets;
+                    }
+
+                    let tbody = $('#paketRacikanTableBodyFarmasi');
+                    tbody.empty();
+                    if (paketList.length === 0) {
+                        tbody.append('<tr><td colspan="3" class="text-center">Belum ada paket racikan</td></tr>');
+                    } else {
+                        paketList.forEach(function(paket, index) {
+                            // ensure paket object is available as data on buttons (stringify may be needed)
+                            const paketJson = JSON.stringify(paket).replace(/'/g, "\\'");
+                                tbody.append(`
+                                <tr>
+                                    <td>${index + 1}</td>
+                                    <td>${paket.nama_paket}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}" data-paket='${paketJson}'>Gunakan</button>
+                                        <button class="btn btn-sm btn-info edit-paket" data-paket='${paketJson}'>Edit</button>
+                                        <button class="btn btn-sm btn-danger delete-paket" data-id="${paket.id}">Hapus</button>
+                                    </td>
+                                </tr>
+                            `);
+                        });
+                    }
+                },
+                error: function() {
+                    const tbody = $('#paketRacikanTableBodyFarmasi');
+                    tbody.empty();
+                    tbody.append('<tr><td colspan="4" class="text-center text-danger">Gagal memuat paket racikan</td></tr>');
+                }
+            });
+        }
+
+        // Initialize Select2 for Paket Racikan
+        function initializePaketRacikanSelects() {
+            // Destroy existing select2 instances first
+            $('.select2-wadah-paket').each(function() {
+                if ($(this).hasClass('select2-hidden-accessible')) {
+                    $(this).select2('destroy');
+                }
+            });
+            $('.select2-obat-paket').each(function() {
+                if ($(this).hasClass('select2-hidden-accessible')) {
+                    $(this).select2('destroy');
+                }
+            });
+
+            // Initialize wadah select2
+            $('.select2-wadah-paket').select2({
+                placeholder: 'Pilih Wadah',
+                allowClear: true,
+                ajax: {
+                    url: '{{ route("wadah.search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) { return { q: params.term, visitation_id: $('#visitation_id').val() }; },
+                    processResults: function (data) { return { results: data }; },
+                    cache: true
+                }
+            });
+
+            // Initialize obat select2
+            $('.select2-obat-paket').select2({
+                placeholder: 'Pilih Obat',
+                allowClear: true,
+                ajax: {
+                    url: '{{ route("obat.search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) { return { q: params.term }; },
+                    processResults: function (data) {
+                        if (Array.isArray(data.results)) { return { results: data.results }; } else { return { results: data }; }
+                    },
+                    cache: true
+                },
+                minimumInputLength: 2,
+                dropdownParent: $('#paketRacikanModalFarmasi')
+            });
+        }
+
+        // Add Obat to Paket (Farmasi)
+        $('#tambahObatPaketFarmasi').on('click', function() {
+            obatPaketCount++;
+            let newObatItem = `
+                <div class="obat-paket-item mb-2">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <select class="form-control select2-obat-paket" name="obats[${obatPaketCount}][obat_id]" required>
+                                <option value="">Pilih Obat</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" class="form-control" name="obats[${obatPaketCount}][dosis]" placeholder="Dosis" required>
+                        </div>
+                        <div class="col-md-1">
+                            <button type="button" class="btn btn-danger btn-sm remove-obat-paket">×</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            $('#obatPaketContainerFarmasi').append(newObatItem);
+            let newSelect = $('#obatPaketContainerFarmasi .select2-obat-paket').last();
+            newSelect.select2({
+                placeholder: 'Pilih Obat',
+                allowClear: true,
+                ajax: {
+                    url: '{{ route("obat.search") }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params){ return { q: params.term }; },
+                    processResults: function(data){
+                        if (Array.isArray(data.results)) { return { results: data.results }; } else { return { results: data }; }
+                    },
+                    cache: true
+                },
+                minimumInputLength: 2,
+                dropdownParent: $('#paketRacikanModalFarmasi')
+            });
+            updateRemoveButtons();
+        });
+
+        // Remove Obat from Paket
+        $(document).on('click', '.remove-obat-paket', function() { $(this).closest('.obat-paket-item').remove(); updateRemoveButtons(); });
+
+        function updateRemoveButtons() { let items = $('.obat-paket-item'); if (items.length > 1) { $('.remove-obat-paket').show(); } else { $('.remove-obat-paket').hide(); } }
+
+        // Save Paket Racikan
+        $('#formPaketRacikanFarmasi').on('submit', function(e) {
+            e.preventDefault();
+            let formData = new FormData(this);
+            let obatsData = [];
+            $('.obat-paket-item').each(function() {
+                let obatId = $(this).find('select').val();
+                let dosis = $(this).find('input[type="text"]').val();
+                if (obatId && dosis) { obatsData.push({ obat_id: obatId, dosis: dosis }); }
+            });
+            if (obatsData.length === 0) { Swal.fire({ icon: 'warning', title: 'Data Belum Lengkap', text: 'Minimal harus ada satu obat dalam paket', confirmButtonColor: '#3085d6' }); return; }
+            let paketId = $('#paketIdFarmasi').val();
+            let data = { _token: "{{ csrf_token() }}", nama_paket: formData.get('nama_paket'), wadah_id: formData.get('wadah_id'), bungkus_default: formData.get('bungkus_default'), aturan_pakai_default: formData.get('aturan_pakai_default'), obats: obatsData };
+            if (paketId) {
+                // update existing paket
+                data._method = 'PUT';
+                $.ajax({ url: "{{ route('erm.paket-racikan.update', '') }}/" + paketId, method: 'POST', data: data, success: function(response) { if (response.success) { Swal.fire({ icon: 'success', title: 'Berhasil!', text: response.message, confirmButtonColor: '#3085d6' }); resetFormPaket(); loadPaketRacikanList(); /* keep modal open for further edits */ } }, error: function(xhr) { Swal.fire({ icon: 'error', title: 'Gagal Mengupdate', text: 'Gagal mengupdate paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'), confirmButtonColor: '#3085d6' }); } });
+            } else {
+                // create new paket
+                $.ajax({ url: "{{ route('erm.paket-racikan.store') }}", method: 'POST', data: data, success: function(response) { if (response.success) { Swal.fire({ icon: 'success', title: 'Berhasil!', text: response.message, confirmButtonColor: '#3085d6' }); resetFormPaket(); loadPaketRacikanList(); } }, error: function(xhr) { Swal.fire({ icon: 'error', title: 'Gagal Menyimpan', text: 'Gagal menyimpan paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'), confirmButtonColor: '#3085d6' }); } });
+            }
+        });
+
+        // Copy Paket Racikan
+        $(document).on('click', '.copy-paket', function() {
+            let paketId = $(this).data('id');
+            // read raw attribute and parse safely
+            let raw = $(this).attr('data-paket');
+            let paketData = null;
+            try { paketData = raw ? JSON.parse(raw) : null; } catch(e) { paketData = $(this).data('paket') || null; }
+            if (paketData) {
+                $('#paketNamaDisplayFarmasi').text(paketData.nama_paket);
+                $('#paketBungkusFarmasi').val(paketData.bungkus_default || 10);
+                const aturanVal = paketData.aturan_pakai_default || '';
+                $('#paketAturanPakaiFarmasi').val(aturanVal);
+                // ensure option exists so select2 can show it when initialized
+                if (aturanVal && $('#paketAturanPakaiFarmasi option[value="'+aturanVal+'"]').length === 0) {
+                    $('#paketAturanPakaiFarmasi').append(new Option(aturanVal, aturanVal, true, true));
+                }
+            }
+            $('#selectedPaketIdFarmasi').val(paketId);
+            // store paketData on the hidden selector so konfirmasi handler can access it
+            $('#selectedPaketIdFarmasi').data('paket', paketData);
+            $('#paketRacikanModalFarmasi').modal('hide');
+            $('#gunakanPaketModalFarmasi').modal('show');
+        });
+
+        // Konfirmasi gunakan paket racikan (Farmasi)
+        $(document).on('click', '#konfirmasiGunakanPaketFarmasi', function() {
+            let paketId = $('#selectedPaketIdFarmasi').val();
+            let bungkus = $('#paketBungkusFarmasi').val();
+            let aturanPakai = $('#paketAturanPakaiFarmasi').val();
+            let visitationId = $('#visitation_id').val();
+            if (!bungkus || !aturanPakai) { Swal.fire({ icon: 'warning', title: 'Data Belum Lengkap', text: 'Bungkus dan Aturan Pakai harus diisi', confirmButtonColor: '#3085d6' }); return; }
+            $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...').prop('disabled', true);
+            $.ajax({ url: "{{ route('erm.paket-racikan.copy.farmasi') }}", method: 'POST', data: { _token: "{{ csrf_token() }}", paket_racikan_id: paketId, visitation_id: visitationId, bungkus: bungkus, aturan_pakai: aturanPakai }, success: function(response) {
+                    if (response.success) {
+                        $('#gunakanPaketModalFarmasi').addClass('reload-after-close');
+                        racikanCount = response.racikan_ke;
+                        // Prefer client-side rendering from paket data saved earlier
+                        let paketData = $('#selectedPaketIdFarmasi').data('paket') || null;
+                        if (paketData && typeof paketData === 'string') {
+                            try { paketData = JSON.parse(paketData); } catch (e) { paketData = null; }
+                        }
+                        if (paketData) {
+                            createRacikanCardFromPaketWithCustomData(paketData, response.racikan_ke, bungkus, aturanPakai);
+                            updateTotalPrice();
+                        } else {
+                            // fallback to server fetch if paket data not available
+                            fetchFarmasiResep();
+                            setTimeout(function(){ updateTotalPrice(); }, 300);
+                        }
+                        $('#paketRacikanModalFarmasi').modal('hide');
+                        Swal.fire({ icon: 'success', title: 'Berhasil!', text: response.message || 'Paket racikan berhasil diterapkan!', confirmButtonColor: '#3085d6', timer:2000, showConfirmButton:false });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: response.message || 'Gagal menerapkan paket racikan', confirmButtonColor: '#3085d6' });
+                    }
+                }, error: function(xhr) { let errorMessage = 'Gagal menerapkan paket racikan'; if (xhr.responseJSON && xhr.responseJSON.message) { errorMessage = xhr.responseJSON.message; } Swal.fire({ icon: 'error', title: 'Gagal', text: errorMessage, confirmButtonColor: '#3085d6' }); }, complete: function() { $('#konfirmasiGunakanPaketFarmasi').html('OK').prop('disabled', false); $('#gunakanPaketModalFarmasi').modal('hide'); }
+            });
+        });
+
+        // Handler untuk kembali ke modal paket racikan jika user batal di modal konfirmasi (Farmasi)
+        $('#gunakanPaketModalFarmasi').on('hidden.bs.modal', function (e) {
+            if (!$(e.target).hasClass('reload-after-close')) {
+                setTimeout(function() { $('#paketRacikanModalFarmasi').modal('show'); }, 300);
+            }
+        });
+
+        // Initialize aturan pakai select2 for gunakan modal when shown
+        $('#gunakanPaketModalFarmasi').on('shown.bs.modal', function() {
+            initAturanPakaiSelect2('#paketAturanPakaiFarmasi', $('#gunakanPaketModalFarmasi'));
+            const sel = $('#paketAturanPakaiFarmasi');
+            const v = sel.val();
+            if (v && sel.find('option[value="'+v+'"]').length === 0) {
+                sel.append(new Option(v, v, true, true)).trigger('change');
+            }
+        });
+
+        // Function to create racikan card from paket data (reused functions from dokter page)
+        function createRacikanCardFromPaket(paket, racikanKe) {
+            // Delegate to the unified builder so paket-created cards match manual "Tambah Racikan"
+            const bungkus = paket.bungkus_default || 1;
+            const aturan = paket.aturan_pakai_default || '';
+            createRacikanCardFromPaketWithCustomData(paket, racikanKe, bungkus, aturan);
+        }
+
+        function createRacikanCardFromPaketWithCustomData(paket, racikanKe, customBungkus, customAturanPakai) {
+            // Build obat rows compatible with the manual "Tambah Racikan" template
+            let obatRows = '';
+            const details = paket.details || paket.obats || paket.items || [];
+            details.forEach(function(detail) {
+                const obat = detail.obat || {};
+                const nama = obat.nama || '-';
+                const dosisRacik = detail.dosis || '-';
+                const satuan = obat.satuan || '';
+                // prefer stok_gudang if present (server may provide it)
+                const stokGudang = typeof obat.stok_gudang !== 'undefined' ? obat.stok_gudang : (obat.stok || 0);
+                const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'inherit');
+                obatRows += `
+                    <tr data-obat-id="${obat.id || ''}" data-dosis="${dosisRacik}" data-base-dosis="${obat.dosis || ''}" data-jumlah="1">
+                        <td data-id="${obat.id || ''}">${nama}</td>
+                        <td>${dosisRacik} ${satuan}</td>
+                        <td><span style="color: ${stokColor};">${stokGudang}</span></td>
+                        <td class="stok-dikurangi">-</td>
+                        <td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
+                    </tr>
+                `;
+            });
+
+            // Use the exact same card structure as manual add, but with controls disabled (saved state)
+            let racikanCard = `
+                <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanKe}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 style="color: yellow;"><strong>Racikan ${racikanKe}</strong></h5>
+                        <div>
+                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
+                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label>Nama Obat</label>
+                            <select class="form-control select2-obat-racikan" name="obat_id">
+                                <option value="">Search and select an obat...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Dosis</label>
+                            <input type="number" class="form-control dosis_input" disabled>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Satuan Dosis</label>
+                            <select class="form-control mode_dosis" disabled>
+                                <option value="normal">Normal</option>
+                                <option value="tablet">Tablet</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-primary btn-block tambah-obat" disabled>Tambah ke Racikan</button>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Nama Obat</th>
+                                <th>Dosis</th>
+                                <th>Stok</th>
+                                <th>Stok Dikurangi</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="resep-table-body">
+                            ${obatRows || '<tr class="no-data"><td colspan="6" class="text-center text-muted">Belum ada data</td></tr>'}
+                        </tbody>
+                    </table>
+
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label>Racikan</label>
+                            <select class="form-control select2-wadah-racikan wadah" name="wadah_id" disabled>
+                                <option value="">Search and select wadah...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Bungkus</label>
+                            <input type="number" class="form-control bungkus" value="${customBungkus}" disabled>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Aturan Pakai</label>
+                            <select class="form-control select2-aturan-template-racikan" style="width:100%" disabled>
+                                <option value="">${customAturanPakai || ''}</option>
+                            </select>
+                            <input type="hidden" class="aturan_pakai" value="${customAturanPakai || ''}" />
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
+                </div>
+            `;
+
+            $('#racikan-container').append(racikanCard);
+            // initialize select2 for the appended wadah so UI remains consistent
+            $('#racikan-container .select2-wadah-racikan').last().select2({ placeholder: 'Search wadah...', ajax: { url: '{{ route("wadah.search") }}', dataType: 'json', delay: 250, data: function (params) { return { q: params.term }; }, processResults: function (data) { return { results: data }; }, cache: true } });
+        }
+
+        // Edit Paket (populate form for editing)
+        $(document).on('click', '.edit-paket', function() {
+            let paketRaw = $(this).attr('data-paket');
+            let paket = null;
+            try { paket = paketRaw ? JSON.parse(paketRaw) : $(this).data('paket'); } catch(e) { paket = $(this).data('paket'); }
+            if (!paket) return;
+            resetFormPaket();
+            // set paket id for update
+            $('#paketIdFarmasi').val(paket.id || '');
+            // populate fields
+            $('#formPaketRacikanFarmasi input[name="nama_paket"]').val(paket.nama_paket || '');
+            // wadah (select2) - set value then trigger change
+            if (paket.wadah && paket.wadah.id) {
+                $('.select2-wadah-paket').val(paket.wadah.id).trigger('change');
+            } else {
+                $('.select2-wadah-paket').val('').trigger('change');
+            }
+            $('#formPaketRacikanFarmasi input[name="bungkus_default"]').val(paket.bungkus_default || 10);
+            const aturanVal = paket.aturan_pakai_default || '';
+            const aturanSelect = $('.select2-aturan-pakai-farmasi');
+            if (aturanSelect.length) {
+                if (!aturanSelect.hasClass('select2-hidden-accessible')) {
+                    initAturanPakaiSelect2('.select2-aturan-pakai-farmasi', $('#paketRacikanModalFarmasi'));
+                }
+                if (aturanVal && aturanSelect.find('option[value="'+aturanVal+'"]').length === 0) {
+                    aturanSelect.append(new Option(aturanVal, aturanVal, true, true));
+                }
+                aturanSelect.val(aturanVal).trigger('change');
+            } else {
+                // fallback for legacy input
+                $('#formPaketRacikanFarmasi input[name="aturan_pakai_default"]').val(aturanVal || '');
+            }
+
+            // populate obat items
+            const container = $('#obatPaketContainerFarmasi');
+            container.empty();
+            if (Array.isArray(paket.details) && paket.details.length) {
+                paket.details.forEach(function(detail, idx) {
+                    const obatId = detail.obat ? detail.obat.id : (detail.obat_id || '');
+                    const obatNama = detail.obat ? detail.obat.nama : '';
+                    const dosis = detail.dosis || '';
+                    container.append(`
+                        <div class="obat-paket-item mb-2">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <select class="form-control select2-obat-paket" name="obats[${idx}][obat_id]" required>
+                                        ${obatId ? `<option value="${obatId}" selected>${obatNama}</option>` : '<option value="">Pilih Obat</option>'}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="text" class="form-control" name="obats[${idx}][dosis]" value="${dosis}" placeholder="Dosis" required>
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="button" class="btn btn-danger btn-sm remove-obat-paket">×</button>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+                    obatPaketCount = idx + 1;
+                });
+            } else {
+                // ensure at least one row
+                container.html(`
+                    <div class="obat-paket-item mb-2">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <select class="form-control select2-obat-paket" name="obats[0][obat_id]" required>
+                                    <option value="">Pilih Obat</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="obats[0][dosis]" placeholder="Dosis" required>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-danger btn-sm remove-obat-paket" style="display:none;">×</button>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                obatPaketCount = 0;
+            }
+            initializePaketRacikanSelects();
+            updateRemoveButtons();
+            // show modal (ensure it's visible)
+            $('#paketRacikanModalFarmasi').modal('show');
+        });
+
+        // Delete Paket Racikan
+        $(document).on('click', '.delete-paket', function() {
+            let paketId = $(this).data('id');
+            Swal.fire({ title: 'Konfirmasi Hapus', text: 'Yakin ingin menghapus paket racikan ini?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Ya, Hapus!', cancelButtonText: 'Batal' }).then((result) => {
+                if (result.value) {
+                    $.ajax({ url: "{{ route('erm.paket-racikan.delete', '') }}/" + paketId, method: 'DELETE', data: { _token: "{{ csrf_token() }}" }, success: function(response) { if (response.success) { Swal.fire({ icon: 'success', title: 'Berhasil!', text: response.message, confirmButtonColor: '#3085d6' }); loadPaketRacikanList(); } }, error: function(xhr) { Swal.fire({ icon: 'error', title: 'Gagal Menghapus', text: 'Gagal menghapus paket racikan: ' + (xhr.responseJSON?.message || 'Unknown error'), confirmButtonColor: '#3085d6' }); } });
+                }
+            });
+        });
+
+        // Reset Form Paket
+        function resetFormPaket() {
+            $('.select2-wadah-paket').each(function() { if ($(this).hasClass('select2-hidden-accessible')) { $(this).select2('destroy'); } });
+            $('.select2-obat-paket').each(function() { if ($(this).hasClass('select2-hidden-accessible')) { $(this).select2('destroy'); } });
+            $('#formPaketRacikanFarmasi')[0].reset();
+            // Ensure paketId is cleared so subsequent saves create new paket instead of updating
+            $('#paketIdFarmasi').val('');
+            $('#obatPaketContainerFarmasi').html(`
+                <div class="obat-paket-item mb-2">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <select class="form-control select2-obat-paket" name="obats[0][obat_id]" required>
+                                <option value="">Pilih Obat</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <input type="text" class="form-control" name="obats[0][dosis]" placeholder="Dosis" required>
+                        </div>
+                        <div class="col-md-1">
+                            <button type="button" class="btn btn-danger btn-sm remove-obat-paket" style="display:none;">×</button>
+                        </div>
+                    </div>
+                </div>
+            `);
+            obatPaketCount = 0;
+            initializePaketRacikanSelects();
+        }
+
     });
 
     function fetchFarmasiResep() {
@@ -1816,78 +2350,24 @@
 
     Object.entries(res.racikans).forEach(([ke, items]) => {
             console.log(`Processing racikan with ke=${ke}, items:`, items);
-            
+
             if (ke === '0' || ke === 0) {
                 console.warn('WARNING: Found racikan with key 0, this will cause update problems!');
             }
-            
-            const wadah = items[0].wadah ?? '';
-            const bungkus = items[0].bungkus ?? '';
-            const aturan = items[0].aturan_pakai ?? '';
 
-                const rows = items.map(item => {
-                // Ensure dosis always has the unit displayed
-                const dosis = item.dosis;
-                
-                return `
-                    <tr data-id="${item.id}" data-obat-id="${item.obat?.id ?? ''}" data-dosis="${dosis}">
-                        <td data-id="${item.obat?.id ?? ''}">${item.obat?.nama ?? '-'}</td>
-                        <td>${dosis}</td>
-                        <td>${item.obat?.stok ?? 0}</td>
-                        <td class="stok-dikurangi">-</td>
-<td><button class="btn btn-danger btn-sm hapus-obat" disabled>Hapus</button></td>
-                    </tr>`;
-            }).join('');
+            // Build a paket-like object so we can reuse the unified card builder
+            const first = items[0] || {};
+            const bungkus = first.bungkus ?? (first.bungkus_default || 1);
+            const aturan = first.aturan_pakai ?? (first.aturan_pakai_default || '');
+            const paketObj = {
+                wadah: first.wadah ? { id: first.wadah_id || '', nama: first.wadah } : null,
+                bungkus_default: bungkus,
+                aturan_pakai_default: aturan,
+                details: items.map(item => ({ obat: item.obat || {}, dosis: item.dosis }))
+            };
 
-            racikanWrapper.append(`
-                <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${ke}">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 style="color: yellow;"><strong>Racikan ${ke}</strong></h5>
-                        <div>
-                            <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
-                            <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
-                        </div>
-                    </div>
-
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Nama Obat</th>
-                                <th>Dosis</th>
-                                <th>Stok</th>
-                                <th>Stok Dikurangi</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody class="resep-table-body">
-                            ${rows}
-                        </tbody>
-                    </table>
-
-                    <div class="row">
-                        <div class="col-md-3">
-                            <label>Racikan</label>
-                            <select class="form-control wadah" disabled>
-                                ${['Kapsul', 'Ampul', 'Botol', 'Sachet'].map(opt => `
-                                    <option value="${opt}" ${opt === wadah ? 'selected' : ''}>${opt}</option>
-                                `).join('')}
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label>Bungkus</label>
-                            <input type="number" class="form-control jumlah_bungkus" value="${bungkus}" disabled>
-                        </div>
-                        <div class="col-md-6">
-                            <label>Aturan Pakai</label>
-                            <input type="text" class="form-control aturan_pakai" value="${aturan}" disabled>
-                        </div>
-                    </div>
-
-                    <button class="btn btn-success btn-block mt-3 tambah-resepracikan" disabled>Sudah Disimpan</button>
-                    <button class="btn btn-primary btn-block mt-3 update-resepracikan d-none">Update</button>
-                </div>
-            `);
-
+            // Use the same DOM builder used by paket and manual add -> ensures identical markup
+            createRacikanCardFromPaketWithCustomData(paketObj, ke, bungkus, aturan);
             racikanCount++;
         });
         // After rebuilding the DOM from server response, update totals

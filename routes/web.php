@@ -691,7 +691,10 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/paket-racikan', [EresepController::class, 'paketRacikanIndex'])->name('erm.paket-racikan.index');
     Route::get('/paket-racikan/list', [EresepController::class, 'getPaketRacikanList'])->name('erm.paket-racikan.list');
     Route::post('/paket-racikan/copy', [EresepController::class, 'copyFromPaketRacikan'])->name('erm.paket-racikan.copy');
+    // Farmasi-specific copy endpoint: copy paket racikan into resep farmasi
+    Route::post('/paket-racikan/copy-farmasi', [EresepController::class, 'copyFromPaketRacikanToFarmasi'])->name('erm.paket-racikan.copy.farmasi');
     Route::post('/paket-racikan/store', [EresepController::class, 'storePaketRacikan'])->name('erm.paket-racikan.store');
+    Route::put('/paket-racikan/{id}', [EresepController::class, 'updatePaketRacikan'])->name('erm.paket-racikan.update');
     Route::delete('/paket-racikan/{id}', [EresepController::class, 'deletePaketRacikan'])->name('erm.paket-racikan.delete');
     
     Route::get('/eresepfarmasi/{visitation_id}/print-etiket', [EresepController::class, 'printEtiket'])->name('erm.eresepfarmasi.print-etiket');
