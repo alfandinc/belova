@@ -41,6 +41,9 @@
             <li>
                 <a href="{{ route('workdoc.documents.index') }}"> <i data-feather="folder" class="align-self-center menu-icon"></i><span>Document Manager</span></a>
             </li>
+            <li>
+                <a href="{{ route('workdoc.surat-keluar.index') }}"> <i data-feather="file-text" class="align-self-center menu-icon"></i><span>Surat Keluar</span></a>
+            </li>
                 <li>
                     <a href="{{ route('workdoc.notulensi-rapat.index') }}"> <i data-feather="book-open" class="align-self-center menu-icon"></i><span>Notulensi Rapat</span></a>
                 </li>

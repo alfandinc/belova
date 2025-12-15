@@ -1741,3 +1741,17 @@ Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
     Route::put('/obat-mapping/{id}', [ObatMappingController::class, 'update'])->name('erm.obat-mapping.update');
     Route::delete('/obat-mapping/{id}', [ObatMappingController::class, 'destroy'])->name('erm.obat-mapping.destroy');
 });
+
+// Workdoc - Surat Keluar
+Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
+    Route::get('/surat-keluar', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'index'])->name('workdoc.surat-keluar.index');
+    Route::get('/surat-keluar/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'list'])->name('workdoc.surat-keluar.list');
+    // jenis surat list for select2 / select
+    Route::get('/surat-jenis/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'jenisList'])->name('workdoc.surat-jenis.list');
+    Route::get('/surat-diajukan-for/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'diajukanForList'])->name('workdoc.surat-diajukan-for.list');
+    Route::post('/surat-keluar', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'store'])->name('workdoc.surat-keluar.store');
+    Route::get('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'show'])->name('workdoc.surat-keluar.show');
+    Route::put('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'update'])->name('workdoc.surat-keluar.update');
+    Route::delete('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'destroy'])->name('workdoc.surat-keluar.destroy');
+    Route::get('/surat-keluar/{id}/download', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'download'])->name('workdoc.surat-keluar.download');
+});
