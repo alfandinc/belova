@@ -1765,6 +1765,8 @@ Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
 Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(function () {
     Route::get('/surat-keluar', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'index'])->name('workdoc.surat-keluar.index');
     Route::get('/surat-keluar/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'list'])->name('workdoc.surat-keluar.list');
+    // generator route (role-protected) - placed before parameterized routes
+    Route::get('/surat-keluar/generate-number', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'generateNumber'])->name('workdoc.surat-keluar.generate_number');
     // jenis surat list for select2 / select
     Route::get('/surat-jenis/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'jenisList'])->name('workdoc.surat-jenis.list');
     Route::get('/surat-diajukan-for/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'diajukanForList'])->name('workdoc.surat-diajukan-for.list');
@@ -1774,3 +1776,4 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::delete('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'destroy'])->name('workdoc.surat-keluar.destroy');
     Route::get('/surat-keluar/{id}/download', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'download'])->name('workdoc.surat-keluar.download');
 });
+

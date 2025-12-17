@@ -9,6 +9,7 @@ use App\Models\Workdoc\SuratKeluar;
 use App\Models\Workdoc\SuratJenis;
 use App\Models\User;
 use Yajra\DataTables\Facades\DataTables;
+use Carbon\Carbon;
 
 class SuratKeluarController extends Controller
 {
@@ -65,6 +66,16 @@ class SuratKeluarController extends Controller
             $data['lampiran'] = $path;
         }
 
+        // default status to 'waiting' when creating
+        if (empty($data['status'])) {
+            $data['status'] = 'waiting';
+        }
+
+        // set created_by to currently authenticated user
+        if ($request->user()) {
+            $data['created_by'] = $request->user()->id;
+        }
+
         $model = SuratKeluar::create($data);
 
         return response()->json(['success' => true, 'data' => $model]);
@@ -104,6 +115,11 @@ class SuratKeluarController extends Controller
             $data['lampiran'] = $path;
         }
 
+        // Do not allow changing creator via update form - preserve original created_by
+        if (array_key_exists('created_by', $data)) {
+            unset($data['created_by']);
+        }
+
         $model->update($data);
 
         return response()->json(['success' => true, 'data' => $model]);
@@ -126,6 +142,62 @@ class SuratKeluarController extends Controller
             abort(404);
         }
         return Storage::disk('public')->download($model->lampiran);
+    }
+
+    // Generate next no_surat based on singkatan, last number, instansi code, month(Roman) and year
+    public function generateNumber(Request $request)
+    {
+        $data = $request->validate([
+            'instansi' => 'required|string',
+            'jenis_surat' => 'required|string',
+            'tgl_dibuat' => 'required|date',
+        ]);
+
+        $instansi = $data['instansi'];
+        $jenisNama = $data['jenis_surat'];
+        $tgl = $data['tgl_dibuat'];
+
+        $jenis = SuratJenis::where('nama', $jenisNama)->first();
+        $singkatan = $jenis && $jenis->singkatan ? strtoupper($jenis->singkatan) : strtoupper(substr($jenisNama, 0, 3));
+        // ensure first 3 chars
+        $singkatan = substr($singkatan, 0, 3);
+
+        // instansi code mapping
+        $instMap = [
+            'Belova Skincare' => 'BL-KP',
+            'Premiere Belova' => 'BL-UP',
+            'BCL' => 'BC-L',
+        ];
+        $instCode = $instMap[$instansi] ?? strtoupper(str_replace(' ', '-', $instansi));
+
+        $dt = Carbon::parse($tgl);
+        $month = (int)$dt->format('m');
+        $year = $dt->format('Y');
+        $roman = [1=>'I',2=>'II',3=>'III',4=>'IV',5=>'V',6=>'VI',7=>'VII',8=>'VIII',9=>'IX',10=>'X',11=>'XI',12=>'XII'][$month];
+
+        // Find max existing sequence for same year + same jenis + same instansi
+        $rows = SuratKeluar::whereYear('tgl_dibuat', $year)
+            ->where('jenis_surat', $jenisNama)
+            ->where('instansi', $instansi)
+            ->get(['no_surat']);
+
+        $max = 0;
+        foreach ($rows as $r) {
+            if (!$r->no_surat) continue;
+            $parts = explode('.', $r->no_surat);
+            if (count($parts) < 2) continue;
+            $afterDot = $parts[1];
+            $numStr = explode('/', $afterDot)[0];
+            $num = intval($numStr);
+            if ($num > $max) $max = $num;
+        }
+
+        $next = $max + 1;
+        $numFormatted = sprintf('%04d', $next);
+
+        $no = sprintf('%s.%s/%s/%s/%s', $singkatan, $numFormatted, $instCode, $roman, $year);
+
+        return response()->json(['data' => ['no_surat' => $no]]);
     }
 
     // AJAX: list jenis surat for select options

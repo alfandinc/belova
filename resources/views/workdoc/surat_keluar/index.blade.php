@@ -129,11 +129,36 @@
                 loadJenisOptions(d.jenis_surat);
                 // reload diajukan_for options and select the current user id
                 loadDiajukanForOptions(d.diajukan_for);
+                $('#no_surat').val(d.no_surat);
                 if (d.lampiran) {
                     $('#existingLampiran').html('<a href="/workdoc/surat-keluar/'+d.id+'/download">'+d.lampiran.split('/').pop()+'</a>');
                 } else { $('#existingLampiran').html(''); }
                 $('#suratKeluarModal').modal('show');
             });
+        });
+
+        // try to auto-generate no_surat when instansi, jenis_surat and tgl_dibuat present
+        function tryGenerateNoSurat() {
+            var inst = $('#instansi').val();
+            var jenis = $('#jenis_surat').val();
+            var tgl = $('#tgl_dibuat').val();
+            // if editing existing record and it already has no_surat, don't overwrite
+            if ($('#sk_id').val() && $('#no_surat').val()) return;
+            if (!inst || !jenis || !tgl) return;
+            $.getJSON("{{ route('workdoc.surat-keluar.generate_number') }}", { instansi: inst, jenis_surat: jenis, tgl_dibuat: tgl })
+                .done(function(res){
+                    if (res.data && res.data.no_surat) {
+                        $('#no_surat').val(res.data.no_surat);
+                    }
+                })
+                .fail(function(xhr){
+                    console.error('generate-number error', xhr.status, xhr.responseText);
+                });
+        }
+
+        // bind change events
+        $(document).on('change', '#instansi, #jenis_surat, #tgl_dibuat', function(){
+            tryGenerateNoSurat();
         });
 
         $('#suratKeluarForm').on('submit', function(e){
@@ -169,7 +194,7 @@
                 showCancelButton: true,
                 confirmButtonText: 'Ya, hapus'
             }).then((result) => {
-                if (result.isConfirmed) {
+                if (result.value) {
                     $.ajax({
                         url: '/workdoc/surat-keluar/'+id,
                         method: 'POST',
