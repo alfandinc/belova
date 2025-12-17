@@ -144,7 +144,7 @@
                     <div class="form-row">
                         <div class="form-group col-md-4">
                             <label for="kode">Kode</label>
-                            <input type="text" class="form-control" id="kode" name="kode" required>
+                            <input type="text" class="form-control" id="kode" name="kode">
                         </div>
                         <div class="form-group col-md-8">
                             <label for="nama">Nama</label>
@@ -273,12 +273,12 @@ $(document).ready(function() {
             .replace(/'/g, '&#039;');
     }
 
-    // reload table when filter changes
+    // reload table when filter changes (preserve current page)
     $('#filterStatus').on('change', function() {
-        table.ajax.reload();
+        table.ajax.reload(null, false);
     });
     $('#filterObat').on('change', function() {
-        table.ajax.reload();
+        table.ajax.reload(null, false);
     });
 
     // Add Obat Row
@@ -431,7 +431,7 @@ $(document).ready(function() {
             contentType: false,
             success: function(res) {
                 $('#importCsvModal').modal('hide');
-                table.ajax.reload();
+                table.ajax.reload(null, false);
                 // Build detailed report
                 var html = '<div style="max-height:320px; overflow:auto; text-align:left;">';
                 html += '<p><strong>Dibuat:</strong> ' + (res.created||0) + '</p>';
@@ -530,7 +530,7 @@ $(document).ready(function() {
             data: formData,
             success: function(res) {
                 $('#kodeTindakanModal').modal('hide');
-                table.ajax.reload();
+                    table.ajax.reload(null, false);
                 Swal.fire('Berhasil', 'Data berhasil disimpan', 'success');
             },
             error: function(xhr) {
@@ -556,7 +556,7 @@ $(document).ready(function() {
                     type: 'DELETE',
                     data: {_token: '{{ csrf_token() }}'},
                     success: function(res) {
-                        table.ajax.reload();
+                        table.ajax.reload(null, false);
                         Swal.fire('Berhasil', 'Data berhasil dihapus', 'success');
                     },
                     error: function(xhr) {
@@ -645,7 +645,7 @@ $(document).ready(function() {
         Swal.fire({title: 'Menerapkan...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
         $.post('/erm/kodetindakan/action/bulk-set-active', payload, function(res) {
             $('#bulkActionModal').modal('hide');
-            table.ajax.reload();
+            table.ajax.reload(null, false);
             Swal.fire('Selesai', 'Diperbarui: ' + (res.updated||0), 'success');
         }).fail(function(xhr) {
             Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Terjadi kesalahan', 'error');

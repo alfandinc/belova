@@ -135,7 +135,7 @@ class KodeTindakanController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'kode' => 'required|string|unique:erm_kode_tindakan,kode',
+            'kode' => 'nullable|string|unique:erm_kode_tindakan,kode',
             'nama' => 'required|string',
             'is_active' => 'nullable|boolean',
             'hpp' => 'nullable|numeric',
@@ -171,7 +171,7 @@ class KodeTindakanController extends Controller
     {
         $kodeTindakan = KodeTindakan::findOrFail($id);
         $validated = $request->validate([
-            'kode' => 'required|string|unique:erm_kode_tindakan,kode,' . $id,
+            'kode' => 'nullable|string|unique:erm_kode_tindakan,kode,' . $id,
             'nama' => 'required|string',
             'is_active' => 'nullable|boolean',
             'hpp' => 'nullable|numeric',
