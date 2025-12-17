@@ -40,6 +40,12 @@
                         <button type="button" class="btn btn-primary waves-effect waves-light add-tindakan">
                             <i class="fas fa-plus mr-2"></i> Add Tindakan
                         </button>
+                        <button type="button" id="btnImportTindakan" class="btn btn-info waves-effect waves-light ml-2">
+                            <i class="fas fa-file-import mr-2"></i> Import CSV
+                        </button>
+                        <button type="button" id="btnImportRelations" class="btn btn-secondary waves-effect waves-light ml-2">
+                            <i class="fas fa-link mr-2"></i> Import Relations
+                        </button>
                     </div>
                 </div>
             </div>
@@ -57,6 +63,14 @@
                         <select id="filter_spesialis" class="form-control" style="min-width:220px">
                             <option value="">All Specialists</option>
                         </select>
+                        <label for="filter_status" class="ml-3 mr-2 mb-0">Status</label>
+                        <select id="filter_status" class="form-control" style="min-width:150px">
+                            <option value="">All</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                        <button type="button" id="makeAllActiveBtn" class="btn btn-success btn-sm ml-3">Activate All</button>
+                        <button type="button" id="makeAllInactiveBtn" class="btn btn-warning btn-sm ml-2">Deactivate All</button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -66,9 +80,11 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Name</th>
-                                    <th>Description</th>
-                                    <th>Price</th>
+                                    <th>Harga Normal</th>
+                                    <th>Harga Diskon</th>
+                                    <th>Harga 3x</th>
                                     <th>Specialist</th>
+                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -114,6 +130,46 @@
                     display: inline-block;
                 }
                 </style>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Bulk Action Modal -->
+<div class="modal fade" id="bulkActionModal" tabindex="-1" role="dialog" aria-labelledby="bulkActionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bulkActionModalLabel">Bulk Action</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group col-md-5">
+                        <label>From</label>
+                        <input type="date" id="bulkDateFrom" class="form-control">
+                    </div>
+                    <div class="form-group col-md-5">
+                        <label>To</label>
+                        <input type="date" id="bulkDateTo" class="form-control">
+                    </div>
+                    <div class="form-group col-md-2 d-flex align-items-end">
+                        <button type="button" id="bulkPreviewBtn" class="btn btn-primary">Preview</button>
+                    </div>
+                </div>
+                <hr>
+                <div>Preview results: <span id="bulkPreviewCount">0</span> items</div>
+                <div style="max-height:300px; overflow:auto; margin-top:10px;">
+                    <table class="table table-sm table-bordered">
+                        <thead><tr><th></th><th>Nama</th><th>Created At</th><th>Status</th></tr></thead>
+                        <tbody id="bulkPreviewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" id="bulkApplyBtn" class="btn btn-success">Apply</button>
             </div>
         </div>
     </div>
@@ -164,13 +220,13 @@
                 <div class="modal-body" style="max-height:70vh; overflow-y:auto;">
                     <input type="hidden" id="tindakan_id" name="id">
                     <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                    <div class="form-row">
+                    <div class="form-row align-items-center">
                         <div class="form-group col-md-6">
                             <label for="nama">Name <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="nama" name="nama" required>
                             <div class="invalid-feedback" id="nama-error"></div>
                         </div>
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-4">
                             <label for="spesialis_id">Specialist <span class="text-danger">*</span></label>
                             <select class="form-control select2" id="spesialis_id" name="spesialis_id" required>
                                 <option value="">Select Specialist</option>
@@ -178,35 +234,42 @@
                             </select>
                             <div class="invalid-feedback" id="spesialis_id-error"></div>
                         </div>
+                        <div class="form-group col-md-2 d-flex align-items-center">
+                            <div class="form-check mb-0">
+                                <input type="checkbox" class="form-check-input" id="is_active" name="is_active" value="1">
+                                <label class="form-check-label" for="is_active">Active</label>
+                            </div>
+                        </div>
                     </div>
-                    
+
                     {{-- <div class="form-group">
                         <label for="deskripsi">Description</label>
                         <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3"></textarea>
                         <div class="invalid-feedback" id="deskripsi-error"></div>
                     </div> --}}
                     
-                    <div class="form-group">
                     <div class="form-row">
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-4">
                             <label for="harga">Harga <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="harga" name="harga" step="0.01" required>
                             <div class="invalid-feedback" id="harga-error"></div>
                         </div>
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-4">
                             <label for="harga_diskon">Harga Diskon</label>
                             <input type="number" class="form-control" id="harga_diskon" name="harga_diskon" step="0.01">
                             <div class="invalid-feedback" id="harga_diskon-error"></div>
-                            <div class="form-group mt-2">
-                                <div class="form-check">
-                                    <input type="checkbox" class="form-check-input" id="diskon_active" name="diskon_active" value="1">
-                                    <label class="form-check-label" for="diskon_active">Diskon Active</label>
-                                </div>
-                                <div class="invalid-feedback" id="diskon_active-error"></div>
+                            <div class="form-check mt-2">
+                                <input type="checkbox" class="form-check-input" id="diskon_active" name="diskon_active" value="1">
+                                <label class="form-check-label" for="diskon_active">Diskon Active</label>
                             </div>
+                            <div class="invalid-feedback" id="diskon_active-error"></div>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="harga_3_kali">Harga 3 Kali</label>
+                            <input type="number" class="form-control" id="harga_3_kali" name="harga_3_kali" step="0.01" placeholder="Optional">
+                            <div class="invalid-feedback" id="harga_3_kali-error"></div>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label>Kode Tindakan</label>
                         <div class="table-responsive">
@@ -247,10 +310,65 @@
         </div>
     </div>
 </div>
+<!-- Import CSV Modal -->
+<div class="modal fade" id="importTindakanModal" tabindex="-1" role="dialog" aria-labelledby="importTindakanModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="importTindakanForm" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importTindakanModalLabel">Import Tindakan from CSV</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="csvFile">CSV File</label>
+                        <input type="file" id="csvFileTindakan" name="csv" accept=".csv,text/csv" class="form-control" required />
+                        <small class="form-text text-muted">Expected columns: name/nama, harga normal, harga diskon, harga 3x, specialist (name or id), is_active (1 or 0). Header row optional.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- Import Relations Modal -->
+<div class="modal fade" id="importRelationsModal" tabindex="-1" role="dialog" aria-labelledby="importRelationsModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="importRelationsForm" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importRelationsModalLabel">Import Tindakan - KodeTindakan Relations</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="csvRelationsFile">CSV File</label>
+                        <input type="file" id="csvRelationsFile" name="csv" accept=".csv,text/csv" class="form-control" required />
+                        <small class="form-text text-muted">Two columns: left = tindakan name, right = kode tindakan (kode or nama). Header optional.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import Relations</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
 <script>
+
+    // table variable declared in global scope so handlers outside ready() can access it
+    var table;
 
         // Add SOP to tindakan list from text input
         $('#tindakanAddSopBtn').click(function() {
@@ -276,6 +394,27 @@
             +'</li>');
             updateTindakanSopOrderNumbers();
             $('#tindakanAddSopText').val('');
+        });
+
+        // Bulk activate/deactivate now handled by date-range modal (see handlers later in this file)
+
+        // Toggle single tindakan active/inactive
+        $(document).on('click', '.toggle-active-tindakan', function() {
+            var btn = $(this);
+            var id = btn.data('id');
+            $.ajax({
+                url: '/marketing/tindakan/' + id + '/toggle-active',
+                type: 'POST',
+                dataType: 'json',
+                success: function(resp) {
+                    if (resp.success) {
+                        table.ajax.reload(null, false);
+                    } else {
+                        showError(resp.message || 'Failed to toggle');
+                    }
+                },
+                error: function(xhr) { showError(xhr.responseJSON?.message || 'Error'); }
+            });
         });
 
         // Add SOP to tindakan list when selected
@@ -332,6 +471,11 @@
             });
         }
     $(document).ready(function() {
+        // Small helper to escape HTML (used instead of lodash _.escape)
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return $('<div>').text(String(str)).html();
+        }
         // Add row to kode tindakan table
         $('#addKodeTindakanRow').click(function() {
             var rowIdx = $('#kodeTindakanTable tbody tr').length;
@@ -444,6 +588,11 @@
                 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
             }
         });
+
+        // Global error helper available to all handlers
+        window.showError = function(message) {
+            Swal.fire({ icon: 'error', title: 'Error', text: message });
+        };
         
         // Initialize Select2 for Specialist (no AJAX, no minimumInputLength)
         $('#spesialis_id').select2({
@@ -622,19 +771,19 @@
         loadSpesialisasi();
         
         // Initialize DataTable
-        var table = $('#tindakan-table').DataTable({
+        table = $('#tindakan-table').DataTable({
             processing: true,
             serverSide: true,
             ajax: {
                 url: "{{ route('marketing.tindakan.data') }}",
                 data: function(d) {
                     d.spesialis_id = $('#filter_spesialis').val();
+                    d.status = $('#filter_status').val();
                 }
             },
             columns: [
                 {data: 'id', name: 'id'},
                 {data: 'nama', name: 'nama'},
-                {data: 'deskripsi', name: 'deskripsi'},
                 {
                     data: 'harga', 
                     name: 'harga',
@@ -642,7 +791,28 @@
                         return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(data);
                     }
                 },
+                {
+                    data: 'harga_diskon',
+                    name: 'harga_diskon',
+                    render: function(data, type, row) {
+                        if (data == null || data === '') data = null;
+                        var formatted = data == null ? '-' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(data);
+                        if (row && (row.diskon_active == 1 || row.diskon_active === true)) {
+                            formatted += ' <i class="fas fa-check text-success ml-2" title="Diskon Active"></i>';
+                        }
+                        return formatted;
+                    }
+                },
+                {
+                    data: 'harga_3_kali',
+                    name: 'harga_3_kali',
+                    render: function(data) {
+                        if (data == null || data === '') return '-';
+                        return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(data);
+                    }
+                },
                 {data: 'spesialis_nama', name: 'spesialis_nama'},
+                {data: 'status', name: 'status', orderable: false, searchable: false},
                 {data: 'action', name: 'action', orderable: false, searchable: false}
             ]
         });
@@ -667,8 +837,162 @@
             });
         }
 
+        // Import CSV modal open
+        $('#btnImportTindakan').on('click', function() {
+            $('#importTindakanForm')[0].reset();
+            $('#importTindakanModal').modal('show');
+        });
+
+        // Import Relations modal open
+        $('#btnImportRelations').on('click', function() {
+            $('#importRelationsForm')[0].reset();
+            $('#importRelationsModal').modal('show');
+        });
+
+        // Bulk activate/deactivate with date range preview
+        var bulkActionType = null; // 'activate' or 'deactivate'
+        $('#makeAllActiveBtn, #makeAllInactiveBtn').on('click', function() {
+            bulkActionType = $(this).attr('id') === 'makeAllActiveBtn' ? 'activate' : 'deactivate';
+            // Reset modal fields
+            $('#bulkDateFrom').val('');
+            $('#bulkDateTo').val('');
+            $('#bulkPreviewBody').empty();
+            $('#bulkPreviewCount').text('0');
+            $('#bulkActionModalLabel').text(bulkActionType === 'activate' ? 'Activate Tindakan by Date Range' : 'Deactivate Tindakan by Date Range');
+            $('#bulkActionModal').modal('show');
+        });
+
+        // Preview button: fetch tindakan in date range
+        $('#bulkPreviewBtn').on('click', function() {
+            var from = $('#bulkDateFrom').val();
+            var to = $('#bulkDateTo').val();
+            if (!from || !to) { Swal.fire('Pilih tanggal', 'Silakan pilih both start and end date', 'warning'); return; }
+            Swal.fire({title: 'Mencari tindakan...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
+            $.get('{{ url('marketing/tindakan/by-date') }}', { date_from: from, date_to: to }, function(res) {
+                Swal.close();
+                if (!res.success) { Swal.fire('Error', 'Failed to fetch data', 'error'); return; }
+                var rows = res.data || [];
+                $('#bulkPreviewBody').empty();
+                    rows.forEach(function(r){
+                    var checked = r.is_active ? '' : '';
+                    var tr = '<tr>' +
+                        '<td><input type="checkbox" class="bulk-row-check" data-id="' + r.id + '" checked></td>' +
+                        '<td>' + escapeHtml(r.nama) + '</td>' +
+                        '<td>' + escapeHtml(r.created_at) + '</td>' +
+                        '<td>' + (r.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-secondary">Inactive</span>') + '</td>' +
+                    '</tr>';
+                    $('#bulkPreviewBody').append(tr);
+                });
+                $('#bulkPreviewCount').text(rows.length);
+            }).fail(function() { Swal.close(); Swal.fire('Error', 'Failed to fetch data', 'error'); });
+        });
+
+        // Apply bulk action on selected rows
+        $('#bulkApplyBtn').on('click', function() {
+            var checkedIds = [];
+            $('.bulk-row-check:checked').each(function(){ checkedIds.push(parseInt($(this).data('id'))); });
+            if (!checkedIds.length) { Swal.fire('Pilih tindakan', 'Pilih minimal satu tindakan untuk melanjutkan', 'warning'); return; }
+            var setActive = (bulkActionType === 'activate') ? 1 : 0;
+            Swal.fire({title: 'Updating...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
+            $.post('{{ url('marketing/tindakan/action/bulk-set-active') }}', { _token: '{{ csrf_token() }}', ids: checkedIds, set_active: setActive }, function(res) {
+                Swal.close();
+                if (res.success) {
+                    $('#bulkActionModal').modal('hide');
+                    table.ajax.reload(null, false);
+                    Swal.fire('Selesai', 'Updated: ' + (res.updated||0), 'success');
+                } else {
+                    Swal.fire('Error', res.message || 'Failed', 'error');
+                }
+            }).fail(function(xhr){ Swal.close(); var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Error'; Swal.fire('Error', msg, 'error'); });
+        });
+
+        // Handle Relations CSV import
+        $('#importRelationsForm').on('submit', function(e) {
+            e.preventDefault();
+            var fileInput = $('#csvRelationsFile')[0];
+            if (!fileInput.files || !fileInput.files.length) {
+                Swal.fire('Pilih file', 'Silakan pilih file CSV terlebih dahulu.', 'warning');
+                return;
+            }
+            var fd = new FormData();
+            fd.append('csv', fileInput.files[0]);
+            fd.append('_token', '{{ csrf_token() }}');
+            Swal.fire({title: 'Mengimpor relations...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
+            $.ajax({
+                url: '/marketing/tindakan/import-relations',
+                type: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    $('#importRelationsModal').modal('hide');
+                    table.ajax.reload(null, false);
+                    var summary = 'Dibuat: ' + (res.created||0) + ', Dilewati: ' + (res.skipped||0);
+                    if (res.errors && res.errors.length) {
+                        var html = '<div style="max-height:300px; overflow:auto; text-align:left;">';
+                        html += '<p>' + summary + '</p><ul>';
+                        res.errors.forEach(function(err){ html += '<li>' + escapeHtml(err) + '</li>'; });
+                        html += '</ul></div>';
+                        Swal.fire({title: 'Import selesai', html: html, icon: 'warning', width: 600});
+                    } else {
+                        Swal.fire('Selesai', summary, 'success');
+                    }
+                },
+                error: function(xhr) {
+                    var msg = 'Import gagal';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    Swal.fire('Error', msg, 'error');
+                }
+            });
+        });
+
+        // Handle CSV import form submit
+        $('#importTindakanForm').on('submit', function(e) {
+            e.preventDefault();
+            var fileInput = $('#csvFileTindakan')[0];
+            if (!fileInput.files || !fileInput.files.length) {
+                Swal.fire('Pilih file', 'Silakan pilih file CSV terlebih dahulu.', 'warning');
+                return;
+            }
+            var fd = new FormData();
+            fd.append('csv', fileInput.files[0]);
+            fd.append('_token', '{{ csrf_token() }}');
+            Swal.fire({title: 'Mengimpor...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
+            $.ajax({
+                url: '/marketing/tindakan/import',
+                type: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    $('#importTindakanModal').modal('hide');
+                    table.ajax.reload(null, false);
+                    var summary = 'Dibuat: ' + (res.created||0) + ', Dilewati: ' + (res.skipped||0);
+                    if (res.errors && Array.isArray(res.errors) && res.errors.length) {
+                        // show errors detail in scrollable modal if many
+                        var html = '<div style="max-height:300px; overflow:auto; text-align:left;">';
+                        html += '<p>' + summary + '</p><ul>';
+                        res.errors.forEach(function(err){ html += '<li>' + escapeHtml(err) + '</li>'; });
+                        html += '</ul></div>';
+                        Swal.fire({title: 'Import selesai', html: html, icon: 'warning', width: 600});
+                    } else {
+                        Swal.fire('Selesai', summary, 'success');
+                    }
+                },
+                error: function(xhr) {
+                    var msg = 'Import gagal';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    Swal.fire('Error', msg, 'error');
+                }
+            });
+        });
+
         // Reload DataTable when specialist filter changes
         $(document).on('change', '#filter_spesialis', function() {
+            table.ajax.reload();
+        });
+        // Reload DataTable when status filter changes
+        $(document).on('change', '#filter_status', function() {
             table.ajax.reload();
         });
         
@@ -714,10 +1038,16 @@
                     $('#deskripsi').val(data.deskripsi);
                     $('#harga').val(data.harga);
                        $('#harga_diskon').val(data.harga_diskon || '');
+                       $('#harga_3_kali').val(data.harga_3_kali || '');
                        if (data.diskon_active && (data.diskon_active == 1 || data.diskon_active === true)) {
                            $('#diskon_active').prop('checked', true);
                        } else {
                            $('#diskon_active').prop('checked', false);
+                       }
+                       if (data.is_active && (data.is_active == 1 || data.is_active === true)) {
+                           $('#is_active').prop('checked', true);
+                       } else {
+                           $('#is_active').prop('checked', false);
                        }
                     $('#spesialis_id').val(data.spesialis_id).trigger('change');
                     // Populate bundled obat

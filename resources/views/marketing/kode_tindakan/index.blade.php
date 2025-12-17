@@ -11,15 +11,108 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4 class="mb-0">Master Kode Tindakan</h4>
-            <button class="btn btn-primary" id="btnAddKodeTindakan"><i class="mdi mdi-plus"></i> Tambah Kode Tindakan</button>
+            <div class="d-flex align-items-center">
+                <div class="mr-2">
+                    <select id="filterStatus" class="form-control form-control-sm">
+                        <option value="all">Semua</option>
+                        <option value="active">Aktif</option>
+                        <option value="inactive">Nonaktif</option>
+                    </select>
+                </div>
+                <div class="mr-2">
+                    <select id="filterObat" class="form-control form-control-sm">
+                        <option value="all">Semua Obat</option>
+                        <option value="has">Dengan Obat</option>
+                        <option value="none">Tanpa Obat</option>
+                    </select>
+                </div>
+                <div>
+                    <button class="btn btn-info" id="btnImportCsv"><i class="mdi mdi-file-import"></i> Import CSV</button>
+                    <button class="btn btn-success" id="btnMakeAllActive"><i class="mdi mdi-check-circle-outline"></i> Aktifkan Semua</button>
+                    <button class="btn btn-danger" id="btnMakeAllInactive"><i class="mdi mdi-close-circle-outline"></i> Nonaktifkan Semua</button>
+                    <button class="btn btn-primary" id="btnAddKodeTindakan"><i class="mdi mdi-plus"></i> Tambah Kode Tindakan</button>
+                </div>
+            </div>
         </div>
+
+                <!-- Import CSV Modal -->
+                <div class="modal fade" id="importCsvModal" tabindex="-1" role="dialog" aria-labelledby="importCsvModalLabel" aria-hidden="true">
+                    <div class="modal-dialog" role="document">
+                        <div class="modal-content">
+                            <form id="importCsvForm">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="importCsvModalLabel">Import Kode Tindakan dari CSV</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-group">
+                                        <label for="csvFile">Pilih file CSV (kolom: nama)</label>
+                                        <input type="file" id="csvFile" name="csv" accept=".csv,text/csv" class="form-control-file" required />
+                                        <small class="form-text text-muted">File should contain one column with the name of the kode tindakan. Header optional.</small>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                    <button type="submit" class="btn btn-primary">Import</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                        <!-- Bulk Action Modal (activate/deactivate by date-range preview) -->
+                        <div class="modal fade" id="bulkActionModal" tabindex="-1" role="dialog" aria-labelledby="bulkActionModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-lg" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="bulkActionModalLabel">Bulk Action Preview</h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="form-row mb-2">
+                                            <div class="form-group col-md-5">
+                                                <label>Start</label>
+                                                <input type="date" id="bulkStart" class="form-control">
+                                            </div>
+                                            <div class="form-group col-md-5">
+                                                <label>End</label>
+                                                <input type="date" id="bulkEnd" class="form-control">
+                                            </div>
+                                            <div class="form-group col-md-2 d-flex align-items-end">
+                                                <button id="bulkPreviewBtn" class="btn btn-primary btn-block">Preview</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <table class="table table-sm table-bordered" id="bulkPreviewTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width:4%"><input type="checkbox" id="bulkSelectAll"></th>
+                                                        <th>Nama</th>
+                                                        <th style="width:18%">Dibuat</th>
+                                                        <th style="width:12%">Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody></tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <input type="hidden" id="bulkSetActiveValue" value="1">
+                                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                        <button type="button" id="bulkApplyBtn" class="btn btn-primary">Apply</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
         <div class="card-body">
             <table id="kodeTindakanTable" class="table table-bordered table-striped" style="width:100%">
                 <thead>
                     <tr>
                         <th style="width:10%">Kode</th>
                         <th style="width:40%">Nama</th>
-                        <th style="width:40%">Obat / Jumlah</th>
+                        <th style="width:35%">Obat / Jumlah</th>
+                        <th style="width:10%">Status</th>
                         <!-- Removed from UI for now: HPP / Harga Jasmed / Harga Jual / Harga Bottom
                         <th>HPP</th>
                         <th>Harga Jasmed</th>
@@ -56,6 +149,15 @@
                         <div class="form-group col-md-8">
                             <label for="nama">Nama</label>
                             <input type="text" class="form-control" id="nama" name="nama" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-12">
+                            <input type="hidden" name="is_active" value="0">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="1" id="is_active" name="is_active" checked>
+                                <label class="form-check-label" for="is_active">Aktif</label>
+                            </div>
                         </div>
                     </div>
                     <!-- HPP and price inputs temporarily removed from UI. Uncomment to restore.
@@ -115,17 +217,34 @@ $(document).ready(function() {
             url: '{{ route('marketing.kode_tindakan.data') }}',
             type: 'GET'
         },
-        // enforce column widths so Nama and Obat/Jumlah share the same proportion
+        // enforce column widths and include status column
         columnDefs: [
             { width: '10%', targets: 0 },
-            { width: '40%', targets: 1 },
-            { width: '40%', targets: 2 },
-            { width: '10%', targets: 3 }
+            { width: '35%', targets: 1 },
+            { width: '35%', targets: 2 },
+            { width: '10%', targets: 3 },
+            { width: '10%', targets: 4 }
         ],
+        ajax: {
+            url: '{{ route('marketing.kode_tindakan.data') }}',
+            type: 'GET',
+            data: function(d) {
+                // send status filter to server: 'all' | 'active' | 'inactive'
+                var s = $('#filterStatus').val();
+                if (s && s !== 'all') {
+                    d.status = s;
+                }
+                var ob = $('#filterObat').val();
+                if (ob && ob !== 'all') {
+                    d.obats_filter = ob;
+                }
+            }
+        },
         columns: [
             { data: 'kode', name: 'kode' },
             { data: 'nama', name: 'nama' },
             { data: 'obats_summary', name: 'obats_summary', orderable: false, searchable: false, defaultContent: '-' },
+            { data: 'status', name: 'is_active', orderable: false, searchable: false },
             // HPP / Harga fields removed from UI — keep code here commented for easy restore
             /* { data: 'hpp', name: 'hpp', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
             { data: 'harga_jasmed', name: 'harga_jasmed', render: function(data){ return data === null ? '-' : $.fn.dataTable.render.number(',', '.', 2).display(data); } },
@@ -141,6 +260,25 @@ $(document).ready(function() {
                 }
             }
         ]
+    });
+
+    // small helper: escape HTML in JS (avoid dependency on lodash)
+    function escapeHtml(unsafe) {
+        if (!unsafe && unsafe !== 0) return '';
+        return String(unsafe)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    // reload table when filter changes
+    $('#filterStatus').on('change', function() {
+        table.ajax.reload();
+    });
+    $('#filterObat').on('change', function() {
+        table.ajax.reload();
     });
 
     // Add Obat Row
@@ -261,8 +399,78 @@ $(document).ready(function() {
         $('#kodeTindakanForm')[0].reset();
         $('#kodeTindakanId').val('');
         $('#obatTable tbody').empty();
+        // default new kode tindakan to active
+        $('#is_active').prop('checked', true);
         $('#kodeTindakanModalLabel').text('Tambah Kode Tindakan');
         $('#kodeTindakanModal').modal('show');
+    });
+
+    // Import CSV modal open
+    $('#btnImportCsv').on('click', function() {
+        $('#importCsvForm')[0].reset();
+        $('#importCsvModal').modal('show');
+    });
+
+    // Handle CSV import form submit
+    $('#importCsvForm').on('submit', function(e) {
+        e.preventDefault();
+        var fileInput = $('#csvFile')[0];
+        if (!fileInput.files || !fileInput.files.length) {
+            Swal.fire('Pilih file', 'Silakan pilih file CSV terlebih dahulu.', 'warning');
+            return;
+        }
+        var fd = new FormData();
+        fd.append('csv', fileInput.files[0]);
+        fd.append('_token', '{{ csrf_token() }}');
+        Swal.fire({title: 'Mengimpor...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
+        $.ajax({
+            url: '/erm/marketing/kodetindakan/import',
+            type: 'POST',
+            data: fd,
+            processData: false,
+            contentType: false,
+            success: function(res) {
+                $('#importCsvModal').modal('hide');
+                table.ajax.reload();
+                // Build detailed report
+                var html = '<div style="max-height:320px; overflow:auto; text-align:left;">';
+                html += '<p><strong>Dibuat:</strong> ' + (res.created||0) + '</p>';
+                if (res.created_items && res.created_items.length) {
+                    html += '<ul>';
+                    res.created_items.forEach(function(it) {
+                        html += '<li>#' + it.row + ' — ' + escapeHtml(it.nama) + ' (id: ' + (it.id||'') + ')</li>';
+                    });
+                    html += '</ul>';
+                }
+                html += '<p><strong>Dilewati:</strong> ' + (res.skipped||0) + '</p>';
+                if (res.skipped_items && res.skipped_items.length) {
+                    html += '<ul>';
+                    res.skipped_items.forEach(function(it) {
+                        html += '<li>#' + it.row + ' — ' + escapeHtml(it.nama) + ' — ' + escapeHtml(it.reason) + '</li>';
+                    });
+                    html += '</ul>';
+                }
+                if (res.renamed_items && res.renamed_items.length) {
+                    html += '<hr><p><strong>Renamed existing records:</strong></p><ul>';
+                    res.renamed_items.forEach(function(it) {
+                        html += '<li>Old #'+it.old_id+' — ' + escapeHtml(it.old_name) + ' → ' + escapeHtml(it.new_name) + '</li>';
+                    });
+                    html += '</ul>';
+                }
+                if (res.errors && res.errors.length) {
+                    html += '<hr><p><strong>Errors:</strong></p><ul>';
+                    res.errors.forEach(function(err) { html += '<li>' + escapeHtml(err) + '</li>'; });
+                    html += '</ul>';
+                }
+                html += '</div>';
+                Swal.fire({title: 'Import Selesai', html: html, width: 700});
+            },
+            error: function(xhr) {
+                var msg = 'Terjadi kesalahan saat import';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire('Gagal', msg, 'error');
+            }
+        });
     });
 
     // Footer Cancel: ask confirmation before hiding since modal is non-dismissible
@@ -302,6 +510,8 @@ $(document).ready(function() {
                     initObatSelect2($row, {id: obat.obat_id, text: obat.obat_nama, satuan: (obat.satuan_dosis || obat.satuan || '')});
                 });
             }
+            // set active checkbox
+            $('#is_active').prop('checked', data.is_active ? true : false);
             $('#kodeTindakanModalLabel').text('Edit Kode Tindakan');
             $('#kodeTindakanModal').modal('show');
         });
@@ -354,6 +564,91 @@ $(document).ready(function() {
                     }
                 });
             }
+        });
+    });
+
+    // Make all inactive
+    $('#btnMakeAllInactive').on('click', function() {
+        $('#bulkActionModalLabel').text('Preview: Nonaktifkan Kode Tindakan');
+        $('#bulkSetActiveValue').val(0);
+        $('#bulkPreviewTable tbody').empty();
+        $('#bulkStart').val('');
+        $('#bulkEnd').val('');
+        $('#bulkActionModal').modal('show');
+    });
+
+    // Make all active
+    $('#btnMakeAllActive').on('click', function() {
+        $('#bulkActionModalLabel').text('Preview: Aktifkan Kode Tindakan');
+        $('#bulkSetActiveValue').val(1);
+        $('#bulkPreviewTable tbody').empty();
+        $('#bulkStart').val('');
+        $('#bulkEnd').val('');
+        $('#bulkActionModal').modal('show');
+    });
+
+    // Bulk preview
+    $('#bulkPreviewBtn').on('click', function(e) {
+        e.preventDefault();
+        var start = $('#bulkStart').val();
+        var end = $('#bulkEnd').val();
+        if (!start || !end) {
+            Swal.fire('Tanggal dibutuhkan', 'Silakan pilih tanggal mulai dan akhir untuk preview.', 'warning');
+            return;
+        }
+        $('#bulkPreviewTable tbody').html('<tr><td colspan="4" class="text-center">Memuat...</td></tr>');
+        $.get('/erm/kodetindakan/by-date', { start: start, end: end }, function(res) {
+            if (!res.success) {
+                Swal.fire('Gagal', res.message || 'Tidak dapat mengambil data', 'error');
+                return;
+            }
+            var rows = '';
+            res.data.forEach(function(item) {
+                var checked = item.is_active ? '' : '';
+                rows += '<tr data-id="'+item.id+'">'
+                    + '<td><input type="checkbox" class="bulk-row-checkbox" value="'+item.id+'"></td>'
+                    + '<td>'+ escapeHtml(item.nama) +'</td>'
+                    + '<td>'+ item.created_at +'</td>'
+                    + '<td>'+(item.is_active ? '<span class="badge badge-success">Aktif</span>' : '<span class="badge badge-secondary">Nonaktif</span>')+'</td>'
+                    + '</tr>';
+            });
+            if (!res.data.length) rows = '<tr><td colspan="4" class="text-center">Tidak ada data</td></tr>';
+            $('#bulkPreviewTable tbody').html(rows);
+        }).fail(function() {
+            Swal.fire('Gagal', 'Terjadi kesalahan saat mengambil preview', 'error');
+        });
+    });
+
+    // select all in preview
+    $(document).on('change', '#bulkSelectAll', function() {
+        var checked = $(this).is(':checked');
+        $('#bulkPreviewTable tbody').find('.bulk-row-checkbox').prop('checked', checked);
+    });
+
+    // Apply bulk set active
+    $('#bulkApplyBtn').on('click', function() {
+        var setActive = parseInt($('#bulkSetActiveValue').val(),10);
+        var ids = [];
+        $('#bulkPreviewTable tbody').find('.bulk-row-checkbox:checked').each(function() { ids.push($(this).val()); });
+        var payload = {_token: '{{ csrf_token() }}', set_active: setActive};
+        if (ids.length) {
+            payload.ids = ids;
+        } else {
+            var start = $('#bulkStart').val();
+            var end = $('#bulkEnd').val();
+            if (!start || !end) {
+                Swal.fire('Tidak ada data', 'Pilih baris atau tentukan rentang tanggal untuk melakukan aksi.', 'warning');
+                return;
+            }
+            payload.start = start; payload.end = end;
+        }
+        Swal.fire({title: 'Menerapkan...', allowOutsideClick: false, didOpen: ()=>{Swal.showLoading();}});
+        $.post('/erm/kodetindakan/action/bulk-set-active', payload, function(res) {
+            $('#bulkActionModal').modal('hide');
+            table.ajax.reload();
+            Swal.fire('Selesai', 'Diperbarui: ' + (res.updated||0), 'success');
+        }).fail(function(xhr) {
+            Swal.fire('Gagal', (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Terjadi kesalahan', 'error');
         });
     });
 });

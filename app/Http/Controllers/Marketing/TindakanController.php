@@ -65,10 +65,16 @@ class TindakanController extends Controller
     public function getTindakanData(Request $request)
     {
         $spesialisId = $request->input('spesialis_id');
+        $status = $request->input('status');
 
-        $query = Tindakan::with('spesialis')->withCount('sop');
+        $query = Tindakan::with('spesialis')->withCount(['sop', 'kodeTindakans']);
         if ($spesialisId) {
             $query->where('spesialis_id', $spesialisId);
+        }
+        if ($status === 'active') {
+            $query->where('is_active', true);
+        } elseif ($status === 'inactive') {
+            $query->where('is_active', false);
         }
 
         return DataTables::of($query)
@@ -77,8 +83,8 @@ class TindakanController extends Controller
             })
             ->editColumn('nama', function ($row) {
                 $nama = $row->nama;
-                if ($row->sop_count == 0) {
-                    $nama = '<i class="fas fa-exclamation-triangle text-warning blink-icon mr-2" title="No SOP available"></i>' . $nama;
+                if (isset($row->kode_tindakans_count) && $row->kode_tindakans_count == 0) {
+                    $nama = '<i class="fas fa-exclamation-triangle text-danger blink-icon mr-2" title="No Kode Tindakan assigned"></i>' . $nama;
                 }
                 return $nama;
             })
@@ -93,9 +99,18 @@ class TindakanController extends Controller
                     <button type="button" class="btn btn-info btn-sm galeri-before-after" data-id="'.$row->id.'">
                         <i class="fas fa-images"></i> Galeri Before After
                     </button>
+                    <button type="button" class="btn btn-secondary btn-sm toggle-active-tindakan" data-id="'.$row->id.'" data-active="'.($row->is_active ? '1' : '0').'">
+                        '.($row->is_active ? '<i class="fas fa-eye"></i> Active' : '<i class="fas fa-eye-slash"></i> Inactive').'
+                    </button>
                 ';
             })
-            ->rawColumns(['nama', 'action'])
+            ->addColumn('status', function($row) {
+                if ($row->is_active) {
+                    return '<span class="badge badge-success">Active</span>'; 
+                }
+                return '<span class="badge badge-secondary">Inactive</span>';
+            })
+            ->rawColumns(['nama', 'action', 'status'])
             ->make(true);
     }
 
@@ -218,6 +233,8 @@ class TindakanController extends Controller
             'obat_ids.*' => 'exists:erm_obat,id',
             'kode_tindakan_ids' => 'array',
             'kode_tindakan_ids.*' => 'exists:erm_kode_tindakan,id',
+            'is_active' => 'nullable|boolean',
+            'harga_3_kali' => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -231,6 +248,8 @@ class TindakanController extends Controller
                     'harga_diskon' => $request->harga_diskon,
                     'diskon_active' => $request->diskon_active ?? 0,
                     'spesialis_id' => $request->spesialis_id,
+                        'is_active' => $request->input('is_active', 1),
+                        'harga_3_kali' => $request->input('harga_3_kali', null),
                 ]
             );
 
@@ -303,6 +322,47 @@ class TindakanController extends Controller
     }
 
     /**
+     * Set all tindakan as inactive.
+     */
+    public function makeAllInactive(Request $request)
+    {
+        try {
+            Tindakan::query()->update(['is_active' => false]);
+            return response()->json(['success' => true, 'message' => 'All tindakan set to inactive']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Set all tindakan as active.
+     */
+    public function makeAllActive(Request $request)
+    {
+        try {
+            Tindakan::query()->update(['is_active' => true]);
+            return response()->json(['success' => true, 'message' => 'All tindakan set to active']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Toggle active status for a single tindakan.
+     */
+    public function toggleActive($id)
+    {
+        try {
+            $t = Tindakan::findOrFail($id);
+            $t->is_active = !$t->is_active;
+            $t->save();
+            return response()->json(['success' => true, 'is_active' => (bool)$t->is_active]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Get tindakan data by ID.
      */
     public function getTindakan($id)
@@ -344,6 +404,328 @@ class TindakanController extends Controller
             ];
         })->toArray();
         return response()->json($result);
+    }
+
+    /**
+     * Import tindakan from CSV.
+     * Expected columns: name/nama, harga normal, harga diskon, harga 3x, specialist (name or id)
+     */
+    public function importCsv(Request $request)
+    {
+        $request->validate([
+            'csv' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $file = $request->file('csv');
+        $path = $file->getRealPath();
+
+        $created = 0;
+        $skipped = 0;
+        $errors = [];
+
+        DB::beginTransaction();
+        try {
+            if (($handle = fopen($path, 'r')) !== false) {
+                $rowIndex = 0;
+                $headers = null;
+                while (($data = fgetcsv($handle, 0, ',')) !== false) {
+                    $rowIndex++;
+                    // skip empty rows
+                    if (!isset($data[0]) || trim($data[0]) === '') {
+                        continue;
+                    }
+
+                    // detect header row
+                    if ($rowIndex === 1) {
+                        $lowerCols = array_map(function($c){ return strtolower(trim($c)); }, $data);
+                        // if first row contains known header keywords, treat as header
+                        $known = ['nama', 'name', 'harga normal', 'harga_normal', 'harga', 'harga diskon', 'harga_diskon', 'harga 3x', 'harga_3_kali', 'spesialis', 'specialist', 'spesialisasi', 'is_active', 'active', 'aktif'];
+                        $intersect = array_intersect($lowerCols, $known);
+                        if (count($intersect) >= 2) {
+                            $headers = $lowerCols;
+                            continue;
+                        }
+                    }
+
+                    // Map columns
+                    if ($headers) {
+                        $cols = $headers;
+                        $get = function($names) use ($cols, $data) {
+                            foreach ($names as $n) {
+                                $idx = array_search($n, $cols);
+                                if ($idx !== false && isset($data[$idx])) return trim($data[$idx]);
+                            }
+                            return null;
+                        };
+                        $nama = $get(['nama','name','nama tindakan','nama_tindakan']);
+                        $harga = $get(['harga normal','harga_normal','harga']);
+                        $harga_diskon = $get(['harga diskon','harga_diskon','diskon']);
+                        $harga_3_kali = $get(['harga 3x','harga_3_kali','harga3x','harga_3x']);
+                        $spesialisRaw = $get(['spesialis','specialist','spesialisasi','spesialis_id']);
+                        $isActiveRaw = $get(['is_active','active','aktif']);
+                    } else {
+                        // expected order: nama, harga, harga_diskon, harga_3_kali, spesialis
+                        $nama = isset($data[0]) ? trim($data[0]) : null;
+                        $harga = isset($data[1]) ? trim($data[1]) : null;
+                        $harga_diskon = isset($data[2]) ? trim($data[2]) : null;
+                        $harga_3_kali = isset($data[3]) ? trim($data[3]) : null;
+                        $spesialisRaw = isset($data[4]) ? trim($data[4]) : null;
+                        $isActiveRaw = isset($data[5]) ? trim($data[5]) : null;
+                    }
+
+                    if (!$nama) { $skipped++; continue; }
+
+                    // We'll attempt to create even if the same name exists.
+                    // If DB enforces uniqueness, we'll append a suffix until it succeeds.
+                    // parse number helper: remove currency symbols and thousand separators
+                    $parseNumber = function($str) {
+                        if ($str === null || $str === '') return null;
+                        $s = preg_replace('/[^0-9,\.\-]/', '', $str);
+                        // If contains comma and dot, assume dot thousand sep, comma decimal (e.g. 1.234,56)
+                        if (strpos($s, ',') !== false && strpos($s, '.') !== false) {
+                            $s = str_replace('.', '', $s);
+                            $s = str_replace(',', '.', $s);
+                        } else {
+                            // remove thousand dots
+                            $s = str_replace('.', '', $s);
+                            $s = str_replace(',', '.', $s);
+                        }
+                        return is_numeric($s) ? floatval($s) : null;
+                    };
+
+                    // parse boolean helper: accept 1/0, true/false, yes/no, aktif/nonaktif
+                    $parseBool = function($v) {
+                        if ($v === null || $v === '') return null;
+                        $s = strtolower(trim($v));
+                        if (in_array($s, ['1', 'true', 'yes', 'y', 'aktif', 'active'])) return 1;
+                        if (in_array($s, ['0', 'false', 'no', 'n', 'nonaktif', 'inactive'])) return 0;
+                        return null;
+                    };
+
+                    $hargaVal = $parseNumber($harga);
+                    $hargaDiskonVal = $parseNumber($harga_diskon);
+                    $harga3xVal = $parseNumber($harga_3_kali);
+
+                    // resolve specialist to id
+                    $spesialis_id = null;
+                    if ($spesialisRaw) {
+                        $spesialisRawTrim = trim($spesialisRaw);
+                        if (ctype_digit($spesialisRawTrim)) {
+                            $sp = \App\Models\ERM\Spesialisasi::find(intval($spesialisRawTrim));
+                            if ($sp) $spesialis_id = $sp->id;
+                        }
+                        if (!$spesialis_id) {
+                            $sp = \App\Models\ERM\Spesialisasi::whereRaw('LOWER(nama) = ?', [strtolower($spesialisRawTrim)])->first();
+                            if ($sp) $spesialis_id = $sp->id;
+                        }
+                    }
+
+                    // parse is_active value
+                    $isActiveVal = $parseBool($isActiveRaw);
+
+                    if (!$spesialis_id) {
+                        $errors[] = "Row {$rowIndex}: Specialist not found (" . ($spesialisRaw ?? '') . ")";
+                        $skipped++;
+                        continue;
+                    }
+
+                    $baseName = $nama;
+                    $attempt = 0;
+                    $createdThis = false;
+                    while ($attempt < 10 && !$createdThis) {
+                        $attemptName = $attempt === 0 ? $baseName : ($baseName . ' - copy' . ($attempt > 1 ? ' ' . $attempt : ''));
+                        try {
+                            Tindakan::create([
+                                'nama' => $attemptName,
+                                'deskripsi' => null,
+                                'harga' => $hargaVal ?? 0,
+                                'harga_diskon' => $hargaDiskonVal,
+                                    'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
+                                'spesialis_id' => $spesialis_id,
+                                    'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
+                                'harga_3_kali' => $harga3xVal,
+                            ]);
+                            $created++;
+                            $createdThis = true;
+                        } catch (\Exception $e) {
+                            // If it's a duplicate key / integrity constraint, try next suffix.
+                            $msg = $e->getMessage();
+                            if (stripos($msg, 'duplicate') !== false || stripos($msg, 'unique') !== false || stripos($msg, 'Integrity constraint') !== false) {
+                                $attempt++;
+                                continue;
+                            }
+                            // other errors -> record and skip
+                            $errors[] = "Row {$rowIndex}: " . $e->getMessage();
+                            $skipped++;
+                            $createdThis = false;
+                            break;
+                        }
+                    }
+                    if (!$createdThis) {
+                        if ($attempt >= 10) {
+                            $errors[] = "Row {$rowIndex}: Could not create unique name after multiple attempts for base name '{$baseName}'";
+                        }
+                        // only count as skipped if not created
+                        if (!$createdThis) $skipped++;
+                    }
+                }
+                fclose($handle);
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Import failed: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json(['success' => true, 'created' => $created, 'skipped' => $skipped, 'errors' => $errors]);
+    }
+
+    /**
+     * Import Tindakan <-> KodeTindakan relations from CSV.
+     * Expected CSV: two columns - left: tindakan name, right: kode tindakan (kode or nama)
+     */
+    public function importRelationsCsv(Request $request)
+    {
+        $request->validate([
+            'csv' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $file = $request->file('csv');
+        $path = $file->getRealPath();
+
+        $created = 0;
+        $skipped = 0;
+        $errors = [];
+
+        DB::beginTransaction();
+        try {
+            if (($handle = fopen($path, 'r')) !== false) {
+                $rowIndex = 0;
+                while (($data = fgetcsv($handle, 0, ',')) !== false) {
+                    $rowIndex++;
+                    // skip empty rows
+                    if (!isset($data[0]) || trim($data[0]) === '') {
+                        continue;
+                    }
+
+                    // Accept two-column CSV: tindakan_name, kode_tindakan_identifier
+                    $tindakanName = trim($data[0]);
+                    $kodeIdentifier = isset($data[1]) ? trim($data[1]) : null;
+
+                    if (!$tindakanName || !$kodeIdentifier) {
+                        $errors[] = "Row {$rowIndex}: Missing tindakan name or kode tindakan";
+                        $skipped++;
+                        continue;
+                    }
+
+                    // find tindakan by exact name
+                    $tindakan = Tindakan::where('nama', $tindakanName)->first();
+                    if (!$tindakan) {
+                        $errors[] = "Row {$rowIndex}: Tindakan not found: '{$tindakanName}'";
+                        $skipped++;
+                        continue;
+                    }
+                    // ensure tindakan is active
+                    if (isset($tindakan->is_active) && !$tindakan->is_active) {
+                        $errors[] = "Row {$rowIndex}: Tindakan is inactive, skipping: '{$tindakanName}'";
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Try to find KodeTindakan by kode first, then by nama
+                    $kode = \App\Models\ERM\KodeTindakan::where('kode', $kodeIdentifier)->first();
+                    if (!$kode) {
+                        $kode = \App\Models\ERM\KodeTindakan::where('nama', $kodeIdentifier)->first();
+                    }
+                    if (!$kode) {
+                        $errors[] = "Row {$rowIndex}: KodeTindakan not found: '{$kodeIdentifier}'";
+                        $skipped++;
+                        continue;
+                    }
+                    // ensure kode tindakan is active
+                    if (isset($kode->is_active) && !$kode->is_active) {
+                        $errors[] = "Row {$rowIndex}: KodeTindakan is inactive, skipping: '{$kodeIdentifier}'";
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Attach relation without detaching existing ones
+                    try {
+                        $tindakan->kodeTindakans()->syncWithoutDetaching([$kode->id]);
+                        $created++;
+                    } catch (\Exception $e) {
+                        $errors[] = "Row {$rowIndex}: Failed to attach relation: " . $e->getMessage();
+                        $skipped++;
+                    }
+                }
+                fclose($handle);
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Import relations failed: ' . $e->getMessage()], 500);
+        }
+
+        return response()->json(['success' => true, 'created' => $created, 'skipped' => $skipped, 'errors' => $errors]);
+    }
+
+    /**
+     * Return tindakan created in a date range for preview (AJAX)
+     */
+    public function getByDate(Request $request)
+    {
+        $request->validate([
+            'date_from' => 'required|date',
+            'date_to' => 'required|date',
+        ]);
+        $from = \Carbon\Carbon::parse($request->input('date_from'))->startOfDay();
+        $to = \Carbon\Carbon::parse($request->input('date_to'))->endOfDay();
+
+        $items = Tindakan::whereBetween('created_at', [$from, $to])->orderBy('created_at')->get(['id','nama','created_at','is_active']);
+        $rows = $items->map(function($t){
+            return [
+                'id' => $t->id,
+                'nama' => $t->nama,
+                'created_at' => $t->created_at ? $t->created_at->toDateTimeString() : null,
+                'is_active' => (bool)$t->is_active,
+            ];
+        });
+        return response()->json(['success' => true, 'data' => $rows]);
+    }
+
+    /**
+     * Bulk set `is_active` by ids or date range
+     */
+    public function bulkSetActive(Request $request)
+    {
+        $request->validate([
+            'set_active' => 'required|boolean',
+            'ids' => 'nullable|array',
+            'ids.*' => 'integer',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
+        ]);
+
+        $set = $request->input('set_active') ? 1 : 0;
+        DB::beginTransaction();
+        try {
+            $query = Tindakan::query();
+            if ($request->filled('ids')) {
+                $ids = $request->input('ids');
+                $count = $query->whereIn('id', $ids)->update(['is_active' => $set]);
+            } elseif ($request->filled('date_from') && $request->filled('date_to')) {
+                $from = \Carbon\Carbon::parse($request->input('date_from'))->startOfDay();
+                $to = \Carbon\Carbon::parse($request->input('date_to'))->endOfDay();
+                $count = $query->whereBetween('created_at', [$from, $to])->update(['is_active' => $set]);
+            } else {
+                return response()->json(['success' => false, 'message' => 'Either ids or date range required'], 400);
+            }
+            DB::commit();
+            return response()->json(['success' => true, 'updated' => $count]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 
     /**

@@ -453,6 +453,13 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // Allow ERM pages to search kode tindakan and fetch bundled obats without requiring Marketing role
     Route::get('/kodetindakan/search', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'search']);
     Route::get('/kodetindakan/{id}/obats', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'getObats']);
+    // Provide endpoints to toggle active status for bulk actions (accept POST here to avoid being shadowed by the {id} route)
+    Route::post('/kodetindakan/action/make-all-inactive', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllInactive']);
+    Route::post('/kodetindakan/action/make-all-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllActive']);
+    // Bulk activate/deactivate with date-range preview
+    Route::get('/kodetindakan/by-date', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'getByDate']);
+    Route::post('/kodetindakan/action/bulk-set-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'bulkSetActive']);
+    Route::post('/marketing/kodetindakan/import', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'importCsv']);
     // Allow ERM pages to get kode tindakan details (includes hpp)
     Route::get('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
 
@@ -1334,6 +1341,8 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/kodetindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'index'])->name('marketing.kode_tindakan.index');
     Route::get('/kodetindakan/data', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'data'])->name('marketing.kode_tindakan.data');
     Route::post('/kodetindakan', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'store']);
+    Route::post('/kodetindakan/action/make-all-inactive', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllInactive']);
+    Route::post('/kodetindakan/action/make-all-active', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'makeAllActive']);
     Route::get('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'show']);
     Route::put('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'update']);
     Route::delete('/kodetindakan/{id}', [\App\Http\Controllers\Marketing\KodeTindakanController::class, 'destroy']);
@@ -1364,10 +1373,20 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Tindakan Management
     Route::get('/tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'index'])->name('marketing.tindakan.index');
     Route::get('/tindakan/data', [App\Http\Controllers\Marketing\TindakanController::class, 'getTindakanData'])->name('marketing.tindakan.data');
+    Route::post('/tindakan/import', [App\Http\Controllers\Marketing\TindakanController::class, 'importCsv']);
     Route::get('/tindakan/list', [App\Http\Controllers\Marketing\TindakanController::class, 'getTindakanList'])->name('marketing.tindakan.list');
     Route::post('/tindakan', [App\Http\Controllers\Marketing\TindakanController::class, 'store'])->name('marketing.tindakan.store');
+    Route::post('/tindakan/import-relations', [App\Http\Controllers\Marketing\TindakanController::class, 'importRelationsCsv']);
+    Route::get('/tindakan/by-date', [App\Http\Controllers\Marketing\TindakanController::class, 'getByDate']);
+    Route::post('/tindakan/action/bulk-set-active', [App\Http\Controllers\Marketing\TindakanController::class, 'bulkSetActive']);
     Route::get('/tindakan/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'getTindakan']);
     Route::delete('/tindakan/{id}', [App\Http\Controllers\Marketing\TindakanController::class, 'destroy']);
+
+    // Bulk active/inactive actions for tindakan
+    Route::post('/tindakan/action/make-all-inactive', [App\Http\Controllers\Marketing\TindakanController::class, 'makeAllInactive']);
+    Route::post('/tindakan/action/make-all-active', [App\Http\Controllers\Marketing\TindakanController::class, 'makeAllActive']);
+    // Toggle single tindakan active state
+    Route::post('/tindakan/{id}/toggle-active', [App\Http\Controllers\Marketing\TindakanController::class, 'toggleActive']);
 
     // SOP Tindakan endpoints for modal
     Route::get('/tindakan/{id}/sop', [App\Http\Controllers\Marketing\TindakanController::class, 'getSopTindakan']);
