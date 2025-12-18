@@ -49,6 +49,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             'Nama Pasien',
             'Nama Dokter',
             'Nama Klinik',
+            'Jenis',
             'Nama Item',
             'Qty',
             'Harga',
@@ -81,6 +82,18 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
     $hargaSebelumDiskon = $totalPrice;
     $hargaSetelahDiskon = $totalPrice - $diskonNominal;
 
+        // Determine Jenis based on billable_type or item name
+        $billableType = $item->billable_type ?? '';
+        $itemNameLower = strtolower($item->name ?? '');
+        $jenis = 'Lain-lain';
+        if (stripos($billableType, 'Resep') !== false || stripos($billableType, 'Obat') !== false || str_contains($itemNameLower, 'obat') || str_contains($itemNameLower, 'resep')) {
+            $jenis = 'Obat/Produk';
+        } elseif (stripos($billableType, 'Tindakan') !== false || str_contains($itemNameLower, 'tindakan')) {
+            $jenis = 'Tindakan';
+        } elseif (stripos($billableType, 'Lab') !== false || stripos($billableType, 'Laboratorium') !== false || str_contains($itemNameLower, 'lab') || str_contains($itemNameLower, 'laboratorium')) {
+            $jenis = 'Laboratorium';
+        }
+
         return [
             optional($visitation)->tanggal_visitation,
             optional($invoice)->updated_at,
@@ -88,6 +101,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             optional($pasien)->nama,
             $dokter,
             $klinik,
+            $jenis,
             $item->name,
             $qty,
             $unit,
