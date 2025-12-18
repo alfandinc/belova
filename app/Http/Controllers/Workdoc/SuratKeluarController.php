@@ -24,21 +24,49 @@ class SuratKeluarController extends Controller
         if ($request->ajax()) {
             $query = SuratKeluar::select([
                 'id','no_surat','instansi','jenis_surat','deskripsi','status','diajukan_for','created_by','tgl_dibuat','lampiran','tgl_diajukan','tgl_disetujui','disetujui_by','created_at'
-            ])->orderBy('created_at', 'desc');
+            ]);
 
             return DataTables::of($query)
-                ->addColumn('lampiran_link', function($row){
-                    if ($row->lampiran) {
-                        return '<a href="'.route('workdoc.surat-keluar.download', $row->id).'">Unduh</a>';
+                ->addColumn('person_info', function($row){
+                    $diajukan = '';
+                    $created = '';
+                    if ($row->diajukan_for) {
+                        $u = User::find($row->diajukan_for);
+                        $diajukan = $u ? $u->name : $row->diajukan_for;
                     }
-                    return '';
+                    if ($row->created_by) {
+                        $u2 = User::find($row->created_by);
+                        $created = $u2 ? $u2->name : $row->created_by;
+                    }
+                    $html = '';
+                    if ($diajukan) $html .= '<div><strong>Diajukan:</strong> '.$diajukan.'</div>';
+                    if ($created) $html .= '<div><strong>Dibuat:</strong> '.$created.'</div>';
+                    return $html ?: '';
                 })
                 ->addColumn('action', function($row){
-                    $edit = '<button class="btn btn-sm btn-info btn-edit" data-id="'.$row->id.'">Edit</button>';
-                    $del = '<button class="btn btn-sm btn-danger btn-delete" data-id="'.$row->id.'">Hapus</button>';
-                    return $edit.' '.$del;
+                    $group = '<div class="btn-group" role="group">';
+                    if ($row->lampiran) {
+                        $group .= '<a class="btn btn-sm btn-secondary" href="'.route('workdoc.surat-keluar.download', $row->id).'" target="_blank" rel="noopener">Lampiran</a>';
+                    }
+                    $currentUser = auth()->id();
+                    // show Ajukan button for creator when status is draft or revisi
+                    $status = strtolower(trim($row->status ?? ''));
+                    if ($currentUser && $row->created_by && $currentUser == $row->created_by) {
+                        if (in_array($status, ['draft','revisi'])) {
+                            $group .= '<button class="btn btn-sm btn-success btn-ajukan" data-id="'.$row->id.'">Ajukan</button>';
+                        }
+                        $group .= '<button class="btn btn-sm btn-info btn-edit" data-id="'.$row->id.'">Edit</button>';
+                        $group .= '<button class="btn btn-sm btn-danger btn-delete" data-id="'.$row->id.'">Hapus</button>';
+                    }
+                    // show Approve button for the user assigned in diajukan_for when status is diajukan
+                    if ($status === 'diajukan' && $row->diajukan_for && $currentUser && $currentUser == $row->diajukan_for) {
+                        $group .= '<button class="btn btn-sm btn-success btn-approve" data-id="'.$row->id.'">Approve</button>';
+                        $group .= '<button class="btn btn-sm btn-danger btn-revisi" data-id="'.$row->id.'">Revisi</button>';
+                    }
+                    $group .= '</div>';
+                    return $group;
                 })
-                ->rawColumns(['lampiran_link','action'])
+                ->rawColumns(['action','person_info'])
                 ->make(true);
         }
         return abort(404);
@@ -66,9 +94,9 @@ class SuratKeluarController extends Controller
             $data['lampiran'] = $path;
         }
 
-        // default status to 'waiting' when creating
+        // default status to 'draft' when creating
         if (empty($data['status'])) {
-            $data['status'] = 'waiting';
+            $data['status'] = 'draft';
         }
 
         // set created_by to currently authenticated user
@@ -141,6 +169,18 @@ class SuratKeluarController extends Controller
         if (!$model->lampiran || !Storage::disk('public')->exists($model->lampiran)) {
             abort(404);
         }
+        // Serve PDFs inline so browsers open them in a new tab instead of forcing download
+        try {
+            $path = Storage::disk('public')->path($model->lampiran);
+            $mime = Storage::disk('public')->mimeType($model->lampiran);
+        } catch (\Exception $e) {
+            return Storage::disk('public')->download($model->lampiran);
+        }
+
+        if ($mime === 'application/pdf' && file_exists($path)) {
+            return response()->file($path);
+        }
+
         return Storage::disk('public')->download($model->lampiran);
     }
 
@@ -212,5 +252,59 @@ class SuratKeluarController extends Controller
     {
         $users = User::role('Ceo')->orderBy('name')->get(['id','name']);
         return response()->json(['data' => $users]);
+    }
+
+    // Change status to 'diajukan' (submit) — only creator can ajukan
+    public function ajukan(Request $request, $id)
+    {
+        $model = SuratKeluar::findOrFail($id);
+        $userId = $request->user() ? $request->user()->id : null;
+        if (!$userId || $model->created_by != $userId) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        $status = strtolower(trim($model->status ?? ''));
+        if (!in_array($status, ['draft','revisi'])) {
+            return response()->json(['success' => false, 'message' => 'Invalid status'], 400);
+        }
+        $model->status = 'diajukan';
+        $model->tgl_diajukan = now();
+        $model->save();
+        return response()->json(['success' => true, 'data' => $model]);
+    }
+
+    // Approve the surat: set status to 'disetujui' and record approver
+    public function approve(Request $request, $id)
+    {
+        $model = SuratKeluar::findOrFail($id);
+        $userId = $request->user() ? $request->user()->id : null;
+        // only the user assigned in diajukan_for can approve
+        if (!$userId || $model->diajukan_for != $userId) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        if (strtolower(trim($model->status ?? '')) !== 'diajukan') {
+            return response()->json(['success' => false, 'message' => 'Invalid status'], 400);
+        }
+        $model->status = 'disetujui';
+        $model->tgl_disetujui = now();
+        $model->disetujui_by = $userId;
+        $model->save();
+        return response()->json(['success' => true, 'data' => $model]);
+    }
+
+    // Mark surat as 'revisi' (request revision) — only allowed for diajukan_for user
+    public function revisi(Request $request, $id)
+    {
+        $model = SuratKeluar::findOrFail($id);
+        $userId = $request->user() ? $request->user()->id : null;
+        // only the user assigned in diajukan_for can request revisi
+        if (!$userId || $model->diajukan_for != $userId) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+        if (strtolower(trim($model->status ?? '')) !== 'diajukan') {
+            return response()->json(['success' => false, 'message' => 'Invalid status'], 400);
+        }
+        $model->status = 'revisi';
+        $model->save();
+        return response()->json(['success' => true, 'data' => $model]);
     }
 }

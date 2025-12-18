@@ -1771,7 +1771,10 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::get('/surat-jenis/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'jenisList'])->name('workdoc.surat-jenis.list');
     Route::get('/surat-diajukan-for/list', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'diajukanForList'])->name('workdoc.surat-diajukan-for.list');
     Route::post('/surat-keluar', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'store'])->name('workdoc.surat-keluar.store');
+    Route::post('/surat-keluar/{id}/ajukan', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'ajukan'])->name('workdoc.surat-keluar.ajukan');
     Route::get('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'show'])->name('workdoc.surat-keluar.show');
+    Route::post('/surat-keluar/{id}/approve', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'approve'])->name('workdoc.surat-keluar.approve');
+    Route::post('/surat-keluar/{id}/revisi', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'revisi'])->name('workdoc.surat-keluar.revisi');
     Route::put('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'update'])->name('workdoc.surat-keluar.update');
     Route::delete('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'destroy'])->name('workdoc.surat-keluar.destroy');
     Route::get('/surat-keluar/{id}/download', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'download'])->name('workdoc.surat-keluar.download');
