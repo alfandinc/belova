@@ -183,6 +183,7 @@
                         <span id="subtotal" class="font-weight-bold">Rp 0</span>
                     </div>
                     
+                    {{--
                     <div class="form-group row mb-2">
                         <div class="col-6">
                             <label for="global_discount">Diskon Global</label>
@@ -207,6 +208,7 @@
                             </div>
                         </div>
                     </div>
+                    --}}
                     
                     <div class="form-group row mb-2">
                         <div class="col-6">
