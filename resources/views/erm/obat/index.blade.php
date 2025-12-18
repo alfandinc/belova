@@ -231,15 +231,11 @@
                         <th>Kode Obat</th>
                         <th>Nama Obat</th>
                         <th class="text-right">HPP</th>
-                        <th class="text-right">HPP Jual</th>
-                        <th class="text-right">Harga Net</th>
-                        <th class="text-right">Harga Non-Fornas</th>
-                        <th>Metode Bayar</th>
-                        <th>Kategori</th>
-                        <th>Zat Aktif</th>
-                        <th>Status</th>
-                        <th>Aksi</th>
-                           <th>Farmasi</th>
+                        <!-- HPP Jual column removed -->
+                        <!-- Harga Net column removed -->
+                        <th class="text-right">Harga Jual</th>
+                                <th>Zat Aktif</th>
+                                <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -262,10 +258,36 @@
         margin: 2px 2px;
         display: inline-block;
     }
-    /* Right align for price and stock columns */
-    #obat-table td:nth-child(3), 
-    #obat-table td:nth-child(6), 
-    #obat-table td:nth-child(8) {
+    /* Match Bootstrap .badge sizing for consistent appearance */
+    .badge-pink {
+        background-color: #ff69b4 !important;
+        color: #fff !important;
+        font-weight: 400;
+        display: inline-block;
+        padding: .25em .4em;
+        font-size: 75%;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: .25rem;
+    }
+    .badge-yellow {
+        background-color: #ffc107 !important;
+        color: #212529 !important;
+        font-weight: 700;
+        display: inline-block;
+        padding: .25em .4em;
+        font-size: 75%;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: .25rem;
+    }
+    /* Right align for price columns (HPP and Harga Jual) */
+    #obat-table td:nth-child(3),
+    #obat-table td:nth-child(4) {
         text-align: right;
     }
     
@@ -373,6 +395,14 @@
         table = $('#obat-table').DataTable({
             processing: true,
             serverSide: true,
+            createdRow: function(row, data, dataIndex) {
+                // Mark rows with inactive status
+                if (data.status_aktif == 0 || data.status_aktif === '0' || data.status_aktif === false) {
+                    $(row).addClass('inactive-medication');
+                } else {
+                    $(row).removeClass('inactive-medication');
+                }
+            },
             ajax: {
                 url: "{{ route('erm.obat.index') }}",
                 data: function(d) {
@@ -391,8 +421,39 @@
                 }
             },
             columns: [
-                { data: 'kode_obat', name: 'kode_obat' },
-                { data: 'nama', name: 'nama' },
+                {
+                    data: 'kode_obat',
+                    name: 'kode_obat',
+                    render: function(data, type, row) {
+                        var kategori = (row.kategori || '').toLowerCase();
+                        var cls = 'badge badge-secondary';
+                        if (kategori === 'obat') {
+                            cls = 'badge badge-primary';
+                        } else if (kategori === 'produk') {
+                            cls = 'badge badge-pink';
+                        } else if (kategori === 'bahan baku' || kategori === 'bahan_baku' || kategori === 'bahanbaku') {
+                            cls = 'badge badge-yellow';
+                        }
+                        var kodeHtml = data ? data : '-';
+                        var badgeHtml = '<span class="' + cls + '" style="margin-top:6px; display:inline-block;">' + (row.kategori || '-') + '</span>';
+                        return '<div>' + kodeHtml + '<br/>' + badgeHtml + '</div>';
+                    }
+                },
+                {
+                    data: 'nama',
+                    name: 'nama',
+                    render: function(data, type, row) {
+                        var metode = row.metode_bayar || '';
+                        var metodeLower = (metode + '').toLowerCase();
+                        var badgeClass = 'badge badge-primary';
+                        if (metodeLower === 'umum') {
+                            badgeClass = 'badge badge-success';
+                        }
+                        var nameHtml = data ? data : '-';
+                        var badgeHtml = '<span class="' + badgeClass + '" style="margin-top:6px; display:inline-block;">' + (metode || '-') + '</span>';
+                        return '<div>' + nameHtml + '<br/>' + badgeHtml + '</div>';
+                    }
+                },
                 { 
                     data: 'hpp',
                     name: 'hpp',
@@ -401,22 +462,8 @@
                         return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
                     }
                 },
-                {
-                    data: 'hpp_jual',
-                    name: 'hpp_jual',
-                    className: 'text-right',
-                    render: function(data) {
-                        return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
-                    }
-                },
-                {
-                    data: 'harga_net',
-                    name: 'harga_net',
-                    className: 'text-right',
-                    render: function(data) {
-                        return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
-                    }
-                },
+                // HPP Jual column removed
+                // Harga Net column removed
                 { 
                     data: 'harga_nonfornas', 
                     name: 'harga_nonfornas',
@@ -425,29 +472,17 @@
                         return data ? 'Rp ' + data.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '-';
                     }
                 },
-                { data: 'metode_bayar', name: 'metode_bayar' },
-                { data: 'kategori', name: 'kategori' },
                 { data: 'zat_aktif', name: 'zat_aktif', width: '180px' },
-                { 
-                    data: 'status_aktif', 
-                    name: 'status_aktif',
-                    render: function(data) {
-                        if (data === 1) {
-                            return '<span class="status-badge status-active">Aktif</span>';
-                        } else {
-                            return '<span class="status-badge status-inactive">Tidak Aktif</span>';
-                        }
-                    }
-                },
-                { data: 'action', name: 'action', orderable: false, searchable: false }
-                ,
-                { 
-                    data: null, 
-                    orderable: false, 
+                {
+                    data: 'action',
+                    name: 'action',
+                    orderable: false,
                     searchable: false,
-                    render: function (data, type, row) {
-                        // Single relations button that opens the modal showing both Pemasok and Principal
-                        return '<button class="btn btn-sm btn-info btn-relations" data-id="'+row.id+'">Relasi</button>';
+                    render: function(data, type, row) {
+                        var actionHtml = data || '';
+                        // Ensure the action buttons and the Relasi button are grouped
+                        var relasiBtn = '<button class="btn btn-sm btn-info btn-relations" data-id="'+row.id+'">Farmasi</button>';
+                        return '<div class="btn-group" role="group">' + actionHtml + relasiBtn + '</div>';
                     }
                 }
             ]
