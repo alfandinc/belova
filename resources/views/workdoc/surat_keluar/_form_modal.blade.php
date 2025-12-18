@@ -10,8 +10,14 @@
                     <input type="hidden" name="id" id="sk_id">
                     <div class="form-row">
                         <div class="form-group col-md-4">
-                            <label>No Surat</label>
-                            <input type="text" name="no_surat" id="no_surat" class="form-control">
+                            <label>Tanggal Dibuat</label>
+                            <input type="date" name="tgl_dibuat" id="tgl_dibuat" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>Jenis Surat</label>
+                            <select name="jenis_surat" id="jenis_surat" class="form-control">
+                                <option value="">-- Pilih Jenis --</option>
+                            </select>
                         </div>
                         <div class="form-group col-md-4">
                             <label>Instansi</label>
@@ -22,23 +28,19 @@
                                 <option value="BCL">BCL</option>
                             </select>
                         </div>
-                        <div class="form-group col-md-4">
-                            <label>Jenis Surat</label>
-                            <select name="jenis_surat" id="jenis_surat" class="form-control">
-                                <option value="">-- Pilih Jenis --</option>
-                            </select>
-                        </div>
-                        <div class="form-group col-md-4">
-                            <label>Tanggal Dibuat</label>
-                            <input type="date" name="tgl_dibuat" id="tgl_dibuat" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-12">
+                            <label>No Surat</label>
+                            <input type="text" name="no_surat" id="no_surat" class="form-control bg-light" readonly placeholder="(otomatis, tidak dapat diedit)">
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Deskripsi</label>
+                        <label>Perihal</label>
                         <textarea name="deskripsi" id="deskripsi" class="form-control" rows="4"></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Diajukan Untuk</label>
+                        <label>Diajukan Kepada</label>
                         <select name="diajukan_for" id="diajukan_for" class="form-control">
                             <option value="">-- Pilih User --</option>
                         </select>
