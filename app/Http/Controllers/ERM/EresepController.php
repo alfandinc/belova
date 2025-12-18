@@ -69,6 +69,15 @@ class EresepController extends Controller
                 ->addColumn('antrian', fn($v) => $v->no_antrian) // ✅ antrian dari database
                 ->addColumn('no_rm', fn($v) => $v->pasien->id ?? '-')
                 ->addColumn('nama_pasien', fn($v) => $v->pasien->nama ?? '-')
+                ->addColumn('pasien_umur', function($v) {
+                    if (!$v->pasien || !$v->pasien->tanggal_lahir) return '';
+                    try {
+                        return \Carbon\Carbon::parse($v->pasien->tanggal_lahir)->age;
+                    } catch (\Exception $e) {
+                        return '';
+                    }
+                })
+                ->addColumn('pasien_alamat', fn($v) => $v->pasien->alamat ?? '')
                 ->addColumn('tanggal_visitation', function($v) {
                     if (!$v->tanggal_visitation) return '-';
                     \Carbon\Carbon::setLocale('id');
@@ -86,6 +95,7 @@ class EresepController extends Controller
                 ->addColumn('nama_dokter', function($v) {
                     return $v->dokter && $v->dokter->user ? $v->dokter->user->name : '-';
                 })
+                ->addColumn('status_pasien', fn($v) => $v->pasien->status_pasien ?? '')
                 ->addColumn('spesialisasi', function($v) {
                     return $v->dokter && $v->dokter->spesialisasi ? $v->dokter->spesialisasi->nama : '-';
                 })
@@ -115,7 +125,8 @@ class EresepController extends Controller
                 })
                 ->filterColumn('nama_pasien', function($query, $keyword) {
                     $query->whereHas('pasien', function($q) use ($keyword) {
-                        $q->where('nama', 'like', "%$keyword%");
+                        $q->where('nama', 'like', "%$keyword%")
+                          ->orWhere('id', 'like', "%$keyword%");
                     });
                 })
                 ->filterColumn('no_resep', function($query, $keyword) {

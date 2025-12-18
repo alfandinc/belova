@@ -34,6 +34,24 @@
             </h4>
         </div>
         <div class="card-body">
+            <style>
+            .dataTables_wrapper .status-pasien-icon {
+                width: 20px;
+                height: 20px;
+                display: inline-flex !important;
+                align-items: center;
+                justify-content: center;
+                vertical-align: middle;
+                margin-right: 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                color: #fff;
+            }
+            .dataTables_wrapper .patient-meta { line-height: 1.05; }
+            .dataTables_wrapper .patient-name { font-weight: 700; display:inline-block; }
+            .dataTables_wrapper .patient-rm { font-weight: 400; color:#6c757d; display:inline-block; margin-left:6px; font-size: .95rem; }
+            .dataTables_wrapper .patient-info { color: #6c757d; font-size: .85rem; margin-top: 3px; }
+            </style>
             <div class="row mb-3">
                 <div class="col-md-3">
                     <label for="filter_tanggal_range">Filter Tanggal Kunjungan</label>
@@ -70,14 +88,11 @@
             <table class="table table-bordered w-100" id="rawatjalan-table">
                 <thead>
                     <tr>
-                        <th>No Resep</th> <!-- New column -->
-                        <th>Tanggal Kunjungan</th>
-                        <th>No RM</th>
-                        <th>Nama Pasien</th>
-                        <th>Nama Dokter</th> <!-- New -->
-                        <th>Spesialisasi</th> <!-- New -->
+                        <th>Detail resep</th> <!-- Date will be shown under this in the cell -->
+                        <th class="d-none">Tanggal Kunjungan</th>
+                        <th>Detail Pasien</th>
+                        <th>Dokter</th>
                         <th>Metode Bayar</th>
-                        <th>Asesmen Selesai</th> <!-- New column -->
                         <th>Resep</th>
                     </tr>
                 </thead>
@@ -161,24 +176,142 @@ $(document).ready(function () {
         },
         // order: [[5, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
-            { data: 'no_resep', name: 'no_resep', searchable: true, orderable: false }, // Now searchable
-            { data: 'tanggal_visitation', name: 'tanggal_visitation' },
-            { data: 'no_rm', searchable: false, orderable: false },
-            { data: 'nama_pasien', name: 'nama_pasien', searchable: true, orderable: false }, // Now searchable
-            { data: 'nama_dokter', searchable: false, orderable: false }, // New
-            { data: 'spesialisasi', searchable: false, orderable: false }, // New
-            { data: 'metode_bayar', searchable: false, orderable: false },
-            { data: 'asesmen_selesai', name: 'asesmen_selesai', searchable: false, orderable: false }, // New column
-            { data: 'dokumen', searchable: false, orderable: false },
+            { 
+                data: 'no_resep', 
+                name: 'no_resep', 
+                searchable: true, 
+                orderable: true,
+                render: function(data, type, row) {
+                    var rawDate = row.tanggal_visitation_formatted || row.tanggal_visitation || '';
+                    if (type === 'display') {
+                        var displayDate = rawDate;
+                        // Only try to parse ISO-like dates; if parsing fails, use server-provided string
+                        var m = moment(rawDate, moment.ISO_8601, true);
+                        if (m.isValid()) {
+                            displayDate = m.format('D MMMM YYYY');
+                        }
+                        return '<div>'+ (data || '') +'<br><small class="text-muted"><strong>'+ displayDate +'</strong></small></div>';
+                    }
+                    if (type === 'sort') {
+                        // For sorting, prefer a machine-friendly ISO date if available
+                        return row.tanggal_visitation_iso || row.tanggal_visitation || data || '';
+                    }
+                    if (type === 'filter') {
+                        return (data || '') + ' ' + (rawDate || '');
+                    }
+                    return data;
+                }
+            },
+            { data: 'tanggal_visitation', name: 'tanggal_visitation', visible: false, searchable: true, orderable: true },
+            { 
+                data: 'nama_pasien', 
+                name: 'nama_pasien', 
+                searchable: true, 
+                orderable: false,
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        var iconHtml = '';
+                        var status = (row.status_pasien || '').toString().trim();
+                        if (status === 'VIP') {
+                            iconHtml += '<span class="status-pasien-icon" style="background-color:#FFD700;" title="VIP Member"><i class="fas fa-crown" style="font-size:11px;color:#fff;"></i></span>';
+                        } else if (status === 'Familia') {
+                            iconHtml += '<span class="status-pasien-icon" style="background-color:#32CD32;" title="Familia Member"><i class="fas fa-users" style="font-size:11px;color:#fff;"></i></span>';
+                        } else if (status === 'Black Card') {
+                            iconHtml += '<span class="status-pasien-icon" style="background-color:#2F2F2F;" title="Black Card Member"><i class="fas fa-credit-card" style="font-size:11px;color:#fff;"></i></span>';
+                        }
+
+                        var noRm = row.no_rm || '';
+                        var umur = row.pasien_umur ? (row.pasien_umur + ' tahun') : '';
+                        var alamat = row.pasien_alamat || '';
+                        var info = '';
+                        if (umur && alamat) info = umur + ' · ' + alamat;
+                        else if (umur) info = umur;
+                        else if (alamat) info = alamat;
+                        var infoHtml = info ? '<small class="text-muted">' + info + '</small>' : '';
+                        var rmHtml = noRm ? ' (' + noRm + ')' : '';
+                        var nameHtml = '<strong>' + (data || '') + '</strong>';
+                        // Build a two-row layout: top row has icon + name, second row is age/address aligned under the name
+                        var topRow = '<div style="display:flex;align-items:flex-start;">' + iconHtml + '<div class="patient-meta" style="margin-left:8px;">' + '<div><span class="patient-name">' + nameHtml + '</span>' + '<span class="patient-rm">' + rmHtml + '</span></div>';
+                        var infoRow = info ? '<div class="patient-info">' + infoHtml + '</div>' : '';
+                        return '<div>' + topRow + infoRow + '</div></div>';
+                    }
+                    if (type === 'filter') {
+                        return (data || '') + ' ' + (row.no_rm || '') + ' ' + (row.pasien_alamat || '');
+                    }
+                    return data;
+                }
+            },
+            { 
+                data: 'nama_dokter', 
+                searchable: false, 
+                orderable: false,
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        var spec = row.spesialisasi || '';
+                        var style = '';
+                        switch ((spec || '').toString().trim()) {
+                            case 'Penyakit Dalam': style = 'background-color:#007bff;color:#fff;'; break; // blue
+                            case 'Saraf': style = 'background-color:#5bc0de;color:#fff;'; break; // light blue
+                            case 'Estetika': style = 'background-color:#ff69b4;color:#fff;'; break; // pink
+                            case 'Gigi': style = 'background-color:#fd7e14;color:#fff;'; break; // orange
+                            case 'Anak': style = 'background-color:#28a745;color:#fff;'; break; // green
+                            case 'Umum': style = 'background-color:#ffc107;color:#212529;'; break; // yellow (dark text)
+                            default: style = 'background-color:#6c757d;color:#fff;';
+                        }
+                        var badge = spec ? '<span class="badge" style="'+ style +'">'+ spec +'</span>' : '';
+                        return '<div>'+ (data || '') +'<br><small>'+ badge +'</small></div>';
+                    }
+                    if (type === 'filter') {
+                        return (data || '') + ' ' + (row.spesialisasi || '');
+                    }
+                    return data;
+                }
+            },
+            { 
+                data: 'metode_bayar', 
+                searchable: false, 
+                orderable: false,
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        var name = data || row.metode_bayar || '';
+                        var cls = 'badge badge-primary';
+                        if ((name || '').toString().trim() === 'Umum') cls = 'badge badge-success';
+                        return '<span class="'+ cls +'">'+ name +'</span>';
+                    }
+                    if (type === 'filter') return data || row.metode_bayar || '';
+                    return data;
+                }
+            },
+            { 
+                data: 'dokumen', 
+                searchable: false, 
+                orderable: false,
+                render: function(data, type, row) {
+                    if (type === 'display') {
+                        var btn = data || row.dokumen || '';
+                        var time = row.asesmen_selesai || '';
+                        var timeHtml = '';
+                        if (time && time !== '-') {
+                            var displayTime = (time || '').toString().replace(':', '.');
+                            timeHtml = '<div class="text-muted small mt-1">Asesmen selesai pada ' + displayTime + '</div>';
+                        }
+                        return '<div>'+ btn + timeHtml +'</div>';
+                    }
+                    if (type === 'filter') return (data || row.dokumen || '') + ' ' + (row.asesmen_selesai || '');
+                    return data;
+                }
+            },
             { data: 'status_kunjungan', visible: false, searchable: false } // 🛠️ Sembunyikan
         ],
         columnDefs: [
-        { targets: 0, width: "15%" },
-        { targets: 1, width: "10%" },
-        { targets: 3, width: "20%" },
-        { targets: 4, width: "20%" },
-        { targets: 7, width: "10%" },
-    ],
+            // Adjusted widths: No Resep, (hidden date), Nama Pasien, Nama Dokter, Metode Bayar, Resep
+            { targets: 0, width: "15%", orderData: [1] },
+            { targets: 1, width: "0%" },
+            { targets: 2, width: "30%" },
+            { targets: 3, width: "35%" },
+            { targets: 4, width: "8%", className: 'text-center' },
+            { targets: 5, width: "12%", className: 'text-center' },
+        ],
     });
 
     // Event ganti filter
