@@ -94,6 +94,7 @@ use App\Http\Controllers\BCL\{
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\BelovaMengajiController;
 use App\Http\Controllers\SatusehatDashboardController;
+use App\Http\Controllers\Satusehat\PasienController as SatusehatPasienController;
 Route::get('/', function () {
     if (!Auth::check()) {
         return view('auth.main_login');
@@ -301,6 +302,10 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
     Route::match(['get','post'], '/mapping-dokter/data', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'data'])->name('satusehat.dokter_mapping.data');
     Route::post('/mapping-dokter', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'store'])->name('satusehat.dokter_mapping.store');
 });
+
+// Satusehat - Pasien (index + AJAX data for today's visitations)
+Route::get('/satusehat/pasiens', [SatusehatPasienController::class, 'index'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.index');
+Route::get('/satusehat/pasiens/data', [SatusehatPasienController::class, 'data'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.data');
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');

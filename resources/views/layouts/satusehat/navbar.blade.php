@@ -43,7 +43,7 @@
                     <!-- Pasien SatuSehat -->
                     @hasanyrole('Satusehat|Admin|Pendaftaran')
                     <li>
-                        <a href="/satusehat/pasiens"><i data-feather="users" class="align-self-center menu-icon"></i><span>Pasien SatuSehat</span></a>
+                        <a href="{{ route('satusehat.pasiens.index') }}"><i data-feather="users" class="align-self-center menu-icon"></i><span>Pasien SatuSehat</span></a>
                     </li>
                     @endhasanyrole
 
