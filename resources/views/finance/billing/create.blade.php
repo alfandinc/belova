@@ -183,12 +183,11 @@
                         <span id="subtotal" class="font-weight-bold">Rp 0</span>
                     </div>
                     
-                    {{--
                     <div class="form-group row mb-2">
                         <div class="col-6">
                             <label for="global_discount">Diskon Global</label>
                             <div class="input-group">
-                                <input type="number" class="form-control" id="global_discount" min="0" value="0">
+                                <input type="number" class="form-control" id="global_discount" min="0" value="0" readonly>
                                 <div class="input-group-append">
                                     <select class="form-control" id="global_discount_type">
                                         <option value="%">%</option>
@@ -202,13 +201,12 @@
                         </div>
                         <div class="col-6">
                             <label for="tax_percentage">Pajak (%)</label>
-                            <input type="number" class="form-control" id="tax_percentage" min="0" value="0">
+                            <input type="number" class="form-control" id="tax_percentage" min="0" value="0" readonly>
                             <div class="text-right mt-1">
                                 <small id="tax_amount" class="text-muted">+ Rp 0</small>
                             </div>
                         </div>
                     </div>
-                    --}}
                     
                     <div class="form-group row mb-2">
                         <div class="col-6">
