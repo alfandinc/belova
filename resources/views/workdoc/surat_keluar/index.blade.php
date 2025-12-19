@@ -22,7 +22,6 @@
                                 <th>Instansi / Jenis</th>
                                 <th>Perihal</th>
                                 <th>Diajukan / Dibuat</th>
-                                <th>Tgl Dibuat</th>
                                    <th>Status</th>
                                 <th>Aksi</th>
                             </tr>
@@ -48,7 +47,24 @@
             ajax: "{{ route('workdoc.surat-keluar.list') }}",
                 columns: [
                 { data: null, orderable: false, searchable: false, render: function(data, type, row, meta){ return meta.row + meta.settings._iDisplayStart + 1; } },
-                { data: 'no_surat', name: 'no_surat' },
+                { data: 'no_surat', name: 'no_surat', render: function(data, type, row){
+                    var no = data || '';
+                    var date = row.tgl_dibuat || '';
+                    if (date) {
+                        var datePart = date.split(' ')[0];
+                        var parts = datePart.split('-');
+                        if (parts.length >= 3) {
+                            var year = parts[0];
+                            var month = parseInt(parts[1], 10);
+                            var day = parseInt(parts[2], 10);
+                            var months = ['januari','februari','maret','april','mei','juni','juli','agustus','september','oktober','november','desember'];
+                            var monthName = months[(month-1)] || '';
+                            date = day + ' ' + monthName + ' ' + year;
+                        }
+                    }
+                    var dateHtml = date ? '<div style="margin-top:6px;color:#6c757d;font-size:0.9em;">'+date+'</div>' : '';
+                    return '<div>'+no+dateHtml+'</div>';
+                } },
                     { data: null, name: 'instansi_jenis', orderable:false, searchable:false, render: function(data, type, row){
                         var inst = row.instansi? row.instansi : '';
                         var jenis = row.jenis_surat? row.jenis_surat : '';
@@ -74,19 +90,6 @@
                 } },
                 
                 { data: 'person_info', name: 'person_info', orderable:false, searchable:false },
-                { data: 'tgl_dibuat', name: 'tgl_dibuat', render: function(data, type, row){
-                    if (!data) return '';
-                    // expected format: 'YYYY-MM-DD' or 'YYYY-MM-DD HH:MM:SS'
-                    var datePart = data.split(' ')[0];
-                    var parts = datePart.split('-');
-                    if (parts.length < 3) return data;
-                    var year = parts[0];
-                    var month = parseInt(parts[1], 10);
-                    var day = parseInt(parts[2], 10);
-                    var months = ['januari','februari','maret','april','mei','juni','juli','agustus','september','oktober','november','desember'];
-                    var monthName = months[(month-1)] || '';
-                    return day + ' ' + monthName + ' ' + year;
-                } },
                     { data: 'status', name: 'status', render: function(data, type, row){
                         var s = (row.status || '').toString().toLowerCase();
                         var cls = 'badge-secondary';
