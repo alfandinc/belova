@@ -317,6 +317,11 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
 Route::get('/satusehat/pasiens', [SatusehatPasienController::class, 'index'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.index');
 Route::get('/satusehat/pasiens/data', [SatusehatPasienController::class, 'data'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.data');
 Route::get('/satusehat/pasiens/{visitation}/get-data', [SatusehatPasienController::class, 'getKemkesPatient'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.get_kemkes');
+Route::post('/satusehat/pasiens/{visitation}/create-encounter', [SatusehatPasienController::class, 'createKemkesEncounter'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.create_encounter');
+Route::post('/satusehat/pasiens/{visitation}/send-condition', [SatusehatPasienController::class, 'createKemkesCondition'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.send_condition');
+Route::post('/satusehat/pasiens/{visitation}/update-encounter', [SatusehatPasienController::class, 'updateKemkesEncounter'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.update_encounter');
+Route::post('/satusehat/pasiens/{visitation}/finish-encounter', [SatusehatPasienController::class, 'finishKemkesEncounter'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.finish_encounter');
+Route::post('/satusehat/pasiens/{visitation}/send-medication', [SatusehatPasienController::class, 'sendKemkesMedication'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.send_medication');
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
