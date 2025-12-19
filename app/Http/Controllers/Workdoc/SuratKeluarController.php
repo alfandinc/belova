@@ -215,9 +215,8 @@ class SuratKeluarController extends Controller
         $year = $dt->format('Y');
         $roman = [1=>'I',2=>'II',3=>'III',4=>'IV',5=>'V',6=>'VI',7=>'VII',8=>'VIII',9=>'IX',10=>'X',11=>'XI',12=>'XII'][$month];
 
-        // Find max existing sequence for same year + same jenis + same instansi
+        // Find max existing sequence for same year + same instansi (numbering grouped by instansi)
         $rows = SuratKeluar::whereYear('tgl_dibuat', $year)
-            ->where('jenis_surat', $jenisNama)
             ->where('instansi', $instansi)
             ->get(['no_surat']);
 
