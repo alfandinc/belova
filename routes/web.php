@@ -296,6 +296,16 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
     Route::post('/clinics/{clinicConfig}/token', [\App\Http\Controllers\SatusehatClinicController::class, 'requestToken'])->name('satusehat.clinics.token');
 });
 
+// SatuSehat Locations CRUD
+Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
+    Route::get('/locations', [\App\Http\Controllers\Satusehat\LocationController::class, 'index'])->name('satusehat.locations.index');
+    Route::get('/locations/data', [\App\Http\Controllers\Satusehat\LocationController::class, 'data'])->name('satusehat.locations.data');
+    Route::get('/locations/{location}', [\App\Http\Controllers\Satusehat\LocationController::class, 'show'])->name('satusehat.locations.show');
+    Route::post('/locations', [\App\Http\Controllers\Satusehat\LocationController::class, 'store'])->name('satusehat.locations.store');
+    Route::put('/locations/{location}', [\App\Http\Controllers\Satusehat\LocationController::class, 'update'])->name('satusehat.locations.update');
+    Route::delete('/locations/{location}', [\App\Http\Controllers\Satusehat\LocationController::class, 'destroy'])->name('satusehat.locations.destroy');
+});
+
 // Dokter Mapping (SatuSehat)
 Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
     Route::get('/mapping-dokter', [\App\Http\Controllers\Satusehat\DokterMappingController::class, 'index'])->name('satusehat.dokter_mapping.index');

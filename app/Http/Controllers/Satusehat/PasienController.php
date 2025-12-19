@@ -19,11 +19,32 @@ class PasienController extends Controller
 
     public function data(Request $request)
     {
-        $today = Carbon::today()->toDateString();
+        // Accept optional date range parameters `start` and `end` (YYYY-MM-DD).
+        $start = $request->get('start');
+        $end = $request->get('end');
 
-        $query = Visitation::with(['pasien', 'dokter', 'klinik'])
-            ->whereDate('tanggal_visitation', $today)
-            ->orderBy('waktu_kunjungan', 'asc');
+        $query = Visitation::with(['pasien', 'dokter', 'klinik']);
+
+        if ($start && $end) {
+            try {
+                $startDate = Carbon::parse($start)->toDateString();
+                $endDate = Carbon::parse($end)->toDateString();
+                $query = $query->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+            } catch (\Throwable $e) {
+                $query = $query->whereDate('tanggal_visitation', Carbon::today()->toDateString());
+            }
+        } elseif ($start) {
+            try {
+                $date = Carbon::parse($start)->toDateString();
+                $query = $query->whereDate('tanggal_visitation', $date);
+            } catch (\Throwable $e) {
+                $query = $query->whereDate('tanggal_visitation', Carbon::today()->toDateString());
+            }
+        } else {
+            $query = $query->whereDate('tanggal_visitation', Carbon::today()->toDateString());
+        }
+
+        $query = $query->orderBy('waktu_kunjungan', 'asc');
 
         $rows = $query->get()->map(function ($v) {
             $pasienId = $v->pasien_id;

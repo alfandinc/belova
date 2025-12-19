@@ -9,6 +9,12 @@
     <div class="card">
         <div class="card-body">
             <h4 class="card-title">Pasien SatuSehat — Kunjungan Hari Ini</h4>
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label for="filterDate">Tanggal</label>
+                    <input type="text" id="filterDate" class="form-control" />
+                </div>
+            </div>
             <table id="pasiens-table" class="table table-striped table-bordered" style="width:100%">
                 <thead>
                     <tr>
@@ -27,9 +33,33 @@
 @section('scripts')
 <script>
 $(function(){
-    $('#pasiens-table').DataTable({
+    // Initialize daterangepicker (default to this week)
+    $('#filterDate').daterangepicker({
+        locale: { format: 'YYYY-MM-DD' },
+        startDate: moment().startOf('week'),
+        endDate: moment().endOf('week'),
+        opens: 'left'
+    }, function(start, end, label){
+        // reload table when date range changes
+        if(window.pasiensTable){ window.pasiensTable.ajax.reload(); }
+    });
+
+    // create DataTable after daterangepicker so initial load uses the week range
+    window.pasiensTable = $('#pasiens-table').DataTable({
         ajax: {
             url: "{{ route('satusehat.pasiens.data') }}",
+            data: function(d){
+                // DataTables passes d; attach start/end from daterangepicker
+                var range = $('#filterDate').data('daterangepicker');
+                if(range){
+                    d.start = range.startDate.format('YYYY-MM-DD');
+                    d.end = range.endDate.format('YYYY-MM-DD');
+                } else {
+                    // fallback to today
+                    var today = moment().format('YYYY-MM-DD');
+                    d.start = today; d.end = today;
+                }
+            },
             dataSrc: 'data'
         },
         columns: [

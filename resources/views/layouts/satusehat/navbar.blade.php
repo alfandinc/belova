@@ -45,6 +45,9 @@
                     <li>
                         <a href="{{ route('satusehat.pasiens.index') }}"><i data-feather="users" class="align-self-center menu-icon"></i><span>Pasien SatuSehat</span></a>
                     </li>
+                    <li>
+                        <a href="{{ route('satusehat.locations.index') }}"><i data-feather="map-pin" class="align-self-center menu-icon"></i><span>Locations</span></a>
+                    </li>
                     @endhasanyrole
 
                     @hasanyrole('Satusehat|Admin|Pendaftaran|Farmasi|Beautician|Lab|Finance|Dokter|Perawat')
