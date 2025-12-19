@@ -12,6 +12,7 @@ use App\Models\Satusehat\Location as SatusehatLocation;
 use App\Models\Satusehat\Encounter as SatusehatEncounter;
 use App\Models\ERM\Icd10;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +20,13 @@ class PasienController extends Controller
 {
     public function index()
     {
-        return view('satusehat.pasiens.index');
+        $kliniks = \App\Models\ERM\Klinik::orderBy('nama')->get();
+        $statuses = [
+            'arrived' => 'Arrived',
+            'in-progress' => 'In Progress',
+            'finished' => 'Finished'
+        ];
+        return view('satusehat.pasiens.index', compact('kliniks','statuses'));
     }
 
     /**
@@ -1002,6 +1009,22 @@ class PasienController extends Controller
 
         $query = $query->orderBy('waktu_kunjungan', 'asc');
 
+        // Apply optional filters: klinik_id and encounter_status
+        $filterKlinik = request()->get('klinik_id');
+        if ($filterKlinik) {
+            $query = $query->where('klinik_id', $filterKlinik);
+        }
+        $filterStatus = request()->get('encounter_status');
+        if ($filterStatus) {
+            // filter visitations that have a satusehat_encounters record with matching status
+            $query = $query->whereExists(function($q) use ($filterStatus) {
+                $q->select(DB::raw(1))
+                    ->from('satusehat_encounters')
+                    ->whereRaw('satusehat_encounters.visitation_id = erm_visitations.id')
+                    ->where('satusehat_encounters.status', $filterStatus);
+            });
+        }
+
         $rows = $query->get()->map(function ($v) {
             $pasienId = $v->pasien_id;
             $patientUrl = $pasienId ? route('erm.pasien.show', $pasienId) : '#';
@@ -1013,25 +1036,73 @@ class PasienController extends Controller
                     if (!empty($asesmen->{$f})) { $diagnosa = $asesmen->{$f}; break; }
                 }
             }
-            return [
+                $dokterName = optional(optional($v->dokter)->user)->name ?: ($v->dokter->nama ?? null);
+                $klinikName = $v->klinik->nama ?? $v->klinik->name ?? null;
+
+                $dokterHtml = null;
+                // determine klinik id if available
+                $klinikId = $v->klinik->id ?? $v->klinik->klinik_id ?? null;
+                // choose badge HTML based on klinik id: 1 = blue, 2 = pink, default = info
+                $klinikBadge = '';
+                if ($klinikName) {
+                    if ($klinikId == 1) {
+                        $klinikBadge = '<span class="badge badge-primary">' . e($klinikName) . '</span>';
+                    } elseif ($klinikId == 2) {
+                        $klinikBadge = '<span class="badge" style="background:#ff69b4;color:#fff;">' . e($klinikName) . '</span>';
+                    } else {
+                        $klinikBadge = '<span class="badge badge-info">' . e($klinikName) . '</span>';
+                    }
+                }
+
+                if ($dokterName) {
+                    $dokterHtml = $dokterName;
+                    if ($klinikBadge) {
+                        $dokterHtml .= '<br>' . $klinikBadge;
+                    }
+                } else {
+                    if ($klinikBadge) {
+                        $dokterHtml = $klinikBadge;
+                    }
+                }
+
+                // compute encounter status badge before returning the row array
+                $enc = optional(\App\Models\Satusehat\Encounter::where('visitation_id', $v->id)->orderBy('created_at','desc')->first())->status;
+                $encounterBadge = '';
+                if ($enc) {
+                    $encLower = strtolower($enc);
+                    if ($encLower === 'finished') {
+                        $encounterBadge = '<span class="badge badge-success">' . e($enc) . '</span>';
+                    } elseif ($encLower === 'arrived') {
+                        $encounterBadge = '<span class="badge badge-primary">' . e($enc) . '</span>';
+                    } elseif ($encLower === 'in-progress' || $encLower === 'in progress' || $encLower === 'inprogress') {
+                        $encounterBadge = '<span class="badge badge-warning">' . e($enc) . '</span>';
+                    } else {
+                        $encounterBadge = '<span class="badge badge-secondary">' . e($enc) . '</span>';
+                    }
+                }
+
+                return [
                 'id' => $v->id,
                 'tanggal_visitation' => $v->tanggal_visitation,
                 'nik' => $nik,
                 'waktu_kunjungan' => $v->waktu_kunjungan,
                 'no_antrian' => $v->no_antrian,
-                'pasien' => $v->pasien->nama ?? null,
-                'encounter_status' => optional(\App\Models\Satusehat\Encounter::where('visitation_id', $v->id)->orderBy('created_at','desc')->first())->status,
+                // render pasien name with NIK below (muted small text)
+                'pasien' => (isset($v->pasien->nama) ? e($v->pasien->nama) : '')
+                    . (isset($v->pasien->nik) ? '<br><small class="text-muted">' . e($v->pasien->nik) . '</small>' : ''),
+                'encounter_status' => $encounterBadge,
                 'diagnosa' => $diagnosa,
-                'dokter' => $v->dokter->nama ?? null,
-                'klinik' => $v->klinik->nama ?? $v->klinik->name ?? null,
+                'dokter' => $dokterHtml,
+                'klinik' => $klinikName,
                 'status_kunjungan' => $v->status_kunjungan,
-                    'aksi' => '<a href="' . $patientUrl . '" class="btn btn-sm btn-primary mr-1">Lihat</a>'
+                    'aksi' => '<div class="btn-group" role="group" aria-label="Aksi">'
                         . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-outline-info btn-get-data">Get Data</button> '
                         . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-success btn-create-encounter">Create Encounter</button> '
                         . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-info btn-update-encounter">Update Encounter</button> '
                         . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-danger btn-finish-encounter">Finish Encounter</button> '
-                        . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-warning btn-send-condition">Send Condition</button>'
-                            . ' <button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-secondary btn-send-medication">Send Medication</button>'
+                        . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-warning btn-send-condition">Send Condition</button> '
+                        . '<button data-visitation-id="' . $v->id . '" class="btn btn-sm btn-secondary btn-send-medication">Send Medication</button>'
+                        . '</div>'
             ];
         });
 

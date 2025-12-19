@@ -14,13 +14,31 @@
                     <label for="filterDate">Tanggal</label>
                     <input type="text" id="filterDate" class="form-control" />
                 </div>
+                <div class="col-md-3">
+                    <label for="filterKlinik">Klinik</label>
+                    <select id="filterKlinik" class="form-control">
+                        <option value="">-- Semua Klinik --</option>
+                        @foreach($kliniks as $kl)
+                            <option value="{{ $kl->id }}">{{ $kl->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterEncounterStatus">Encounter Status</label>
+                    <select id="filterEncounterStatus" class="form-control">
+                        <option value="">-- Semua Status --</option>
+                        @foreach($statuses as $k => $lab)
+                            <option value="{{ $k }}">{{ $lab }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
             <table id="pasiens-table" class="table table-striped table-bordered" style="width:100%">
                 <thead>
                             <tr>
                                 <th>Tanggal</th>
-                                <th>NIK</th>
                                 <th>Pasien</th>
+                                <th>Dokter</th>
                                 <th>Encounter Status</th>
                                 <th>Diagnosa Kerja</th>
                                 <th>Aksi</th>
@@ -47,9 +65,12 @@ $(function(){
         if(window.pasiensTable){ window.pasiensTable.ajax.reload(); }
     });
 
+    // reload table when filters change
+    $(document).on('change', '#filterKlinik, #filterEncounterStatus', function(){ if(window.pasiensTable){ window.pasiensTable.ajax.reload(); } });
+
     // create DataTable after daterangepicker so initial load uses the week range
     window.pasiensTable = $('#pasiens-table').DataTable({
-        ajax: {
+            ajax: {
             url: "{{ route('satusehat.pasiens.data') }}",
             data: function(d){
                 // DataTables passes d; attach start/end from daterangepicker
@@ -62,13 +83,16 @@ $(function(){
                     var today = moment().format('YYYY-MM-DD');
                     d.start = today; d.end = today;
                 }
+                // attach selected klinik and encounter status filters
+                d.klinik_id = $('#filterKlinik').val();
+                d.encounter_status = $('#filterEncounterStatus').val();
             },
             dataSrc: 'data'
         },
         columns: [
             { data: 'tanggal_visitation' },
-            { data: 'nik' },
             { data: 'pasien' },
+            { data: 'dokter' },
             { data: 'encounter_status' },
             { data: 'diagnosa' },
             { data: 'aksi', orderable: false, searchable: false }
