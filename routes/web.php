@@ -306,6 +306,7 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
 // Satusehat - Pasien (index + AJAX data for today's visitations)
 Route::get('/satusehat/pasiens', [SatusehatPasienController::class, 'index'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.index');
 Route::get('/satusehat/pasiens/data', [SatusehatPasienController::class, 'data'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.data');
+Route::get('/satusehat/pasiens/{visitation}/get-data', [SatusehatPasienController::class, 'getKemkesPatient'])->middleware(['auth','role:Satusehat|Admin'])->name('satusehat.pasiens.get_kemkes');
 
 Route::prefix('bcl')->middleware('role:Kos|Admin')->group(function () {
     Route::post('/rooms/store', [RoomsController::class, 'store'])->name('bcl.rooms.store');
