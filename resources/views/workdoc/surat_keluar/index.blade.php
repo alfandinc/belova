@@ -20,6 +20,7 @@
                                 <th>No</th>
                                 <th>No Surat</th>
                                 <th>Instansi / Jenis</th>
+                                <th>Perihal</th>
                                 <th>Diajukan / Dibuat</th>
                                 <th>Tgl Dibuat</th>
                                    <th>Status</th>
@@ -65,6 +66,12 @@
                         var jenisHtml = jenis ? '<div>'+jenis+'</div>' : '';
                         return '<div>'+jenisHtml+badgeHtml+'</div>';
                     } },
+                { data: 'deskripsi', name: 'deskripsi', orderable:false, searchable:true, render: function(data, type, row){
+                    if (!data) return '';
+                    var txt = data.toString();
+                    if (type === 'display' && txt.length > 120) return txt.substring(0,120) + '...';
+                    return txt;
+                } },
                 
                 { data: 'person_info', name: 'person_info', orderable:false, searchable:false },
                 { data: 'tgl_dibuat', name: 'tgl_dibuat', render: function(data, type, row){
