@@ -30,6 +30,16 @@
     </div>
     <!--end logo-->
     <div class="menu-content h-100" data-simplebar>
+        @php
+            $kemitraanSoonCount = 0;
+            try {
+                $kemitraanSoonCount = \App\Models\Workdoc\Kemitraan::whereNotNull('end_date')
+                    ->whereDate('end_date', '<=', \Carbon\Carbon::today()->addDays(183))
+                    ->count();
+            } catch (\Throwable $e) {
+                $kemitraanSoonCount = 0;
+            }
+        @endphp
         <ul class="metismenu left-sidenav-menu">
             <li class="menu-label mt-0">Main</li>
             <li>
@@ -46,6 +56,13 @@
             </li>
                 <li>
                     <a href="{{ route('workdoc.notulensi-rapat.index') }}"> <i data-feather="book-open" class="align-self-center menu-icon"></i><span>Notulensi Rapat</span></a>
+                </li>
+                <li>
+                    <a href="{{ route('workdoc.kemitraan.index') }}"> <i data-feather="briefcase" class="align-self-center menu-icon"></i><span>Kemitraan</span>
+                        @if($kemitraanSoonCount > 0)
+                            <span class="badge badge-danger ml-2" style="font-size:0.75rem;padding:0.25rem 0.45rem;vertical-align:middle;">{{ $kemitraanSoonCount }}</span>
+                        @endif
+                    </a>
                 </li>
         </ul>              
     </div>

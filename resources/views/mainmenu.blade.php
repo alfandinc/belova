@@ -576,6 +576,17 @@
                     $userRoles = Auth::user()->roles->pluck('name')->toArray();
                 @endphp
 
+                @php
+                    $kemitraanSoonCount = 0;
+                    try {
+                        $kemitraanSoonCount = \App\Models\Workdoc\Kemitraan::whereNotNull('end_date')
+                            ->whereDate('end_date', '<=', \Carbon\Carbon::today()->addDays(183))
+                            ->count();
+                    } catch (\Throwable $e) {
+                        $kemitraanSoonCount = 0;
+                    }
+                @endphp
+
                 <!-- Row 1: ERM, Farmasi, Laboratorium, Beautician, Penilaian Pelanggan -->
                 <a href="/erm/rawatjalans" class="menu-tile tile-erm animate-item delay-1" data-filter="erm healthcare patient"
                    @if(!array_intersect($userRoles, ['Dokter','Perawat','Pendaftaran','Admin','Farmasi']))
@@ -653,7 +664,12 @@
                    @endif>
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-folder-open"></i></div>
-                        <div class="menu-badge">Docs</div>
+                    </div>
+                    <div class="tile-bell-top" aria-hidden="true">
+                        <div class="bell"><i class="fas fa-bell"></i></div>
+                        @if(!empty($kemitraanSoonCount) && $kemitraanSoonCount > 0)
+                            <div class="count">{{ $kemitraanSoonCount }}</div>
+                        @endif
                     </div>
                     <div class="menu-title">Dokumen Kerja</div>
                     <div class="menu-sub">SOP & Template</div>
@@ -801,8 +817,6 @@
 
                     <div class="menu-title">Job List</div>
                     <div class="menu-sub">Tugas & Deadline</div>
-
-                    <div class="tile-badge-bottom">Task</div>
                 </a>
                 
                 <!-- Admin Panel -->

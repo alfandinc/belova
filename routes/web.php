@@ -973,6 +973,14 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::post('/notulensi-rapat/{notulensiId}/todos/{todoId}/approve', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'approveTodo'])->name('workdoc.notulensi-rapat.todos.approve');
     // Update notulensi (AJAX)
     Route::put('/notulensi-rapat/{id}', [App\Http\Controllers\Workdoc\NotulensiRapatController::class, 'update'])->name('workdoc.notulensi-rapat.update');
+
+    // Kemitraan (Workdoc) - CRUD via modal + DataTable
+    Route::get('/kemitraan', [App\Http\Controllers\Workdoc\KemitraanController::class, 'index'])->name('workdoc.kemitraan.index');
+    Route::get('/kemitraan/data', [App\Http\Controllers\Workdoc\KemitraanController::class, 'data'])->name('workdoc.kemitraan.data');
+    Route::post('/kemitraan', [App\Http\Controllers\Workdoc\KemitraanController::class, 'store'])->name('workdoc.kemitraan.store');
+    Route::get('/kemitraan/{id}', [App\Http\Controllers\Workdoc\KemitraanController::class, 'show'])->name('workdoc.kemitraan.show');
+    Route::put('/kemitraan/{id}', [App\Http\Controllers\Workdoc\KemitraanController::class, 'update'])->name('workdoc.kemitraan.update');
+    Route::delete('/kemitraan/{id}', [App\Http\Controllers\Workdoc\KemitraanController::class, 'destroy'])->name('workdoc.kemitraan.destroy');
 });
 
 
