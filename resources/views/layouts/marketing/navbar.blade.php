@@ -87,6 +87,9 @@
                 </a>
             </li>
             <li>
+                <a href="{{ route('marketing.kunjungan.index') }}"> <i data-feather="map-pin" class="align-self-center menu-icon"></i><span>Kunjungan</span></a>
+            </li>
+            <li>
                 <a href="/marketing/hari-penting"> <i data-feather="star" class="align-self-center menu-icon"></i><span>Hari Penting</span>
                     @if(!empty($hariPentingTodayCount))
                         <span class="badge badge-danger ml-1" style="font-size:10px;">{{ $hariPentingTodayCount }}</span>

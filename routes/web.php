@@ -1496,6 +1496,14 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     // Content Briefs - store via AJAX from modal
     Route::post('content-brief', [\App\Http\Controllers\Marketing\ContentBriefController::class, 'store'])->name('marketing.content-brief.store');
     Route::get('content-brief/by-plan/{id}', [\App\Http\Controllers\Marketing\ContentBriefController::class, 'latestByPlan'])->name('marketing.content-brief.latest-by-plan');
+    
+    // Kunjungan Marketing CRUD
+    Route::get('/kunjungan', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'index'])->name('marketing.kunjungan.index');
+    Route::get('/kunjungan/data', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'data'])->name('marketing.kunjungan.data');
+    Route::post('/kunjungan', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'store'])->name('marketing.kunjungan.store');
+    Route::get('/kunjungan/{id}', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'show'])->name('marketing.kunjungan.show');
+    Route::put('/kunjungan/{id}', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'update'])->name('marketing.kunjungan.update');
+    Route::delete('/kunjungan/{id}', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'destroy'])->name('marketing.kunjungan.destroy');
 });
 
 
