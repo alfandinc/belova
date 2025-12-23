@@ -22,6 +22,10 @@ class KemitraanController extends Controller
         if(request()->has('category') && !empty(request('category'))){
             $query->where('category', request('category'));
         }
+        // optional instansi filter from request
+        if(request()->has('instansi') && !empty(request('instansi'))){
+            $query->where('instansi', request('instansi'));
+        }
         $rows = $query->orderBy('end_date', 'asc')->get();
         return response()->json(['data' => $rows]);
     }
@@ -31,6 +35,7 @@ class KemitraanController extends Controller
         $data = $request->validate([
             'partner_name' => 'required|string|max:255',
             'category' => 'nullable|string|in:asuransi,operasional,marketing',
+            'instansi' => 'nullable|string|in:Premiere Belova,Belova Skincare,BCL',
             'perihal' => 'nullable|string|max:255',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
@@ -67,6 +72,7 @@ class KemitraanController extends Controller
         $data = $request->validate([
             'partner_name' => 'required|string|max:255',
             'category' => 'nullable|string|in:asuransi,operasional,marketing',
+            'instansi' => 'nullable|string|in:Premiere Belova,Belova Skincare,BCL',
             'perihal' => 'nullable|string|max:255',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',

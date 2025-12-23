@@ -16,11 +16,19 @@
                     <div class="mb-3 d-flex align-items-center">
                         <button id="btn-add" class="btn btn-primary mr-3">Tambah Kemitraan</button>
                         <label class="mr-2 mb-0">Filter Kategori:</label>
-                        <select id="filter-category" class="form-control" style="width:220px">
+                        <select id="filter-category" class="form-control mr-3" style="width:220px">
                             <option value="">Semua Kategori</option>
                             <option value="asuransi">Asuransi</option>
                             <option value="operasional">Operasional</option>
                             <option value="marketing">Marketing</option>
+                        </select>
+
+                        <label class="mr-2 mb-0">Filter Instansi:</label>
+                        <select id="filter-instansi" class="form-control" style="width:200px">
+                            <option value="">Semua Instansi</option>
+                            <option value="Premiere Belova">Premiere Belova</option>
+                            <option value="Belova Skincare">Belova Skincare</option>
+                            <option value="BCL">BCL</option>
                         </select>
                     </div>
 
@@ -29,6 +37,7 @@
                             <tr>
                                 <th>No</th>
                                 <th>Nama Mitra</th>
+                                <th>Instansi</th>
                                 <th>Perihal</th>
                                 <th style="display:none">End Date</th>
                                 <th>Periode</th>
@@ -57,11 +66,11 @@
       <div class="modal-body">
             <input type="hidden" name="id" id="kemitraan-id">
             <div class="form-row">
-                <div class="form-group col-md-4">
+                <div class="form-group col-md-6">
                     <label>Nama Mitra</label>
                     <input type="text" name="partner_name" id="partner_name" class="form-control" required style="text-transform:uppercase">
                 </div>
-                <div class="form-group col-md-4">
+                <div class="form-group col-md-6">
                     <label>Kategori</label>
                     <select name="category" id="category" class="form-control">
                         <option value="">-- Pilih kategori --</option>
@@ -70,12 +79,24 @@
                         <option value="marketing">Marketing</option>
                     </select>
                 </div>
-                <div class="form-group col-md-4">
+            </div>
+
+            <div class="form-row mt-2">
+                <div class="form-group col-md-6">
                     <label>Status</label>
                     <select name="status" id="status" class="form-control">
                         <option value="on going" selected>On Going</option>
                         <option value="terminated">Terminated</option>
                         <option value="posponed">Posponed</option>
+                    </select>
+                </div>
+                <div class="form-group col-md-6">
+                    <label>Instansi</label>
+                    <select name="instansi" id="instansi" class="form-control">
+                        <option value="">-- Pilih instansi --</option>
+                        <option value="Premiere Belova">Premiere Belova</option>
+                        <option value="Belova Skincare">Belova Skincare</option>
+                        <option value="BCL">BCL</option>
                     </select>
                 </div>
             </div>
@@ -138,6 +159,15 @@
     }
     @keyframes blink-warning{0%{opacity:1;transform:scale(1)}50%{opacity:0.35;transform:scale(0.98)}100%{opacity:1;transform:scale(1)}}
     @keyframes blink-danger{0%{opacity:1;transform:scale(1)}50%{opacity:0.25;transform:scale(0.97)}100%{opacity:1;transform:scale(1)}}
+    /* Instansi badge colors */
+    .badge-pink{
+        background:#e83e8c;
+        color:#fff;
+    }
+    .badge-orange{
+        background:#fd7e14;
+        color:#fff;
+    }
 </style>
 <script>
     $(function(){
@@ -146,10 +176,12 @@
                     url: '{!! route('workdoc.kemitraan.data') !!}',
                     data: function(d){
                         d.category = $('#filter-category').val();
+                        d.instansi = $('#filter-instansi').val();
                     }
                 },
                 // order by the hidden end_date column (ascending = nearest/earliest end_date first)
                 order: [[3, 'asc']],
+                order: [[4, 'asc']],
                 // highlight rows whose end_date is today or in the past
                 rowCallback: function(row, data){
                     try{
@@ -184,6 +216,17 @@
                         const labelText = labelMap[cat] || (cat ? (cat.charAt(0).toUpperCase()+cat.slice(1)) : '');
                         const label = cat ? `<div class="mt-1"><span class="badge ${cls}">${labelText}</span></div>` : '';
                         return `<div>${name}${label}</div>`;
+                    } },
+                    { data: 'instansi', render: function(data){
+                        if(!data) return '';
+                        const key = (data || '').toString().toLowerCase();
+                        const map = {
+                            'premiere belova': 'badge-primary',
+                            'belova skincare': 'badge-pink',
+                            'bcl': 'badge-orange'
+                        };
+                        const cls = map[key] || 'badge-secondary';
+                        return `<div><span class="badge ${cls}">${data}</span></div>`;
                     } },
                     { data: 'perihal' },
                     // hidden raw end_date for correct ordering
@@ -244,13 +287,15 @@
             $('#kemitraan-id').val('');
             // ensure default status when adding
             $('#status').val('on going');
+            // reset instansi
+            $('#instansi').val('');
             // reset custom file label
             $('#dokumen_pks').next('.custom-file-label').html('Pilih file');
             $('#kemitraanModal').modal('show');
         });
 
         // reload table when category filter changes
-        $(document).on('change', '#filter-category', function(){
+        $(document).on('change', '#filter-category, #filter-instansi', function(){
             table.ajax.reload();
         });
 
@@ -261,6 +306,7 @@
                 $('#kemitraan-id').val(d.id);
                 $('#partner_name').val(d.partner_name);
                 $('#category').val(d.category);
+                $('#instansi').val(d.instansi);
                 $('#perihal').val(d.perihal);
                 $('#start_date').val(d.start_date);
                 $('#end_date').val(d.end_date);

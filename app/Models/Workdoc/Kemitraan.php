@@ -13,6 +13,7 @@ class Kemitraan extends Model
 
     protected $fillable = [
         'partner_name',
+        'instansi',
         'category',
         'perihal',
         'start_date',
