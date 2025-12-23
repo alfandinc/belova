@@ -15,8 +15,7 @@
                         <thead>
                             <tr>
                                 <th>Obat</th>
-                                <th style="width:60px">Qty</th>
-                                <th style="width:60px">Dosis</th>
+                                <th style="width:80px">Qty</th>
                                 <th>Satuan Dosis</th>
                                 <th>Edit</th>
                             </tr>
@@ -35,8 +34,7 @@
                                     @if($obat)
                                     <tr>
                                         <td class="obat-name-cell" data-obat-id="{{ $obat->id }}" data-kode-tindakan-id="{{ $kodeTindakan->id }}" style="width:220px">{{ $obat->nama }}</td>
-                                        <td><input type="number" class="form-control qty-input" name="qty[{{ $kodeTindakan->id }}][{{ $obat->id }}]" value="{{ $pivot->qty ?? 1 }}" min="1" style="width:50px" disabled></td>
-                                        <td><input type="text" class="form-control dosis-input" name="dosis[{{ $kodeTindakan->id }}][{{ $obat->id }}]" value="{{ $pivot->dosis ?? '' }}" style="width:50px" disabled></td>
+                                        <td><input type="number" class="form-control qty-input" name="qty[{{ $kodeTindakan->id }}][{{ $obat->id }}]" value="{{ $pivot->qty ?? 1 }}" step="0.01" min="0" style="width:70px" disabled></td>
                                         <td style="min-width:100px">
                                             @php
                                                 $satuanOptions = [];
@@ -82,7 +80,6 @@
         $('#saveRiwayatObatBtn').on('click', function() {
             var data = {};
             var qtyData = {};
-            var dosisData = {};
             var satuanDosisData = {};
             // Collect obat IDs
             $('.obat-name-cell').each(function() {
@@ -93,13 +90,10 @@
                 data[kodeTindakanId].push(obatId);
                 // Collect qty, dosis, satuan_dosis
                 var qty = $row.find('.qty-input').val();
-                var dosis = $row.find('.dosis-input').val();
                 var satuanDosis = $row.find('.satuan-dosis-input').val();
                 if (!qtyData[kodeTindakanId]) qtyData[kodeTindakanId] = {};
-                if (!dosisData[kodeTindakanId]) dosisData[kodeTindakanId] = {};
                 if (!satuanDosisData[kodeTindakanId]) satuanDosisData[kodeTindakanId] = {};
                 qtyData[kodeTindakanId][obatId] = qty;
-                dosisData[kodeTindakanId][obatId] = dosis;
                 satuanDosisData[kodeTindakanId][obatId] = satuanDosis;
             });
             $.ajax({
@@ -109,7 +103,6 @@
                     _token: '{{ csrf_token() }}',
                     obats: data,
                     qty: qtyData,
-                    dosis: dosisData,
                     satuan_dosis: satuanDosisData
                 },
                 success: function(res) {
@@ -134,8 +127,8 @@
             var $row = $btn.closest('tr');
             var $cell = $row.find('.obat-name-cell');
             var currentObatName = $cell.text();
-            // Enable qty, dosis, satuan_dosis fields in this row
-            $row.find('.qty-input, .dosis-input, .satuan-dosis-input').prop('disabled', false);
+            // Enable qty and satuan_dosis fields in this row
+            $row.find('.qty-input, .satuan-dosis-input').prop('disabled', false);
             // Replace cell with select2 input
             $cell.html('<select class="form-control obat-substitute-select" style="width:100%"></select>');
             var $select = $cell.find('select');
@@ -183,8 +176,8 @@
             // Restore cell
             $cell.text(originalName);
             $cell.attr('data-obat-id', originalId);
-            // Disable qty, dosis, satuan_dosis fields in this row
-            $row.find('.qty-input, .dosis-input, .satuan-dosis-input').prop('disabled', true);
+            // Disable qty and satuan_dosis fields in this row
+            $row.find('.qty-input, .satuan-dosis-input').prop('disabled', true);
             // Restore button
             $btn.text('Edit').removeClass('btn-secondary').addClass('btn-warning').addClass('edit-obat-btn').removeClass('cancel-obat-btn');
         });

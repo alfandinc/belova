@@ -492,6 +492,46 @@ $(document).ready(function() {
         });
     });
 
+    // Handle delete stok button click
+    $(document).on('click', '.btn-delete-stok', function(e) {
+        e.preventDefault();
+        var btn = $(this);
+        var obatId = btn.data('obat-id');
+        var gudangId = btn.data('gudang-id');
+
+        if (!confirm('Yakin ingin mengosongkan semua stok untuk obat ini di gudang terpilih? Tindakan ini tidak dapat dibatalkan.')) return;
+
+        btn.prop('disabled', true).text('Menghapus...');
+
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.delete") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                obat_id: obatId,
+                gudang_id: gudangId
+            },
+            success: function(res) {
+                if (res.success) {
+                    alert(res.message || 'Stok berhasil dikosongkan');
+                    table.ajax.reload();
+                    updateNilaiStok();
+                } else {
+                    alert(res.message || 'Gagal mengosongkan stok');
+                }
+            },
+            error: function(xhr) {
+                var msg = 'Terjadi kesalahan saat menghapus stok';
+                try { if (xhr && xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message; } catch(e){}
+                alert(msg);
+            },
+            complete: function() {
+                // Restore icon-only trash button
+                btn.prop('disabled', false).html('<i class="fas fa-trash"></i>');
+            }
+        });
+    });
+
     // Handle edit stok button
     $(document).on('click', '.btn-edit-stok', function() {
         var row = $(this).closest('tr');

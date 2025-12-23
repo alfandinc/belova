@@ -755,9 +755,12 @@ class StokOpnameController extends Controller
             StokOpnameItem::where('stok_opname_id', $stokOpnameId)->delete();
             // New behavior: generate one aggregated item per obat (single row per obat)
             // but keep batch details available for allocation when applying opname.
+            // Include stok entries for the gudang regardless of stok value (allow stok = 0)
+            // and ensure we only include active `Obat` by using the `obatAktif` relation
+            // (the default `obat` relation on ObatStokGudang uses withInactive()).
             $stokList = \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
-                ->where('stok', '>', 0)
-                ->with('obat')
+                ->with('obatAktif')
+                ->whereHas('obatAktif')
                 ->orderBy('obat_id')
                 ->orderBy('batch')
                 ->get();

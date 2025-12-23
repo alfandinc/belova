@@ -133,7 +133,11 @@ class StokGudangController extends Controller {
                 $gudangId = $row->gudang_id;
                 if (!$obatId) return '';
 
-                $btn = '<div class="text-center"><button class="btn btn-sm btn-primary btn-kartu-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'">Kartu Stok</button></div>';
+                $btn = '<div class="text-center">';
+                $btn .= '<button class="btn btn-sm btn-primary btn-kartu-stok mr-1" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Kartu Stok"><i class="fas fa-book-open"></i></button>';
+                // Icon-only trash button with tooltip/title
+                $btn .= '<button class="btn btn-sm btn-danger btn-delete-stok" data-obat-id="'.$obatId.'" data-gudang-id="'.$gudangId.'" title="Hapus Stok"><i class="fas fa-trash"></i></button>';
+                $btn .= '</div>';
                 return $btn;
             })
             ->addColumn('status_stok', function ($row) {
@@ -279,6 +283,72 @@ class StokGudangController extends Controller {
                 'success' => false,
                 'message' => 'Gagal update stok batch: ' . $e->getMessage()
             ], 422);
+        }
+    }
+
+    /**
+     * Delete (zero-out) all stok for an obat in a gudang and log kartu stok entries.
+     */
+    public function deleteObatFromGudang(Request $request)
+    {
+        $request->validate([
+            'obat_id' => 'required|integer|exists:erm_obat,id',
+            'gudang_id' => 'required|integer|exists:erm_gudang,id'
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $obatId = $request->obat_id;
+            $gudangId = $request->gudang_id;
+
+            $stokRows = ObatStokGudang::where('obat_id', $obatId)
+                ->where('gudang_id', $gudangId)
+                ->get();
+
+            if ($stokRows->isEmpty()) {
+                return response()->json(['success' => false, 'message' => 'Tidak ada stok untuk obat/gudang tersebut'], 404);
+            }
+
+            $userId = Auth::id();
+
+            foreach ($stokRows as $row) {
+                $old = (float) $row->stok;
+
+                // If there was stock, create a kartu stok record documenting the removal
+                if ($old > 0) {
+                    \App\Models\ERM\KartuStok::create([
+                        'obat_id' => $row->obat_id,
+                        'gudang_id' => $row->gudang_id,
+                        'tanggal' => now(),
+                        'tipe' => 'keluar',
+                        'qty' => $old,
+                        'stok_setelah' => 0,
+                        'keterangan' => 'Penghapusan stok/record obat dari gudang oleh pengguna',
+                        'batch' => $row->batch,
+                        'ref_type' => 'delete_stok_gudang',
+                        'ref_id' => $row->id,
+                        'user_id' => $userId
+                    ]);
+                }
+
+                // Delete the stok row (uses SoftDeletes trait) so the obat-gudang record is removed
+                try {
+                    $row->delete();
+                } catch (\Exception $e) {
+                    // If delete fails, fallback to zeroing stok as a best-effort
+                    $row->stok = 0;
+                    $row->save();
+                }
+            }
+
+            DB::commit();
+
+            return response()->json(['success' => true, 'message' => 'Stok berhasil dikosongkan untuk obat di gudang ini']);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Gagal menghapus stok: ' . $e->getMessage()], 500);
         }
     }
 

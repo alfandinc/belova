@@ -239,6 +239,11 @@ Route::get('/admin/internal/whatsapp/scheduled', [\App\Http\Controllers\Admin\Wh
 Route::match(['get','post'], '/admin/internal/whatsapp/scheduled/{id}/sent', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledSent']);
 Route::match(['get','post'], '/admin/internal/whatsapp/scheduled/{id}/failed', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledFailed']);
 
+// AJAX: delete (zero-out) all stok records for an obat in a gudang (requires auth + role)
+Route::post('/erm/stok-gudang/delete', [StokGudangController::class, 'deleteObatFromGudang'])
+    ->middleware(['auth','role:Admin|Farmasi'])
+    ->name('erm.stok-gudang.delete');
+
 
 
 Route::get('/customersurvey', [CustSurveyController::class, 'index'])->name('customer.survey');

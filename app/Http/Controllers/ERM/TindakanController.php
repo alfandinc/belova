@@ -124,6 +124,8 @@ class TindakanController extends Controller
         $umumId = $umum ? $umum->id : null;
 
         $tindakanQuery = Tindakan::query();
+        // Only include tindakan that are marked active
+        $tindakanQuery->where('is_active', true);
 
         if ($umumId) {
             $tindakanQuery->where(function($q) use ($spesialisasiId, $umumId) {
