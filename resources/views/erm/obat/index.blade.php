@@ -38,13 +38,13 @@
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="hpp">HPP</label>
-                                                        <input type="number" class="form-control" id="hpp" name="hpp" min="0" step="any">
+                                                        <input type="text" class="form-control numeric-input" id="hpp" name="hpp" inputmode="decimal" aria-label="HPP">
                                                     </div>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="hpp_jual">HPP Jual</label>
-                                                        <input type="number" class="form-control" id="hpp_jual" name="hpp_jual" min="0" step="any">
+                                                        <input type="text" class="form-control numeric-input" id="hpp_jual" name="hpp_jual" inputmode="decimal" aria-label="HPP Jual">
                                                     </div>
                                                 </div>
                                             </div>
@@ -52,13 +52,13 @@
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="harga_net">Harga Net</label>
-                                                        <input type="number" class="form-control" id="harga_net" name="harga_net" min="0" step="any">
+                                                        <input type="text" class="form-control numeric-input" id="harga_net" name="harga_net" inputmode="decimal" aria-label="Harga Net">
                                                     </div>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="harga_nonfornas">Harga Non-Fornas</label>
-                                                        <input type="number" class="form-control" id="harga_nonfornas" name="harga_nonfornas" min="0" step="any">
+                                                        <input type="text" class="form-control numeric-input" id="harga_nonfornas" name="harga_nonfornas" inputmode="decimal" aria-label="Harga Non-Fornas">
                                                     </div>
                                                 </div>
                                             </div>
@@ -566,15 +566,30 @@
             var url = id ? '/erm/obat/' + id : '/erm/obat';
             var method = id ? 'PUT' : 'POST';
 
-            // Normalize localized decimal inputs before serializing the form.
-            // This replaces thousand separators ('.') and converts comma decimals to dot.
+            // Robust normalization for localized decimal inputs before serializing the form.
+            // Handles formats like "3.241,20" (dot thousands, comma decimals) and
+            // "3241.20" (dot decimal). Leaves already-correct dot-decimal values intact.
             var decimalIds = ['#hpp', '#hpp_jual', '#harga_net', '#harga_nonfornas'];
             decimalIds.forEach(function(sel){
                 var $el = $(sel);
                 if ($el.length) {
-                    var v = $el.val();
-                    if (typeof v === 'string' && v.length) {
-                        var normalized = v.replace(/\./g, '').replace(/,/g, '.');
+                    var v = ($el.val() || '').toString().trim();
+                    if (v.length) {
+                        var normalized;
+                        var hasComma = v.indexOf(',') !== -1;
+                        var hasDot = v.indexOf('.') !== -1;
+                        if (hasComma && hasDot) {
+                            // Assume format like 1.234,56 -> remove dots (thousands) and convert comma to dot
+                            normalized = v.replace(/\./g, '').replace(/,/g, '.');
+                        } else if (hasComma && !hasDot) {
+                            // e.g. 1234,56 -> convert comma to dot
+                            normalized = v.replace(/,/g, '.');
+                        } else {
+                            // e.g. 1234.56 or plain integer -> keep dots as decimal separator
+                            normalized = v;
+                        }
+                        // Remove any non-digit except dot and minus
+                        normalized = normalized.replace(/[^0-9.\-]/g, '');
                         $el.val(normalized);
                     }
                 }
