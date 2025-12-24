@@ -38,13 +38,13 @@
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="hpp">HPP</label>
-                                                        <input type="number" class="form-control" id="hpp" name="hpp" min="0">
+                                                        <input type="number" class="form-control" id="hpp" name="hpp" min="0" step="any">
                                                     </div>
                                                 </div>
                                                 <div class="col-md-6">
                                                     <div class="form-group">
                                                         <label for="hpp_jual">HPP Jual</label>
-                                                        <input type="number" class="form-control" id="hpp_jual" name="hpp_jual" min="0">
+                                                        <input type="number" class="form-control" id="hpp_jual" name="hpp_jual" min="0" step="any">
                                                     </div>
                                                 </div>
                                             </div>

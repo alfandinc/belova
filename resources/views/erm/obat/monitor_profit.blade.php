@@ -82,7 +82,7 @@
                     <input type="hidden" name="id">
                     <div class="form-group">
                         <label for="harga_nonfornas">Harga Jual (Nonfornas)</label>
-                        <input type="number" class="form-control" name="harga_nonfornas" required min="0">
+                        <input type="number" class="form-control" name="harga_nonfornas" required min="0" step="any">
                     </div>
                 </div>
                 <div class="modal-footer">
