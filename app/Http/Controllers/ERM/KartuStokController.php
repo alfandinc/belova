@@ -513,14 +513,29 @@ class KartuStokController extends Controller
                     if ($row->ref_type && $row->ref_id) {
                         $refTypeFormatted = ucfirst(str_replace('_', ' ', $row->ref_type));
                         $refNumber = '';
+                        $refNumberHtml = null; // when set, contains pre-rendered HTML for reference (no further escaping)
                         
                         // Get actual document number based on ref_type
                         try {
                             switch ($row->ref_type) {
                                 case 'invoice_penjualan':
                                 case 'invoice_return':
-                                    $invoice = DB::table('finance_invoices')->where('id', $row->ref_id)->first();
-                                    $refNumber = $invoice ? $invoice->invoice_number : '#' . $row->ref_id;
+                                    $invoice = DB::table('finance_invoices as fi')
+                                        ->leftJoin('erm_visitations as v', 'fi.visitation_id', '=', 'v.id')
+                                        ->leftJoin('erm_pasiens as p', 'v.pasien_id', '=', 'p.id')
+                                        ->where('fi.id', $row->ref_id)
+                                        ->select('fi.invoice_number', 'p.nama as pasien_nama')
+                                        ->first();
+                                    if ($invoice) {
+                                        // keep a plain value for fallback but prepare HTML that includes pasien name
+                                        $refNumber = $invoice->invoice_number;
+                                        $refNumberHtml = '<strong>' . e($invoice->invoice_number) . '</strong>';
+                                        if (!empty($invoice->pasien_nama)) {
+                                            $refNumberHtml .= '<br><small class="text-dark font-weight-bold">' . e($invoice->pasien_nama) . '</small>';
+                                        }
+                                    } else {
+                                        $refNumber = '#' . $row->ref_id;
+                                    }
                                     break;
                                     
                                 case 'faktur_pembelian':
@@ -553,7 +568,11 @@ class KartuStokController extends Controller
                         
                         // Make the reference text clickable for certain document types
                         $allowedViewTypes = ['faktur_pembelian', 'invoice_penjualan', 'invoice_return', 'retur_pembelian'];
-                        $refNumberEsc = '<strong>' . e($refNumber) . '</strong>';
+                        if (isset($refNumberHtml) && $refNumberHtml !== null) {
+                            $refNumberEsc = $refNumberHtml;
+                        } else {
+                            $refNumberEsc = '<strong>' . e($refNumber) . '</strong>';
+                        }
                         if (in_array($row->ref_type, $allowedViewTypes)) {
                             // Wrap the reference text in a link that existing JS (selector `.btn-view-ref`) can handle
                             $refNumberEsc = '<a href="#" class="btn-view-ref" data-ref-type="' . e($row->ref_type) . '" data-ref-id="' . e($row->ref_id) . '">' . $refNumberEsc . '</a>';
