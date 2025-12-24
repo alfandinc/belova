@@ -565,15 +565,30 @@
             var id = $('#obat_id').val();
             var url = id ? '/erm/obat/' + id : '/erm/obat';
             var method = id ? 'PUT' : 'POST';
+
+            // Normalize localized decimal inputs before serializing the form.
+            // This replaces thousand separators ('.') and converts comma decimals to dot.
+            var decimalIds = ['#hpp', '#hpp_jual', '#harga_net', '#harga_nonfornas'];
+            decimalIds.forEach(function(sel){
+                var $el = $(sel);
+                if ($el.length) {
+                    var v = $el.val();
+                    if (typeof v === 'string' && v.length) {
+                        var normalized = v.replace(/\./g, '').replace(/,/g, '.');
+                        $el.val(normalized);
+                    }
+                }
+            });
+
             var formData = $(this).serializeArray();
             // Ambil value status_aktif langsung dari select
             var statusAktifVal = $('#status_aktif').val();
             console.log('Status aktif value from form:', statusAktifVal);
             formData = formData.filter(function(item){ return item.name !== 'status_aktif'; });
             formData.push({name: 'status_aktif', value: statusAktifVal});
-            
+
             console.log('Submitting form with data:', formData);
-            
+
             $.ajax({
                 url: url,
                 type: method,
