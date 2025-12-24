@@ -55,8 +55,7 @@
                                 <tr>
                                     <th>Tanggal</th>
                                     <th style="max-width:420px; white-space:normal;">Obat</th>
-                                    <th>Dari Gudang</th>
-                                    <th>Ke Gudang</th>
+                                    <th>Gudang (Dari → Ke)</th>
                                     <th>Diminta / Disetujui</th>
                                     <th>Status</th>
                                     <th>Aksi</th>
@@ -415,8 +414,23 @@ $(document).ready(function() {
                 }
             },
             { data: 'nama_obat', name: 'items' },
-            { data: 'gudang_asal', name: 'gudangAsal.nama' },
-            { data: 'gudang_tujuan', name: 'gudangTujuan.nama' },
+            {
+                data: null,
+                name: 'gudang',
+                orderable: false,
+                searchable: false,
+                render: function(data, type, row) {
+                    var from = row.gudang_asal || '-';
+                    var to = row.gudang_tujuan || '-';
+                    var html = '<div class="d-flex flex-column">';
+                    // first row: keluar dari gudang (outgoing) - red left arrow
+                    html += '<div class="text-truncate"><i class="fas fa-arrow-circle-left text-danger mr-1"></i>' + from + '</div>';
+                    // second row: masuk ke gudang (incoming) - green right arrow
+                    html += '<div class="text-truncate mt-1"><i class="fas fa-arrow-circle-right text-success mr-1"></i>' + to + '</div>';
+                    html += '</div>';
+                    return html;
+                }
+            },
             {
                 data: null,
                 name: 'requestedBy.name',
@@ -434,12 +448,7 @@ $(document).ready(function() {
         order: [[0, 'desc']]
     });
 
-    // If current user is Admin, hide the action column (last column)
-    if (isAdmin) {
-        // action column is the last column (index starting at 0)
-        var actionIdx = table.columns().count() - 1;
-        table.column(actionIdx).visible(false);
-    }
+    // Action column visible to all roles (Admins can approve)
 
     $('#filter_gudang, #filter_status').change(function() {
         table.draw();

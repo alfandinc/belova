@@ -61,6 +61,7 @@ class StokGudangController extends Controller {
                 DB::raw("CASE WHEN SUM(" . $table . ".stok) <= COALESCE(MIN(" . $table . ".min_stok),0) THEN 'minimum' WHEN SUM(" . $table . ".stok) >= COALESCE(MAX(" . $table . ".max_stok),0) THEN 'maksimum' ELSE 'normal' END as status_stok"),
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
+                'o.satuan as obat_satuan',
                 'g.nama as gudang_nama'
             )
             ->groupBy($table . '.obat_id', $table . '.gudang_id', 'o.nama', 'o.kode_obat', 'g.nama');
@@ -151,7 +152,12 @@ class StokGudangController extends Controller {
                 return '<span style="cursor:pointer" class="badge badge-success btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'">Normal</span>';
             })
             ->editColumn('total_stok', function ($row) {
-                return number_format($row->total_stok, 2);
+                $unit = isset($row->obat_satuan) && $row->obat_satuan ? trim($row->obat_satuan) : '';
+                if ($unit !== '') {
+                    $unit = function_exists('mb_strtolower') ? mb_strtolower($unit) : strtolower($unit);
+                }
+                $formatted = number_format($row->total_stok, 2);
+                return $unit !== '' ? ($formatted . ' ' . e($unit)) : $formatted;
             })
             ->filterColumn('status_stok', function($query, $keyword) {
                 // Custom filter untuk status stok akan dihandle di client side
@@ -180,7 +186,19 @@ class StokGudangController extends Controller {
                 'batch' => $item->batch,
                 'stok' => $item->stok, // Raw value for editing
                 // Use Indonesian formatting: dot thousands separator and comma decimal
-                'stok_display' => number_format($item->stok, 2, ',', '.'), // Formatted for display (2 decimals)
+                'stok_display' => (function() use ($item) {
+                    $formatted = number_format($item->stok, 2, ',', '.');
+                    $unit = '';
+                    try {
+                        if ($item->obat && $item->obat->satuan) {
+                            $unitRaw = trim($item->obat->satuan);
+                            $unit = function_exists('mb_strtolower') ? mb_strtolower($unitRaw) : strtolower($unitRaw);
+                        }
+                    } catch (\Exception $e) {
+                        $unit = '';
+                    }
+                    return $unit !== '' ? ($formatted . ' ' . e($unit)) : $formatted;
+                })(), // Formatted for display (2 decimals) with lowercase unit
                 'expiration_date' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('d-m-Y') : '-',
                 'expiration_date_raw' => $item->expiration_date ? Carbon::parse($item->expiration_date)->format('Y-m-d') : '',
                 'status' => $this->getExpirationStatus($item->expiration_date)

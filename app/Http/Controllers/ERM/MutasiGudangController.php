@@ -118,23 +118,24 @@ class MutasiGudangController extends Controller
                 return $labels[$mutasi->status];
             })
             ->addColumn('action', function ($mutasi) {
-                // Hide action buttons for Admin role for security / UI requirement
-                $user = Auth::user();
-                if ($user && $user->hasRole('Admin')) {
-                    return '';
+                $user = auth()->user();
+                $canApprove = false;
+                if ($user && method_exists($user, 'hasRole')) {
+                    $canApprove = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
                 }
 
-                $buttons = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$mutasi->id.'" title="Detail"><i class="fas fa-eye"></i></button>';
-
-                // Approve / Reject for pending
-                if ($mutasi->status === 'pending') {
-                    $buttons .= ' <button type="button" class="btn btn-sm btn-success btn-approve" data-id="'.$mutasi->id.'" title="Setujui"><i class="fas fa-check"></i></button>';
-                    $buttons .= ' <button type="button" class="btn btn-sm btn-danger btn-reject" data-id="'.$mutasi->id.'" title="Tolak"><i class="fas fa-times"></i></button>';
-                }
-
-                // Print button (open PDF in new tab)
                 $printUrl = route('erm.mutasi-gudang.print', $mutasi->id);
-                $buttons .= ' <a href="'.$printUrl.'" class="btn btn-sm btn-secondary" target="_blank" title="Cetak"><i class="fas fa-print"></i></a>';
+
+                $buttons = '<div class="btn-group" role="group" aria-label="Aksi">';
+                $buttons .= '<button type="button" class="btn btn-info btn-sm btn-detail" data-id="'.$mutasi->id.'" title="Detail"><i class="fas fa-eye"></i></button>';
+
+                if ($mutasi->status === 'pending' && $canApprove) {
+                    $buttons .= '<button type="button" class="btn btn-success btn-sm btn-approve" data-id="'.$mutasi->id.'" title="Setujui"><i class="fas fa-check"></i></button>';
+                    $buttons .= '<button type="button" class="btn btn-danger btn-sm btn-reject" data-id="'.$mutasi->id.'" title="Tolak"><i class="fas fa-times"></i></button>';
+                }
+
+                $buttons .= '<a href="'.$printUrl.'" class="btn btn-secondary btn-sm" target="_blank" title="Cetak"><i class="fas fa-print"></i></a>';
+                $buttons .= '</div>';
 
                 return $buttons;
             })
@@ -276,16 +277,33 @@ class MutasiGudangController extends Controller
             ->findOrFail($id);
         
         $html = view('erm.mutasi-gudang._detail', compact('mutasi'))->render();
-        
+        $user = Auth::user();
+        $canApprove = false;
+        if ($user && method_exists($user, 'hasRole')) {
+            $canApprove = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
+        }
+
         return response()->json([
             'html' => $html,
             'status' => $mutasi->status,
-            'can_approve' => true
+            'can_approve' => ($mutasi->status === 'pending' && $canApprove)
         ]);
     }
 
     public function approve($id)
     {
+        $user = Auth::user();
+        $allowed = false;
+        if ($user && method_exists($user, 'hasRole')) {
+            $allowed = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
+        }
+        if (!$allowed) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
         try {
             DB::beginTransaction();
 
@@ -386,6 +404,18 @@ class MutasiGudangController extends Controller
 
     public function reject($id)
     {
+        $user = Auth::user();
+        $allowed = false;
+        if ($user && method_exists($user, 'hasRole')) {
+            $allowed = $user->hasRole('Admin') || $user->hasRole('Farmasi') || $user->hasRole('farmasi');
+        }
+        if (!$allowed) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
         try {
             $mutasi = MutasiGudang::findOrFail($id);
             
