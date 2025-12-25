@@ -249,6 +249,7 @@
                                     <option value="edc_bca">EDC BCA</option>
                                     <option value="edc_bni">EDC BNI</option>
                                     <option value="edc_bri">EDC BRI</option>
+                                    <option value="edc_mandiri">EDC Mandiri</option>
                                     <option value="qris">QRIS</option>
                                     <option value="transfer">Transfer</option>
                                     <option value="shopee">Shopee</option>
