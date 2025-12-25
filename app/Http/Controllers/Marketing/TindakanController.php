@@ -530,43 +530,77 @@ class TindakanController extends Controller
                     }
 
                     $baseName = $nama;
-                    $attempt = 0;
                     $createdThis = false;
-                    while ($attempt < 10 && !$createdThis) {
-                        $attemptName = $attempt === 0 ? $baseName : ($baseName . ' - copy' . ($attempt > 1 ? ' ' . $attempt : ''));
+
+                    // If a tindakan with the same name exists, rename the old one to append " (menu lama)"
+                    $existing = Tindakan::where('nama', $baseName)->first();
+                    if ($existing) {
+                        // Ensure the new name for the old item is unique
+                        $candidateBase = $existing->nama . ' (menu lama)';
+                        $candidate = $candidateBase;
+                        $idx = 1;
+                        while (Tindakan::where('nama', $candidate)->exists()) {
+                            $idx++;
+                            $candidate = $candidateBase . ' ' . $idx;
+                            if ($idx > 100) break;
+                        }
                         try {
-                            Tindakan::create([
-                                'nama' => $attemptName,
-                                'deskripsi' => null,
-                                'harga' => $hargaVal ?? 0,
-                                'harga_diskon' => $hargaDiskonVal,
-                                    'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
-                                'spesialis_id' => $spesialis_id,
-                                    'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
-                                'harga_3_kali' => $harga3xVal,
-                            ]);
-                            $created++;
-                            $createdThis = true;
+                            $existing->nama = $candidate;
+                            $existing->save();
                         } catch (\Exception $e) {
-                            // If it's a duplicate key / integrity constraint, try next suffix.
-                            $msg = $e->getMessage();
-                            if (stripos($msg, 'duplicate') !== false || stripos($msg, 'unique') !== false || stripos($msg, 'Integrity constraint') !== false) {
-                                $attempt++;
-                                continue;
-                            }
-                            // other errors -> record and skip
-                            $errors[] = "Row {$rowIndex}: " . $e->getMessage();
+                            $errors[] = "Row {$rowIndex}: Failed to rename existing tindakan: " . $e->getMessage();
                             $skipped++;
-                            $createdThis = false;
-                            break;
+                            continue;
                         }
                     }
-                    if (!$createdThis) {
-                        if ($attempt >= 10) {
-                            $errors[] = "Row {$rowIndex}: Could not create unique name after multiple attempts for base name '{$baseName}'";
+
+                    // Try to create the new tindakan with the original name
+                    try {
+                        Tindakan::create([
+                            'nama' => $baseName,
+                            'deskripsi' => null,
+                            'harga' => $hargaVal ?? 0,
+                            'harga_diskon' => $hargaDiskonVal,
+                                'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
+                            'spesialis_id' => $spesialis_id,
+                                'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
+                            'harga_3_kali' => $harga3xVal,
+                        ]);
+                        $created++;
+                        $createdThis = true;
+                    } catch (\Exception $e) {
+                        // If creation fails due to duplicate (race), fall back to copy-suffix strategy
+                        $msg = $e->getMessage();
+                        if (stripos($msg, 'duplicate') !== false || stripos($msg, 'unique') !== false || stripos($msg, 'Integrity constraint') !== false) {
+                            $attempt = 0;
+                            while ($attempt < 10 && !$createdThis) {
+                                $attemptName = $attempt === 0 ? $baseName . ' - copy' : ($baseName . ' - copy ' . ($attempt + 1));
+                                try {
+                                    Tindakan::create([
+                                        'nama' => $attemptName,
+                                        'deskripsi' => null,
+                                        'harga' => $hargaVal ?? 0,
+                                        'harga_diskon' => $hargaDiskonVal,
+                                            'diskon_active' => ($hargaDiskonVal !== null) ? 1 : 0,
+                                        'spesialis_id' => $spesialis_id,
+                                            'is_active' => ($isActiveVal !== null) ? $isActiveVal : 1,
+                                        'harga_3_kali' => $harga3xVal,
+                                    ]);
+                                    $created++;
+                                    $createdThis = true;
+                                } catch (\Exception $e2) {
+                                    $attempt++;
+                                    continue;
+                                }
+                            }
+                            if (!$createdThis) {
+                                $errors[] = "Row {$rowIndex}: Could not create unique name after multiple attempts for base name '{$baseName}'";
+                                $skipped++;
+                            }
+                        } else {
+                            $errors[] = "Row {$rowIndex}: " . $e->getMessage();
+                            $skipped++;
                         }
-                        // only count as skipped if not created
-                        if (!$createdThis) $skipped++;
                     }
                 }
                 fclose($handle);
