@@ -697,15 +697,24 @@ class EresepController extends Controller
         $visitationId = $request->visitation_id;
 
         // Delete ALL records with matching racikan_ke and visitation_id
-        $deleted = ResepFarmasi::where('racikan_ke', $racikanKe)
+        $reseps = ResepFarmasi::where('racikan_ke', $racikanKe)
             ->where('visitation_id', $visitationId)
-            ->delete();
+            ->get();
 
-        if ($deleted) {
-            return response()->json(['message' => 'Racikan berhasil dihapus']);
-        } else {
+        if ($reseps->isEmpty()) {
             return response()->json(['message' => 'Racikan tidak ditemukan'], 404);
         }
+
+        // Delete each model instance so model events (observers) run and keep billing/invoice in sync
+        foreach ($reseps as $r) {
+            try {
+                $r->delete();
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed deleting resep id '.$r->id.': '.$e->getMessage());
+            }
+        }
+
+        return response()->json(['message' => 'Racikan berhasil dihapus']);
     }
 
     public function farmasiupdateNonRacikan(Request $request, $id)
