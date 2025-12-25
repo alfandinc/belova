@@ -225,8 +225,12 @@
                                             @endphp
                                             {{ $hargaAkhir }}
                                         </td>
-                                        <td style="color: {{ ($resep->obat->stok ?? 0) < 10 ? 'red' : (($resep->obat->stok ?? 0) < 100 ? 'yellow' : 'green') }};">
-                                            {{ $resep->obat->stok ?? 0 }}
+                                        @php
+                                            $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+                                            $stokGudang = ($gudangId && $resep->obat) ? $resep->obat->getStokByGudang($gudangId) : ($resep->obat->stok ?? 0);
+                                        @endphp
+                                        <td style="color: {{ ($stokGudang < 10 ? 'red' : (($stokGudang < 100) ? 'yellow' : 'green')) }};">
+                                            {{ (int) $stokGudang }}
                                         </td>
                                         <td>
                                             <button class="btn btn-success btn-sm edit-obat disabled" disabled>Edit</button>
@@ -475,17 +479,18 @@
         });
 
             // Show warning if selected obat has stock 0 (non-racikan)
-            $('.select2-obat').on('select2:select', function(e) {
-                var data = e.params.data;
-                if (data.stok !== undefined && parseInt(data.stok) === 0) {
-                    Swal.fire({
-                        icon: 'warning',
-                        title: 'Stok Obat Kosong',
-                        text: 'Obat yang Anda pilih memiliki stok 0. Silakan pilih obat lain atau konfirmasi ke farmasi.',
-                        confirmButtonText: 'OK'
-                    });
-                }
-            });
+                $('.select2-obat').on('select2:select', function(e) {
+                    var data = e.params.data;
+                    var stokSelected = (data.stok_gudang !== undefined ? data.stok_gudang : data.stok);
+                    if (stokSelected !== undefined && parseInt(stokSelected) === 0) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Stok Obat Kosong',
+                            text: 'Obat yang Anda pilih memiliki stok 0. Silakan pilih obat lain atau konfirmasi ke farmasi.',
+                            confirmButtonText: 'OK'
+                        });
+                    }
+                });
         $('.select2-wadah-racikan').select2({
             placeholder: 'Search wadah...',
             ajax: {
@@ -930,7 +935,8 @@
 
             // Retrieve custom data attributes from the selected option
             const selectedOption = obatSelect.select2('data')[0]; // Get the selected option's data
-            const stok = selectedOption.stok || 0; // Default to 0 if undefined
+            // Prefer per-gudang stock (`stok_gudang`) when available, otherwise fall back to `stok`
+            const stok = (selectedOption && (selectedOption.stok_gudang !== undefined ? parseInt(selectedOption.stok_gudang) : (selectedOption.stok !== undefined ? parseInt(selectedOption.stok) : 0))) || 0;
             const defaultDosis = parseFloat(selectedOption.dosis) || 0; // Ensure it's a number
             const satuan = selectedOption.satuan || ''; // Default to empty string if undefined
             const hargaNonfornas = selectedOption.harga_nonfornas || 0; // Get harga satuan
@@ -952,8 +958,8 @@
             // Calculate harga akhir
             let hargaAkhir = (defaultDosis > 0) ? (dosisAkhir / defaultDosis) * hargaNonfornas : 0;
 
-            // Calculate stokGudang for mapped gudang
-            const stokGudang = gudangId && selectedOption.stok_gudang ? parseInt(selectedOption.stok_gudang) : 0;
+            // Calculate stokGudang for mapped gudang (prefer stok_gudang then stok)
+            const stokGudang = (selectedOption && (selectedOption.stok_gudang !== undefined ? parseInt(selectedOption.stok_gudang) : (selectedOption.stok !== undefined ? parseInt(selectedOption.stok) : 0))) || 0;
 
             // Check if this medication exists in farmasi racikan prescriptions
             checkIfObatInFarmasiRacikan(obatId, function(existsInFarmasi) {
@@ -1727,8 +1733,8 @@
                 let hargaSatuan = parseFloat(detail.obat.harga_nonfornas) || 0;
                 let hargaAkhir = (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
                 
-                // Determine stock color
-                let stok = detail.obat.stok || 0;
+                // Determine stock color - prefer per-gudang stock if available
+                let stok = (detail.obat.stok_gudang !== undefined ? detail.obat.stok_gudang : detail.obat.stok) || 0;
                 let stockColor = stok < 10 ? 'red' : (stok < 100 ? 'yellow' : 'green');
                 
                 obatRows += `
@@ -1871,8 +1877,8 @@
                 let hargaSatuan = parseFloat(detail.obat.harga_nonfornas) || 0;
                 let hargaAkhir = (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
                 
-                // Determine stock color
-                let stok = detail.obat.stok || 0;
+                // Determine stock color - prefer per-gudang stock if available
+                let stok = (detail.obat.stok_gudang !== undefined ? detail.obat.stok_gudang : detail.obat.stok) || 0;
                 let stockColor = stok < 10 ? 'red' : (stok < 100 ? 'yellow' : 'green');
                 
                 obatRows += `
@@ -2283,8 +2289,8 @@
         let hargaSatuan = parseFloat(obatData.harga_nonfornas) || 0;
         let hargaAkhir = (dosisObat > 0) ? (dosisRacik / dosisObat) * hargaSatuan : 0;
         
-        // Determine stock color
-        let stok = obatData.stok || 0;
+        // Determine stock color - prefer per-gudang stock (`stok_gudang`) returned by select2
+        let stok = (obatData && (obatData.stok_gudang !== undefined ? obatData.stok_gudang : obatData.stok)) || 0;
         let stockColor = stok < 10 ? 'red' : (stok < 100 ? 'yellow' : 'green');
         
         // Add new row to the table
