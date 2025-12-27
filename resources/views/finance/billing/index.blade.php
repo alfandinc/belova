@@ -16,12 +16,12 @@
                         <div class="col-md-8 col-12">
                             <div class="d-flex flex-wrap align-items-center justify-content-end" style="gap: .5rem;">
                                 <div class="d-flex align-items-center" style="flex:0 0 auto;">
-                                    <button id="btn-send-farmasi-notif" class="btn btn-sm btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell me-1"></i> Kirim Notif ke Farmasi</button>
-                                </div>
-                                <div class="d-flex align-items-center" style="flex:0 0 auto;">
-                                    <button id="btn-old-notifs-finance" type="button" class="btn btn-light btn-sm" title="Lihat Notifikasi Lama" style="margin-left:.5rem;">
-                                        <span style="color:#007bff; font-size:14px;">&#10084;</span>
-                                    </button>
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Header actions">
+                                        <button id="btn-send-farmasi-notif" class="btn btn-primary" title="Kirim Notif ke Farmasi"><i class="fas fa-bell me-1"></i> Kirim Notif ke Farmasi</button>
+                                        <button id="btn-old-notifs-finance" type="button" class="btn btn-light" title="Lihat Notifikasi Lama">
+                                            <span style="color:#007bff; font-size:14px;">&#10084;</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="d-flex align-items-center" style="flex:0 0 220px;">
                                     <select id="filter-dokter" class="form-control form-control-sm w-100">
@@ -65,9 +65,13 @@
                                                     white-space: normal !important;
                                                     word-wrap: break-word !important;
                                                     overflow-wrap: break-word !important;
-                                                    max-width: 220px; /* sensible max width for dokter column */
+                                                    /* allow column to grow/shrink based on content */
+                                                    max-width: none !important;
+                                                    min-width: 160px; /* prevent collapsing too small */
                                                     vertical-align: middle;
                                                 }
+                                                /* allow long doctor names to wrap gracefully */
+                                                .dokter-cell { word-break: break-word; }
                                                 /* Keep action buttons aligned and prevent wrapping inside action cell */
                                                 .no-wrap-cell {
                                                     white-space: nowrap !important;
@@ -79,22 +83,28 @@
                                                     width: 120px; /* adjust as needed */
                                                     text-align: center;
                                                 }
+                                                /* custom pink badge for klinik id 2 */
+                                                .badge-pink {
+                                                    background: #e83e8c;
+                                                    color: #fff;
+                                                }
+                                                /* Ensure specialization (small) inside dokter-cell is not bold */
+                                                .dokter-cell small { font-weight: 400 !important; }
+                                                /* Make patient RM muted and normal weight */
+                                                .patient-name-cell small { font-weight: 400; color: #6c757d; }
                                             </style>
 
                                             <table id="datatable-billing" class="table table-bordered table-hover table-striped dt-responsive" style="width:100%;">
                             <thead class="thead-light">
                                 <tr>
-                                    <th>No. RM</th>
                                     <th>Nama Pasien</th>
-                                    <th>Nomor Invoice</th>
                                     <th>Dokter</th>
-                                    <th>Jenis Kunjungan</th>
                                     <th>Tanggal Visit</th>
-                                    <th>Klinik</th>
+                                    <th>Nomor Invoice</th>
                                     <th>Aksi</th>
-                                    <th>Status</th>
                                 </tr>
                             </thead>
+                            <tbody></tbody>
                         </table>
                     </div>
                     <!-- Modal: Old Notifications (Finance) -->
@@ -215,59 +225,144 @@
                 }
             },
             columnDefs: [
-                // make the dokter column wrap and set a preferred width
-                { targets: 3, className: 'wrap-column', width: '220px' },
-                // keep action column compact and no-wrap
-                { targets: 7, className: 'no-wrap-cell', width: '140px' },
-                // keep status badges on one line and fix width
-                { targets: 8, className: 'status-cell', width: '120px' }
+                // make the dokter column wrap and allow flexible width (index 1)
+                { targets: 1, className: 'wrap-column', responsivePriority: 2 },
+                // keep action column compact and no-wrap (now at index 4)
+                { targets: 4, className: 'no-wrap-cell', width: '140px', responsivePriority: 1 }
             ],
 
             columns: [
-                { data: 'no_rm', name: 'no_rm' },
-                { data: 'nama_pasien', name: 'nama_pasien' },
-                { data: 'invoice_number', name: 'invoice_number' },
-                { data: 'dokter', name: 'dokter' },
-                { data: 'jenis_kunjungan', name: 'jenis_kunjungan' },
-                { data: 'tanggal_visit', name: 'tanggal_visit' },
-                { data: 'nama_klinik', name: 'nama_klinik' },
+                { data: null, name: 'nama_pasien', render: function(data, type, row, meta) {
+                        if (type === 'display') {
+                            var name = row.nama_pasien || '';
+                            var noRm = row.no_rm || '';
+                            var html = '<div class="patient-name-cell">';
+                            html += '<div class="font-weight-bold">' + escapeHtml(name) + '</div>';
+                            if (noRm) html += '<small class="text-muted d-block">' + escapeHtml(noRm) + '</small>';
+                            html += '</div>';
+                            return html;
+                        }
+                        return row.nama_pasien;
+                    }
+                },
+                { data: 'dokter', name: 'dokter', render: function(data, type, row, meta) {
+                        if (type === 'display') {
+                            var dokterName = data || row.dokter || '';
+                            var klinikName = row.nama_klinik || '';
+                            var klinikId = row.klinik_id || (row.klinik && row.klinik.id) || '';
+                            var badgeClass = 'badge-secondary';
+                            if (String(klinikId) === '1') badgeClass = 'badge-primary';
+                            else if (String(klinikId) === '2') badgeClass = 'badge-pink';
+
+                            var decodeHtml = function(str) { return $('<textarea/>').html(str || '').text(); };
+                            var dokterDecoded = decodeHtml(dokterName);
+                            var klinikDecoded = decodeHtml(klinikName);
+                            var spesialis = row.spesialisasi || row.spesialis || row.dokter_spesialisasi || '';
+                            var spesialisDecoded = decodeHtml(spesialis);
+
+                            var dokterClean = dokterDecoded;
+                            if (!spesialisDecoded) {
+                                var m = dokterDecoded.match(/\s*\(([^)]+)\)\s*$/);
+                                if (m) {
+                                    dokterClean = dokterDecoded.replace(/\s*\([^)]+\)\s*$/, '').trim();
+                                    spesialisDecoded = m[1];
+                                }
+                            }
+
+                            var html = '<div class="dokter-cell">';
+                            html += '<div class="font-weight-bold">' + escapeHtml(dokterClean) + '</div>';
+                            if (spesialisDecoded) html += '<div class="mt-1"><span class="badge badge-secondary">' + escapeHtml(spesialisDecoded) + '</span></div>';
+                            html += '</div>';
+                            // klinik moved to tanggal_visit column
+                            return html;
+                        }
+                        return data;
+                    }
+                },
+                { data: 'tanggal_visit', name: 'tanggal_visit', render: function(data, type, row, meta) {
+                        if (type === 'display') {
+                            var dateText = data || row.tanggal_visit || '';
+                            var jenis = row.jenis_kunjungan || '';
+                            var klinikId = row.klinik_id || (row.klinik && row.klinik.id) || '';
+                            var klinikLabel = '';
+                            var klinikBadgeClass = 'badge-secondary';
+                            if (String(klinikId) === '1') { klinikLabel = 'Premiere Belova'; klinikBadgeClass = 'badge-primary'; }
+                            else if (String(klinikId) === '2') { klinikLabel = 'Belova Skin'; klinikBadgeClass = 'badge-pink'; }
+                            else if (row.nama_klinik) { klinikLabel = row.nama_klinik; }
+
+                            var html = '<div class="tanggal-cell"><span class="font-weight-bold">' + escapeHtml(dateText) + '</span>';
+                            if (jenis || klinikLabel) {
+                                html += '<div class="mt-1">';
+                                if (jenis) html += '<span class="badge badge-info">' + escapeHtml(jenis) + '</span>';
+                                if (klinikLabel) html += ' <span class="badge ' + klinikBadgeClass + ' ms-1">' + escapeHtml(klinikLabel) + '</span>';
+                                html += '</div>';
+                            }
+                            html += '</div>';
+                            return html;
+                        }
+                        return data || row.tanggal_visit;
+                    }
+                },
+                { data: 'invoice_number', name: 'invoice_number', render: function(data, type, row, meta) {
+                        if (type === 'display') {
+                            var inv = data || row.invoice_number || '';
+                            var statusHtml = row.status || '';
+                            var badge = '';
+                            if (typeof statusHtml === 'string' && statusHtml.indexOf('<') !== -1) {
+                                badge = statusHtml;
+                            } else if (statusHtml) {
+                                var s = String(statusHtml).toLowerCase();
+                                var cls = 'badge-secondary';
+                                if (s.indexOf('sudah') !== -1 || s.indexOf('lunas') !== -1) cls = 'badge-success';
+                                else if (s.indexOf('belum') !== -1 && s.indexOf('lunas') === -1) cls = 'badge-warning';
+                                badge = '<span class="badge ' + cls + '">' + escapeHtml(statusHtml) + '</span>';
+                            }
+                            var html = '<div class="invoice-cell">';
+                            html += '<div class="font-weight-bold">' + escapeHtml(inv) + '</div>';
+                            if (badge) html += '<div class="mt-1">' + badge + '</div>';
+                            html += '</div>';
+                            return html;
+                        }
+                        return data;
+                    }
+                },
                 { data: 'action', name: 'action', orderable: false, searchable: false, responsivePriority: 1,
                     render: function(data, type, row, meta) {
                         if (type === 'display' && data) {
                             // create a temporary container to manipulate the HTML safely
                             var $container = $('<div>').html(data);
+                            // Map text to icons and set accessible titles
                             $container.find('a, button').each(function() {
                                 var $el = $(this);
-                                // Skip elements that explicitly requested no icon mapping
                                 if ($el.data('no-icon')) return;
+                                // remove spacing utilities and inline margins so btn-group packs buttons tightly
+                                $el.css({ 'margin-left': '', 'margin-right': '' });
+                                $el.removeClass('me-1 ms-1 ml-1 mr-1 ms-2 me-2');
+                                // ensure consistent small button styling inside group
+                                $el.addClass('btn btn-sm');
                                 var text = $el.text().trim();
-                                // map button text to icon classes (using Themify icons already used in project)
-                                if (/lihat\s*billing/i.test(text)) {
-                                    $el.html('<i class="ti-eye" aria-hidden="true"></i>');
-                                    $el.attr('title', 'Lihat Billing');
-                                } else if (/cetak\s*nota\s*v?2/i.test(text)) {
-                                    $el.html('<i class="ti-printer" aria-hidden="true"></i>');
-                                    $el.attr('title', 'Cetak Nota v2');
-                                } else if (/cetak\s*nota/i.test(text)) {
-                                    $el.html('<i class="ti-printer" aria-hidden="true"></i>');
-                                    $el.attr('title', 'Cetak Nota');
-                                } else if (/edit/i.test(text)) {
-                                    $el.html('<i class="ti-pencil" aria-hidden="true"></i>');
-                                    $el.attr('title', 'Edit');
-                                } else if (/hapus|delete|remove/i.test(text) && $el.find('i').length === 0) {
-                                    // only map to trash icon if there isn't already an icon inside
-                                    $el.html('<i class="ti-trash" aria-hidden="true"></i>');
-                                    $el.attr('title', 'Hapus');
-                                }
-                                // ensure buttons remain accessible
+                                if (/lihat\s*billing/i.test(text)) { $el.html('<i class="ti-eye" aria-hidden="true"></i>'); $el.attr('title', 'Lihat Billing'); }
+                                else if (/cetak\s*nota\s*v?2/i.test(text)) { $el.html('<i class="ti-printer" aria-hidden="true"></i>'); $el.attr('title', 'Cetak Nota v2'); }
+                                else if (/cetak\s*nota/i.test(text)) { $el.html('<i class="ti-printer" aria-hidden="true"></i>'); $el.attr('title', 'Cetak Nota'); }
+                                else if (/edit/i.test(text)) { $el.html('<i class="ti-pencil" aria-hidden="true"></i>'); $el.attr('title', 'Edit'); }
+                                else if (/hapus|delete|remove/i.test(text) && $el.find('i').length === 0) { $el.html('<i class="ti-trash" aria-hidden="true"></i>'); $el.attr('title', 'Hapus'); }
                                 $el.attr('aria-label', $el.attr('title') || text);
                             });
+
+                            // Group action buttons into a btn-group for compact layout
+                            var $buttons = $container.find('a, button');
+                            if ($buttons.length) {
+                                var $group = $('<div class="btn-group" role="group"></div>');
+                                $buttons.each(function() { $group.append($(this)); });
+                                return $group.prop('outerHTML');
+                            }
+
                             return $container.html();
                         }
                         return data;
                     }
                 },
-                { data: 'status', name: 'status', orderable: false, searchable: false, responsivePriority: 2 }
+                
             ],
             language: {
                 search: "Cari:",
@@ -284,7 +379,8 @@
                 },
                 processing: "Memproses..."
             },
-            order: [[4, 'desc']]
+            // Adjusted ordering index after merging No. RM into Nama Pasien
+            order: [[3, 'desc']]
         });
 
         // Auto-reload DataTable every 15 seconds

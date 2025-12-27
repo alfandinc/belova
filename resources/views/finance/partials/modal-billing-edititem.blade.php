@@ -20,17 +20,19 @@
                         <label for="jumlah">Harga (Rp)</label>
                         <input type="number" class="form-control" id="jumlah" name="jumlah" required>
                     </div>
-                    <div class="form-group">
-                        <label for="diskon">Diskon</label>
-                        <input type="number" class="form-control" id="diskon" name="diskon">
-                    </div>
-                    <div class="form-group">
-                        <label for="diskon_type">Tipe Diskon</label>
-                        <select class="form-control select2" id="diskon_type" name="diskon_type">
-                            <option value="">Tidak Ada</option>
-                            <option value="%">Persentase (%)</option>
-                            <option value="nominal">Nominal (Rp)</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group col">
+                            <label for="diskon">Diskon</label>
+                            <input type="number" class="form-control" id="diskon" name="diskon">
+                        </div>
+                        <div class="form-group col-auto" style="min-width:150px; max-width:220px;">
+                            <label for="diskon_type">Tipe Diskon</label>
+                            <select class="form-control select2" id="diskon_type" name="diskon_type" style="width:100%;">
+                                <option value="">Tidak Ada</option>
+                                <option value="%">Persentase (%)</option>
+                                <option value="nominal">Nominal (Rp)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

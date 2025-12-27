@@ -16,6 +16,60 @@
         color: #721c24; /* dark red text for stock value */
         font-weight: 600;
     }
+    /* Gender badge: rounded rectangle around the icon */
+    .gender-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border-radius: 5px;
+        border: 1px solid rgba(0,0,0,0.06);
+        background: #f8f9fa;
+        line-height: 1;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .gender-badge .fa-mars, .gender-badge .fa-venus { color: #fff; font-size: 0.95rem; }
+    .gender-badge.gender-male {
+        background: #0d6efd; /* bootstrap primary */
+        border-color: rgba(13,110,253,0.3);
+    }
+    .gender-badge.gender-female {
+        background: #ff6fb3; /* soft pink */
+        border-color: rgba(255,111,179,0.28);
+    }
+    /* Patient name + id styles */
+    .patient-label { display:inline-flex; align-items:center; }
+    .patient-name { font-weight:600; margin-left:8px; color:#0b1220; text-transform:uppercase; }
+    .patient-id { font-weight:600; color:#2b6cb0; margin-left:8px; }
+    .patient-meta { color:#6c757d; }
+    .patient-age { color:#6c757d; font-weight:600; margin-left:8px; }
+    /* Data Pasien card improvements */
+    .data-pasien {
+        border-radius: 6px;
+    }
+    .data-pasien .card-body {
+        padding: 0.8rem 1rem;
+    }
+    .data-pasien .table {
+        margin-bottom: 0;
+    }
+    .data-pasien .table td {
+        padding: 0.32rem 0.5rem;
+        vertical-align: middle;
+    }
+    .data-pasien .table td.label {
+        width: 140px;
+        font-weight: 600;
+        color: #343a40;
+        white-space: nowrap;
+    }
+    .data-pasien .invoice-number {
+        font-weight: 700;
+        color: #0d6efd;
+    }
+    .data-pasien .small-note { margin-top: .25rem; color: #6c757d; }
 </style>
 
 <div class="container-fluid">
@@ -55,50 +109,95 @@
             });
         }
     </script>
-    <div class="row mb-4">
+    <div class="row mb-1 mt-1">
+        <div class="col text-right mb-0">
+            <a href="{{ route('finance.billing.index') }}" class="btn btn-danger font-weight-bold px-3" title="Kembali ke daftar billing">
+                <i class="fas fa-arrow-left mr-2"></i> Kembali ke Daftar Billing
+            </a>
+        </div>
+    </div>
+
+    <div class="row mb-2">
         <div class="col">
-            <div class="card shadow-sm mt-4">
+            <div class="card shadow-sm mt-2 data-pasien">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-user-circle mr-2"></i>Data Pasien
                     </h5>
-                    <div>
-                        <a href="{{ route('finance.billing.index') }}" class="btn btn-danger font-weight-bold px-3" title="Kembali ke daftar billing">
-                            <i class="fas fa-arrow-left mr-2"></i> Kembali ke Daftar Billing
-                        </a>
-                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
                             <table class="table table-sm table-borderless">
                                 <tr>
-                                    <td width="120"><strong>Nama</strong></td>
-                                    <td>: {{ $visitation->pasien->nama }}</td>
+                                    <td class="label"><strong>Nama</strong></td>
+                                    <td>:
+                                        <span class="patient-label">
+                                            @if(isset($visitation->pasien->gender) && strtolower($visitation->pasien->gender) === 'laki-laki')
+                                                <span class="gender-badge gender-male" title="Laki-laki" aria-label="Laki-laki"><i class="fas fa-mars" aria-hidden="true"></i><span class="sr-only">Laki-laki</span></span>
+                                            @elseif(isset($visitation->pasien->gender) && strtolower($visitation->pasien->gender) === 'perempuan')
+                                                <span class="gender-badge gender-female" title="Perempuan" aria-label="Perempuan"><i class="fas fa-venus" aria-hidden="true"></i><span class="sr-only">Perempuan</span></span>
+                                            @endif
+                                            <span class="patient-name">{{ strtoupper($visitation->pasien->nama) }}</span>
+                                            <span class="patient-id">/ {{ $visitation->pasien->id }}</span>
+                                        </span>
+                                    </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>ID Pasien</strong></td>
-                                    <td>: {{ $visitation->pasien->id }}</td>
+                                    <td class="label"><strong>Tanggal Lahir</strong></td>
+                                    <td>:
+                                        <span class="patient-meta">
+                                            @if(!empty($visitation->pasien->tanggal_lahir))
+                                                {{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->locale('id')->translatedFormat('j F Y') }}
+                                                <span class="patient-age">({{ \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir)->age }} th)</span>
+                                            @else
+                                                -
+                                            @endif
+                                        </span>
+                                    </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Alamat</strong></td>
-                                    <td>: {{ $visitation->pasien->alamat }}</td>
+                                    <td class="label"><strong>Alamat</strong></td>
+                                    <td>: <span class="patient-meta">{{ $visitation->pasien->alamat }}</span></td>
                                 </tr>
                             </table>
                         </div>
                         <div class="col-md-6">
                             <table class="table table-sm table-borderless">
                                 <tr>
-                                    <td width="120"><strong>Jenis Kelamin</strong></td>
-                                    <td>: {{ $visitation->pasien->gender }}</td>
+                                    <td class="label"><strong>Tanggal Kunjungan</strong></td>
+                                    <td>:
+                                        @if(!empty($visitation->tanggal_visitation))
+                                            {{ \Carbon\Carbon::parse($visitation->tanggal_visitation)->locale('id')->translatedFormat('j F Y') }}
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Tanggal Lahir</strong></td>
-                                    <td>: {{ $visitation->pasien->tanggal_lahir }}</td>
+                                    <td class="label"><strong>Dokter</strong></td>
+                                    <td>:
+                                        @if($visitation && $visitation->dokter)
+                                            @php
+                                                $specName = optional($visitation->dokter->spesialisasi)->nama;
+                                                $specColors = ['badge-primary','badge-info','badge-success','badge-warning','badge-danger','badge-dark','badge-secondary'];
+                                                $specBadgeClass = 'badge-secondary';
+                                                if(!empty($specName)) {
+                                                    $specBadgeClass = $specColors[abs(crc32($specName)) % count($specColors)];
+                                                }
+                                            @endphp
+                                            {{ optional($visitation->dokter->user)->name ?? $visitation->dokter->nama ?? $visitation->dokter->name ?? '-' }}
+                                            @if(!empty($specName))
+                                                <span class="badge {{ $specBadgeClass }} ml-2">{{ $specName }}</span>
+                                            @endif
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Nomor Invoice</strong></td>
-                                    <td>: <strong>{{ $invoice?->invoice_number ?? '-' }}</strong></td>
+                                    <td class="label"><strong>Klinik</strong></td>
+                                    <td>: {{ optional($visitation->klinik)->nama ?? optional($visitation->klinik)->name ?? '-' }}</td>
                                 </tr>
                             </table>
                         </div>
@@ -108,11 +207,12 @@
         </div>
     </div>
 
-    <div class="row mb-4">
+    <div class="row mb-2">
         <div class="col">
             <div class="card shadow-sm">
-                <div class="card-body">
+                <div class="card-body py-2">
                     <div class="row">
+                        {{--
                         <div class="col-md-3 mb-2">
                             <label for="select-tindakan">Tambah Tindakan</label>
                             <select id="select-tindakan" class="form-control select2"></select>
@@ -121,30 +221,64 @@
                             <label for="select-lab">Tambah Lab</label>
                             <select id="select-lab" class="form-control select2"></select>
                         </div>
+                        --}}
                         <div class="col-md-3 mb-2">
                             <label for="select-konsultasi">Tambah Biaya Konsultasi</label>
                             <select id="select-konsultasi" class="form-control select2"></select>
                         </div>
+                        {{--
                         <div class="col-md-3 mb-2">
                             <label for="select-obat">Tambah Produk/Obat</label>
                             <select id="select-obat" class="form-control select2"></select>
                         </div>
+                        --}}
                     </div>
                 </div>
+                {{--
                 <div class="card-body pt-0 pb-3">
                     <small class="form-text text-danger font-weight-bold">*Harap konfirmasi ke unit terkait jika melakukan penambahan item dari halaman billing.</small>
                 </div>
+                --}}
             </div>
         </div>
     </div>
 
     <div class="row">
         <div class="col-md-9">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
+            <div class="card shadow-sm mb-2">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-file-invoice-dollar mr-2"></i>Rincian Billing
                     </h5>
+                    <div>
+                        <strong class="invoice-number">{{ $invoice?->invoice_number ?? '-' }}</strong>
+                        @if($invoice)
+                            @php
+                                $amountPaid = floatval($invoice->amount_paid ?? 0);
+                                $totalAmount = floatval($invoice->total_amount ?? 0);
+                                $statusHtml = '';
+                                if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
+                                    $statusHtml = '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
+                                } elseif ($amountPaid > 0 && $amountPaid < $totalAmount) {
+                                    $statusHtml = '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
+                                } else {
+                                    $statusHtml = '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                                }
+                            @endphp
+                            {!! $statusHtml !!}
+                        @else
+                            @php
+                                // If no invoice, check if there are any billings; if all trashed show Terhapus else Belum Dibayar
+                                $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id ?? null)->count();
+                                $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id ?? null)->count();
+                                if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
+                                    echo '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
+                                } else {
+                                    echo '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                                }
+                            @endphp
+                        @endif
+                    </div>
                 </div>
                 <div class="card-body px-4 py-3">
                     <div class="table-responsive">
@@ -152,13 +286,11 @@
                             <thead class="thead-light">
                                 <tr>
                                     <th style="width: 5%">No.</th>
-                                    <th style="width: 18%">Nama Item</th>
-                                    <th style="width: 18%">Rincian Item</th>
+                                    <th style="width: 30%">Nama Item</th>
                                     <th style="width: 8%">Harga</th>
                                     <th style="width: 5%">Qty</th>
-                                    <th style="width: 12%">Gudang</th>
                                     <th style="width: 12%">Stok Tersedia</th>
-                                        <th style="width: 8%">Diskon</th>
+                                    <th style="width: 8%">Diskon</th>
                                     <th style="width: 8%">Total</th>
                                     <th style="width: 10%">Aksi</th>
                                 </tr>
@@ -171,7 +303,7 @@
         </div>
         
         <div class="col-md-3">
-            <div class="card shadow-sm mb-4">
+            <div class="card shadow-sm mb-2">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-calculator mr-2"></i>Total Pembayaran
@@ -437,7 +569,7 @@
                     return visibleData;
                 }
             },
-            columns: [
+                columns: [
                 { 
                     data: null, 
                     orderable: false,
@@ -448,46 +580,9 @@
                     }
                 },
                 { data: 'nama_item', name: 'nama_item', width: "18%" },
-                { data: 'deskripsi', name: 'deskripsi', width: "18%" },
                 { data: 'jumlah', name: 'jumlah', width: "8%" },
                 { data: 'qty', name: 'qty', width: "5%" },
-                { 
-                    data: null,
-                    orderable: false,
-                    searchable: false,
-                    width: "12%",
-                    render: function(data, type, row, meta) {
-                        // Only show gudang dropdown for obat items (not tindakan)
-                        const isObatItem = row.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || 
-                                         row.billable_type === 'App\\Models\\ERM\\Racikan' ||
-                                         (row.deskripsi && row.deskripsi.toLowerCase().includes('obat')) ||
-                                         (row.nama_item && row.nama_item.toLowerCase().includes('obat'));
-                        
-                        if (!isObatItem) {
-                            return '<span class="text-muted">-</span>';
-                        }
-                        
-                        if (!window.gudangData.loaded || !window.gudangData.gudangs.length) {
-                            return '<span class="text-muted">Loading...</span>';
-                        }
-                        
-                        // Get default gudang for this item type
-                        const defaultGudangId = getDefaultGudangForItem(row);
-                        const selectedGudangId = row.selected_gudang_id || defaultGudangId;
-                        
-                        let selectHtml = `<select class="form-control form-control-sm gudang-selector" 
-                                               data-row-index="${meta.row}" 
-                                               data-item-id="${row.id}">`;
-                        
-                        window.gudangData.gudangs.forEach(function(gudang) {
-                            const selected = gudang.id == selectedGudangId ? 'selected' : '';
-                            selectHtml += `<option value="${gudang.id}" ${selected}>${gudang.nama}</option>`;
-                        });
-                        
-                        selectHtml += '</select>';
-                        return selectHtml;
-                    }
-                },
+                
                 {
                     // New column: show stock available in the selected gudang for this item
                     data: null,
@@ -540,6 +635,7 @@
                                 const stokDHtml = (stokD !== null && !isNaN(stokD)) ? '<small class="text-muted stok-dikurangi" title="Stok Dikurangi"> (-' + stokD + ')</small>' : '';
                                 html += '<div class="racikan-stock-line">' + label + '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + compId + '" data-child-index="' + idx + '">-</span>' + stokDHtml + '</div>';
                             });
+                            html += '<div class="gudang-name small text-muted mt-1"></div>';
                             html += '</div>';
                             return html;
                         }
@@ -550,11 +646,11 @@
                             if (row.billable && typeof row.billable.jumlah !== 'undefined') stokDsingle = parseInt(row.billable.jumlah) || null;
                         } catch (e) { stokDsingle = null; }
                         const stokDsingleHtml = (stokDsingle !== null && !isNaN(stokDsingle)) ? ' <small class="text-muted stok-dikurangi" title="Stok Dikurangi">(-' + stokDsingle + ')</small>' : '';
-                        return '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + (obatId || '') + '">-</span>' + stokDsingleHtml;
+                        return '<div class="stock-wrap"><span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + (obatId || '') + '">-</span>' + stokDsingleHtml + '<div class="gudang-name small text-muted mt-1"></div></div>';
                     }
                 },
-                { data: 'diskon', name: 'diskon', width: "8%" },
-                { data: 'harga_akhir', name: 'harga_akhir', width: "8%",
+                                { data: 'diskon', name: 'diskon', width: "8%" },
+                                { data: 'harga_akhir', name: 'harga_akhir', width: "8%",
                   render: function(data, type, row) {
                       // Always calculate as harga (unit price) * qty
                       // Use jumlah_raw as the true unit price, and qty
@@ -603,14 +699,13 @@
             ],
             columnDefs: [
                 { width: "5%", targets: 0 },
-                { width: "18%", targets: 1 },
-                { width: "18%", targets: 2 },
-                { width: "8%", targets: 3, className: 'text-right' }, // Right-align price column
-                { width: "5%", targets: 4 },
-                { width: "12%", targets: 5 }, // Gudang column
-                { width: "8%", targets: 6, className: 'text-right' }, // Right-align discount column
-                { width: "8%", targets: 7, className: 'text-right' }, // Right-align total column
-                { width: "10%", targets: 8 }
+                { width: "22%", targets: 1 },
+                { width: "8%", targets: 2, className: 'text-right' }, // Right-align price column
+                { width: "5%", targets: 3 },
+                { width: "12%", targets: 4, className: 'text-right' }, // Stock column (right-align)
+                { width: "8%", targets: 5, className: 'text-right' }, // Right-align discount column
+                { width: "8%", targets: 6, className: 'text-right' }, // Right-align total column
+                { width: "10%", targets: 7 }
             ],
             language: {
                 emptyTable: "Tidak ada item billing untuk kunjungan ini",
@@ -690,9 +785,9 @@
                 return;
             }
 
-            // Call batch-details endpoint and sum stok
-            // Show loading indicator
-            $cell.text('...');
+                        // Call batch-details endpoint and sum stok
+                        // Show loading indicator
+                        $cell.text('...');
             $.getJSON("{{ route('erm.stok-gudang.batch-details') }}", { obat_id: obatId, gudang_id: gudangId })
                 .done(function(resp) {
                     try {
@@ -714,6 +809,26 @@
                             $cell.text('0');
                         } else {
                             $cell.text(total);
+                        }
+
+                        // Also show the selected gudang name (if available) under the stock value
+                        try {
+                            let gudangName = '';
+                            if (window.gudangData && Array.isArray(window.gudangData.gudangs)) {
+                                const found = window.gudangData.gudangs.find(function(g) { return String(g.id) === String(gudangId) || g.id == gudangId; });
+                                if (found) gudangName = found.nama || found.name || '';
+                            }
+                            if (gudangName) {
+                                // For racikan rows, find the outer container; otherwise, find stock-wrap
+                                const $racikanList = $cell.closest('.racikan-stock-list');
+                                if ($racikanList.length) {
+                                    $racikanList.find('.gudang-name').text(gudangName);
+                                } else {
+                                    $cell.closest('.stock-wrap').find('.gudang-name').text(gudangName);
+                                }
+                            }
+                        } catch (e) {
+                            console.debug('Failed to set gudang name', e);
                         }
 
 
