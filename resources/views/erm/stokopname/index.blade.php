@@ -13,15 +13,28 @@
             <button class="btn btn-success" data-toggle="modal" data-target="#stokOpnameModal">Tambah Stok Opname</button>
         </div>
     </div>
+    <div class="row mb-3">
+      <div class="col-md-3">
+        <select id="filter_periode_bulan" class="form-control">
+          <option value="">-- Semua Bulan --</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select id="filter_periode_tahun" class="form-control">
+          <option value="">-- Semua Tahun --</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <button type="button" id="filter_reset" class="btn btn-secondary">Reset Periode</button>
+      </div>
+    </div>
     <table class="table table-bordered yajra-datatable">
         <thead>
       <tr>
         <th>No</th>
         <th>Tanggal Opname</th>
-        <th>Gudang</th>
         <th>Periode</th>
         <th>Status</th>
-        <th>Dibuat Oleh</th>
         <th>Obat Selisih</th>
         <th>Aksi</th>
       </tr>
@@ -104,14 +117,36 @@
 </style>
 <script>
 $(function () {
-    // Set default year for periode_tahun input
-    var now = new Date();
-    $('#periode_tahun_input').val(now.getFullYear());
-    var table = $('.yajra-datatable').DataTable({
-        processing: true,
-        serverSide: true,
-        ajax: "{{ route('erm.stokopname.index') }}",
-    columns: [
+  // Set default year for periode_tahun input
+  var now = new Date();
+  $('#periode_tahun_input').val(now.getFullYear());
+
+  // Populate month/year filter selects and default to current month/year
+  var bulanNames = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  var $filterBulan = $('#filter_periode_bulan');
+  for (var i = 1; i <= 12; i++) {
+    $filterBulan.append($('<option>').val(i).text(bulanNames[i]));
+  }
+  var $filterTahun = $('#filter_periode_tahun');
+  var currentYear = now.getFullYear();
+  for (var y = currentYear - 5; y <= currentYear + 1; y++) {
+    $filterTahun.append($('<option>').val(y).text(y));
+  }
+  // default to this month's periode
+  $filterBulan.val(now.getMonth() + 1);
+  $filterTahun.val(currentYear);
+
+  var table = $('.yajra-datatable').DataTable({
+    processing: true,
+    serverSide: true,
+    ajax: {
+      url: "{{ route('erm.stokopname.index') }}",
+      data: function(d) {
+        d.periode_bulan = $('#filter_periode_bulan').val();
+        d.periode_tahun = $('#filter_periode_tahun').val();
+      }
+    },
+  columns: [
       {
         data: null,
         name: 'no',
@@ -124,22 +159,38 @@ $(function () {
       {
         data: 'tanggal_opname',
         name: 'tanggal_opname',
-        render: function(data) {
-          if (!data) return '';
-          var bulan = [
-            '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-          ];
-          var d = new Date(data);
-          var tgl = d.getDate();
-          var bln = bulan[d.getMonth() + 1];
-          var thn = d.getFullYear();
-          return tgl + ' ' + bln + ' ' + thn;
+        render: function(data, type, row) {
+          var txt = '';
+          if (data) {
+            var bulan = [
+              '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+              'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+            ];
+            var d = new Date(data);
+            var tgl = d.getDate();
+            var bln = bulan[d.getMonth() + 1];
+            var thn = d.getFullYear();
+            txt = tgl + ' ' + bln + ' ' + thn;
+          }
+          var createdBy = '';
+          if (row && row.user && row.user.name) {
+            createdBy = '<br><small class="text-muted">' + row.user.name + '</small>';
+          }
+          return txt + createdBy;
         }
       },
-      {data: 'gudang.nama', name: 'gudang.nama'},
       {data: null, render: function(data) {
-        return data.periode_bulan + '/' + data.periode_tahun;
+        var bulan = data.periode_bulan || '';
+        var tahun = data.periode_tahun || '';
+        var periode = bulan + '/' + tahun;
+        var gudangBadge = '';
+        if (data.gudang && data.gudang.nama) {
+          var badgeClasses = ['primary','secondary','success','info','warning','danger','dark'];
+          var gid = (data.gudang.id && Number(data.gudang.id)) ? Number(data.gudang.id) : 0;
+          var cls = badgeClasses[gid % badgeClasses.length];
+          gudangBadge = '<br><span class="badge badge-' + cls + '">' + data.gudang.nama + '</span>';
+        }
+        return periode + gudangBadge;
       }},
       {
         data: 'status',
@@ -156,7 +207,6 @@ $(function () {
           }
         }
       },
-      {data: 'user.name', name: 'user.name'},
       {
         data: 'selisih_count',
         name: 'selisih_count',
@@ -189,6 +239,18 @@ $(function () {
                 alert('Gagal menyimpan data!');
             }
         });
+    });
+
+    // reload table when periode filters change
+    $('#filter_periode_bulan, #filter_periode_tahun').on('change', function() {
+      table.ajax.reload();
+    });
+
+    // reset filter
+    $('#filter_reset').on('click', function() {
+      $filterBulan.val('');
+      $filterTahun.val(currentYear);
+      table.ajax.reload();
     });
 });
 </script>

@@ -305,6 +305,37 @@ class StokGudangController extends Controller {
     }
 
     /**
+     * Update expiration date for a batch (obat_stok_gudang)
+     */
+    public function updateBatchExpiration(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|exists:erm_obat_stok_gudang,id',
+            'expiration_date' => 'nullable|date_format:Y-m-d'
+        ]);
+
+        try {
+            $stokGudang = ObatStokGudang::findOrFail($request->id);
+            $old = $stokGudang->expiration_date ? $stokGudang->expiration_date->format('Y-m-d') : null;
+            $new = $request->expiration_date ?: null;
+            $stokGudang->expiration_date = $new;
+            $stokGudang->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Tanggal kadaluarsa berhasil disimpan',
+                'data' => [
+                    'expiration_date_raw' => $stokGudang->expiration_date ? $stokGudang->expiration_date->format('Y-m-d') : '',
+                    'expiration_date' => $stokGudang->expiration_date ? $stokGudang->expiration_date->format('d/m/Y') : '-'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan tanggal kadaluarsa: ' . $e->getMessage()], 422);
+        }
+    }
+
+    /**
      * Delete (zero-out) all stok for an obat in a gudang and log kartu stok entries.
      */
     public function deleteObatFromGudang(Request $request)

@@ -498,6 +498,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
         Route::get('/data', [StokGudangController::class, 'getData'])->name('erm.stok-gudang.data');
         Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
         Route::post('/update-batch-stok', [StokGudangController::class, 'updateBatchStok'])->name('erm.stok-gudang.update-batch-stok');
+        Route::post('/update-batch-exp', [StokGudangController::class, 'updateBatchExpiration'])->name('erm.stok-gudang.update-batch-exp');
     Route::post('/update-minmax', [StokGudangController::class, 'updateMinMax'])->name('erm.stok-gudang.update-minmax');
     });
     
@@ -928,6 +929,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     
     // New multi-gudang stock opname routes
     Route::post('/{id}/generate-items', [\App\Http\Controllers\ERM\StokOpnameController::class, 'generateStokOpnameItems'])->name('erm.stokopname.generateItems');
+    Route::post('/{id}/add-item', [\App\Http\Controllers\ERM\StokOpnameController::class, 'addItem'])->name('erm.stokopname.addItem');
+    Route::get('/{id}/available-obats', [\App\Http\Controllers\ERM\StokOpnameController::class, 'getAvailableObats'])->name('erm.stokopname.availableObats');
     Route::post('/{id}/update-stock-from-opname', [\App\Http\Controllers\ERM\StokOpnameController::class, 'updateStokFromOpname'])->name('erm.stokopname.updateStockFromOpname');
     });
 
@@ -1644,6 +1647,8 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
 
 // AJAX route for riwayat tindakan detail modal (obat substitution)
 Route::get('/erm/riwayat-tindakan/{id}/detail', [App\Http\Controllers\ERM\TindakanController::class, 'getRiwayatDetail']);
+// AJAX: get batch list for a stok opname item (shows batch, stok, expiration)
+Route::get('/erm/stokopname-item/{itemId}/batches', [\App\Http\Controllers\ERM\StokOpnameController::class, 'getItemBatches'])->name('erm.stokopname.item.batches');
 // POST route for saving substituted obat
 Route::post('/erm/riwayat-tindakan/{id}/obat', [App\Http\Controllers\ERM\TindakanController::class, 'updateRiwayatObat']);
 

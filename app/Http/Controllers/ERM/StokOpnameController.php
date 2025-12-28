@@ -29,8 +29,16 @@ class StokOpnameController extends Controller
         $totalStokFisik = 0;
         foreach ($items as $item) {
             $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+            // include record-only temuan (net of jenis: 'lebih' as +, 'kurang' as -)
+            $recordNet = DB::table('erm_stok_opname_temuan')
+                ->where('stok_opname_item_id', $item->id)
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->first();
+            $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+
             $totalStokSistem += $hppJual * ($item->stok_sistem ?? 0);
-            $totalStokFisik += $hppJual * ($item->stok_fisik ?? 0);
+            // nilai stok fisik includes stok_fisik plus any recorded temuan (record-only)
+            $totalStokFisik += $hppJual * ((float)($item->stok_fisik ?? 0) + $netTemuan);
         }
         return response()->json([
             'totalStokSistem' => $totalStokSistem,
@@ -46,13 +54,16 @@ class StokOpnameController extends Controller
             'stok_fisik' => 'required|numeric',
         ]);
         $item = StokOpnameItem::findOrFail($itemId);
-        $item->stok_fisik = $request->stok_fisik;
-        $item->selisih = $item->stok_fisik - $item->stok_sistem;
+        $stokFisik = (float) $request->stok_fisik;
+        $item->stok_fisik = $stokFisik;
+        // Ensure stok_sistem is treated as float (casted in model)
+        $stokSistem = (float) $item->stok_sistem;
+        $item->selisih = $stokFisik - $stokSistem;
         $item->save();
         return response()->json([
             'success' => true,
-            'stok_fisik' => $item->stok_fisik,
-            'selisih' => $item->selisih,
+            'stok_fisik' => (float) $item->stok_fisik,
+            'selisih' => (float) $item->selisih,
         ]);
     }
 
@@ -506,6 +517,13 @@ class StokOpnameController extends Controller
     {
         if ($request->ajax()) {
             $data = StokOpname::with('gudang', 'user')->latest();
+            // Apply periode filters if provided from DataTable AJAX
+            if ($request->filled('periode_bulan')) {
+                $data->where('periode_bulan', $request->periode_bulan);
+            }
+            if ($request->filled('periode_tahun')) {
+                $data->where('periode_tahun', $request->periode_tahun);
+            }
             return datatables()->of($data)
                 ->addColumn('selisih_count', function($row) {
                     return $row->items()->whereRaw('ABS(selisih) > 0')->count();
@@ -557,11 +575,141 @@ class StokOpnameController extends Controller
         $totalStokFisik = 0;
         foreach ($items as $item) {
             $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
+            // include record-only temuan (net of jenis: 'lebih' as +, 'kurang' as -)
+            $recordNet = DB::table('erm_stok_opname_temuan')
+                ->where('stok_opname_item_id', $item->id)
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->first();
+            $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+
             $totalStokSistem += $hppJual * ($item->stok_sistem ?? 0);
-            $totalStokFisik += $hppJual * ($item->stok_fisik ?? 0);
+            // nilai stok fisik includes stok_fisik plus any recorded temuan (record-only)
+            $totalStokFisik += $hppJual * ((float)($item->stok_fisik ?? 0) + $netTemuan);
         }
 
-        return view('erm.stokopname.create', compact('stokOpname', 'items', 'totalStokSistem', 'totalStokFisik'));
+        // Prepare filter lists for the view
+        $kategoriList = Obat::select('kategori')->distinct()->whereNotNull('kategori')->pluck('kategori');
+        $metodeList = DB::table('erm_metode_bayar')->select('id','nama')->get();
+
+        // Expiration years available for this gudang
+        $gudangId = $stokOpname->gudang_id;
+        $expYears = DB::table('erm_obat_stok_gudang')
+            ->where('gudang_id', $gudangId)
+            ->whereNotNull('expiration_date')
+            ->select(DB::raw('DISTINCT YEAR(expiration_date) as year'))
+            ->orderByDesc('year')
+            ->pluck('year');
+
+        // Available obats (have stock entries in this gudang) for manual add
+        // Exclude obat that already exist as items in this stok opname
+        // Use a DB-level NOT EXISTS to ensure we only return obats that have stock in this gudang
+        // and are NOT already present in the stok_opname_items for this opname.
+        $availableObats = DB::table('erm_obat as o')
+            ->join('erm_obat_stok_gudang as sg', 'o.id', '=', 'sg.obat_id')
+            ->where('sg.gudang_id', $gudangId)
+            ->whereNotExists(function($q) use ($stokOpname) {
+                $q->select(DB::raw(1))
+                  ->from('erm_stok_opname_items as i')
+                  ->whereRaw('i.obat_id = o.id')
+                  ->where('i.stok_opname_id', $stokOpname->id);
+            })
+            ->select('o.id', 'o.nama')
+            ->distinct()
+            ->orderBy('o.nama')
+            ->get();
+
+        return view('erm.stokopname.create', compact('stokOpname', 'items', 'totalStokSistem', 'totalStokFisik', 'kategoriList', 'metodeList', 'expYears', 'availableObats'));
+    }
+
+    /**
+     * Add a single obat as a StokOpnameItem (aggregated per-obat) to an existing opname
+     */
+    public function addItem(Request $request, $stokOpnameId)
+    {
+        $request->validate([
+            'obat_id' => 'required|exists:erm_obat,id'
+        ]);
+
+        try {
+            $stokOpname = StokOpname::findOrFail($stokOpnameId);
+
+            $obatId = (int)$request->obat_id;
+
+            // Prevent duplicate item for same obat in this opname
+            $exists = StokOpnameItem::where('stok_opname_id', $stokOpnameId)->where('obat_id', $obatId)->exists();
+            if ($exists) {
+                return response()->json(['success' => false, 'message' => 'Item untuk obat ini sudah ada di opname'], 400);
+            }
+
+            // Compute total sistem stock for this obat in the opname gudang
+            $totalStok = (float) DB::table('erm_obat_stok_gudang')
+                ->where('obat_id', $obatId)
+                ->where('gudang_id', $stokOpname->gudang_id)
+                ->sum('stok');
+
+            // Capture snapshot per-batch for later allocation
+            $batches = DB::table('erm_obat_stok_gudang')
+                ->where('obat_id', $obatId)
+                ->where('gudang_id', $stokOpname->gudang_id)
+                ->orderBy('batch')
+                ->get();
+
+            $snapshot = $batches->map(function($b) {
+                return [
+                    'id' => $b->id,
+                    'batch' => $b->batch,
+                    'stok' => (float)$b->stok,
+                    'expiration_date' => $b->expiration_date,
+                ];
+            })->toArray();
+
+            $item = StokOpnameItem::create([
+                'stok_opname_id' => $stokOpnameId,
+                'obat_id' => $obatId,
+                'batch_id' => null,
+                'batch_name' => null,
+                'expiration_date' => null,
+                'stok_sistem' => $totalStok,
+                'stok_fisik' => 0,
+                'selisih' => -$totalStok,
+                'notes' => null,
+                'batch_snapshot' => $snapshot,
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Item berhasil ditambahkan', 'item_id' => $item->id]);
+
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal menambahkan item: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Return available obats in the opname gudang that are not yet part of this opname (AJAX)
+     */
+    public function getAvailableObats($stokOpnameId)
+    {
+        try {
+            $stokOpname = StokOpname::findOrFail($stokOpnameId);
+            $gudangId = $stokOpname->gudang_id;
+
+            $available = DB::table('erm_obat as o')
+                ->join('erm_obat_stok_gudang as sg', 'o.id', '=', 'sg.obat_id')
+                ->where('sg.gudang_id', $gudangId)
+                ->whereNotExists(function($q) use ($stokOpname) {
+                    $q->select(DB::raw(1))
+                      ->from('erm_stok_opname_items as i')
+                      ->whereRaw('i.obat_id = o.id')
+                      ->where('i.stok_opname_id', $stokOpname->id);
+                })
+                ->select('o.id', 'o.nama')
+                ->distinct()
+                ->orderBy('o.nama')
+                ->get();
+
+            return response()->json(['success' => true, 'data' => $available]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 
     public function downloadExcel($id)
@@ -649,14 +797,60 @@ class StokOpnameController extends Controller
                     'erm_obat.nama as nama_obat',
                     'erm_obat.hpp_jual as hpp_jual',
                     'erm_obat.satuan as satuan',
+                    'erm_obat.kategori as kategori',
                     DB::raw($batchSub),
                     DB::raw($kartuQueryNoAlias . ' as kartu_temuan_sum'),
                     DB::raw($recordQueryNoAlias . ' as record_temuan_sum'),
                     DB::raw($recordNetQuery . ' as record_temuan_net'),
                     DB::raw($totalTemuanSub),
-                    DB::raw($adjustedSelisihSub)
+                        DB::raw($adjustedSelisihSub),
+                        // nearest expiration date (formatted) for this obat in the gudang (earliest non-null expiration)
+                        DB::raw("(SELECT IFNULL(DATE_FORMAT(MIN(g.expiration_date),'%d/%m/%Y'), '-') FROM erm_obat_stok_gudang g WHERE g.obat_id = erm_stok_opname_items.obat_id AND g.gudang_id = {$gudangId} AND g.stok > 0 AND g.expiration_date IS NOT NULL) as nearest_exp"),
+                    // metode_bayar name from related table (nullable)
+                    DB::raw("(SELECT mb.nama FROM erm_metode_bayar mb WHERE mb.id = erm_obat.metode_bayar_id LIMIT 1) as metode_bayar")
                 )
                 ->where('stok_opname_id', $id);
+
+            // Apply server-side filters if requested
+            $filterSelisih = $request->get('filter_selisih');
+            $filterKategori = $request->get('filter_kategori');
+            $filterMetode = $request->get('filter_metode');
+            // Expression matching adjusted selisih used above
+            $adjustExpr = "((erm_stok_opname_items.stok_fisik - erm_stok_opname_items.stok_sistem) + COALESCE((" . $recordNetQuery . "),0))";
+            if ($filterSelisih === 'with') {
+                $query->whereRaw($adjustExpr . ' <> 0');
+            } elseif ($filterSelisih === 'without') {
+                $query->whereRaw($adjustExpr . ' = 0');
+            }
+            if (!empty($filterKategori)) {
+                $query->where('erm_obat.kategori', $filterKategori);
+            }
+            if (!empty($filterMetode)) {
+                // filter by metode_bayar id on obat table
+                $query->where('erm_obat.metode_bayar_id', $filterMetode);
+            }
+
+            // filter by expiration year if provided (numeric)
+            $filterExpYear = $request->get('filter_exp_year');
+            if (!empty($filterExpYear) && is_numeric($filterExpYear)) {
+                $year = (int) $filterExpYear;
+                $query->whereExists(function($sub) use ($gudangId, $year) {
+                    $sub->select(DB::raw('1'))
+                        ->from('erm_obat_stok_gudang as g2')
+                        ->whereRaw('g2.obat_id = erm_stok_opname_items.obat_id')
+                        ->where('g2.gudang_id', $gudangId)
+                        ->whereRaw('g2.stok > 0')
+                        ->whereRaw('YEAR(g2.expiration_date) = ' . (int)$year);
+                });
+            }
+
+            // filter by stok_fisik zero/non-zero
+            $filterStokFisik = $request->get('filter_stok_fisik');
+            if ($filterStokFisik === 'zero') {
+                $query->where('erm_stok_opname_items.stok_fisik', 0);
+            } elseif ($filterStokFisik === 'nonzero') {
+                $query->whereRaw('COALESCE(erm_stok_opname_items.stok_fisik,0) <> 0');
+            }
 
             return datatables()->of($query)
                 // Override selisih column to show adjusted selisih that includes unprocessed record-only temuan
@@ -664,6 +858,11 @@ class StokOpnameController extends Controller
                     // $row is stdClass; use adjusted_selisih if present, else fallback to stored selisih
                     if (isset($row->adjusted_selisih)) return $row->adjusted_selisih;
                     return $row->selisih;
+                })
+                // Ensure ordering by displayed selisih (adjusted selisih) works server-side
+                ->orderColumn('selisih', function($query, $order) use ($recordNetQuery) {
+                    $expr = "((erm_stok_opname_items.stok_fisik - erm_stok_opname_items.stok_sistem) + COALESCE((" . $recordNetQuery . "),0))";
+                    $query->orderByRaw($expr . ' ' . $order);
                 })
                 ->addColumn('batch_name', function($row) {
                     // $row is stdClass from query
@@ -692,6 +891,44 @@ class StokOpnameController extends Controller
                 })
                 ->rawColumns(['batch_name'])
                 ->make(true);
+    }
+
+    /**
+     * Return batch list for a given stok_opname_item (for modal display)
+     */
+    public function getItemBatches($itemId)
+    {
+        try {
+            $item = StokOpnameItem::with(['stokOpname', 'obat'])->findOrFail($itemId);
+            $gudangId = $item->stokOpname ? $item->stokOpname->gudang_id : null;
+
+            $query = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id);
+            if ($gudangId) {
+                $query->where('gudang_id', $gudangId);
+            }
+            $batches = $query->select('id','batch','stok','expiration_date')->orderByRaw('COALESCE(expiration_date, "9999-12-31") asc')->get();
+
+            // Normalize expiration date fields for the frontend: provide raw (Y-m-d) and formatted display (d/m/Y)
+            $batchesNormalized = $batches->map(function($b) {
+                $raw = $b->expiration_date ? \Carbon\Carbon::parse($b->expiration_date)->format('Y-m-d') : '';
+                $display = $b->expiration_date ? \Carbon\Carbon::parse($b->expiration_date)->format('d/m/Y') : '-';
+                return [
+                    'id' => $b->id,
+                    'batch' => $b->batch,
+                    'stok' => (float) $b->stok,
+                    'expiration_date' => $display,
+                    'expiration_date_raw' => $raw
+                ];
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'obat' => $item->obat ? $item->obat->nama : null,
+                'batches' => $batchesNormalized,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 
         public function updateItemNotes(Request $request, $itemId)
@@ -793,10 +1030,15 @@ class StokOpnameController extends Controller
                 ]);
             }
             
+            // Persist status change: mark opname as 'proses' after items generated
+            $stokOpname->status = 'proses';
+            $stokOpname->save();
+
             DB::commit();
-            
+
             return response()->json([
-                'success' => true, 
+                'success' => true,
+                'status' => $stokOpname->status,
                 'message' => 'Generated ' . $stokList->count() . ' items for stock opname'
             ]);
             

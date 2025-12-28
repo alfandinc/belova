@@ -30,7 +30,7 @@ class ObatController extends Controller
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
-            'harga_nonfornas' => 'required|numeric',
+            'harga_nonfornas' => 'nullable|numeric',
             'stok' => 'nullable|integer|min:0',
             'hpp' => 'nullable|numeric',
             'hpp_jual' => 'nullable|numeric',
@@ -39,21 +39,26 @@ class ObatController extends Controller
 
         try {
             $obat = Obat::withInactive()->findOrFail($id);
-            $obat->update([
-                'nama' => $request->nama,
-                'kode_obat' => $request->kode_obat,
-                'dosis' => $request->dosis,
-                'satuan' => $request->satuan,
-                'harga_net' => $request->harga_net,
-                'harga_fornas' => $request->harga_fornas,
-                'harga_nonfornas' => $request->harga_nonfornas,
-                'stok' => $request->stok ?? 0,
-                'kategori' => $request->kategori,
-                'metode_bayar_id' => $request->metode_bayar_id,
-                'status_aktif' => $request->input('status_aktif', 1),
-                'hpp' => $request->hpp,
-                'hpp_jual' => $request->hpp_jual,
-            ]);
+            // Build update payload only from provided inputs to avoid overwriting unspecified fields
+            $up = [];
+            $fields = [
+                'nama','kode_obat','dosis','satuan','harga_net','harga_fornas','harga_nonfornas',
+                'stok','kategori','metode_bayar_id','status_aktif','hpp','hpp_jual'
+            ];
+            foreach ($fields as $f) {
+                if ($request->has($f)) {
+                    // For stok, if not provided use existing; when present allow zero
+                    if ($f === 'stok') {
+                        $up[$f] = $request->input($f) !== null ? $request->input($f) : $obat->stok;
+                    } else {
+                        $up[$f] = $request->input($f);
+                    }
+                }
+            }
+            // Only update if there is something to change
+            if (!empty($up)) {
+                $obat->update($up);
+            }
 
             // Sync zat aktif if provided
             if ($request->has('zataktif_id') && !empty($request->zataktif_id)) {
@@ -231,7 +236,7 @@ class ObatController extends Controller
             'metode_bayar_id' => 'nullable|exists:erm_metode_bayar,id',
             'harga_net' => 'nullable|numeric',
             'harga_fornas' => 'nullable|numeric',
-            'harga_nonfornas' => 'required|numeric',
+            'harga_nonfornas' => 'nullable|numeric',
             'stok' => 'nullable|integer|min:0',
             'hpp' => 'nullable|numeric',
             'hpp_jual' => 'nullable|numeric',
