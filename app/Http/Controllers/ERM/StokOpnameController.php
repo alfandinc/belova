@@ -889,6 +889,11 @@ class StokOpnameController extends Controller
                 ->filterColumn('satuan', function($query, $keyword) {
                     $query->where('erm_obat.satuan', 'like', "%{$keyword}%");
                 })
+                // Handle search on nearest_exp which is an alias from a subquery
+                ->filterColumn('nearest_exp', function($query, $keyword) use ($gudangId) {
+                    $expr = "(SELECT IFNULL(DATE_FORMAT(MIN(g.expiration_date),'%d/%m/%Y'), '-') FROM erm_obat_stok_gudang g WHERE g.obat_id = erm_stok_opname_items.obat_id AND g.gudang_id = {$gudangId} AND g.stok > 0 AND g.expiration_date IS NOT NULL)";
+                    $query->whereRaw($expr . " LIKE ?", ["%{$keyword}%"]);
+                })
                 ->rawColumns(['batch_name'])
                 ->make(true);
     }
