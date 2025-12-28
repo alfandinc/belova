@@ -1068,8 +1068,8 @@ class StokOpnameController extends Controller
             $stokService = app(\App\Services\ERM\StokService::class);
             $updatedCount = 0;
             
+            // Process all items so we can record opname entries even when selisih == 0
             $items = StokOpnameItem::where('stok_opname_id', $stokOpnameId)
-                ->where('selisih', '!=', 0) // Only process items with difference
                 ->with(['obatStokGudang', 'obat'])
                 ->get();
             
@@ -1087,6 +1087,25 @@ class StokOpnameController extends Controller
 
                     $currentTotal = (float) $batches->sum('stok');
                     $targetTotal = (float) $item->stok_fisik;
+
+                    // If there is no change, still record a kartu stok entry for this opname (qty 0)
+                    if (abs($targetTotal - $currentTotal) < 0.000001) {
+                        \App\Models\ERM\KartuStok::create([
+                            'obat_id' => $item->obat_id,
+                            'gudang_id' => $stokOpname->gudang_id,
+                            'tanggal' => now(),
+                            'tipe' => 'stok_opname',
+                            'qty' => 0,
+                            'stok_setelah' => $currentTotal,
+                            'ref_type' => 'stok_opname',
+                            'ref_id' => $stokOpname->id,
+                            'batch' => null,
+                            'keterangan' => "Stok opname tercatat (tidak ada perubahan) - stok saat ini: {$currentTotal}",
+                            'user_id' => auth()->id()
+                        ]);
+                        $updatedCount++;
+                        continue;
+                    }
 
                     // Generate stok opname reference number
                     $opnameRef = "OPNAME-{$stokOpname->periode_bulan}-{$stokOpname->periode_tahun}";
@@ -1240,6 +1259,25 @@ class StokOpnameController extends Controller
                 $currentStock = (float) $stokGudang->stok;
                 $targetStock = (float) $item->stok_fisik; // desired physical stock
                 $delta = $targetStock - $currentStock; // positive -> need to add, negative -> need to remove
+
+                // If there is no change, still record a kartu stok entry (qty 0)
+                if (abs($delta) < 0.000001) {
+                    \App\Models\ERM\KartuStok::create([
+                        'obat_id' => $item->obat_id,
+                        'gudang_id' => $stokOpname->gudang_id,
+                        'tanggal' => now(),
+                        'tipe' => 'stok_opname',
+                        'qty' => 0,
+                        'stok_setelah' => $currentStock,
+                        'ref_type' => 'stok_opname',
+                        'ref_id' => $stokOpname->id,
+                        'batch' => $stokGudang->batch,
+                        'keterangan' => "Stok opname tercatat (tidak ada perubahan) - stok saat ini: {$currentStock}",
+                        'user_id' => auth()->id()
+                    ]);
+                    $updatedCount++;
+                    continue;
+                }
 
                 // Generate stok opname reference number
                 $opnameRef = "OPNAME-{$stokOpname->periode_bulan}-{$stokOpname->periode_tahun}";
