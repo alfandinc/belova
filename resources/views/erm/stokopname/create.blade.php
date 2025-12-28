@@ -304,6 +304,8 @@
                                     <option value="tube">tube</option>
                                     <option value="sachet">sachet</option>
                                     <option value="ampul">ampul</option>
+                                    <option value="vial">vial</option>
+                                    <option value="softbag">softbag</option>
                                 </select>
                             </div>
                             <div class="form-group">
