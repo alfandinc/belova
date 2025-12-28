@@ -303,6 +303,7 @@
                                     <option value="botol">botol</option>
                                     <option value="tube">tube</option>
                                     <option value="sachet">sachet</option>
+                                    <option value="ampul">ampul</option>
                                 </select>
                             </div>
                             <div class="form-group">
