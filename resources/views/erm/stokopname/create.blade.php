@@ -298,7 +298,7 @@
                                     <option value="tablet">tablet</option>
                                     <option value="kapsul">kapsul</option>
                                     <option value="mL">mL</option>
-                                    <option value="g">g</option>
+                                    <option value="gram">gram</option>
                                     <option value="mg">mg</option>
                                     <option value="botol">botol</option>
                                     <option value="tube">tube</option>
