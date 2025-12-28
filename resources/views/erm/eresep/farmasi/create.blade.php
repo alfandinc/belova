@@ -515,7 +515,19 @@
             let harga = selectedData && selectedData.harga ? parseFloat(selectedData.harga) : null;
             // stok may be provided as stok_gudang or stok on the select2 item
             let stokAvailable = typeof selectedData.stok_gudang !== 'undefined' ? parseInt(selectedData.stok_gudang || 0, 10) : (typeof selectedData.stok !== 'undefined' ? parseInt(selectedData.stok || 0, 10) : null);
+            // Robustly obtain aturan pakai: prefer hidden input, fallback to select2 selected template/text
             let aturanPakai = $('#aturan_pakai').val();
+            if (!aturanPakai) {
+                try {
+                    const sel = $('#aturan_pakai_template').select2('data') || [];
+                    if (sel.length > 0) {
+                        const d = sel[0];
+                        aturanPakai = (d && (d.template || d.text)) ? (d.template || d.text) : aturanPakai;
+                    }
+                } catch (e) {
+                    // ignore if select2 not initialized
+                }
+            }
             let diskon = $('#diskon').val() || 0;
             let visitationId = $('#visitation_id').val();  // Pastikan id yang digunakan sama
 
@@ -564,10 +576,11 @@
                         `);
                         updateTotalPrice();
 
-                        // Clear the input fields
+                        // Clear the input fields (clear both hidden input and select2 control)
                         $('#obat_id').val(null).trigger('change');
                         $('#jumlah').val('');
                         $('#aturan_pakai').val('');
+                        try { $('#aturan_pakai_template').val(null).trigger('change'); } catch(e){}
                     },
                     error: function (xhr) {
                         const msg = xhr && xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Unknown error';
