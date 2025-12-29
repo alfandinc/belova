@@ -12,7 +12,8 @@ class RiwayatTindakan extends Model
         'visitation_id',
         'tanggal_tindakan',
         'tindakan_id',
-        'paket_tindakan_id'
+        'paket_tindakan_id',
+        'multi_visit_usage_id'
     ];
 
     protected $casts = [

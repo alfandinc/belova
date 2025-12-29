@@ -14,33 +14,44 @@
     margin-top: 20px;
     text-align: center;
 }
-/* Ensure custom modal content scrolls when tall */
-#modalCustomTindakan .modal-body {
-    max-height: calc(100vh - 200px);
-    overflow-y: auto;
+.blink-new {
+        display: inline-block;
+        -webkit-animation: blinker 1s linear infinite;
+        animation: blinker 1s linear infinite;
 }
-/* Tweak column widths inside the custom tindakan modal */
-#modalCustomTindakan .obat-list table td,
-#modalCustomTindakan .obat-list table th {
+@-webkit-keyframes blinker {
+    50% { opacity: 0; }
+}
+@keyframes blinker {
+    50% { opacity: 0; }
+}
+/* Price block layout inside Harga column */
+.price-block { width: 100%; }
+.price-block .row { display: flex; justify-content: space-between; padding: 2px 8px; border-top: 1px solid #e9ecef; }
+.price-block .row:first-child { border-top: none; }
+.price-block .label { color: #6c757d; }
+.price-block .value { font-weight: 600; display: flex; align-items: center; justify-content: flex-end; }
+/* Buttons take full column width and stack */
+.price-block .value .btn { display: block; width: 100%; margin: 0; padding: .35rem .5rem; line-height: 1; }
+.price-block .row + .row .value { margin-top: 6px; }
+/* Custom tindakan modal styles removed (feature deleted) */
+/* Thicker separators for tindakan rows to improve readability */
+#tindakanTable.table-bordered tbody td {
+    border-bottom: 1px solid #e9ecef;
     vertical-align: middle;
 }
-#modalCustomTindakan .obat-qty {
-    max-width: 90px;
+#tindakanTable.table-bordered tbody tr:last-child td {
+    border-bottom-width: 1px;
 }
-#modalCustomTindakan .obat-dosis {
-    max-width: 140px;
+/* Make tindakan name link match price font and appearance */
+.tindakan-name-link {
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+    font-family: inherit;
 }
-#modalCustomTindakan .obat-satuan-dosis {
-    max-width: 140px;
-}
-#modalCustomTindakan .hpp-td {
-    min-width: 160px;
-    width: 160px;
-}
-#modalCustomTindakan .obat-list table td .form-control {
-    display: block;
-    width: 100%;
-}
+.tindakan-name-link strong { font-weight: 600; }
+.tindakan-name-link:hover { text-decoration: underline; }
 </style>
 
 @include('erm.partials.modal-alergipasien')
@@ -74,10 +85,36 @@
     @include('erm.partials.card-identitaspasien')
 
     <div class="row gx-0">
-        <div class="col-lg-12 col-md-12 mb-3">
+        <!-- Left: Daftar Tindakan Dokter -->
+        <div class="col-lg-6 col-md-12 mb-3">
+            <div class="card h-100">
+                <div class="card-header d-flex align-items-center">
+                    <h5 class="mb-0 text-uppercase font-weight-bold">DAFTAR TINDAKAN</h5>
+                    <div class="ml-auto">
+                        <!-- Create Custom Tindakan removed -->
+                    </div>
+                </div>
+                <div class="card-body p-2">
+                    <div class="table-responsive">
+                        <table id="tindakanTable" class="table table-bordered w-100">
+                            <thead>
+                                <tr>
+                                    <th>Nama</th>
+                                    <th>List Harga</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Riwayat Tindakan Pasien -->
+        <div class="col-lg-6 col-md-12 mb-3">
             <div class="card h-100">
                 <div class="card-header">
-                    <h5 class="mb-0">Riwayat Tindakan Pasien</h5>
+                    <h5 class="mb-0 text-uppercase font-weight-bold">RIWAYAT TINDAKAN</h5>
                 </div>
                 <div class="card-body p-2">
                     <div class="table-responsive">
@@ -87,37 +124,7 @@
                                 <tr>
                                     <th>Tanggal</th>
                                     <th>Tindakan</th>
-                                    
                                     <th>Dokter</th>
-                                    <th>Spesialisasi</th>
-                                    <th>Status</th>
-                                    <th>Dokumen</th>
-                                   
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Tindakan DataTable -->
-        <div class="col-lg-12 col-md-12 mb-3">
-            <div class="card h-100">
-                <div class="card-header d-flex align-items-center">
-                    <h5 class="mb-0">Daftar Tindakan Dokter</h5>
-                    <div class="ml-auto">
-                        <button id="openCustomTindakanModal" class="btn btn-outline-primary btn-sm">Create Custom Tindakan</button>
-                    </div>
-                </div>
-                <div class="card-body p-2">
-                    <div class="table-responsive">
-                        <table id="tindakanTable" class="table table-bordered w-100">
-                            <thead>
-                                <tr>
-                                    <th>No</th>
-                                    <th>Nama</th>
-                                    <th>Harga</th>
                                     <th>Aksi</th>
                                 </tr>
                             </thead>
@@ -239,6 +246,7 @@
         let tindakanData = [];
         let currentStep = 1;
         const spesialisasiId = @json($spesialisasiId); 
+        const currentVisitationId = @json($visitation->id);
         // Function to format numbers as Rupiah
         function formatRupiah(value) {
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(value);
@@ -252,13 +260,57 @@
             pageLength: 10, // Show 10 rows per page
             ajax: `/erm/tindakan/data/${spesialisasiId}`,
             columns: [
-                { data: 'id', name: 'id' },
-                { data: 'nama', name: 'nama' },
+                { data: 'nama', name: 'nama', render: function(data, type, row) {
+                        var rawName = data ? data : '';
+                        var displayName = '<strong>' + rawName + '</strong>';
+                        var badge = '';
+                        if (row.current) {
+                            badge = ' <span class="badge badge-success blink-new ml-2">Current visit</span>';
+                        }
+                        // Show red blinking NEW badge if tindakan created within last 30 days
+                        try {
+                            var createdAt = row.created_at || row.createdAt || row.createdAtRaw || null;
+                            if (createdAt) {
+                                var createdDate = new Date(createdAt);
+                                if (!isNaN(createdDate.getTime())) {
+                                    var now = new Date();
+                                    var diffMs = now - createdDate;
+                                    var days = diffMs / (1000 * 60 * 60 * 24);
+                                    if (days <= 30) {
+                                        badge += ' <span class="badge badge-danger blink-new ml-2">NEW</span>';
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            // ignore parse errors
+                        }
+                        return `<a href="#" class="tindakan-name-link" data-id="${row.id}">${displayName}${badge}</a><div class="multi-usage small text-muted mt-1" data-tid="${row.id}"></div>`;
+                    }
+                },
                 { 
                     data: 'harga', 
                     name: 'harga',
-                    render: function (data) {
-                        return formatRupiah(data); // Format harga as Rupiah
+                    render: function (data, type, row) {
+                        var harga = data ? formatRupiah(data) : '-';
+                        var diskon = row.harga_diskon ? formatRupiah(row.harga_diskon) : '-';
+                        var harga3 = row.harga_3_kali ? formatRupiah(row.harga_3_kali) : '-';
+                        var firstRowValue = harga;
+                        if (row.harga_diskon && row.harga_diskon !== null && row.harga_diskon !== '') {
+                            if (row.diskon_active) {
+                                firstRowValue = '<span class="text-muted"><s>' + harga + '</s></span> <span class="ml-2">' + diskon + '</span>';
+                            } else {
+                                firstRowValue = harga + ' <span class="ml-2">' + diskon + '</span>';
+                            }
+                        }
+
+                        var out = '<div class="price-block">';
+                        out += '<div class="row"><div class="label">Normal</div><div class="value">' + firstRowValue + '</div></div>';
+                        // only show Harga 3x Visit when harga_3_kali has a value
+                        if (typeof row.harga_3_kali !== 'undefined' && row.harga_3_kali !== null && String(row.harga_3_kali).trim() !== '') {
+                            out += '<div class="row"><div class="label">3x Visit</div><div class="value">' + harga3 + '</div></div>';
+                        }
+                        out += '</div>';
+                        return out;
                     }
                 },
                 { 
@@ -266,456 +318,49 @@
                     orderable: false,
                     searchable: false,
                     render: function (data, type, row) {
-                        return `
-                            <button class="btn btn-success btn-sm buat-tindakan" data-id="${row.id}" data-type="tindakan">Buat Tindakan</button>
-                            <button class="btn btn-info btn-sm detail-sop-btn" data-id="${row.id}">Detail</button>
-                        `;
-                    }
+                            // Build buttons inside a price-like block so rows align with List Harga
+                            let out = '<div class="price-block">';
+                            // Normal row: label and button aligned to the right
+                            out += '<div class="row"><div class="label"></div><div class="value">';
+                            out += `<button class="btn btn-success btn-sm buat-tindakan" title="Buat Tindakan (Normal)" data-id="${row.id}" data-type="tindakan" data-harga-type="normal"><i class="fas fa-plus mr-1"></i>Normal</button>`;
+                            out += '</div></div>';
+                            // 3x Visit row if available
+                            if (typeof row.harga_3_kali !== 'undefined' && row.harga_3_kali !== null && String(row.harga_3_kali).trim() !== '') {
+                                out += '<div class="row"><div class="label"></div><div class="value">';
+                                out += `<button class="btn btn-primary btn-sm buat-tindakan" title="Buat Tindakan (3x Visit)" data-id="${row.id}" data-type="tindakan" data-harga-type="3x"><i class="fas fa-plus mr-1"></i>3x Visit</button>`;
+                                out += '</div></div>';
+                            }
+                            out += '</div>';
+                            return out;
+                        }
                 },
             ],
         });
 
-                // Add Custom Tindakan modal HTML and handlers
-                const customModalHtml = `
-        <div class="modal fade" id="modalCustomTindakan" tabindex="-1" aria-hidden="true" data-backdrop="static" data-keyboard="false">
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Create Custom Tindakan</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <form id="customTindakanForm">
-                    <div class="modal-body">
-                        <div class="form-row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>Nama Tindakan</label>
-                                    <input id="customTindakanName" name="nama_tindakan" class="form-control" required>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label>Harga Tindakan (input)</label>
-                                    <input id="customTindakanHargaInput" name="harga" type="number" min="0" step="0.01" class="form-control" required value="0">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label>Rekomendasi Harga</label>
-                                    <input id="customTindakanHarga" type="text" class="form-control" readonly value="0">
-                                </div>
-                            </div>
-                        </div>
-                        <hr>
-                        <div id="customKodeTindakanContainer"></div>
-                        <div class="text-right mt-2">
-                                <button type="button" id="addKodeTindakanBtn" class="btn btn-primary btn-sm">Tambah Kode Tindakan</button>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-success">Simpan Custom Tindakan</button>
-                    </div>
-                    </form>
-                </div>
-            </div>
-        </div>`;
-
-                // append modal to body once
-                if ($('#modalCustomTindakan').length === 0) {
-                    $('body').append(customModalHtml);
-                }
-
-                // small handler to add initial kode tindakan block and via button
-                $(document).on('click', '#addKodeTindakanBtn', function(){ addKodeTindakanBlock(); });
-                // add one on load to ensure UI isn't empty
-                $(document).ready(function(){ if ($('#customKodeTindakanContainer').children().length === 0) addKodeTindakanBlock(); });
-
-                // --- Custom Tindakan modal handlers ---
-                // Open modal
-                $(document).on('click', '#openCustomTindakanModal', function() {
-                    $('#customTindakanForm')[0].reset();
-                    $('#customKodeTindakanContainer').html('');
-                    addKodeTindakanBlock();
-                    $('#modalCustomTindakan').modal('show');
-                });
-
-                // Add kode tindakan block; kode chosen via Select2 (search existing kode tindakan)
-                function addKodeTindakanBlock(data = {}) {
-                    const index = Date.now();
-                    const html = `
-                        <div class="card mb-2 kode-tindakan-block" data-index="${index}">
-                            <div class="card-body">
-                                <div class="form-row">
-                                    <div class="col-md-6 mb-2">
-                                        <label> Pilih Kode Tindakan</label>
-                                        <select name="kode_tindakan_id[]" class="form-control kode-tindakan-select" style="width:100%"></select>
-                                    </div>
-                                    <div class="col-md-4 mb-2">
-                                        <label>Harga Bottom</label>
-                                        <input type="number" name="kode_tindakan_harga_bottom[]" class="form-control kode-tindakan-harga-bottom" value="${data.harga_bottom||data.hpp||''}" step="0.01" readonly>
-                                    </div>
-                                    <div class="col-md-2 mb-2 d-flex align-items-end">
-                                        <button type="button" class="btn btn-danger remove-kode-tindakan ml-auto" title="Hapus"><i class="fas fa-trash"></i></button>
-                                    </div>
-                                </div>
-                                <div class="obat-list">
-                                    <table class="table table-sm mb-0">
-                                                <thead>
-                                                    <tr><th>Obat/BHP</th><th>Qty</th><th>Dosis</th><th>Satuan</th><th>HPP Jual</th><th>Aksi</th></tr>
-                                                </thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                                <div class="mt-2">
-                                    <button type="button" class="btn btn-secondary btn-sm add-obat-row">Tambah Obat/BHP</button>
-                                </div>
-                            </div>
-                        </div>`;
-                    $('#customKodeTindakanContainer').append(html);
-
-                    // initialize select2 on the newly added select
-                    const $select = $('#customKodeTindakanContainer').find('.kode-tindakan-block').last().find('.kode-tindakan-select');
-                    $select.select2({
-                        placeholder: 'Cari kode tindakan...',
-                        ajax: {
-                            url: '/erm/kodetindakan/search',
-                            dataType: 'json',
-                            delay: 250,
-                            data: function(params) { return { q: params.term }; },
-                            processResults: function(data) {
-                                return { results: data.results.map(r => ({ id: r.id, text: r.text })) };
-                            }
-                        },
-                        minimumInputLength: 1,
-                        width: '100%'
-                    });
-
-                    // whenever a kode harga bottom changes later, update the total harga
-                    updateModalHarga();
-
-                    // If data contains kode_id preselect it
-                    if (data.kode_id) {
-                        const option = new Option(data.text || data.name || data.kode_id, data.kode_id, true, true);
-                        $select.append(option).trigger('change');
-                        // load its obats
-                        loadKodeObatsIntoBlock(data.kode_id, $select.closest('.kode-tindakan-block'));
-                        // fetch kode details to fill harga_bottom (fallback to hpp)
-                        $.get(`/erm/kodetindakan/${data.kode_id}`, function(kd) {
-                            const hb = (kd && (kd.harga_bottom !== undefined && kd.harga_bottom !== null)) ? kd.harga_bottom : (kd ? kd.hpp : '');
-                            $select.closest('.kode-tindakan-block').find('.kode-tindakan-harga-bottom').val(hb || '');
-                        });
-                    }
-                }
-
-                // When kode tindakan selected, load its obats and populate rows
-                $(document).on('change', '.kode-tindakan-select', function() {
-                    const kodeId = $(this).val();
-                    const block = $(this).closest('.kode-tindakan-block');
-                    if (kodeId) loadKodeObatsIntoBlock(kodeId, block);
-                    // also load kode details for HPP
-                    if (kodeId) {
-                        $.get(`/erm/kodetindakan/${kodeId}`, function(kd) {
-                            const hb = (kd && (kd.harga_bottom !== undefined && kd.harga_bottom !== null)) ? kd.harga_bottom : (kd ? kd.hpp : '');
-                            block.find('.kode-tindakan-harga-bottom').val(hb || '');
-                            updateModalHarga();
-                        }).fail(function() {
-                            block.find('.kode-tindakan-harga-bottom').val('');
-                            updateModalHarga();
-                        });
-                    } else {
-                        block.find('.kode-tindakan-harga-bottom').val('');
-                        updateModalHarga();
-                    }
-                });
-
-                function loadKodeObatsIntoBlock(kodeId, $block) {
-                    const tbody = $block.find('tbody');
-                    tbody.html('<tr><td colspan="5" class="text-center">Loading...</td></tr>');
-                    $.get(`/erm/kodetindakan/${kodeId}/obats`, function(data) {
-                        tbody.html('');
-                        if (!data || data.length === 0) {
-                            tbody.html('<tr><td colspan="5" class="text-center text-muted">No obats</td></tr>');
-                            return;
-                        }
-                        data.forEach(function(o) {
-                            // combine dosis and satuan_dosis for display in the input
-                            const hppJual = o.hpp_jual ? Number(o.hpp_jual).toLocaleString('id-ID') : '-';
-                            const row = $(`<tr>
-                                <td><select class="form-control obat-select" style="width:100%"></select></td>
-                                <td><input type="number" name="obat_qty[]" class="form-control obat-qty" value="${o.qty||1}" min="1"></td>
-                                <td><input type="text" name="obat_dosis[]" class="form-control obat-dosis" value="${o.dosis || ''}"></td>
-                                <td><input type="text" name="obat_satuan_dosis[]" class="form-control obat-satuan-dosis" value="${o.satuan_dosis || ''}"></td>
-                                <td class="hpp-td text-right">${hppJual}</td>
-                                <td><button type="button" class="btn btn-danger btn-sm remove-obat-row" title="Hapus"><i class="fas fa-trash"></i></button></td>
-                            </tr>`);
-                                tbody.append(row);
-                            // init obat select with preselected value
-                            const $sel = row.find('.obat-select');
-                            const option = new Option(o.nama, o.id, true, true);
-                            $sel.append(option).trigger('change');
-                            // init select2 with obat search endpoint
-                            $sel.select2({
-                                placeholder: 'Cari obat...',
-                                ajax: {
-                                    url: '/obat/search',
-                                    dataType: 'json',
-                                    delay: 250,
-                                    data: function(params) { return { q: params.term }; },
-                                    processResults: function(data) { return data.results ? { results: data.results } : { results: data }; }
-                                },
-                                minimumInputLength: 1,
-                                width: '100%'
-                            });
-                                // set hpp cell for preselected (this cell shows obat jual HPP, unchanged)
-                                const hppCell = row.find('.hpp-td');
-                                if (o.hpp_jual) {
-                                    hppCell.text(Number(o.hpp_jual).toLocaleString('id-ID'));
-                                }
-                        });
-                    }).fail(function() {
-                        tbody.html('<tr><td colspan="5" class="text-center text-danger">Failed loading obats</td></tr>');
-                    });
-                }
-
-                // Remove kode tindakan block
-                $(document).on('click', '.remove-kode-tindakan', function() {
-                    $(this).closest('.kode-tindakan-block').remove();
-                    updateModalHarga();
-                });
-
-                // Update modal harga by summing kode-tindakan-harga-bottom inputs (fallback to hpp when necessary)
-                function updateModalHarga() {
-                    let total = 0;
-                    $('#customKodeTindakanContainer').find('.kode-tindakan-harga-bottom').each(function() {
-                        const raw = $(this).val();
-                        const v = parseFloat(raw);
-                        if (!isNaN(v)) total += v;
-                    });
-                    $('#customTindakanHarga').val(new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(total));
-                }
-
-                // Add obat row (with Select2 obat lookup)
-                $(document).on('click', '.add-obat-row', function() {
-                    const tbody = $(this).closest('.kode-tindakan-block').find('tbody');
-                    const row = $(`<tr>
-                        <td><select class="form-control obat-select" style="width:100%"></select></td>
-                        <td><input type="number" name="obat_qty[]" class="form-control obat-qty" value="1" min="1"></td>
-                        <td><input type="text" name="obat_dosis[]" class="form-control obat-dosis" placeholder=""></td>
-                        <td><input type="text" name="obat_satuan_dosis[]" class="form-control obat-satuan-dosis" placeholder=""></td>
-                        <td class="hpp-td text-right">-</td>
-                        <td><button type="button" class="btn btn-danger btn-sm remove-obat-row" title="Hapus"><i class="fas fa-trash"></i></button></td>
-                    </tr>`);
-                    tbody.append(row);
-                    // init select2 for obat with ajax to existing endpoint
-                    row.find('.obat-select').select2({
-                        placeholder: 'Cari obat...',
-                        ajax: {
-                            url: '/obat/search',
-                            dataType: 'json',
-                            delay: 250,
-                            data: function(params) { return { q: params.term }; },
-                            processResults: function(data) { return data.results ? { results: data.results } : { results: data }; }
-                        },
-                        minimumInputLength: 1,
-                        width: '100%'
-                    });
-                    // when user selects an obat, update the HPP cell
-                    row.find('.obat-select').on('select2:select', function(e) {
-                        const selected = e.params.data;
-                        const hppCell = $(this).closest('tr').find('.hpp-td');
-                        if (selected && selected.hpp_jual) {
-                            hppCell.text(Number(selected.hpp_jual).toLocaleString('id-ID'));
+        // After table draw, fetch multi-visit usage for visible tindakan rows and render under name
+        $('#tindakanTable').on('draw.dt', function() {
+                $('#tindakanTable').find('.multi-usage').each(function() {
+                const $el = $(this);
+                const tid = $el.data('tid');
+                if (!tid) return;
+                // Avoid refetch if already populated
+                if ($el.data('loaded')) return;
+                $.get(`/erm/tindakan/${tid}/multi-visit-status`, { visitation_id: @json($visitation->id) })
+                    .done(function(res) {
+                        if (res && res.success && res.used !== null && res.total !== null && parseInt(res.used) < parseInt(res.total)) {
+                            $el.html(`<span class="badge badge-info">${res.used}/${res.total}</span>`);
                         } else {
-                            // try fetching full obat detail if not provided
-                            const obatId = selected.id;
-                            if (obatId) {
-                                $.get('/erm/ajax/obat/' + obatId, function(d) {
-                                    if (d && d.hpp_jual) hppCell.text(Number(d.hpp_jual).toLocaleString('id-ID'));
-                                }).fail(function() { hppCell.text('-'); });
-                            } else {
-                                hppCell.text('-');
-                            }
+                            $el.html('');
                         }
+                        $el.data('loaded', true);
+                    }).fail(function() {
+                        $el.html('');
+                        $el.data('loaded', true);
                     });
-                });
+            });
+        });
 
-                // Remove obat row
-                $(document).on('click', '.remove-obat-row', function() {
-                    $(this).closest('tr').remove();
-                });
-
-                // Submit custom tindakan via AJAX
-                $(document).on('submit', '#customTindakanForm', function(e) {
-                    e.preventDefault();
-                    const form = $(this);
-                    const payload = { kode_tindakans: [] };
-                    $('#customKodeTindakanContainer .kode-tindakan-block').each(function() {
-                        const block = $(this);
-                        const kodeId = block.find('.kode-tindakan-select').val();
-                        // read harga_bottom (fallback was already set into the input), keep kodeHarga for payload
-                        const kodeHarga = block.find('.kode-tindakan-harga-bottom').val() || null;
-                        const obats = [];
-                        block.find('tbody tr').each(function() {
-                            const r = $(this);
-                            const obatId = r.find('.obat-select').val();
-                            const qty = r.find('.obat-qty').val() || 1;
-                            const dosis = r.find('.obat-dosis').val() || null;
-                            const satuan = r.find('.obat-satuan-dosis').val() || null;
-                            if (obatId) {
-                                obats.push({ obat_id: obatId, qty: qty, dosis: dosis, satuan_dosis: satuan });
-                            }
-                        });
-                        // include current display text for kode so we can show it in confirmation form
-                        const kodeText = block.find('.kode-tindakan-select').find('option:selected').text() || '';
-                        // include both keys to remain backward-compatible: hpp (legacy) and harga_bottom (preferred)
-                        payload.kode_tindakans.push({ kode_id: kodeId, hpp: kodeHarga, harga_bottom: kodeHarga, obats: obats, kode_text: kodeText });
-                    });
-                    // Basic validation
-                    if (payload.kode_tindakans.length === 0) {
-                        Swal.fire('Error', 'Tambahkan minimal 1 kode tindakan', 'error');
-                        return;
-                    }
-
-                    Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-                    // Determine which kode entries had their obat lists modified compared to original template
-                    // We'll compare qty, dosis and satuan_dosis as well (not just IDs)
-                    const createNewKodeFor = [];
-                    // payload.kode_tindakans corresponds to blocks; use it to compare with server canonical
-                    for (let i = 0; i < payload.kode_tindakans.length; i++) {
-                        const entry = payload.kode_tindakans[i];
-                        const kodeId = entry.kode_id;
-                        if (!kodeId) continue;
-
-                        // fetch canonical obats for this kode synchronously (we need result before prompting)
-                        let canonical = [];
-                        $.ajax({ url: `/erm/kodetindakan/${kodeId}/obats`, method: 'GET', async: false })
-                        .done(function(kodeObats) {
-                            canonical = kodeObats || [];
-                        }).fail(function() {
-                            canonical = [];
-                        });
-
-                        // normalize canonical into map by obat_id
-                        const canonicalMap = {};
-                        canonical.forEach(function(o) {
-                            canonicalMap['' + o.id] = {
-                                qty: (o.qty !== undefined && o.qty !== null) ? (''+o.qty) : '1',
-                                dosis: (o.dosis !== undefined && o.dosis !== null) ? (''+o.dosis) : '',
-                                satuan_dosis: (o.satuan_dosis !== undefined && o.satuan_dosis !== null) ? (''+o.satuan_dosis) : ''
-                            };
-                        });
-
-                        // normalize UI/provided obats into map
-                        const uiMap = {};
-                        (entry.obats || []).forEach(function(o) {
-                            uiMap['' + o.obat_id] = {
-                                qty: (o.qty !== undefined && o.qty !== null) ? (''+o.qty) : '1',
-                                dosis: (o.dosis !== undefined && o.dosis !== null) ? (''+o.dosis) : '',
-                                satuan_dosis: (o.satuan_dosis !== undefined && o.satuan_dosis !== null) ? (''+o.satuan_dosis) : ''
-                            };
-                        });
-
-                        // quick comparisons: length / keys
-                        const canonicalIds = Object.keys(canonicalMap).sort();
-                        const uiIds = Object.keys(uiMap).sort();
-                        let edited = false;
-                        if (canonicalIds.length !== uiIds.length) edited = true;
-                        else {
-                            for (let k = 0; k < canonicalIds.length; k++) {
-                                if (canonicalIds[k] !== uiIds[k]) { edited = true; break; }
-                                const id = canonicalIds[k];
-                                const c = canonicalMap[id];
-                                const u = uiMap[id];
-                                if (!u || c.qty !== u.qty || c.dosis !== u.dosis || c.satuan_dosis !== u.satuan_dosis) {
-                                    edited = true; break;
-                                }
-                            }
-                        }
-
-                        if (edited) createNewKodeFor.push(kodeId);
-                    }
-
-                    const finalPayload = {
-                        nama_tindakan: $('#customTindakanName').val(),
-                        harga: parseFloat($('#customTindakanHargaInput').val()) || 0,
-                        spesialis_id: spesialisasiId,
-                        kode_tindakans: payload.kode_tindakans,
-                        visitation_id: {{ $visitation->id }},
-                        create_new_kode_for: createNewKodeFor,
-                    };
-
-                    function doSubmit(createNew) {
-                        Swal.fire({ title: 'Menyimpan...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                        $.ajax({
-                            url: '/erm/tindakan/custom',
-                            method: 'POST',
-                            contentType: 'application/json',
-                            data: JSON.stringify(finalPayload),
-                            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-                            success: function(res) {
-                                Swal.close();
-                                if (res.success) {
-                                    Swal.fire('Berhasil', res.message || 'Custom tindakan disimpan', 'success')
-                                        .then(() => { $('#modalCustomTindakan').modal('hide'); $('#tindakanTable').DataTable().ajax.reload(); });
-                                } else {
-                                    Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
-                                }
-                            },
-                            error: function(xhr) {
-                                Swal.close();
-                                console.error(xhr);
-                                Swal.fire('Error', 'Terjadi kesalahan server', 'error');
-                            }
-                        });
-                    }
-
-                    if (createNewKodeFor.length > 0) {
-                        // build HTML inputs for new kode names
-                        let html = `<p>Anda telah mengubah bundel obat untuk ${createNewKodeFor.length} kode tindakan.</p>`;
-                        html += `<p>Masukkan nama baru untuk setiap kode (kosongkan untuk pakai nama default):</p>`;
-                        createNewKodeFor.forEach(function(kid) {
-                            // find payload entry for this kode
-                            const p = payload.kode_tindakans.find(e => (''+e.kode_id) === (''+kid));
-                            const display = p ? (p.kode_text || '') : '';
-                            const inputId = `new_kode_name_${kid}`;
-                            html += `<div style="margin-bottom:8px"><label style="font-weight:600">${display}</label><input id="${inputId}" class="swal2-input" placeholder="Nama kode baru" value="${display} (salin)"></div>`;
-                        });
-
-                        // hide bootstrap modal so SweetAlert can accept focus/input
-                        $('#modalCustomTindakan').modal('hide');
-                        Swal.fire({
-                            title: 'Buat Kode Tindakan Baru?',
-                            html: html,
-                            icon: 'question',
-                            showCancelButton: true,
-                            confirmButtonText: 'Ya, buat kode baru',
-                            cancelButtonText: 'Tidak, pakai kode lama',
-                            preConfirm: () => {
-                                const results = [];
-                                createNewKodeFor.forEach(function(kid) {
-                                    const input = document.getElementById(`new_kode_name_${kid}`);
-                                    const val = input ? input.value.trim() : '';
-                                    results.push({ kode_id: kid, new_name: val });
-                                });
-                                return results;
-                            }
-                        }).then((result) => {
-                            if (result.value) {
-                                finalPayload.create_new_kode_for = result.value || [];
-                                doSubmit(true);
-                            } else {
-                                // user cancelled the Swal -> reopen modal for further edits
-                                finalPayload.create_new_kode_for = [];
-                                $('#modalCustomTindakan').modal('show');
-                            }
-                        });
-                    } else {
-                        doSubmit(false);
-                    }
-                });
+                // Create Custom Tindakan feature removed: modal, UI and handlers deleted
 
         // Initialize Paket Tindakan DataTable
         $('#paketTindakanTable').DataTable({
@@ -751,13 +396,52 @@
             pageLength: 5,
             ajax: `/erm/tindakan/history/${@json($visitation->id)}`,
             columns: [
-                { data: 'tanggal', name: 'tanggal', render: function(data, type, row) {
-                    return data;
-                } },
-                { data: 'tindakan', name: 'tindakan' },
-                { data: 'dokter', name: 'dokter' },
-                { data: 'spesialisasi', name: 'spesialisasi' },
-                { data: 'status', name: 'status' },
+                { data: 'tanggal', name: 'tanggal', visible: false },
+                { data: 'tindakan', name: 'tindakan', render: function(data, type, row) {
+                        var name = data ? data : '';
+                        if (row.current) {
+                            name += ' <span class="badge badge-success blink-new ml-2">Current visit</span>';
+                        }
+                        var dateLine = row.tanggal ? '<div class="text-muted small mt-1">' + row.tanggal + '</div>' : '';
+                        return '<div>' + name + dateLine + '</div>';
+                    }
+                },
+                { data: 'dokter', name: 'dokter', render: function(data, type, row) {
+                        var spec = row.spesialisasi ? row.spesialisasi : '';
+                        var specHtml = '';
+                        if (spec) {
+                            if (typeof spec === 'string' && spec.indexOf('<') !== -1) {
+                                specHtml = spec;
+                            } else {
+                                // choose a badge class based on specialization
+                                function hashCode(str) {
+                                    var h = 0;
+                                    for (var i = 0; i < str.length; i++) {
+                                        h = ((h << 5) - h) + str.charCodeAt(i);
+                                        h |= 0;
+                                    }
+                                    return h;
+                                }
+                                var specClassMap = {
+                                    'Gigi': 'badge-info',
+                                    'Estetika': 'badge-warning',
+                                    'Umum': 'badge-secondary',
+                                    'Kecantikan': 'badge-pink',
+                                    'Anestesi': 'badge-dark'
+                                };
+                                var cls = specClassMap[spec] || null;
+                                if (!cls) {
+                                    var palette = ['badge-primary','badge-success','badge-danger','badge-dark','badge-warning','badge-info'];
+                                    cls = palette[Math.abs(hashCode(spec)) % palette.length];
+                                }
+                                specHtml = '<span class="badge ' + cls + '">' + spec + '</span>';
+                            }
+                        }
+                        var out = '<div>' + (data ? data : '') + '</div>';
+                        if (specHtml) out += '<div class="mt-1">' + specHtml + '</div>';
+                        return out;
+                    }
+                },
                 { 
                     data: 'dokumen', 
                     name: 'dokumen', 
@@ -765,8 +449,9 @@
                     searchable: false,
                     render: function(data, type, row) {
                         // Ensure Inform Consent link uses /storage/ prefix
-                        let buttons = '';
-                        if (row.inform_consent) {
+                        // Render buttons as a grouped button set for consistent UI
+                        let group = '<div class="btn-group" role="group">';
+                            if (row.inform_consent) {
                             const fileUrl = `/storage/${row.inform_consent.file_path}`;
                             const hasBefore = row.inform_consent.before_image_path && row.inform_consent.before_image_path.trim() !== '';
                             const hasAfter = row.inform_consent.after_image_path && row.inform_consent.after_image_path.trim() !== '';
@@ -774,29 +459,32 @@
                             if (hasBefore && hasAfter) {
                                 fotoBtnText = 'Lihat Foto';
                                 fotoBtnClass = 'btn-primary';
-                                fotoBtnIcon = '<i class="fas fa-eye mr-1"></i>';
+                                fotoBtnIcon = '<i class="fas fa-eye"></i>';
                             } else {
                                 fotoBtnText = 'Upload Foto';
                                 fotoBtnClass = 'btn-success';
-                                fotoBtnIcon = '<i class="fas fa-upload mr-1"></i>';
+                                fotoBtnIcon = '<i class="fas fa-upload"></i>';
                             }
-                            buttons += `
-                                <a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm mr-1">Inform Consent</a>
-                                <button class="btn ${fotoBtnClass} btn-sm foto-hasil-btn mr-1" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">${fotoBtnIcon}${fotoBtnText}</button>
-                                <button class="btn btn-info btn-sm detail-riwayat-btn mr-1" data-id="${row.id}"><i class="fas fa-list mr-1"></i>Detail</button>
-                            `;
+                            group += `<a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm" title="Inform Consent"><i class="fas fa-file-alt"></i></a>`;
+                            group += `<button class="btn ${fotoBtnClass} btn-sm foto-hasil-btn" title="${fotoBtnText}" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">${fotoBtnIcon}</button>`;
+                            // Detail button removed as requested
                         } else {
-                            buttons += '<span class="text-muted">Belum ada inform consent</span>';
+                            group += `<button class="btn btn-secondary btn-sm" disabled title="Inform Consent"><i class="fas fa-file-alt"></i></button>`;
+                            group += `<button class="btn btn-secondary btn-sm" disabled title="Upload Foto"><i class="fas fa-upload"></i></button>`;
+                            // disabled Detail button removed
                         }
-                        // Add Batalkan button for all rows
-                        buttons += `<button class="btn btn-danger btn-sm batalkan-tindakan-btn" data-id="${row.id}">Batalkan</button>`;
-                        return buttons;
+                        // Batalkan as part of the group (only for current visitation)
+                        if (row.current) {
+                            group += `<button class="btn btn-danger btn-sm batalkan-tindakan-btn" title="Batalkan" data-id="${row.id}"><i class="fas fa-ban"></i></button>`;
+                        }
+                        group += '</div>';
+                        return group;
                     }
                 },
-                // Hidden column for raw date sorting
-                { data: 'tanggal_raw', name: 'tanggal_raw', visible: false },
-            ],
-            order: [[6, 'desc']] // Sort by hidden raw date column
+                    // Hidden column for raw date sorting
+                    { data: 'tanggal_raw', name: 'tanggal_raw', visible: false },
+                ],
+                order: [[4, 'desc']] // Sort by hidden raw date column (updated index after moving status)
         });
 
         // Handle click on "Foto Hasil" button
@@ -1006,6 +694,8 @@
             // Fungsi buat-tindakan
         $(document).on('click', '.buat-tindakan', function () {
             window.lastTindakanIdClicked = $(this).data('id'); // Always set this first!
+            // Capture preferred harga type (normal / 3x) from clicked button
+            window.preferredHargaType = $(this).data('harga-type') || $(this).data('hargaType') || null;
             const type = $(this).data('type');
             const id = $(this).data('id');
             const visitationId = @json($visitation->id);
@@ -1017,7 +707,33 @@
             if (type === 'tindakan') {
                 $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
                     .done(function (html) {
-                        $('#modalInformConsentBody').html(html);
+                            $('#modalInformConsentBody').html(html);
+                            // Inject price selector UI into the loaded inform consent form (if present)
+                            (function injectPriceSelector(tid) {
+                                $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
+                                    if (!res.success) return;
+                                    const harga = res.harga || 0;
+                                    const harga3 = res.harga_3_kali || null;
+                                    const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
+                                    const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
+                                    const $form = $('#modalInformConsentBody').find('#informConsentForm');
+                                    if ($form.length) {
+                                        const preferred = window.preferredHargaType || 'normal';
+                                        const checkedNormal = preferred === 'normal' ? 'checked' : '';
+                                        const checked3x = preferred === '3x' ? 'checked' : '';
+                                        let html = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
+                                        html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal">Normal - ${formattedHarga}</label></div>`;
+                                        if (formattedHarga3) {
+                                            html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x">3x Visit - ${formattedHarga3}</label></div>`;
+                                        }
+                                        html += '</div></div>';
+                                        // Insert at the top of form body
+                                        $form.prepend(html);
+                                        // Clear the preferred flag after applying
+                                        window.preferredHargaType = null;
+                                    }
+                                }).fail(function(){/* ignore */});
+                            })(id);
                         $('#modalInformConsentBody').append(`
                             <div class="text-center mt-4">
                                 <button id="saveInformConsent" class="btn btn-success">Simpan</button>
@@ -1088,6 +804,31 @@
                 $.get(`/erm/tindakan/inform-consent/${tindakan.id}?visitation_id=${visitationId}`)
                     .done(function (html) {
                         $(`#informConsentStep${index + 1}`).html(html);
+                        // Inject price selector into each loaded step form
+                        (function injectPriceSelectorStep(tid, container, stepIdx) {
+                            $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
+                                if (!res.success) return;
+                                const harga = res.harga || 0;
+                                const harga3 = res.harga_3_kali || null;
+                                const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
+                                const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
+                                const $form = $(container).find('#informConsentForm');
+                                if ($form.length) {
+                                    const preferred = window.preferredHargaType || 'normal';
+                                    const checkedNormal = preferred === 'normal' ? 'checked' : '';
+                                    const checked3x = preferred === '3x' ? 'checked' : '';
+                                    let html2 = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
+                                    html2 += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal_step_${stepIdx}" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal_step_${stepIdx}">Normal - ${formattedHarga}</label></div>`;
+                                    if (formattedHarga3) {
+                                        html2 += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x_step_${stepIdx}" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x_step_${stepIdx}">3x Visit - ${formattedHarga3}</label></div>`;
+                                    }
+                                    html2 += '</div></div>';
+                                    $form.prepend(html2);
+                                    // Clear preference for subsequent steps/modals
+                                    window.preferredHargaType = null;
+                                }
+                            }).fail(function(){/* ignore */});
+                        })(tindakan.id, `#informConsentStep${index + 1}`, index+1);
                         loadedSteps++;
                         
                         // Ketika semua langkah dimuat, tampilkan modal
@@ -1435,8 +1176,9 @@ $(document).on('click', '.batalkan-tindakan-btn', function() {
     });
 });
 
-// Handle click on Detail button
-$(document).on('click', '.detail-sop-btn', function() {
+// Handle click on Detail button or tindakan name
+$(document).on('click', '.detail-sop-btn, .tindakan-name-link', function(e) {
+    e.preventDefault();
     const tindakanId = $(this).data('id');
     $('#modalSopDetailLabel').text('SOP Tindakan');
     $('#sopTable tbody').html('<tr><td colspan="2" class="text-center">Loading...</td></tr>');

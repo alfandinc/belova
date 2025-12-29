@@ -20,6 +20,7 @@ use App\Models\ERM\InformConsent;
 use App\Models\ERM\Spk;
 use App\Models\User;
 use Carbon\Carbon;
+use App\Models\ERM\MultiVisitUsage;
 
 
 class TindakanController extends Controller
@@ -168,166 +169,7 @@ class TindakanController extends Controller
             ->make(true);
     }
 
-    /**
-     * Store a custom tindakan created from the modal (AJAX)
-     */
-    public function storeCustomTindakan(Request $request)
-    {
-        $data = $request->validate([
-            'nama_tindakan' => 'required|string|max:255',
-            'deskripsi' => 'nullable|string',
-            'spesialis_id' => 'nullable|exists:erm_spesialisasis,id',
-            'harga' => 'nullable|numeric',
-            'kode_tindakans' => 'required|array|min:1',
-            'kode_tindakans.*.kode_id' => 'required|integer|exists:erm_kode_tindakan,id',
-            'kode_tindakans.*.obats' => 'nullable|array',
-            'kode_tindakans.*.obats.*.obat_id' => 'required|integer|exists:erm_obat,id',
-            'kode_tindakans.*.obats.*.qty' => 'nullable|numeric',
-            'kode_tindakans.*.obats.*.dosis' => 'nullable|string',
-            'create_new_kode_for' => 'nullable|array',
-        ]);
-
-        DB::beginTransaction();
-
-        try {
-            $tindakan = new Tindakan();
-            $tindakan->nama = $data['nama_tindakan'];
-            $tindakan->deskripsi = $data['deskripsi'] ?? null;
-            // prefer visitation's dokter spesialis if provided via request visitation_id
-            $spesialisId = $data['spesialis_id'] ?? null;
-            if (isset($data['visitation_id'])) {
-                $vis = Visitation::find($data['visitation_id']);
-                if ($vis && $vis->dokter) {
-                    $spesialisId = $vis->dokter->spesialisasi_id;
-                }
-            }
-            $tindakan->spesialis_id = $spesialisId ?? null;
-            // harga is explicitly provided by user (not auto HPP); save if present
-            if (isset($data['harga'])) {
-                $tindakan->harga = $data['harga'];
-            }
-            $tindakan->save();
-
-            $createdKode = [];
-            $totalHpp = 0;
-            // create_new_kode_for can be an array of kode ids or array of objects {kode_id, new_name}
-            $createNewForRaw = $data['create_new_kode_for'] ?? [];
-            $createNewFor = [];
-            $createNewNames = [];
-            if (!empty($createNewForRaw)) {
-                // normalize
-                foreach ($createNewForRaw as $c) {
-                    if (is_array($c) && isset($c['kode_id'])) {
-                        $createNewFor[] = $c['kode_id'];
-                        if (!empty($c['new_name'])) $createNewNames[$c['kode_id']] = $c['new_name'];
-                    } else {
-                        // maybe plain id
-                        $createNewFor[] = $c;
-                    }
-                }
-            }
-            foreach ($data['kode_tindakans'] as $kodeEntry) {
-                $kodeId = $kodeEntry['kode_id'];
-
-                // decide whether to clone kode (user requested create_new_kode_for)
-                $finalKodeId = $kodeId;
-                if (in_array($kodeId, $createNewFor)) {
-                    // clone kode tindakan and its pivot obats
-                    $orig = \App\Models\ERM\KodeTindakan::with('obats')->find($kodeId);
-                    if ($orig) {
-                        $clone = $orig->replicate();
-                        // use provided new name if available
-                        $providedName = $createNewNames[$kodeId] ?? null;
-                        $clone->kode = $orig->kode . '-copy-' . time();
-                        $clone->nama = $providedName ?: ($orig->nama . ' (salin)');
-                        $clone->created_at = now();
-                        $clone->updated_at = now();
-                        $clone->save();
-                        // If frontend provided edited obats for this kodeEntry, use them to populate kode_tindakan_obat for the clone;
-                        // otherwise copy obat pivots from original kode.
-                        $providedObats = $kodeEntry['obats'] ?? null;
-                        if (!empty($providedObats) && is_array($providedObats)) {
-                            foreach ($providedObats as $provided) {
-                                DB::table('erm_kode_tindakan_obat')->insert([
-                                    'kode_tindakan_id' => $clone->id,
-                                    'obat_id' => $provided['obat_id'],
-                                    'qty' => $provided['qty'] ?? 1,
-                                    'dosis' => $provided['dosis'] ?? null,
-                                    'satuan_dosis' => $provided['satuan_dosis'] ?? null,
-                                    'created_at' => now(),
-                                    'updated_at' => now(),
-                                ]);
-                            }
-                        } else {
-                            foreach ($orig->obats as $ko) {
-                                $pivot = $ko->pivot;
-                                DB::table('erm_kode_tindakan_obat')->insert([
-                                    'kode_tindakan_id' => $clone->id,
-                                    'obat_id' => $ko->id,
-                                    'qty' => $pivot->qty ?? 1,
-                                    'dosis' => $pivot->dosis ?? null,
-                                    'satuan_dosis' => $pivot->satuan_dosis ?? null,
-                                    'created_at' => now(),
-                                    'updated_at' => now(),
-                                ]);
-                            }
-                        }
-                        $finalKodeId = $clone->id;
-                    }
-                }
-
-                // attach kode to tindakan (either original or clone)
-                $tindakan->kodeTindakans()->attach($finalKodeId, ['created_at' => now(), 'updated_at' => now()]);
-                $createdKode[] = $finalKodeId;
-
-                // sum kode.hpp from model (ignore frontend input)
-                $kodeModel = \App\Models\ERM\KodeTindakan::find($finalKodeId);
-                if ($kodeModel) {
-                    $totalHpp += (float) $kodeModel->hpp;
-                }
-
-                // determine obats to attach: frontend-provided or fallback to kode's default
-                $obatsToAttach = [];
-                if (!empty($kodeEntry['obats']) && is_array($kodeEntry['obats'])) {
-                    // normalize provided obats
-                    foreach ($kodeEntry['obats'] as $ob) {
-                        $obatsToAttach[] = [
-                            'obat_id' => $ob['obat_id'],
-                            'qty' => $ob['qty'] ?? 1,
-                            'dosis' => $ob['dosis'] ?? null,
-                            'satuan_dosis' => $ob['satuan_dosis'] ?? null,
-                        ];
-                    }
-                } else {
-                    $kode = \App\Models\ERM\KodeTindakan::with('obats')->find($kodeId);
-                    if ($kode && $kode->obats) {
-                        foreach ($kode->obats as $ko) {
-                            $pivot = $ko->pivot ?? null;
-                                    $obatsToAttach[] = [
-                                        'obat_id' => $ko->id,
-                                        'qty' => $pivot->qty ?? 1,
-                                        'dosis' => $pivot->dosis ?? null,
-                                        'satuan_dosis' => $pivot->satuan_dosis ?? null,
-                                    ];
-                        }
-                    }
-                }
-
-                // Note: bundling of obat per kode is persisted on the kode side (erm_kode_tindakan_obat).
-                // We intentionally do not insert qty/dosis into erm_tindakan_obat here because that table
-                // in this project does not accept those columns. The relationship is: kode_tindakan -> obat,
-                // and tindakan -> kode_tindakan via pivot; obat bundling should be read from kode_tindakan_obat when needed.
-            }
-
-            DB::commit();
-
-            return response()->json(['success' => true, 'tindakan_id' => $tindakan->id, 'kode_tindakans' => $createdKode]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('storeCustomTindakan error: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Gagal membuat custom tindakan'], 500);
-        }
-    }
+    // storeCustomTindakan removed: custom tindakan creation via modal has been deleted
 
     public function informConsent($id)
     {
@@ -341,6 +183,53 @@ class TindakanController extends Controller
             return view("erm.tindakan.inform-consent.{$viewName}", compact('tindakan', 'pasien', 'visitation'));
         }
         return view('erm.tindakan.inform-consent.default', compact('tindakan', 'pasien', 'visitation'));
+    }
+
+    /**
+     * Return harga data for a tindakan (AJAX)
+     */
+    public function getPrices($id)
+    {
+        $tindakan = Tindakan::find($id);
+        if (!$tindakan) return response()->json(['success' => false], 404);
+        return response()->json([
+            'success' => true,
+            'harga' => $tindakan->harga,
+            'harga_diskon' => $tindakan->harga_diskon,
+            'diskon_active' => (bool)$tindakan->diskon_active,
+            'harga_3_kali' => $tindakan->harga_3_kali
+        ]);
+    }
+
+    /**
+     * Return current multi-visit usage status for a tindakan and pasien (via visitation_id or pasien_id).
+     */
+    public function getMultiVisitStatus(Request $request, $id)
+    {
+        $pasienId = null;
+        if ($request->has('visitation_id')) {
+            $vis = Visitation::find($request->query('visitation_id'));
+            if ($vis) $pasienId = $vis->pasien_id;
+        }
+        if (!$pasienId && $request->has('pasien_id')) {
+            $pasienId = $request->query('pasien_id');
+        }
+
+        if (!$pasienId) {
+            return response()->json(['success' => false, 'message' => 'pasien_id or visitation_id required'], 400);
+        }
+
+        $usage = MultiVisitUsage::where('pasien_id', $pasienId)
+            ->where('tindakan_id', $id)
+            ->whereColumn('used', '<', 'total')
+            ->orderByDesc('created_at')
+            ->first();
+
+        if ($usage) {
+            return response()->json(['success' => true, 'used' => (int)$usage->used, 'total' => (int)$usage->total]);
+        }
+
+        return response()->json(['success' => true, 'used' => null, 'total' => null]);
     }
 
     public function saveInformConsent(Request $request)
@@ -372,7 +261,7 @@ class TindakanController extends Controller
         $pasien = $visitation->pasien;
         $tindakan = Tindakan::findOrFail($data['tindakan_id']);
 
-        // Always create RiwayatTindakan
+        // Always create RiwayatTindakan (we may attach multi-visit usage after)
         $riwayatTindakan = RiwayatTindakan::create([
             'visitation_id' => $data['visitation_id'],
             'tanggal_tindakan' => $data['tanggal'],
@@ -384,16 +273,17 @@ class TindakanController extends Controller
         // Only create InformConsent and PDF if signatures are present
         if (!empty($data['signature']) && !empty($data['witness_signature'])) {
             $viewName = strtolower(str_replace(' ', '_', $tindakan->nama));
-            $bladeView = "erm.tindakan.inform-consent.{$viewName}";
+            $bladeViewCandidate = "erm.tindakan.inform-consent.{$viewName}";
+            // Fallback to default view when tindakan-specific template doesn't exist
+            $bladeView = View::exists($bladeViewCandidate) ? $bladeViewCandidate : 'erm.tindakan.inform-consent.default';
             $consentText = '';
-            if (View::exists($bladeView)) {
-                // Render the Blade view to HTML
-                $html = View::make($bladeView, [
-                    'tindakan' => $tindakan,
-                    'pasien' => $pasien,
-                    'visitation' => $visitation,
-                    'data' => $data,
-                ])->render();
+            // Render the Blade view to HTML
+            $html = View::make($bladeView, [
+                'tindakan' => $tindakan,
+                'pasien' => $pasien,
+                'visitation' => $visitation,
+                'data' => $data,
+            ])->render();
                 // Parse the HTML to extract .card-body before Catatan Tambahan
                 $dom = new \DOMDocument();
                 libxml_use_internal_errors(true);
@@ -429,7 +319,6 @@ class TindakanController extends Controller
                         }
                     }
                 }
-            }
             // Prepare dokter and perawat (current user) names for QR
             $dokterName = '';
             if ($visitation->dokter) {
@@ -515,6 +404,9 @@ class TindakanController extends Controller
         ]);
 
         $billing = null;
+        // Determine harga type: 'normal' or '3x'
+        $hargaType = $request->input('harga_type') ?? 'normal';
+
         if (isset($data['paket_id'])) {
             $paketId = $data['paket_id'];
             $visitationId = $data['visitation_id'];
@@ -536,22 +428,86 @@ class TindakanController extends Controller
                 $billing = $existingBilling;
             }
         } else {
-            $billingData = [
-                'visitation_id' => $data['visitation_id'],
-                'billable_id' => $riwayatTindakan->id,
-                'billable_type' => 'App\\Models\\ERM\\RiwayatTindakan',
-                'jumlah' => $tindakan->harga,
-                'diskon' => $tindakan->diskon_active ? ($tindakan->harga - $tindakan->harga_diskon) : 0,
-                'diskon_type' => $tindakan->diskon_active ? ($tindakan->diskon_type ?? 'nominal') : null,
-                'keterangan' => 'Tindakan: ' . $tindakan->nama
-            ];
-            if (!empty($data['jumlah'])) {
-                $billingData['jumlah'] = $data['jumlah'];
+            // Handle normal vs 3x visit pricing & multi-visit usage
+            $shouldCreateBilling = true;
+            $billingAmount = $tindakan->harga;
+
+            if ($hargaType === '3x' && !empty($tindakan->harga_3_kali)) {
+                // Check for existing unused multi-visit usage for this patient & tindakan
+                $existingUsage = MultiVisitUsage::where('pasien_id', $visitation->pasien_id)
+                    ->where('tindakan_id', $tindakan->id)
+                    ->whereColumn('used', '<', 'total')
+                    ->first();
+
+                if ($existingUsage) {
+                    // This patient already has remaining sessions: consume one
+                    $existingUsage->used = $existingUsage->used + 1;
+                    $existingUsage->save();
+                    $riwayatTindakan->multi_visit_usage_id = $existingUsage->id;
+                    $riwayatTindakan->save();
+                    // For subsequent visits (2/3 and 3/3) we still create a billing record,
+                    // but with amount 0 so it appears in billing history without charging.
+                    $billingAmount = 0;
+                    $shouldCreateBilling = true;
+                } else {
+                    // create new multi-visit usage record (default total 3)
+                    $newUsage = MultiVisitUsage::create([
+                        'pasien_id' => $visitation->pasien_id,
+                        'tindakan_id' => $tindakan->id,
+                        'first_visitation_id' => $data['visitation_id'],
+                        'total' => 3,
+                        'used' => 1,
+                    ]);
+                    $riwayatTindakan->multi_visit_usage_id = $newUsage->id;
+                    $riwayatTindakan->save();
+                    // charge the 3x visit price on first use
+                    $billingAmount = $tindakan->harga_3_kali;
+                    $shouldCreateBilling = true;
+                }
             }
-            if (!empty($data['keterangan'])) {
-                $billingData['keterangan'] = $data['keterangan'];
+
+            if ($shouldCreateBilling) {
+                // Build a contextual keterangan. If this is a multi-visit flow, include progress (e.g. 2/3)
+                $billingKeterangan = 'Tindakan: ' . $tindakan->nama;
+                if ($hargaType === '3x') {
+                    if (isset($existingUsage) && $existingUsage) {
+                        $billingKeterangan .= ' (' . ($existingUsage->used ?? 0) . '/' . ($existingUsage->total ?? 3) . ') - No Charge';
+                    } elseif (isset($newUsage) && $newUsage) {
+                        $billingKeterangan .= ' (1/' . ($newUsage->total ?? 3) . ') - 3x Charge';
+                    }
+                }
+
+                // Calculate discount amount based on harga type. For 3x visits we do not apply the
+                // normal tindakan discount (unless you want a separate 3x discount field).
+                $discountAmount = 0;
+                if ($tindakan->diskon_active) {
+                    if ($hargaType === '3x') {
+                        // No automatic discount applied to 3x-visit pricing by default
+                        $discountAmount = 0;
+                    } else {
+                        $discountAmount = ($tindakan->harga - $tindakan->harga_diskon);
+                    }
+                }
+
+                $billingData = [
+                    'visitation_id' => $data['visitation_id'],
+                    'billable_id' => $riwayatTindakan->id,
+                    'billable_type' => 'App\\Models\\ERM\\RiwayatTindakan',
+                    'jumlah' => $billingAmount,
+                    'diskon' => $discountAmount,
+                    'diskon_type' => $tindakan->diskon_active ? ($tindakan->diskon_type ?? 'nominal') : null,
+                    'keterangan' => $billingKeterangan
+                ];
+                if (!empty($data['jumlah'])) {
+                    $billingData['jumlah'] = $data['jumlah'];
+                }
+                if (!empty($data['keterangan'])) {
+                    $billingData['keterangan'] = $data['keterangan'];
+                }
+                $billing = Billing::create($billingData);
+            } else {
+                $billing = null; // intentionally no billing for consumed session
             }
-            $billing = Billing::create($billingData);
         }
         // Copy obat from kode tindakan to riwayat tindakan obat pivot table
         $kodeTindakans = $tindakan->kodeTindakans;
