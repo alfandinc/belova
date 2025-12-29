@@ -705,8 +705,20 @@
             tindakanData = [];
 
             if (type === 'tindakan') {
-                $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
-                    .done(function (html) {
+                // Check if tindakan already exists in this visitation
+                $.get(`/erm/tindakan/${id}/exists-in-visitation`, { visitation_id: visitationId })
+                    .done(function(check) {
+                        if (check && check.success && check.exists) {
+                            Swal.fire({
+                                title: 'Duplicate Tindakan',
+                                text: 'Tindakan ini sudah ditambahkan pada kunjungan saat ini.',
+                                icon: 'warning'
+                            });
+                            return;
+                        }
+                        // Not exists -> proceed to load inform consent form
+                        $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
+                            .done(function (html) {
                             $('#modalInformConsentBody').html(html);
                             // Inject price selector UI into the loaded inform consent form (if present)
                             (function injectPriceSelector(tid) {
@@ -740,10 +752,54 @@
                             </div>
                         `);
                         $('#modalInformConsent').modal('show');
+                            })
+                            .fail(function (jqXHR, textStatus, errorThrown) {
+                                console.error('AJAX Error:', textStatus, errorThrown);
+                                alert('Error loading inform consent form');
+                            });
                     })
-                    .fail(function (jqXHR, textStatus, errorThrown) {
-                        console.error('AJAX Error:', textStatus, errorThrown);
-                        alert('Error loading inform consent form');
+                    .fail(function() {
+                        // If check endpoint failed, be conservative and allow loading (or optionally block).
+                        $.get(`/erm/tindakan/inform-consent/${id}?visitation_id=${visitationId}`)
+                            .done(function (html) {
+                                $('#modalInformConsentBody').html(html);
+                                // existing injection and show logic continues below
+                                (function injectPriceSelector(tid) {
+                                    $.get(`/erm/tindakan/${tid}/prices`).done(function(res) {
+                                        if (!res.success) return;
+                                        const harga = res.harga || 0;
+                                        const harga3 = res.harga_3_kali || null;
+                                        const formattedHarga = new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga);
+                                        const formattedHarga3 = (harga3 !== null && harga3 !== '') ? new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR'}).format(harga3) : '';
+                                        const $form = $('#modalInformConsentBody').find('#informConsentForm');
+                                        if ($form.length) {
+                                            const preferred = window.preferredHargaType || 'normal';
+                                            const checkedNormal = preferred === 'normal' ? 'checked' : '';
+                                            const checked3x = preferred === '3x' ? 'checked' : '';
+                                            let html = `<div class="form-group mb-3"><label class="font-weight-bold">Pilih Jenis Harga</label><div>`;
+                                            html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_normal" value="normal" ${checkedNormal}><label class="form-check-label" for="harga_normal">Normal - ${formattedHarga}</label></div>`;
+                                            if (formattedHarga3) {
+                                                html += `<div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="harga_type" id="harga_3x" value="3x" ${checked3x}><label class="form-check-label" for="harga_3x">3x Visit - ${formattedHarga3}</label></div>`;
+                                            }
+                                            html += '</div></div>';
+                                            // Insert at the top of form body
+                                            $form.prepend(html);
+                                            // Clear the preferred flag after applying
+                                            window.preferredHargaType = null;
+                                        }
+                                    }).fail(function(){/* ignore */});
+                                })(id);
+                                $('#modalInformConsentBody').append(`
+                                    <div class="text-center mt-4">
+                                        <button id="saveInformConsent" class="btn btn-success">Simpan</button>
+                                    </div>
+                                `);
+                                $('#modalInformConsent').modal('show');
+                            })
+                            .fail(function () {
+                                console.error('AJAX Error: failed to load inform consent after fallback check');
+                                alert('Error loading inform consent form');
+                            });
                     });
             }
         });

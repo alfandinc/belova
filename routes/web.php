@@ -812,6 +812,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/tindakan/inform-consent/{id}', [TindakanController::class, 'informConsent'])->name('erm.tindakan.inform-consent');
     Route::get('/tindakan/{id}/prices', [TindakanController::class, 'getPrices']);
     Route::get('/tindakan/{id}/multi-visit-status', [TindakanController::class, 'getMultiVisitStatus']);
+    Route::get('/tindakan/{id}/exists-in-visitation', [TindakanController::class, 'existsInVisitation']);
     Route::post('/tindakan/inform-consent/save', [TindakanController::class, 'saveInformConsent'])->name('erm.tindakan.inform-consent.save');
     Route::get('/tindakan/history/{visitation}', [TindakanController::class, 'getRiwayatTindakanHistory'])->name('tindakan.history');
     Route::get('/tindakan/sop/{id}', [TindakanController::class, 'generateSopPdf'])->name('erm.tindakan.sop');

@@ -232,6 +232,23 @@ class TindakanController extends Controller
         return response()->json(['success' => true, 'used' => null, 'total' => null]);
     }
 
+    /**
+     * Check whether a tindakan already exists for a visitation (AJAX)
+     */
+    public function existsInVisitation(Request $request, $id)
+    {
+        $visitationId = $request->query('visitation_id');
+        if (!$visitationId) {
+            return response()->json(['success' => false, 'message' => 'visitation_id required'], 400);
+        }
+
+        $exists = RiwayatTindakan::where('visitation_id', $visitationId)
+            ->where('tindakan_id', $id)
+            ->exists();
+
+        return response()->json(['success' => true, 'exists' => (bool) $exists]);
+    }
+
     public function saveInformConsent(Request $request)
     {
         // Map field names from JavaScript to what controller expects
