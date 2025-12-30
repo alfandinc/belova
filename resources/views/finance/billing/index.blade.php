@@ -309,9 +309,16 @@
                             var inv = data || row.invoice_number || '';
                             var statusHtml = row.status || '';
                             var badge = '';
-                            // If invoice payment method is piutang, always show Piutang badge
+                            // If invoice payment method is piutang, show Piutang badge
                             if (row.payment_method && String(row.payment_method).toLowerCase() === 'piutang') {
-                                badge = '<span class="badge badge-warning">Piutang</span>';
+                                // determine whether the invoice/piutang is already paid by inspecting server status text
+                                var plainFromServer = $('<div>').html(statusHtml).text() || '';
+                                var sLower = String(plainFromServer).toLowerCase();
+                                if (sLower.indexOf('sudah') !== -1 || sLower.indexOf('lunas') !== -1) {
+                                    badge = '<span class="badge badge-success">Piutang Sudah Bayar</span>';
+                                } else {
+                                    badge = '<span class="badge badge-warning">Piutang</span>';
+                                }
                             } else if (statusHtml) {
                                 // Strip any HTML coming from server and use plain text
                                 var plain = $('<div>').html(statusHtml).text();
