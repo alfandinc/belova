@@ -539,7 +539,29 @@ class StokGudangController extends Controller {
         }
 
         $export = new StokGudangExport($exportRows);
-        $fileName = 'download_stok_' . now()->format('Ymd_His') . '.xlsx';
+
+        // Build descriptive filename: gudang, type, date
+        $gudangName = $gudangId ? (Gudang::find($gudangId)->nama ?? 'all_gudang') : 'all_gudang';
+        $typeLabel = ($type == '2') ? 'stok-opname' : 'live';
+        $stokOpnameId = $request->input('stok_opname_id');
+
+        if ($type == '2' && $stokOpnameId) {
+            $op = StokOpname::find($stokOpnameId);
+            if ($op && $op->tanggal_opname) {
+                $dateLabel = Carbon::parse($op->tanggal_opname)->format('Ymd');
+            } else {
+                $dateLabel = $start->format('Ymd') . '-' . $end->format('Ymd');
+            }
+        } else {
+            // Use provided date range or today's date for live
+            $dateLabel = ($dateStart || $dateEnd) ? ($start->format('Ymd') . '-' . $end->format('Ymd')) : Carbon::now()->format('Ymd');
+        }
+
+        // Sanitize gudang name for filename
+        $gudangSlug = preg_replace('/[^A-Za-z0-9_\-]/', '', str_replace(' ', '_', strtolower($gudangName)));
+
+        $fileName = sprintf('stok_%s_%s_%s.xlsx', $gudangSlug ?: 'gudang', $typeLabel, $dateLabel);
+
         return \Maatwebsite\Excel\Facades\Excel::download($export, $fileName);
     }
 }
