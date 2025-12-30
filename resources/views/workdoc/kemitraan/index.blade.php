@@ -334,6 +334,21 @@
             const id = $('#kemitraan-id').val();
             const url = id ? `{!! url('workdoc/kemitraan') !!}/${id}` : `{!! route('workdoc.kemitraan.store') !!}`;
 
+            // client-side file size guard: 25 MB
+            const maxBytes = 25 * 1024 * 1024;
+            const fileInputEl = document.getElementById('dokumen_pks');
+            if(fileInputEl && fileInputEl.files && fileInputEl.files.length){
+                const f = fileInputEl.files[0];
+                if(f.size > maxBytes){
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'File terlalu besar. Maksimum 25 MB.'
+                    });
+                    return;
+                }
+            }
+
             const form = document.getElementById('kemitraan-form');
             const formData = new FormData(form);
             if(id){
@@ -394,8 +409,21 @@
                 }
             });
         });
-        // show selected filename for bootstrap custom-file
+        // show selected filename for bootstrap custom-file and check size (25 MB)
         $(document).on('change', '#dokumen_pks', function(){
+            const input = this;
+            const maxBytes = 25 * 1024 * 1024;
+            const file = input.files && input.files[0] ? input.files[0] : null;
+            if(file && file.size > maxBytes){
+                Swal.fire({
+                    icon: 'error',
+                    title: 'File terlalu besar',
+                    text: 'Dokumen PKS maksimal 25 MB. Silakan pilih file lain.'
+                });
+                input.value = '';
+                $(input).next('.custom-file-label').html('Pilih file');
+                return;
+            }
             const fileName = $(this).val().split('\\').pop();
             $(this).next('.custom-file-label').html(fileName || 'Pilih file');
         });

@@ -44,6 +44,10 @@ class KemitraanController extends Controller
             'dokumen_pks' => 'nullable|file|mimes:pdf|max:25600',
         ]);
 
+        // custom validation messages (max is in kilobytes -> 25600 KB = 25 MB)
+        // Note: We call validate above for brevity; if you prefer custom messages passed
+        // into validate(), we can change to include messages. Currently the rule is sufficient.
+
         if ($request->hasFile('dokumen_pks')) {
             $path = $request->file('dokumen_pks')->store('workdoc/kemitraans', 'public');
             $data['dokumen_pks'] = $path;
