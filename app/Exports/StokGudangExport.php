@@ -1,26 +1,20 @@
 <?php
-
 namespace App\Exports;
 
-use Illuminate\Contracts\Support\Responsable;
-use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
-class StokGudangExport implements FromCollection, WithHeadings, ShouldAutoSize
+class StokGudangExport implements FromArray, WithHeadings, ShouldAutoSize
 {
     protected $rows;
 
-    public function __construct(Collection $rows)
+    public function __construct(array $rows = [])
     {
         $this->rows = $rows;
     }
 
-    /**
-     * @return \Illuminate\Support\Collection
-     */
-    public function collection()
+    public function array(): array
     {
         return $this->rows;
     }
@@ -31,10 +25,10 @@ class StokGudangExport implements FromCollection, WithHeadings, ShouldAutoSize
             'Nama Obat',
             'Total Stok',
             'HPP',
-            'HPP Jual',
-            'Kategori',
             'Nilai Stok',
-            'Nama Gudang'
+            'Total Masuk',
+            'Total Keluar',
+            'Gudang'
         ];
     }
 }

@@ -102,6 +102,9 @@
                                     <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-filter">
                                         <i class="fas fa-undo"></i>
                                     </button>
+                                    <button type="button" class="btn btn-success btn-sm ml-2" id="btn-download-stok">
+                                        <i class="fas fa-download"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -140,6 +143,67 @@
             </div>
         </div>
     </div>
+
+                    <!-- Modal Download Data Stok -->
+                    <div class="modal fade" id="downloadStokModal" tabindex="-1" role="dialog" aria-labelledby="downloadStokLabel" aria-hidden="true">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="downloadStokLabel">Download Data Stok</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="form-download-stok" class="form-horizontal">
+                                        <div class="form-group">
+                                            <label>Pilih Gudang</label>
+                                            <select class="form-control" id="download_gudang" name="gudang_id">
+                                                <option value="">Semua Gudang</option>
+                                                @foreach($gudangs as $g)
+                                                    <option value="{{ $g->id }}">{{ $g->nama }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Tipe Data</label>
+                                            <select class="form-control" id="download_type" name="type">
+                                                <option value="1">Live Data (Hari Ini)</option>
+                                                <option value="2">Stok Opname (Stok Fisik)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-row date-range">
+                                            <div class="form-group col-md-6">
+                                                <label>Tanggal Mulai</label>
+                                                <input type="date" class="form-control" id="download_date_start" name="date_start" />
+                                            </div>
+                                            <div class="form-group col-md-6">
+                                                <label>Tanggal Selesai</label>
+                                                <input type="date" class="form-control" id="download_date_end" name="date_end" />
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group opname-group" style="display:none;">
+                                            <label>Pilih Stok Opname</label>
+                                            <select class="form-control" id="download_opname" name="stok_opname_id">
+                                                <option value="">-- Pilih Stok Opname --</option>
+                                                @foreach($stokOpnames as $op)
+                                                    @php $gName = $op->gudang ? $op->gudang->nama : 'Gudang ID '.$op->gudang_id; @endphp
+                                                    <option value="{{ $op->id }}" data-gudang="{{ $op->gudang_id }}">{{ $op->tanggal_opname }} — {{ $gName }} @if($op->notes) ({{ Str::limit($op->notes,30) }}) @endif</option>
+                                                @endforeach
+                                            </select>
+                                            <small class="form-text text-muted">Pilih stok opname untuk mendownload stok fisik yang tercatat pada opname tersebut.</small>
+                                        </div>
+                                    </form>
+                                    <div class="text-muted small">Tipe <strong>Stok Opname</strong> akan men-download stok fisik yang tercatat pada stok opname dalam rentang tanggal yang dipilih. <strong>Live Data</strong> menggunakan stok saat ini (default hari ini).</div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-primary" id="confirm-download-stok"><i class="fas fa-download"></i> Unduh</button>
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 </div>
 
 <!-- Nilai Stok Gudang & Keseluruhan -->
@@ -727,6 +791,64 @@ $(document).ready(function() {
                 btn.prop('disabled', false).html('<i class="fas fa-save"></i> Simpan');
             }
         });
+    });
+
+    // Download stok modal
+    $('#btn-download-stok').on('click', function() {
+        $('#downloadStokModal').modal('show');
+    });
+    function toggleDownloadFields() {
+        var type = $('#download_type').val();
+        if (type == '2') {
+            $('.date-range').hide();
+            $('.opname-group').show();
+        } else {
+            $('.date-range').show();
+            $('.opname-group').hide();
+        }
+    }
+
+    // Initialize modal fields
+    toggleDownloadFields();
+
+    $('#download_type').on('change', function() {
+        toggleDownloadFields();
+    });
+
+    // Filter opname options when gudang changes
+    $('#download_gudang').on('change', function() {
+        var gudang = $(this).val();
+        $('#download_opname option').each(function() {
+            var optGudang = $(this).data('gudang') + '';
+            if (!optGudang) return; // first placeholder
+            if (!gudang || optGudang === gudang) $(this).show(); else $(this).hide();
+        });
+        // Reset opname selection
+        $('#download_opname').val('');
+    });
+
+    $('#confirm-download-stok').on('click', function() {
+        var gudang = $('#download_gudang').val();
+        var type = $('#download_type').val();
+        var params = [];
+        if (gudang) params.push('gudang_id=' + encodeURIComponent(gudang));
+        params.push('type=' + encodeURIComponent(type));
+
+        if (type == '2') {
+            var opnameId = $('#download_opname').val();
+            if (opnameId) params.push('stok_opname_id=' + encodeURIComponent(opnameId));
+        } else {
+            var dateStart = $('#download_date_start').val();
+            var dateEnd = $('#download_date_end').val();
+            if (dateStart) params.push('date_start=' + encodeURIComponent(dateStart));
+            if (dateEnd) params.push('date_end=' + encodeURIComponent(dateEnd));
+        }
+
+        var url = '{{ route("erm.stok-gudang.export") }}';
+        if (params.length > 0) url += '?' + params.join('&');
+        // Trigger browser download
+        window.location = url;
+        $('#downloadStokModal').modal('hide');
     });
 });
 </script>

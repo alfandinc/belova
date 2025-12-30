@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use App\Models\ERM\ObatStokGudang;
 use App\Models\ERM\Obat;
 use App\Models\ERM\Gudang;
+use App\Models\ERM\StokOpname;
+use App\Models\ERM\KartuStok;
+use App\Models\ERM\StokOpnameItem;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -41,7 +44,10 @@ class StokGudangController extends Controller {
             ->sort()
             ->values();
 
-        return view('erm.stok-gudang.index', compact('gudangs', 'defaultGudang', 'kategoris'));
+        // Provide recent stok opname records for download modal
+        $stokOpnames = StokOpname::orderBy('tanggal_opname', 'desc')->get();
+
+        return view('erm.stok-gudang.index', compact('gudangs', 'defaultGudang', 'kategoris', 'stokOpnames'));
     }
 
     public function getData(Request $request)
@@ -379,16 +385,17 @@ class StokGudangController extends Controller {
                         'ref_id' => $row->id,
                         'user_id' => $userId
                     ]);
+
+                    // Delete the stok row (uses SoftDeletes trait) so the obat-gudang record is removed
+                    try {
+                        $row->delete();
+                    } catch (\Exception $e) {
+                        // If delete fails, fallback to zeroing stok as a best-effort
+                        $row->stok = 0;
+                        $row->save();
+                    }
                 }
 
-                // Delete the stok row (uses SoftDeletes trait) so the obat-gudang record is removed
-                try {
-                    $row->delete();
-                } catch (\Exception $e) {
-                    // If delete fails, fallback to zeroing stok as a best-effort
-                    $row->stok = 0;
-                    $row->save();
-                }
             }
 
             DB::commit();
@@ -402,129 +409,137 @@ class StokGudangController extends Controller {
     }
 
     /**
-     * Update min_stok and max_stok for obat in a gudang (applies to all batches)
-     */
-    public function updateMinMax(Request $request)
-    {
-        $request->validate([
-            // Model tables are named erm_obat and erm_gudang
-            'obat_id' => 'required|integer|exists:erm_obat,id',
-            'gudang_id' => 'required|integer|exists:erm_gudang,id',
-            'min_stok' => 'nullable|numeric|min:0',
-            'max_stok' => 'nullable|numeric|min:0'
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            $obatId = $request->obat_id;
-            $gudangId = $request->gudang_id;
-            $min = $request->min_stok !== null ? $request->min_stok : 0;
-            $max = $request->max_stok !== null ? $request->max_stok : 0;
-
-            // Update all batch records for this obat/gudang so aggregated view reflects new min/max
-            ObatStokGudang::where('obat_id', $obatId)
-                ->where('gudang_id', $gudangId)
-                ->update([
-                    'min_stok' => $min,
-                    'max_stok' => $max
-                ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Min/Max stok berhasil disimpan',
-                'data' => [
-                    'obat_id' => $obatId,
-                    'gudang_id' => $gudangId,
-                    'min_stok' => $min,
-                    'max_stok' => $max
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menyimpan Min/Max stok: ' . $e->getMessage()
-            ], 422);
-        }
-    }
-
-    /**
      * Export stok gudang to Excel
      */
     public function exportToExcel(Request $request)
     {
-        // Determine which relation to use based on hide_inactive filter
-        $obatRelation = ($request->hide_inactive == 1) ? 'obatAktif' : 'obat';
+        $type = $request->input('type', '1'); // 1 = live, 2 = stok opname
+        $gudangId = $request->input('gudang_id');
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
 
-        $query = ObatStokGudang::with([$obatRelation, 'gudang'])
-            ->select(
-                'obat_id',
-                'gudang_id',
-                DB::raw('SUM(stok) as total_stok'),
-                DB::raw('MIN(min_stok) as min_stok'),
-                DB::raw('MAX(max_stok) as max_stok')
-            )
-            ->groupBy('obat_id', 'gudang_id');
-
-        if ($request->gudang_id) {
-            $query->where('gudang_id', $request->gudang_id);
+        // Normalize date range; default for live is today
+        try {
+            if ($dateStart) $start = Carbon::parse($dateStart)->startOfDay();
+            else $start = Carbon::today()->startOfDay();
+            if ($dateEnd) $end = Carbon::parse($dateEnd)->endOfDay();
+            else $end = Carbon::today()->endOfDay();
+        } catch (\Exception $e) {
+            $start = Carbon::today()->startOfDay();
+            $end = Carbon::today()->endOfDay();
         }
 
-        // Apply hide inactive filter
-        if ($request->hide_inactive == 1) {
-            $query->whereHas('obat', function($q) {
-                $q->where('status_aktif', 1);
-            });
-        }
+        $exportRows = [];
 
-        // Apply search
-        if ($request->search_obat) {
-            $searchTerm = $request->search_obat;
-            $query->whereHas('obat', function($q) use ($searchTerm, $request) {
-                if ($request->hide_inactive == 1) {
-                    $q->where('status_aktif', 1);
-                } else {
-                    $q->withInactive();
+        if ($type == '2') {
+            // Export based on stok opname selection or date range
+            $stokOpnameId = $request->input('stok_opname_id');
+
+            $opnameQuery = StokOpnameItem::query()
+                ->select('obat_id', DB::raw('SUM(stok_fisik) as stok_fisik'));
+
+            if ($stokOpnameId) {
+                $opnameQuery->where('stok_opname_id', $stokOpnameId);
+            } else {
+                $opnameQuery->whereHas('stokOpname', function($q) use ($gudangId, $start, $end) {
+                    if ($gudangId) $q->where('gudang_id', $gudangId);
+                    $q->whereBetween('tanggal_opname', [$start->format('Y-m-d'), $end->format('Y-m-d')]);
+                });
+            }
+
+            $opnameQuery->groupBy('obat_id');
+            $items = $opnameQuery->get();
+
+            foreach ($items as $item) {
+                $obat = Obat::withInactive()->find($item->obat_id);
+                $nama = $obat ? $obat->nama : ('[ID '.$item->obat_id.']');
+                $totalStok = (float) $item->stok_fisik;
+                $hpp = $obat ? ($obat->hpp ?? 0) : 0;
+
+                // Kartu stok totals: if opname selected, restrict to opname date; otherwise use provided date range
+                $masukQuery = KartuStok::where('obat_id', $item->obat_id)->where('tipe', 'masuk');
+                $keluarQuery = KartuStok::where('obat_id', $item->obat_id)->where('tipe', 'keluar');
+                if ($gudangId) {
+                    $masukQuery->where('gudang_id', $gudangId);
+                    $keluarQuery->where('gudang_id', $gudangId);
                 }
-                $q->where('nama', 'like', "%{$searchTerm}%")
-                  ->orWhere('kode_obat', 'like', "%{$searchTerm}%");
-            });
-        }
 
-        $rows = $query->get();
+                if ($stokOpnameId) {
+                    $op = StokOpname::find($stokOpnameId);
+                    if ($op) {
+                        $masukQuery->whereDate('tanggal', $op->tanggal_opname);
+                        $keluarQuery->whereDate('tanggal', $op->tanggal_opname);
+                        $namaGudang = $op->gudang ? $op->gudang->nama : ($gudangId ? (Gudang::find($gudangId)->nama ?? '-') : '-');
+                    } else {
+                        $masukQuery->whereBetween('tanggal', [$start, $end]);
+                        $keluarQuery->whereBetween('tanggal', [$start, $end]);
+                        $namaGudang = $gudangId ? (Gudang::find($gudangId)->nama ?? '-') : '-';
+                    }
+                } else {
+                    $masukQuery->whereBetween('tanggal', [$start, $end]);
+                    $keluarQuery->whereBetween('tanggal', [$start, $end]);
+                    $namaGudang = $gudangId ? (Gudang::find($gudangId)->nama ?? '-') : '-';
+                }
 
-        // Map rows into exportable collection
-        $exportRows = collect();
+                $masuk = $masukQuery->sum('qty');
+                $keluar = $keluarQuery->sum('qty');
 
-        foreach ($rows as $row) {
-            $obat = ($request->hide_inactive == 1) ? $row->obatAktif : $row->obat;
-            $nama = $obat->nama ?? '-';
-            $totalStok = $row->total_stok ?? 0;
-            $hpp = $obat ? ($obat->hpp ?? 0) : 0;
-            $hppJual = $obat ? ($obat->hpp_jual ?? 0) : 0;
-            $kategori = $obat ? ($obat->kategori ?? '-') : '-';
-            $nilaiStok = $totalStok * $hpp;
-            $namaGudang = $row->gudang->nama ?? '-';
+                $nilaiStok = round($totalStok * $hpp, 4);
+                $exportRows[] = [
+                    $nama,
+                    $totalStok,
+                    $hpp,
+                    $nilaiStok,
+                    (float) $masuk,
+                    (float) $keluar,
+                    $namaGudang
+                ];
+            }
 
-            $exportRows->push([
-                $nama,
-                (float) $totalStok,
-                $hpp,
-                $hppJual,
-                $kategori,
-                $nilaiStok,
-                $namaGudang
-            ]);
+        } else {
+            // Live data: use current totals from ObatStokGudang
+            $query = ObatStokGudang::select('obat_id', DB::raw('SUM(stok) as total_stok'))
+                ->groupBy('obat_id');
+
+            if ($gudangId) $query->where('gudang_id', $gudangId);
+
+            $rows = $query->get();
+
+            foreach ($rows as $row) {
+                $obat = Obat::withInactive()->find($row->obat_id);
+                $nama = $obat ? $obat->nama : ('[ID '.$row->obat_id.']');
+                $totalStok = (float) $row->total_stok;
+                $hpp = $obat ? ($obat->hpp ?? 0) : 0;
+
+                $masuk = KartuStok::where('obat_id', $row->obat_id)
+                    ->when($gudangId, function($q) use ($gudangId){ return $q->where('gudang_id', $gudangId); })
+                    ->whereBetween('tanggal', [$start, $end])
+                    ->where('tipe', 'masuk')
+                    ->sum('qty');
+
+                $keluar = KartuStok::where('obat_id', $row->obat_id)
+                    ->when($gudangId, function($q) use ($gudangId){ return $q->where('gudang_id', $gudangId); })
+                    ->whereBetween('tanggal', [$start, $end])
+                    ->where('tipe', 'keluar')
+                    ->sum('qty');
+
+                $namaGudang = $gudangId ? (Gudang::find($gudangId)->nama ?? '-') : '-';
+
+                $nilaiStok = round($totalStok * $hpp, 4);
+                $exportRows[] = [
+                    $nama,
+                    $totalStok,
+                    $hpp,
+                    $nilaiStok,
+                    (float) $masuk,
+                    (float) $keluar,
+                    $namaGudang
+                ];
+            }
         }
 
         $export = new StokGudangExport($exportRows);
-
-        $fileName = 'stok_gudang_' . now()->format('Ymd_His') . '.xlsx';
-
+        $fileName = 'download_stok_' . now()->format('Ymd_His') . '.xlsx';
         return \Maatwebsite\Excel\Facades\Excel::download($export, $fileName);
     }
 }
