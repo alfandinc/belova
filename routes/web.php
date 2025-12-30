@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\{
 use App\Http\Controllers\Finance\{
     BillingController,
     InvoiceController,
+    PiutangController,
 };
 
 use App\Http\Controllers\ERM\{
@@ -162,6 +163,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/finance', [FinanceDashboardController::class, 'index'])
         ->middleware('role:Kasir|Admin|Finance')
         ->name('finance.dashboard');
+
+    // Piutang routes
+    Route::middleware(['role:Kasir|Admin|Finance'])->prefix('finance')->group(function() {
+        Route::get('piutang', [PiutangController::class, 'index'])->name('finance.piutang.index');
+        Route::get('piutang/data', [PiutangController::class, 'data'])->name('finance.piutang.data');
+        Route::post('piutang/{id}/receive', [PiutangController::class, 'receivePayment'])->name('finance.piutang.receive');
+    });
 
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
         ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')

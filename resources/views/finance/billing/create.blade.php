@@ -378,6 +378,7 @@
                                 <select class="form-control" id="payment_method">
                                     <option value="cash">Tunai</option>
                                     {{-- <option value="non_cash">Non Tunai</option> --}}
+                                        <option value="piutang">Piutang</option>
                                     <option value="edc_bca">EDC BCA</option>
                                     <option value="edc_bni">EDC BNI</option>
                                     <option value="edc_bri">EDC BRI</option>

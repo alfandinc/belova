@@ -44,6 +44,7 @@
                                             <option value="belum">Belum Dibayar</option>
                                             <option value="belum_lunas">Belum Lunas</option>
                                             <option value="sudah">Sudah Bayar</option>
+                                            <option value="piutang">Piutang</option>
                                             <option value="">Semua Status</option>
                                         </select>
                                 </div>
@@ -308,14 +309,27 @@
                             var inv = data || row.invoice_number || '';
                             var statusHtml = row.status || '';
                             var badge = '';
-                            if (typeof statusHtml === 'string' && statusHtml.indexOf('<') !== -1) {
-                                badge = statusHtml;
+                            // If invoice payment method is piutang, always show Piutang badge
+                            if (row.payment_method && String(row.payment_method).toLowerCase() === 'piutang') {
+                                badge = '<span class="badge badge-warning">Piutang</span>';
                             } else if (statusHtml) {
-                                var s = String(statusHtml).toLowerCase();
+                                // Strip any HTML coming from server and use plain text
+                                var plain = $('<div>').html(statusHtml).text();
+                                var s = String(plain).toLowerCase();
                                 var cls = 'badge-secondary';
-                                if (s.indexOf('sudah') !== -1 || s.indexOf('lunas') !== -1) cls = 'badge-success';
-                                else if (s.indexOf('belum') !== -1 && s.indexOf('lunas') === -1) cls = 'badge-warning';
-                                badge = '<span class="badge ' + cls + '">' + escapeHtml(statusHtml) + '</span>';
+                                // Explicit 'belum lunas' (contains both words) => yellow
+                                if (s.indexOf('belum') !== -1 && s.indexOf('lunas') !== -1) {
+                                    cls = 'badge-warning';
+                                }
+                                // Fully paid or explicitly 'sudah' OR 'lunas' without 'belum' => green
+                                else if (s.indexOf('sudah') !== -1 || (s.indexOf('lunas') !== -1 && s.indexOf('belum') === -1)) {
+                                    cls = 'badge-success';
+                                }
+                                // Any other 'belum' (unpaid) => red
+                                else if (s.indexOf('belum') !== -1) {
+                                    cls = 'badge-danger';
+                                }
+                                badge = '<span class="badge ' + cls + '">' + escapeHtml(plain) + '</span>';
                             }
                             var html = '<div class="invoice-cell">';
                             html += '<div class="font-weight-bold">' + escapeHtml(inv) + '</div>';

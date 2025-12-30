@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceItem;
+use App\Models\Finance\Piutang;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -1420,6 +1421,32 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
 
+            // If payment method is 'piutang', create a piutang record for the outstanding amount
+            try {
+                if (isset($paymentMethod) && $paymentMethod === 'piutang') {
+                    // Option B: always record full invoice amount as piutang (receivable)
+                    $piutangAmount = floatval($grandTotalNumeric);
+                    // (status calculation removed — handled elsewhere if needed)
+
+                    Piutang::create([
+                        'visitation_id' => $request->visitation_id,
+                        'invoice_id' => $invoice->id,
+                        // store full invoice total as requested
+                        'amount' => $piutangAmount,
+                        // always start as unpaid per request
+                        'payment_status' => 'unpaid',
+                        // do not set payment_date when creating initial receivable
+                        'payment_date' => null,
+                        // leave payment_method empty and user_id null as requested
+                        'payment_method' => null,
+                        'notes' => $request->notes ?? null,
+                        'user_id' => null
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to create piutang record: ' . $e->getMessage());
+            }
+
             DB::commit();
 
             return response()->json([
@@ -1706,6 +1733,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $visitations->whereHas('invoice', function($q) {
                 $q->where('amount_paid', '>', 0);
             });
+        } elseif ($statusFilter === 'piutang') {
+            // Visitations where invoice.payment_method is piutang
+            $visitations->whereHas('invoice', function($q) {
+                $q->where('payment_method', 'piutang');
+            });
         } else {
             // Semua status: by default exclude visitations that only have trashed billings
             if (!$includeDeleted) {
@@ -1788,6 +1820,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     return $visitation->invoice->invoice_number;
                 }
                 return '-';
+            })
+            ->addColumn('payment_method', function ($visitation) {
+                if ($visitation->invoice && isset($visitation->invoice->payment_method)) {
+                    return $visitation->invoice->payment_method;
+                }
+                return null;
             })
                 ->addColumn('status', function ($visitation) {
                         // If invoice exists, determine full/partial/unpaid status
