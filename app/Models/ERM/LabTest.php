@@ -18,4 +18,14 @@ class LabTest extends Model
     {
         return $this->hasMany(LabPermintaan::class);
     }
+
+    /**
+     * Obats associated with this lab test (many-to-many pivot with dosis)
+     */
+    public function obats()
+    {
+        return $this->belongsToMany(Obat::class, 'erm_lab_test_obat', 'lab_test_id', 'obat_id')
+                    ->withPivot('dosis')
+                    ->withTimestamps();
+    }
 }

@@ -85,20 +85,38 @@
                 <input type="text" class="form-control" id="lab_nama" required>
                 <div class="invalid-feedback" id="err_lab_nama"></div>
             </div>
-            <div class="form-group">
-                <label>Kategori</label>
-                <select id="lab_kategori_id" class="form-control select2" style="width:100%" required></select>
-                <div class="invalid-feedback" id="err_lab_kategori_id"></div>
+            <div class="form-row">
+                <div class="form-group col-md-8">
+                    <label>Kategori</label>
+                    <select id="lab_kategori_id" class="form-control select2" style="width:100%" required></select>
+                    <div class="invalid-feedback" id="err_lab_kategori_id"></div>
+                </div>
+                <div class="form-group col-md-4">
+                    <label>Harga</label>
+                    <input type="number" min="0" class="form-control" id="lab_harga">
+                    <div class="invalid-feedback" id="err_lab_harga"></div>
+                </div>
             </div>
+            <hr>
             <div class="form-group">
-                <label>Harga</label>
-                <input type="number" min="0" class="form-control" id="lab_harga">
-                <div class="invalid-feedback" id="err_lab_harga"></div>
-            </div>
-            <div class="form-group">
-                <label>Deskripsi</label>
-                <textarea class="form-control" id="lab_deskripsi" rows="3"></textarea>
-                <div class="invalid-feedback" id="err_lab_deskripsi"></div>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="mb-0">Obat yang dipakai</label>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-add-obat">Tambah Obat</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm" id="lab-obat-table">
+                        <thead>
+                            <tr>
+                                <th style="width:60%">Obat</th>
+                                <th style="width:20%">Dosis</th>
+                                <th style="width:15%">Satuan</th>
+                                <th style="width:5%">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lab-obat-list"></tbody>
+                    </table>
+                </div>
+                <small class="form-text text-muted">Pilih obat dan masukkan dosis (mis. 0.50). Satuan diambil dari data obat.</small>
             </div>
         </div>
         <div class="modal-footer">
@@ -188,7 +206,7 @@ $(function(){
         $('#lab_nama').val('');
         $('#lab_kategori_id').val('').trigger('change');
         $('#lab_harga').val('');
-        $('#lab_deskripsi').val('');
+        $('#lab-obat-list').empty();
         clearErrors('#form-lab-test');
         $('#labTestModalTitle').text('Tambah Lab Test');
     }
@@ -218,22 +236,80 @@ $(function(){
         loadKategoriSelect();
         $('#modalLabTest').modal('show');
     });
+    // Add obat row
+    function initObatSelect($el){
+        $el.select2({
+            placeholder: 'Cari obat...',
+            allowClear: true,
+            width: '100%',
+            ajax: {
+                url: '{!! route('obat.search') !!}',
+                dataType: 'json',
+                delay: 250,
+                data: function(params){ return { q: params.term }; },
+                processResults: function(data){ return { results: data.results || [] }; }
+            }
+        });
+
+        // when an obat is selected, update the satuan cell for the row
+        $el.on('select2:select', function(e){
+            let d = e.params.data || {};
+            let satuan = d.satuan ? String(d.satuan).toLowerCase() : '';
+            $(this).closest('tr').find('.obat-satuan').text(satuan);
+        });
+        $el.on('select2:clear', function(){ $(this).closest('tr').find('.obat-satuan').text(''); });
+    }
+
+    function addObatRow(data = {}){
+        let id = Date.now();
+        let html = `
+            <tr class="obat-row" data-row="${id}">
+                <td><select class="form-control obat-select"></select></td>
+                <td><input type="number" step="0.01" min="0" class="form-control obat-dosis" placeholder="Dosis" value="${data.dosis ?? ''}"></td>
+                <td class="obat-satuan">${data.satuan ? data.satuan : ''}</td>
+                <td><button class="btn btn-sm btn-danger btn-remove-obat" type="button">&times;</button></td>
+            </tr>`;
+        let $row = $(html);
+        $('#lab-obat-list').append($row);
+        let $select = $row.find('.obat-select');
+        initObatSelect($select);
+        if(data.obat_id){
+            // create and select option with additional data
+            let option = new Option(data.nama || data.text || data.obat_id, data.obat_id, true, true);
+            // attach extra properties so select2 selection has them (satuan in lowercase)
+            let satuanVal = data.satuan ? String(data.satuan).toLowerCase() : '';
+            $(option).data('data', { id: data.obat_id, text: data.nama || data.text, nama: data.nama || data.text, satuan: satuanVal });
+            $select.append(option).trigger('change');
+            $row.find('.obat-satuan').text(satuanVal);
+        }
+    }
+
+    $(document).on('click', '#btn-add-obat', function(){ addObatRow(); });
+    $(document).on('click', '.btn-remove-obat', function(){ $(this).closest('.obat-row').remove(); });
     $('#btn-add-kategori').on('click', function(){
         resetKategoriForm();
         $('#modalKategori').modal('show');
     });
 
     // Edit actions
-    $(document).on('click','.edit-test', function(){
+        $(document).on('click','.edit-test', function(){
         resetLabTestForm();
         let id = $(this).data('id');
         $('#lab_test_id').val(id);
-        $('#lab_nama').val($(this).data('nama'));
-        $('#lab_harga').val($(this).data('harga'));
-        $('#lab_deskripsi').val($(this).data('deskripsi'));
-        loadKategoriSelect($(this).data('lab_kategori_id'));
-        $('#labTestModalTitle').text('Edit Lab Test');
-        $('#modalLabTest').modal('show');
+        loadKategoriSelect();
+        // fetch full record including obats
+        $.getJSON(`/erm/lab-tests/${id}`, function(resp){
+            $('#lab_nama').val(resp.nama);
+            $('#lab_harga').val(resp.harga);
+            if(resp.lab_kategori_id) $('#lab_kategori_id').val(resp.lab_kategori_id).trigger('change');
+            // populate obat rows
+            $('#lab-obat-list').empty();
+            if(resp.obats && resp.obats.length){
+                resp.obats.forEach(function(o){ addObatRow({obat_id: o.id, nama: o.nama, dosis: o.pivot?.dosis ?? '', satuan: o.satuan}); });
+            }
+            $('#labTestModalTitle').text('Edit Lab Test');
+            $('#modalLabTest').modal('show');
+        }).fail(function(){ alert('Gagal mengambil data'); });
     });
     $(document).on('click','.edit-kategori', function(){
         resetKategoriForm();
@@ -274,6 +350,14 @@ $(function(){
         let id = $('#lab_test_id').val();
         let method = id ? 'PUT' : 'POST';
         let url = id ? `/erm/lab-tests/${id}` : `/erm/lab-tests`;
+        // build obat payload
+        let obatPayload = [];
+        $('#lab-obat-list .obat-row').each(function(){
+            let obatId = $(this).find('.obat-select').val();
+            let dosis = $(this).find('.obat-dosis').val();
+            if(obatId){ obatPayload.push({ obat_id: obatId, dosis: dosis || 0 }); }
+        });
+
         $.ajax({
             url, type: method,
             headers:{'X-CSRF-TOKEN':csrf},
@@ -281,7 +365,7 @@ $(function(){
                 nama: $('#lab_nama').val(),
                 lab_kategori_id: $('#lab_kategori_id').val(),
                 harga: $('#lab_harga').val(),
-                deskripsi: $('#lab_deskripsi').val()
+                obat: obatPayload
             },
             success: res=>{
                 $('#modalLabTest').modal('hide');

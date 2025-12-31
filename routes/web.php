@@ -1649,6 +1649,8 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
     Route::delete('/lab-kategories/{id}', [\App\Http\Controllers\ERM\LabKategoriController::class, 'destroy'])->name('erm.labkategories.destroy');
 
     // Lab Test CRUD
+    // Show single lab test (used by edit modal)
+    Route::get('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'show'])->name('erm.labtests.show');
     Route::post('/lab-tests', [\App\Http\Controllers\ERM\LabTestController::class, 'store'])->name('erm.labtests.store');
     Route::put('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'update'])->name('erm.labtests.update');
     Route::delete('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'destroy'])->name('erm.labtests.destroy');

@@ -665,6 +665,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             // that specific gudang; otherwise fallback to total stock across all gudangs.
             $stockErrors = [];
             $kodeTindakanObats = [];
+            $labRequiredObats = [];
             $gudangSelections = $request->input('gudang_selections', []);
             
             foreach ($billingItems as $item) {
@@ -792,6 +793,50 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     'billing_id' => $item->id // preserve billing id so we can map gudang selection later
                                 ];
                             }
+                        }
+                    }
+                }
+            }
+            // Check stock for Lab Test medications (from LabPermintaan -> LabTest -> obats with dosis)
+            foreach ($billingItems as $item) {
+                if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\LabPermintaan') {
+                    $labPermintaan = \App\Models\ERM\LabPermintaan::with('labTest.obats')->find($item->billable_id);
+                    if ($labPermintaan && $labPermintaan->labTest) {
+                        $qtyTest = floatval($item->qty ?? 1);
+                        foreach ($labPermintaan->labTest->obats as $obat) {
+                            $required = floatval($obat->pivot->dosis ?? 0) * $qtyTest;
+                            if ($required <= 0) { continue; }
+
+                            // Prefer selected gudang for this billing row or typed key lab_{obatId}
+                            $billingKey = $item->id;
+                            $selectedGudangId = null;
+                            if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
+                                $selectedGudangId = $gudangSelections[$billingKey];
+                            } elseif (isset($gudangSelections['lab_' . $obat->id]) && $gudangSelections['lab_' . $obat->id]) {
+                                $selectedGudangId = $gudangSelections['lab_' . $obat->id];
+                            }
+
+                            if ($selectedGudangId) {
+                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                    ->where('gudang_id', $selectedGudangId)
+                                    ->sum('stok');
+                            } else {
+                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                    ->sum('stok');
+                            }
+
+                            if ($required > $currentStock) {
+                                $testName = $labPermintaan->labTest->nama ?? 'Lab Test';
+                                $stockErrors[] = "Stok {$obat->nama} untuk lab ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia: {$currentStock}";
+                            }
+
+                            // record for later reduction
+                            $labRequiredObats[] = [
+                                'billing_id' => $item->id,
+                                'obat_id' => $obat->id,
+                                'qty' => $required,
+                                'lab_test_id' => $labPermintaan->labTest->id,
+                            ];
                         }
                     }
                 }
@@ -1093,11 +1138,35 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         'payment_triggered' => true
                     ]);
                 }
+                // Process Lab Test medications stock reduction
+                foreach ($labRequiredObats as $labMed) {
+                    $obatId = $labMed['obat_id'];
+                    $qty = $labMed['qty'];
+                    $gudangId = $this->getGudangForItem($request, $obatId, 'lab', $labMed['billing_id'] ?? null);
+                    $reduced = $this->reduceGudangStock($obatId, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
+                    if ($reduced) { $stockReduced = true; }
+                    $obat = \App\Models\ERM\Obat::find($obatId);
+                    \Illuminate\Support\Facades\Log::info('Stock processed via invoice (Lab Test Obat)', [
+                        'obat_id' => $obatId,
+                        'obat_nama' => $obat ? $obat->nama : 'Unknown',
+                        'qty_reduced' => $qty,
+                        'invoice_id' => $invoice->id,
+                        'visitation_id' => $request->visitation_id,
+                        'lab_test_id' => $labMed['lab_test_id'] ?? null,
+                        'payment_triggered' => true
+                    ]);
+                }
             } else {
                 Log::info('Skipped kode tindakan stock reduction - no payment made', [
                     'invoice_id' => $invoice->id,
                     'visitation_id' => $request->visitation_id,
                     'kode_tindakan_count' => count($kodeTindakanObats),
+                    'amount_paid' => $amountPaid
+                ]);
+                \Illuminate\Support\Facades\Log::info('Skipped lab stock reduction - no payment made', [
+                    'invoice_id' => $invoice->id,
+                    'visitation_id' => $request->visitation_id,
+                    'lab_med_count' => count($labRequiredObats),
                     'amount_paid' => $amountPaid
                 ]);
             }
@@ -1913,6 +1982,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'resep' => GudangMapping::getDefaultGudangId('resep'),
             'tindakan' => GudangMapping::getDefaultGudangId('tindakan'),
             'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
+            'lab' => GudangMapping::getDefaultGudangId('lab'),
         ];
 
         return response()->json([

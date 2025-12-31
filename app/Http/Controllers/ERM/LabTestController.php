@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\LabTest;
 use App\Models\ERM\LabKategori;
+use App\Models\ERM\Obat;
 use Yajra\DataTables\Facades\DataTables;
 
 class LabTestController extends Controller
@@ -47,7 +48,20 @@ class LabTestController extends Controller
             return response()->json(['message' => 'Nama test sudah ada di kategori ini'], 422);
         }
         $test = LabTest::create($validated);
-        return response()->json(['message' => 'Lab test created', 'data' => $test]);
+
+        // handle associated obats (optional)
+        $obats = $request->input('obat', []);
+        if (is_array($obats) && count($obats)) {
+            $sync = [];
+            foreach ($obats as $item) {
+                if (empty($item['obat_id'])) continue;
+                $dosis = isset($item['dosis']) ? (float) $item['dosis'] : 0;
+                $sync[$item['obat_id']] = ['dosis' => $dosis];
+            }
+            if (count($sync)) $test->obats()->sync($sync);
+        }
+
+        return response()->json(['message' => 'Lab test created', 'data' => $test->load('obats')]);
     }
 
     public function update(Request $request, $id)
@@ -67,7 +81,29 @@ class LabTestController extends Controller
             return response()->json(['message' => 'Nama test sudah ada di kategori ini'], 422);
         }
         $test->update($validated);
-        return response()->json(['message' => 'Lab test updated', 'data' => $test]);
+
+        // handle associated obats
+        $obats = $request->input('obat', []);
+        $sync = [];
+        if (is_array($obats) && count($obats)) {
+            foreach ($obats as $item) {
+                if (empty($item['obat_id'])) continue;
+                $dosis = isset($item['dosis']) ? (float) $item['dosis'] : 0;
+                $sync[$item['obat_id']] = ['dosis' => $dosis];
+            }
+        }
+        $test->obats()->sync($sync);
+
+        return response()->json(['message' => 'Lab test updated', 'data' => $test->load('obats')]);
+    }
+
+    /**
+     * Show a single lab test with associated obats (for edit form)
+     */
+    public function show($id)
+    {
+        $test = LabTest::with('obats')->findOrFail($id);
+        return response()->json($test);
     }
 
     public function destroy($id)
