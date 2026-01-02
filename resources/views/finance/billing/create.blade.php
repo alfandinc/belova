@@ -223,7 +223,7 @@
                         </div>
                         --}}
                         <div class="col-md-3 mb-2">
-                            <label for="select-konsultasi">Tambah Biaya Konsultasi</label>
+                            <label for="select-konsultasi">Tambah Biaya Lain-Lain</label>
                             <select id="select-konsultasi" class="form-control select2"></select>
                         </div>
                         {{--
