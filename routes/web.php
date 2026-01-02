@@ -1244,6 +1244,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
             Route::get('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'index'])->name('index');
             Route::get('/data', [App\Http\Controllers\HRD\JatahLiburController::class, 'getData'])->name('data');
             Route::get('/employees-without-jatah-libur', [App\Http\Controllers\HRD\JatahLiburController::class, 'getEmployeesWithoutJatahLibur'])->name('employees-without-jatah-libur');
+            Route::post('/reset-annual', [App\Http\Controllers\HRD\JatahLiburController::class, 'resetAnnualLeave'])->name('reset_annual');
             Route::post('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'store'])->name('store');
             Route::get('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'show'])->name('show');
             Route::put('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'update'])->name('update');

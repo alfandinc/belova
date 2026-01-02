@@ -163,4 +163,71 @@ class JatahLiburController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Reset annual leave (`jatah_cuti_tahunan`) to 12 for employees
+     * whose `tanggal_masuk` is 1 year or older.
+     */
+    public function resetAnnualLeave()
+    {
+        try {
+            $oneYearAgo = now()->subYear();
+
+            $employees = Employee::all();
+
+            $counts = [
+                'total' => $employees->count(),
+                'set_12' => 0,
+                'set_0' => 0,
+                'created' => 0,
+                'updated' => 0,
+            ];
+
+            foreach ($employees as $employee) {
+                $jatah = JatahLibur::firstOrNew(['employee_id' => $employee->id]);
+                $isNew = !$jatah->exists;
+
+                // Determine new annual leave based on masa kerja
+                if ($employee->tanggal_masuk && $employee->tanggal_masuk <= $oneYearAgo) {
+                    $newAnnual = 12;
+                } else {
+                    $newAnnual = 0;
+                }
+
+                // Only update if value changed (or it's a new record)
+                $changed = $isNew || ($jatah->jatah_cuti_tahunan !== $newAnnual);
+
+                $jatah->jatah_cuti_tahunan = $newAnnual;
+                if (is_null($jatah->jatah_ganti_libur)) {
+                    $jatah->jatah_ganti_libur = 0;
+                }
+                $jatah->save();
+
+                if ($isNew) {
+                    $counts['created']++;
+                } elseif ($changed) {
+                    $counts['updated']++;
+                }
+
+                if ($newAnnual === 12) {
+                    $counts['set_12']++;
+                } else {
+                    $counts['set_0']++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reset annual leave completed',
+                'total_employees' => $counts['total'],
+                'set_12' => $counts['set_12'],
+                'set_0' => $counts['set_0'],
+                'updated' => $counts['updated'],
+                'created' => $counts['created']
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error resetting annual leave: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }

@@ -34,6 +34,9 @@
                     <button type="button" class="btn btn-primary btn-sm" id="btnAddJatahLibur">
                         <i class="fa fa-plus"></i> Tambah Jatah Libur
                     </button>
+                    <button type="button" class="btn btn-warning btn-sm ml-2" id="btnResetAnnual">
+                        <i class="fa fa-undo"></i> Reset Cuti Tahunan
+                    </button>
                 </div><!--end card-header-->
                 <div class="card-body">
                     <div class="table-responsive">
@@ -152,8 +155,8 @@
             $('#jatahLiburModal').modal('show');
         });
 
+        // Load employees without jatah libur
         function loadEmployeesWithoutJatahLibur() {
-            console.log('Loading employees without jatah libur...');
             $.ajax({
                 url: "{{ route('hrd.master.jatah-libur.employees-without-jatah-libur') }}",
                 method: 'GET',
@@ -166,8 +169,6 @@
                     console.error('Status:', status);
                     console.error('Response:', xhr.responseText);
                     $('#employee_id').empty().append('<option value="">Error loading data</option>');
-                    
-                    // Show error to user with more details
                     var errorMsg = 'Failed to load employee data: ' + error;
                     if (xhr.responseText) {
                         try {
@@ -179,7 +180,6 @@
                             errorMsg += '<br>Response: ' + xhr.responseText.substring(0, 100);
                         }
                     }
-                    
                     Swal.fire({
                         icon: 'error',
                         title: 'Error',
@@ -189,26 +189,21 @@
                 success: function(response) {
                     console.log('Employees received:', response);
                     $('#employee_id').empty().append('<option value="">Pilih Karyawan</option>');
-                    
                     if (response.error) {
                         console.error('Server returned an error:', response.error);
                         $('#employee_id').append('<option value="">Error: ' + response.error + '</option>');
                         return;
                     }
-                    
                     if (!Array.isArray(response)) {
                         console.error('Expected array but got:', typeof response);
                         $('#employee_id').append('<option value="">Invalid response format</option>');
                         return;
                     }
-                    
                     $.each(response, function(index, employee) {
-                        // Make sure we have values before displaying them
                         var employeeNumber = employee.employee_number || 'No ID';
                         var employeeName = employee.name || 'Unnamed';
                         $('#employee_id').append('<option value="' + employee.id + '">' + employeeNumber + ' - ' + employeeName + '</option>');
                     });
-                    
                     if (response.length === 0) {
                         $('#employee_id').append('<option value="">Semua karyawan sudah memiliki jatah libur</option>');
                     }
@@ -216,6 +211,45 @@
             });
         }
 
+        // Reset annual leave to 12 for employees with masa jabatan >= 1 year
+        $('#btnResetAnnual').on('click', function() {
+            Swal.fire({
+                title: 'Reset Jatah Cuti Tahunan',
+                text: 'Set semua jatah cuti tahunan menjadi 12 untuk karyawan masa jabatan >= 1 tahun. Lanjutkan?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Reset',
+                cancelButtonText: 'Batal'
+            }).then((result) => {
+                if (result.value) {
+                    $.ajax({
+                        url: "{{ route('hrd.master.jatah-libur.reset_annual') }}",
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        beforeSend: function() {
+                            Swal.showLoading();
+                        },
+                        success: function(res) {
+                            Swal.close();
+                            if (res.success) {
+                                Swal.fire('Sukses', 'Diperbarui: ' + res.updated + ', Baru: ' + res.created + ', Total terproses: ' + res.total_employees, 'success');
+                                table.ajax.reload();
+                            } else {
+                                Swal.fire('Gagal', res.error || 'Terjadi kesalahan', 'error');
+                            }
+                        },
+                        error: function(xhr) {
+                            Swal.close();
+                            var msg = 'Server error';
+                            if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
+                            Swal.fire('Error', msg, 'error');
+                        }
+                    });
+                }
+            });
+        });
         // Handle form submission
         $('#jatahLiburForm').on('submit', function(e) {
             e.preventDefault();
