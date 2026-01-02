@@ -72,7 +72,8 @@ $(function() {
         var total = kehadiran + penilaian + marketing;
         $('#kpi_poin').val(total);
     }
-    $('#poin_kehadiran, #poin_penilaian, #poin_marketing').on('input', updateKpiTotal);
+    // Ensure we don't double-bind handlers when modal/script runs multiple times
+    $('#poin_kehadiran, #poin_penilaian, #poin_marketing').off('input').on('input', updateKpiTotal);
     // Inisialisasi saat modal dibuka
     updateKpiTotal();
 });
@@ -111,6 +112,9 @@ $(function() {
 
     // Initialize with existing pendapatan_tambahan from server
     var existingTambahan = {!! json_encode($slip->pendapatan_tambahan ?? []) !!};
+    // Ensure container is cleared and index reset when this script runs
+    $('#pendapatanTambahanContainer').empty();
+    tambahanIndex = 0;
     if (Array.isArray(existingTambahan) && existingTambahan.length > 0) {
         existingTambahan.forEach(function(it) {
             addPendapatanRow(it.label || '', it.amount || '');
@@ -166,14 +170,15 @@ $(function() {
         $('#total_gaji').val(totalGaji.toFixed(2));
     }
 
-    // Trigger update saat input berubah
+    // Unbind previous delegated handlers then bind once to avoid duplicates
+    $(document).off('input', '[name="gaji_pokok"], [name="tunjangan_jabatan"], [name="tunjangan_masa_kerja"], [name="uang_makan"], [name="uang_kpi"], [name="uang_lembur"], [name="jasa_medis"], [name="benefit_bpjs_kesehatan"], [name="benefit_jht"], [name="benefit_jkk"], [name="benefit_jkm"], [name="potongan_pinjaman"], [name="potongan_bpjs_kesehatan"], [name="potongan_jamsostek"], [name="potongan_penalty"], [name="potongan_lain"]');
     $(document).on('input', '[name="gaji_pokok"], [name="tunjangan_jabatan"], [name="tunjangan_masa_kerja"], [name="uang_makan"], [name="uang_kpi"], [name="uang_lembur"], [name="jasa_medis"], [name="benefit_bpjs_kesehatan"], [name="benefit_jht"], [name="benefit_jkk"], [name="benefit_jkm"], [name="potongan_pinjaman"], [name="potongan_bpjs_kesehatan"], [name="potongan_jamsostek"], [name="potongan_penalty"], [name="potongan_lain"]', function() {
         updateTotalGaji();
         sumBenefit();
     });
 
-    // Add new row button
-    $(document).on('click', '#btnTambahPendapatanTambahan', function() {
+    // Ensure add button isn't bound multiple times
+    $(document).off('click', '#btnTambahPendapatanTambahan').on('click', '#btnTambahPendapatanTambahan', function() {
         addPendapatanRow('', '');
     });
 
