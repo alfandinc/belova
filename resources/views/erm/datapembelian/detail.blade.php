@@ -79,10 +79,10 @@
             <div class="card">
                 <div class="card-body">
                     <div class="media">
-                        <div class="media-body">
-                            <p class="text-muted fw-medium">Total Pembelian</p>
-                            <h4 class="fw-bold">Rp {{ number_format($pemasok->fakturBeli->sum('total'), 0, ',', '.') }}</h4>
-                        </div>
+                                        <div class="media-body">
+                                            <p class="text-muted fw-medium">Total Pembelian</p>
+                                            <h4 class="fw-bold"><span id="totalPembelianValue">Rp {{ number_format($pemasok->fakturBeli->sum('total'), 0, ',', '.') }}</span></h4>
+                                        </div>
                         <div class="align-self-center">
                             <i class="mdi mdi-currency-usd h2 text-muted"></i>
                         </div>
@@ -96,7 +96,7 @@
                     <div class="media">
                         <div class="media-body">
                             <p class="text-muted fw-medium">Jumlah Faktur</p>
-                            <h4 class="fw-bold">{{ $pemasok->fakturBeli->count() }}</h4>
+                            <h4 class="fw-bold"><span id="jumlahFakturValue">{{ $pemasok->fakturBeli->count() }}</span></h4>
                         </div>
                         <div class="align-self-center">
                             <i class="mdi mdi-file-document h2 text-muted"></i>
@@ -111,7 +111,7 @@
                     <div class="media">
                         <div class="media-body">
                             <p class="text-muted fw-medium">Jenis Item</p>
-                            <h4 class="fw-bold">{{ $pemasok->fakturBeli->flatMap(function($f) { return $f->items->pluck('obat_id'); })->unique()->count() }}</h4>
+                            <h4 class="fw-bold"><span id="jenisItemValue">{{ $pemasok->fakturBeli->flatMap(function($f) { return $f->items->pluck('obat_id'); })->unique()->count() }}</span></h4>
                         </div>
                         <div class="align-self-center">
                             <i class="mdi mdi-package-variant h2 text-muted"></i>
@@ -175,7 +175,9 @@
                                 @forelse($pemasok->fakturBeli as $faktur)
                                 <tr class="purchase-row" 
                                     data-received-date="{{ $faktur->received_date }}"
-                                    data-original-index="{{ $loop->iteration }}">
+                                    data-original-index="{{ $loop->iteration }}"
+                                    data-total="{{ $faktur->total ?: 0 }}"
+                                    data-obat-ids="{{ $faktur->items->pluck('obat_id')->join(',') }}">
                                     <td>{{ $faktur->no_faktur ?: '-' }}</td>
                                     <td>{{ $faktur->received_date ? \Carbon\Carbon::parse($faktur->received_date)->format('d/m/Y') : '-' }}</td>
                                     <td>{{ $faktur->due_date ? \Carbon\Carbon::parse($faktur->due_date)->format('d/m/Y') : '-' }}</td>
@@ -248,6 +250,7 @@ $(function() {
         
         // Filter the table
         filterPurchaseHistory(picker.startDate, picker.endDate);
+        updateSummary();
     });
 
     $('#tanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
@@ -298,6 +301,7 @@ $(function() {
             $('#no-filter-results').hide();
             $('#no-data-row').hide();
         }
+            updateSummary();
     }
 
     function showAllPurchases() {
@@ -310,10 +314,39 @@ $(function() {
         } else {
             $('#no-data-row').hide();
         }
+        updateSummary();
+    }
+
+    function formatRp(amount) {
+        var num = Number(amount) || 0;
+        return 'Rp ' + num.toLocaleString('id-ID');
+    }
+
+    function updateSummary() {
+        var visible = $('.purchase-row:visible');
+        var total = 0;
+        var fakturCount = visible.length;
+        var obatSet = {};
+
+        visible.each(function() {
+            var t = Number($(this).data('total')) || 0;
+            total += t;
+            var ids = String($(this).data('obat-ids') || '');
+            if (ids.length) {
+                ids.split(',').forEach(function(id) {
+                    if (id !== '') obatSet[id] = true;
+                });
+            }
+        });
+
+        $('#totalPembelianValue').text(formatRp(total));
+        $('#jumlahFakturValue').text(fakturCount);
+        $('#jenisItemValue').text(Object.keys(obatSet).length);
     }
 
     // Initialize: show all purchases
     showAllPurchases();
+    updateSummary();
 });
 </script>
 @endpush
