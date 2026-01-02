@@ -21,6 +21,7 @@
 </style>
 
 @include('erm.partials.modal-daftarkunjungan')
+@include('erm.partials.modal-ic-pendaftaran')
 
 <div class="container-fluid">
     <!-- Page-Title -->
@@ -47,6 +48,7 @@
         <div class="card-body">
             <form id="pasien-form" class="form-wizard-wrapper" action="{{ route('erm.pasiens.store') }}" method="POST">
                 @csrf
+                <input type="hidden" id="consent_pdf_path" name="consent_pdf_path" value="{{ old('consent_pdf_path', $pasien->consent_pdf_path ?? '') }}">
                 @if($isEditing && $pasien)
                     <input type="hidden" name="pasien_id" value="{{ $pasien->id }}">
                 @endif
@@ -334,7 +336,8 @@
         return isValid; // ⬅️ Hanya lanjut step jika valid
     },
     onFinished: function (event, currentIndex) {
-            $('#pasien-form').submit(); // 👈 THIS enables actual form submission
+            // Instead of submitting immediately, show the IC (consent) modal for signature
+            $('#icModal').modal('show');
         }
     });
     
@@ -605,10 +608,10 @@
         $('#pasien-form').find('.actions ul li').last().find('a').text('Update');
     @endif
 
+    // (Consent modal is now shown on Finish button instead of checkbox)
 
-
-
-});
+    // end document.ready
+    });
 
 </script>
 @endsection
