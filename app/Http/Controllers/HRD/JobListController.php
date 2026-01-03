@@ -262,8 +262,9 @@ class JobListController extends Controller
                 $months = [1=>'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
                 $formatted = $dt->day . ' ' . ($months[(int)$dt->format('n')] ?? $dt->format('F')) . ' ' . $dt->year;
                 $today = Carbon::today();
-                // if due date is before today AND status is 'progress' (on going), show blinking warning
-                if ($dt->lt($today) && ($row->status ?? '') === 'progress') {
+                // Show blinking warning when overdue for ongoing assignments
+                // Applies to 'progress' and 'delegated' statuses
+                if ($dt->lt($today) && in_array(($row->status ?? ''), ['progress', 'delegated'])) {
                     $warning = ' <span class="text-danger blink" title="Terlewat hari ini">&#9888; Terlewat</span>';
                     return $formatted . $warning;
                 }
