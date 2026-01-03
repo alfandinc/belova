@@ -185,21 +185,21 @@ $(function() {
                     return meta.row + meta.settings._iDisplayStart + 1;
                 }
             },
-            { data: 'nama_pemasok', name: 'nama_pemasok' },
             { 
-                data: 'alamat', 
-                name: 'alamat',
-                render: function(data) {
-                    return data || '-';
+                data: 'nama_pemasok', 
+                name: 'nama_pemasok',
+                render: function(data, type, row) {
+                    var nama = data || '-';
+                    var alamat = row.alamat || '';
+                    var telepon = row.telepon || '';
+                    var extra = '';
+                    if (alamat) extra += '<div class="text-muted" style="font-size:12px;">' + alamat + '</div>';
+                    if (telepon) extra += '<div class="text-muted" style="font-size:12px;">' + telepon + '</div>';
+                    return '<div>' + nama + (extra ? '<div style="margin-top:6px;">' + extra + '</div>' : '') + '</div>';
                 }
             },
-            { 
-                data: 'telepon', 
-                name: 'telepon',
-                render: function(data) {
-                    return data || '-';
-                }
-            },
+            { data: 'alamat', name: 'alamat', visible: false },
+            { data: 'telepon', name: 'telepon', visible: false },
             { 
                 data: 'total_nominal', 
                 name: 'total_nominal',
@@ -211,7 +211,9 @@ $(function() {
                 data: 'pembelian_terakhir', 
                 name: 'pembelian_terakhir',
                 render: function(data) {
-                    return data === '-' ? '-' : new Date(data).toLocaleDateString('id-ID');
+                    if (!data || data === '-') return '-';
+                    // Use moment.js (already included) to format: 1 januari 2025
+                    return moment(data).format('D MMMM YYYY').toLowerCase();
                 }
             },
             { 
