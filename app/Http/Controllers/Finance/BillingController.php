@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\GudangMapping;
 use App\Services\ERM\StokService;
+use App\Models\ERM\PaketRacikan;
 
 
 class BillingController extends Controller
@@ -306,6 +307,11 @@ class BillingController extends Controller
         // Create processed billing items (start with regular items)
         $processedBillings = $regularBillings;
 
+        // Preload active PaketRacikan with details for matching
+        $activePaketRacikans = PaketRacikan::with(['details' => function($q){ $q->select('id','paket_racikan_id','obat_id','dosis'); }])
+            ->where('is_active', true)
+            ->get(['id','nama_paket','is_active']);
+
         // Process each racikan group
         foreach ($racikanGroups as $racikanKey => $racikanItems) {
             // Use the first item as base
@@ -351,12 +357,61 @@ class BillingController extends Controller
                         'nama' => $obatModel ? ($obatModel->nama ?? '') : ($it->billable_name ?? ''),
                         // stok_dikurangi persisted into ResepFarmasi.jumlah for racikan components (allow decimals)
                         'stok_dikurangi' => $billable ? floatval($billable->jumlah ?? 0) : 0,
+                        // include dosis to support PaketRacikan matching (string compare)
+                        'dosis' => isset($billable->dosis) ? trim((string)$billable->dosis) : null,
                     ];
                 } catch (\Exception $e) {
-                    $components[] = ['obat_id' => null, 'nama' => '', 'stok_dikurangi' => 0];
+                    $components[] = ['obat_id' => null, 'nama' => '', 'stok_dikurangi' => 0, 'dosis' => null];
                 }
             }
             $racikanItem->racikan_components = $components;
+
+            // Try to match components with an active PaketRacikan (obat_id + dosis match, order-insensitive)
+            try {
+                // Helper to normalize dosis: extract numeric part if present, else trimmed lower-case string
+                $normalizeDose = function($val) {
+                    if ($val === null) return '';
+                    $s = trim(strtolower((string)$val));
+                    // replace commas with dots, remove thousands separators
+                    $s = str_replace([','], ['.'], $s);
+                    // extract first number (integer/decimal)
+                    if (preg_match('/\d+(?:\.\d+)?/', $s, $m)) {
+                        return rtrim(rtrim($m[0], '0'), '.') ?: $m[0];
+                    }
+                    return $s; // fallback: raw string
+                };
+                // Build a normalized map from components
+                $compMap = [];
+                foreach ($components as $c) {
+                    if (!$c['obat_id']) continue;
+                    $key = $c['obat_id'] . '|' . $normalizeDose($c['dosis'] ?? '');
+                    $compMap[$key] = true;
+                }
+
+                foreach ($activePaketRacikans as $paket) {
+                    $details = $paket->details;
+                    if (!$details || $details->count() === 0) continue;
+                    if ($details->count() !== count($compMap)) continue; // quick size check
+
+                    $allMatch = true;
+                    foreach ($details as $d) {
+                        $dKey = ($d->obat_id ?? '0') . '|' . $normalizeDose($d->dosis ?? '');
+                        if (!isset($compMap[$dKey])) {
+                            $allMatch = false;
+                            break;
+                        }
+                    }
+
+                    if ($allMatch) {
+                        // Found matching paket
+                        $racikanItem->paket_racikan_name = $paket->nama_paket;
+                        break;
+                    }
+                }
+            } catch (\Exception $e) {
+                // non-fatal: leave paket name unset
+                Log::warning('Racikan paket matching failed: ' . $e->getMessage());
+            }
 
             $processedBillings[] = $racikanItem;
         }
@@ -420,6 +475,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             ->addColumn('nama_item', function ($row) {
                     // Use optional() to avoid "property on null" errors when relations are missing
                     if (isset($row->is_racikan) && $row->is_racikan) {
+                        // Prefer displaying matched PaketRacikan name if available
+                        if (isset($row->paket_racikan_name) && $row->paket_racikan_name) {
+                            return $row->paket_racikan_name;
+                        }
                         return 'Obat Racikan';
                     } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
                         return 'Jasa Farmasi';
@@ -1314,6 +1373,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
             
+            // Preload active PaketRacikan with details (for racikan name matching)
+            $activePaketRacikans = PaketRacikan::with(['details' => function($q){ $q->select('id','paket_racikan_id','obat_id','dosis'); }])
+                ->where('is_active', true)
+                ->get(['id','nama_paket','is_active']);
+
             // Process racikan groups
             foreach ($racikanGroups as $racikanKey => $racikanItems) {
                 // Use the first item as base
@@ -1344,6 +1408,43 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }, $obatList);
                     
                     $description = implode("\n", $formattedObatList);
+
+                    // Determine racikan display name: match to PaketRacikan (obat_id + dosis order-insensitive)
+                    $racikanDisplayName = 'Obat Racikan';
+                    try {
+                        $normalizeDose = function($val) {
+                            if ($val === null) return '';
+                            $s = trim(strtolower((string)$val));
+                            $s = str_replace([','], ['.'], $s);
+                            if (preg_match('/\d+(?:\.\d+)?/', $s, $m)) {
+                                return rtrim(rtrim($m[0], '0'), '.') ?: $m[0];
+                            }
+                            return $s;
+                        };
+                        $compMap = [];
+                        foreach ($racikanItems as $ri) {
+                            $billable = $ri->billable ?? null;
+                            $ob = ($billable && isset($billable->obat)) ? $billable->obat : null;
+                            $dose = $billable ? ($billable->dosis ?? null) : null;
+                            if ($ob && isset($ob->id)) {
+                                $key = $ob->id . '|' . $normalizeDose($dose);
+                                $compMap[$key] = true;
+                            }
+                        }
+                        foreach ($activePaketRacikans as $paket) {
+                            $details = $paket->details;
+                            if (!$details || $details->count() === 0) continue;
+                            if ($details->count() !== count($compMap)) continue;
+                            $allMatch = true;
+                            foreach ($details as $d) {
+                                $dKey = ($d->obat_id ?? '0') . '|' . $normalizeDose($d->dosis ?? '');
+                                if (!isset($compMap[$dKey])) { $allMatch = false; break; }
+                            }
+                            if ($allMatch) { $racikanDisplayName = $paket->nama_paket; break; }
+                        }
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::warning('Racikan paket matching (invoice) failed: ' . $e->getMessage());
+                    }
                     
                     // Handle stock adjustments for racikan items only when invoice payment triggers reduction
                     // Compute $qtyDiff for this racikan group. For new invoices or when previous payment was 0,
@@ -1414,7 +1515,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // Create single invoice item for the racikan group
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
-                    'name' => 'Obat Racikan',
+                    'name' => $racikanDisplayName,
                     'description' => $description,
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
