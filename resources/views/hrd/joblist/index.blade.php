@@ -57,6 +57,9 @@
                             </select>
                         @endif
                     </div>
+                    <div class="ml-3">
+                        <input id="filter_created_range" class="form-control form-control-sm" placeholder="Created At range" autocomplete="off" />
+                    </div>
                 </div>
             </div>
             </div>
@@ -318,6 +321,21 @@ $(function(){
             $('#due_date').on('cancel.daterangepicker', function(ev, picker){
                 $(this).val('');
             });
+
+            // Created At range filter (top toolbar)
+            $('#filter_created_range').daterangepicker({
+                autoUpdateInput: false,
+                showDropdowns: true,
+                locale: { format: 'DD-MM-YYYY' }
+            });
+            $('#filter_created_range').on('apply.daterangepicker', function(ev, picker){
+                $(this).val(picker.startDate.format('DD-MM-YYYY') + ' - ' + picker.endDate.format('DD-MM-YYYY'));
+                try { table.ajax.reload(); } catch(e){}
+            });
+            $('#filter_created_range').on('cancel.daterangepicker', function(ev, picker){
+                $(this).val('');
+                try { table.ajax.reload(); } catch(e){}
+            });
         }
     } catch (e) { /* ignore if plugin missing */ }
 
@@ -332,6 +350,20 @@ $(function(){
                     d.hide_done = $('#filter_hide_done').length ? ($('#filter_hide_done').is(':checked') ? 1 : 0) : 0;
                 // send for_manager filter: '' => all, '1' => only manager items, '0' => non-manager items
                 d.for_manager = $('#filter_for_manager').length ? $('#filter_for_manager').val() : '';
+                // Created At range -> send as YYYY-MM-DD
+                try {
+                    var drc = $('#filter_created_range').data('daterangepicker');
+                    if (drc && $('#filter_created_range').val()) {
+                        d.created_start = drc.startDate.format('YYYY-MM-DD');
+                        d.created_end = drc.endDate.format('YYYY-MM-DD');
+                    } else {
+                        d.created_start = '';
+                        d.created_end = '';
+                    }
+                } catch(e) {
+                    d.created_start = '';
+                    d.created_end = '';
+                }
             }
         },
         // Show all entries by default; include 'All' option in lengthMenu
