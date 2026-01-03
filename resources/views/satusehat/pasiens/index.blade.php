@@ -54,11 +54,11 @@
 @section('scripts')
 <script>
 $(function(){
-    // Initialize daterangepicker (default to this week)
+    // Initialize daterangepicker (default to today)
     $('#filterDate').daterangepicker({
         locale: { format: 'YYYY-MM-DD' },
-        startDate: moment().startOf('week'),
-        endDate: moment().endOf('week'),
+        startDate: moment(),
+        endDate: moment(),
         opens: 'left'
     }, function(start, end, label){
         // reload table when date range changes
