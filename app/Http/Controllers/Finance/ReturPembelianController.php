@@ -39,9 +39,10 @@ class ReturPembelianController extends Controller
                     return optional($row->invoice->visitation->pasien)->nama ?? '-';
                 })
                 ->addColumn('action', function ($row) {
-                    return '<button class="btn btn-sm btn-info" onclick="viewReturDetail(' . $row->id . ')">
-                                <i class="fas fa-eye"></i> Detail
-                            </button>';
+                        $detailBtn = '<button type="button" class="btn btn-info btn-sm" onclick="viewReturDetail(' . $row->id . ')">Detail</button>';
+                        $printUrl = route('finance.retur-pembelian.print', $row->id);
+                        $printBtn = '<a href="' . $printUrl . '" target="_blank" class="btn btn-secondary btn-sm" style="margin-left:4px;">Print</a>';
+                        return $detailBtn . ' ' . $printBtn;
                 })
                 ->addColumn('items_count', function ($row) {
                     return $row->items->count() . ' item(s)';
@@ -258,12 +259,22 @@ class ReturPembelianController extends Controller
         $retur = ReturPembelian::with(['invoice.visitation.pasien', 'items', 'user'])->findOrFail($id);
 
         $pdf = Pdf::loadView('finance.retur-pembelian.pdf', compact('retur'))
-            ->setPaper('a5', 'landscape')
+            // Use thermal receipt-like paper settings similar to printNota
+            ->setPaper([0, 0, 120, 1000]) // ~57mm width with dynamic height
             ->setOptions([
                 'defaultFont' => 'helvetica',
+                'fontHeightRatio' => 0.8,
                 'isRemoteEnabled' => true,
                 'isHtml5ParserEnabled' => true,
                 'isFontSubsettingEnabled' => true,
+                'dpi' => 203,
+                'defaultMediaType' => 'print',
+                'enable_javascript' => false,
+                'no_background' => false,
+                'margin_top' => 5,
+                'margin_right' => 5,
+                'margin_bottom' => 5,
+                'margin_left' => 5,
             ]);
 
         return $pdf->stream('Retur-' . ($retur->retur_number ?? $retur->id) . '.pdf');
