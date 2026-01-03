@@ -357,8 +357,18 @@ $(function(){
                         d.created_start = drc.startDate.format('YYYY-MM-DD');
                         d.created_end = drc.endDate.format('YYYY-MM-DD');
                     } else {
-                        d.created_start = '';
-                        d.created_end = '';
+                        // Fallback: parse "DD-MM-YYYY - DD-MM-YYYY" if plugin not available
+                        var v = ($('#filter_created_range').val() || '').trim();
+                        if (v && v.indexOf(' - ') > -1) {
+                            var parts = v.split(' - ');
+                            var m1 = moment(parts[0], 'DD-MM-YYYY', true);
+                            var m2 = moment(parts[1], 'DD-MM-YYYY', true);
+                            d.created_start = m1.isValid() ? m1.format('YYYY-MM-DD') : '';
+                            d.created_end = m2.isValid() ? m2.format('YYYY-MM-DD') : '';
+                        } else {
+                            d.created_start = '';
+                            d.created_end = '';
+                        }
                     }
                 } catch(e) {
                     d.created_start = '';

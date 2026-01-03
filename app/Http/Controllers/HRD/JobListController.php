@@ -78,12 +78,36 @@ class JobListController extends Controller
         // Apply due_date range filter when provided (start_date, end_date expected as YYYY-MM-DD)
         $start = $request->get('start_date');
         $end = $request->get('end_date');
-        if ($start && $end) {
+            if ($start && $end) {
             try {
                 $query->whereBetween('due_date', [$start, $end]);
             } catch (\Exception $e) {
                 // ignore malformed dates
             }
+            } elseif ($start && !$end) {
+                try {
+                    $query->where('due_date', '>=', Carbon::parse($start)->startOfDay());
+                } catch (\Exception $e) { /* ignore */ }
+            } elseif (!$start && $end) {
+                try {
+                    $query->where('due_date', '<=', Carbon::parse($end)->endOfDay());
+                } catch (\Exception $e) { /* ignore */ }
+        }
+        // Apply created_at range filter when provided (created_start, created_end expected as YYYY-MM-DD)
+        $createdStart = $request->get('created_start');
+        $createdEnd = $request->get('created_end');
+        if ($createdStart && $createdEnd) {
+            try {
+                $query->whereBetween('created_at', [Carbon::parse($createdStart)->startOfDay(), Carbon::parse($createdEnd)->endOfDay()]);
+            } catch (\Exception $e) { /* ignore */ }
+        } elseif ($createdStart && !$createdEnd) {
+            try {
+                $query->where('created_at', '>=', Carbon::parse($createdStart)->startOfDay());
+            } catch (\Exception $e) { /* ignore */ }
+        } elseif (!$createdStart && $createdEnd) {
+            try {
+                $query->where('created_at', '<=', Carbon::parse($createdEnd)->endOfDay());
+            } catch (\Exception $e) { /* ignore */ }
         }
         // apply status filter if provided and valid. If no explicit status is chosen,
         // honor the `hide_done` flag to show only delegated/progress when requested.
