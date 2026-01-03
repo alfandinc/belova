@@ -212,8 +212,10 @@ $(function() {
                 name: 'pembelian_terakhir',
                 render: function(data) {
                     if (!data || data === '-') return '-';
-                    // Use moment.js (already included) to format: 1 januari 2025
-                    return moment(data).format('D MMMM YYYY').toLowerCase();
+                    if (typeof moment !== 'undefined') {
+                        return moment(data).locale('id').format('D MMMM YYYY');
+                    }
+                    return new Date(data).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
                 }
             },
             { 
