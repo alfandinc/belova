@@ -7,7 +7,7 @@
 <div class="container-fluid">
     <!-- Page-Title -->
     <div class="row mt-3 align-items-center">
-        <div class="col-md-6">
+        <div class="col-md-12">
             <h2 class="mb-0">Data Pembelian per Pemasok</h2>
         </div>
     </div>
@@ -32,8 +32,22 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h4 class="card-title">Ringkasan Pembelian per Pemasok</h4>
-                    <p class="text-muted mb-0">Data pembelian dikelompokkan berdasarkan pemasok dengan total nominal, pembelian terakhir, dan jumlah jenis item.</p>
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h4 class="card-title mb-0">Ringkasan Pembelian per Pemasok</h4>
+                            <p class="text-muted mb-0">Data pembelian dikelompokkan berdasarkan pemasok dengan total nominal, pembelian terakhir, dan jumlah jenis item.</p>
+                        </div>
+                        <div class="ml-3 d-flex align-items-center">
+                            <div class="mr-3">
+                                <div class="text-muted" style="font-size:12px">Tanggal Pembelian</div>
+                                <input type="text" id="purchaseDateRange" class="form-control form-control-sm" placeholder="Semua tanggal" autocomplete="off" />
+                            </div>
+                            <div class="text-right align-self-center">
+                                <div class="text-muted" style="font-size:12px">Total Pembelian</div>
+                                <div id="totalNominalDisplay" class="font-weight-bold" style="font-size:16px; color:#1e88e5">Rp 0</div>
+                            </div>
+                        </div>
+                    </div>
                 </div><!--end card-header-->
                 <div class="card-body">
                     <div class="table-responsive">
@@ -118,13 +132,47 @@
 @endsection
 
 @push('scripts')
+<!-- Date Range Picker dependencies -->
+<script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <script>
 $(function() {
+    var selectedStartDate = null;
+    var selectedEndDate = null;
+
+    // Initialize date range picker
+    $('#purchaseDateRange').daterangepicker({
+        autoUpdateInput: false,
+        locale: {
+            format: 'DD/MM/YYYY',
+            applyLabel: 'Terapkan',
+            cancelLabel: 'Bersihkan'
+        }
+    });
+
+    $('#purchaseDateRange').on('apply.daterangepicker', function(ev, picker) {
+        selectedStartDate = picker.startDate.format('YYYY-MM-DD');
+        selectedEndDate = picker.endDate.format('YYYY-MM-DD');
+        $(this).val(picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
+        dataPembelianTable.ajax.reload();
+    });
+
+    $('#purchaseDateRange').on('cancel.daterangepicker', function(ev, picker) {
+        selectedStartDate = null;
+        selectedEndDate = null;
+        $(this).val('');
+        dataPembelianTable.ajax.reload();
+    });
+
     var dataPembelianTable = $('#data-pembelian-table').DataTable({
         processing: true,
         serverSide: true,
         ajax: {
             url: '{{ route('erm.datapembelian.index') }}',
+            data: function(d) {
+                d.start_date = selectedStartDate;
+                d.end_date = selectedEndDate;
+            }
         },
         order: [[4, 'desc']], // Order by total nominal (descending)
         columns: [
@@ -201,6 +249,13 @@ $(function() {
                 next: "Selanjutnya",
                 previous: "Sebelumnya"
             }
+        }
+    });
+
+    // Update total nominal display from server response (show only formatted value inside the box)
+    dataPembelianTable.on('xhr.dt', function(e, settings, json, xhr) {
+        if (json && typeof json.total_nominal_all !== 'undefined') {
+            $('#totalNominalDisplay').text(json.total_nominal_all);
         }
     });
 
@@ -304,4 +359,7 @@ $(function() {
     });
 });
 </script>
+@endpush
+@push('styles')
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
 @endpush

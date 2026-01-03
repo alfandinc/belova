@@ -14,12 +14,17 @@ class DataPembelianController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
             // Get supplier purchase data with aggregated information
             $data = Pemasok::select('erm_pemasok.*')
                 ->leftJoin('erm_fakturbeli', 'erm_pemasok.id', '=', 'erm_fakturbeli.pemasok_id')
-                ->with(['fakturBeli' => function($query) {
+                ->with(['fakturBeli' => function($query) use ($startDate, $endDate) {
                     // eager-load items with obat and principal to include principal name
                     $query->where('status', '!=', 'diretur')
+                          ->when($startDate && $endDate, function($q) use ($startDate, $endDate) {
+                              $q->whereBetween('received_date', [$startDate, $endDate]);
+                          })
                           ->with(['items.obat', 'items.principal'])
                           ->orderBy('received_date', 'desc');
                 }])
@@ -65,6 +70,11 @@ class DataPembelianController extends Controller
                     ];
                 });
 
+            // compute total nominal for all rows in the current dataset (before pagination)
+            $totalNominalAll = $data->sum(function ($row) {
+                return $row['total_nominal'] ?? 0;
+            });
+
             return DataTables::of($data)
                 ->addColumn('total_nominal_formatted', function ($row) {
                     return 'Rp ' . number_format($row['total_nominal'], 0, ',', '.');
@@ -76,6 +86,7 @@ class DataPembelianController extends Controller
                             </a>';
                 })
                 ->rawColumns(['action'])
+                ->with(['total_nominal_all' => 'Rp ' . number_format($totalNominalAll, 0, ',', '.')])
                 ->make(true);
         }
 
