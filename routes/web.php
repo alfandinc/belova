@@ -1758,7 +1758,7 @@ Route::get('hrd/payroll/slip-gaji/history/data', [App\Http\Controllers\HRD\PrSli
     ->name('hrd.payroll.slip_gaji.history.data');
 
 // Payroll Slip Gaji Routes
-Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Hrd|Admin|Manager|Ceo'])->group(function () {
+Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manager|Hrd|Admin|Ceo'])->group(function () {
     Route::get('/', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'index'])->name('hrd.payroll.slip_gaji.index');
     Route::get('/data', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'data'])->name('hrd.payroll.slip_gaji.data');
     Route::get('/detail/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'detail'])->name('hrd.payroll.slip_gaji.detail');
