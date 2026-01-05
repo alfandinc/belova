@@ -227,6 +227,42 @@
 </style>
 <script>
 $(document).ready(function() {
+    var checkCapacityUrl = "{{ route('hrd.libur.check_capacity') }}";
+
+    function formatDatesForMessage(dates) {
+        try {
+            return dates.map(function(d){ return moment(d).locale('id').format('D MMMM YYYY'); }).join(', ');
+        } catch (e) { return dates.join(', '); }
+    }
+
+    function checkLeaveCapacity(startDateVal, endDateVal) {
+        var dfd = $.Deferred();
+        if (!startDateVal || !endDateVal) {
+            dfd.resolve(true);
+            return dfd.promise();
+        }
+        $.ajax({
+            url: checkCapacityUrl,
+            type: 'GET',
+            dataType: 'json',
+            data: { start: startDateVal, end: endDateVal },
+            success: function(resp) {
+                if (resp && resp.capacityExceeded) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Kuota Libur Penuh',
+                        html: 'Tidak dapat memilih tanggal berikut karena sudah ada 2 pengajuan: <br><b>' + formatDatesForMessage(resp.blockedDates || []) + '</b>',
+                        confirmButtonText: 'OK'
+                    });
+                    dfd.resolve(false);
+                } else {
+                    dfd.resolve(true);
+                }
+            },
+            error: function(){ dfd.resolve(true); }
+        });
+        return dfd.promise();
+    }
     // Init Date Range Picker with default (this month to end of next month)
     var drpStart = moment("{{ isset($defaultDateStart) ? $defaultDateStart : now()->startOfMonth()->toDateString() }}");
     var drpEnd = moment("{{ isset($defaultDateEnd) ? $defaultDateEnd : now()->addMonthNoOverflow()->endOfMonth()->toDateString() }}");
@@ -390,48 +426,57 @@ $(document).ready(function() {
             }
         }
 
-        var formData = $(this).serialize();
-        
-        $.ajax({
-            url: "{{ route('hrd.libur.store') }}",
-            type: "POST",
-            data: formData,
-            beforeSend: function() {
-                $('#btnSubmitLibur').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
-            },
-            success: function(response) {
-                $('#modalCreateLibur').modal('hide');
-                $('#formCreateLibur')[0].reset();
+        var self = this;
+        var formData = $(self).serialize();
 
-                Swal.fire({
-                    title: 'Berhasil!',
-                    text: 'Pengajuan libur berhasil diajukan',
-                    icon: 'success',
-                    confirmButtonText: 'OK'
-                });
-                
-                if(typeof tableKaryawan !== 'undefined') {
-                    tableKaryawan.ajax.reload();
+        $.when(checkLeaveCapacity(startDateVal, endDateVal)).done(function(ok){
+            if (!ok) return;
+            $.ajax({
+                url: "{{ route('hrd.libur.store') }}",
+                type: "POST",
+                data: formData,
+                beforeSend: function() {
+                    $('#btnSubmitLibur').attr('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Memproses...');
+                },
+                success: function(response) {
+                    $('#modalCreateLibur').modal('hide');
+                    $('#formCreateLibur')[0].reset();
+
+                    Swal.fire({
+                        title: 'Berhasil!',
+                        text: 'Pengajuan libur berhasil diajukan',
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    });
+                    
+                    if(typeof tableKaryawan !== 'undefined') {
+                        tableKaryawan.ajax.reload();
+                    }
+                },
+                error: function(xhr) {
+                    var msg = 'Terjadi kesalahan';
+                    if (xhr && xhr.responseJSON) {
+                        if (xhr.responseJSON.message) {
+                            msg = xhr.responseJSON.message;
+                        } else if (xhr.responseJSON.errors) {
+                            var errorMessage = '';
+                            $.each(xhr.responseJSON.errors, function(key, value) {
+                                errorMessage += value[0] + '<br>';
+                            });
+                            msg = errorMessage;
+                        }
+                    }
+                    Swal.fire({
+                        title: 'Gagal!',
+                        html: msg,
+                        icon: 'error',
+                        confirmButtonText: 'OK'
+                    });
+                },
+                complete: function() {
+                    $('#btnSubmitLibur').attr('disabled', false).html('Ajukan');
                 }
-            },
-            error: function(xhr) {
-                var errors = xhr.responseJSON.errors;
-                var errorMessage = '';
-                
-                $.each(errors, function(key, value) {
-                    errorMessage += value[0] + '<br>';
-                });
-                
-                Swal.fire({
-                    title: 'Gagal!',
-                    html: errorMessage,
-                    icon: 'error',
-                    confirmButtonText: 'OK'
-                });
-            },
-            complete: function() {
-                $('#btnSubmitLibur').attr('disabled', false).html('Ajukan');
-            }
+            });
         });
     });
     
@@ -658,7 +703,16 @@ $(document).ready(function() {
             });
             $(this).val('');
         } else {
-            updateDayCount();
+            var startDateVal = $('#tanggal_mulai').val();
+            var endDateVal = $('#tanggal_selesai').val();
+            var that = this;
+            $.when(checkLeaveCapacity(startDateVal, endDateVal)).done(function(ok){
+                if (!ok) {
+                    $(that).val('');
+                } else {
+                    updateDayCount();
+                }
+            });
         }
     });
     
@@ -691,7 +745,16 @@ $(document).ready(function() {
                 });
                 $(this).val('');
             } else {
-                updateDayCount();
+                var startDateVal = $('#tanggal_mulai').val();
+                var endDateVal = $('#tanggal_selesai').val();
+                var that = this;
+                $.when(checkLeaveCapacity(startDateVal, endDateVal)).done(function(ok){
+                    if (!ok) {
+                        $(that).val('');
+                    } else {
+                        updateDayCount();
+                    }
+                });
             }
         }
     });

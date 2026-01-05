@@ -1549,6 +1549,11 @@ Route::get('/marketing/products-analytics-data', [\App\Http\Controllers\Marketin
 // AJAX route for full products list (for modal / export)
 Route::get('/marketing/products-analytics-all', [\App\Http\Controllers\Marketing\MarketingController::class, 'productsAnalyticsAllData'])->name('marketing.products.analytics.all');
 
+// HRD Libur capacity check (max 2 per day)
+Route::get('/hrd/libur/check-capacity', [\App\Http\Controllers\HRD\PengajuanLiburController::class, 'checkCapacity'])
+    ->middleware(['auth','role:Hrd|Manager|Employee|Admin|Ceo'])
+    ->name('hrd.libur.check_capacity');
+
 // AJAX route for revenue analytics charts
 Route::get('/marketing/revenue-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'getRevenueData'])->name('marketing.revenue.analytics.data');
 

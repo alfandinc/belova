@@ -16,6 +16,73 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanLiburController extends Controller
 {
+    /**
+     * Helper: get dates within range that already have >= 2 leave requests
+     * (counts any request not explicitly rejected by Manager or HRD)
+     */
+    private function getBlockedDatesByCapacity(Carbon $start, Carbon $end, $excludeId = null): array
+    {
+        $blocked = [];
+        $cursor = $start->copy()->startOfDay();
+        $end = $end->copy()->startOfDay();
+
+        while ($cursor->lte($end)) {
+            $count = PengajuanLibur::whereDate('tanggal_mulai', '<=', $cursor->toDateString())
+                ->whereDate('tanggal_selesai', '>=', $cursor->toDateString())
+                ->when($excludeId, function ($q) use ($excludeId) {
+                    $q->where('id', '!=', $excludeId);
+                })
+                // Count all except explicitly rejected by either Manager or HRD
+                ->where(function ($q) {
+                    $q->whereNull('status_manager')->orWhere('status_manager', '!=', 'ditolak');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('status_hrd')->orWhere('status_hrd', '!=', 'ditolak');
+                })
+                ->count();
+
+            if ($count >= 2) {
+                $blocked[] = $cursor->toDateString();
+            }
+            $cursor->addDay();
+        }
+
+        return $blocked;
+    }
+
+    /**
+     * AJAX: check capacity for a date range; returns blocked dates (>=2 existing)
+     */
+    public function checkCapacity(Request $request)
+    {
+        $request->validate([
+            'start' => 'required|date',
+            'end' => 'required|date',
+        ]);
+
+        try {
+            $start = Carbon::parse($request->input('start'))->startOfDay();
+            $end = Carbon::parse($request->input('end'))->startOfDay();
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid date format',
+            ], 422);
+        }
+
+        if ($end->lt($start)) {
+            [$start, $end] = [$end, $start];
+        }
+
+        $blockedDates = $this->getBlockedDatesByCapacity($start, $end);
+
+        return response()->json([
+            'success' => true,
+            'capacityExceeded' => count($blockedDates) > 0,
+            'blockedDates' => $blockedDates,
+        ]);
+    }
+
     public function index(Request $request)
 {
     $user = Auth::user();
@@ -324,6 +391,29 @@ class PengajuanLiburController extends Controller
             'tanggal_selesai' => 'required|date|after_or_equal:tanggal_mulai',
             'alasan' => 'required|string',
         ]);
+
+        // Capacity check: ensure no date in the selected range already has >= 2 requests
+        $capStart = Carbon::parse($request->tanggal_mulai)->startOfDay();
+        $capEnd = Carbon::parse($request->tanggal_selesai)->startOfDay();
+        if ($capEnd->lt($capStart)) {
+            [$capStart, $capEnd] = [$capEnd, $capStart];
+        }
+        $blockedDates = $this->getBlockedDatesByCapacity($capStart, $capEnd);
+        if (!empty($blockedDates)) {
+            $msg = 'Tidak dapat mengajukan libur. Kuota maksimal 2 orang per hari telah tercapai pada tanggal: ' . implode(', ', array_map(function ($d) {
+                return Carbon::parse($d)->translatedFormat('j F Y');
+            }, $blockedDates)) . '.';
+
+            if ($request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $msg,
+                    'blockedDates' => $blockedDates,
+                ], 422);
+            }
+
+            return redirect()->back()->with('error', $msg)->withInput();
+        }
 
         // Parse dates with Carbon to ensure consistent handling
         $tanggalMulai = Carbon::parse($request->tanggal_mulai)->startOfDay();
