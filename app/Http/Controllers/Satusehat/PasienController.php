@@ -990,6 +990,8 @@ class PasienController extends Controller
 
         // Restrict to active visitations only (status_kunjungan = 2)
         $query = $query->where('status_kunjungan', 2);
+        // Restrict to specific jenis kunjungan (jenis_kunjungan = 1)
+        $query = $query->where('jenis_kunjungan', 1);
 
         if ($start && $end) {
             try {
