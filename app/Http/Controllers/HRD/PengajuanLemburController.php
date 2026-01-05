@@ -76,10 +76,10 @@ class PengajuanLemburController extends Controller
                         $buttons = [];
                         $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
                         if ($user->hasRole('Manager')) {
-                            $buttons[] = '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
-                            $buttons[] = '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
+                            $buttons[] = '<button class="btn btn-success btn-approve-hrd-lembur" data-id="'.$row->id.'" title="Persetujuan HRD"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
@@ -131,10 +131,10 @@ class PengajuanLemburController extends Controller
                         $buttons = [];
                         $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
                         if ($user->hasRole('Manager')) {
-                            $buttons[] = '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
-                            $buttons[] = '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
+                            $buttons[] = '<button class="btn btn-success btn-approve-hrd-lembur" data-id="'.$row->id.'" title="Persetujuan HRD"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
@@ -179,10 +179,10 @@ class PengajuanLemburController extends Controller
                         $buttons = [];
                         $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
                         if ($user->hasRole('Manager')) {
-                            $buttons[] = '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            $buttons[] = '<button class="btn btn-warning btn-approve-manager-lembur" data-id="'.$row->id.'" title="Persetujuan Manager"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
-                            $buttons[] = '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
+                            $buttons[] = '<button class="btn btn-success btn-approve-hrd-lembur" data-id="'.$row->id.'" title="Persetujuan HRD"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
