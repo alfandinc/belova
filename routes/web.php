@@ -1248,6 +1248,9 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
             Route::post('/', [App\Http\Controllers\HRD\JatahLiburController::class, 'store'])->name('store');
             Route::get('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'show'])->name('show');
             Route::put('/{id}', [App\Http\Controllers\HRD\JatahLiburController::class, 'update'])->name('update');
+            // Leave capacity settings
+            Route::get('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'getLeaveCapacity'])->name('leave_capacity.get');
+            Route::post('/leave-capacity', [App\Http\Controllers\HRD\JatahLiburController::class, 'updateLeaveCapacity'])->name('leave_capacity.update');
         });
 
         // Employee Management Routes
@@ -1318,6 +1321,7 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
                 Route::get('/{id}/approval-status', [PengajuanLiburController::class, 'getApprovalStatus'])->name('approval.status');
                 Route::put('/{id}/manager', [PengajuanLiburController::class, 'persetujuanManager'])->name('manager.approve');
                 Route::put('/{id}/hrd', [PengajuanLiburController::class, 'persetujuanHRD'])->name('hrd.approve');
+            Route::get('/check-capacity', [PengajuanLiburController::class, 'checkCapacity'])->name('check_capacity');
             });
 
         // Performance Evaluation Routes
@@ -1549,10 +1553,7 @@ Route::get('/marketing/products-analytics-data', [\App\Http\Controllers\Marketin
 // AJAX route for full products list (for modal / export)
 Route::get('/marketing/products-analytics-all', [\App\Http\Controllers\Marketing\MarketingController::class, 'productsAnalyticsAllData'])->name('marketing.products.analytics.all');
 
-// HRD Libur capacity check (max 2 per day)
-Route::get('/hrd/libur/check-capacity', [\App\Http\Controllers\HRD\PengajuanLiburController::class, 'checkCapacity'])
-    ->middleware(['auth','role:Hrd|Manager|Employee|Admin|Ceo'])
-    ->name('hrd.libur.check_capacity');
+// (moved) HRD Libur capacity check route is defined under the HRD libur group below
 
 // AJAX route for revenue analytics charts
 Route::get('/marketing/revenue-analytics-data', [\App\Http\Controllers\Marketing\MarketingController::class, 'getRevenueData'])->name('marketing.revenue.analytics.data');

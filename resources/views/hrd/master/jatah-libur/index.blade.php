@@ -39,6 +39,11 @@
                     </button>
                 </div><!--end card-header-->
                 <div class="card-body">
+                    <div class="d-flex justify-content-end mb-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLeaveCapacity">
+                            <i class="fa fa-cog"></i> Pengaturan Kuota Libur Harian
+                        </button>
+                    </div>
                     <div class="table-responsive">
                         <table id="jatahLiburTable" class="table table-striped table-bordered">
                             <thead>
@@ -107,6 +112,34 @@
         </div>
     </div>
 </div>
+
+<!-- Leave Capacity Modal -->
+<div class="modal fade" id="leaveCapacityModal" tabindex="-1" role="dialog" aria-labelledby="leaveCapacityModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="leaveCapacityModalLabel">Pengaturan Kuota Libur Harian</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="leaveCapacityForm">
+                @csrf
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="leave_capacity">Maksimum Karyawan Libur per Hari</label>
+                        <input type="number" class="form-control" id="leave_capacity" name="capacity" min="1" value="2" required>
+                        <small class="form-text text-muted">Jika mencapai angka ini pada suatu tanggal, karyawan lain tidak dapat memilih tanggal tersebut.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                    <button type="submit" class="btn btn-primary" id="saveLeaveCapacity">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    </div>
 @endsection
 
 @section('scripts')
@@ -126,6 +159,57 @@
                 {data: 'jatah_ganti_libur', name: 'jatah_ganti_libur'},
                 {data: 'action', name: 'action', orderable: false, searchable: false}
             ]
+        });
+
+        // Open Leave Capacity modal
+        $('#btnLeaveCapacity').on('click', function(){
+            $('#leaveCapacityForm')[0].reset();
+            $('#saveLeaveCapacity').prop('disabled', false).text('Simpan');
+            $.ajax({
+                url: "{{ route('hrd.master.jatah-libur.leave_capacity.get') }}",
+                method: 'GET',
+                success: function(res){
+                    if (res && res.success) {
+                        $('#leave_capacity').val(res.capacity || 2);
+                    }
+                    $('#leaveCapacityModal').modal('show');
+                },
+                error: function(){
+                    $('#leave_capacity').val(2);
+                    $('#leaveCapacityModal').modal('show');
+                }
+            });
+        });
+
+        // Save Leave Capacity
+        $('#leaveCapacityForm').on('submit', function(e){
+            e.preventDefault();
+            var formData = $(this).serialize();
+            $.ajax({
+                url: "{{ route('hrd.master.jatah-libur.leave_capacity.update') }}",
+                method: 'POST',
+                data: formData,
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                beforeSend: function(){
+                    $('#saveLeaveCapacity').prop('disabled', true).text('Menyimpan...');
+                },
+                success: function(res){
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Tersimpan',
+                        text: res.message || 'Kuota libur telah diperbarui'
+                    });
+                    $('#leaveCapacityModal').modal('hide');
+                },
+                error: function(xhr){
+                    var msg = 'Gagal menyimpan kuota';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    Swal.fire({ icon: 'error', title: 'Error', text: msg });
+                },
+                complete: function(){
+                    $('#saveLeaveCapacity').prop('disabled', false).text('Simpan');
+                }
+            });
         });
 
         // Initialize select2 for employee dropdown

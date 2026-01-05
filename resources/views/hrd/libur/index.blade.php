@@ -251,7 +251,7 @@ $(document).ready(function() {
                     Swal.fire({
                         icon: 'warning',
                         title: 'Kuota Libur Penuh',
-                        html: 'Tidak dapat memilih tanggal berikut karena sudah ada 2 pengajuan: <br><b>' + formatDatesForMessage(resp.blockedDates || []) + '</b>',
+                        html: 'Kuota maksimal <b>' + (resp.capacity || 2) + '</b> orang per hari. Tidak dapat memilih tanggal: <br><b>' + formatDatesForMessage(resp.blockedDates || []) + '</b>',
                         confirmButtonText: 'OK'
                     });
                     dfd.resolve(false);

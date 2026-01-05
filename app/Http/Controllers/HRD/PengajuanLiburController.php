@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
+use App\Helpers\HrdConfig;
 
 class PengajuanLiburController extends Controller
 {
@@ -25,6 +26,7 @@ class PengajuanLiburController extends Controller
         $blocked = [];
         $cursor = $start->copy()->startOfDay();
         $end = $end->copy()->startOfDay();
+        $capacity = HrdConfig::getLeaveDailyCapacity();
 
         while ($cursor->lte($end)) {
             $count = PengajuanLibur::whereDate('tanggal_mulai', '<=', $cursor->toDateString())
@@ -41,7 +43,7 @@ class PengajuanLiburController extends Controller
                 })
                 ->count();
 
-            if ($count >= 2) {
+            if ($count >= $capacity) {
                 $blocked[] = $cursor->toDateString();
             }
             $cursor->addDay();
@@ -79,6 +81,7 @@ class PengajuanLiburController extends Controller
         return response()->json([
             'success' => true,
             'capacityExceeded' => count($blockedDates) > 0,
+            'capacity' => HrdConfig::getLeaveDailyCapacity(),
             'blockedDates' => $blockedDates,
         ]);
     }
@@ -400,7 +403,8 @@ class PengajuanLiburController extends Controller
         }
         $blockedDates = $this->getBlockedDatesByCapacity($capStart, $capEnd);
         if (!empty($blockedDates)) {
-            $msg = 'Tidak dapat mengajukan libur. Kuota maksimal 2 orang per hari telah tercapai pada tanggal: ' . implode(', ', array_map(function ($d) {
+            $cap = HrdConfig::getLeaveDailyCapacity();
+            $msg = 'Tidak dapat mengajukan libur. Kuota maksimal ' . $cap . ' orang per hari telah tercapai pada tanggal: ' . implode(', ', array_map(function ($d) {
                 return Carbon::parse($d)->translatedFormat('j F Y');
             }, $blockedDates)) . '.';
 

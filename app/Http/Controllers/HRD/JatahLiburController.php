@@ -9,12 +9,34 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
+use App\Helpers\HrdConfig;
 
 class JatahLiburController extends Controller
 {
     public function index()
     {
         return view('hrd.master.jatah-libur.index');
+    }
+
+    public function getLeaveCapacity()
+    {
+        return response()->json([
+            'success' => true,
+            'capacity' => HrdConfig::getLeaveDailyCapacity(),
+        ]);
+    }
+
+    public function updateLeaveCapacity(Request $request)
+    {
+        $request->validate([
+            'capacity' => 'required|integer|min:1|max:100',
+        ]);
+        HrdConfig::setLeaveDailyCapacity((int)$request->input('capacity'));
+        return response()->json([
+            'success' => true,
+            'message' => 'Kuota libur harian berhasil diperbarui',
+            'capacity' => HrdConfig::getLeaveDailyCapacity(),
+        ]);
     }
 
     public function getData()
