@@ -21,6 +21,25 @@ class PengajuanLiburController extends Controller
     $user = Auth::user();
     $viewType = $request->input('view', 'personal'); // Default to personal view
 
+    // Date filter: default to this month until end of next month
+    $defaultStart = Carbon::now()->startOfMonth();
+    $defaultEnd = Carbon::now()->copy()->addMonthNoOverflow()->endOfMonth();
+
+    $dateStart = $request->input('date_start');
+    $dateEnd = $request->input('date_end');
+
+    try {
+        $filterStart = $dateStart ? Carbon::parse($dateStart)->startOfDay() : $defaultStart->copy()->startOfDay();
+    } catch (\Exception $e) {
+        $filterStart = $defaultStart->copy()->startOfDay();
+    }
+
+    try {
+        $filterEnd = $dateEnd ? Carbon::parse($dateEnd)->endOfDay() : $defaultEnd->copy()->endOfDay();
+    } catch (\Exception $e) {
+        $filterEnd = $defaultEnd->copy()->endOfDay();
+    }
+
     // dd($user->getRoleNames()); // Debugging line to check user roles
     // For debugging role issues
     if ($request->ajax() && $request->has('debug_role')) {
@@ -36,6 +55,11 @@ class PengajuanLiburController extends Controller
         // For employee view - show their own requests
         if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Employee')) {
             $data = PengajuanLibur::where('employee_id', $user->employee->id)
+                ->where(function($q) use ($filterStart, $filterEnd) {
+                    // Overlap filter: start <= filterEnd AND end >= filterStart
+                    $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                      ->whereDate('tanggal_selesai', '>=', $filterStart);
+                })
                 ->latest()
                 ->get();
             
@@ -84,6 +108,10 @@ class PengajuanLiburController extends Controller
                     $teamEmployeeIds = $division->employees->pluck('id')->toArray();
                     // Show all requests from team, not just 'menunggu'
                     $data = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
+                        ->where(function($q) use ($filterStart, $filterEnd) {
+                            $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                              ->whereDate('tanggal_selesai', '>=', $filterStart);
+                        })
                         ->with('employee')
                         ->latest()
                         ->get();
@@ -128,6 +156,10 @@ class PengajuanLiburController extends Controller
         // For manager personal view - show their own requests
         else if ($viewType == 'personal' && $user->hasRole('Manager')) {
             $data = PengajuanLibur::where('employee_id', $user->employee->id)
+                ->where(function($q) use ($filterStart, $filterEnd) {
+                    $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                      ->whereDate('tanggal_selesai', '>=', $filterStart);
+                })
                 ->latest()
                 ->get();
             
@@ -171,6 +203,10 @@ class PengajuanLiburController extends Controller
         else if (($viewType == 'approval' || empty($viewType)) && $user->hasRole('Hrd')) {
             // Show all requests with status_manager = 'disetujui', regardless of status_hrd
             $data = PengajuanLibur::where('status_manager', 'disetujui')
+                ->where(function($q) use ($filterStart, $filterEnd) {
+                    $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                      ->whereDate('tanggal_selesai', '>=', $filterStart);
+                })
                 ->with('employee')
                 ->latest()
                 ->get();
@@ -251,21 +287,27 @@ class PengajuanLiburController extends Controller
         return view('hrd.libur.index', [
             'viewType' => 'team',
             'pengajuanLibur' => $pengajuanLibur,
-            'jatahLibur' => $jatahLibur
+            'jatahLibur' => $jatahLibur,
+            'defaultDateStart' => $filterStart->toDateString(),
+            'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
     } 
     elseif ($user->hasRole('Hrd') && $viewType == 'approval') {
         return view('hrd.libur.index', [
             'viewType' => 'approval',
             'pengajuanLibur' => $pengajuanLibur,
-            'jatahLibur' => $jatahLibur
+            'jatahLibur' => $jatahLibur,
+            'defaultDateStart' => $filterStart->toDateString(),
+            'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
     } 
     else {
         return view('hrd.libur.index', [
             'viewType' => 'personal',
             'pengajuanLibur' => $pengajuanLibur,
-            'jatahLibur' => $jatahLibur
+            'jatahLibur' => $jatahLibur,
+            'defaultDateStart' => $filterStart->toDateString(),
+            'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
     }
 }

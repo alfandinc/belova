@@ -15,6 +15,7 @@
                                 <h4 class="page-title">Pengajuan Cuti/Libur</h4>
                             </div>
                             <div class="col-auto align-self-center">
+                                    <input type="text" id="dateRange" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
                                 <a href="#" class="btn btn-sm btn-primary" id="btnCreateLibur">
                                     <i class="fas fa-plus-circle mr-2"></i>Buat Pengajuan Baru
                                 </a>
@@ -213,6 +214,10 @@
 @endsection
 
 @section('scripts')
+<!-- daterangepicker (CDN) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <style>
 /* Hide the "Anda akan mengajukan libur" messages outside of modal */
 .container-fluid .alert-info p.mb-0 + .hari-info,
@@ -222,6 +227,40 @@
 </style>
 <script>
 $(document).ready(function() {
+    // Init Date Range Picker with default (this month to end of next month)
+    var drpStart = moment("{{ isset($defaultDateStart) ? $defaultDateStart : now()->startOfMonth()->toDateString() }}");
+    var drpEnd = moment("{{ isset($defaultDateEnd) ? $defaultDateEnd : now()->addMonthNoOverflow()->endOfMonth()->toDateString() }}");
+
+    $('#dateRange').daterangepicker({
+        startDate: drpStart,
+        endDate: drpEnd,
+        autoApply: true,
+        locale: {
+            format: 'DD/MM/YYYY',
+            separator: ' - '
+        },
+        ranges: {
+            'Bulan Ini': [moment().startOf('month'), moment().endOf('month')],
+            's.d Bulan Depan': [moment().startOf('month'), moment().add(1,'month').endOf('month')],
+            '7 Hari Terakhir': [moment().subtract(6, 'days'), moment()],
+            '30 Hari Terakhir': [moment().subtract(29, 'days'), moment()],
+            'Bulan Depan': [moment().add(1,'month').startOf('month'), moment().add(1,'month').endOf('month')]
+        }
+    }, function(start, end) {
+        drpStart = start;
+        drpEnd = end;
+        // Reload all tables that exist
+        if (typeof tableKaryawan !== 'undefined' && $.fn.dataTable.isDataTable('#tableLiburKaryawan')) {
+            tableKaryawan.ajax.reload();
+        }
+        if (typeof tableManager !== 'undefined' && $.fn.dataTable.isDataTable('#tableLiburManager')) {
+            tableManager.ajax.reload();
+        }
+        if (typeof tableHRD !== 'undefined' && $.fn.dataTable.isDataTable('#tableLiburHRD')) {
+            tableHRD.ajax.reload();
+        }
+    });
+
     // Remove any "Anda akan mengajukan libur" text from the main page alerts
     $('.page-content .alert-info').each(function() {
         $(this).find('div, p').each(function() {
@@ -237,7 +276,13 @@ $(document).ready(function() {
     var tableKaryawan = $('#tableLiburKaryawan').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.libur.index') }}?view=personal",
+        ajax: {
+            url: "{{ route('hrd.libur.index') }}?view=personal",
+            data: function(d) {
+                d.date_start = drpStart.format('YYYY-MM-DD');
+                d.date_end = drpEnd.format('YYYY-MM-DD');
+            }
+        },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'jenis_libur', name: 'jenis_libur'},
@@ -254,7 +299,13 @@ $(document).ready(function() {
     var tableManager = $('#tableLiburManager').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.libur.index') }}?view=team",
+        ajax: {
+            url: "{{ route('hrd.libur.index') }}?view=team",
+            data: function(d) {
+                d.date_start = drpStart.format('YYYY-MM-DD');
+                d.date_end = drpEnd.format('YYYY-MM-DD');
+            }
+        },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
@@ -271,7 +322,13 @@ $(document).ready(function() {
     var tableHRD = $('#tableLiburHRD').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.libur.index') }}?view=approval",
+        ajax: {
+            url: "{{ route('hrd.libur.index') }}?view=approval",
+            data: function(d) {
+                d.date_start = drpStart.format('YYYY-MM-DD');
+                d.date_end = drpEnd.format('YYYY-MM-DD');
+            }
+        },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
