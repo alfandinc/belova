@@ -73,14 +73,15 @@ class PengajuanLemburController extends Controller
                         return $row->status_hrd ?? '-';
                     })
                     ->addColumn('action', function($row) use ($user) {
-                        $btn = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button> ';
+                        $buttons = [];
+                        $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
                         if ($user->hasRole('Manager')) {
-                            $btn .= '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            $buttons[] = '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
-                            $btn .= '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
+                            $buttons[] = '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
-                        return $btn;
+                        return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
                     ->rawColumns(['action'])
                     ->make(true);
@@ -127,14 +128,15 @@ class PengajuanLemburController extends Controller
                         return $row->status_hrd ?? '-';
                     })
                     ->addColumn('action', function($row) use ($user) {
-                        $btn = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button> ';
+                        $buttons = [];
+                        $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
                         if ($user->hasRole('Manager')) {
-                            $btn .= '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            $buttons[] = '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
-                            $btn .= '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
+                            $buttons[] = '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
-                        return $btn;
+                        return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
                     ->rawColumns(['action'])
                     ->make(true);
@@ -174,14 +176,15 @@ class PengajuanLemburController extends Controller
                         return $row->status_hrd ?? '-';
                     })
                     ->addColumn('action', function($row) use ($user) {
-                        $btn = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button> ';
+                        $buttons = [];
+                        $buttons[] = '<button class="btn btn-info btn-detail-lembur" data-id="'.$row->id.'">Detail</button>';
                         if ($user->hasRole('Manager')) {
-                            $btn .= '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                            $buttons[] = '<button class="btn btn-primary btn-approve-manager-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
                         }
                         if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
-                            $btn .= '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
+                            $buttons[] = '<button class="btn btn-primary btn-approve-hrd-lembur" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval HRD</button>';
                         }
-                        return $btn;
+                        return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
                     ->rawColumns(['action'])
                     ->make(true);
