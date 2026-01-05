@@ -413,11 +413,11 @@ class StokGudangController extends Controller {
      */
     public function exportToExcel(Request $request)
     {
-        $type = $request->input('type', '1'); // 1 = live, 2 = stok opname, 3 = as-of specific date
+        $type = $request->input('type', '1'); // 1 = live, 2 = stok opname, 3 = tanggal tertentu
         $gudangId = $request->input('gudang_id');
         $dateStart = $request->input('date_start');
         $dateEnd = $request->input('date_end');
-        $specificDate = $request->input('specific_date');
+        $pivotDate = $request->input('pivot_date'); // for type 3
 
         // Normalize date range; default for live is today
         try {
@@ -497,16 +497,16 @@ class StokGudangController extends Controller {
                 ];
             }
 
-        } elseif ($type == '3') {
-            // As-of specific date: reconstruct historical stock by reversing movements after that date from the current live stok
-            // Validate and normalize specific date
+        } else if ($type == '3') {
+            // Data per tanggal tertentu: compute stok as of pivot date by reversing movements after that date
+            // Determine pivot date; default to today if not provided
             try {
-                $asOf = $specificDate ? Carbon::parse($specificDate)->endOfDay() : Carbon::today()->endOfDay();
+                $pivot = $pivotDate ? Carbon::parse($pivotDate)->endOfDay() : Carbon::today()->endOfDay();
             } catch (\Exception $e) {
-                $asOf = Carbon::today()->endOfDay();
+                $pivot = Carbon::today()->endOfDay();
             }
 
-            // Current totals per obat (optionally filtered by gudang)
+            // Current live totals per obat (and optionally per gudang)
             $query = ObatStokGudang::select('obat_id', DB::raw('SUM(stok) as total_stok'))
                 ->groupBy('obat_id');
             if ($gudangId) $query->where('gudang_id', $gudangId);
@@ -515,31 +515,31 @@ class StokGudangController extends Controller {
             foreach ($rows as $row) {
                 $obat = Obat::withInactive()->find($row->obat_id);
                 $nama = $obat ? $obat->nama : ('[ID '.$row->obat_id.']');
-                $currentStok = (float) $row->total_stok;
+                $liveStok = (float) $row->total_stok;
                 $hpp = $obat ? ($obat->hpp ?? 0) : 0;
 
-                // Movements AFTER the chosen date until now
+                // Sum kartu stok AFTER the pivot date to reverse them
                 $masukAfter = KartuStok::where('obat_id', $row->obat_id)
                     ->when($gudangId, function($q) use ($gudangId){ return $q->where('gudang_id', $gudangId); })
+                    ->where('tanggal', '>', $pivot)
                     ->where('tipe', 'masuk')
-                    ->where('tanggal', '>', $asOf)
                     ->sum('qty');
 
                 $keluarAfter = KartuStok::where('obat_id', $row->obat_id)
                     ->when($gudangId, function($q) use ($gudangId){ return $q->where('gudang_id', $gudangId); })
+                    ->where('tanggal', '>', $pivot)
                     ->where('tipe', 'keluar')
-                    ->where('tanggal', '>', $asOf)
                     ->sum('qty');
 
-                // Reconstruct stock on the chosen date: current - masukAfter + keluarAfter
-                $stokAsOf = round($currentStok - (float)$masukAfter + (float)$keluarAfter, 4);
+                // Reconstruct stok at pivot date: live - masukAfter + keluarAfter
+                $stokAtPivot = $liveStok - (float)$masukAfter + (float)$keluarAfter;
 
                 $namaGudang = $gudangId ? (Gudang::find($gudangId)->nama ?? '-') : '-';
-                $nilaiStok = round($stokAsOf * $hpp, 4);
+                $nilaiStok = round($stokAtPivot * $hpp, 4);
 
                 $exportRows[] = [
                     $nama,
-                    $stokAsOf,
+                    (float) $stokAtPivot,
                     $hpp,
                     $nilaiStok,
                     (float) $masukAfter,
@@ -594,7 +594,7 @@ class StokGudangController extends Controller {
 
         // Build descriptive filename: gudang, type, date
         $gudangName = $gudangId ? (Gudang::find($gudangId)->nama ?? 'all_gudang') : 'all_gudang';
-        $typeLabel = ($type == '2') ? 'stok-opname' : (($type == '3') ? 'asof' : 'live');
+        $typeLabel = ($type == '2') ? 'stok-opname' : (($type == '3') ? 'tanggal-tertentu' : 'live');
         $stokOpnameId = $request->input('stok_opname_id');
 
         if ($type == '2' && $stokOpnameId) {
@@ -604,13 +604,16 @@ class StokGudangController extends Controller {
             } else {
                 $dateLabel = $start->format('Ymd') . '-' . $end->format('Ymd');
             }
-        } else {
-            // Use provided date range or today's date for live/as-of
-            if ($type == '3' && isset($asOf)) {
-                $dateLabel = $asOf->format('Ymd');
-            } else {
-                $dateLabel = ($dateStart || $dateEnd) ? ($start->format('Ymd') . '-' . $end->format('Ymd')) : Carbon::now()->format('Ymd');
+        } else if ($type == '3') {
+            // Filename uses pivot date
+            try {
+                $dateLabel = ($pivotDate ? Carbon::parse($pivotDate)->format('Ymd') : Carbon::today()->format('Ymd'));
+            } catch (\Exception $e) {
+                $dateLabel = Carbon::today()->format('Ymd');
             }
+        } else {
+            // Use provided date range or today's date for live
+            $dateLabel = ($dateStart || $dateEnd) ? ($start->format('Ymd') . '-' . $end->format('Ymd')) : Carbon::now()->format('Ymd');
         }
 
         // Sanitize gudang name for filename

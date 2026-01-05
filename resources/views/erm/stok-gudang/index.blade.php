@@ -184,13 +184,6 @@
                                             </div>
                                         </div>
 
-                                        <!-- Specific Date (for type 3) -->
-                                        <div class="form-group specific-date-group" style="display:none;">
-                                            <label>Pilih Tanggal</label>
-                                            <input type="date" class="form-control" id="download_specific_date" name="specific_date" />
-                                            <small class="form-text text-muted">Mengunduh stok per tanggal tertentu (rekonstruksi dari kartu stok).</small>
-                                        </div>
-
                                         <div class="form-group opname-group" style="display:none;">
                                             <label>Pilih Stok Opname</label>
                                             <select class="form-control" id="download_opname" name="stok_opname_id">
@@ -202,8 +195,14 @@
                                             </select>
                                             <small class="form-text text-muted">Pilih stok opname untuk mendownload stok fisik yang tercatat pada opname tersebut.</small>
                                         </div>
+                                        <!-- Specific date group: used when type == 3 -->
+                                        <div class="form-group specific-date-group" style="display:none;">
+                                            <label>Tanggal Acuan</label>
+                                            <input type="date" class="form-control" id="download_pivot_date" name="pivot_date" />
+                                            <small class="form-text text-muted">Hitung stok per tanggal ini: menggunakan stok live saat ini lalu dikoreksi dengan kartu stok (masuk/keluar) setelah tanggal acuan.</small>
+                                        </div>
                                     </form>
-                                    <div class="text-muted small">Tipe <strong>Stok Opname</strong> akan men-download stok fisik yang tercatat pada stok opname dalam rentang tanggal yang dipilih. <strong>Live Data</strong> menggunakan stok saat ini (default hari ini). <strong>Data Tanggal Tertentu</strong> menghitung stok pada tanggal yang dipilih dengan cara mengambil Live Stok saat ini lalu menyesuaikannya dengan pergerakan setelah tanggal tersebut (stok masuk dikurangi, stok keluar ditambah).</div>
+                                    <div class="text-muted small">Tipe <strong>Stok Opname</strong> akan men-download stok fisik yang tercatat pada stok opname dalam rentang tanggal yang dipilih. <strong>Live Data</strong> menggunakan stok saat ini (default hari ini). <strong>Data Tanggal Tertentu</strong> menghitung stok pada tanggal acuan dengan menyesuaikan transaksi setelah tanggal tersebut.</div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-primary" id="confirm-download-stok"><i class="fas fa-download"></i> Unduh</button>
@@ -807,20 +806,18 @@ $(document).ready(function() {
     });
     function toggleDownloadFields() {
         var type = $('#download_type').val();
-        // Hide all optional groups first
-        $('.date-range').hide();
-        $('.opname-group').hide();
-        $('.specific-date-group').hide();
-
-        if (type == '1') {
-            // Live data: allow optional date range (defaults to today)
-            $('.date-range').show();
-        } else if (type == '2') {
-            // Stok opname selection
+        if (type == '2') {
+            $('.date-range').hide();
             $('.opname-group').show();
+            $('.specific-date-group').hide();
         } else if (type == '3') {
-            // Specific date reconstruction
+            $('.date-range').hide();
+            $('.opname-group').hide();
             $('.specific-date-group').show();
+        } else {
+            $('.date-range').show();
+            $('.opname-group').hide();
+            $('.specific-date-group').hide();
         }
     }
 
@@ -853,14 +850,14 @@ $(document).ready(function() {
         if (type == '2') {
             var opnameId = $('#download_opname').val();
             if (opnameId) params.push('stok_opname_id=' + encodeURIComponent(opnameId));
-        } else if (type == '1') {
+        } else if (type == '3') {
+            var pivotDate = $('#download_pivot_date').val();
+            if (pivotDate) params.push('pivot_date=' + encodeURIComponent(pivotDate));
+        } else {
             var dateStart = $('#download_date_start').val();
             var dateEnd = $('#download_date_end').val();
             if (dateStart) params.push('date_start=' + encodeURIComponent(dateStart));
             if (dateEnd) params.push('date_end=' + encodeURIComponent(dateEnd));
-        } else if (type == '3') {
-            var specificDate = $('#download_specific_date').val();
-            if (specificDate) params.push('specific_date=' + encodeURIComponent(specificDate));
         }
 
         var url = '{{ route("erm.stok-gudang.export") }}';

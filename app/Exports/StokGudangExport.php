@@ -4,8 +4,10 @@ namespace App\Exports;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithColumnFormatting;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-class StokGudangExport implements FromArray, WithHeadings, ShouldAutoSize
+class StokGudangExport implements FromArray, WithHeadings, ShouldAutoSize, WithColumnFormatting
 {
     protected $rows;
 
@@ -29,6 +31,18 @@ class StokGudangExport implements FromArray, WithHeadings, ShouldAutoSize
             'Total Masuk',
             'Total Keluar',
             'Gudang'
+        ];
+    }
+
+    public function columnFormats(): array
+    {
+        return [
+            // Ensure decimals are preserved in Excel output
+            'B' => '0.0000',          // Total Stok
+            'C' => '0.0000',          // HPP
+            'D' => '#,##0.0000',      // Nilai Stok
+            'E' => '0.0000',          // Total Masuk
+            'F' => '0.0000',          // Total Keluar
         ];
     }
 }
