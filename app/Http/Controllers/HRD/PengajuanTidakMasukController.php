@@ -51,11 +51,10 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('jenis', function($row) {
                         return ucfirst($row->jenis);
                     })
-                    ->addColumn('tanggal_mulai', function($row) {
-                        return $row->tanggal_mulai->format('d/m/Y');
-                    })
-                    ->addColumn('tanggal_selesai', function($row) {
-                        return $row->tanggal_selesai->format('d/m/Y');
+                    ->addColumn('tanggal_range', function($row) {
+                        $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                        $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                        return $mulai.' - '.$selesai;
                     })
                     ->addColumn('status_manager', function($row) {
                         return $row->status_manager ?? '-';
@@ -64,8 +63,10 @@ class PengajuanTidakMasukController extends Controller
                         return $row->status_hrd ?? '-';
                     })
                     ->addColumn('action', function($row) {
-                        $btn = '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
-                        return $btn;
+                        $btns = '<div class="btn-group btn-group-sm" role="group">';
+                        $btns .= '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
+                        $btns .= '</div>';
+                        return $btns;
                     })
                     ->rawColumns(['action'])
                     ->make(true);
@@ -90,11 +91,10 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('jenis', function($row) {
                         return ucfirst($row->jenis);
                     })
-                    ->addColumn('tanggal_mulai', function($row) {
-                        return $row->tanggal_mulai->format('d/m/Y');
-                    })
-                    ->addColumn('tanggal_selesai', function($row) {
-                        return $row->tanggal_selesai->format('d/m/Y');
+                    ->addColumn('tanggal_range', function($row) {
+                        $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                        $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                        return $mulai.' - '.$selesai;
                     })
                     ->addColumn('status_manager', function($row) {
                         return $row->status_manager ?? '-';
@@ -103,9 +103,11 @@ class PengajuanTidakMasukController extends Controller
                         return $row->status_hrd ?? '-';
                     })
                     ->addColumn('action', function($row) {
-                        $btn = '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button> ';
-                        $btn .= '<button class="btn btn-primary btn-approve-manager" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
-                        return $btn;
+                        $btns = '<div class="btn-group btn-group-sm" role="group">';
+                        $btns .= '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
+                        $btns .= '<button class="btn btn-warning btn-approve-manager" title="Approval Manager" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                        $btns .= '</div>';
+                        return $btns;
                     })
                     ->rawColumns(['action'])
                     ->make(true);
@@ -127,11 +129,10 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('jenis', function($row) {
                         return ucfirst($row->jenis);
                     })
-                    ->addColumn('tanggal_mulai', function($row) {
-                        return $row->tanggal_mulai->format('d/m/Y');
-                    })
-                    ->addColumn('tanggal_selesai', function($row) {
-                        return $row->tanggal_selesai->format('d/m/Y');
+                    ->addColumn('tanggal_range', function($row) {
+                        $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                        $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                        return $mulai.' - '.$selesai;
                     })
                     ->addColumn('status_manager', function($row) {
                         return $row->status_manager ?? '-';
@@ -140,9 +141,11 @@ class PengajuanTidakMasukController extends Controller
                         return $row->status_hrd ?? '-';
                     })
                     ->addColumn('action', function($row) {
-                        $btn = '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button> ';
-                        $btn .= '<button class="btn btn-primary btn-approve-hrd" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
-                        return $btn;
+                        $btns = '<div class="btn-group btn-group-sm" role="group">';
+                        $btns .= '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
+                        $btns .= '<button class="btn btn-success btn-approve-hrd" title="Approval HRD" data-id="'.$row->id.'"><i class="fas fa-check-circle"></i> Approval</button>';
+                        $btns .= '</div>';
+                        return $btns;
                     })
                     ->rawColumns(['action'])
                     ->make(true);
@@ -161,11 +164,10 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('jenis', function($row) {
                         return ucfirst($row->jenis);
                     })
-                    ->addColumn('tanggal_mulai', function($row) {
-                        return $row->tanggal_mulai->format('d/m/Y');
-                    })
-                    ->addColumn('tanggal_selesai', function($row) {
-                        return $row->tanggal_selesai->format('d/m/Y');
+                    ->addColumn('tanggal_range', function($row) {
+                        $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                        $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                        return $mulai.' - '.$selesai;
                     })
                     ->addColumn('status_manager', function($row) {
                         return $row->status_manager ?? '-';

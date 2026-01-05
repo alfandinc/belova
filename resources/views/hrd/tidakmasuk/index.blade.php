@@ -32,8 +32,7 @@
                             <tr>
                                 <th>No</th>
                                 <th>Jenis</th>
-                                <th>Tanggal Mulai</th>
-                                <th>Tanggal Selesai</th>
+                                <th>Tanggal</th>
                                 <th>Total Hari</th>
                                 <th>Status Manager</th>
                                 <th>Status HRD</th>
@@ -49,8 +48,7 @@
                                 <th>No</th>
                                 <th>Nama Pegawai</th>
                                 <th>Jenis</th>
-                                <th>Tanggal Mulai</th>
-                                <th>Tanggal Selesai</th>
+                                <th>Tanggal</th>
                                 <th>Total Hari</th>
                                 <th>Status Manager</th>
                                 <th>Status HRD</th>
@@ -66,8 +64,7 @@
                                 <th>No</th>
                                 <th>Nama Pegawai</th>
                                 <th>Jenis</th>
-                                <th>Tanggal Mulai</th>
-                                <th>Tanggal Selesai</th>
+                                <th>Tanggal</th>
                                 <th>Total Hari</th>
                                 <th>Status Manager</th>
                                 <th>Status HRD</th>
@@ -278,8 +275,7 @@ $(document).ready(function() {
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'jenis', name: 'jenis'},
-            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
-            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
             {data: 'total_hari', name: 'total_hari'},
             {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
             {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
@@ -303,8 +299,7 @@ $(document).ready(function() {
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee_nama', name: 'employee_nama'},
             {data: 'jenis', name: 'jenis'},
-            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
-            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
             {data: 'total_hari', name: 'total_hari'},
             {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
             {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
@@ -328,8 +323,7 @@ $(document).ready(function() {
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee_nama', name: 'employee_nama'},
             {data: 'jenis', name: 'jenis'},
-            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
-            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
             {data: 'total_hari', name: 'total_hari'},
             {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
             {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
