@@ -8,8 +8,20 @@
 @section('content')
 <div class="container-fluid px-2">
             <div class="row">
-                <div class="col-12 mb-3">
-                    <button class="btn btn-primary" id="btnCreateLembur">Ajukan Lembur</button>
+                <div class="col-sm-12">
+                    <div class="page-title-box">
+                        <div class="row">
+                            <div class="col">
+                                <h4 class="page-title">Pengajuan Lembur</h4>
+                            </div>
+                            <div class="col-auto align-self-center">
+                                <input type="text" id="dateRangeLembur" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
+                                <a href="#" class="btn btn-sm btn-primary" id="btnCreateLembur">
+                                    <i class="fas fa-plus-circle mr-2"></i>Ajukan Lembur
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="col-12">
                     <table class="table table-bordered" id="tableLembur">
@@ -20,8 +32,7 @@
                                 <th>Nama Pegawai</th>
                                 @endif
                                 <th>Tanggal</th>
-                                <th>Jam Mulai</th>
-                                <th>Jam Selesai</th>
+                                <th>Waktu</th>
                                 <th>Total Jam</th>
                                 <th>Status Manager</th>
                                 <th>Status HRD</th>
@@ -159,6 +170,10 @@
 
 @section('scripts')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+<!-- daterangepicker (CDN) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <script>
 $.ajaxSetup({
     headers: {
@@ -166,18 +181,47 @@ $.ajaxSetup({
     }
 });
 $(document).ready(function() {
+    // Init Date Range Picker with default (this month to end of next month)
+    var drpStartLB = moment("{{ isset($defaultDateStart) ? $defaultDateStart : now()->startOfMonth()->toDateString() }}");
+    var drpEndLB = moment("{{ isset($defaultDateEnd) ? $defaultDateEnd : now()->addMonthNoOverflow()->endOfMonth()->toDateString() }}");
+
+    $('#dateRangeLembur').daterangepicker({
+        startDate: drpStartLB,
+        endDate: drpEndLB,
+        autoApply: true,
+        locale: { format: 'DD/MM/YYYY', separator: ' - ' },
+        ranges: {
+            'Bulan Ini': [moment().startOf('month'), moment().endOf('month')],
+            's.d Bulan Depan': [moment().startOf('month'), moment().add(1,'month').endOf('month')],
+            '7 Hari Terakhir': [moment().subtract(6, 'days'), moment()],
+            '30 Hari Terakhir': [moment().subtract(29, 'days'), moment()],
+            'Bulan Depan': [moment().add(1,'month').startOf('month'), moment().add(1,'month').endOf('month')]
+        }
+    }, function(start, end) {
+        drpStartLB = start;
+        drpEndLB = end;
+        if ($.fn.dataTable.isDataTable('#tableLembur')) {
+            tableLembur.ajax.reload();
+        }
+    });
+
     var tableLembur = $('#tableLembur').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.lembur.index') }}",
+        ajax: {
+            url: "{{ route('hrd.lembur.index') }}",
+            data: function(d){
+                d.date_start = drpStartLB.format('YYYY-MM-DD');
+                d.date_end = drpEndLB.format('YYYY-MM-DD');
+            }
+        },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             @if(\App\Models\User::find(Auth::id())->hasRole('Manager') || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
             {data: 'employee_nama', name: 'employee_nama'},
             @endif
             {data: 'tanggal', name: 'tanggal'},
-            {data: 'jam_mulai', name: 'jam_mulai'},
-            {data: 'jam_selesai', name: 'jam_selesai'},
+            {data: 'jam_range', name: 'jam_range', orderable: false, searchable: false},
             {data: 'total_jam', name: 'total_jam'},
             {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
             {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
@@ -200,10 +244,16 @@ $(document).ready(function() {
     $('#btnCreateLembur').click(function() {
         $('#formCreateLembur')[0].reset();
         $('#modalCreateLembur').modal('show');
+        // Enforce current-time minimums if date is today
+        enforceTodayTimeMin();
     });
 
     $('#formCreateLembur').submit(function(e) {
         e.preventDefault();
+        // Final guard: if date is today, ensure times >= now and selesai >= mulai
+        if (!validateTimesBeforeSubmit()) {
+            return;
+        }
         var formData = $(this).serialize();
         $.ajax({
             url: "{{ route('hrd.lembur.store') }}",
@@ -318,6 +368,98 @@ $(document).ready(function() {
             }
         });
     });
+    // ===================== Time validation (today) =====================
+    function getNowHM() {
+        var now = new Date();
+        var h = now.getHours().toString().padStart(2, '0');
+        var m = now.getMinutes().toString().padStart(2, '0');
+        return h + ':' + m;
+    }
+
+    function isSelectedDateToday() {
+        var val = $('#tanggal').val();
+        if (!val) return false;
+        var today = new Date();
+        var yyyy = today.getFullYear();
+        var mm = (today.getMonth() + 1).toString().padStart(2, '0');
+        var dd = today.getDate().toString().padStart(2, '0');
+        var todayStr = yyyy + '-' + mm + '-' + dd;
+        return val === todayStr;
+    }
+
+    function enforceTodayTimeMin() {
+        // If selected date is today, set min attributes to current time
+        if (isSelectedDateToday()) {
+            var minHM = getNowHM();
+            $('#jam_mulai').attr('min', minHM);
+            $('#jam_selesai').attr('min', minHM);
+        } else {
+            $('#jam_mulai').removeAttr('min');
+            $('#jam_selesai').removeAttr('min');
+        }
+    }
+
+    function warn(msg) {
+        if (window.Swal && Swal.fire) {
+            Swal.fire({ title: 'Peringatan!', text: msg, icon: 'warning', confirmButtonText: 'OK' });
+        } else {
+            alert(msg);
+        }
+    }
+
+    function validateTimeAgainstNow(inputSelector, label) {
+        if (!isSelectedDateToday()) return true;
+        var val = $(inputSelector).val();
+        if (!val) return true;
+        var minHM = getNowHM();
+        if (val < minHM) {
+            warn(label + ' tidak boleh sebelum waktu saat ini');
+            $(inputSelector).val('');
+            // Also set min so UI prevents choosing earlier values
+            $(inputSelector).attr('min', minHM);
+            return false;
+        }
+        return true;
+    }
+
+    function validateMulaiBeforeSelesai() {
+        var mulai = $('#jam_mulai').val();
+        var selesai = $('#jam_selesai').val();
+        if (mulai && selesai && selesai < mulai) {
+            warn('Jam selesai tidak boleh sebelum jam mulai');
+            $('#jam_selesai').val('');
+            return false;
+        }
+        return true;
+    }
+
+    function validateTimesBeforeSubmit() {
+        enforceTodayTimeMin();
+        var ok1 = validateTimeAgainstNow('#jam_mulai', 'Jam mulai');
+        var ok2 = validateTimeAgainstNow('#jam_selesai', 'Jam selesai');
+        var ok3 = validateMulaiBeforeSelesai();
+        return ok1 && ok2 && ok3;
+    }
+
+    $('#tanggal').on('change', function() {
+        enforceTodayTimeMin();
+        // Re-check current values when date changes
+        validateTimeAgainstNow('#jam_mulai', 'Jam mulai');
+        validateTimeAgainstNow('#jam_selesai', 'Jam selesai');
+        validateMulaiBeforeSelesai();
+    });
+
+    $('#jam_mulai').on('change', function() {
+        validateTimeAgainstNow('#jam_mulai', 'Jam mulai');
+        // If mulai changes, ensure selesai is not before it
+        validateMulaiBeforeSelesai();
+    });
+
+    $('#jam_selesai').on('change', function() {
+        validateTimeAgainstNow('#jam_selesai', 'Jam selesai');
+        validateMulaiBeforeSelesai();
+    });
+    // ==================================================================
 });
 </script>
 @endsection

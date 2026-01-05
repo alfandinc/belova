@@ -17,10 +17,33 @@ class PengajuanTidakMasukController extends Controller
         $user = Auth::user();
         $viewType = $request->input('view', 'personal');
 
+        // Date filter defaults: start of this month to end of next month
+        $defaultStart = Carbon::now()->startOfMonth();
+        $defaultEnd = Carbon::now()->copy()->addMonthNoOverflow()->endOfMonth();
+
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
+
+        try {
+            $filterStart = $dateStart ? Carbon::parse($dateStart)->startOfDay() : $defaultStart->copy()->startOfDay();
+        } catch (\Exception $e) {
+            $filterStart = $defaultStart->copy()->startOfDay();
+        }
+
+        try {
+            $filterEnd = $dateEnd ? Carbon::parse($dateEnd)->endOfDay() : $defaultEnd->copy()->endOfDay();
+        } catch (\Exception $e) {
+            $filterEnd = $defaultEnd->copy()->endOfDay();
+        }
+
         if ($request->ajax()) {
             // Employee: hanya data sendiri
             if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Employee')) {
                 $data = PengajuanTidakMasuk::where('employee_id', $user->employee->id)
+                    ->where(function($q) use ($filterStart, $filterEnd) {
+                        $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                          ->whereDate('tanggal_selesai', '>=', $filterStart);
+                    })
                     ->latest()
                     ->get();
                 return DataTables::of($data)
@@ -52,6 +75,10 @@ class PengajuanTidakMasukController extends Controller
                 $division = $user->employee->division;
                 $employeeIds = $division ? $division->employees->pluck('id')->toArray() : [];
                 $data = PengajuanTidakMasuk::whereIn('employee_id', $employeeIds)
+                    ->where(function($q) use ($filterStart, $filterEnd) {
+                        $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                          ->whereDate('tanggal_selesai', '>=', $filterStart);
+                    })
                     ->with('employee')
                     ->latest()
                     ->get();
@@ -86,6 +113,10 @@ class PengajuanTidakMasukController extends Controller
             // HRD: semua data untuk approval (view=approval)
             else if ($viewType == 'approval' && $user->hasRole('Hrd')) {
                 $data = PengajuanTidakMasuk::with('employee')
+                    ->where(function($q) use ($filterStart, $filterEnd) {
+                        $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                          ->whereDate('tanggal_selesai', '>=', $filterStart);
+                    })
                     ->latest()
                     ->get();
                 return DataTables::of($data)
@@ -119,6 +150,10 @@ class PengajuanTidakMasukController extends Controller
             // Default: data sendiri
             else {
                 $data = PengajuanTidakMasuk::where('employee_id', $user->employee->id)
+                    ->where(function($q) use ($filterStart, $filterEnd) {
+                        $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                          ->whereDate('tanggal_selesai', '>=', $filterStart);
+                    })
                     ->latest()
                     ->get();
                 return DataTables::of($data)
@@ -149,7 +184,9 @@ class PengajuanTidakMasukController extends Controller
 
         // Non-AJAX: render view
         return view('hrd.tidakmasuk.index', [
-            'viewType' => $viewType
+            'viewType' => $viewType,
+            'defaultDateStart' => $filterStart->toDateString(),
+            'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
     }
 

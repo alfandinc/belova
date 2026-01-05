@@ -16,24 +16,52 @@ class PengajuanLemburController extends Controller
         $user = \App\Models\User::find(Auth::id());
         $viewType = $request->input('view', 'personal');
 
+        // Date filter defaults: start of this month to end of next month
+        $defaultStart = Carbon::now()->startOfMonth();
+        $defaultEnd = Carbon::now()->copy()->addMonthNoOverflow()->endOfMonth();
+
+        $dateStart = $request->input('date_start');
+        $dateEnd = $request->input('date_end');
+
+        try {
+            $filterStart = $dateStart ? Carbon::parse($dateStart)->startOfDay() : $defaultStart->copy()->startOfDay();
+        } catch (\Exception $e) {
+            $filterStart = $defaultStart->copy()->startOfDay();
+        }
+        try {
+            $filterEnd = $dateEnd ? Carbon::parse($dateEnd)->endOfDay() : $defaultEnd->copy()->endOfDay();
+        } catch (\Exception $e) {
+            $filterEnd = $defaultEnd->copy()->endOfDay();
+        }
+
         if ($request->ajax()) {
             $user = \App\Models\User::find(Auth::id());
             // HRD/Admin: all data
             if ($user->hasRole('Hrd') || $user->hasRole('Admin')) {
-                $data = PengajuanLembur::with('employee')->latest()->get();
+                $data = PengajuanLembur::with('employee')
+                    ->whereDate('tanggal', '>=', $filterStart)
+                    ->whereDate('tanggal', '<=', $filterEnd)
+                    ->latest()->get();
                 return DataTables::of($data)
                     ->addIndexColumn()
                     ->addColumn('employee_nama', function($row) {
                         return $row->employee->nama ?? '-';
                     })
                     ->addColumn('tanggal', function($row) {
-                        return $row->tanggal->format('d/m/Y');
+                        return $row->tanggal->locale('id')->translatedFormat('j F Y');
                     })
                     ->addColumn('jam_mulai', function($row) {
                         return $row->jam_mulai;
                     })
                     ->addColumn('jam_selesai', function($row) {
                         return $row->jam_selesai;
+                    })
+                    ->addColumn('jam_range', function($row) {
+                        $mulai = $row->jam_mulai;
+                        $selesai = $row->jam_selesai;
+                        $mulai = str_replace(':', '.', substr($mulai, 0, 5));
+                        $selesai = str_replace(':', '.', substr($selesai, 0, 5));
+                        return $mulai . ' - ' . $selesai;
                     })
                     ->addColumn('total_jam', function($row) {
                         return $row->total_jam_formatted;
@@ -63,6 +91,8 @@ class PengajuanLemburController extends Controller
                 $employeeIds = $division ? $division->employees->pluck('id')->toArray() : [];
                 $employeeIds[] = $user->employee->id; // include self
                 $data = PengajuanLembur::whereIn('employee_id', $employeeIds)
+                    ->whereDate('tanggal', '>=', $filterStart)
+                    ->whereDate('tanggal', '<=', $filterEnd)
                     ->with('employee')
                     ->latest()
                     ->get();
@@ -72,13 +102,20 @@ class PengajuanLemburController extends Controller
                         return $row->employee->nama ?? '-';
                     })
                     ->addColumn('tanggal', function($row) {
-                        return $row->tanggal->format('d/m/Y');
+                        return $row->tanggal->locale('id')->translatedFormat('j F Y');
                     })
                     ->addColumn('jam_mulai', function($row) {
                         return $row->jam_mulai;
                     })
                     ->addColumn('jam_selesai', function($row) {
                         return $row->jam_selesai;
+                    })
+                    ->addColumn('jam_range', function($row) {
+                        $mulai = $row->jam_mulai;
+                        $selesai = $row->jam_selesai;
+                        $mulai = str_replace(':', '.', substr($mulai, 0, 5));
+                        $selesai = str_replace(':', '.', substr($selesai, 0, 5));
+                        return $mulai . ' - ' . $selesai;
                     })
                     ->addColumn('total_jam', function($row) {
                         return $row->total_jam_formatted;
@@ -105,18 +142,27 @@ class PengajuanLemburController extends Controller
             // Employee: only own
             else if ($user->hasRole('Employee')) {
                 $data = PengajuanLembur::where('employee_id', $user->employee->id)
+                    ->whereDate('tanggal', '>=', $filterStart)
+                    ->whereDate('tanggal', '<=', $filterEnd)
                     ->latest()
                     ->get();
                 return DataTables::of($data)
                     ->addIndexColumn()
                     ->addColumn('tanggal', function($row) {
-                        return $row->tanggal->format('d/m/Y');
+                        return $row->tanggal->locale('id')->translatedFormat('j F Y');
                     })
                     ->addColumn('jam_mulai', function($row) {
                         return $row->jam_mulai;
                     })
                     ->addColumn('jam_selesai', function($row) {
                         return $row->jam_selesai;
+                    })
+                    ->addColumn('jam_range', function($row) {
+                        $mulai = $row->jam_mulai;
+                        $selesai = $row->jam_selesai;
+                        $mulai = str_replace(':', '.', substr($mulai, 0, 5));
+                        $selesai = str_replace(':', '.', substr($selesai, 0, 5));
+                        return $mulai . ' - ' . $selesai;
                     })
                     ->addColumn('total_jam', function($row) {
                         return $row->total_jam_formatted;
@@ -148,7 +194,9 @@ class PengajuanLemburController extends Controller
 
         // Non-AJAX: render view
         return view('hrd.lembur.index', [
-            'viewType' => $viewType
+            'viewType' => $viewType,
+            'defaultDateStart' => $filterStart->toDateString(),
+            'defaultDateEnd' => $filterEnd->toDateString(),
         ]);
     }
 

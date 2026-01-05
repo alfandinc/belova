@@ -15,6 +15,7 @@
                                 <h4 class="page-title">Pengajuan Tidak Masuk (Sakit/Izin)</h4>
                             </div>
                             <div class="col-auto align-self-center">
+                                <input type="text" id="dateRangeTidakMasuk" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
                                 <a href="#" class="btn btn-sm btn-primary" id="btnCreateTidakMasuk">
                                     <i class="fas fa-plus-circle mr-2"></i>Ajukan Tidak Masuk
                                 </a>
@@ -221,6 +222,10 @@
 
 @section('scripts')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+<!-- daterangepicker (CDN) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 <script>
 $.ajaxSetup({
     headers: {
@@ -228,12 +233,48 @@ $.ajaxSetup({
     }
 });
 $(document).ready(function() {
+    // Init Date Range Picker with default (this month to end of next month)
+    var drpStartTM = moment("{{ isset($defaultDateStart) ? $defaultDateStart : now()->startOfMonth()->toDateString() }}");
+    var drpEndTM = moment("{{ isset($defaultDateEnd) ? $defaultDateEnd : now()->addMonthNoOverflow()->endOfMonth()->toDateString() }}");
+
+    $('#dateRangeTidakMasuk').daterangepicker({
+        startDate: drpStartTM,
+        endDate: drpEndTM,
+        autoApply: true,
+        locale: { format: 'DD/MM/YYYY', separator: ' - ' },
+        ranges: {
+            'Bulan Ini': [moment().startOf('month'), moment().endOf('month')],
+            's.d Bulan Depan': [moment().startOf('month'), moment().add(1,'month').endOf('month')],
+            '7 Hari Terakhir': [moment().subtract(6, 'days'), moment()],
+            '30 Hari Terakhir': [moment().subtract(29, 'days'), moment()],
+            'Bulan Depan': [moment().add(1,'month').startOf('month'), moment().add(1,'month').endOf('month')]
+        }
+    }, function(start, end) {
+        drpStartTM = start;
+        drpEndTM = end;
+        if (typeof tablePersonal !== 'undefined' && $.fn.dataTable.isDataTable('#tableTidakMasukPersonal')) {
+            tablePersonal.ajax.reload();
+        }
+        if (typeof tableTeam !== 'undefined' && $.fn.dataTable.isDataTable('#tableTidakMasukTeam')) {
+            tableTeam.ajax.reload();
+        }
+        if (typeof tableApproval !== 'undefined' && $.fn.dataTable.isDataTable('#tableTidakMasukApproval')) {
+            tableApproval.ajax.reload();
+        }
+    });
+
     // DataTable untuk Employee
     @if(auth()->user()->hasRole('Employee'))
     var tablePersonal = $('#tableTidakMasukPersonal').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.tidakmasuk.index') }}?view=personal",
+        ajax: {
+            url: "{{ route('hrd.tidakmasuk.index') }}?view=personal",
+            data: function(d){
+                d.date_start = drpStartTM.format('YYYY-MM-DD');
+                d.date_end = drpEndTM.format('YYYY-MM-DD');
+            }
+        },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'jenis', name: 'jenis'},
@@ -251,7 +292,13 @@ $(document).ready(function() {
     var tableTeam = $('#tableTidakMasukTeam').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.tidakmasuk.index') }}?view=team",
+        ajax: {
+            url: "{{ route('hrd.tidakmasuk.index') }}?view=team",
+            data: function(d){
+                d.date_start = drpStartTM.format('YYYY-MM-DD');
+                d.date_end = drpEndTM.format('YYYY-MM-DD');
+            }
+        },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee_nama', name: 'employee_nama'},
@@ -270,7 +317,13 @@ $(document).ready(function() {
     var tableApproval = $('#tableTidakMasukApproval').DataTable({
         processing: true,
         serverSide: true,
-        ajax: "{{ route('hrd.tidakmasuk.index') }}?view=approval",
+        ajax: {
+            url: "{{ route('hrd.tidakmasuk.index') }}?view=approval",
+            data: function(d){
+                d.date_start = drpStartTM.format('YYYY-MM-DD');
+                d.date_end = drpEndTM.format('YYYY-MM-DD');
+            }
+        },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee_nama', name: 'employee_nama'},
