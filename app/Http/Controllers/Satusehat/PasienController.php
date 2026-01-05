@@ -988,6 +988,9 @@ class PasienController extends Controller
 
         $query = Visitation::with(['pasien', 'dokter', 'klinik', 'asesmenPenunjang']);
 
+        // Restrict to active visitations only (status_kunjungan = 2)
+        $query = $query->where('status_kunjungan', 2);
+
         if ($start && $end) {
             try {
                 $startDate = Carbon::parse($start)->toDateString();
