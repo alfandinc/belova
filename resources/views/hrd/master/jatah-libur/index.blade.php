@@ -29,21 +29,23 @@
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h4 class="card-title">Data Jatah Libur Karyawan</h4>
-                    <button type="button" class="btn btn-primary btn-sm" id="btnAddJatahLibur">
-                        <i class="fa fa-plus"></i> Tambah Jatah Libur
-                    </button>
-                    <button type="button" class="btn btn-warning btn-sm ml-2" id="btnResetAnnual">
-                        <i class="fa fa-undo"></i> Reset Cuti Tahunan
-                    </button>
-                </div><!--end card-header-->
-                <div class="card-body">
-                    <div class="d-flex justify-content-end mb-3">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLeaveCapacity">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <h4 class="card-title mb-0 mr-3">Data Jatah Libur Karyawan</h4>
+                        <button type="button" class="btn btn-primary btn-sm" id="btnAddJatahLibur">
+                            <i class="fa fa-plus"></i> Tambah Jatah Libur
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm ml-2" id="btnResetAnnual">
+                            <i class="fa fa-undo"></i> Reset Cuti Tahunan
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary btn-sm" id="btnLeaveCapacity">
                             <i class="fa fa-cog"></i> Pengaturan Kuota Libur Harian
                         </button>
                     </div>
+                </div><!--end card-header-->
+                <div class="card-body">
                     <div class="table-responsive">
                         <table id="jatahLiburTable" class="table table-striped table-bordered">
                             <thead>
