@@ -210,7 +210,7 @@ $(document).ready(function() {
     var tableLembur = $('#tableLembur').DataTable({
         processing: true,
         serverSide: true,
-        autoWidth: false,
+        autoWidth: true,
         responsive: true,
         ajax: {
             url: "{{ route('hrd.lembur.index') }}",
@@ -220,18 +220,21 @@ $(document).ready(function() {
             }
         },
         columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: 50},
+            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             @if(\App\Models\User::find(Auth::id())->hasRole('Manager') || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
-            {data: 'employee_nama', name: 'employee_nama', width: 180},
+            {data: 'employee_nama', name: 'employee_nama'},
             @endif
-            {data: 'tanggal', name: 'tanggal', width: 160},
-            {data: 'jam_range', name: 'jam_range', orderable: false, searchable: false, width: 160},
-            {data: 'total_jam', name: 'total_jam', width: 140},
-            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, width: 140, render: function(data){return renderStatusBadge(data);}},
-            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, width: 140, render: function(data){return renderStatusBadge(data);}},
-            {data: 'action', name: 'action', orderable: false, searchable: false, width: 160},
-        ]
-        ,drawCallback: function(){
+            {data: 'tanggal', name: 'tanggal'},
+            {data: 'jam_range', name: 'jam_range', orderable: false, searchable: false},
+            {data: 'total_jam', name: 'total_jam'},
+            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
+            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
+            {data: 'action', name: 'action', orderable: false, searchable: false},
+        ],
+        columnDefs: [
+            { targets: -1, className: 'text-nowrap' } // prevent action buttons from wrapping
+        ],
+        drawCallback: function(){
             this.api().columns.adjust();
         }
     });
