@@ -201,13 +201,17 @@ $(document).ready(function() {
         drpStartLB = start;
         drpEndLB = end;
         if ($.fn.dataTable.isDataTable('#tableLembur')) {
-            tableLembur.ajax.reload();
+            tableLembur.ajax.reload(function(){
+                tableLembur.columns.adjust().draw(false);
+            });
         }
     });
 
     var tableLembur = $('#tableLembur').DataTable({
         processing: true,
         serverSide: true,
+        autoWidth: false,
+        responsive: true,
         ajax: {
             url: "{{ route('hrd.lembur.index') }}",
             data: function(d){
@@ -216,17 +220,20 @@ $(document).ready(function() {
             }
         },
         columns: [
-            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
+            {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: 50},
             @if(\App\Models\User::find(Auth::id())->hasRole('Manager') || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
-            {data: 'employee_nama', name: 'employee_nama'},
+            {data: 'employee_nama', name: 'employee_nama', width: 180},
             @endif
-            {data: 'tanggal', name: 'tanggal'},
-            {data: 'jam_range', name: 'jam_range', orderable: false, searchable: false},
-            {data: 'total_jam', name: 'total_jam'},
-            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
-            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
-            {data: 'action', name: 'action', orderable: false, searchable: false},
+            {data: 'tanggal', name: 'tanggal', width: 160},
+            {data: 'jam_range', name: 'jam_range', orderable: false, searchable: false, width: 160},
+            {data: 'total_jam', name: 'total_jam', width: 140},
+            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, width: 140, render: function(data){return renderStatusBadge(data);}},
+            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, width: 140, render: function(data){return renderStatusBadge(data);}},
+            {data: 'action', name: 'action', orderable: false, searchable: false, width: 160},
         ]
+        ,drawCallback: function(){
+            this.api().columns.adjust();
+        }
     });
 
     function renderStatusBadge(status) {
