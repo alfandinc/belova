@@ -9,8 +9,7 @@
                     <th>No</th>
                     <th>Nama Karyawan</th>
                     <th>Jenis Libur</th>
-                    <th>Tanggal Mulai</th>
-                    <th>Tanggal Selesai</th>
+                    <th>Tanggal</th>
                     <th>Jumlah Hari</th>
                     <th>Status</th>
                     <th>Aksi</th>

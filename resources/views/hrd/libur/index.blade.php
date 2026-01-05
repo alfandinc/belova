@@ -286,8 +286,7 @@ $(document).ready(function() {
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'jenis_libur', name: 'jenis_libur'},
-            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
-            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
             {data: 'total_hari', name: 'total_hari'},
             {data: 'status_manager', name: 'status_manager'},
             {data: 'status_hrd', name: 'status_hrd'},
@@ -310,8 +309,7 @@ $(document).ready(function() {
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
             {data: 'jenis_libur', name: 'jenis_libur'},
-            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
-            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
             {data: 'total_hari', name: 'total_hari'},
             {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
@@ -333,8 +331,7 @@ $(document).ready(function() {
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
             {data: 'jenis_libur', name: 'jenis_libur'},
-            {data: 'tanggal_mulai', name: 'tanggal_mulai'},
-            {data: 'tanggal_selesai', name: 'tanggal_selesai'},
+            {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
             {data: 'total_hari', name: 'total_hari'},
             {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
@@ -350,7 +347,49 @@ $(document).ready(function() {
     // Submit create form
     $('#formCreateLibur').submit(function(e) {
         e.preventDefault();
-        
+        // Validate dates are not before today and end >= start
+        var startDateVal = $('#tanggal_mulai').val();
+        var endDateVal = $('#tanggal_selesai').val();
+        var todayStart = new Date();
+        todayStart.setHours(0,0,0,0);
+        if (startDateVal) {
+            var startDate = new Date(startDateVal + 'T00:00:00');
+            if (startDate < todayStart) {
+                Swal.fire({
+                    title: 'Peringatan!',
+                    text: 'Tanggal mulai tidak boleh sebelum hari ini',
+                    icon: 'warning',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+        }
+        if (endDateVal) {
+            var endDate = new Date(endDateVal + 'T00:00:00');
+            if (endDate < todayStart) {
+                Swal.fire({
+                    title: 'Peringatan!',
+                    text: 'Tanggal selesai tidak boleh sebelum hari ini',
+                    icon: 'warning',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+        }
+        if (startDateVal && endDateVal) {
+            var startDate2 = new Date(startDateVal + 'T00:00:00');
+            var endDate2 = new Date(endDateVal + 'T00:00:00');
+            if (endDate2 < startDate2) {
+                Swal.fire({
+                    title: 'Peringatan!',
+                    text: 'Tanggal selesai tidak boleh sebelum tanggal mulai',
+                    icon: 'warning',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+        }
+
         var formData = $(this).serialize();
         
         $.ajax({
@@ -596,6 +635,19 @@ $(document).ready(function() {
     $('#tanggal_selesai').change(function() {
         var startDate = new Date($('#tanggal_mulai').val());
         var endDate = new Date($(this).val());
+        var todayStart = new Date();
+        todayStart.setHours(0,0,0,0);
+
+        if (endDate < todayStart) {
+            Swal.fire({
+                title: 'Peringatan!',
+                text: 'Tanggal selesai tidak boleh sebelum hari ini',
+                icon: 'warning',
+                confirmButtonText: 'OK'
+            });
+            $(this).val('');
+            return;
+        }
         
         if (endDate < startDate) {
             Swal.fire({
@@ -613,6 +665,19 @@ $(document).ready(function() {
     $('#tanggal_mulai').change(function() {
         var startDate = new Date($(this).val());
         var endDateInput = $('#tanggal_selesai');
+        var todayStart = new Date();
+        todayStart.setHours(0,0,0,0);
+
+        if (startDate < todayStart) {
+            Swal.fire({
+                title: 'Peringatan!',
+                text: 'Tanggal mulai tidak boleh sebelum hari ini',
+                icon: 'warning',
+                confirmButtonText: 'OK'
+            });
+            $(this).val('');
+            return;
+        }
         
         if (endDateInput.val()) {
             var endDate = new Date(endDateInput.val());

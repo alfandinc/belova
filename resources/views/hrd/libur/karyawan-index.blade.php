@@ -26,8 +26,7 @@
                 <tr>
                     <th>No</th>
                     <th>Jenis Libur</th>
-                    <th>Tanggal Mulai</th>
-                    <th>Tanggal Selesai</th>
+                    <th>Tanggal</th>
                     <th>Jumlah Hari</th>
                     <th>Status Manager</th>
                     <th>Status HRD</th>

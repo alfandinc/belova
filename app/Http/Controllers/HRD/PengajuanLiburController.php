@@ -68,11 +68,10 @@ class PengajuanLiburController extends Controller
                 ->addColumn('jenis_libur', function($row) {
                     return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
                 })
-                ->addColumn('tanggal_mulai', function($row) {
-                    return $row->tanggal_mulai->format('d/m/Y');
-                })
-                ->addColumn('tanggal_selesai', function($row) {
-                    return $row->tanggal_selesai->format('d/m/Y');
+                ->addColumn('tanggal_range', function($row) {
+                    $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                    $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                    return $mulai.' - '.$selesai;
                 })
                 ->addColumn('status_manager', function($row) {
                     if ($row->status_manager == 'menunggu') {
@@ -121,11 +120,10 @@ class PengajuanLiburController extends Controller
                         ->addColumn('jenis_libur', function($row) {
                             return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
                         })
-                        ->addColumn('tanggal_mulai', function($row) {
-                            return $row->tanggal_mulai->format('d/m/Y');
-                        })
-                        ->addColumn('tanggal_selesai', function($row) {
-                            return $row->tanggal_selesai->format('d/m/Y');
+                        ->addColumn('tanggal_range', function($row) {
+                            $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                            $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                            return $mulai.' - '.$selesai;
                         })
                         ->addColumn('action', function($row) {
                             $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
@@ -168,11 +166,10 @@ class PengajuanLiburController extends Controller
                 ->addColumn('jenis_libur', function($row) {
                     return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
                 })
-                ->addColumn('tanggal_mulai', function($row) {
-                    return $row->tanggal_mulai->format('d/m/Y');
-                })
-                ->addColumn('tanggal_selesai', function($row) {
-                    return $row->tanggal_selesai->format('d/m/Y');
+                ->addColumn('tanggal_range', function($row) {
+                    $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                    $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                    return $mulai.' - '.$selesai;
                 })
                 ->addColumn('status_manager', function($row) {
                     if ($row->status_manager == 'menunggu') {
@@ -216,11 +213,10 @@ class PengajuanLiburController extends Controller
                 ->addColumn('jenis_libur', function($row) {
                     return $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
                 })
-                ->addColumn('tanggal_mulai', function($row) {
-                    return $row->tanggal_mulai->format('d/m/Y');
-                })
-                ->addColumn('tanggal_selesai', function($row) {
-                    return $row->tanggal_selesai->format('d/m/Y');
+                ->addColumn('tanggal_range', function($row) {
+                    $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                    $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                    return $mulai.' - '.$selesai;
                 })
                 ->addColumn('action', function($row) {
                     $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
@@ -360,7 +356,8 @@ class PengajuanLiburController extends Controller
             'total_hari' => $totalHari
         ]);
 
-        $employee = Auth::user()->employee;
+        $user = Auth::user();
+        $employee = $user->employee;
         $jatahLibur = $employee->ensureJatahLibur();
 
         // Periksa apakah karyawan memiliki jatah libur yang cukup
@@ -372,6 +369,23 @@ class PengajuanLiburController extends Controller
             return redirect()->back()->with('error', 'Jatah ganti libur Anda tidak mencukupi.');
         }
 
+        // Auto-approval based on role
+        $statusManager = 'menunggu';
+        $statusHrd = 'menunggu';
+        $tglApproveManager = null;
+        $tglApproveHrd = null;
+
+        if ($user->hasRole('Manager')) {
+            $statusManager = 'disetujui';
+            $tglApproveManager = now();
+        }
+        if ($user->hasRole('Hrd')) {
+            $statusManager = 'disetujui';
+            $tglApproveManager = now();
+            $statusHrd = 'disetujui';
+            $tglApproveHrd = now();
+        }
+
         $pengajuan = PengajuanLibur::create([
             'employee_id' => $employee->id,
             'jenis_libur' => $request->jenis_libur,
@@ -379,7 +393,21 @@ class PengajuanLiburController extends Controller
             'tanggal_selesai' => $request->tanggal_selesai,
             'total_hari' => $totalHari,
             'alasan' => $request->alasan,
+            'status_manager' => $statusManager,
+            'tanggal_persetujuan_manager' => $tglApproveManager,
+            'status_hrd' => $statusHrd,
+            'tanggal_persetujuan_hrd' => $tglApproveHrd,
         ]);
+
+        // If HRD auto-approved, deduct jatah immediately
+        if ($statusHrd === 'disetujui') {
+            if ($pengajuan->jenis_libur == 'cuti_tahunan') {
+                $jatahLibur->jatah_cuti_tahunan -= $pengajuan->total_hari;
+            } else {
+                $jatahLibur->jatah_ganti_libur -= $pengajuan->total_hari;
+            }
+            $jatahLibur->save();
+        }
 
         if ($request->ajax()) {
             return response()->json([
