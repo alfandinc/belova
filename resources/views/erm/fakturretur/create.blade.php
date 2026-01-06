@@ -24,6 +24,7 @@
                         <th>Qty Diterima</th>
                         <th>Qty Retur</th>
                         <th>Alasan</th>
+                        <th>Hapus</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -34,7 +35,7 @@
                             <td>{{ $item->batch ?? '-' }}</td>
                             <td>{{ $item->qty }}</td>
                             <td>
-                                <input type="number" name="items[{{ $loop->index }}][qty]" min="1" max="{{ $item->qty }}" class="form-control" value="" required>
+                                <input type="number" name="items[{{ $loop->index }}][qty]" min="0" max="{{ $item->qty }}" class="form-control" value="0" required>
                                 <input type="hidden" name="items[{{ $loop->index }}][fakturbeli_item_id]" value="{{ $item->id }}">
                                 <input type="hidden" name="items[{{ $loop->index }}][obat_id]" value="{{ $item->obat_id }}">
                                 <input type="hidden" name="items[{{ $loop->index }}][gudang_id]" value="{{ $item->gudang_id }}">
@@ -43,6 +44,9 @@
                             </td>
                             <td>
                                 <input type="text" name="items[{{ $loop->index }}][alasan]" class="form-control" placeholder="Alasan retur">
+                            </td>
+                            <td class="text-center" style="width:60px;">
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-remove-item" title="Hapus item">&times;</button>
                             </td>
                         </tr>
                     @endforeach
@@ -73,4 +77,12 @@ $('#fakturbeli_id').on('change', function() {
         $('#items-container').html('');
     }
 });
+
+// Hapus baris item saat tombol X diklik
+$(document).on('click', '.btn-remove-item', function() {
+    $(this).closest('tr').remove();
+});
+
+// Info: isi 0 pada qty untuk item yang tidak diretur
+</script>
 </script>

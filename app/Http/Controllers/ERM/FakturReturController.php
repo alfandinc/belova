@@ -62,7 +62,7 @@ class FakturReturController extends Controller
             'items.*.fakturbeli_item_id' => 'required|exists:erm_fakturbeli_items,id',
             'items.*.obat_id' => 'required|exists:erm_obat,id',
             'items.*.gudang_id' => 'required|exists:erm_gudang,id',
-            'items.*.qty' => 'required|integer|min:1',
+            'items.*.qty' => 'required|integer|min:0',
             'items.*.batch' => 'nullable|string',
             'items.*.expiration_date' => 'nullable|date',
             'items.*.alasan' => 'nullable|string',
@@ -70,6 +70,16 @@ class FakturReturController extends Controller
 
         DB::beginTransaction();
         try {
+            // Filter hanya item dengan qty > 0 yang akan diproses
+            $itemsToProcess = collect($validated['items'] ?? [])
+                ->filter(function($it){ return isset($it['qty']) && (int)$it['qty'] > 0; })
+                ->values()
+                ->all();
+
+            if (empty($itemsToProcess)) {
+                return response()->json(['success' => false, 'message' => 'Tidak ada item yang diretur. Isi Qty Retur atau hapus baris yang tidak diperlukan.'], 422);
+            }
+
             $retur = FakturRetur::create([
                 'fakturbeli_id' => $validated['fakturbeli_id'],
                 'pemasok_id' => FakturBeli::find($validated['fakturbeli_id'])->pemasok_id ?? null,
@@ -79,7 +89,7 @@ class FakturReturController extends Controller
                 'status' => 'diajukan',
             ]);
 
-            foreach ($validated['items'] as $item) {
+            foreach ($itemsToProcess as $item) {
                 $returItem = $retur->items()->create([
                     'fakturbeli_item_id' => $item['fakturbeli_item_id'],
                     'obat_id' => $item['obat_id'],

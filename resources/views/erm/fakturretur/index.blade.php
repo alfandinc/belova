@@ -135,6 +135,11 @@ $(function() {
             });
         });
 
+        // Remove item row in create modal
+        $(document).on('click', '.btn-remove-item', function() {
+            $(this).closest('tr').remove();
+        });
+
     // Handle approve in modal
     $(document).on('click', '#btn-approve-retur', function(e) {
         e.preventDefault();
