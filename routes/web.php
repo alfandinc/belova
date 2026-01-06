@@ -175,6 +175,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
         ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')
         ->name('hrd.dashboard');
+    // AJAX: Pending approvals filtered by date range (no reload)
+    Route::get('/hrd/pending-approvals', [HRDDashboardController::class, 'pendingApprovals'])
+        ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')
+        ->name('hrd.dashboard.pending');
 
     Route::get('/inventory', [InventoryDashboardController::class, 'index'])
         ->middleware('role:Admin|Inventaris')   

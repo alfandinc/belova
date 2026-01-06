@@ -59,7 +59,7 @@
                     </div>
                     <div>
                         <div class="text-muted small">Pending Leaves</div>
-                        <div class="font-weight-bold display-6">{{ $counts['pending_leaves'] ?? 0 }}</div>
+                        <div class="font-weight-bold display-6" id="countPendingLeaves">{{ $counts['pending_leaves'] ?? 0 }}</div>
                         <div class="text-muted small">Awaiting approval</div>
                     </div>
                 </div>
@@ -75,7 +75,7 @@
                     </div>
                     <div>
                         <div class="text-muted small">Overtime Requests</div>
-                        <div class="font-weight-bold display-6">{{ $counts['pending_overtime'] ?? 0 }}</div>
+                        <div class="font-weight-bold display-6" id="countPendingOvertime">{{ $counts['pending_overtime'] ?? 0 }}</div>
                         <div class="text-muted small">Pending overtime</div>
                     </div>
                 </div>
@@ -91,7 +91,7 @@
                     </div>
                     <div>
                         <div class="text-muted small">Shift Changes</div>
-                        <div class="font-weight-bold display-6">{{ $counts['pending_shifts'] ?? 0 }}</div>
+                        <div class="font-weight-bold display-6" id="countPendingShifts">{{ $counts['pending_shifts'] ?? 0 }}</div>
                         <div class="text-muted small">Pending shift swaps</div>
                     </div>
                 </div>
@@ -103,18 +103,23 @@
         {{-- Left column: pending approvals table --}}
         <div class="col-lg-8">
             <div class="card mb-3 pending-approvals">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div>Pending Approvals</div>
-                    <a href="{{ route('hrd.dashboard') }}" class="small">View all</a>
+                <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="mr-3">Pending Approvals</div>
+                        <div class="text-muted small">Range: {{ isset($filterStart) ? $filterStart->format('M d, Y') : '' }} — {{ isset($filterEnd) ? $filterEnd->format('M d, Y') : '' }}</div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <input id="pendingDateRange" class="form-control form-control-sm" style="max-width: 260px;" placeholder="Select date range" />
+                    </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body" id="pendingApprovalsContainer">
                     @if(collect($pendingRows)->isEmpty())
                         <div class="text-center py-4">
                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M12 2v6" stroke="#adb5bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12h-6" stroke="#adb5bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12h6" stroke="#adb5bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             <div class="mt-3 text-muted">No pending approvals at the moment</div>
                         </div>
                     @else
-                        <ul class="list-group list-group-flush">
+                        <ul class="list-group list-group-flush" id="pendingApprovalsList">
                             @foreach($pendingRows as $r)
                                 @php
                                     $emp = $r->employee ?? null;
@@ -205,11 +210,19 @@
                         </button>
                     </div>
                     <div class="modal-body">
+                        <div class="d-flex justify-content-end mb-2">
+                            <div class="input-group input-group-sm" style="max-width: 320px;">
+                                <input type="text" class="form-control" id="birthdaysSearch" placeholder="Search employee or birth date (YYYY-MM-DD)">
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" type="button" id="birthdaysSearchClear">Clear</button>
+                                </div>
+                            </div>
+                        </div>
                         @if($allBirthdays->isEmpty())
                             <div class="alert alert-info mb-0">No employee birthdays found.</div>
                         @else
                             <div class="table-responsive">
-                                <table class="table table-sm table-striped">
+                                <table class="table table-sm table-striped" id="allBirthdaysTable">
                                     <thead>
                                         <tr>
                                             <th>Name</th>
@@ -266,6 +279,11 @@
     @hasanyrole('Hrd|Admin')
     {{-- Chart.js - include from CDN if not already available in layout --}}
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {{-- Date Range Picker (jQuery + moment + daterangepicker) --}}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             var ctx = document.getElementById('hrdSummaryChart');
@@ -290,6 +308,134 @@
                     plugins: { legend: { display: false } },
                     scales: { y: { beginAtZero: true } }
                 }
+            });
+            window.hrdSummaryChart = chart;
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var el = document.getElementById('pendingDateRange');
+            if (!el || typeof $ === 'undefined' || typeof moment === 'undefined') return;
+
+            // Server-provided dates (strict parse); fallback to this + next month
+            var startStr = "{{ isset($filterStart) ? $filterStart->format('YYYY-MM-DD') : '' }}";
+            var endStr = "{{ isset($filterEnd) ? $filterEnd->format('YYYY-MM-DD') : '' }}";
+            var start = moment(startStr, 'YYYY-MM-DD', true);
+            var end = moment(endStr, 'YYYY-MM-DD', true);
+            if (!start.isValid()) start = moment().startOf('month');
+            if (!end.isValid()) end = moment().add(1, 'month').endOf('month');
+
+            $(el).daterangepicker({
+                startDate: start,
+                endDate: end,
+                opens: 'left',
+                autoUpdateInput: true,
+                locale: {
+                    cancelLabel: 'Clear',
+                    format: 'MMM D, YYYY'
+                },
+                ranges: {
+                    'This + Next Month': [moment().startOf('month'), moment().add(1, 'month').endOf('month')],
+                    'This Month': [moment().startOf('month'), moment().endOf('month')],
+                    'Next Month': [moment().add(1, 'month').startOf('month'), moment().add(1, 'month').endOf('month')]
+                }
+            }, function(startSel, endSel) {
+                $(el).val(startSel.format('MMM D, YYYY') + ' - ' + endSel.format('MMM D, YYYY'));
+            });
+
+            // Set initial input value
+            $(el).val(start.format('MMM D, YYYY') + ' - ' + end.format('MMM D, YYYY'));
+
+            // On apply: redirect with query params
+            $(el).on('apply.daterangepicker', function(ev, picker) {
+                var url = "{{ route('hrd.dashboard.pending') }}" + '?start=' + picker.startDate.format('YYYY-MM-DD') + '&end=' + picker.endDate.format('YYYY-MM-DD');
+                var container = document.getElementById('pendingApprovalsContainer');
+                if (!container) return;
+                // Loading state
+                container.innerHTML = '<div class="text-center py-3 small text-muted">Loading…</div>';
+                fetch(url, { headers: { 'Accept': 'application/json' } })
+                    .then(function(res){ return res.json(); })
+                    .then(function(json){
+                        var data = (json && json.data) ? json.data : [];
+                        var counts = (json && json.counts) ? json.counts : {};
+                        if (!data.length) {
+                            container.innerHTML = '<div class="text-center py-4">\
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M12 2v6" stroke="#adb5bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 12h-6" stroke="#adb5bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 12h6" stroke="#adb5bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>\
+                                <div class="mt-3 text-muted">No pending approvals at the moment</div>\
+                            </div>';
+                            // Continue to update counts and chart even if empty list
+                        }
+                        var html = '<ul class="list-group list-group-flush" id="pendingApprovalsList">';
+                        for (var i=0;i<data.length;i++) {
+                            var r = data[i];
+                            var badgeM = (r.status_manager === 'pending' || r.status_manager === 'menunggu' || r.status_manager === null) ? '<span class="badge badge-warning text-dark">M</span>' : '';
+                            var badgeH = (r.status_hrd === 'pending' || r.status_hrd === 'menunggu' || r.status_hrd === null) ? '<span class="badge badge-info">H</span>' : '';
+                            html += '\
+                                <li class="list-group-item d-flex align-items-center">\
+                                    <div class="mr-3" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center">'+ (r.avatar || '?') +'</div>\
+                                    <div class="flex-fill">\
+                                        <div class="font-weight-bold">'+ (r.type || '') +' — '+ (r.employee || 'Unknown') +'</div>\
+                                        <div class="small text-muted">'+ (r.date_label || '-') +'</div>\
+                                    </div>\
+                                    <div>'+ badgeM + ' ' + badgeH +'</div>\
+                                </li>';
+                        }
+                        html += '</ul>';
+                        container.innerHTML = html;
+
+                        // Update summary card counts
+                        var elLeaves = document.getElementById('countPendingLeaves');
+                        var elOvertime = document.getElementById('countPendingOvertime');
+                        var elShifts = document.getElementById('countPendingShifts');
+                        if (elLeaves) elLeaves.textContent = (counts.pending_leaves || 0);
+                        if (elOvertime) elOvertime.textContent = (counts.pending_overtime || 0);
+                        if (elShifts) elShifts.textContent = (counts.pending_shifts || 0);
+
+                        // Update chart dataset
+                        if (window.hrdSummaryChart) {
+                            var chart = window.hrdSummaryChart;
+                            chart.data.datasets[0].data = [
+                                (counts.employees || {{ $counts['employees'] ?? 0 }}),
+                                (counts.pending_leaves || 0),
+                                (counts.pending_overtime || 0),
+                                (counts.pending_shifts || 0)
+                            ];
+                            chart.update();
+                        }
+                    })
+                    .catch(function(err){
+                        container.innerHTML = '<div class="alert alert-warning small mb-0">Failed to load data.</div>';
+                    });
+            });
+        });
+    </script>
+    <script>
+        // Simple client-side search for birthdays modal (name or birth date)
+        document.addEventListener('DOMContentLoaded', function () {
+            var $search = $('#birthdaysSearch');
+            var $clear = $('#birthdaysSearchClear');
+            function filterRows() {
+                var q = ($search.val() || '').toLowerCase().trim();
+                var $rows = $('#allBirthdaysTable tbody tr');
+                if (!q) { $rows.show(); return; }
+                $rows.each(function(){
+                    var $tds = $(this).find('td');
+                    var name = ($tds.eq(0).text() || '').toLowerCase();
+                    var birth = ($tds.eq(1).text() || '').toLowerCase();
+                    var match = name.indexOf(q) !== -1 || birth.indexOf(q) !== -1;
+                    $(this).toggle(match);
+                });
+            }
+            $(document).on('input', '#birthdaysSearch', filterRows);
+            $(document).on('click', '#birthdaysSearchClear', function(){
+                $search.val('');
+                filterRows();
+                $search.focus();
+            });
+            // Reset filter whenever modal opens
+            $('#allBirthdaysModal').on('shown.bs.modal', function(){
+                $search.val('');
+                filterRows();
             });
         });
     </script>
