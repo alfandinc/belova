@@ -4,10 +4,13 @@ namespace App\Http\Controllers\HRD;
 
 use App\Http\Controllers\Controller;
 use App\Models\HRD\PengajuanTidakMasuk;
+use App\Models\HRD\PengajuanLibur;
+use App\Models\HRD\JatahLibur;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Yajra\DataTables\Facades\DataTables;
 
 class PengajuanTidakMasukController extends Controller
@@ -262,13 +265,72 @@ class PengajuanTidakMasukController extends Controller
         $request->validate([
             'komentar_hrd' => 'nullable|string',
             'status' => 'required|in:disetujui,ditolak',
+            'potong_dari_cuti' => 'sometimes|boolean',
         ]);
         $pengajuan = PengajuanTidakMasuk::findOrFail($id);
-        $pengajuan->update([
-            'status_hrd' => $request->status,
-            'notes_hrd' => $request->komentar_hrd,
-            'tanggal_persetujuan_hrd' => now(),
-        ]);
+
+        DB::transaction(function () use ($request, $pengajuan) {
+            $pengajuan->update([
+                'status_hrd' => $request->status,
+                'notes_hrd' => $request->komentar_hrd,
+                'tanggal_persetujuan_hrd' => now(),
+            ]);
+
+            $doCut = (bool) $request->boolean('potong_dari_cuti');
+            if ($doCut && $request->status === 'disetujui') {
+                try {
+                    $totalHari = $pengajuan->total_hari ?? 0;
+                    if (!$totalHari || $totalHari < 1) {
+                        // Recalculate defensively
+                        $start = Carbon::parse($pengajuan->tanggal_mulai)->startOfDay();
+                        $end = Carbon::parse($pengajuan->tanggal_selesai)->startOfDay();
+                        $totalHari = abs((int) round(($end->getTimestamp() - $start->getTimestamp()) / 86400)) + 1;
+                        if ($totalHari < 1) { $totalHari = 1; }
+                    }
+
+                    // Create PengajuanLibur if not already created for same employee and dates
+                    $existingLibur = PengajuanLibur::where('employee_id', $pengajuan->employee_id)
+                        ->whereDate('tanggal_mulai', $pengajuan->tanggal_mulai)
+                        ->whereDate('tanggal_selesai', $pengajuan->tanggal_selesai)
+                        ->where('jenis_libur', 'cuti_tahunan')
+                        ->first();
+
+                    if (!$existingLibur) {
+                        $notesAuto = 'Otomatis dari Potong Cuti: PTM ID '.$pengajuan->id;
+                        $existingLibur = PengajuanLibur::create([
+                            'employee_id' => $pengajuan->employee_id,
+                            'jenis_libur' => 'cuti_tahunan',
+                            'tanggal_mulai' => $pengajuan->tanggal_mulai,
+                            'tanggal_selesai' => $pengajuan->tanggal_selesai,
+                            'total_hari' => $totalHari,
+                            'alasan' => $pengajuan->alasan,
+                            'status_manager' => 'disetujui',
+                            'notes_manager' => $notesAuto,
+                            'tanggal_persetujuan_manager' => now(),
+                            'status_hrd' => 'disetujui',
+                            'notes_hrd' => $notesAuto,
+                            'tanggal_persetujuan_hrd' => now(),
+                        ]);
+                    }
+
+                    // Reduce leave quota (jatah cuti tahunan) safely
+                    $jatah = JatahLibur::firstOrCreate(
+                        ['employee_id' => $pengajuan->employee_id],
+                        ['jatah_cuti_tahunan' => 0, 'jatah_ganti_libur' => 0]
+                    );
+                    $newCuti = (int) $jatah->jatah_cuti_tahunan - (int) $totalHari;
+                    if ($newCuti < 0) { $newCuti = 0; }
+                    $jatah->update(['jatah_cuti_tahunan' => $newCuti]);
+                } catch (\Throwable $e) {
+                    Log::error('Gagal potong cuti dari PTM', [
+                        'ptm_id' => $pengajuan->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    // Let the PTM approval succeed even if quota adjust fails
+                }
+            }
+        });
+
         if ($request->ajax()) {
             return response()->json(['data' => $pengajuan]);
         }

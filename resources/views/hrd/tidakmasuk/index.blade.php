@@ -206,6 +206,15 @@
                         <label>Catatan</label>
                         <textarea class="form-control" name="komentar_hrd" id="komentar_hrd_tidakmasuk" rows="3"></textarea>
                     </div>
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="1" id="potong_dari_cuti" name="potong_dari_cuti">
+                            <label class="form-check-label" for="potong_dari_cuti">
+                                Potong dari Cuti Tahunan (otomatis buat Pengajuan Libur dan kurangi jatah)
+                            </label>
+                        </div>
+                        <small class="text-muted">Centang ini hanya berlaku jika status disetujui.</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
