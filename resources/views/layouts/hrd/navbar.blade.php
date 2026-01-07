@@ -39,6 +39,7 @@
                     <li class="nav-item"><a class="nav-link" href="/hrd"><i class="ti-control-record"></i>Analytics</a></li>
                 </ul>
             </li>
+            {{-- Memorandum moved to Workdoc navbar --}}
             <!-- Jadwal Karyawan -->
                 {{-- @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager')) --}}
                     <!-- Jadwal dan Absensi Group -->

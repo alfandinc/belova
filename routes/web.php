@@ -175,6 +175,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
         ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')
         ->name('hrd.dashboard');
+    // Memorandum routes moved to Workdoc section
     // AJAX: Pending approvals filtered by date range (no reload)
     Route::get('/hrd/pending-approvals', [HRDDashboardController::class, 'pendingApprovals'])
         ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')
@@ -1004,6 +1005,18 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::get('/kemitraan/{id}', [App\Http\Controllers\Workdoc\KemitraanController::class, 'show'])->name('workdoc.kemitraan.show');
     Route::put('/kemitraan/{id}', [App\Http\Controllers\Workdoc\KemitraanController::class, 'update'])->name('workdoc.kemitraan.update');
     Route::delete('/kemitraan/{id}', [App\Http\Controllers\Workdoc\KemitraanController::class, 'destroy'])->name('workdoc.kemitraan.destroy');
+
+    // Workdoc Memorandum routes
+    Route::get('/memorandums', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'index'])->name('workdoc.memorandum.index');
+    Route::get('/memorandums/create', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'create'])->name('workdoc.memorandum.create');
+    Route::get('/memorandums/data', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'data'])->name('workdoc.memorandum.data');
+    Route::get('/memorandums/generate-number', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'generateNumber'])->name('workdoc.memorandum.generate_number');
+    Route::post('/memorandums', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'store'])->name('workdoc.memorandum.store');
+    Route::get('/memorandums/{memorandum}', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'show'])->name('workdoc.memorandum.show');
+    Route::get('/memorandums/{memorandum}/edit', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'edit'])->name('workdoc.memorandum.edit');
+    Route::get('/memorandums/{memorandum}/print-pdf', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'printPdf'])->name('workdoc.memorandum.print_pdf');
+    Route::put('/memorandums/{memorandum}', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'update'])->name('workdoc.memorandum.update');
+    Route::delete('/memorandums/{memorandum}', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'destroy'])->name('workdoc.memorandum.destroy');
 });
 
 
