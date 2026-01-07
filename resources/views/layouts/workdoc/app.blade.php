@@ -77,7 +77,7 @@
 <script src="{{ asset('dastone/plugins/datatables/responsive.bootstrap4.min.js') }}"></script>
 <script src="{{ asset('dastone/plugins/apex-charts/apexcharts.min.js') }}"></script>
 <script src="{{ asset('dastone/plugins/sweet-alert2/sweetalert2.min.js') }}"></script>
-<script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script>
+<!-- Load app core; dashboard init will be injected per-page to avoid errors on non-dashboard views -->
 <script src="{{ asset('dastone/default/assets/js/app.js') }}"></script>
 
     <!-- Theme Toggle Script -->
@@ -137,5 +137,6 @@
     </script>
 
     @yield('scripts')
+    @stack('scripts')
 </body>
 </html>

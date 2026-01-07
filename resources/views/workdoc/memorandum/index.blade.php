@@ -1,9 +1,9 @@
-@extends('layouts.hrd.app')
+@extends('layouts.workdoc.app')
 
 @section('title','Workdoc - Memorandum')
 
 @section('navbar')
-    @include('layouts.hrd.navbar')
+    @include('layouts.workdoc.navbar')
 @endsection
 
 @section('content')

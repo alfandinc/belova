@@ -5,6 +5,10 @@
     @include('layouts.workdoc.navbar')
 @endsection  
 
+@push('scripts')
+<script src="{{ asset('dastone/default/assets/pages/jquery.analytics_dashboard.init.js') }}"></script>
+@endpush
+
 @section('content')
     <!-- Page-Title -->
     <div class="row">
