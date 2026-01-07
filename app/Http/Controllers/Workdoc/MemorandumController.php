@@ -23,14 +23,16 @@ class MemorandumController extends Controller
     {
         $divisions = Division::orderBy('name')->get(['id','name']);
         $clinics = Klinik::orderBy('nama')->get(['id','nama']);
-        return view('workdoc.memorandum.create', compact('divisions', 'clinics'));
+        $defaultDivisionId = optional(Auth::user()->employee)->division_id;
+        return view('workdoc.memorandum.create', compact('divisions', 'clinics', 'defaultDivisionId'));
     }
 
     public function edit(Memorandum $memorandum)
     {
         $divisions = Division::orderBy('name')->get(['id','name']);
         $clinics = Klinik::orderBy('nama')->get(['id','nama']);
-        return view('workdoc.memorandum.create', compact('divisions', 'clinics', 'memorandum'));
+        $defaultDivisionId = optional(Auth::user()->employee)->division_id;
+        return view('workdoc.memorandum.create', compact('divisions', 'clinics', 'memorandum', 'defaultDivisionId'));
     }
 
     public function data(Request $request)
@@ -44,15 +46,17 @@ class MemorandumController extends Controller
             $query->where('klinik_id', $request->klinik_id);
         }
 
-        $rows = $query->get()->map(function ($m) {
+        $self = $this;
+        $rows = $query->get()->map(function ($m) use ($self) {
             return [
                 'id' => $m->id,
-                'tanggal' => optional($m->tanggal)->format('Y-m-d'),
+            'tanggal' => optional($m->tanggal)->translatedFormat('j F Y'),
                 'nomor_memo' => $m->nomor_memo,
                 'perihal' => $m->perihal,
                 'division' => optional($m->division)->name,
                 'kepada' => $m->kepada,
                 'klinik' => optional($m->klinik)->nama,
+                'klinik_short' => $self->clinicShortName(optional($m->klinik)->nama),
                 'status' => $m->status,
                 'user' => optional($m->user)->name,
             ];
@@ -101,6 +105,15 @@ class MemorandumController extends Controller
         return 'MEMO-'.str_pad((string)$seq, 3, '0', STR_PAD_LEFT).'/'.$code.'/'.$roman.'/'.$year;
     }
 
+    private function clinicShortName(?string $name): string
+    {
+        $n = strtolower($name ?? '');
+        if ($n === '') return '';
+        if (strpos($n, 'premiere') !== false) return 'Premiere';
+        if (strpos($n, 'skin') !== false) return 'Belovaskin';
+        return 'Belova';
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -111,11 +124,15 @@ class MemorandumController extends Controller
             'kepada' => ['nullable','string','max:255'],
             'isi' => ['nullable','string'],
             'klinik_id' => ['nullable','exists:erm_klinik,id'],
-            'status' => ['required','string','max:50'],
+            'status' => ['nullable','string','max:50'],
         ]);
 
         if (empty($validated['nomor_memo'])) {
             $validated['nomor_memo'] = $this->generateNomorMemoFrom($validated['tanggal'], $validated['klinik_id'] ?? null);
+        }
+        // Default status to 'draft' when not provided
+        if (!array_key_exists('status', $validated) || ($validated['status'] ?? '') === '') {
+            $validated['status'] = 'draft';
         }
         $validated['user_id'] = Auth::id();
 
@@ -146,11 +163,16 @@ class MemorandumController extends Controller
             'kepada' => ['nullable','string','max:255'],
             'isi' => ['nullable','string'],
             'klinik_id' => ['nullable','exists:erm_klinik,id'],
-            'status' => ['required','string','max:50'],
+            'status' => ['nullable','string','max:50'],
         ]);
 
         if (empty($validated['nomor_memo'])) {
             $validated['nomor_memo'] = $this->generateNomorMemoFrom($validated['tanggal'], $validated['klinik_id'] ?? null);
+        }
+
+        // If status is not provided or empty during update, avoid overriding existing value
+        if (!array_key_exists('status', $validated) || ($validated['status'] ?? '') === '') {
+            unset($validated['status']);
         }
 
         $memorandum->update($validated);

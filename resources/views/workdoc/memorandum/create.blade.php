@@ -17,43 +17,12 @@
                 </div>
                 <div class="card-body">
                     <form id="createMemoForm">
-                        <div class="form-row">
-                            <div class="form-group col-md-3">
+                        <div class="row">
+                            <div class="form-group col-lg-4 col-md-6 col-12">
                                 <label>Tanggal</label>
-                                <input type="date" class="form-control" name="tanggal" id="tanggal" required value="{{ isset($memorandum) && $memorandum->tanggal ? $memorandum->tanggal->format('Y-m-d') : '' }}">
+                                <input type="date" class="form-control" name="tanggal" id="tanggal" required value="{{ isset($memorandum) && $memorandum->tanggal ? $memorandum->tanggal->format('Y-m-d') : now()->format('Y-m-d') }}">
                             </div>
-                            <div class="form-group col-md-4">
-                                <label>Nomor Memo</label>
-                                <input type="text" class="form-control" name="nomor_memo" id="nomor_memo" value="{{ $memorandum->nomor_memo ?? '' }}" placeholder="e.g., MEMO-001/KP-BL/XII/2026" readonly>
-                            </div>
-                            <div class="form-group col-md-4">
-                                <label>Perihal</label>
-                                <input type="text" class="form-control" name="perihal" id="perihal" required value="{{ $memorandum->perihal ?? '' }}">
-                            </div>
-                            <div class="form-group col-md-5">
-                                <label>Status</label>
-                                <select class="form-control" name="status" id="status" required>
-                                    <option value="draft" {{ (isset($memorandum) && $memorandum->status === 'draft') ? 'selected' : '' }}>Draft</option>
-                                    <option value="published" {{ (isset($memorandum) && $memorandum->status === 'published') ? 'selected' : '' }}>Published</option>
-                                    <option value="archived" {{ (isset($memorandum) && $memorandum->status === 'archived') ? 'selected' : '' }}>Archived</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group col-md-4">
-                                <label>Dari Divisi</label>
-                                <select class="form-control" name="dari_division_id" id="dari_division_id">
-                                    <option value="">- Pilih Divisi -</option>
-                                    @foreach($divisions as $div)
-                                        <option value="{{ $div->id }}" {{ (isset($memorandum) && $memorandum->dari_division_id == $div->id) ? 'selected' : '' }}>{{ $div->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="form-group col-md-4">
-                                <label>Kepada</label>
-                                <input type="text" class="form-control" name="kepada" id="kepada" value="{{ $memorandum->kepada ?? '' }}">
-                            </div>
-                            <div class="form-group col-md-4">
+                            <div class="form-group col-lg-4 col-md-6 col-12">
                                 <label>Klinik</label>
                                 <select class="form-control" name="klinik_id" id="klinik_id">
                                     <option value="">- Pilih Klinik -</option>
@@ -61,6 +30,29 @@
                                         <option value="{{ $kl->id }}" {{ (isset($memorandum) && $memorandum->klinik_id == $kl->id) ? 'selected' : '' }}>{{ $kl->nama }}</option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="form-group col-lg-4 col-md-6 col-12">
+                                <label>Nomor Memo</label>
+                                <input type="text" class="form-control" name="nomor_memo" id="nomor_memo" value="{{ $memorandum->nomor_memo ?? '' }}" placeholder="e.g., MEMO-001/KP-BL/XII/2026" readonly>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="form-group col-lg-4 col-md-6 col-12">
+                                <label>Perihal</label>
+                                <input type="text" class="form-control" name="perihal" id="perihal" placeholder="Tuliskan perihal memorandum" required value="{{ $memorandum->perihal ?? '' }}">
+                            </div>
+                            <div class="form-group col-lg-4 col-md-6 col-12">
+                                <label>Dari Divisi</label>
+                                <select class="form-control" name="dari_division_id" id="dari_division_id">
+                                    <option value="">- Pilih Divisi -</option>
+                                    @foreach($divisions as $div)
+                                        <option value="{{ $div->id }}" {{ (isset($memorandum) && $memorandum->dari_division_id == $div->id) ? 'selected' : ((isset($defaultDivisionId) && !isset($memorandum) && $defaultDivisionId == $div->id) ? 'selected' : '') }}>{{ $div->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group col-lg-4 col-md-6 col-12">
+                                <label>Kepada</label>
+                                <input type="text" class="form-control" name="kepada" id="kepada" placeholder="Nama penerima / jabatan" value="{{ $memorandum->kepada ?? '' }}">
                             </div>
                         </div>
                         <div class="form-group">
@@ -122,7 +114,6 @@ $(function(){
             kepada: $('#kepada').val(),
             isi: $('#isi').summernote('code'),
             klinik_id: $('#klinik_id').val(),
-            status: $('#status').val(),
             _token: '{{ csrf_token() }}'
         };
         if (isEdit) { data._method = 'PUT'; }
@@ -139,4 +130,22 @@ $(function(){
     });
 });
 </script>
+@endpush
+
+@push('styles')
+<style>
+    .card-body .form-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #6c757d;
+        text-transform: uppercase;
+        margin-bottom: .25rem;
+        letter-spacing: .2px;
+    }
+    .card-body .row { margin-bottom: .75rem; }
+    .card-body .form-control { border-radius: .375rem; }
+    @media (max-width: 767.98px) {
+        .card-body .row { margin-bottom: 1rem; }
+    }
+</style>
 @endpush
