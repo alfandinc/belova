@@ -168,9 +168,83 @@
     </div><!--end row-->  
 
     <button type="button" class="btn btn-primary mb-3 btn-tambah-obat">+ Tambah Obat</button>
-    <a href="{{ route('erm.obat.export-excel', request()->all()) }}" class="btn btn-success mb-3" target="_blank">
+    <a href="{{ route('erm.obat.export-excel', request()->all()) }}" class="btn btn-success mb-3" id="btnExportExcel" target="_blank">
         <i class="fas fa-file-excel"></i> Export Excel
     </a>
+
+    <!-- Modal: Pilih Kolom Export -->
+    <div class="modal fade" id="exportColumnsModal" tabindex="-1" role="dialog" aria-labelledby="exportColumnsModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exportColumnsModalLabel">Pilih Kolom untuk Export</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <form id="exportColumnsForm">
+                    <div class="modal-body">
+                        <div class="form-group mb-2">
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="selectAllColumns" checked>
+                                <label class="custom-control-label" for="selectAllColumns">Pilih semua</label>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                <!-- Keep values in the exact order desired for export -->
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-id" value="id" checked>
+                                    <label class="custom-control-label" for="col-id">ID</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-kode" value="kode_obat" checked>
+                                    <label class="custom-control-label" for="col-kode">Kode Obat</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-nama" value="nama" checked>
+                                    <label class="custom-control-label" for="col-nama">Nama</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-hpp" value="hpp" checked>
+                                    <label class="custom-control-label" for="col-hpp">HPP</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-hpp-jual" value="hpp_jual" checked>
+                                    <label class="custom-control-label" for="col-hpp-jual">HPP Jual</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-harga-nonfornas" value="harga_nonfornas" checked>
+                                    <label class="custom-control-label" for="col-harga-nonfornas">Harga Non-Fornas</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-metode-bayar" value="metode_bayar" checked>
+                                    <label class="custom-control-label" for="col-metode-bayar">Metode Bayar</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-kategori" value="kategori" checked>
+                                    <label class="custom-control-label" for="col-kategori">Kategori</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-dosis" value="dosis" checked>
+                                    <label class="custom-control-label" for="col-dosis">Dosis</label>
+                                </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-satuan" value="satuan" checked>
+                                    <label class="custom-control-label" for="col-satuan">Satuan</label>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-2">Hanya obat aktif yang akan diexport.</small>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-success" id="confirmExportBtn"><i class="fas fa-file-excel"></i> Export</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <div class="row mb-3">
         <div class="col-md-12">
@@ -486,6 +560,46 @@
                     }
                 }
             ]
+        });
+
+        // Export Excel: open modal instead of direct download
+        $(document).on('click', '#btnExportExcel', function(e){
+            e.preventDefault();
+            $('#exportColumnsModal').modal('show');
+        });
+
+        // Select All toggle
+        $('#selectAllColumns').on('change', function(){
+            const checked = $(this).is(':checked');
+            $('.column-choice').prop('checked', checked);
+        });
+
+        // Keep Select All in sync when individual boxes change
+        $(document).on('change', '.column-choice', function(){
+            const all = $('.column-choice').length;
+            const checked = $('.column-choice:checked').length;
+            $('#selectAllColumns').prop('checked', all === checked);
+        });
+
+        // Confirm export -> build URL with selected columns and current filters
+        $('#exportColumnsForm').on('submit', function(e){
+            e.preventDefault();
+            const selected = $('.column-choice:checked').map(function(){ return $(this).val(); }).get();
+            if (!selected.length) {
+                alert('Pilih minimal satu kolom untuk diexport.');
+                return;
+            }
+            const params = new URLSearchParams();
+            // Maintain current filters
+            const kategori = $('#filter_kategori').val();
+            const metode = $('#filter_metode_bayar').val();
+            if (kategori) params.append('kategori', kategori);
+            if (metode) params.append('metode_bayar_id', metode);
+            // Always export active only (handled by backend); no need to pass status
+            selected.forEach(c => params.append('columns[]', c));
+            const url = '{{ route('erm.obat.export-excel') }}' + (params.toString() ? ('?' + params.toString()) : '');
+            window.open(url, '_blank');
+            $('#exportColumnsModal').modal('hide');
         });
 
         // Append modal for relations (pemasok & principal)

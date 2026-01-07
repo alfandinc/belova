@@ -9,9 +9,34 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 class ObatExport implements FromCollection, WithHeadings, WithMapping
 {
     protected $request;
+    protected $columns = [];
+    /** @var array<string,string> */
+    protected $headingMap = [
+        'id' => 'ID',
+        'kode_obat' => 'Kode Obat',
+        'nama' => 'Nama',
+        'hpp' => 'HPP',
+        'hpp_jual' => 'HPP Jual',
+        'harga_nonfornas' => 'Harga Non-Fornas',
+        'metode_bayar' => 'Metode Bayar',
+        'kategori' => 'Kategori',
+        'dosis' => 'Dosis',
+        'satuan' => 'Satuan',
+    ];
+    /** @var string[] */
+    protected $allowedColumns = [
+        'id','kode_obat','nama','hpp','hpp_jual','harga_nonfornas','metode_bayar','kategori','dosis','satuan'
+    ];
     public function __construct($request)
     {
         $this->request = $request;
+        $cols = (array) ($request->input('columns', []));
+        // If nothing provided, default to full set (previous behavior)
+        if (empty($cols)) {
+            $cols = $this->allowedColumns;
+        }
+        // Sanitize and preserve order
+        $this->columns = array_values(array_intersect($cols, $this->allowedColumns));
     }
     public function collection()
     {
@@ -31,7 +56,14 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
     }
     public function headings(): array
     {
-    return ['ID', 'Kode Obat', 'Nama', 'HPP', 'HPP Jual', 'Harga Non-Fornas', 'Metode Bayar', 'Kategori', 'Dosis', 'Satuan'];
+        // Build headings based on selected columns
+        $cols = $this->columns;
+        if (empty($cols)) {
+            $cols = $this->allowedColumns;
+        }
+        return array_map(function ($col) {
+            return $this->headingMap[$col] ?? $col;
+        }, $cols);
     }
 
     /**
@@ -39,17 +71,37 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
      */
     public function map($obat): array
     {
-        return [
-            $obat->id,
-            $obat->kode_obat,
-            $obat->nama,
-            $obat->hpp,
-            $obat->hpp_jual,
-            $obat->harga_nonfornas,
-            optional($obat->metodeBayar)->nama ?: '-',
-            $obat->kategori,
-            $obat->dosis,
-            $obat->satuan,
-        ];
+        $row = [];
+        $cols = $this->columns;
+        if (empty($cols)) {
+            $cols = $this->allowedColumns;
+        }
+        foreach ($cols as $col) {
+            switch ($col) {
+                case 'id':
+                    $row[] = $obat->id; break;
+                case 'kode_obat':
+                    $row[] = $obat->kode_obat; break;
+                case 'nama':
+                    $row[] = $obat->nama; break;
+                case 'hpp':
+                    $row[] = $obat->hpp; break;
+                case 'hpp_jual':
+                    $row[] = $obat->hpp_jual; break;
+                case 'harga_nonfornas':
+                    $row[] = $obat->harga_nonfornas; break;
+                case 'metode_bayar':
+                    $row[] = optional($obat->metodeBayar)->nama ?: '-'; break;
+                case 'kategori':
+                    $row[] = $obat->kategori; break;
+                case 'dosis':
+                    $row[] = $obat->dosis; break;
+                case 'satuan':
+                    $row[] = $obat->satuan; break;
+                default:
+                    $row[] = '';
+            }
+        }
+        return $row;
     }
 }
