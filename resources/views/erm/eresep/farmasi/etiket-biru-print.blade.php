@@ -12,21 +12,32 @@
         }
         @page {
             margin: 0;
-            size: 10cm 3.5cm;
+            size: 10cm 1.5cm; /* page equals label height: no extra space */
         }
         html, body {
             box-sizing: border-box;
             width: 10cm;
-            height: 3.5cm;
+            height: 1.5cm; /* match page size */
             margin: 0;
             padding: 0;
         }
         body {
             font-family: Arial, sans-serif;
             width: 10cm;
-            height: 3.5cm;
+            height: 1.5cm; /* match page height */
             overflow: hidden;
-            background-color: #ffffff !important; /* page default white */
+            background-color: #ffffff !important; /* base page color; wrapper will provide blue */
+        }
+        /* Full-page blue wrapper to eliminate any white gaps */
+        .etiket-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 10cm;
+            height: 1.5cm; /* match page size */
+            background-color: #26ccff; /* blue background across full page */
         }
         /* Force all text inside the blue label to black */
         .main-table, .main-table * {
@@ -64,13 +75,10 @@
         /* main label area stays blue */
         table { width: 100%; border-collapse: collapse; border-spacing: 0; }
         .main-table {
-            position: fixed; /* fixed positions are respected by mPDF relative to the page */
-            left: 0;
-            top: 20mm; /* align below the white spacer */
             width: 100%;
-            height: 15mm; /* 1.5cm */
+            height: 100%; /* fill wrapper */
             table-layout: fixed;
-            background-color: #26ccff;
+            background-color: transparent; /* wrapper provides blue */
             border: 1px solid #000000; /* outer border of the label */
             margin: 0;
             padding: 0;
@@ -84,7 +92,7 @@
             height: 100%;
         }
         .main-table td {
-            padding: 0.12cm 0.18cm;
+            padding: 0.06cm 0.10cm; /* further tightened to reduce overall height */
             vertical-align: top;
             overflow: hidden;
             box-sizing: border-box;
@@ -108,7 +116,7 @@
             line-height: 1.05;
         }
         .no-tanggal {
-            font-size: 4.5pt;
+            font-size: 3.8pt; /* further reduced */
             font-weight: bold;
             margin-bottom: 0.5mm;
             white-space: nowrap;
@@ -120,29 +128,29 @@
             padding: 0;
             text-align: center;
             font-weight: bold;
-            font-size: 7pt;
+            font-size: 5.5pt; /* further reduced */
             line-height: 1.2;
             width: 4cm;
-            height: 1cm;
+            height: 0.9cm; /* slightly shorter */
             display: table-cell;
             vertical-align: middle;
             display: block;
         }
         .aturan-pakai-title {
             font-weight: bold;
-            font-size: 6pt;
+            font-size: 4.5pt; /* further reduced */
             text-align: center;
             margin-bottom: 0.5mm;
         }
         .obat-name {
             font-weight: bold;
-            font-size: 5pt;
+            font-size: 4pt; /* further reduced */
             text-align: center;
             margin-bottom: 0.5mm;
             line-height: 1;
         }
         .usage-text {
-            font-size: 6pt; /* match .expire-text */
+            font-size: 4.5pt; /* further reduced */
             font-weight: bold; /* make usage text bold */
             text-align: center;
             margin-bottom: 0.5mm;
@@ -161,8 +169,8 @@
         }
         /* SVG checkbox for consistent printed rendering */
         .svg-checkbox {
-            width: 0.4cm; /* match checkbox cell size */
-            height: 0.4cm;
+            width: 0.35cm; /* slightly smaller */
+            height: 0.35cm;
             display: inline-block;
             vertical-align: middle;
             margin-top: 0px; /* don't change layout */
@@ -178,8 +186,8 @@
         .checkbox-item {
             display: inline-block;
             text-align: center;
-            font-size: 4pt;
-            width: 0.4cm;
+            font-size: 3.5pt; /* smaller labels */
+            width: 0.35cm; /* match checkbox */
         }
         .checkbox {
             width: 0.4cm;
@@ -189,40 +197,40 @@
             margin-bottom: 0.05cm;
         }
         .expire-text {
-            font-size: 6pt; /* increased from 4pt to 6pt */
+            font-size: 4.5pt; /* further reduced */
             text-align: center;
             font-weight: bold;
             line-height: 1;
         }
         .clinic-info {
-            font-size: 5.5pt; /* larger */
+            font-size: 4.8pt; /* slightly smaller again */
             font-weight: bold;
             line-height: 1;
             text-align: center;
             margin-bottom: 0.15cm;
         }
         .address-info {
-            font-size: 4.5pt; /* larger */
+            font-size: 3.8pt; /* further reduced */
             line-height: 1;
-            margin-top: 0.4cm;
+            margin-top: 0.25cm; /* tighter spacing */
             text-align: center;
         }
         .pharmacist-info {
-            font-size: 4.5pt; /* larger */
+            font-size: 3.8pt; /* further reduced */
             line-height: 1;
-            padding-top: 0.35cm; /* use padding to ensure spacing inside table cell */
+            padding-top: 0.25cm; /* tighter spacing */
             display: block;
             text-align: center;
         }
     </style>
 </head>
 <body>
-    <div style="height:2cm; background-color:#ffffff; width:100%;"></div>
-    <table class="main-table" style="width:100%;height:1.5cm;border-collapse:collapse;">
+    <div class="etiket-wrapper">
+    <table class="main-table" style="width:100%;height:100%;border-collapse:collapse;">
         <tr>
             <td class="left-column">
                 <div class="no-tanggal">No RM {{ $pasien->id ?? '___' }} Tanggal {{ now()->format('d/m/Y') }}</div>
-                <hr style="margin: 0.05cm 0 0.3cm 0; border: none; border-top: 1px solid #000;">
+                <hr style="margin: 0.05cm 0 0.2cm 0; border: none; border-top: 1px solid #000;">
                 <div class="patient-box">
                     {{ strtoupper($pasien->nama ?? 'PATIENT') }}
                 </div>
@@ -238,55 +246,55 @@
                         <tr>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
                                 @if(!empty($pagi))
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                         <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                                     </svg>
                                 @else
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                     </svg>
                                 @endif
-                                <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Pagi</span>
+                                <span style="font-size:3.5pt; vertical-align:middle; margin-left:0.1cm;">Pagi</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
                                 @if(!empty($siang))
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                         <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                                     </svg>
                                 @else
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                     </svg>
                                 @endif
-                                <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Siang</span>
+                                <span style="font-size:3.5pt; vertical-align:middle; margin-left:0.1cm;">Siang</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
                                 @if(!empty($sore))
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                         <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                                     </svg>
                                 @else
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                     </svg>
                                 @endif
-                                <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Sore</span>
+                                <span style="font-size:3.5pt; vertical-align:middle; margin-left:0.1cm;">Sore</span>
                             </td>
                             <td style="text-align:center; vertical-align:middle; width:25%;">
                                 @if(!empty($malam))
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                         <path d="M5.5 12.5l4.2 4.2L19 7.4" stroke="#000" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                                     </svg>
                                 @else
-                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.4cm" height="0.4cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                    <svg class="svg-checkbox" viewBox="0 0 24 24" width="0.35cm" height="0.35cm" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                                         <rect x="2" y="2" width="20" height="20" rx="2" ry="2" fill="#ffffff" stroke="#000" stroke-width="0.9" />
                                     </svg>
                                 @endif
-                                <span style="font-size:4pt; vertical-align:middle; margin-left:0.1cm;">Malam</span>
+                                <span style="font-size:3.5pt; vertical-align:middle; margin-left:0.1cm;">Malam</span>
                             </td>
                         </tr>
                     </table>
@@ -313,5 +321,6 @@
             </td>
         </tr>
     </table>
+    </div>
 </body>
 </html>

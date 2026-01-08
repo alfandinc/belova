@@ -1688,6 +1688,23 @@
 
         // Initialize Select2 for Etiket Biru modal
         $('#etiketBiruModal').on('shown.bs.modal', function () {
+            // Preload paket racikan list so we can label racikan by paket name when matched
+            let paketCache = [];
+            let paketCacheLoaded = false;
+            function normalizeDose(s){ if(!s) return ''; return (''+s).replace(/\s+/g,'').toLowerCase(); }
+            function getPaketListFromResponse(resp){
+                if (!resp) return [];
+                if (Array.isArray(resp)) return resp;
+                if (Array.isArray(resp.data)) return resp.data;
+                if (resp.success && Array.isArray(resp.data)) return resp.data;
+                if (resp.success && Array.isArray(resp.pakets)) return resp.pakets;
+                return [];
+            }
+            // Fetch paket list asynchronously (best effort)
+            $.ajax({ url: "{{ route('erm.paket-racikan.list') }}", method: 'GET' })
+                .done(function(resp){ paketCache = getPaketListFromResponse(resp) || []; paketCacheLoaded = true; })
+                .fail(function(){ paketCache = []; paketCacheLoaded = false; });
+
             $('.select2-etiket-obat').select2({
                 width: '100%',
                 placeholder: 'Pilih Obat...',
@@ -1704,14 +1721,51 @@
                             const results = [];
                             const seenRacikan = {};
 
-                            data.forEach(function(item) {
+                            // Helper to try find paket name for a racikan group
+                            function findPaketNameForRacikan(racikanKe){
+                                if (!paketCacheLoaded || !Array.isArray(paketCache) || paketCache.length === 0) return null;
+                                const rItems = (data || []).filter(function(it){ return String(it.racikan_ke||'') === String(racikanKe||''); });
+                                if (rItems.length === 0) return null;
+                                const rIds = rItems.map(function(it){ return String(it.obat_id||''); }).filter(Boolean).sort();
+                                const rDoseMap = {};
+                                rItems.forEach(function(it){ rDoseMap[String(it.obat_id||'')] = normalizeDose(it.dosis||''); });
+
+                                let candidate = null;
+                                // prefer exact dose + obat match; fallback to obat-only match
+                                paketCache.forEach(function(p){
+                                    const dets = p.details || p.obats || p.items || [];
+                                    const pIds = dets.map(function(d){ return String((d.obat && d.obat.id) ? d.obat.id : (d.obat_id||'')); }).filter(Boolean).sort();
+                                    if (pIds.length !== rIds.length) return;
+                                    // compare id sets
+                                    const sameIds = pIds.every(function(val, idx){ return val === rIds[idx]; });
+                                    if (!sameIds) return;
+                                    // check dose equality when available
+                                    const doseAllMatch = dets.every(function(d){
+                                        const oid = String((d.obat && d.obat.id) ? d.obat.id : (d.obat_id||''));
+                                        const pDose = normalizeDose(d.dosis||'');
+                                        return rDoseMap[oid] ? rDoseMap[oid] === pDose : true; // tolerate missing dose from response
+                                    });
+                                    if (doseAllMatch) {
+                                        candidate = p.nama_paket || p.name || null;
+                                    } else if (!candidate) {
+                                        // keep as weaker match if no exact dose match found later
+                                        candidate = p.nama_paket || p.name || null;
+                                    }
+                                });
+                                return candidate;
+                            }
+
+                            (data || []).forEach(function(item) {
                                 if (item.racikan_ke) {
                                     const key = String(item.racikan_ke);
                                     if (!seenRacikan[key]) {
+                                        let label = 'Racikan ' + key;
+                                        const paketName = findPaketNameForRacikan(key);
+                                        if (paketName) label = paketName;
                                         // Add a single racikan option (id prefixed to distinguish)
                                         results.push({
                                             id: 'racikan:' + key,
-                                            text: 'Racikan ' + key,
+                                            text: label,
                                             is_racikan: true,
                                             racikan_ke: key
                                         });
@@ -1736,9 +1790,11 @@
             $('#etiket-obat').on('change', function() {
                 const val = $(this).val();
                 if (val && val.toString().startsWith('racikan:')) {
-                    // extract racikan ke and prefill label
+                    // extract racikan ke and prefill label from selected option text
                     const ke = val.toString().split(':')[1] || '';
-                    $('#etiket-racikan-name').val('Racikan ' + ke);
+                    const selData = $('#etiket-obat').select2('data');
+                    const labelText = (Array.isArray(selData) && selData[0] && selData[0].text) ? selData[0].text : ('Racikan ' + ke);
+                    $('#etiket-racikan-name').val(labelText);
                     $('#etiket-racikan-name-group').show();
                 } else {
                     $('#etiket-racikan-name').val('');
