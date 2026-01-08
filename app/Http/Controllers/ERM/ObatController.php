@@ -169,10 +169,23 @@ class ObatController extends Controller
             if ($request->filled('status_aktif')) {
                 $query->where('status_aktif', $request->status_aktif);
             }
+            // Filter by presence of zat aktif (paten/tidak paten)
+            if ($request->has('has_zat_aktif') && $request->has_zat_aktif !== '') {
+                $flag = (string) $request->has_zat_aktif;
+                if ($flag === '1') {
+                    $query->whereHas('zatAktifs');
+                } elseif ($flag === '0') {
+                    $query->whereDoesntHave('zatAktifs');
+                }
+            }
 
             return DataTables::of($query)
                 ->addColumn('metode_bayar', function ($obat) {
                     return $obat->metodeBayar ? $obat->metodeBayar->nama : '-';
+                })
+                // Helper flag to indicate whether obat has any zat aktif (for patent badge on frontend)
+                ->addColumn('has_zat_aktif', function ($obat) {
+                    return $obat->zatAktifs && $obat->zatAktifs->count() > 0;
                 })
                 ->addColumn('zat_aktif', function ($obat) {
                     $zats = [];

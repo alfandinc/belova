@@ -252,7 +252,7 @@
                 <div class="card-body">
                     <h5 class="card-title">Filter</h5>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filter_kategori">Kategori</label>
                                 <select id="filter_kategori" class="form-control select2">
@@ -263,7 +263,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filter_metode_bayar">Metode Bayar</label>
                                 <select id="filter_metode_bayar" class="form-control select2">
@@ -274,13 +274,23 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filter_status">Status</label>
                                 <select id="filter_status" class="form-control select2">
                                     <option value="">Semua Status</option>
                                     <option value="1">Aktif</option>
                                     <option value="0">Tidak Aktif</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filter_paten">Jenis Obat</label>
+                                <select id="filter_paten" class="form-control select2">
+                                    <option value="">Semua Jenis</option>
+                                    <option value="1">Obat Paten (punya zat aktif)</option>
+                                    <option value="0">Obat Tidak Paten (tanpa zat aktif)</option>
                                 </select>
                             </div>
                         </div>
@@ -486,11 +496,14 @@
                     // Always send the status_aktif parameter
                     // Even when it's empty, to ensure the controller gets it
                     d.status_aktif = $('#filter_status').val();
+                    // Send has_zat_aktif for Paten/Tidak Paten filter (1/0/empty)
+                    d.has_zat_aktif = $('#filter_paten').val();
                     
                     console.log('Sending filters:', {
                         kategori: d.kategori,
                         metode_bayar_id: d.metode_bayar_id,
-                        status_aktif: d.status_aktif
+                        status_aktif: d.status_aktif,
+                        has_zat_aktif: d.has_zat_aktif
                     });
                 }
             },
@@ -525,7 +538,13 @@
                         }
                         var nameHtml = data ? data : '-';
                         var badgeHtml = '<span class="' + badgeClass + '" style="margin-top:6px; display:inline-block;">' + (metode || '-') + '</span>';
-                        return '<div>' + nameHtml + '<br/>' + badgeHtml + '</div>';
+                        var patenBadge;
+                        if (row.has_zat_aktif) {
+                            patenBadge = '<span class="badge badge-info" style="margin-top:6px; margin-left:6px; display:inline-block;">Obat Paten</span>';
+                        } else {
+                            patenBadge = '<span class="badge badge-secondary" style="margin-top:6px; margin-left:6px; display:inline-block;">Obat Tidak Paten</span>';
+                        }
+                        return '<div>' + nameHtml + '<br/>' + badgeHtml + patenBadge + '</div>';
                     }
                 },
                 { 
@@ -757,7 +776,7 @@
         });
 
         // Apply filter when select changes (no button needed)
-        $('#filter_kategori, #filter_metode_bayar, #filter_status').on('change', function() {
+        $('#filter_kategori, #filter_metode_bayar, #filter_status, #filter_paten').on('change', function() {
             var statusFilter = $('#filter_status').val();
             console.log('Status filter changed to:', statusFilter);
             
@@ -765,6 +784,7 @@
             if (statusFilter === '') {
                 console.log('All statuses selected');
             }
+            console.log('Jenis Obat (has_zat_aktif):', $('#filter_paten').val());
             
             table.ajax.reload();
         });
@@ -773,6 +793,7 @@
         $('#reload-table').on('click', function() {
             console.log('Manually reloading table...');
             $('#filter_status').val('').trigger('change.select2');
+            $('#filter_paten').val('').trigger('change.select2');
             table.ajax.reload();
         });
 
