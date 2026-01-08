@@ -15,6 +15,7 @@ use App\Models\ERM\ResepFarmasi;
 use App\Models\ERM\LabPermintaan;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceItem;
+use App\Models\Marketing\FollowUp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -104,11 +105,18 @@ class MarketingController extends Controller
     public function pasienData(Request $request)
     {
         if ($request->ajax()) {
+            $oneWeekAgo = Carbon::now()->subWeek();
             $data = Pasien::select('id', 'nama', 'nik', 'tanggal_lahir', 'gender', 'agama', 'marital_status', 'pendidikan', 'pekerjaan', 'gol_darah', 'notes', 'alamat', 'no_hp', 'no_hp2', 'email', 'instagram')
                 ->addSelect([
                     'last_visitation_date' => Visitation::select('tanggal_visitation')
                         ->whereColumn('pasien_id', 'erm_pasiens.id')
                         ->orderByDesc('tanggal_visitation')
+                        ->limit(1)
+                ])
+                ->addSelect([
+                    'has_recent_followup' => FollowUp::selectRaw('1')
+                        ->whereColumn('pasien_id', 'erm_pasiens.id')
+                        ->where('created_at', '>=', $oneWeekAgo)
                         ->limit(1)
                 ])
                 ->orderByRaw('ISNULL(last_visitation_date), last_visitation_date DESC');
@@ -158,6 +166,11 @@ class MarketingController extends Controller
                 ->addColumn('gender_text', function($row) {
                     return $row->gender == 'Laki-laki' ? 'Laki-laki' : ($row->gender == 'Perempuan' ? 'Perempuan' : '-');
                 })
+                ->addColumn('followed_up_7d', function($row) {
+                    return $row->has_recent_followup
+                        ? '<span class="badge badge-success">&#10003;</span>'
+                        : '<span class="badge badge-light">-</span>';
+                })
                 ->addColumn('tanggal_lahir', function($row) {
                     if (!$row->tanggal_lahir) return '-';
                     $carbon = Carbon::parse($row->tanggal_lahir);
@@ -191,7 +204,7 @@ class MarketingController extends Controller
                     }
                     return '-';
                 })
-                ->rawColumns(['gender_text', 'area', 'tanggal_lahir', 'no_hp', 'kunjungan_terakhir'])
+                ->rawColumns(['gender_text', 'area', 'tanggal_lahir', 'no_hp', 'kunjungan_terakhir', 'followed_up_7d'])
                 ->make(true);
         }
         

@@ -70,6 +70,7 @@
                                     <th>No HP</th>
                                     <th>Kunjungan Terakhir</th>
                                     <th>Gender</th>
+                                    <th>FU 7d</th>
                                     <th>Aksi</th>
                                 </tr>
                             </thead>
@@ -163,6 +164,7 @@
                 { data: 'no_hp', name: 'no_hp' },
                 { data: 'kunjungan_terakhir', name: 'kunjungan_terakhir' },
                 { data: 'gender_text', name: 'gender_text' },
+                { data: 'followed_up_7d', name: 'followed_up_7d', orderable: false, searchable: false },
                 {
                     data: null,
                     name: 'aksi',
@@ -179,6 +181,13 @@
 
             ]
     });
+        // Auto-refresh the table every 10 seconds (keep paging/search)
+        setInterval(function(){
+            if ($.fn.dataTable.isDataTable('#pasien-table')) {
+                table.ajax.reload(null, false);
+            }
+        }, 10000);
+
         // Add to Follow Up List button handler
     $(document).on('click', '.add-followup-btn', function() {
         var pasienId = $(this).data('id');
