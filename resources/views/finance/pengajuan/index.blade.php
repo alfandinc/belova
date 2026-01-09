@@ -103,6 +103,9 @@
                                     <option value="declined">Ditolak</option>
                                 </select>
                                 <button type="button" class="btn btn-outline-secondary btn-sm mr-2" id="clearFilterTanggal" title="Clear filter">Clear</button>
+                                <button type="button" class="btn btn-success btn-sm mr-2" id="btnBulkApprove" title="Approve selected" style="display:none;">
+                                    <i class="fa fa-check-double mr-1"></i> Approve Selected
+                                </button>
                                 <button type="button" class="btn btn-primary ml-2" id="btnAddPengajuan">
                                     <i class="fas fa-plus mr-1"></i> Buat Pengajuan
                                 </button>
@@ -122,6 +125,9 @@
                                         <th>Total</th>
                                         <th>Diajukan ke</th>
                                         <th>Approvals</th>
+                                        <th style="width:46px; text-align:center">
+                                            <input type="checkbox" id="select_all_rows" title="Pilih semua (halaman ini)">
+                                        </th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -423,7 +429,8 @@ $(document).ready(function() {
             { targets: 5, width: '120px', className: 'text-end grand-total-cell' },
             { targets: 6, width: '200px' },
             { targets: 7, width: '160px' },
-            { targets: 8, width: '120px' }
+            { targets: 8, width: '56px', className: 'text-center' },
+            { targets: 9, width: '120px' }
         ],
         ajax: {
             url: '{!! route('finance.pengajuan.data') !!}',
@@ -486,6 +493,14 @@ $(document).ready(function() {
             { data: 'diajukan_ke', name: 'diajukan_ke', orderable: false, searchable: false, className: 'diajukan-cell' },
             // server returns rendered HTML list for approvals (approver name + date)
             { data: 'approvals_list', name: 'approvals_list', orderable: false, searchable: false, className: 'approvals-cell' },
+            // selectable checkbox — enabled only if current row is approvable (detect by presence of approve button in actions HTML)
+            { data: null, orderable: false, searchable: false, render: function(data, type, row){
+                    var id = row.id;
+                    var canApprove = (row.actions && row.actions.indexOf('approve-pengajuan') !== -1);
+                    var disabled = canApprove ? '' : 'disabled';
+                    return '<input type="checkbox" class="row-select-checkbox" data-id="'+id+'" '+disabled+' />';
+                }
+            },
             { data: 'actions', name: 'actions', orderable: false, searchable: false, className: 'actions-cell' }
         ],
         createdRow: function(row, data, dataIndex) {
@@ -558,6 +573,18 @@ $(document).ready(function() {
         responsive: true,
         // tanggal_pengajuan is now at column index 3 (0-based), so order by that
         order: [[3, 'desc']]
+    });
+
+    // Helper to toggle bulk approve button visibility
+    function updateBulkApproveVisibility(){
+        var anyChecked = $('#pengajuanTable tbody .row-select-checkbox:checked').length > 0;
+        if (anyChecked) { $('#btnBulkApprove').show(); } else { $('#btnBulkApprove').hide(); }
+    }
+
+    // Reset select-all state on each draw and recalc visibility
+    table.on('draw', function(){
+        $('#select_all_rows').prop('checked', false);
+        updateBulkApproveVisibility();
     });
 
     // Open modal for create
@@ -1097,6 +1124,65 @@ $(document).ready(function() {
                     } else {
                         Swal.fire('Error', 'Terjadi kesalahan pada server', 'error');
                     }
+                }
+            });
+        });
+    });
+
+    // Select all toggle (current page only)
+    $(document).on('change', '#select_all_rows', function(){
+        var checked = $(this).is(':checked');
+        $('#pengajuanTable tbody .row-select-checkbox:enabled').prop('checked', checked);
+        updateBulkApproveVisibility();
+    });
+
+    // Per-row selection change -> update visibility
+    $(document).on('change', '#pengajuanTable tbody .row-select-checkbox', function(){
+        // if any enabled checkbox is unchecked, also uncheck select-all
+        if (!$(this).is(':checked')) {
+            $('#select_all_rows').prop('checked', false);
+        }
+        updateBulkApproveVisibility();
+    });
+
+    // Bulk approve handler
+    $('#btnBulkApprove').on('click', function(){
+        var ids = [];
+        $('#pengajuanTable tbody .row-select-checkbox:checked').each(function(){
+            var id = $(this).data('id');
+            if (id) ids.push(id);
+        });
+        if (ids.length === 0) {
+            Swal.fire('Info', 'Pilih minimal satu pengajuan yang bisa Anda approve.', 'info');
+            return;
+        }
+        Swal.fire({
+            title: 'Approve '+ids.length+' pengajuan?',
+            text: 'Tindakan ini akan menyetujui semua yang dipilih (yang memenuhi hirarki).',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Approve',
+            cancelButtonText: 'Batal'
+        }).then(function(res){
+            if (!res.value) return;
+            $.ajax({
+                url: '{{ route('finance.pengajuan.bulk_approve') }}',
+                method: 'POST',
+                data: { ids: ids },
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                beforeSend: function(){ Swal.fire({ title:'Memproses...', allowOutsideClick:false, didOpen:() => Swal.showLoading() }); },
+                success: function(resp){
+                    Swal.close();
+                    var ok = resp.approved_count || 0;
+                    var skipped = (resp.skipped || []).length;
+                    var errs = (resp.errors || []).length;
+                    var msg = 'Approved: '+ok+'\nSkipped: '+skipped+'\nErrors: '+errs;
+                    Swal.fire('Selesai', msg.replace(/\n/g,'<br>'), 'success');
+                    table.ajax.reload(null, false);
+                    updateBulkApproveVisibility();
+                },
+                error: function(xhr){
+                    Swal.fire('Error', (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal memproses bulk approve', 'error');
                 }
             });
         });

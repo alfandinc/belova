@@ -19,6 +19,92 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class FinancePengajuanDanaController extends Controller
 {
+    /**
+     * Internal helper: perform approval checks and create approval record.
+     * Returns [bool success, string message]. Does not check user auth/jenis matching.
+     */
+    private function attemptApprovePengajuan(FinancePengajuanDana $pengajuan, FinanceDanaApprover $approver): array
+    {
+        $pengajuanSumber = $pengajuan->sumber_dana ?? '';
+
+        // Check sequencing: higher tingkat must have at least one approval, and no higher-level decline
+        $approverTingkat = intval($approver->tingkat ?: 1);
+        $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
+            ->where(function($q) use ($pengajuanSumber) {
+                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                } else {
+                    $q->whereNull('jenis')->orWhere('jenis', '');
+                }
+            })
+            ->where('tingkat', '>', $approverTingkat)
+            ->distinct()
+            ->pluck('tingkat')
+            ->toArray();
+
+        $higherApproverIds = FinanceDanaApprover::where('aktif', 1)
+            ->where(function($q) use ($pengajuanSumber) {
+                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                } else {
+                    $q->whereNull('jenis')->orWhere('jenis', '');
+                }
+            })
+            ->whereIn('tingkat', $higherTingkatValues)
+            ->pluck('id')
+            ->toArray();
+
+        if (!empty($higherApproverIds)) {
+            $higherDeclined = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+                ->whereIn('approver_id', $higherApproverIds)
+                ->where('status', 'declined')
+                ->exists();
+            if ($higherDeclined) {
+                return [false, 'Pengajuan telah ditolak pada tingkat lebih tinggi.'];
+            }
+        }
+
+        foreach ($higherTingkatValues as $ht) {
+            $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
+                ->where(function($q) use ($pengajuanSumber) {
+                    if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                    } else {
+                        $q->whereNull('jenis')->orWhere('jenis', '');
+                    }
+                })
+                ->where('tingkat', $ht)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($approverIdsAtLevel)) continue;
+
+            $hasAnyApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+                ->whereIn('approver_id', $approverIdsAtLevel)
+                ->exists();
+
+            if (!$hasAnyApproved) {
+                return [false, 'Awaiting approval from higher level approver(s).'];
+            }
+        }
+
+        // already approved by this approver?
+        $existing = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+            ->where('approver_id', $approver->id)
+            ->first();
+        if ($existing) {
+            return [false, 'Already approved by you'];
+        }
+
+        FinancePengajuanDanaApproval::create([
+            'pengajuan_id' => $pengajuan->id,
+            'approver_id' => $approver->id,
+            'status' => 'approved',
+            'tanggal_approve' => Carbon::now(),
+        ]);
+
+        return [true, 'Approved'];
+    }
     public function index()
     {
         return view('finance.pengajuan.index');
@@ -361,86 +447,18 @@ class FinancePengajuanDanaController extends Controller
                 return response()->json(['success' => false, 'message' => 'You are not authorized to approve this pengajuan sumber dana'], 403);
             }
         }
-
-        // Check sequencing: for each higher `tingkat` (level) that has approvers for this jenis,
-        // require at least ONE approval from that tingkat before allowing the current approver.
-        $approverTingkat = intval($approver->tingkat ?: 1);
-
-        // Find distinct higher tingkat values that apply to this pengajuan's jenis
-        $higherTingkatValues = FinanceDanaApprover::where('aktif', 1)
-            ->where(function($q) use ($pengajuanSumber) {
-                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
-                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
-                } else {
-                    $q->whereNull('jenis')->orWhere('jenis', '');
-                }
-            })
-            ->where('tingkat', '>', $approverTingkat)
-            ->distinct()
-            ->pluck('tingkat')
-            ->toArray();
-
-        // If any approver at a higher tingkat has declined, block this approval
-        $higherApproverIds = FinanceDanaApprover::where('aktif', 1)
-            ->where(function($q) use ($pengajuanSumber) {
-                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
-                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
-                } else {
-                    $q->whereNull('jenis')->orWhere('jenis', '');
-                }
-            })
-            ->whereIn('tingkat', $higherTingkatValues)
-            ->pluck('id')
-            ->toArray();
-
-        if (!empty($higherApproverIds)) {
-            $higherDeclined = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
-                ->whereIn('approver_id', $higherApproverIds)
-                ->where('status', 'declined')
-                ->exists();
-            if ($higherDeclined) {
+        [$ok, $msg] = $this->attemptApprovePengajuan($pengajuan, $approver);
+        if (!$ok) {
+            // map generic messages to previous phrasing where applicable
+            if (strpos($msg, 'ditolak pada tingkat lebih tinggi') !== false) {
                 return response()->json(['success' => false, 'message' => 'Pengajuan telah ditolak pada tingkat lebih tinggi. Anda tidak dapat menyetujui.'], 403);
             }
-        }
-
-        foreach ($higherTingkatValues as $ht) {
-            // get approver ids at that tingkat applicable to this jenis
-                $approverIdsAtLevel = FinanceDanaApprover::where('aktif', 1)
-                ->where(function($q) use ($pengajuanSumber) {
-                    if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
-                        $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
-                    } else {
-                        $q->whereNull('jenis')->orWhere('jenis', '');
-                    }
-                })
-                ->where('tingkat', $ht)
-                ->pluck('id')
-                ->toArray();
-
-            if (empty($approverIdsAtLevel)) continue; // no approvers at this level for this jenis
-
-            $hasAnyApproved = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
-                ->whereIn('approver_id', $approverIdsAtLevel)
-                ->exists();
-
-            if (!$hasAnyApproved) {
+            if (strpos(strtolower($msg), 'awaiting approval') !== false) {
                 return response()->json(['success' => false, 'message' => 'Awaiting approval from higher level approver(s) before you can approve.'], 403);
             }
+            return response()->json(['success' => false, 'message' => $msg], 400);
         }
-        // check if already approved by this approver
-        $existing = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)->where('approver_id', $approver->id)->first();
-        if ($existing) {
-            return response()->json(['success' => false, 'message' => 'You have already approved this pengajuan']);
-        }
-
-        $approval = FinancePengajuanDanaApproval::create([
-            'pengajuan_id' => $pengajuan->id,
-            'approver_id' => $approver->id,
-            'status' => 'approved',
-            'tanggal_approve' => Carbon::now(),
-        ]);
-
-        return response()->json(['success' => true, 'message' => 'Pengajuan approved', 'data' => $approval]);
+        return response()->json(['success' => true, 'message' => 'Pengajuan approved']);
     }
 
     /**
@@ -1016,5 +1034,66 @@ class FinancePengajuanDanaController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $list]);
+    }
+
+    /**
+     * Bulk approve multiple pengajuan IDs for the current approver.
+     * Body: { ids: [1,2,3,...] }
+     */
+    public function bulkApprove(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+        $approver = FinanceDanaApprover::where('user_id', $user->id)->first();
+        if (!$approver) {
+            return response()->json(['success' => false, 'message' => 'You are not configured as an approver'], 403);
+        }
+
+        $ids = $request->input('ids');
+        if (!is_array($ids) || empty($ids)) {
+            return response()->json(['success' => false, 'message' => 'No IDs provided'], 422);
+        }
+
+        $approved = [];
+        $skipped = [];
+        $errors = [];
+
+        foreach ($ids as $rawId) {
+            $id = intval($rawId);
+            try {
+                $pengajuan = FinancePengajuanDana::find($id);
+                if (!$pengajuan) {
+                    $errors[] = [ 'id' => $id, 'reason' => 'Not found' ];
+                    continue;
+                }
+                // jenis/source check
+                $pengajuanSumber = $pengajuan->sumber_dana ?? '';
+                if ($approver->jenis && trim($approver->jenis) !== '') {
+                    if (strcasecmp(trim($approver->jenis), trim($pengajuanSumber)) !== 0) {
+                        $skipped[] = [ 'id' => $id, 'reason' => 'Not authorized for sumber dana' ];
+                        continue;
+                    }
+                }
+                [$ok, $msg] = $this->attemptApprovePengajuan($pengajuan, $approver);
+                if ($ok) {
+                    $approved[] = $id;
+                } else {
+                    $skipped[] = [ 'id' => $id, 'reason' => $msg ];
+                }
+            } catch (\Throwable $e) {
+                $errors[] = [ 'id' => $id, 'reason' => 'Server error' ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'approved_count' => count($approved),
+            'approved' => $approved,
+            'skipped' => $skipped,
+            'errors' => $errors,
+            'message' => 'Bulk approval processed',
+        ]);
     }
 }
