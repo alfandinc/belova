@@ -113,8 +113,13 @@
         <!-- Right: Riwayat Tindakan Pasien -->
         <div class="col-lg-6 col-md-12 mb-3">
             <div class="card h-100">
-                <div class="card-header">
+                <div class="card-header d-flex align-items-center">
                     <h5 class="mb-0 text-uppercase font-weight-bold">RIWAYAT TINDAKAN</h5>
+                    <div class="ml-auto">
+                        <a href="/erm/tindakan/history/{{ $visitation->id }}/print-detail" target="_blank" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-print mr-1"></i>Print Detail
+                        </a>
+                    </div>
                 </div>
                 <div class="card-body p-2">
                     <div class="table-responsive">
@@ -467,10 +472,18 @@
                             }
                             group += `<a href="${fileUrl}" target="_blank" class="btn btn-info btn-sm" title="Inform Consent"><i class="fas fa-file-alt"></i></a>`;
                             group += `<button class="btn ${fotoBtnClass} btn-sm foto-hasil-btn" title="${fotoBtnText}" data-id="${row.inform_consent.id}" data-before="${row.inform_consent.before_image_path || ''}" data-after="${row.inform_consent.after_image_path || ''}">${fotoBtnIcon}</button>`;
+                            // Per-row Print Detail (by visitation)
+                            if (row.visitation_id) {
+                                group += `<a href="/erm/tindakan/history/${row.visitation_id}/print-detail" target="_blank" class="btn btn-outline-primary btn-sm" title="Print Detail"><i class="fas fa-print"></i></a>`;
+                            }
                             // Detail button removed as requested
                         } else {
                             group += `<button class="btn btn-secondary btn-sm" disabled title="Inform Consent"><i class="fas fa-file-alt"></i></button>`;
                             group += `<button class="btn btn-secondary btn-sm" disabled title="Upload Foto"><i class="fas fa-upload"></i></button>`;
+                            // Print Detail still available per visitation even if consent absent
+                            if (row.visitation_id) {
+                                group += `<a href="/erm/tindakan/history/${row.visitation_id}/print-detail" target="_blank" class="btn btn-outline-primary btn-sm" title="Print Detail"><i class="fas fa-print"></i></a>`;
+                            }
                             // disabled Detail button removed
                         }
                         // Batalkan as part of the group (only for current visitation)

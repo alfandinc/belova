@@ -41,15 +41,28 @@ class TindakanController extends Controller
         \DB::table('erm_riwayat_tindakan_obat')->where('riwayat_tindakan_id', $id)->delete();
 
         // Insert new pivot entries with qty, dosis, satuan_dosis
+        // Helper: normalize decimal string (accept comma or dot)
+        $normalizeDecimal = function($v) {
+            if ($v === null || $v === '') return null;
+            // keep only digits, comma and dot
+            $s = preg_replace('/[^0-9,\.]/', '', (string) $v);
+            // convert comma to dot and collapse multiple dots
+            $s = str_replace(',', '.', $s);
+            // If still not a valid numeric, return null
+            return is_numeric($s) ? $s : null;
+        };
+
         foreach ($obats as $kodeTindakanId => $obatIds) {
             if (!is_array($obatIds)) continue;
             foreach ($obatIds as $obatId) {
+                $rawDosis = isset($dosis[$kodeTindakanId][$obatId]) ? $dosis[$kodeTindakanId][$obatId] : null;
+                $normDosis = $normalizeDecimal($rawDosis);
                 \DB::table('erm_riwayat_tindakan_obat')->insert([
                     'riwayat_tindakan_id' => $id,
                     'kode_tindakan_id' => $kodeTindakanId,
                     'obat_id' => $obatId,
                     'qty' => isset($qty[$kodeTindakanId][$obatId]) ? $qty[$kodeTindakanId][$obatId] : 1,
-                    'dosis' => isset($dosis[$kodeTindakanId][$obatId]) ? $dosis[$kodeTindakanId][$obatId] : null,
+                    'dosis' => $normDosis,
                     'satuan_dosis' => isset($satuanDosis[$kodeTindakanId][$obatId]) ? $satuanDosis[$kodeTindakanId][$obatId] : null,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -618,6 +631,7 @@ class TindakanController extends Controller
                     }
                     return (object) [
                         'id' => $item->id,
+                        'visitation_id' => $item->visitation_id,
                         'tanggal' => $tanggalFormatted,
                         'tanggal_raw' => $tanggalRaw,
                         'tindakan' => $item->tindakan->nama ?? '-',
@@ -1268,6 +1282,121 @@ class TindakanController extends Controller
             'success' => true,
             'tindakan' => $tindakan->nama,
             'kode_tindakans' => $kodeTindakans,
+        ]);
+    }
+    
+    /**
+     * Printable detail of tindakan history grouped by visitation for the same patient.
+     * Shows each tindakan with its kode tindakan and bundled/substituted obat (from riwayat pivot).
+     */
+    public function printHistoryDetail($visitationId)
+    {
+        $currentVisitation = Visitation::with(['pasien', 'dokter.user'])->findOrFail($visitationId);
+        $patientId = $currentVisitation->pasien_id;
+
+        // If ?all=1 provided, include all visitations of this patient; otherwise only the current visitation
+        if (request()->boolean('all')) {
+            $visitations = Visitation::where('pasien_id', $patientId)
+                ->orderBy('tanggal_visitation', 'asc')
+                ->get(['id','tanggal_visitation','dokter_id']);
+        } else {
+            $visitations = collect([$currentVisitation]);
+        }
+
+        if ($visitations->isEmpty()) {
+            return view('erm.tindakan.riwayat-print', [
+                'currentVisitation' => $currentVisitation,
+                'groups' => collect(),
+            ]);
+        }
+
+        // Fetch all riwayat for these visitations
+        $riwayat = RiwayatTindakan::with(['tindakan'])
+            ->whereIn('visitation_id', $visitations->pluck('id'))
+            ->orderBy('tanggal_tindakan', 'asc')
+            ->get();
+
+        $riwayatIds = $riwayat->pluck('id');
+        $tindakanIds = $riwayat->pluck('tindakan_id')->unique();
+
+        // Load tindakan -> kode tindakans map
+        $tindakans = Tindakan::with('kodeTindakans')
+            ->whereIn('id', $tindakanIds)
+            ->get()
+            ->keyBy('id');
+
+        // Load pivot rows (riwayat->kode->obat with dosage)
+        $pivotRows = DB::table('erm_riwayat_tindakan_obat as rto')
+            ->leftJoin('erm_obat as o', 'o.id', '=', 'rto.obat_id')
+            ->leftJoin('erm_kode_tindakan as kt', 'kt.id', '=', 'rto.kode_tindakan_id')
+            ->whereIn('rto.riwayat_tindakan_id', $riwayatIds)
+            ->select(
+                'rto.riwayat_tindakan_id',
+                'rto.kode_tindakan_id',
+                'kt.kode as kode',
+                'kt.nama as kode_nama',
+                'o.nama as obat_nama',
+                'o.satuan as obat_satuan',
+                'rto.qty',
+                'rto.dosis',
+                'rto.satuan_dosis'
+            )
+            ->orderBy('kt.kode')
+            ->get()
+            ->groupBy('riwayat_tindakan_id');
+
+        // Group data by visitation
+        $groups = [];
+        foreach ($visitations as $v) {
+            $groups[$v->id] = [
+                'visitation' => $v->load(['dokter.user']),
+                'riwayats' => []
+            ];
+        }
+
+        foreach ($riwayat as $r) {
+            $tindakan = $tindakans->get($r->tindakan_id);
+            $kodeItems = [];
+            if ($tindakan) {
+                foreach ($tindakan->kodeTindakans as $kt) {
+                    $kodeItems[$kt->id] = [
+                        'kode' => $kt->kode,
+                        'nama' => $kt->nama,
+                        'obats' => []
+                    ];
+                }
+            }
+
+            $rows = $pivotRows->get($r->id) ?: collect();
+            foreach ($rows as $row) {
+                if (!isset($kodeItems[$row->kode_tindakan_id])) {
+                    $kodeItems[$row->kode_tindakan_id] = [
+                        'kode' => $row->kode,
+                        'nama' => $row->kode_nama,
+                        'obats' => []
+                    ];
+                }
+                $dose = '';
+                if (!empty($row->dosis)) {
+                    $dose = $row->dosis . (!empty($row->satuan_dosis) ? (' ' . $row->satuan_dosis) : '');
+                }
+                $kodeItems[$row->kode_tindakan_id]['obats'][] = [
+                    'nama' => $row->obat_nama,
+                    'satuan' => $row->obat_satuan,
+                    'qty' => $row->qty,
+                    'dosis' => $dose,
+                ];
+            }
+
+            $groups[$r->visitation_id]['riwayats'][] = [
+                'tindakan_nama' => $r->tindakan->nama ?? '-',
+                'kode_items' => array_values($kodeItems)
+            ];
+        }
+
+        return view('erm.tindakan.riwayat-print', [
+            'currentVisitation' => $currentVisitation,
+            'groups' => collect($groups)
         ]);
     }
 };
