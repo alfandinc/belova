@@ -1402,10 +1402,19 @@ class EresepController extends Controller
         return view('erm.paket-racikan.index');
     }
 
-    public function getPaketRacikanList()
+    public function getPaketRacikanList(\Illuminate\Http\Request $request)
     {
+        $q = trim($request->input('q', ''));
         $paketRacikans = PaketRacikan::with(['details.obat', 'wadah'])
             ->where('is_active', true)
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('nama_paket', 'like', "%$q%")
+                        ->orWhereHas('details.obat', function ($obatQ) use ($q) {
+                            $obatQ->where('nama', 'like', "%$q%");
+                        });
+                });
+            })
             ->orderBy('nama_paket')
             ->get();
 

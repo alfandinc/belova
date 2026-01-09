@@ -1881,8 +1881,9 @@
         $(document).on('click', '#paket-racikan', function() {
             // Reset form first
             resetFormPaket();
-            // Load list
-            loadPaketRacikanList();
+            // Load list (respect current search term if present)
+            const term = $('#searchPaketRacikanFarmasi').val() || '';
+            loadPaketRacikanList(term);
             // Show modal
             $('#paketRacikanModalFarmasi').modal('show');
         });
@@ -1906,10 +1907,11 @@
         });
 
         // Load Paket Racikan List (robust to different response shapes)
-        function loadPaketRacikanList() {
+        function loadPaketRacikanList(searchTerm = '') {
             $.ajax({
                 url: "{{ route('erm.paket-racikan.list') }}",
                 method: 'GET',
+                data: { q: searchTerm },
                 success: function(response) {
                     let paketList = [];
                     if (!response) {
@@ -1953,6 +1955,22 @@
                 }
             });
         }
+
+        // Simple debounce helper
+        function debounce(fn, wait) {
+            let t;
+            return function() {
+                const ctx = this, args = arguments;
+                clearTimeout(t);
+                t = setTimeout(function(){ fn.apply(ctx, args); }, wait);
+            };
+        }
+
+        // Hook up search input to reload daftar paket
+        $(document).on('input', '#searchPaketRacikanFarmasi', debounce(function(){
+            const term = $(this).val();
+            loadPaketRacikanList(term);
+        }, 300));
 
         // Initialize Select2 for Paket Racikan
         function initializePaketRacikanSelects() {

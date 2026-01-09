@@ -12,6 +12,9 @@
                 <div class="row">
                     <div class="col-md-7">
                         <h6><strong>Daftar Paket Racikan</strong></h6>
+                        <div class="mb-2">
+                            <input type="text" class="form-control form-control-sm" id="searchPaketRacikanFarmasi" placeholder="Cari paket racikan...">
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-bordered" id="paketRacikanTableFarmasi">
                                 <thead class="thead-light">
