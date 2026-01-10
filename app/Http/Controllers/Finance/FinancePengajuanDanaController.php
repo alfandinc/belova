@@ -378,6 +378,8 @@ class FinancePengajuanDanaController extends Controller
 
                 // Show Bayar button when pengajuan is fully approved and not yet paid
                 try {
+                    $user = Auth::user();
+                    $canPay = $user && ($user->hasRole('Finance') || $user->hasRole('Admin'));
                     $pengajuanSumber = $row->sumber_dana ?? '';
                     $approversForJenis = FinanceDanaApprover::where('aktif', 1)
                         ->where(function($q) use ($pengajuanSumber) {
@@ -405,7 +407,7 @@ class FinancePengajuanDanaController extends Controller
                         ->exists();
                     $fullyApproved = (!$hasDeclined) && ($totalLevels > 0) && ($approvedLevels >= $totalLevels);
                     $isPaid = (isset($row->payment_status) && $row->payment_status === 'paid');
-                    if ($fullyApproved && !$isPaid) {
+                    if ($fullyApproved && !$isPaid && $canPay) {
                         $btns .= '<button class="btn btn-sm btn-success pay-pengajuan ms-1" data-id="' . $row->id . '" title="Bayar">Bayar</button>';
                     }
                 } catch (\Exception $e) {}
@@ -1095,6 +1097,10 @@ class FinancePengajuanDanaController extends Controller
         $user = Auth::user();
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+        // Only users with Finance or Admin role can mark as paid
+        if (!($user->hasRole('Finance') || $user->hasRole('Admin'))) {
+            return response()->json(['success' => false, 'message' => 'Forbidden'], 403);
         }
         $pengajuan = FinancePengajuanDana::findOrFail($id);
 
