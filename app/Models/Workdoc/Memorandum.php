@@ -42,4 +42,9 @@ class Memorandum extends Model
     {
         return $this->belongsTo(\App\Models\User::class);
     }
+
+    public function disposisis()
+    {
+        return $this->hasMany(\App\Models\Workdoc\Disposisi::class, 'memorandum_id');
+    }
 }

@@ -74,6 +74,75 @@
         </div>
     </div>
     </div>
+
+<!-- Disposisi Modal -->
+<div class="modal fade" id="disposisiModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title mb-0">Buat Disposisi</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tanggal Terima</label>
+                    <input type="date" id="dispTanggalTerima" class="form-control" />
+                </div>
+
+                <div class="form-group">
+                    <label>Disposisi Pimpinan</label>
+                    <div id="dispPimpinanOptions" class="row">
+                        <div class="col-md-6">
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input type="checkbox" class="custom-control-input disp-pimpinan" id="dp1" value="Untuk diketahui">
+                                <label class="custom-control-label" for="dp1">Untuk diketahui</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input type="checkbox" class="custom-control-input disp-pimpinan" id="dp2" value="Untuk dipelajari">
+                                <label class="custom-control-label" for="dp2">Untuk dipelajari</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input type="checkbox" class="custom-control-input disp-pimpinan" id="dp3" value="Segera dilaksanakan">
+                                <label class="custom-control-label" for="dp3">Segera dilaksanakan</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input type="checkbox" class="custom-control-input disp-pimpinan" id="dp4" value="Untuk ditindaklanjuti">
+                                <label class="custom-control-label" for="dp4">Untuk ditindaklanjuti</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input type="checkbox" class="custom-control-input disp-pimpinan" id="dp5" value="Koordinasi dengan unit terkait">
+                                <label class="custom-control-label" for="dp5">Koordinasi dengan unit terkait</label>
+                            </div>
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input type="checkbox" class="custom-control-input disp-pimpinan" id="dp6" value="Diarsipkan">
+                                <label class="custom-control-label" for="dp6">Diarsipkan</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tujuan Disposisi (Divisi)</label>
+                    <div id="dispTujuanContainer" class="row"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Catatan</label>
+                    <textarea id="dispCatatan" class="form-control" rows="3" placeholder="Catatan"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="dispCetakBtn" href="#" target="_blank" class="btn btn-secondary mr-auto" style="display:none;">Cetak Disposisi</a>
+                <button type="button" class="btn btn-primary" id="dispSimpanBtn">Simpan</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -161,6 +230,7 @@ $(function(){
                         + (({{ Auth::id() ?? 'null' }} === row.user_id) ? '<a class="btn btn-info" href="'+editUrl+'">Edit</a>' : '')
                         + '<a class="btn btn-secondary" target="_blank" href="'+pdfUrl+'">PDF</a>'
                         + '<button class="btn btn-warning docModal" data-id="'+row.id+'">Dokumen</button>'
+                        + '<button class="btn btn-primary disposisiBtn" data-id="'+row.id+'">Disposisi</button>'
                         + (({{ Auth::id() ?? 'null' }} === row.user_id) ? '<button class="btn btn-danger deleteMemo" data-id="'+row.id+'">Delete</button>' : '')
                     + '</div>';
             }}
@@ -243,6 +313,142 @@ $(function(){
             if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
             Swal.fire({icon:'error', title:'Error', text: msg});
         });
+    });
+
+    // Disposisi modal logic
+    let currentDispMemoId = null;
+    let currentDisposisiId = null;
+    let dispDivisionsLoaded = false;
+    function renderDivisionCheckboxes(list){
+        const container = $('#dispTujuanContainer');
+        container.empty();
+        const half = Math.ceil(list.length / 2);
+        const cols = [list.slice(0, half), list.slice(half)];
+        cols.forEach(function(items){
+            const col = $('<div class="col-md-6"></div>');
+            items.forEach(function(d){
+                const id = 'div-'+d.id;
+                const cb = '<div class="custom-control custom-checkbox mb-1">'
+                    + '<input type="checkbox" class="custom-control-input disp-divisi" id="'+id+'" value="'+d.id+'">'
+                    + '<label class="custom-control-label" for="'+id+'">'+(d.name || ('Divisi '+d.id))+'</label>'
+                    + '</div>';
+                col.append(cb);
+            });
+            container.append(col);
+        });
+    }
+
+    function ensureDivisions(){
+        if(dispDivisionsLoaded){
+            var d = $.Deferred();
+            d.resolve();
+            return d.promise();
+        }
+        return $.get('{{ route('workdoc.disposisi.divisions') }}')
+            .done(function(resp){
+                renderDivisionCheckboxes(resp.data || []);
+                dispDivisionsLoaded = true;
+            });
+    }
+
+    $('#memorandumTable').on('click', '.disposisiBtn', function(){
+        currentDispMemoId = $(this).data('id');
+        // reset fields
+        $('#dispTanggalTerima').val(moment().format('YYYY-MM-DD'));
+        $('.disp-pimpinan').prop('checked', false);
+        $('#dispCatatan').val('');
+        currentDisposisiId = null;
+        $('#dispSimpanBtn').text('Simpan');
+        // load divisions then fetch existing data and show
+        ensureDivisions().always(function(){
+            $('.disp-divisi').prop('checked', false);
+            $.get('{{ url('/workdoc/disposisi/memorandums') }}/'+currentDispMemoId+'/latest')
+                .done(function(resp){
+                    if(resp && resp.data){
+                        const d = resp.data;
+                        currentDisposisiId = d.id;
+                        $('#dispSimpanBtn').text('Perbarui');
+                        $('#dispCetakBtn').attr('href', '{{ url('/workdoc/disposisi') }}/'+currentDisposisiId+'/print-pdf').show();
+                        if(d.tanggal_terima){
+                            $('#dispTanggalTerima').val(moment(d.tanggal_terima).format('YYYY-MM-DD'));
+                        }
+                        try {
+                            (d.disposisi_pimpinan || []).forEach(function(v){
+                                $(".disp-pimpinan[value='"+v+"']").prop('checked', true);
+                            });
+                        } catch(e) {}
+                        try {
+                            (d.tujuan_disposisi || []).forEach(function(id){
+                                $(".disp-divisi[value='"+id+"']").prop('checked', true);
+                            });
+                        } catch(e) {}
+                        $('#dispCatatan').val(d.catatan || '');
+                    } else {
+                        $('#dispCetakBtn').hide().attr('href', '#');
+                    }
+                })
+                .always(function(){
+                    $('#disposisiModal').modal('show');
+                });
+        });
+    });
+
+    $('#dispSimpanBtn').on('click', function(){
+        if(!currentDispMemoId){ return; }
+        const tanggal = $('#dispTanggalTerima').val();
+        const pimpinan = $('.disp-pimpinan:checked').map(function(){ return this.value; }).get();
+        const tujuan = $('.disp-divisi:checked').map(function(){ return parseInt(this.value,10); }).get();
+        const catatan = $('#dispCatatan').val();
+        if(currentDisposisiId){
+            $.ajax({
+                url: '{{ url('/workdoc/disposisi') }}/'+currentDisposisiId,
+                method: 'PUT',
+                data: {
+                    tanggal_terima: tanggal,
+                    disposisi_pimpinan: pimpinan,
+                    tujuan_disposisi: tujuan,
+                    catatan: catatan,
+                    _token: '{{ csrf_token() }}'
+                }
+            }).done(function(resp){
+                Swal.fire({icon:'success', title:'Sukses', text: resp.message || 'Disposisi diperbarui'});
+                // ensure Cetak link exists after update
+                currentDisposisiId = resp.data && resp.data.id ? resp.data.id : currentDisposisiId;
+                if(currentDisposisiId){
+                    $('#dispCetakBtn').attr('href', '{{ url('/workdoc/disposisi') }}/'+currentDisposisiId+'/print-pdf').show();
+                }
+                $('#disposisiModal').modal('hide');
+            }).fail(function(xhr){
+                let msg = 'Gagal menyimpan disposisi';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire({icon:'error', title:'Error', text: msg});
+            });
+        } else {
+            $.ajax({
+                url: '{{ route('workdoc.disposisi.store') }}',
+                method: 'POST',
+                data: {
+                    memorandum_id: currentDispMemoId,
+                    tanggal_terima: tanggal,
+                    disposisi_pimpinan: pimpinan,
+                    tujuan_disposisi: tujuan,
+                    catatan: catatan,
+                    _token: '{{ csrf_token() }}'
+                }
+            }).done(function(resp){
+                Swal.fire({icon:'success', title:'Sukses', text: resp.message || 'Disposisi dibuat'});
+                // set Cetak link to newly created disposisi
+                currentDisposisiId = resp.data && resp.data.id ? resp.data.id : null;
+                if(currentDisposisiId){
+                    $('#dispCetakBtn').attr('href', '{{ url('/workdoc/disposisi') }}/'+currentDisposisiId+'/print-pdf').show();
+                }
+                $('#disposisiModal').modal('hide');
+            }).fail(function(xhr){
+                let msg = 'Gagal menyimpan disposisi';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire({icon:'error', title:'Error', text: msg});
+            });
+        }
     });
 
     // Status filter change

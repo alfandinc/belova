@@ -1022,6 +1022,12 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     // Dokumen pendukung
     Route::post('/memorandums/{memorandum}/dokumen', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'uploadDokumen'])->name('workdoc.memorandum.dokumen.upload');
     Route::get('/memorandums/{memorandum}/dokumen', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'viewDokumen'])->name('workdoc.memorandum.dokumen.view');
+    // Disposisi endpoints
+    Route::get('/disposisi/divisions', [\App\Http\Controllers\Workdoc\DisposisiController::class, 'divisions'])->name('workdoc.disposisi.divisions');
+    Route::post('/disposisi', [\App\Http\Controllers\Workdoc\DisposisiController::class, 'store'])->name('workdoc.disposisi.store');
+    Route::put('/disposisi/{disposisi}', [\App\Http\Controllers\Workdoc\DisposisiController::class, 'update'])->name('workdoc.disposisi.update');
+    Route::get('/disposisi/memorandums/{memorandum}/latest', [\App\Http\Controllers\Workdoc\DisposisiController::class, 'latestForMemorandum'])->name('workdoc.disposisi.latest');
+    Route::get('/disposisi/{disposisi}/print-pdf', [\App\Http\Controllers\Workdoc\DisposisiController::class, 'printPdf'])->name('workdoc.disposisi.print_pdf');
 });
 
 
