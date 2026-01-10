@@ -37,11 +37,40 @@
         </div>
     </div>
 </div>
+
+<!-- Dokumen Modal -->
+<div class="modal fade" id="dokumenModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title mb-0">Dokumen Pendukung</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="dokumenPreview" class="mb-3" style="display:none;">
+                    <iframe id="dokumenIframe" src="" style="width:100%;height:480px;border:1px solid #e9ecef;border-radius:4px;"></iframe>
+                </div>
+                <div class="form-group">
+                    <label for="dokumenFile">Pilih file (PDF/IMG, maks 10MB)</label>
+                    <input type="file" id="dokumenFile" class="form-control-file" accept="application/pdf,image/*">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a id="dokumenOpenLink" href="#" target="_blank" class="btn btn-success mr-auto" style="display:none;">Buka di Tab Baru</a>
+                <button type="button" class="btn btn-primary" id="dokumenUploadBtn">Unggah</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+    </div>
 @endsection
 
 @push('scripts')
 <script>
 $(function(){
+        let currentMemoId = null;
     const table = $('#memorandumTable').DataTable({
         ajax: {
             url: '{{ route('workdoc.memorandum.data') }}',
@@ -89,15 +118,10 @@ $(function(){
             {data: null, render: function(row){
                 const editUrl = '{{ route('workdoc.memorandum.edit', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
                 const pdfUrl = '{{ route('workdoc.memorandum.print_pdf', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
-                const hasDoc = !!row.dokumen_path;
-                const viewUrl = '{{ route('workdoc.memorandum.dokumen.view', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
-                const uploadLabel = hasDoc ? 'Ganti Dokumen' : 'Upload Dokumen';
-                const viewBtn = hasDoc ? '<a class="btn btn-success" target="_blank" href="'+viewUrl+'">Lihat</a>' : '';
                 return '<div class="btn-group btn-group-sm" role="group">'
                         + '<a class="btn btn-info" href="'+editUrl+'">Edit</a>'
                         + '<a class="btn btn-secondary" target="_blank" href="'+pdfUrl+'">PDF</a>'
-                        + viewBtn
-                        + '<button class="btn btn-warning uploadDoc" data-id="'+row.id+'">'+uploadLabel+'</button>'
+                        + '<button class="btn btn-warning docModal" data-id="'+row.id+'">Dokumen</button>'
                         + '<button class="btn btn-danger deleteMemo" data-id="'+row.id+'">Delete</button>'
                     + '</div>';
             }}
@@ -126,34 +150,60 @@ $(function(){
         });
     });
 
-    $('#memorandumTable').on('click', '.uploadDoc', function(){
-        const id = $(this).data('id');
-        const input = $('<input type="file" accept="application/pdf,image/*" style="display:none;" />');
-        $('body').append(input);
-        input.on('change', function(){
-            const file = this.files[0];
-            if(!file){ input.remove(); return; }
-            const formData = new FormData();
-            formData.append('dokumen', file);
-            formData.append('_token', '{{ csrf_token() }}');
-            $.ajax({
-                url: '{{ url('/workdoc/memorandums') }}/'+id+'/dokumen',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false
-            }).done(function(resp){
-                Swal.fire({icon:'success', title:'Sukses', text: resp.message || 'Dokumen diunggah'});
-                table.ajax.reload(null,false);
-            }).fail(function(xhr){
-                let msg = 'Gagal mengunggah dokumen';
-                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
-                Swal.fire({icon:'error', title:'Error', text: msg});
-            }).always(function(){
-                input.remove();
-            });
+    function openDokumenModal(row){
+        currentMemoId = row.id;
+        const hasDoc = !!row.dokumen_path;
+        const viewUrl = '{{ route('workdoc.memorandum.dokumen.view', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
+        $('#dokumenFile').val('');
+        if(hasDoc){
+            $('#dokumenIframe').attr('src', viewUrl + '?t=' + Date.now());
+            $('#dokumenPreview').show();
+            $('#dokumenOpenLink').attr('href', viewUrl).show();
+            $('#dokumenUploadBtn').text('Ganti Dokumen');
+        } else {
+            $('#dokumenIframe').attr('src', '');
+            $('#dokumenPreview').hide();
+            $('#dokumenOpenLink').hide();
+            $('#dokumenUploadBtn').text('Unggah');
+        }
+        $('#dokumenModal').modal('show');
+    }
+
+    $('#memorandumTable').on('click', '.docModal', function(){
+        const rowData = table.row($(this).closest('tr')).data();
+        openDokumenModal(rowData);
+    });
+
+    $('#dokumenUploadBtn').on('click', function(){
+        if(!currentMemoId){ return; }
+        const fileEl = document.getElementById('dokumenFile');
+        if(!fileEl || !fileEl.files || !fileEl.files.length){
+            Swal.fire({icon:'warning', title:'Pilih File', text:'Silakan pilih file (PDF/IMG) terlebih dahulu.'});
+            return;
+        }
+        const formData = new FormData();
+        formData.append('dokumen', fileEl.files[0]);
+        formData.append('_token', '{{ csrf_token() }}');
+        $.ajax({
+            url: '{{ url('/workdoc/memorandums') }}/'+currentMemoId+'/dokumen',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false
+        }).done(function(resp){
+            Swal.fire({icon:'success', title:'Sukses', text: resp.message || 'Dokumen disimpan'});
+            const viewUrl = '{{ route('workdoc.memorandum.dokumen.view', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', currentMemoId);
+            $('#dokumenIframe').attr('src', viewUrl + '?t=' + Date.now());
+            $('#dokumenPreview').show();
+            $('#dokumenOpenLink').attr('href', viewUrl).show();
+            $('#dokumenUploadBtn').text('Ganti Dokumen');
+            $('#dokumenFile').val('');
+            table.ajax.reload(null,false);
+        }).fail(function(xhr){
+            let msg = 'Gagal mengunggah dokumen';
+            if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+            Swal.fire({icon:'error', title:'Error', text: msg});
         });
-        input.trigger('click');
     });
 });
 </script>
