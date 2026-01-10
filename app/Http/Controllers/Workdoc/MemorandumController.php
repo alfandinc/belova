@@ -46,6 +46,15 @@ class MemorandumController extends Controller
         if ($request->filled('klinik_id')) {
             $query->where('klinik_id', $request->klinik_id);
         }
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            try {
+                $start = \Carbon\Carbon::parse($request->start_date)->startOfDay();
+                $end = \Carbon\Carbon::parse($request->end_date)->endOfDay();
+                $query->whereBetween('tanggal', [$start, $end]);
+            } catch (\Throwable $e) {
+                // Ignore invalid date input, fallback to unfiltered
+            }
+        }
 
         $self = $this;
         $rows = $query->get()->map(function ($m) use ($self) {
@@ -60,6 +69,7 @@ class MemorandumController extends Controller
                 'klinik_short' => $self->clinicShortName(optional($m->klinik)->nama),
                 'status' => $m->status,
                 'user' => optional($m->user)->name,
+                'user_id' => $m->user_id,
                 'dokumen_path' => $m->dokumen_path,
             ];
         });

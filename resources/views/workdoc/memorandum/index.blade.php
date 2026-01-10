@@ -14,6 +14,16 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="card-title mb-0">Memorandum</h4>
                     <div>
+                        <div class="d-inline-block mr-2">
+                            <input type="text" id="filterRange" class="form-control form-control-sm" style="min-width:240px;" placeholder="Pilih rentang tanggal" />
+                        </div>
+                        <div class="d-inline-block mr-2">
+                            <select id="filterStatus" class="form-control form-control-sm" style="min-width:160px;">
+                                <option value="">Semua</option>
+                                <option value="draft" selected>Draft</option>
+                                <option value="done">Done</option>
+                            </select>
+                        </div>
                         <a href="{{ route('workdoc.memorandum.create') }}" class="btn btn-primary">Buat Memorandum</a>
                     </div>
                 </div>
@@ -22,9 +32,8 @@
                         <table id="memorandumTable" class="table table-striped table-bordered" style="width:100%">
                             <thead>
                                 <tr>
-                                    <th>Tanggal</th>
                                     <th>Nomor</th>
-                                    <th>Dari/Kepada</th>
+                                    <th>Detail</th>
                                     <th>Perihal</th>
                                     <th>Status</th>
                                     <th>Aksi</th>
@@ -70,23 +79,51 @@
 @push('scripts')
 <script>
 $(function(){
+    // Default to current month
+    let start = moment().startOf('month');
+    let end = moment().endOf('month');
+
+    function updateRangeLabel(s, e){
+        $('#filterRange').val(s.format('DD MMM YYYY') + ' - ' + e.format('DD MMM YYYY'));
+    }
+    $('#filterRange').daterangepicker({
+        startDate: start,
+        endDate: end,
+        autoUpdateInput: false,
+        locale: {
+            format: 'DD/MM/YYYY',
+            applyLabel: 'Pilih',
+            cancelLabel: 'Batal'
+        }
+    }, function(s, e){
+        start = s;
+        end = e;
+        updateRangeLabel(start, end);
+        table.ajax.reload(null, false);
+    });
+    updateRangeLabel(start, end);
+
         let currentMemoId = null;
+        let statusFilter = 'draft';
     const table = $('#memorandumTable').DataTable({
         ajax: {
             url: '{{ route('workdoc.memorandum.data') }}',
-            dataSrc: 'data'
+            dataSrc: 'data',
+            data: function(d){
+                d.start_date = start.format('YYYY-MM-DD');
+                d.end_date = end.format('YYYY-MM-DD');
+                    // Map 'done' to backend 'published'
+                    d.status = (statusFilter === 'done') ? 'published' : statusFilter;
+            }
         },
+        order: [],
         columns: [
-            {data: null, render: function(row){
-                const tgl = row.tanggal || '-';
-                const user = row.user || '';
-                const maker = user ? '<div class="text-muted small">'+user+'</div>' : '';
-                return '<div>'+tgl+'</div>'+maker;
-            }},
             {data: null, render: function(row){
                 const nomor = row.nomor_memo || '-';
                 const shortName = (row.klinik_short || '').toString();
                 const klinik = shortName || row.klinik || '';
+                const user = row.user || '';
+                const maker = user ? '<div class="text-muted small">'+user+'</div>' : '';
                 let style = '';
                 if (shortName.toLowerCase() === 'premiere') {
                     style = 'background-color:#007bff;color:#fff;';
@@ -100,12 +137,14 @@ $(function(){
                         + (klinik ? '<span class="badge" style="'+style+'">'+klinik+'</span>' : '')
                     + '</div>'
                     : '';
-                return '<div>'+nomor+'</div>'+badges;
+                return '<div><strong>'+nomor+'</strong></div>'+maker+badges;
             }},
             {data: null, render: function(row){
+                const tgl = row.tanggal || '-';
                 const divisi = (row.division || '-').toString();
                 const kepada = (row.kepada || '-').toString();
-                return '<div><div><strong>Dari:</strong> '+divisi+'</div><div><strong>Kepada:</strong> '+kepada+'</div></div>';
+                const dk = '<div class="mt-1"><div><strong>Dari:</strong> '+divisi+'</div><div><strong>Kepada:</strong> '+kepada+'</div></div>';
+                return '<div><strong>'+tgl+'</strong></div>'+dk;
             }},
             {data: 'perihal'},
             {data: 'status', render: function(data){
@@ -119,10 +158,10 @@ $(function(){
                 const editUrl = '{{ route('workdoc.memorandum.edit', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
                 const pdfUrl = '{{ route('workdoc.memorandum.print_pdf', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
                 return '<div class="btn-group btn-group-sm" role="group">'
-                        + '<a class="btn btn-info" href="'+editUrl+'">Edit</a>'
+                        + (({{ Auth::id() ?? 'null' }} === row.user_id) ? '<a class="btn btn-info" href="'+editUrl+'">Edit</a>' : '')
                         + '<a class="btn btn-secondary" target="_blank" href="'+pdfUrl+'">PDF</a>'
                         + '<button class="btn btn-warning docModal" data-id="'+row.id+'">Dokumen</button>'
-                        + '<button class="btn btn-danger deleteMemo" data-id="'+row.id+'">Delete</button>'
+                        + (({{ Auth::id() ?? 'null' }} === row.user_id) ? '<button class="btn btn-danger deleteMemo" data-id="'+row.id+'">Delete</button>' : '')
                     + '</div>';
             }}
         ]
@@ -204,6 +243,12 @@ $(function(){
             if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
             Swal.fire({icon:'error', title:'Error', text: msg});
         });
+    });
+
+    // Status filter change
+    $('#filterStatus').on('change', function(){
+        statusFilter = this.value || '';
+        table.ajax.reload(null, false);
     });
 });
 </script>
