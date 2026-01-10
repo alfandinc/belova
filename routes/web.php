@@ -1113,6 +1113,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::put('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'update'])->name('finance.pengajuan.update');
     Route::post('/pengajuan-dana/{id}/approve', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'approve'])->name('finance.pengajuan.approve');
     Route::post('/pengajuan-dana/bulk-approve', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'bulkApprove'])->name('finance.pengajuan.bulk_approve');
+    Route::post('/pengajuan-dana/{id}/pay', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'markPaid'])->name('finance.pengajuan.pay');
     Route::post('/pengajuan-dana/{id}/decline', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'decline'])->name('finance.pengajuan.decline');
     Route::post('/pengajuan-dana/{id}/upload-bukti', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'uploadBukti'])->name('finance.pengajuan.upload_bukti');
     Route::delete('/pengajuan-dana/{id}', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'destroy'])->name('finance.pengajuan.destroy');

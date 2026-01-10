@@ -194,6 +194,12 @@ class FinancePengajuanDanaController extends Controller
                            ->orWhereHas('division', function($qd) use ($s) {
                                $qd->where('name', 'like', "%{$s}%");
                            })
+                           // Search Rekening fields: bank, no_rekening, atas_nama
+                           ->orWhereHas('rekening', function($qr) use ($s) {
+                               $qr->where('bank', 'like', "%{$s}%")
+                                  ->orWhere('no_rekening', 'like', "%{$s}%")
+                                  ->orWhere('atas_nama', 'like', "%{$s}%");
+                           })
                            ->orWhereHas('items', function($qi) use ($s) {
                                $qi->where('nama_item', 'like', "%{$s}%");
                            });
@@ -370,6 +376,40 @@ class FinancePengajuanDanaController extends Controller
                     }
                 }
 
+                // Show Bayar button when pengajuan is fully approved and not yet paid
+                try {
+                    $pengajuanSumber = $row->sumber_dana ?? '';
+                    $approversForJenis = FinanceDanaApprover::where('aktif', 1)
+                        ->where(function($q) use ($pengajuanSumber) {
+                            if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                                $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                            } else {
+                                $q->whereNull('jenis')->orWhere('jenis', '');
+                            }
+                        })
+                        ->get();
+                    $levels = $approversForJenis->pluck('tingkat')->unique()->sort()->values()->all();
+                    $totalLevels = count($levels);
+                    $approvedLevels = 0;
+                    if ($totalLevels > 0) {
+                        foreach ($levels as $lvl) {
+                            $idsAtLevel = $approversForJenis->where('tingkat', $lvl)->pluck('id')->toArray();
+                            $hasApprovedAtLevel = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
+                                ->whereIn('approver_id', $idsAtLevel)
+                                ->exists();
+                            if ($hasApprovedAtLevel) $approvedLevels++;
+                        }
+                    }
+                    $hasDeclined = FinancePengajuanDanaApproval::where('pengajuan_id', $row->id)
+                        ->where(function($q){ $q->where('status', 'declined')->orWhere('status', 'rejected'); })
+                        ->exists();
+                    $fullyApproved = (!$hasDeclined) && ($totalLevels > 0) && ($approvedLevels >= $totalLevels);
+                    $isPaid = (isset($row->payment_status) && $row->payment_status === 'paid');
+                    if ($fullyApproved && !$isPaid) {
+                        $btns .= '<button class="btn btn-sm btn-success pay-pengajuan ms-1" data-id="' . $row->id . '" title="Bayar">Bayar</button>';
+                    }
+                } catch (\Exception $e) {}
+
                 $btns .= '</div>';
                 return $btns;
             })
@@ -416,8 +456,19 @@ class FinancePengajuanDanaController extends Controller
                     $badge = '<small><span class="badge badge-secondary">Belum Dikonfigurasi</span></small>';
                 }
 
+                // payment status badge below approvals
+                $payBadge = '';
+                try {
+                    $isPaid = (isset($row->payment_status) && $row->payment_status === 'paid');
+                    if ($isPaid) {
+                        $payBadge = '<div class="mt-1"><small><span class="badge" style="background-color:#17a2b8;color:#fff;">Paid</span></small></div>';
+                    } else {
+                        $payBadge = '<div class="mt-1"><small><span class="badge" style="background-color:#6c757d;color:#fff;">Belum Dibayar</span></small></div>';
+                    }
+                } catch (\Exception $e) {}
+
                 // wrap in a button so user can click to open modal showing full approval list
-                $html = '<button type="button" class="btn btn-sm btn-light show-approvals" data-id="' . $row->id . '" title="Lihat Daftar Persetujuan">' . $badge . '</button>';
+                $html = '<button type="button" class="btn btn-sm btn-light show-approvals" data-id="' . $row->id . '" title="Lihat Daftar Persetujuan">' . $badge . '</button>' . $payBadge;
                 return $html;
             })
             // actions, approvals_list, employee_display, diajukan_ke and items_list contain HTML, mark them as raw so they are not escaped
@@ -1034,6 +1085,59 @@ class FinancePengajuanDanaController extends Controller
         }
 
         return response()->json(['success' => true, 'data' => $list]);
+    }
+
+    /**
+     * Mark a pengajuan as paid (sets payment_status='paid').
+     */
+    public function markPaid(Request $request, $id)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+        $pengajuan = FinancePengajuanDana::findOrFail($id);
+
+        // Only allow marking as paid if fully approved and not declined
+        $pengajuanSumber = $pengajuan->sumber_dana ?? '';
+        $approversForJenis = FinanceDanaApprover::where('aktif', 1)
+            ->where(function($q) use ($pengajuanSumber) {
+                if ($pengajuanSumber && trim($pengajuanSumber) !== '') {
+                    $q->whereNull('jenis')->orWhere('jenis', '')->orWhere('jenis', $pengajuanSumber);
+                } else {
+                    $q->whereNull('jenis')->orWhere('jenis', '');
+                }
+            })
+            ->get();
+        $levels = $approversForJenis->pluck('tingkat')->unique()->sort()->values()->all();
+        $totalLevels = count($levels);
+        $approvedLevels = 0;
+        if ($totalLevels > 0) {
+            foreach ($levels as $lvl) {
+                $idsAtLevel = $approversForJenis->where('tingkat', $lvl)->pluck('id')->toArray();
+                $hasApprovedAtLevel = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+                    ->whereIn('approver_id', $idsAtLevel)
+                    ->exists();
+                if ($hasApprovedAtLevel) $approvedLevels++;
+            }
+        }
+        $hasDeclined = FinancePengajuanDanaApproval::where('pengajuan_id', $pengajuan->id)
+            ->where(function($q){ $q->where('status', 'declined')->orWhere('status', 'rejected'); })
+            ->exists();
+        $fullyApproved = (!$hasDeclined) && ($totalLevels > 0) && ($approvedLevels >= $totalLevels);
+
+        if (!$fullyApproved) {
+            return response()->json(['success' => false, 'message' => 'Pengajuan belum approved lengkap'], 422);
+        }
+
+        if ($pengajuan->payment_status === 'paid') {
+            return response()->json(['success' => false, 'message' => 'Pengajuan sudah dibayar'], 422);
+        }
+
+        $pengajuan->payment_status = 'paid';
+        $pengajuan->save();
+
+        return response()->json(['success' => true, 'message' => 'Status pembayaran: paid']);
     }
 
     /**

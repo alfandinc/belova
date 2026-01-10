@@ -15,6 +15,8 @@
             text-overflow: ellipsis;
             vertical-align: middle; /* center vertically like other cells */
         }
+        /* Center approval + payment badges */
+        #pengajuanTable td.approvals-cell { text-align: center; }
         /* Small, fixed width for the 'No' column */
         #pengajuanTable td.col-no, #pengajuanTable th.col-no {
             text-align: center;
@@ -1124,6 +1126,34 @@ $(document).ready(function() {
                     } else {
                         Swal.fire('Error', 'Terjadi kesalahan pada server', 'error');
                     }
+                }
+            });
+        });
+    });
+
+    // Pay pengajuan (visible when fully approved and unpaid)
+    $('#pengajuanTable').on('click', '.pay-pengajuan', function() {
+        var id = $(this).data('id');
+        Swal.fire({
+            title: 'Tandai sebagai dibayar? ',
+            text: 'Status pembayaran akan berubah menjadi paid.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Bayar',
+            cancelButtonText: 'Batal'
+        }).then(function(result){
+            if (!result.value) return;
+            $.ajax({
+                url: '/finance/pengajuan-dana/' + id + '/pay',
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                success: function(res){
+                    Swal.fire('Sukses', res.message || 'Status pembayaran diperbarui', 'success');
+                    table.ajax.reload(null, false);
+                },
+                error: function(xhr){
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Gagal memperbarui status pembayaran';
+                    Swal.fire('Error', msg, 'error');
                 }
             });
         });

@@ -21,6 +21,7 @@ class FinancePengajuanDana extends Model
         'perusahaan',
         'deskripsi',
         'status',
+        'payment_status',
         'rekening_id',
         'bukti_transaksi',
         'grand_total',
