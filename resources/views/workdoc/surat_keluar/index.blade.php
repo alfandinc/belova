@@ -62,7 +62,14 @@
                             date = day + ' ' + monthName + ' ' + year;
                         }
                     }
-                    var dateHtml = date ? '<div style="margin-top:6px;color:#6c757d;font-size:0.9em;">'+date+'</div>' : '';
+                    var tujuan = (row.jenis_tujuan || '').toString().toLowerCase();
+                    var badgeCls = '';
+                    if (tujuan === 'internal') badgeCls = 'badge-info';
+                    else if (tujuan === 'external') badgeCls = 'badge-secondary';
+                    var badgeLabel = tujuan ? (tujuan.charAt(0).toUpperCase() + tujuan.slice(1)) : '';
+
+                    var badgeHtml = badgeLabel ? '<span class="badge '+badgeCls+'">'+badgeLabel+'</span>' : '';
+                    var dateHtml = date ? '<div style="margin-top:6px;color:#6c757d;font-size:0.9em;display:flex;align-items:center;justify-content:space-between;"><span>'+date+'</span>'+badgeHtml+'</div>' : '';
                     return '<div>'+no+dateHtml+'</div>';
                 } },
                     { data: null, name: 'instansi_jenis', orderable:false, searchable:false, render: function(data, type, row){

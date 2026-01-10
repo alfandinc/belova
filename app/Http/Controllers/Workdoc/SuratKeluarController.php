@@ -35,9 +35,6 @@ class SuratKeluarController extends Controller
                     }
 
                     $tujuan = strtolower(trim($row->jenis_tujuan ?? ''));
-                    $badgeCls = 'badge-light';
-                    if ($tujuan === 'internal') $badgeCls = 'badge-info';
-                    elseif ($tujuan === 'external') $badgeCls = 'badge-secondary';
 
                     // determine display name for kepada
                     $kepada = null;
@@ -55,9 +52,7 @@ class SuratKeluarController extends Controller
                     if ($created) {
                         $html .= '<div><strong>Dibuat:</strong> '.$created.'</div>';
                     }
-                    if ($tujuan) {
-                        $html .= '<div><span class="badge '.$badgeCls.'">'.ucfirst($tujuan).'</span></div>';
-                    }
+                    // Badge moved to No Surat column; omit here
                     return $html ?: '';
                 })
                 ->addColumn('action', function($row){
