@@ -14,6 +14,8 @@ class SuratKeluar extends Model
         'jenis_surat',
         'deskripsi',
         'status',
+        'jenis_tujuan',
+        'kepada',
         'diajukan_for',
         'created_by',
         'tgl_dibuat',

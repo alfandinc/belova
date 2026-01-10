@@ -21,7 +21,7 @@
                                 <th>No Surat</th>
                                 <th>Instansi / Jenis</th>
                                 <th>Perihal</th>
-                                <th>Diajukan / Dibuat</th>
+                                <th>Kepada / Dibuat</th>
                                    <th>Status</th>
                                 <th>Aksi</th>
                             </tr>
@@ -92,11 +92,7 @@
                 { data: 'person_info', name: 'person_info', orderable:false, searchable:false },
                     { data: 'status', name: 'status', render: function(data, type, row){
                         var s = (row.status || '').toString().toLowerCase();
-                        var cls = 'badge-secondary';
-                        if (s === 'draft') cls = 'badge-primary';
-                        else if (s === 'diajukan') cls = 'badge-warning';
-                        else if (s === 'disetujui') cls = 'badge-success';
-                        else if (s === 'revisi') cls = 'badge-danger';
+                        var cls = s === 'done' ? 'badge-success' : 'badge-primary';
                         var label = row.status || '';
                         return '<span class="badge '+cls+'">'+label+'</span>';
                     } },
@@ -131,25 +127,46 @@
         // initial load
         loadJenisOptions();
         loadInstansiOptions();
-        // load diajukan_for options (users with role Ceo)
-        function loadDiajukanForOptions(selected) {
+        // load users for internal tujuan
+        function loadKepadaUsers(selectedName) {
             $.getJSON("{{ route('workdoc.surat-diajukan-for.list') }}", function(res){
+                var $sel = $('#kepada_user');
+                // destroy previous select2 if exists to avoid double init
+                if ($sel.data('select2')) {
+                    $sel.select2('destroy');
+                }
                 var opts = '<option value="">-- Pilih User --</option>';
                 res.data.forEach(function(u){
-                    var sel = selected && selected == u.id ? ' selected' : '';
-                    opts += '<option value="'+u.id+'"'+sel+'>'+u.name+'</option>';
+                    var sel = selectedName && selectedName === u.name ? ' selected' : '';
+                    opts += '<option value="'+u.name+'"'+sel+'>'+u.name+'</option>';
                 });
-                $('#diajukan_for').html(opts);
+                $sel.html(opts);
+                // Initialize select2 if available
+                if ($.fn.select2) {
+                    $sel.select2({
+                        width: '100%',
+                        dropdownParent: $('#suratKeluarModal'),
+                        placeholder: '-- Pilih User --'
+                    });
+                }
+                if (selectedName) {
+                    $sel.val(selectedName).trigger('change');
+                }
             });
         }
 
-        loadDiajukanForOptions();
+        loadKepadaUsers();
 
         $('#btnNew').on('click', function(){
             $('#suratKeluarForm')[0].reset();
             $('#sk_id').val('');
             $('#existingLampiran').html('');
             loadInstansiOptions();
+            $('#jenis_tujuan').val('');
+            $('#kepada_internal_group').hide();
+            $('#kepada_external_group').hide();
+            $('#kepada_text').val('');
+            loadKepadaUsers();
             $('#suratKeluarModal').modal('show');
         });
 
@@ -161,7 +178,6 @@
                 $('#no_surat').val(d.no_surat);
                 loadInstansiOptions(d.instansi);
                 $('#deskripsi').val(d.deskripsi);
-                $('#diajukan_for').val(d.diajukan_for);
                 // set date part only (assumes stored format 'YYYY-MM-DD HH:MM:SS')
                 if (d.tgl_dibuat) {
                     var parts = d.tgl_dibuat.split(' ');
@@ -171,8 +187,23 @@
                 }
                 // reload jenis options and select the correct one
                 loadJenisOptions(d.jenis_surat);
-                // reload diajukan_for options and select the current user id
-                loadDiajukanForOptions(d.diajukan_for);
+                // set tujuan + kepada
+                if (d.jenis_tujuan === 'internal') {
+                    $('#jenis_tujuan').val('internal');
+                    $('#kepada_internal_group').show();
+                    $('#kepada_external_group').hide();
+                    loadKepadaUsers(d.kepada);
+                } else if (d.jenis_tujuan === 'external') {
+                    $('#jenis_tujuan').val('external');
+                    $('#kepada_internal_group').hide();
+                    $('#kepada_external_group').show();
+                    $('#kepada_text').val(d.kepada || '');
+                } else {
+                    $('#jenis_tujuan').val('');
+                    $('#kepada_internal_group').hide();
+                    $('#kepada_external_group').hide();
+                    $('#kepada_text').val('');
+                }
                 $('#no_surat').val(d.no_surat);
                 if (d.lampiran) {
                     $('#existingLampiran').html('<a href="/workdoc/surat-keluar/'+d.id+'/download">'+d.lampiran.split('/').pop()+'</a>');
@@ -205,10 +236,35 @@
             tryGenerateNoSurat();
         });
 
+        // toggle tujuan fields
+        $(document).on('change', '#jenis_tujuan', function(){
+            var v = $(this).val();
+            if (v === 'internal') {
+                $('#kepada_internal_group').show();
+                $('#kepada_external_group').hide();
+            } else if (v === 'external') {
+                $('#kepada_internal_group').hide();
+                $('#kepada_external_group').show();
+            } else {
+                $('#kepada_internal_group').hide();
+                $('#kepada_external_group').hide();
+            }
+        });
+
         $('#suratKeluarForm').on('submit', function(e){
             e.preventDefault();
             var id = $('#sk_id').val();
             var url = id ? '/workdoc/surat-keluar/'+id : '/workdoc/surat-keluar';
+            // prepare unified 'kepada' based on jenis_tujuan
+            var jt = $('#jenis_tujuan').val();
+            var kepadaVal = '';
+            if (jt === 'internal') {
+                kepadaVal = $('#kepada_user').val();
+            } else if (jt === 'external') {
+                kepadaVal = $('#kepada_text').val();
+            }
+            $('#kepada').val(kepadaVal);
+
             var formData = new FormData(this);
             if (id) formData.append('_method', 'PUT');
             $.ajax({
@@ -224,7 +280,21 @@
                     Swal.fire('Berhasil','Data tersimpan','success');
                 },
                 error: function(xhr){
-                    Swal.fire('Error','Terjadi kesalahan','error');
+                    var msg = 'Terjadi kesalahan';
+                    try {
+                        if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                            var errs = xhr.responseJSON.errors;
+                            var list = [];
+                            Object.keys(errs).forEach(function(k){
+                                var arr = errs[k];
+                                if (Array.isArray(arr)) { list = list.concat(arr); }
+                            });
+                            if (list.length) msg = list.join('\n');
+                        } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg = xhr.responseJSON.message;
+                        }
+                    } catch(e) {}
+                    Swal.fire('Error', msg, 'error');
                 }
             });
         });
@@ -253,79 +323,27 @@
             });
         });
 
-        // handle Ajukan button (submit) — only visible to creator for draft/revisi
-        $(document).on('click', '.btn-ajukan', function(){
+        // handle Done button — only visible to creator for draft
+        $(document).on('click', '.btn-done', function(){
             var id = $(this).data('id');
             Swal.fire({
-                title: 'Ajukan surat?',
-                text: 'Status akan berubah menjadi diajukan.',
+                title: 'Selesaikan surat?',
+                text: 'Status akan berubah menjadi done.',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: 'Ya, ajukan'
+                confirmButtonText: 'Ya, selesai'
             }).then((result) => {
                 if (!result.value) return;
                 $.ajax({
-                    url: '/workdoc/surat-keluar/'+id+'/ajukan',
+                    url: '/workdoc/surat-keluar/'+id+'/done',
                     method: 'POST',
                     data: { _token: $('meta[name="csrf-token"]').attr('content') },
                     success: function(){
                         table.ajax.reload(null, false);
-                        Swal.fire('Diajukan','Surat berhasil diajukan','success');
+                        Swal.fire('Selesai','Surat ditandai selesai','success');
                     },
                     error: function(xhr){
-                        Swal.fire('Error','Gagal mengajukan','error');
-                    }
-                });
-            });
-        });
-
-        // handle Approve button — only shown to user in diajukan_for
-        $(document).on('click', '.btn-approve', function(){
-            var id = $(this).data('id');
-            Swal.fire({
-                title: 'Setujui surat?',
-                text: 'Status akan berubah menjadi disetujui.',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, setujui'
-            }).then((result) => {
-                if (!result.value) return;
-                $.ajax({
-                    url: '/workdoc/surat-keluar/'+id+'/approve',
-                    method: 'POST',
-                    data: { _token: $('meta[name="csrf-token"]').attr('content') },
-                    success: function(){
-                        table.ajax.reload(null, false);
-                        Swal.fire('Disetujui','Surat berhasil disetujui','success');
-                    },
-                    error: function(xhr){
-                        Swal.fire('Error','Gagal menyetujui','error');
-                    }
-                });
-            });
-        });
-
-        // handle Revisi button — only shown to user in diajukan_for
-        $(document).on('click', '.btn-revisi', function(){
-            var id = $(this).data('id');
-            Swal.fire({
-                title: 'Minta revisi?',
-                text: 'Status akan berubah menjadi revisi.',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'Ya, minta revisi'
-            }).then((result) => {
-                if (!result.value) return;
-                $.ajax({
-                    url: '/workdoc/surat-keluar/'+id+'/revisi',
-                    method: 'POST',
-                    data: { _token: $('meta[name="csrf-token"]').attr('content') },
-                    success: function(){
-                        table.ajax.reload(null, false);
-                        Swal.fire('Revisi','Permintaan revisi terkirim','success');
-                    },
-                    error: function(xhr){
-                        Swal.fire('Error','Gagal membuat revisi','error');
+                        Swal.fire('Error','Gagal menandai selesai','error');
                     }
                 });
             });

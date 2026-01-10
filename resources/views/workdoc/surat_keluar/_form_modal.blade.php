@@ -39,12 +39,27 @@
                         <label>Perihal</label>
                         <textarea name="deskripsi" id="deskripsi" class="form-control" rows="4"></textarea>
                     </div>
-                    <div class="form-group">
-                        <label>Diajukan Kepada</label>
-                        <select name="diajukan_for" id="diajukan_for" class="form-control">
-                            <option value="">-- Pilih User --</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Jenis Tujuan</label>
+                            <select name="jenis_tujuan" id="jenis_tujuan" class="form-control">
+                                <option value="">-- Pilih Jenis Tujuan --</option>
+                                <option value="internal">Internal</option>
+                                <option value="external">External</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-8" id="kepada_internal_group" style="display:none;">
+                            <label>Kepada (Internal)</label>
+                            <select id="kepada_user" class="form-control">
+                                <option value="">-- Pilih User --</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-8" id="kepada_external_group" style="display:none;">
+                            <label>Kepada (External)</label>
+                            <input type="text" id="kepada_text" class="form-control" placeholder="Masukkan tujuan eksternal">
+                        </div>
                     </div>
+                    <input type="hidden" name="kepada" id="kepada">
                     <div class="form-group">
                         <label>Lampiran (PDF)</label>
                         <input type="file" name="lampiran" id="lampiran" accept="application/pdf" class="form-control-file">
