@@ -9,6 +9,7 @@ use App\Models\HRD\Division;
 use App\Models\ERM\Klinik;
 use Illuminate\Support\Facades\Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
 
 class MemorandumController extends Controller
 {
@@ -59,10 +60,50 @@ class MemorandumController extends Controller
                 'klinik_short' => $self->clinicShortName(optional($m->klinik)->nama),
                 'status' => $m->status,
                 'user' => optional($m->user)->name,
+                'dokumen_path' => $m->dokumen_path,
             ];
         });
 
         return response()->json(['data' => $rows]);
+    }
+
+    public function uploadDokumen(Request $request, Memorandum $memorandum)
+    {
+        $request->validate([
+            'dokumen' => ['required','file','mimes:pdf,jpeg,jpg,png,webp','max:10240'],
+        ]);
+
+        $file = $request->file('dokumen');
+        $original = $file->getClientOriginalName();
+        $safeName = time().'_'.preg_replace('/[^A-Za-z0-9_.-]/', '_', $original);
+        $path = $file->storeAs('workdoc/memorandums/'.$memorandum->id, $safeName, 'public');
+
+        $memorandum->dokumen_path = $path;
+        $memorandum->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Dokumen pendukung diunggah',
+            'url' => route('workdoc.memorandum.dokumen.view', ['memorandum' => $memorandum->id]),
+            'path' => $path,
+        ]);
+    }
+
+    public function viewDokumen(Memorandum $memorandum)
+    {
+        $path = $memorandum->dokumen_path;
+        if (!$path) {
+            abort(404);
+        }
+        $disk = Storage::disk('public');
+        if (!$disk->exists($path)) {
+            abort(404);
+        }
+        $absolute = storage_path('app/public/'.$path);
+        $mime = $disk->mimeType($path) ?? 'application/octet-stream';
+        return response()->file($absolute, [
+            'Content-Type' => $mime,
+        ]);
     }
 
     private function romanMonth(int $month): string

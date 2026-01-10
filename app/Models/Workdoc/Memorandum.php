@@ -21,6 +21,7 @@ class Memorandum extends Model
         'klinik_id',
         'user_id',
         'status',
+        'dokumen_path',
     ];
 
     protected $casts = [

@@ -89,9 +89,15 @@ $(function(){
             {data: null, render: function(row){
                 const editUrl = '{{ route('workdoc.memorandum.edit', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
                 const pdfUrl = '{{ route('workdoc.memorandum.print_pdf', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
+                const hasDoc = !!row.dokumen_path;
+                const viewUrl = '{{ route('workdoc.memorandum.dokumen.view', ['memorandum' => 'MEMO_ID']) }}'.replace('MEMO_ID', row.id);
+                const uploadLabel = hasDoc ? 'Ganti Dokumen' : 'Upload Dokumen';
+                const viewBtn = hasDoc ? '<a class="btn btn-success" target="_blank" href="'+viewUrl+'">Lihat</a>' : '';
                 return '<div class="btn-group btn-group-sm" role="group">'
                         + '<a class="btn btn-info" href="'+editUrl+'">Edit</a>'
                         + '<a class="btn btn-secondary" target="_blank" href="'+pdfUrl+'">PDF</a>'
+                        + viewBtn
+                        + '<button class="btn btn-warning uploadDoc" data-id="'+row.id+'">'+uploadLabel+'</button>'
                         + '<button class="btn btn-danger deleteMemo" data-id="'+row.id+'">Delete</button>'
                     + '</div>';
             }}
@@ -118,6 +124,36 @@ $(function(){
                     });
             }
         });
+    });
+
+    $('#memorandumTable').on('click', '.uploadDoc', function(){
+        const id = $(this).data('id');
+        const input = $('<input type="file" accept="application/pdf,image/*" style="display:none;" />');
+        $('body').append(input);
+        input.on('change', function(){
+            const file = this.files[0];
+            if(!file){ input.remove(); return; }
+            const formData = new FormData();
+            formData.append('dokumen', file);
+            formData.append('_token', '{{ csrf_token() }}');
+            $.ajax({
+                url: '{{ url('/workdoc/memorandums') }}/'+id+'/dokumen',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false
+            }).done(function(resp){
+                Swal.fire({icon:'success', title:'Sukses', text: resp.message || 'Dokumen diunggah'});
+                table.ajax.reload(null,false);
+            }).fail(function(xhr){
+                let msg = 'Gagal mengunggah dokumen';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire({icon:'error', title:'Error', text: msg});
+            }).always(function(){
+                input.remove();
+            });
+        });
+        input.trigger('click');
     });
 });
 </script>

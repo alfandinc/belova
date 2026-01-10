@@ -1019,6 +1019,9 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::get('/memorandums/{memorandum}/print-pdf', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'printPdf'])->name('workdoc.memorandum.print_pdf');
     Route::put('/memorandums/{memorandum}', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'update'])->name('workdoc.memorandum.update');
     Route::delete('/memorandums/{memorandum}', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'destroy'])->name('workdoc.memorandum.destroy');
+    // Dokumen pendukung
+    Route::post('/memorandums/{memorandum}/dokumen', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'uploadDokumen'])->name('workdoc.memorandum.dokumen.upload');
+    Route::get('/memorandums/{memorandum}/dokumen', [\App\Http\Controllers\Workdoc\MemorandumController::class, 'viewDokumen'])->name('workdoc.memorandum.dokumen.view');
 });
 
 
