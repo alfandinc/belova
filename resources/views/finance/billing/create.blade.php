@@ -333,7 +333,7 @@
                         </div>
                         <div class="col-6">
                             <label for="tax_percentage">Pajak (%)</label>
-                            <input type="number" class="form-control" id="tax_percentage" min="0" value="0" readonly>
+                            <input type="number" class="form-control" id="tax_percentage" min="0" value="0">
                             <div class="text-right mt-1">
                                 <small id="tax_amount" class="text-muted">+ Rp 0</small>
                             </div>
