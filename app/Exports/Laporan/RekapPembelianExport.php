@@ -31,6 +31,7 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
             'Received Date',
             'Due Date',
             'Harga Beli/Satuan',
+            'Quantity',
             'Diskon Nominal',
             'Diskon (%)',
             'Harga Jadi (Setelah Diskon + PPN)'
@@ -77,6 +78,7 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
                 }
             })(optional($item->fakturbeli)),
             $harga,
+            $qty,
             // Diskon nominal as number
             number_format($diskonValue, 2),
             // Diskon percent (only set when original type was percent)
