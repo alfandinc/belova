@@ -71,12 +71,9 @@
             <tr>
                 <th>No</th>
                 <th>Title</th>
-                <th>Division</th>
-                <th>Priority</th>
                 <th>Status</th>
                 <th>Due Date</th>
                 <th>Catatan</th>
-                <th>Creator</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -87,6 +84,12 @@
 /* blinking warning */
 .blink { color: #dc3545; font-weight: 600; display:inline-block; animation: blinker 1s linear infinite; }
 @keyframes blinker { 50% { opacity: 0; } }
+/* division badges under title */
+.badge-division { margin-right: 6px; margin-top: 2px; }
+/* priority badge spacing */
+.badge-priority { margin-right: 8px; }
+/* wider notes column and wrapping */
+.notes-col { white-space: normal; word-break: break-word; min-width: 320px; }
 </style>
 
 <!-- Modal -->
@@ -339,6 +342,52 @@ $(function(){
         }
     } catch (e) { /* ignore if plugin missing */ }
 
+    // Helper: unique color per division via stable hash → HSL hue
+    function divisionColor(name) {
+        try {
+            var s = (name || '').toString();
+            var h = 0;
+            for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+            var hue = h % 360;
+            var sat = 60; // keep readable
+            var light = 45; // mid lightness for contrast
+            return 'hsl(' + hue + ',' + sat + '%,' + light + '%)';
+        } catch (e) { return '#6c757d'; }
+    }
+
+    function renderDivisionBadges(row) {
+        var divStr = (row && row.division_name) ? row.division_name : '';
+        if (!divStr) return '';
+        // Special case for "All Divisions"
+        if (divStr.trim().toLowerCase() === 'all divisions') {
+            return '<span class="badge badge-division" style="background-color:#6c757d;color:#fff">All Divisions</span>';
+        }
+        var parts = divStr.split(',');
+        var html = '';
+        for (var i = 0; i < parts.length; i++) {
+            var name = parts[i].trim();
+            if (!name) continue;
+            var bg = divisionColor(name);
+            // Decide text color (simple threshold on lightness from HSL, assume ~45)
+            var color = '#fff';
+            html += '<span class="badge badge-division" style="background-color:' + bg + ';color:' + color + '">' + $('<div/>').text(name).html() + '</span>';
+        }
+        return html;
+    }
+
+    function renderPriorityBadge(row) {
+        var p = (row && row.priority) ? row.priority : '';
+        if (!p) return '';
+        var label = p.replace(/_/g, ' ');
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+        var cls = 'badge-secondary';
+        if (p === 'very_important') cls = 'badge-danger';
+        else if (p === 'important') cls = 'badge-warning';
+        else if (p === 'normal') cls = 'badge-info';
+        else if (p === 'low') cls = 'badge-secondary';
+        return '<span class="badge ' + cls + ' badge-priority">' + $('<div/>').text(label).html() + '</span>';
+    }
+
     var table = $('#joblist-table').DataTable({
         processing: true,
         serverSide: true,
@@ -381,12 +430,18 @@ $(function(){
         pageLength: -1,
         columns: [
             { data: 'id', name: 'id', render: function(data, type, row, meta) { return meta.row + meta.settings._iDisplayStart + 1; } },
-            { data: 'title', name: 'title' },
-            { data: 'division_name', name: 'division.name' },
-            { data: 'priority_badge', name: 'priority', orderable: true, searchable: true },
+            { data: 'title', name: 'title', render: function(data, type, row){
+                    var titleEsc = $('<div/>').text(data || '').html();
+                    var badges = renderPriorityBadge(row) + renderDivisionBadges(row);
+                    if (type === 'display') {
+                        return '<div class="job-title-cell"><div class="font-weight-600">' + titleEsc + '</div>' + (badges ? '<div class="mt-1">' + badges + '</div>' : '') + '</div>';
+                    }
+                    return titleEsc;
+                }
+            },
             { data: 'status_control', name: 'status', orderable: true, searchable: true },
             { data: 'due_date_display', name: 'due_date', orderable: true, searchable: false },
-            { data: 'notes', name: 'notes', orderable: false, searchable: true, render: function(data, type, row){
+            { data: 'notes', name: 'notes', orderable: false, searchable: true, className: 'notes-col', width: '30%', render: function(data, type, row){
                     if (!data) return '';
                     try {
                         var display = data.length > 120 ? data.substring(0,120) + '...' : data;
@@ -398,7 +453,6 @@ $(function(){
                     }
                 }
             },
-            { data: 'creator_name', name: 'creator.name' },
             { data: 'actions', name: 'actions', orderable:false, searchable:false }
         ]
     });
