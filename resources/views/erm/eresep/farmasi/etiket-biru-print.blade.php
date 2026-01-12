@@ -30,8 +30,8 @@
         /* Full-page blue wrapper to eliminate any white gaps */
         .etiket-wrapper {
             position: absolute;
-            top: 0.5cm; /* add top margin */
-            right: 1.5cm; /* add right margin/offset */
+            top: 0.5cm; /* top margin */
+            left: 1.5cm; /* left margin: 1.5 centimeters */
             width: 10cm;
             height: 1.5cm; /* label size */
             background-color: #26ccff; /* blue background across the label */
