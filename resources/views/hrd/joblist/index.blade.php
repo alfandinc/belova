@@ -796,24 +796,31 @@ $(function(){
         });
     });
 
-    // Selesai button: require upload first, then mark done
+    // Selesai button: mark done immediately without requiring upload
     $('#joblist-table').on('click', '.btn-selesai', function(){
         var id = $(this).data('id');
         Swal.fire({
             title: 'Konfirmasi',
-            text: 'Selesaikan tugas ini? Anda akan diminta mengunggah bukti terlebih dahulu.',
+            text: 'Tandai tugas ini selesai?',
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: 'Ya, Unggah Bukti'
+            confirmButtonText: 'Ya, Selesai'
         }).then(function(result){
             if (!result.value) return;
-            // Set pending complete and open upload modal. The upload handler will mark status done after successful upload.
-            pendingCompleteJobId = id;
-            pendingCompleteSelectElem = null;
-            pendingCompleteOrig = null;
-            $('#upload-doc-job-id').val(id);
-            $('#upload-doc-input').val('');
-            $('#uploadDocumentsModal').modal('show');
+            $.ajax({
+                url: '/hrd/joblist/' + id + '/inline-update',
+                method: 'POST',
+                data: { status: 'done' },
+                success: function(res){
+                    try { table.ajax.reload(null, false); } catch(e){}
+                    Swal.fire({icon: 'success', title: 'Ditandai Selesai'});
+                },
+                error: function(xhr){
+                    var msg = 'Gagal menandai selesai';
+                    try { if (xhr && xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message; } catch(e){}
+                    Swal.fire({icon: 'error', text: msg});
+                }
+            });
         });
     });
 
