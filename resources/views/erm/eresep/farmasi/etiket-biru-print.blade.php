@@ -30,7 +30,7 @@
         /* Full-page blue wrapper to eliminate any white gaps */
         .etiket-wrapper {
             position: absolute;
-            top: 0;
+            top: 0.5cm; /* add top margin */
             right: 1.5cm; /* add right margin/offset */
             width: 10cm;
             height: 1.5cm; /* label size */
