@@ -434,7 +434,7 @@ $(function(){
                     var titleEsc = $('<div/>').text(data || '').html();
                     var badges = renderDivisionBadges(row);
                     if (type === 'display') {
-                        return '<div class="job-title-cell"><div class="font-weight-600">' + titleEsc + '</div>' + (badges ? '<div class="mt-1">' + badges + '</div>' : '') + '</div>';
+                        return '<div class="job-title-cell"><div class="font-weight-bold">' + titleEsc + '</div>' + (badges ? '<div class="mt-1">' + badges + '</div>' : '') + '</div>';
                     }
                     return titleEsc;
                 }
@@ -444,7 +444,7 @@ $(function(){
                     var html = (data || '');
                     var pbadge = renderPriorityBadge(row);
                     if (type === 'display') {
-                        return '<div class="due-date-cell">' + html + (pbadge ? '<div class="mt-1">' + pbadge + '</div>' : '') + '</div>';
+                        return '<div class="due-date-cell"><div class="font-weight-bold">' + html + '</div>' + (pbadge ? '<div class="mt-1">' + pbadge + '</div>' : '') + '</div>';
                     }
                     return html;
                 }
