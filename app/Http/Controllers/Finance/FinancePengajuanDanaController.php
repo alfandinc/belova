@@ -16,6 +16,7 @@ use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Illuminate\Support\Facades\Validator;
 
 class FinancePengajuanDanaController extends Controller
 {
@@ -640,20 +641,54 @@ class FinancePengajuanDanaController extends Controller
 
     public function store(Request $request)
     {
-        $data = $request->validate([
+        // Server-side required validation matching modal requirements
+        $validator = Validator::make($request->all(), [
             'kode_pengajuan' => 'required|string|unique:finance_pengajuan_dana,kode_pengajuan',
-            'employee_id' => 'nullable|integer',
+            'employee_id' => 'required|integer',
             'division_id' => 'nullable|integer',
-            'sumber_dana' => 'nullable|string',
-            'perusahaan' => 'nullable|string',
-            'tanggal_pengajuan' => 'nullable|date',
-            'jenis_pengajuan' => 'nullable|string',
+            'sumber_dana' => 'required|string',
+            'perusahaan' => 'required|string',
+            'tanggal_pengajuan' => 'required|date',
+            'jenis_pengajuan' => 'required|string',
             'status' => 'nullable|string',
-            'rekening_id' => 'nullable|integer|exists:finance_rekening,id',
-            'items_json' => 'nullable|json',
+            'rekening_id' => 'required|integer|exists:finance_rekening,id',
+            'items_json' => 'required|json',
             'bukti_transaksi' => 'nullable',
             'bukti_transaksi.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+        ], [
+            'employee_id.required' => 'Nama Pengaju wajib diisi',
+            'sumber_dana.required' => 'Sumber Dana wajib diisi',
+            'perusahaan.required' => 'Perusahaan wajib diisi',
+            'tanggal_pengajuan.required' => 'Tanggal wajib diisi',
+            'jenis_pengajuan.required' => 'Jenis wajib diisi',
+            'rekening_id.required' => 'Rekening wajib dipilih',
+            'items_json.required' => 'Minimal 1 item',
+            'items_json.json' => 'Format items tidak valid',
         ]);
+
+        // Ensure items_json contains at least one meaningful item
+        $validator->after(function($v) use ($request) {
+            $itemsRaw = $request->input('items_json');
+            if (!$itemsRaw) { $v->errors()->add('items_json', 'Minimal 1 item'); return; }
+            try { $itemsArr = json_decode($itemsRaw, true); } catch (\Exception $e) { $itemsArr = null; }
+            if (!is_array($itemsArr) || empty($itemsArr)) {
+                $v->errors()->add('items_json', 'Minimal 1 item');
+                return;
+            }
+            $hasValid = false;
+            foreach ($itemsArr as $it) {
+                $desc = trim((string)($it['desc'] ?? $it['name'] ?? ''));
+                $qty = floatval($it['qty'] ?? 0);
+                $isFaktur = !empty($it['fakturbeli_id']);
+                if ($desc !== '' && ($isFaktur || $qty > 0)) { $hasValid = true; break; }
+            }
+            if (!$hasValid) { $v->errors()->add('items_json', 'Minimal 1 item yang valid'); }
+        });
+
+        if ($validator->fails()) {
+            return response()->json([ 'message' => 'Validasi gagal', 'errors' => $validator->errors() ], 422);
+        }
+        $data = $validator->validated();
 
         // If division_id wasn't provided, attempt to infer it from selected employee
         if (empty($data['division_id']) && !empty($data['employee_id'])) {
@@ -685,6 +720,7 @@ class FinancePengajuanDanaController extends Controller
         DB::transaction(function() use (&$pengajuan, &$pengajuanId, $data, $request) {
             // prepare grand_total from items_json if provided
             $grandTotal = 0;
+            $items = [];
             $itemsJson = $request->input('items_json');
             if ($itemsJson) {
                 $items = json_decode($itemsJson, true);

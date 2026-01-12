@@ -839,13 +839,47 @@ $(document).ready(function() {
         });
         $('#items_json').val(JSON.stringify(items));
 
+        // Client-side validation: required fields + at least 1 item
+        $('.invalid-feedback').text('');
+        $('.is-invalid').removeClass('is-invalid');
+        $('#itemsTable').removeClass('table-danger');
+
+        var errors = [];
+        function requireField(id, label){
+            var val = ($('#'+id).val()||'').toString().trim();
+            if (!val) { $('#'+id).addClass('is-invalid'); errors.push(label); }
+        }
+
+        requireField('sumber_dana', 'Sumber Dana');
+        requireField('perusahaan', 'Perusahaan');
+        requireField('employee_id', 'Nama Pengaju');
+        requireField('tanggal_pengajuan', 'Tanggal');
+        requireField('jenis_pengajuan', 'Jenis');
+        requireField('rekening_id', 'Rekening');
+
+        // Items: require at least one with description, and either qty > 0 or is faktur item
+        var hasValidItem = false;
+        $('#itemsTable tbody tr').each(function(){
+            var $tr = $(this);
+            var descTrim = ($tr.find('.item-desc').val()||'').toString().trim();
+            var qty = parseFloat($tr.find('.item-qty').val()||0);
+            var isFaktur = !!$tr.data('fakturbeli-id');
+            if (descTrim !== '' && (isFaktur || qty > 0)) { hasValidItem = true; return false; }
+        });
+        if (!hasValidItem) {
+            errors.push('Minimal 1 item');
+            $('#itemsTable').addClass('table-danger');
+        }
+
+        if (errors.length) {
+            var msg = 'Harap lengkapi: ' + errors.join(', ');
+            Swal.fire('Validasi', msg, 'warning');
+            return; // stop submit
+        }
+
         var formData = new FormData(formEl);
         // If updating, spoof PUT
         if (id) formData.append('_method', 'PUT');
-
-        // Clear validation
-        $('.invalid-feedback').text('');
-        $('.is-invalid').removeClass('is-invalid');
 
         $.ajax({
             url: url,
