@@ -12,32 +12,29 @@
         }
         @page {
             margin: 0;
-            size: 10cm 1.5cm; /* page equals label height: no extra space */
         }
         html, body {
             box-sizing: border-box;
-            width: 10cm;
-            height: 1.5cm; /* match page size */
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
         }
         body {
             font-family: Arial, sans-serif;
-            width: 10cm;
-            height: 1.5cm; /* match page height */
             overflow: hidden;
             background-color: #ffffff !important; /* base page color; wrapper will provide blue */
+            /* Align the label to the top-right corner when printing in browser */
+            position: relative;
         }
         /* Full-page blue wrapper to eliminate any white gaps */
         .etiket-wrapper {
             position: absolute;
             top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            right: 1.5cm; /* add right margin/offset */
             width: 10cm;
-            height: 1.5cm; /* match page size */
-            background-color: #26ccff; /* blue background across full page */
+            height: 1.5cm; /* label size */
+            background-color: #26ccff; /* blue background across the label */
         }
         /* Force all text inside the blue label to black */
         .main-table, .main-table * {

@@ -1710,9 +1710,11 @@ class EresepController extends Controller
 
             // Render Blade view to HTML
             $html = view('erm.eresep.farmasi.etiket-biru-print', $data)->render();
-            // Use mPDF for PDF generation (10cm x 1.5cm -> 100mm x 15mm)
+            // Use mPDF for PDF generation with A4 page to allow
+            // positioning the label at the top-right corner of the sheet.
+            // The label itself keeps its own size via CSS (10cm x 1.5cm).
             $mpdf = new \Mpdf\Mpdf([
-                'format' => [100, 15], // 10cm x 1.5cm in mm
+                'format' => 'A4',
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,
