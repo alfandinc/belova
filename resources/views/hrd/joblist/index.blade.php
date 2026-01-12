@@ -432,7 +432,7 @@ $(function(){
             { data: 'id', name: 'id', render: function(data, type, row, meta) { return meta.row + meta.settings._iDisplayStart + 1; } },
             { data: 'title', name: 'title', render: function(data, type, row){
                     var titleEsc = $('<div/>').text(data || '').html();
-                    var badges = renderPriorityBadge(row) + renderDivisionBadges(row);
+                    var badges = renderDivisionBadges(row);
                     if (type === 'display') {
                         return '<div class="job-title-cell"><div class="font-weight-600">' + titleEsc + '</div>' + (badges ? '<div class="mt-1">' + badges + '</div>' : '') + '</div>';
                     }
@@ -440,7 +440,15 @@ $(function(){
                 }
             },
             { data: 'status_control', name: 'status', orderable: true, searchable: true },
-            { data: 'due_date_display', name: 'due_date', orderable: true, searchable: false },
+            { data: 'due_date_display', name: 'due_date', orderable: true, searchable: false, render: function(data, type, row){
+                    var html = (data || '');
+                    var pbadge = renderPriorityBadge(row);
+                    if (type === 'display') {
+                        return '<div class="due-date-cell">' + html + (pbadge ? '<div class="mt-1">' + pbadge + '</div>' : '') + '</div>';
+                    }
+                    return html;
+                }
+            },
             { data: 'notes', name: 'notes', orderable: false, searchable: true, className: 'notes-col', width: '30%', render: function(data, type, row){
                     if (!data) return '';
                     try {
