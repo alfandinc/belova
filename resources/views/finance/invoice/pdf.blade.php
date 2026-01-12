@@ -173,6 +173,38 @@
             background-color: #f1f9ff;
             border-top: 1px dashed #bbb;
         }
+        .payment-info {
+            margin-top: 6px;
+            padding: 6px 6px 2px 6px;
+            font-size: 8pt;
+            background-color: transparent;
+            border-top: 1px solid #ddd;
+            border-radius: 0;
+        }
+        .payment-info-title {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 2px;
+            text-transform: none;
+            letter-spacing: 0;
+            text-align: left;
+        }
+        .payment-line {
+            text-align: left;
+            font-weight: normal;
+            color: #333;
+        }
+        .payment-box {
+            margin-top: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fff;
+        }
+        .payment-box .payment-info {
+            margin-top: 0;
+            padding: 6px 8px;
+            border-top: none;
+        }
         .footer-container {
             position: absolute;
             bottom: 20px;        /* Adjusted bottom position */
@@ -184,21 +216,23 @@
             margin-top: 15px;    /* Add margin for spacing */
             width: 100%;
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             padding-top: 3px;
-            border-top: 1px solid #ddd;
+            border-top: none;
         }
         .signature-left {
             font-size: 7pt;
             color: #777;
-            flex-grow: 1;
-            padding-top: 5px;
+            flex-grow: 0;
+            padding-top: 0;
+            width: 0;
         }
         .signature-right {
-            text-align: right;
+            text-align: center;
             font-size: 8pt;
-            width: 180px;
+            width: 240px;
         }
+        .signature-date { white-space: nowrap; }
         .signature-line {
             display: inline-block;
             border-top: 1px solid #333;
@@ -298,6 +332,7 @@
             <div class="info-box">
                 <div class="info-box-header">Invoice Details</div>
                 <div class="info-box-content">
+                    <!-- Summary Section - Fixed at bottom right -->
                     <table class="info-table">
                         <tr>
                             <td class="label-column">Invoice Date</td>
@@ -356,6 +391,12 @@
         </table>       
         <!-- Summary Section - Fixed at bottom right -->
         <div class="finance-summary">
+            @php
+                $klinik = $invoice->visitation->klinik ?? null;
+                $paymentBank = $klinik->bank_name ?? 'BNI';
+                $paymentAccName = $klinik->bank_account_name ?? ($klinik->rekening_nama ?? 'CV BELIA ABADI');
+                $paymentAccNo = $klinik->bank_account_number ?? ($klinik->rekening_nomor ?? ($klinik->no_rekening ?? '3113131515'));
+            @endphp
             <div class="summary-box">
                 <table class="summary-table">
                     <tr>
@@ -381,9 +422,20 @@
                         <td class="text-right">Rp {{ number_format($invoice->total_amount, 0, ',', '.') }}</td>
                     </tr>
                 </table>
-                <!-- Terbilang (Amount in Words) - directly below total -->
+                <!-- Terbilang (Amount in Words) - directly below total inside summary box -->
                 <div class="terbilang">
                     <em>{{ ucfirst(terbilang((int)$invoice->total_amount)) }} rupiah</em>
+                </div>
+            </div>
+            <!-- Payment Box - placed after terbilang as requested -->
+            <div class="payment-box">
+                <div class="payment-info">
+                    <div class="payment-info-title">Payment Information</div>
+                    <div class="payment-line">
+                        <span class="name" style="font-weight: 600;">{{ $paymentAccName }}</span>
+                        <span class="acc">: {{ $paymentAccNo }}</span>
+                        <span class="bank"> ({{ $paymentBank }})</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -391,8 +443,9 @@
         <!-- Fixed Footer Elements -->
         <div class="footer-container">
             <div class="signature-row">
+                <div class="signature-left"></div>
                 <div class="signature-right">
-                    <p>Surakarta, {{ \Carbon\Carbon::now()->format('d F Y') }}</p>
+                    <p class="signature-date">Surakarta, {{ \Carbon\Carbon::now()->format('d F Y') }}</p>
                     <div class="signature-line">
                         <p>Finance Officer</p>
                     </div>
