@@ -335,10 +335,10 @@
 
         return isValid; // ⬅️ Hanya lanjut step jika valid
     },
-    onFinished: function (event, currentIndex) {
-            // Instead of submitting immediately, show the IC (consent) modal for signature
-            $('#icModal').modal('show');
-        }
+        onFinished: function (event, currentIndex) {
+                // Submit the form immediately (IC is optional and can be done later)
+                $('#pasien-form').submit();
+            }
     });
     
     $('.select2').select2({ width: '100%' });
@@ -469,21 +469,8 @@
     });
 
     $('#pasien-form').on('submit', function (e) {
-            // Check if checkbox is checked
-        if (!$('#terms').is(':checked')) {
+            // Proceed with AJAX submit without requiring IC/terms consent
             e.preventDefault();
-            Swal.fire({
-                icon: 'warning',
-                title: 'Persetujuan diperlukan',
-                text: 'Anda harus menyetujui persetujuan sebelum mengirim data.',
-            }).then(() => {
-                $('#terms').focus();
-            });
-            return false;  // stop submission
-        }
-
-        // If checkbox is checked, proceed with your AJAX submit
-        e.preventDefault();
 
         let form = $(this);
         let formData = new FormData(this);
@@ -608,7 +595,7 @@
         $('#pasien-form').find('.actions ul li').last().find('a').text('Update');
     @endif
 
-    // (Consent modal is now shown on Finish button instead of checkbox)
+    // IC (consent) is optional and can be captured later if needed
 
     // end document.ready
     });

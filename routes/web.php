@@ -1635,6 +1635,9 @@ Route::get('/address-form', [AddressController::class, 'index']);
 Route::get('/icd10/search', [Icd10Controller::class, 'search'])->name('icd10.search');
 // IC Pendaftaran (signature -> generate PDF)
 Route::post('/erm/ic-pendaftaran/store', [IcPendaftaranController::class, 'store'])->name('erm.ic_pendaftaran.store');
+// Batch check and PDF render for IC
+Route::post('/erm/ic-pendaftaran/check', [IcPendaftaranController::class, 'check'])->name('erm.ic_pendaftaran.check');
+Route::get('/erm/ic-pendaftaran/{pasien}/pdf', [IcPendaftaranController::class, 'pdf'])->name('erm.ic_pendaftaran.pdf');
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');

@@ -36,6 +36,7 @@
 @include('erm.partials.modal-daftarkunjunganproduk')
 @include('erm.partials.modal-daftarkunjunganlab')
 @include('erm.partials.modal-info-pasien')
+@include('erm.partials.modal-ic-pendaftaran')
 
 <!-- Modal Merchandise Checklist -->
 <div class="modal fade" id="modalMerchChecklist" tabindex="-1" role="dialog" aria-labelledby="modalMerchChecklistLabel" aria-hidden="true">
@@ -46,26 +47,64 @@
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
-            </div>
-            <div class="modal-body">
-                <div id="merchChecklistContainer">
-                    <p class="text-muted">Loading...</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Edit Status Pasien -->
-<div class="modal fade" id="modalEditStatusPasien" tabindex="-1" role="dialog" aria-labelledby="modalEditStatusPasienLabel" aria-hidden="true">
-    <div class="modal-dialog modal-sm" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
+            {
+                targets: 9,
+                render: function(data, type, row, meta) {
+                    var tgllahir = row.tanggal_lahir || '';
+                    var icBtn = ` <span class="ic-action">
+                                   <button type="button" class="btn btn-sm btn-outline-primary btn-open-ic" 
+                                   title="Isi IC Pendaftaran"
+                                   data-id="${row.id}"
+                                   data-nama="${(row.nama||'').toString().replace(/\"/g,'&quot;')}"
+                                   data-nik="${row.nik||''}"
+                                   data-alamat="${(row.alamat||'').toString().replace(/\"/g,'&quot;')}"
+                                   data-nohp="${row.no_hp||''}"
+                                   data-tgllahir="${tgllahir}">
+                                   <i class="fas fa-file-signature mr-1"></i>Isi IC
+                                   </button>
+                                 </span>`;
+                    return (data || '') + icBtn;
+                }
+            }
                 <h5 class="modal-title" id="modalEditStatusPasienLabel">Edit Status Pasien</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        // After table draw, check IC status for visible rows and replace IC button with PDF when available
+                        function refreshIcButtons() {
+                            var ids = [];
+                            table.rows({ page: 'current' }).every(function(){
+                                var r = this.data();
+                                if (r && r.id) ids.push(r.id.toString());
+                            });
+                            if (!ids.length) return;
+                            $.ajax({
+                                url: '{{ route('erm.ic_pendaftaran.check') }}',
+                                type: 'POST',
+                                data: { ids: ids, _token: $('meta[name="csrf-token"]').attr('content') }
+                            }).done(function(resp){
+                                var map = (resp && resp.mappings) ? resp.mappings : {};
+                                table.rows({ page: 'current' }).every(function(){
+                                    var d = this.data();
+                                    var has = map[d.id?.toString()];
+                                    var $cell = $(this.node()).find('td').eq(9); // action column
+                                    var $holder = $cell.find('.ic-action');
+                                    if (!$holder.length) return;
+                                    if (has) {
+                                        var pdfUrl = '{{ route('erm.ic_pendaftaran.pdf', ['pasien' => 'PAK']) }}'.replace('PAK', d.id);
+                                        $holder.html(`
+                                            <a href="${pdfUrl}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Lihat IC (PDF)">
+                                                <i class="fas fa-file-pdf mr-1"></i>View IC
+                                            </a>
+                                        `);
+                                    } else {
+                                        // keep "Isi IC" button
+                                    }
+                                });
+                            });
+                        }
+
+                        table.on('draw', function(){ refreshIcButtons(); });
+                        // Initial run
+                        refreshIcButtons();
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -285,13 +324,62 @@ $(document).ready(function () {
             { targets: 6, width: '120px' }, // Status Akses column
             { targets: 7, width: '120px' }, // Status Review column
             { targets: 8, width: '120px' }, // Merchandise column (narrower)
-            { targets: 9, width: '260px' } // Action column
+            { targets: 9, width: '300px' }, // Action column
+            {
+                targets: 9,
+                render: function(data, type, row, meta) {
+                    // Append IC button to existing actions markup from server
+                    var tgllahir = row.tanggal_lahir || '';
+                    var icBtn = ` <span class="ic-action"><button type="button" class="btn btn-sm btn-outline-primary btn-open-ic" 
+                                   title="Isi IC Pendaftaran"
+                                   data-id="${row.id}"
+                                   data-nama="${(row.nama||'').toString().replace(/"/g,'&quot;')}"
+                                   data-nik="${row.nik||''}"
+                                   data-alamat="${(row.alamat||'').toString().replace(/"/g,'&quot;')}"
+                                   data-nohp="${row.no_hp||''}"
+                                   data-tgllahir="${tgllahir}">
+                                   <i class="fas fa-file-signature mr-1"></i>Isi IC
+                                 </button></span>`;
+                    return (data || '') + icBtn;
+                }
+            }
         ]
     });
 
     $('#btn-filter').click(function () {
         table.ajax.reload();
     });
+
+    // Replace "Isi IC" with "View IC" for rows that already have IC
+    function refreshIcButtons() {
+        var ids = [];
+        table.rows({ page: 'current' }).every(function(){
+            var r = this.data();
+            if (r && r.id) ids.push(r.id.toString());
+        });
+        if (!ids.length) return;
+        $.ajax({
+            url: '{{ route('erm.ic_pendaftaran.check') }}',
+            type: 'POST',
+            data: { ids: ids, _token: $('meta[name="csrf-token"]').attr('content') }
+        }).done(function(resp){
+            var map = (resp && resp.mappings) ? resp.mappings : {};
+            table.rows({ page: 'current' }).every(function(){
+                var d = this.data();
+                var has = map[(d.id || '').toString()];
+                var $cell = $(this.node()).find('td').eq(9);
+                var $holder = $cell.find('.ic-action');
+                if (!$holder.length) return;
+                if (has) {
+                    var pdfUrl = '{{ route('erm.ic_pendaftaran.pdf', ['pasien' => 'PID']) }}'.replace('PID', (d.id || '').toString());
+                    $holder.html('<a href="' + pdfUrl + '" target="_blank" class="btn btn-sm btn-outline-secondary" title="Lihat IC (PDF)"><i class="fas fa-file-pdf mr-1"></i>View IC</a>');
+                }
+            });
+        });
+    }
+
+    table.on('draw', function(){ refreshIcButtons(); });
+    refreshIcButtons();
 
     // Reset button functionality
     $('#btn-reset').click(function () {
@@ -392,6 +480,38 @@ let currentPasienId;
         if (currentPasienId) {
             window.location.href = "{{ route('erm.pasiens.create') }}?edit_id=" + currentPasienId;
         }
+    });
+
+    // Open IC modal from index actions
+    $(document).on('click', '.btn-open-ic', function() {
+        // Use attr() to preserve leading zeros
+        const id = ($(this).attr('data-id') || '').toString();
+        const fallback = {
+            id: id,
+            nama: ($(this).attr('data-nama') || ''),
+            nik: ($(this).attr('data-nik') || ''),
+            alamat: ($(this).attr('data-alamat') || ''),
+            no_hp: ($(this).attr('data-nohp') || ''),
+            tanggal_lahir: ($(this).attr('data-tgllahir') || '')
+        };
+
+        $.ajax({
+            url: "{{ route('erm.pasien.show', '') }}/" + id,
+            type: 'GET'
+        }).done(function(resp){
+            const pasien = {
+                id: (resp.id || fallback.id).toString(),
+                nama: resp.nama || fallback.nama,
+                nik: (resp.nik || fallback.nik).toString(),
+                alamat: resp.alamat || fallback.alamat,
+                no_hp: (resp.no_hp || fallback.no_hp).toString(),
+                tanggal_lahir: resp.tanggal_lahir || fallback.tanggal_lahir
+            };
+            $('#icModal').data('pasien', pasien).modal('show');
+        }).fail(function(){
+            // Use fallback if detail endpoint is unavailable
+            $('#icModal').data('pasien', fallback).modal('show');
+        });
     });
 
     // Handle edit status button click

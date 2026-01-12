@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Models\ERM\IcPendaftaran;
 use App\Models\ERM\Pasien;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Response;
 
 class IcPendaftaranController extends Controller
 {
@@ -52,5 +54,62 @@ class IcPendaftaranController extends Controller
             'signature_url' => Storage::disk('public')->url($sigName),
             'record_id' => $record->id,
         ]);
+    }
+
+    /**
+     * Batch check which pasien IDs have IC records.
+     * Request: { ids: ["0004237", "004238", ...] }
+     * Response: { mappings: { "0004237": { record_id: 123 }, ... } }
+     */
+    public function check(Request $request)
+    {
+        $ids = array_map('strval', (array) $request->input('ids', []));
+        if (!$ids) return response()->json(['mappings' => []]);
+
+        $mappings = [];
+        foreach ($ids as $id) {
+            $trim = ltrim($id, '0');
+            $latest = IcPendaftaran::where('pasien_id', $id)
+                ->orWhere('pasien_id', $trim)
+                ->orderByDesc('signed_at')
+                ->first();
+            if ($latest) {
+                $mappings[$id] = [ 'record_id' => $latest->id ];
+            }
+        }
+
+        return response()->json(['mappings' => $mappings]);
+    }
+
+    /**
+     * Render the IC PDF for a given pasien id.
+     */
+    public function pdf($pasienId)
+    {
+        $trim = ltrim((string)$pasienId, '0');
+        $record = IcPendaftaran::where('pasien_id', $pasienId)
+            ->orWhere('pasien_id', $trim)
+            ->orderByDesc('signed_at')
+            ->first();
+        if (!$record) {
+            return Response::make('IC Pendaftaran not found for this patient.', 404);
+        }
+
+        $pasien = Pasien::find($pasienId) ?? Pasien::find($trim);
+        $signaturePath = Storage::disk('public')->path($record->signature_path);
+        $signatureDataUri = null;
+        if (is_file($signaturePath)) {
+            $mime = 'image/png';
+            $signatureDataUri = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($signaturePath));
+        }
+
+        $pdf = Pdf::loadView('erm.ic_pendaftaran.pdf', [
+            'pasien' => $pasien,
+            'record' => $record,
+            'signatureDataUri' => $signatureDataUri,
+        ])->setPaper('A4');
+
+        $fname = 'IC_Pendaftaran_' . ($pasien ? $pasien->id : $pasienId) . '.pdf';
+        return $pdf->stream($fname);
     }
 }

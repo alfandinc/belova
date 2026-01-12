@@ -34,7 +34,7 @@
           <tr>
             <td style="width:140px;">NAMA PASIEN</td>
             <td><span id="ic_nama" class="ic-line">&nbsp;</span></td>
-            <td style="width:140px;">TEMPAT/TANGGAL LAHIR</td>
+            <td style="width:140px;">TANGGAL LAHIR</td>
             <td><span id="ic_tanggal_lahir" class="ic-line">&nbsp;</span></td>
           </tr>
           <tr>
@@ -117,6 +117,26 @@ document.addEventListener('DOMContentLoaded', function () {
   var canvas = document.querySelector('#signature-pad');
   var signaturePad = null;
 
+  function formatDateIdLong(s) {
+    if (!s) return '';
+    try {
+      var dateStr = s.toString();
+      // Normalize to YYYY-MM-DD
+      if (dateStr.indexOf('T') !== -1) {
+        dateStr = dateStr.substring(0, 10);
+      }
+      var parts = dateStr.split('-');
+      if (parts.length === 3) {
+        var y = parseInt(parts[0], 10);
+        var m = Math.max(1, Math.min(12, parseInt(parts[1], 10)));
+        var d = parseInt(parts[2], 10);
+        var bulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        return d + ' ' + bulan[m - 1] + ' ' + y;
+      }
+    } catch (e) {}
+    return s;
+  }
+
   function resizeCanvas() {
     // If canvas is not visible its offsetWidth/Height can be 0
     var width = canvas.offsetWidth || 600;
@@ -136,20 +156,38 @@ document.addEventListener('DOMContentLoaded', function () {
       signaturePad.clear();
     }
 
-    // Populate patient fields from the form inputs
-    var nama = $('#pasien-form').find('#nama').val() || '';
-    var alamat = $('#pasien-form').find('#alamat').val() || '';
-    var nik = $('#pasien-form').find('#nik').val() || '';
-    var no_hp = $('#pasien-form').find('#no_hp').val() || $('#pasien-form').find('#no_hp2').val() || '';
-    var tanggal_lahir = $('#pasien-form').find('#tanggal_lahir').val() || '';
+    // If opened from index list, patient data is attached to modal data
+    var pasienData = $('#icModal').data('pasien') || {};
+    var fromIndex = !!pasienData.id;
+
+    var nama = '';
+    var alamat = '';
+    var nik = '';
+    var no_hp = '';
+    var tanggal_lahir = '';
+
+    if (fromIndex) {
+      nama = pasienData.nama || '';
+      alamat = pasienData.alamat || '';
+      nik = pasienData.nik || '';
+      no_hp = pasienData.no_hp || '';
+      tanggal_lahir = formatDateIdLong(pasienData.tanggal_lahir || '');
+    } else {
+      // Populate patient fields from the form inputs (create/edit page)
+      nama = $('#pasien-form').find('#nama').val() || '';
+      alamat = $('#pasien-form').find('#alamat').val() || '';
+      nik = $('#pasien-form').find('#nik').val() || '';
+      no_hp = $('#pasien-form').find('#no_hp').val() || $('#pasien-form').find('#no_hp2').val() || '';
+      tanggal_lahir = formatDateIdLong($('#pasien-form').find('#tanggal_lahir').val() || '');
+    }
 
     $('#ic_nama').text(nama);
     $('#ic_alamat').text(alamat);
     $('#ic_nik').text(nik);
     $('#ic_no_hp').text(no_hp);
     $('#ic_tanggal_lahir').text(tanggal_lahir);
-    // NO.RM left blank (you can fill it from server-side if available)
-    $('#ic_no_rm').text('');
+    // NO. RM (use pasien id when available)
+    $('#ic_no_rm').text(pasienData.id || '');
   });
 
   // On window resize, only resize if modal is open/visible
@@ -170,16 +208,55 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     var dataUrl = signaturePad.toDataURL('image/png');
+    var pasienData = $('#icModal').data('pasien') || {};
+    if (pasienData.id) {
+      // From index page: directly submit signature for existing patient
+      $.ajax({
+        url: '/erm/ic-pendaftaran/store',
+        method: 'POST',
+        data: {
+          pasien_id: pasienData.id,
+          signature: dataUrl
+        },
+        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+        success: function (icResp) {
+          if (icResp.success) {
+            $('#icModal').modal('hide');
+            Swal.fire({
+              icon: 'success',
+              title: 'Berhasil!',
+              text: 'Persetujuan berhasil disimpan.',
+              confirmButtonText: 'OK'
+            }).then(() => {
+              // Optionally refresh the datatable to reflect status
+              if (window.$ && $('#pasiens-table').length) {
+                $('#pasiens-table').DataTable().ajax.reload(null, false);
+              }
+            });
+          } else {
+            alert('Gagal membuat persetujuan: ' + (icResp.message || 'Unknown'));
+          }
+        },
+        error: function (xhr2) {
+          var msg = 'Gagal menyimpan persetujuan.';
+          if (xhr2.responseJSON && xhr2.responseJSON.message) msg = xhr2.responseJSON.message;
+          Swal.fire({ icon: 'error', title: 'Gagal!', text: msg });
+        }
+      });
+      return;
+    }
 
+    // From create/edit page: keep legacy behavior (save patient then save IC)
     var form = $('#pasien-form');
+    if (!form.length) {
+      Swal.fire({ icon: 'error', title: 'Gagal!', text: 'Form pasien tidak ditemukan.' });
+      return;
+    }
     var action = form.attr('action');
-    // mark terms as accepted before building form data so server-side validation passes
     $('#terms').prop('checked', true);
     var fd = new FormData(form[0]);
-    // append signature so server can process together if needed
     fd.append('signature', dataUrl);
 
-    // First: save pasien record via the existing pasien store endpoint
     $.ajax({
       url: action,
       method: 'POST',
@@ -189,69 +266,46 @@ document.addEventListener('DOMContentLoaded', function () {
       dataType: 'json',
       headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
       success: function (resp) {
-        if (resp && resp.pasien && resp.pasien.id) {
-          var pasienId = resp.pasien.id;
-
-          // Now send signature to ic-pendaftaran store with pasien id
-          $.ajax({
-            url: '/erm/ic-pendaftaran/store',
-            method: 'POST',
-            data: {
-              pasien_id: pasienId,
-              signature: dataUrl,
-            },
-            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-            success: function (icResp) {
-              if (icResp.success) {
-                // persist returned pdf path into hidden input
-                $('#consent_pdf_path').val(icResp.pdf_url);
-                $('#terms').prop('checked', true);
-                $('#icModal').modal('hide');
-
-                // show success and handle post-save flow (open kunjungan or reload)
-                Swal.fire({
-                  icon: 'success',
-                  title: 'Berhasil!',
-                  text: 'Data pasien dan persetujuan berhasil disimpan.',
-                  confirmButtonText: 'OK'
-                }).then(() => {
-                  // offer to open kunjungan similar to original handler
-                  Swal.fire({
-                    title: 'Buka kunjungan?',
-                    text: "Apakah Anda ingin membuka form kunjungan?",
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonText: 'Ya',
-                    cancelButtonText: 'Tidak'
-                  }).then((result2) => {
-                    if (result2.value) {
-                      $('#modal-pasien-id').val(resp.pasien.id);
-                      $('#modal-nama-pasien').val(resp.pasien.nama);
-                      $('#modalKunjungan').modal('show');
-                    } else {
-                      location.reload();
-                    }
-                  });
-                });
-              } else {
-                alert('Gagal membuat persetujuan: ' + (icResp.message || 'Unknown'));
-              }
-            },
-            error: function (xhr2) {
-              var msg = 'Gagal menyimpan persetujuan.';
-              if (xhr2.responseJSON && xhr2.responseJSON.message) msg = xhr2.responseJSON.message;
-              alert(msg);
-            }
-          });
-        } else {
-          var err = 'Gagal menyimpan pasien.';
-          if (resp && resp.message) err = resp.message;
-          alert(err);
+        if (!(resp && resp.pasien && resp.pasien.id)) {
+          Swal.fire({ icon: 'error', title: 'Gagal!', text: 'Gagal menyimpan pasien.' });
+          return;
         }
+        var pasienId = resp.pasien.id;
+        $.ajax({
+          url: '/erm/ic-pendaftaran/store',
+          method: 'POST',
+          data: { pasien_id: pasienId, signature: dataUrl },
+          headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+          success: function (icResp) {
+            if (icResp.success) {
+              $('#consent_pdf_path').val(icResp.pdf_url);
+              $('#terms').prop('checked', true);
+              $('#icModal').modal('hide');
+              Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Data pasien dan persetujuan berhasil disimpan.', confirmButtonText: 'OK' })
+                .then(() => {
+                  Swal.fire({ title: 'Buka kunjungan?', text: 'Apakah Anda ingin membuka form kunjungan?', icon: 'question', showCancelButton: true, confirmButtonText: 'Ya', cancelButtonText: 'Tidak' })
+                    .then((result2) => {
+                      if (result2.value) {
+                        $('#modal-pasien-id').val(resp.pasien.id);
+                        $('#modal-nama-pasien').val(resp.pasien.nama);
+                        $('#modalKunjungan').modal('show');
+                      } else {
+                        location.reload();
+                      }
+                    });
+                });
+            } else {
+              Swal.fire({ icon: 'error', title: 'Gagal!', text: icResp.message || 'Gagal membuat persetujuan.' });
+            }
+          },
+          error: function () {
+            Swal.fire({ icon: 'error', title: 'Gagal!', text: 'Gagal menyimpan persetujuan.' });
+          }
+        });
       },
       error: function (xhr) {
         let errors = xhr.responseJSON?.errors;
-        let errorMsg = "Terjadi kesalahan saat menyimpan data pasien.";
+        let errorMsg = 'Terjadi kesalahan saat menyimpan data pasien.';
         if (errors) {
           errorMsg = Object.values(errors).map(err => `• ${err}`).join('\n');
         } else if (xhr.responseJSON && xhr.responseJSON.message) {
