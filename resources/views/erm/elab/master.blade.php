@@ -181,7 +181,7 @@ $(function(){
         columns:[
             {data:'DT_RowIndex', orderable:false, searchable:false},
             {data:'nama'},
-            {data:'lab_tests_count', name:'lab_tests_count'},
+            {data:'lab_tests_count', name:'lab_tests_count', orderable:false, searchable:false},
             {data:'actions', orderable:false, searchable:false}
         ]
     });
@@ -292,16 +292,16 @@ $(function(){
     });
 
     // Edit actions
-        $(document).on('click','.edit-test', function(){
+    $(document).on('click','.edit-test', function(){
         resetLabTestForm();
         let id = $(this).data('id');
         $('#lab_test_id').val(id);
-        loadKategoriSelect();
-        // fetch full record including obats
+        // fetch full record including obats, then load kategori options with selected value
         $.getJSON(`/erm/lab-tests/${id}`, function(resp){
             $('#lab_nama').val(resp.nama);
             $('#lab_harga').val(resp.harga);
-            if(resp.lab_kategori_id) $('#lab_kategori_id').val(resp.lab_kategori_id).trigger('change');
+            // ensure kategori options are loaded before selecting
+            loadKategoriSelect(resp.lab_kategori_id || null);
             // populate obat rows
             $('#lab-obat-list').empty();
             if(resp.obats && resp.obats.length){
