@@ -27,9 +27,15 @@
                     </select>
                 </div>
                 <div>
-                    <button class="btn btn-info" id="btnImportCsv"><i class="mdi mdi-file-import"></i> Import CSV</button>
-                    <button class="btn btn-success" id="btnMakeAllActive"><i class="mdi mdi-check-circle-outline"></i> Aktifkan Semua</button>
-                    <button class="btn btn-danger" id="btnMakeAllInactive"><i class="mdi mdi-close-circle-outline"></i> Nonaktifkan Semua</button>
+                    @if(auth()->check() && (
+                        (method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Admin')) ||
+                        (isset(auth()->user()->role) && auth()->user()->role === 'Admin') ||
+                        (isset(auth()->user()->is_admin) && auth()->user()->is_admin)
+                    ))
+                        <button class="btn btn-info" id="btnImportCsv"><i class="mdi mdi-file-import"></i> Import CSV</button>
+                        <button class="btn btn-success" id="btnMakeAllActive"><i class="mdi mdi-check-circle-outline"></i> Aktifkan Semua</button>
+                        <button class="btn btn-danger" id="btnMakeAllInactive"><i class="mdi mdi-close-circle-outline"></i> Nonaktifkan Semua</button>
+                    @endif
                     <button class="btn btn-primary" id="btnAddKodeTindakan"><i class="mdi mdi-plus"></i> Tambah Kode Tindakan</button>
                 </div>
             </div>
