@@ -27,7 +27,10 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Lab Tests</h5>
-                    <button class="btn btn-sm btn-primary" id="btn-add-test">Tambah Lab Test</button>
+                    <div class="btn-group">
+                        <a class="btn btn-sm btn-success" href="{{ route('erm.labtests.export') }}">Download Excel</a>
+                        <button class="btn btn-sm btn-primary" id="btn-add-test">Tambah Lab Test</button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <table class="table table-bordered w-100" id="labtests-table">

@@ -1685,6 +1685,8 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
     // Data endpoints for DataTables
     Route::get('/lab-tests/data', [\App\Http\Controllers\ERM\LabTestController::class, 'data'])->name('erm.labtests.data');
     Route::get('/lab-kategories/data', [\App\Http\Controllers\ERM\LabKategoriController::class, 'data'])->name('erm.labkategories.data');
+    // Export master lab tests to Excel
+    Route::get('/lab-tests/export', [\App\Http\Controllers\ERM\LabTestController::class, 'export'])->name('erm.labtests.export');
 
     // Lab Kategori CRUD
     Route::post('/lab-kategories', [\App\Http\Controllers\ERM\LabKategoriController::class, 'store'])->name('erm.labkategories.store');

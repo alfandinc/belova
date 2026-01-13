@@ -8,6 +8,8 @@ use App\Models\ERM\LabTest;
 use App\Models\ERM\LabKategori;
 use App\Models\ERM\Obat;
 use Yajra\DataTables\Facades\DataTables;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\ERM\LabTestsExport;
 
 class LabTestController extends Controller
 {
@@ -122,5 +124,13 @@ class LabTestController extends Controller
         }
         $results = $query->limit(20)->get(['id', 'nama', 'harga']);
         return response()->json($results);
+    }
+
+    /**
+     * Export lab tests (nama, kategori, harga) to Excel
+     */
+    public function export()
+    {
+        return Excel::download(new LabTestsExport(), 'master_lab_tests.xlsx');
     }
 }
