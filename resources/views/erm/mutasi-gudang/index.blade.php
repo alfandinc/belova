@@ -36,7 +36,7 @@
                         </div>
                         <div class="col-md-6 text-md-right mt-2 mt-md-0">
                             <div class="btn-group" role="group" aria-label="Actions">
-                                <button type="button" class="btn btn-warning mr-2" data-toggle="modal" data-target="#modalMigrateStok">
+                                <button type="button" class="btn btn-warning mr-2 d-none" data-toggle="modal" data-target="#modalMigrateStok">
                                     <i class="fas fa-database"></i> Migrasi Stok Obat
                                 </button>
                                 <button type="button" class="btn btn-success mr-2" data-toggle="modal" data-target="#modalObatBaru">

@@ -27,6 +27,10 @@ class MutasiGudangController extends Controller
 
         $query = \App\Models\ERM\ObatStokGudang::where('gudang_id', $gudangId)
             ->where('stok', '>', 0)
+            // Ensure related obat is active (status_aktif = 1)
+            ->whereHas('obat', function($q) {
+                $q->where('status_aktif', 1);
+            })
             ->with('obat');
         if ($search) {
             $query->whereHas('obat', function($q) use ($search) {
