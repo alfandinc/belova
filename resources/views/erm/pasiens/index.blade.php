@@ -38,93 +38,64 @@
 @include('erm.partials.modal-info-pasien')
 @include('erm.partials.modal-ic-pendaftaran')
 
-<!-- Modal Merchandise Checklist -->
-<div class="modal fade" id="modalMerchChecklist" tabindex="-1" role="dialog" aria-labelledby="modalMerchChecklistLabel" aria-hidden="true">
+<!-- Unified Manage Pasien Modal: Status Pasien, Status Akses, Status Review, Merchandise -->
+<div class="modal fade" id="modalManagePasien" tabindex="-1" role="dialog" aria-labelledby="modalManagePasienLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalMerchChecklistLabel">Merchandise Pasien</h5>
+                <h5 class="modal-title" id="modalManagePasienLabel">Kelola Pasien</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            {
-                targets: 9,
-                render: function(data, type, row, meta) {
-                    var tgllahir = row.tanggal_lahir || '';
-                    var icBtn = ` <span class="ic-action">
-                                   <button type="button" class="btn btn-sm btn-outline-primary btn-open-ic" 
-                                   title="Isi IC Pendaftaran"
-                                   data-id="${row.id}"
-                                   data-nama="${(row.nama||'').toString().replace(/\"/g,'&quot;')}"
-                                   data-nik="${row.nik||''}"
-                                   data-alamat="${(row.alamat||'').toString().replace(/\"/g,'&quot;')}"
-                                   data-nohp="${row.no_hp||''}"
-                                   data-tgllahir="${tgllahir}">
-                                   <i class="fas fa-file-signature mr-1"></i>Isi IC
-                                   </button>
-                                 </span>`;
-                    return (data || '') + icBtn;
-                }
-            }
-                <h5 class="modal-title" id="modalEditStatusPasienLabel">Edit Status Pasien</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        // After table draw, check IC status for visible rows and replace IC button with PDF when available
-                        function refreshIcButtons() {
-                            var ids = [];
-                            table.rows({ page: 'current' }).every(function(){
-                                var r = this.data();
-                                if (r && r.id) ids.push(r.id.toString());
-                            });
-                            if (!ids.length) return;
-                            $.ajax({
-                                url: '{{ route('erm.ic_pendaftaran.check') }}',
-                                type: 'POST',
-                                data: { ids: ids, _token: $('meta[name="csrf-token"]').attr('content') }
-                            }).done(function(resp){
-                                var map = (resp && resp.mappings) ? resp.mappings : {};
-                                table.rows({ page: 'current' }).every(function(){
-                                    var d = this.data();
-                                    var has = map[d.id?.toString()];
-                                    var $cell = $(this.node()).find('td').eq(9); // action column
-                                    var $holder = $cell.find('.ic-action');
-                                    if (!$holder.length) return;
-                                    if (has) {
-                                        var pdfUrl = '{{ route('erm.ic_pendaftaran.pdf', ['pasien' => 'PAK']) }}'.replace('PAK', d.id);
-                                        $holder.html(`
-                                            <a href="${pdfUrl}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Lihat IC (PDF)">
-                                                <i class="fas fa-file-pdf mr-1"></i>View IC
-                                            </a>
-                                        `);
-                                    } else {
-                                        // keep "Isi IC" button
-                                    }
-                                });
-                            });
-                        }
-
-                        table.on('draw', function(){ refreshIcButtons(); });
-                        // Initial run
-                        refreshIcButtons();
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
-                <form id="editStatusPasienForm">
-                    <div class="form-group">
-                        <label for="edit_status_pasien">Status Pasien</label>
-                        <select class="form-control" id="edit_status_pasien" name="status_pasien" required>
-                            <option value="Regular">Regular</option>
-                            <option value="VIP">VIP</option>
-                            <option value="Familia">Familia</option>
-                            <option value="Black Card">Black Card</option>
-                            <option value="Red Flag">Red Flag</option>
-                        </select>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="font-weight-bold" id="managePasienNama">-</div>
+                            <div class="text-muted small">No. RM: <span id="managePasienId">-</span></div>
+                        </div>
                     </div>
-                </form>
+                </div>
+                <hr/>
+                <div class="row">
+                    <div class="col-md-6">
+                        <form id="manageStatusForm">
+                            <div class="form-group">
+                                <label for="manage_status_pasien">Status Pasien</label>
+                                <select class="form-control" id="manage_status_pasien" name="status_pasien" required>
+                                    <option value="Regular">Regular</option>
+                                    <option value="VIP">VIP</option>
+                                    <option value="Familia">Familia</option>
+                                    <option value="Black Card">Black Card</option>
+                                    <option value="Red Flag">Red Flag</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_status_akses">Status Akses</label>
+                                <select class="form-control" id="manage_status_akses" name="status_akses" required>
+                                    <option value="normal">Normal</option>
+                                    <option value="akses cepat">Akses Cepat</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_status_review">Status Review</label>
+                                <select class="form-control" id="manage_status_review" name="status_review" required>
+                                    <option value="sudah">Sudah</option>
+                                    <option value="belum">Belum</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="d-block">Merchandise</label>
+                        <div id="unifiedMerchChecklistContainer"></div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-primary" id="saveEditStatusPasien">Simpan</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary" id="saveManagePasien">Simpan</button>
             </div>
         </div>
     </div>
@@ -269,10 +240,7 @@
                         <th>NIK</th>
                         <th>Alamat</th>
                         <th>No HP</th>
-                        <th>Status Pasien</th>
-                        <th>Status Akses</th>
-                        <th>Status Review</th>
-                        <th>Merchandise</th>
+                        <th>Inform Consent</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -293,7 +261,6 @@ $(document).ready(function () {
         searching: false,
         deferLoading: 0, // Prevent initial load
         stripe: true,    // Enable row striping
-        deferLoading: 0, // Prevent initial load
         ajax: {
             url: "{{ route('erm.pasiens.index') }}",
             data: function (d) {
@@ -312,23 +279,68 @@ $(document).ready(function () {
             { data: 'nik', name: 'nik' },
             { data: 'alamat', name: 'alamat' },
             { data: 'no_hp', name: 'no_hp' },
-            { data: 'status_pasien', name: 'status_pasien', orderable: false, searchable: false },
-            { data: 'status_akses', name: 'status_akses', orderable: false, searchable: false },
-            { data: 'status_review', name: 'status_review', orderable: false, searchable: false },
-            { data: 'merchandise', name: 'merchandise', orderable: false, searchable: false },
+            { data: 'ic', name: 'ic', orderable: false, searchable: false, defaultContent: '' },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
         columnDefs: [
             { targets: 0, width: '50px' },
-            { targets: 5, width: '120px' }, // Status Pasien column
-            { targets: 6, width: '120px' }, // Status Akses column
-            { targets: 7, width: '120px' }, // Status Review column
-            { targets: 8, width: '120px' }, // Merchandise column (narrower)
-            { targets: 9, width: '300px' }, // Action column
             {
-                targets: 9,
-                render: function(data, type, row, meta) {
-                    // Append IC button to existing actions markup from server
+                // Full alamat renderer (village, district, regency, province)
+                targets: 3,
+                render: function(data, type, row) {
+                    var parts = [];
+                    if (row.alamat) parts.push(row.alamat);
+                    try {
+                        if (row.village && row.village.name) parts.push(row.village.name);
+                        if (row.village && row.village.district && row.village.district.name) parts.push(row.village.district.name);
+                        if (row.village && row.village.district && row.village.district.regency && row.village.district.regency.name) parts.push(row.village.district.regency.name);
+                        if (row.village && row.village.district && row.village.district.regency && row.village.district.regency.province && row.village.district.regency.province.name) parts.push(row.village.district.regency.province.name);
+                    } catch (e) {
+                        // ignore
+                    }
+                    return parts.filter(Boolean).join(', ');
+                }
+            },
+            { targets: 5, width: '120px' }, // Inform Consent column
+            { targets: 6, width: '300px' }, // Action column
+            {
+                targets: 1,
+                render: function(data, type, row) {
+                    function escapeHtml(unsafe){
+                        if (!unsafe && unsafe !== 0) return '';
+                        return String(unsafe).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+                    }
+                    function getTxt(v){ return $('<div>').html(v||'').text().trim(); }
+                    var sp = getTxt(row.status_pasien);
+                    var sa = getTxt(row.status_akses);
+                    var sr = getTxt(row.status_review);
+                    function badgePasien(val){
+                        var v = (val||'').toLowerCase();
+                        if (v.includes('vip')) return '<span class="badge badge-soft-warning badge-pill ml-2"><i class="fas fa-crown mr-1"></i>VIP</span>';
+                        if (v.includes('familia')) return '<span class="badge badge-soft-primary badge-pill ml-2"><i class="fas fa-users mr-1"></i>Familia</span>';
+                        if (v.includes('black')) return '<span class="badge badge-soft-dark badge-pill ml-2"><i class="fas fa-id-card mr-1"></i>Black</span>';
+                        if (v.includes('red')) return '<span class="badge badge-soft-danger badge-pill ml-2"><i class="fas fa-flag mr-1"></i>Red</span>';
+                        return '<span class="badge badge-soft-secondary badge-pill ml-2"><i class="fas fa-user mr-1"></i>Regular</span>';
+                    }
+                    function badgeAkses(val){
+                        var v = (val||'').toLowerCase();
+                        if (v.includes('akses cepat')) return '<span class="badge badge-soft-primary badge-pill ml-2"><i class="fas fa-wheelchair mr-1"></i>Akses cepat</span>';
+                        return '<span class="badge badge-soft-secondary badge-pill ml-2"><i class="fas fa-check-circle mr-1"></i>Normal</span>';
+                    }
+                    function badgeReview(val){
+                        var v = (val||'').toLowerCase();
+                        if (v.includes('sudah')) return '<span class="badge badge-soft-success badge-pill ml-2"><i class="fas fa-check mr-1"></i>Sudah</span>';
+                        return '<span class="badge badge-soft-secondary badge-pill ml-2"><i class="fas fa-times mr-1"></i>Belum</span>';
+                    }
+                    var badges = '<div class="mt-2 d-flex flex-wrap" style="gap:6px;">' + badgePasien(sp) + badgeAkses(sa) + badgeReview(sr) + '</div>';
+                    var link = '<a href="#" class="open-manage-modal d-block font-weight-bold" data-id="'+ escapeHtml(row.id) +'">'+ escapeHtml(data) +'</a>';
+                    return '<div class="d-flex flex-column">'+ link + badges +'</div>';
+                }
+            },
+            {
+                // Inform Consent column renderer (index 5)
+                targets: 5,
+                render: function(data, type, row) {
                     var tgllahir = row.tanggal_lahir || '';
                     var icBtn = ` <span class="ic-action"><button type="button" class="btn btn-sm btn-outline-primary btn-open-ic" 
                                    title="Isi IC Pendaftaran"
@@ -340,7 +352,14 @@ $(document).ready(function () {
                                    data-tgllahir="${tgllahir}">
                                    <i class="fas fa-file-signature mr-1"></i>Isi IC
                                  </button></span>`;
-                    return (data || '') + icBtn;
+                    return icBtn;
+                }
+            },
+            {
+                // Action column (index 6) — server may supply edit/delete HTML
+                targets: 6,
+                render: function(data, type, row) {
+                    return (data || '');
                 }
             }
         ]
@@ -367,7 +386,7 @@ $(document).ready(function () {
             table.rows({ page: 'current' }).every(function(){
                 var d = this.data();
                 var has = map[(d.id || '').toString()];
-                var $cell = $(this.node()).find('td').eq(9);
+                var $cell = $(this.node()).find('td').eq(5);
                 var $holder = $cell.find('.ic-action');
                 if (!$holder.length) return;
                 if (has) {
@@ -514,50 +533,58 @@ let currentPasienId;
         });
     });
 
-    // Handle edit status button click
-    $(document).on('click', '.edit-status-btn', function() {
-        let pasienId = $(this).data('pasien-id');
-        let currentStatus = $(this).data('current-status');
-        
-        $('#edit_status_pasien').val(currentStatus);
-        $('#modalEditStatusPasien').data('pasien-id', pasienId);
-        $('#modalEditStatusPasien').modal('show');
-    });
-    
-    // Handle save status
-    $('#saveEditStatusPasien').on('click', function() {
-        let pasienId = $('#modalEditStatusPasien').data('pasien-id');
-        let newStatus = $('#edit_status_pasien').val();
-        
-        $.ajax({
-            url: '/erm/pasiens/' + pasienId + '/update-status',
-            type: 'POST',
-            data: {
-                _token: $('meta[name="csrf-token"]').attr('content'),
-                status_pasien: newStatus
-            },
-            success: function(response) {
-                if(response.success) {
-                    $('#modalEditStatusPasien').modal('hide');
-                    table.ajax.reload(); // Reload the DataTable
-                    
-                    // Show success message
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil!',
-                        text: 'Status pasien berhasil diperbarui.',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                }
-            },
-            error: function(xhr) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error!',
-                    text: 'Gagal memperbarui status pasien.',
-                });
-            }
+    // Open unified manage modal helper
+    let manageOriginal = { pasien: '', akses: '', review: '' };
+    function openManageModal(pasienId){
+        if (!pasienId) return;
+        $('#modalManagePasien').data('pasien-id', pasienId);
+        // Load patient raw values
+        $.get("{{ route('erm.pasien.show', '') }}/" + pasienId, function(resp){
+            manageOriginal.pasien = resp.status_pasien || 'Regular';
+            manageOriginal.akses = resp.status_akses || 'normal';
+            manageOriginal.review = resp.status_review || 'belum';
+            $('#manage_status_pasien').val(manageOriginal.pasien);
+            $('#manage_status_akses').val(manageOriginal.akses);
+            $('#manage_status_review').val(manageOriginal.review);
+            $('#managePasienNama').text(resp.nama || '-');
+            $('#managePasienId').text(resp.id || pasienId);
+        }).always(function(){
+            // Load merchandise data in parallel
+            let pid = $('#modalManagePasien').data('pasien-id');
+            $('#unifiedMerchChecklistContainer').html('<p class="text-muted">Memuat...</p>');
+            $.when(
+                $.get('/marketing/master-merchandise/data').fail(()=>{}),
+                $.get('/erm/pasiens/' + pid + '/merchandises').fail(()=>{})
+            ).done(function(masterResp, pasienResp){
+                let masterData = masterResp && masterResp[0] ? (masterResp[0].data || masterResp[0]) : [];
+                let pasienData = pasienResp && pasienResp[0] ? (pasienResp[0].data || pasienResp[0]) : [];
+                renderMerchChecklist(masterData, pasienData);
+            }).fail(function(){
+                $('#unifiedMerchChecklistContainer').html('<p class="text-danger">Gagal memuat data.</p>');
+            });
+            $('#modalManagePasien').modal('show');
+        });
+    }
+    // Trigger by clicking patient name
+    $(document).on('click', '.open-manage-modal', function(e){ e.preventDefault(); openManageModal($(this).data('id')); });
+    // Also trigger when clicking existing merchandise "Lihat" buttons
+    $(document).on('click', '.btn-merch-checklist', function(){ openManageModal($(this).data('id')); });
+
+    // Save all statuses from unified modal
+    $('#saveManagePasien').on('click', function(){
+        let pasienId = $('#modalManagePasien').data('pasien-id');
+        let p = $('#manage_status_pasien').val();
+        let a = $('#manage_status_akses').val();
+        let r = $('#manage_status_review').val();
+        let reqs = [];
+        reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status', { _token: $('meta[name="csrf-token"]').attr('content'), status_pasien: p }));
+        reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status-akses', { _token: $('meta[name="csrf-token"]').attr('content'), status_akses: a }));
+        reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status-review', { _token: $('meta[name="csrf-token"]').attr('content'), status_review: r }));
+        $.when.apply($, reqs).done(function(){
+            Swal.fire({ icon: 'success', title: 'Tersimpan', text: 'Status pasien diperbarui.', timer: 1500, showConfirmButton: false });
+            table.ajax.reload(null, false);
+        }).fail(function(){
+            Swal.fire({ icon: 'error', title: 'Gagal', text: 'Tidak dapat menyimpan status.' });
         });
     });
 
@@ -657,10 +684,10 @@ let currentPasienId;
 
     });
 
-    // Merchandise checklist modal logic
+    // Merchandise checklist logic (used inside unified modal)
         function renderMerchChecklist(masterList, pasienReceipts) {
-            let receivedIds = pasienReceipts.map(r => (r.merchandise_id || r.merchandise_id === 0) ? r.merchandise_id : null).filter(Boolean);
-            let $container = $('#merchChecklistContainer');
+            let receivedIds = (pasienReceipts || []).map(r => (r.merchandise_id || r.merchandise_id === 0) ? r.merchandise_id : null).filter(Boolean);
+            let $container = $('#unifiedMerchChecklistContainer');
             $container.empty();
 
             if (!masterList.length) {
@@ -705,40 +732,13 @@ let currentPasienId;
             $container.append($form);
         }
 
-        // Open modal when clicking a new button (create a handler for .btn-merch-checklist)
-        $(document).on('click', '.btn-merch-checklist', function() {
-            let pasienId = $(this).data('id');
-            if (!pasienId) return alert('Pasien ID not found');
-
-            $('#modalMerchChecklist').data('pasien-id', pasienId).modal('show');
-
-            // Fetch master merchandises and pasien receipts in parallel
-            $.when(
-                $.get('/marketing/master-merchandise/data').fail(()=>{}),
-                $.get('/erm/pasiens/' + pasienId + '/merchandises').fail(()=>{})
-            ).done(function(masterResp, pasienResp){
-                // masterResp and pasienResp are arrays from jQuery when using $.when
-                // If returned via DataTables, masterResp[0] may be DataTables structure; handle both
-                let masterData = [];
-                if (masterResp && masterResp[0]) {
-                    // Yajra returns { data: [...] }
-                    masterData = masterResp[0].data || masterResp[0];
-                }
-
-                let pasienData = [];
-                if (pasienResp && pasienResp[0]) pasienData = pasienResp[0].data || pasienResp[0];
-
-                renderMerchChecklist(masterData, pasienData);
-            }).fail(function(){
-                $('#merchChecklistContainer').html('<p class="text-danger">Failed to load data.</p>');
-            });
-        });
+        // No dedicated open handler; merchandise loads inside unified modal open
 
         // Handle checkbox toggle: add or remove receipt
         $(document).on('change', '.merch-checkbox', function(){
             let checked = $(this).is(':checked');
             let merchId = $(this).data('id');
-            let pasienId = $('#modalMerchChecklist').data('pasien-id');
+            let pasienId = $('#modalManagePasien').data('pasien-id');
             if (!pasienId) return alert('Pasien ID missing');
 
             // find the qty input for this merch and stock
@@ -805,7 +805,7 @@ let currentPasienId;
         $(document).on('change', '.merch-qty', function(){
             let $input = $(this);
             let merchId = $input.data('id');
-            let pasienId = $('#modalMerchChecklist').data('pasien-id');
+            let pasienId = $('#modalManagePasien').data('pasien-id');
             if (!pasienId) return alert('Pasien ID missing');
 
             let qty = parseInt($input.val() || 1, 10);

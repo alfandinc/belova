@@ -21,7 +21,9 @@ class PasienController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $pasiens = Pasien::select('id', 'nama', 'nik', 'alamat', 'no_hp', 'status_pasien', 'status_akses', 'status_review');
+            // eager-load nested area relations so DataTables payload includes village/district/regency/province
+            $pasiens = Pasien::with('village.district.regency.province')
+                ->select('id', 'nama', 'nik', 'alamat', 'village_id', 'no_hp', 'status_pasien', 'status_akses', 'status_review');
 
             if ($request->no_rm) {
                 $pasiens->where('id', $request->no_rm);
