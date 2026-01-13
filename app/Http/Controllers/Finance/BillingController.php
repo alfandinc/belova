@@ -901,8 +901,17 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     ->where('gudang_id', $selectedGudangId)
                                     ->sum('stok');
                             } else {
-                                $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                    ->sum('stok');
+                                // Align validation with reduction: resolve gudang via mapping (same as getGudangForItem)
+                                $mappedGudangId = $this->getGudangForItem($request, $obat->id, 'lab', $item->id);
+                                if ($mappedGudangId) {
+                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                        ->where('gudang_id', $mappedGudangId)
+                                        ->sum('stok');
+                                } else {
+                                    // Fallback: total across all gudangs if no mapping found
+                                    $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
+                                        ->sum('stok');
+                                }
                             }
 
                             if ($required > $currentStock) {
