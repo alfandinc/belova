@@ -861,9 +861,30 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\LabPermintaan') {
                     $labPermintaan = \App\Models\ERM\LabPermintaan::with('labTest.obats')->find($item->billable_id);
                     if ($labPermintaan && $labPermintaan->labTest) {
-                        $qtyTest = floatval($item->qty ?? 1);
+                        // Normalize qty for lab test: guard against values like "1,00" being saved as 100
+                        $qtyTestRaw = $item->qty ?? 1;
+                        if (is_string($qtyTestRaw)) {
+                            // Convert Indonesian/legacy formats: "1,00" -> 1.00, "1.000,25" -> 1000.25
+                            $normalized = str_replace('.', '', $qtyTestRaw);
+                            $normalized = str_replace(',', '.', $normalized);
+                            $qtyTest = floatval($normalized);
+                        } else {
+                            $qtyTest = floatval($qtyTestRaw);
+                        }
+                        // If qty looks accidentally scaled by 100 (e.g., 100 from "1,00"), normalize back
+                        if ($qtyTest >= 100 && $qtyTest <= 1000) {
+                            $qtyTest = $qtyTest / 100.0;
+                        }
+
                         foreach ($labPermintaan->labTest->obats as $obat) {
-                            $required = floatval($obat->pivot->dosis ?? 0) * $qtyTest;
+                            // Robust parse for pivot dosis which may be stored with comma decimals
+                            $dosisRaw = $obat->pivot->dosis ?? 0;
+                            if (is_string($dosisRaw)) {
+                                $dosis = floatval(str_replace(',', '.', $dosisRaw));
+                            } else {
+                                $dosis = floatval($dosisRaw);
+                            }
+                            $required = $dosis * $qtyTest;
                             if ($required <= 0) { continue; }
 
                             // Prefer selected gudang for this billing row or typed key lab_{obatId}
