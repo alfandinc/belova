@@ -137,7 +137,7 @@ class InvoiceController extends Controller
             $invoice->save();
         }
         $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'))
-            ->setPaper('a5', 'landscape')
+            ->setPaper('a5', 'portrait')
             ->setOptions([
                 'defaultFont' => 'helvetica',
                 'isRemoteEnabled' => true,
@@ -227,7 +227,7 @@ class InvoiceController extends Controller
         $defaultLogo = public_path('img/logo.png');
         
         $pdf = PDF::loadView('finance.invoice.pdf', compact('invoice'))
-            ->setPaper('a5', 'landscape')
+            ->setPaper('a5', 'portrait')
             ->setOptions([
                 'defaultFont' => 'helvetica',
                 'isRemoteEnabled' => true,
