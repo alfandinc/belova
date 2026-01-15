@@ -29,7 +29,8 @@
     </div><!--end row-->
         <!-- end page title end breadcrumb -->
         <div class="mb-3">
-                <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalCariPermintaan"><i class="fa fa-search"></i> Cari Faktur Berdasarkan No Permintaan</button>
+            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalCariPermintaan"><i class="fa fa-search"></i> Cari Faktur Berdasarkan No Permintaan</button>
+                <button class="btn btn-success btn-sm ml-2" data-toggle="modal" data-target="#modalExportItems"><i class="fa fa-download"></i> Download Item Faktur (Excel)</button>
                 <div class="form-inline mt-2">
                     <label for="tanggalTerimaRange" class="mr-2">Filter Tanggal Terima:</label>
                     <input type="text" id="tanggalTerimaRange" class="form-control" style="width:220px;" autocomplete="off" placeholder="Pilih rentang tanggal">
@@ -72,6 +73,31 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                         <button type="button" class="btn btn-primary" id="btnCariPermintaan">Cari</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Modal Export Items -->
+        <div class="modal fade" id="modalExportItems" tabindex="-1" role="dialog" aria-labelledby="modalExportItemsLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalExportItemsLabel">Export Item Faktur - Pilih Rentang Tanggal Terima</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="formExportItems" method="GET" action="{{ route('erm.fakturbeli.items.export') }}">
+                            <div class="form-group">
+                                <label for="exportTanggalTerimaRange">Tanggal Terima (Range)</label>
+                                <input type="text" id="exportTanggalTerimaRange" name="tanggal_terima_range" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        <button type="button" class="btn btn-success" id="btnExportItems">Download</button>
                     </div>
                 </div>
             </div>
@@ -241,6 +267,31 @@ $(function() {
         if (e.key === 'Enter' || e.keyCode === 13) {
             fakturTable.ajax.reload();
         }
+    });
+    // Export modal: initialize daterangepicker and handle submit
+    $('#exportTanggalTerimaRange').daterangepicker({
+        autoUpdateInput: false,
+        locale: {
+            cancelLabel: 'Clear',
+            format: 'YYYY-MM-DD'
+        }
+    });
+    $('#exportTanggalTerimaRange').on('apply.daterangepicker', function(ev, picker) {
+        $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
+    });
+    $('#exportTanggalTerimaRange').on('cancel.daterangepicker', function(ev, picker) {
+        $(this).val('');
+    });
+
+    $('#btnExportItems').on('click', function() {
+        var range = $('#exportTanggalTerimaRange').val().trim();
+        if (!range) {
+            Swal.fire('Error', 'Pilih rentang tanggal terima terlebih dahulu', 'error');
+            return;
+        }
+        // Submit the GET form which will trigger the XLSX download
+        $('#formExportItems').submit();
+        $('#modalExportItems').modal('hide');
     });
     // Delete handler
     $('#fakturbeli-table').on('click', '.btn-delete-faktur', function() {

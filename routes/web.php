@@ -488,6 +488,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/stok-gudang/nilai-stok', [\App\Http\Controllers\ERM\StokGudangController::class, 'getNilaiStok'])->name('erm.stok-gudang.nilai-stok');
     // Export stok gudang to Excel
     Route::get('/stok-gudang/export', [\App\Http\Controllers\ERM\StokGudangController::class, 'exportToExcel'])->name('erm.stok-gudang.export');
+    // Export FakturBeli items to CSV/Excel-compatible file
+    Route::get('/fakturbeli/items/export', [\App\Http\Controllers\ERM\FakturBeliController::class, 'exportItemsExcel'])->name('erm.fakturbeli.items.export');
     Route::get('/get-notif', [App\Http\Controllers\ERM\RawatJalanController::class, 'getNotif'])->middleware('auth');
 
     // Allow ERM pages to search kode tindakan and fetch bundled obats without requiring Marketing role

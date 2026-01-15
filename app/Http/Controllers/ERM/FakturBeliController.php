@@ -14,6 +14,7 @@ use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
 
 class FakturBeliController extends Controller
 {
@@ -765,6 +766,92 @@ class FakturBeliController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="FakturPembelian-' . $faktur->no_faktur . '.pdf"'
         ]);
+    }
+
+    /**
+     * Export all FakturBeli items to CSV (Excel-compatible)
+     * Columns: no faktur, tanggal jatuh tempo, nama obat, qty, satuan, nama vendor, harga per satuan, diskon, pajak, total harga
+     */
+    public function exportItemsExcel(Request $request)
+    {
+        $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat']);
+        // Only include items from faktur with status 'diapprove'
+        if ($request->filled('tanggal_terima_range')) {
+            // If date range provided, apply both status and date filters
+            $range = explode(' - ', $request->input('tanggal_terima_range'));
+            if (count($range) === 2) {
+                $start = $range[0];
+                $end = $range[1];
+                $query->whereHas('fakturbeli', function($q) use ($start, $end) {
+                    $q->where('status', 'diapprove')
+                      ->whereDate('received_date', '>=', $start)
+                      ->whereDate('received_date', '<=', $end);
+                });
+            } else {
+                // Fallback: just filter by status
+                $query->whereHas('fakturbeli', function($q) {
+                    $q->where('status', 'diapprove');
+                });
+            }
+        } else {
+            // No date range — filter by status only
+            $query->whereHas('fakturbeli', function($q) {
+                $q->where('status', 'diapprove');
+            });
+        }
+
+        $items = $query->get();
+        $rows = [];
+        foreach ($items as $item) {
+            $rows[] = [
+                'no_faktur' => $item->fakturbeli->no_faktur ?? '',
+                'due_date' => $item->fakturbeli->due_date ?? '',
+                'nama_obat' => $item->obat->nama ?? '',
+                'qty' => $item->qty ?? 0,
+                'satuan' => $item->obat->satuan ?? '',
+                'nama_vendor' => $item->fakturbeli->pemasok->nama ?? '',
+                'harga_per_satuan' => $item->harga ?? 0,
+                'diskon' => isset($item->diskon) ? $item->diskon : '',
+                'diskon_type' => isset($item->diskon_type) ? $item->diskon_type : '',
+                'pajak' => isset($item->tax) ? $item->tax : '',
+                'pajak_type' => isset($item->tax_type) ? $item->tax_type : '',
+                    'global_diskon' => $item->fakturbeli->global_diskon ?? '',
+                    'global_diskon_type' => $item->fakturbeli->global_diskon_type ?? '',
+                    'global_pajak' => $item->fakturbeli->global_pajak ?? '',
+                    'global_pajak_type' => $item->fakturbeli->global_pajak_type ?? '',
+                'total_harga' => $item->total_amount ?? 0,
+            ];
+        }
+
+        $exportArray = array_map(function($r) {
+            return [
+                $r['no_faktur'],
+                $r['due_date'],
+                $r['nama_obat'],
+                $r['qty'],
+                $r['satuan'],
+                $r['nama_vendor'],
+                $r['harga_per_satuan'],
+                ($r['diskon'] === '' ? '' : ($r['diskon'] . ($r['diskon_type'] ? (' ' . $r['diskon_type']) : ''))),
+                ($r['pajak'] === '' ? '' : ($r['pajak'] . ($r['pajak_type'] ? (' ' . $r['pajak_type']) : ''))),
+                ($r['global_diskon'] === '' ? '' : ($r['global_diskon'] . ($r['global_diskon_type'] ? (' ' . $r['global_diskon_type']) : ''))),
+                ($r['global_pajak'] === '' ? '' : ($r['global_pajak'] . ($r['global_pajak_type'] ? (' ' . $r['global_pajak_type']) : ''))),
+                $r['total_harga'],
+            ];
+        }, $rows);
+
+        $headings = ['No Faktur', 'Tanggal Jatuh Tempo', 'Nama Obat', 'Qty', 'Satuan', 'Nama Vendor', 'Harga Per Satuan', 'Diskon', 'Pajak', 'Global Diskon', 'Global Pajak', 'Total Harga'];
+
+        $export = new class($exportArray, $headings) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
+            private $array;
+            private $headings;
+            public function __construct(array $array, array $headings) { $this->array = $array; $this->headings = $headings; }
+            public function array(): array { return $this->array; }
+            public function headings(): array { return $this->headings; }
+        };
+
+        $filename = 'faktur_items_' . date('Ymd_His') . '.xlsx';
+        return Excel::download($export, $filename);
     }
 
     /**
