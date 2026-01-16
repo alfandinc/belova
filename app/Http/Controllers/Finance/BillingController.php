@@ -278,16 +278,22 @@ class BillingController extends Controller
     $pharmacyFeeItems[] = $billing;
 }
             // Case 2: Racikan medication items
-            else if (
-                $billing->billable_type == 'App\Models\ERM\ResepFarmasi' &&
-                $billing->billable->racikan_ke != null &&
-                $billing->billable->racikan_ke > 0
-            ) {
-                $racikanKey = $billing->billable->racikan_ke;
-                if (!isset($racikanGroups[$racikanKey])) {
-                    $racikanGroups[$racikanKey] = [];
+            else if ($billing->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
+                // Ensure we have the ResepFarmasi model even if the relation isn't loaded
+                $resep = $billing->billable ?? \App\Models\ERM\ResepFarmasi::find($billing->billable_id);
+                $racikanKe = $resep->racikan_ke ?? null;
+
+                // If this is a racikan (racikan_ke > 0), group it; otherwise treat as regular billing
+                if ($racikanKe !== null && $racikanKe > 0) {
+                    $racikanKey = $racikanKe;
+                    if (!isset($racikanGroups[$racikanKey])) {
+                        $racikanGroups[$racikanKey] = [];
+                    }
+                    $racikanGroups[$racikanKey][] = $billing;
+                } else {
+                    // Not a racikan component — keep it in regular items so it shows up
+                    $regularBillings[] = $billing;
                 }
-                $racikanGroups[$racikanKey][] = $billing;
             }
             // Case 3: Skip bundled obat items (don't show in billing list)
             else if (
