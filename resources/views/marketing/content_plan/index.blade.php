@@ -9,6 +9,23 @@
 @push('styles')
 <!-- Summernote CSS (Bootstrap 4) -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs4.min.css" rel="stylesheet">
+<style>
+/* Allow the Judul column to wrap into multiple lines and limit its width */
+.judul-col{ 
+    white-space: normal !important;
+    word-break: break-word;
+    max-width: 420px; /* adjust as needed */
+}
+#contentPlanTable th.judul-col, #contentPlanTable td.judul-col{ 
+    white-space: normal !important;
+}
+/* Ensure action buttons have a stable minimum width */
+.aksi-col{
+    white-space: nowrap !important;
+    min-width: 150px; /* minimum space for action buttons */
+    width:150px;
+}
+</style>
 @endpush
 
 @section('content')
@@ -255,7 +272,7 @@ $(function() {
         },
         columns: [
             { data: null, name: 'no', orderable: false, searchable: false, width: '60px', className: 'text-center' },
-            { data: 'judul', name: 'judul' },
+            { data: 'judul', name: 'judul', className: 'judul-col' },
             { data: 'tanggal_publish', name: 'tanggal_publish', render: function(data, type, row) {
                 if (data) {
                     // Format as single-line: "14 November 2025 - 15.00"
@@ -353,7 +370,7 @@ $(function() {
                 html += `</div>`;
                 return html;
             } },
-            { data: 'action', orderable: false, searchable: false },
+            { data: 'action', orderable: false, searchable: false, className: 'aksi-col text-center', width: '150px' },
         ],
         order: [[1, 'desc']],
         drawCallback: function(settings) {
