@@ -344,10 +344,7 @@ class BillingController extends Controller
             $racikanItem->racikan_obat_ids = $obatIds;
             $racikanItem->racikan_total_price = $totalPrice;
             $racikanItem->racikan_bungkus = $bungkus;
-            // Default display name: use generic 'Obat Racikan' so unmatched paket still shows
-            $racikanItem->nama_item = 'Obat Racikan';
-            // Also keep racikan number for internal/reference
-            $racikanItem->racikan_label = 'Racikan ' . $racikanKey;
+            $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
 
             // Build per-component metadata including stored stok_dikurangi (ResepFarmasi.jumlah)
             $components = [];
