@@ -201,6 +201,15 @@ class StokGudangController extends Controller {
             ->orderColumn('nama_obat', 'o.nama $1')
             ->orderColumn('kode_obat', 'o.kode_obat $1')
             ->orderColumn('total_stok', 'total_stok $1')
+            // Allow ordering by HPP (use COALESCE to mirror displayed hpp_val)
+            ->orderColumn('hpp', function($query, $direction) use ($table) {
+                $query->orderBy(DB::raw('COALESCE(o.hpp, o.hpp_jual, 0)'), $direction);
+            })
+            // Allow ordering by Nilai Stok (total_stok * hpp_val)
+            ->orderColumn('nilai_stok', function($query, $direction) use ($table) {
+                $expr = DB::raw('SUM(' . $table . '.stok) * COALESCE(o.hpp, o.hpp_jual, 0)');
+                $query->orderBy($expr, $direction);
+            })
             ->rawColumns(['nama_obat', 'actions', 'hpp', 'total_stok'])
             ->make(true);
     }

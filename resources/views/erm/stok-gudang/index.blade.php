@@ -327,8 +327,8 @@ $(document).ready(function() {
         columns: [
             { data: 'nama_obat', name: 'nama_obat', searchable: false },
             { data: 'total_stok', name: 'total_stok', searchable: false },
-            { data: 'hpp', name: 'hpp', searchable: false, orderable: false },
-            { data: 'nilai_stok', name: 'nilai_stok', searchable: false },
+            { data: 'hpp', name: 'hpp', searchable: false, orderable: true },
+            { data: 'nilai_stok', name: 'nilai_stok', searchable: false, orderable: true },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
         order: [[0, 'asc']],
