@@ -68,6 +68,8 @@ class StokGudangController extends Controller {
                 'o.nama as obat_nama',
                 'o.kode_obat as obat_kode',
                 'o.satuan as obat_satuan',
+                // Use a numeric alias for HPP (fallback to hpp_jual) for reliable calculations
+                DB::raw('COALESCE(o.hpp, o.hpp_jual, 0) as hpp_val'),
                 'g.nama as gudang_nama'
             )
             ->groupBy($table . '.obat_id', $table . '.gudang_id', 'o.nama', 'o.kode_obat', 'g.nama');
@@ -123,14 +125,15 @@ class StokGudangController extends Controller {
             ->addColumn('nama_gudang', function ($row) {
                 return $row->gudang->nama ?? '-';
             })
+            ->addColumn('hpp', function ($row) {
+                $val = isset($row->hpp_val) ? $row->hpp_val : 0;
+                return number_format((float)$val, 2, ',', '.');
+            })
             ->addColumn('nilai_stok', function ($row) use ($request) {
-                // If HPP is available via join this would be used; otherwise fallback to zero
-                $hpp = isset($row->hpp) ? $row->hpp : 0;
-                if (empty($hpp)) {
-                    $nilai = 0;
-                } else {
-                    $nilai = ($row->total_stok ?? 0) * $hpp;
-                }
+                // Use the numeric hpp_val (already COALESCE'd) to compute nilai reliably
+                $hpp = isset($row->hpp_val) ? (float)$row->hpp_val : 0.0;
+                $total = isset($row->total_stok) ? (float)$row->total_stok : 0.0;
+                $nilai = $total * $hpp;
                 return 'Rp ' . number_format($nilai, 0, ',', '.');
             })
             ->addColumn('actions', function ($row) use ($request) {
@@ -172,7 +175,7 @@ class StokGudangController extends Controller {
             ->orderColumn('nama_obat', 'o.nama $1')
             ->orderColumn('kode_obat', 'o.kode_obat $1')
             ->orderColumn('total_stok', 'total_stok $1')
-            ->rawColumns(['nama_obat', 'kode_obat', 'status_stok', 'actions'])
+            ->rawColumns(['nama_obat', 'kode_obat', 'status_stok', 'actions', 'hpp'])
             ->make(true);
     }
 
@@ -452,7 +455,7 @@ class StokGudangController extends Controller {
             $items = $opnameQuery->get();
 
             foreach ($items as $item) {
-                $obat = Obat::withInactive()->find($item->obat_id);
+                $obat = Obat::find($item->obat_id);
                 $nama = $obat ? $obat->nama : ('[ID '.$item->obat_id.']');
                 $totalStok = (float) $item->stok_fisik;
                 $hpp = $obat ? ($obat->hpp ?? 0) : 0;
@@ -513,7 +516,7 @@ class StokGudangController extends Controller {
             $rows = $query->get();
 
             foreach ($rows as $row) {
-                $obat = Obat::withInactive()->find($row->obat_id);
+                $obat = Obat::find($row->obat_id);
                 $nama = $obat ? $obat->nama : ('[ID '.$row->obat_id.']');
                 $liveStok = (float) $row->total_stok;
                 $hpp = $obat ? ($obat->hpp ?? 0) : 0;
@@ -558,7 +561,7 @@ class StokGudangController extends Controller {
             $rows = $query->get();
 
             foreach ($rows as $row) {
-                $obat = Obat::withInactive()->find($row->obat_id);
+                $obat = Obat::find($row->obat_id);
                 $nama = $obat ? $obat->nama : ('[ID '.$row->obat_id.']');
                 $totalStok = (float) $row->total_stok;
                 $hpp = $obat ? ($obat->hpp ?? 0) : 0;

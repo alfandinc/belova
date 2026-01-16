@@ -14,12 +14,13 @@
         #stok-table th { cursor: pointer; }
         /* Column widths (adjust proportions) */
         #stok-table th:nth-child(1), #stok-table td:nth-child(1) { width: 8%; white-space: nowrap; }
-        #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 44%; white-space: normal; word-break: break-word; }
-        #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 10%; white-space: nowrap; text-align: right; }
-        #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 18%; white-space: nowrap; }
-        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 12%; white-space: nowrap; text-align: center; }
+        #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 42%; white-space: normal; word-break: break-word; }
+        #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 8%; white-space: nowrap; text-align: right; }
+        #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 10%; white-space: nowrap; text-align: right; }
+        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 14%; white-space: nowrap; }
+        #stok-table th:nth-child(6), #stok-table td:nth-child(6) { width: 10%; white-space: nowrap; text-align: center; }
         /* Make actions column slightly wider and allow overflow so buttons are not clipped */
-        #stok-table th:nth-child(6), #stok-table td:nth-child(6) { width: 10%; white-space: nowrap; text-align: center; overflow: visible; }
+        #stok-table th:nth-child(7), #stok-table td:nth-child(7) { width: 8%; white-space: nowrap; text-align: center; overflow: visible; }
         /* Ensure button itself doesn't wrap and displays correctly */
         #stok-table td:nth-child(6) .btn { white-space: nowrap; display: inline-block; }
         #stok-table td { vertical-align: middle; }
@@ -118,6 +119,7 @@
                                     <th>Kode</th>
                                     <th>Nama Obat</th>
                                     <th>Stok</th>
+                                    <th>HPP</th>
                                     <th>Nilai Stok</th>
                                     <th>Status Stok</th>
                                     <th>Aksi</th>
@@ -327,6 +329,7 @@ $(document).ready(function() {
             { data: 'kode_obat', name: 'kode_obat', searchable: false },
             { data: 'nama_obat', name: 'nama_obat', searchable: false },
             { data: 'total_stok', name: 'total_stok', searchable: false },
+            { data: 'hpp', name: 'hpp', searchable: false, orderable: false },
             { data: 'nilai_stok', name: 'nilai_stok', searchable: false },
             { 
                 data: 'status_stok', 
