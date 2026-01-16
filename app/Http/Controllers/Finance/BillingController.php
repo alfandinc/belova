@@ -278,22 +278,16 @@ class BillingController extends Controller
     $pharmacyFeeItems[] = $billing;
 }
             // Case 2: Racikan medication items
-            else if ($billing->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
-                // Ensure we have the ResepFarmasi model even if the relation isn't loaded
-                $resep = $billing->billable ?? \App\Models\ERM\ResepFarmasi::find($billing->billable_id);
-                $racikanKe = $resep->racikan_ke ?? null;
-
-                // If this is a racikan (racikan_ke > 0), group it; otherwise treat as regular billing
-                if ($racikanKe !== null && $racikanKe > 0) {
-                    $racikanKey = $racikanKe;
-                    if (!isset($racikanGroups[$racikanKey])) {
-                        $racikanGroups[$racikanKey] = [];
-                    }
-                    $racikanGroups[$racikanKey][] = $billing;
-                } else {
-                    // Not a racikan component — keep it in regular items so it shows up
-                    $regularBillings[] = $billing;
+            else if (
+                $billing->billable_type == 'App\Models\ERM\ResepFarmasi' &&
+                $billing->billable->racikan_ke != null &&
+                $billing->billable->racikan_ke > 0
+            ) {
+                $racikanKey = $billing->billable->racikan_ke;
+                if (!isset($racikanGroups[$racikanKey])) {
+                    $racikanGroups[$racikanKey] = [];
                 }
+                $racikanGroups[$racikanKey][] = $billing;
             }
             // Case 3: Skip bundled obat items (don't show in billing list)
             else if (
@@ -350,7 +344,10 @@ class BillingController extends Controller
             $racikanItem->racikan_obat_ids = $obatIds;
             $racikanItem->racikan_total_price = $totalPrice;
             $racikanItem->racikan_bungkus = $bungkus;
-            $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
+            // Default display name: use generic 'Obat Racikan' so unmatched paket still shows
+            $racikanItem->nama_item = 'Obat Racikan';
+            // Also keep racikan number for internal/reference
+            $racikanItem->racikan_label = 'Racikan ' . $racikanKey;
 
             // Build per-component metadata including stored stok_dikurangi (ResepFarmasi.jumlah)
             $components = [];
