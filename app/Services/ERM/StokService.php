@@ -18,13 +18,19 @@ class StokService {
      */
     public function getNilaiStokGudang($gudangId)
     {
-        return ObatStokGudang::with('obat')
-            ->where('gudang_id', $gudangId)
+        return ObatStokGudang::where('gudang_id', $gudangId)
+            ->whereHas('obat', function($q) {
+                $q->where('status_aktif', 1);
+            })
+            ->with('obat')
             ->get()
             ->sum(function ($item) {
-                // Use master cost (`hpp`) for inventory valuation
-                $hpp = $item->obat ? ($item->obat->hpp ?? 0) : 0;
-                return ($item->stok ?? 0) * $hpp;
+                // Use master cost (`hpp`) for inventory valuation; fallback to `hpp_jual` if needed
+                $hpp = 0;
+                if ($item->obat) {
+                    $hpp = $item->obat->hpp ?? ($item->obat->hpp_jual ?? 0);
+                }
+                return ((float)($item->stok ?? 0)) * (float)$hpp;
             });
     }
 
@@ -34,12 +40,18 @@ class StokService {
      */
     public function getNilaiStokKeseluruhan()
     {
-        return ObatStokGudang::with('obat')
+        return ObatStokGudang::whereHas('obat', function($q) {
+                $q->where('status_aktif', 1);
+            })
+            ->with('obat')
             ->get()
             ->sum(function ($item) {
-                // Use master cost (`hpp`) for inventory valuation
-                $hpp = $item->obat ? ($item->obat->hpp ?? 0) : 0;
-                return ($item->stok ?? 0) * $hpp;
+                // Use master cost (`hpp`) for inventory valuation; fallback to `hpp_jual` if needed
+                $hpp = 0;
+                if ($item->obat) {
+                    $hpp = $item->obat->hpp ?? ($item->obat->hpp_jual ?? 0);
+                }
+                return ((float)($item->stok ?? 0)) * (float)$hpp;
             });
     }
     /**

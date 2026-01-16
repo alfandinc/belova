@@ -13,17 +13,18 @@
         /* Clickable headers: pointer cursor for sortable feel */
         #stok-table th { cursor: pointer; }
         /* Column widths (adjust proportions) */
-        #stok-table th:nth-child(1), #stok-table td:nth-child(1) { width: 8%; white-space: nowrap; }
-        #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 42%; white-space: normal; word-break: break-word; }
-        #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 8%; white-space: nowrap; text-align: right; }
-        #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 10%; white-space: nowrap; text-align: right; }
-        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 14%; white-space: nowrap; }
-        #stok-table th:nth-child(6), #stok-table td:nth-child(6) { width: 10%; white-space: nowrap; text-align: center; }
+        #stok-table th:nth-child(1), #stok-table td:nth-child(1) { width: 50%; white-space: normal; word-break: break-word; }
+        #stok-table th:nth-child(2), #stok-table td:nth-child(2) { width: 10%; white-space: nowrap; text-align: right; }
+        #stok-table th:nth-child(3), #stok-table td:nth-child(3) { width: 10%; white-space: nowrap; text-align: right; }
+        #stok-table th:nth-child(4), #stok-table td:nth-child(4) { width: 18%; white-space: nowrap; }
         /* Make actions column slightly wider and allow overflow so buttons are not clipped */
-        #stok-table th:nth-child(7), #stok-table td:nth-child(7) { width: 8%; white-space: nowrap; text-align: center; overflow: visible; }
+        #stok-table th:nth-child(5), #stok-table td:nth-child(5) { width: 12%; white-space: nowrap; text-align: center; overflow: visible; }
         /* Ensure button itself doesn't wrap and displays correctly */
         #stok-table td:nth-child(6) .btn { white-space: nowrap; display: inline-block; }
         #stok-table td { vertical-align: middle; }
+        /* Emphasize main columns: Nama Obat link and Stok value */
+        #stok-table td:nth-child(1) a { font-weight: 700; }
+        #stok-table td:nth-child(2) { font-weight: 700; }
         /* Ensure buttons don't force expansion, but allow obat name links to wrap */
         #stok-table .btn { white-space: nowrap; }
         #stok-table td:nth-child(2) a { white-space: normal; display: inline-block; max-width:100%; overflow-wrap: anywhere; word-wrap: break-word; }
@@ -116,12 +117,10 @@
                         <table class="table table-bordered table-striped table-hover dt-responsive nowrap" style="border-collapse: collapse; border-spacing: 0; width: 100%;" id="stok-table">
                             <thead>
                                 <tr>
-                                    <th>Kode</th>
                                     <th>Nama Obat</th>
                                     <th>Stok</th>
                                     <th>HPP</th>
                                     <th>Nilai Stok</th>
-                                    <th>Status Stok</th>
                                     <th>Aksi</th>
                                 </tr>
                             </thead>
@@ -326,23 +325,13 @@ $(document).ready(function() {
             }
         },
         columns: [
-            { data: 'kode_obat', name: 'kode_obat', searchable: false },
             { data: 'nama_obat', name: 'nama_obat', searchable: false },
             { data: 'total_stok', name: 'total_stok', searchable: false },
             { data: 'hpp', name: 'hpp', searchable: false, orderable: false },
             { data: 'nilai_stok', name: 'nilai_stok', searchable: false },
-            { 
-                data: 'status_stok', 
-                name: 'status_stok',
-                searchable: true,
-                orderable: true,
-                render: function(data, type, row) {
-                    return data; // badge only
-                }
-            },
             { data: 'actions', name: 'actions', orderable: false, searchable: false }
         ],
-        order: [[1, 'asc']],
+        order: [[0, 'asc']],
         pageLength: 25,
         responsive: true,
         drawCallback: function(settings) {

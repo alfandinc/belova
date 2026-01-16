@@ -112,15 +112,19 @@ class StokGudangController extends Controller {
                 }
 
                 // Append badge for inactive if not hiding inactive
+                $badgeHtml = '';
                 if ($request->hide_inactive != 1 && isset($row->status_aktif) && $row->status_aktif == 0) {
-                    $nama .= ' <span class="badge badge-warning">Tidak Aktif</span>';
+                    $badgeHtml = ' <span class="badge badge-warning">Tidak Aktif</span>';
                 }
 
-                $link = '<a href="#" class="show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'">' . $nama . '</a>';
+                $kode = isset($row->obat_kode) && $row->obat_kode ? e($row->obat_kode) : '-';
+
+                // Render name as link
+                $link = '<a href="#" class="show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'">' . e($nama) . '</a>' . $badgeHtml;
+
+                // Show kode under the name (status icon moved to stok column)
+                $link .= '<div class="mt-1 text-muted small">' . $kode . '</div>';
                 return $link;
-            })
-            ->addColumn('kode_obat', function ($row) use ($request) {
-                return $row->obat_kode ?? '-';
             })
             ->addColumn('nama_gudang', function ($row) {
                 return $row->gudang->nama ?? '-';
@@ -150,23 +154,45 @@ class StokGudangController extends Controller {
                 $btn .= '</div>';
                 return $btn;
             })
-            ->addColumn('status_stok', function ($row) {
-                // status_stok is computed in the SQL select
-                $status = $row->status_stok ?? 'normal';
-                $min = isset($row->min_stok) ? $row->min_stok : 0;
-                $max = isset($row->max_stok) ? $row->max_stok : 0;
-                // Render badge as clickable element that opens the Edit Min/Max modal via existing JS handler
-                if ($status === 'minimum') return '<span style="cursor:pointer" class="badge badge-danger btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'">Stok Minimum</span>';
-                if ($status === 'maksimum') return '<span style="cursor:pointer" class="badge badge-warning btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'">Stok Maksimum</span>';
-                return '<span style="cursor:pointer" class="badge badge-success btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'">Normal</span>';
-            })
+            
             ->editColumn('total_stok', function ($row) {
                 $unit = isset($row->obat_satuan) && $row->obat_satuan ? trim($row->obat_satuan) : '';
                 if ($unit !== '') {
                     $unit = function_exists('mb_strtolower') ? mb_strtolower($unit) : strtolower($unit);
                 }
                 $formatted = number_format($row->total_stok, 2);
-                return $unit !== '' ? ($formatted . ' ' . e($unit)) : $formatted;
+
+                // Build status icon (clickable) based on status_stok
+                $status = isset($row->status_stok) ? $row->status_stok : 'normal';
+                $min = isset($row->min_stok) ? $row->min_stok : 0;
+                $max = isset($row->max_stok) ? $row->max_stok : 0;
+                $commonAttrs = 'style="cursor:pointer;display:inline-block;" class="btn-edit-minmax" data-obat-id="'.$row->obat_id.'" data-gudang-id="'.$row->gudang_id.'" data-min="'.($min).'" data-max="'.($max).'"';
+
+                if ($status === 'minimum') {
+                    $statusSpan = '<span '.$commonAttrs.' title="Stok Minimum" style="line-height:0.6;">'
+                        .'<i class="fas fa-caret-down text-danger" style="display:block;font-size:12px;line-height:0.6"></i>'
+                        .'<i class="fas fa-caret-down text-danger" style="display:block;font-size:12px;margin-top:-4px;line-height:0.6"></i>'
+                        .'</span>';
+                } else if ($status === 'maksimum') {
+                    $statusSpan = '<span '.$commonAttrs.' title="Stok Maksimum" style="line-height:0.6;">'
+                        .'<i class="fas fa-caret-up text-warning" style="display:block;font-size:12px;line-height:0.6"></i>'
+                        .'<i class="fas fa-caret-up text-warning" style="display:block;font-size:12px;margin-top:-4px;line-height:0.6"></i>'
+                        .'</span>';
+                } else {
+                    $statusSpan = '<span '.$commonAttrs.' title="Stok Normal" style="line-height:0.6;">'
+                        .'<i class="fas fa-caret-up text-success" style="display:block;font-size:10px;line-height:0.6"></i>'
+                        .'<i class="fas fa-caret-down text-success" style="display:block;font-size:10px;margin-top:-4px;line-height:0.6"></i>'
+                        .'</span>';
+                }
+
+                $unitDisplay = $unit !== '' ? ' ' . e($unit) : '';
+                // Make the stok text itself a clickable trigger for editing min/max
+                $html = '<div style="display:flex;align-items:center;justify-content:flex-end">'
+                    .'<span '.$commonAttrs.'><strong>' . $formatted . $unitDisplay . '</strong></span>'
+                    .'<span style="margin-left:8px">' . $statusSpan . '</span>'
+                    .'</div>';
+
+                return $html;
             })
             ->filterColumn('status_stok', function($query, $keyword) {
                 // Custom filter untuk status stok akan dihandle di client side
@@ -175,7 +201,7 @@ class StokGudangController extends Controller {
             ->orderColumn('nama_obat', 'o.nama $1')
             ->orderColumn('kode_obat', 'o.kode_obat $1')
             ->orderColumn('total_stok', 'total_stok $1')
-            ->rawColumns(['nama_obat', 'kode_obat', 'status_stok', 'actions', 'hpp'])
+            ->rawColumns(['nama_obat', 'actions', 'hpp', 'total_stok'])
             ->make(true);
     }
 
@@ -341,6 +367,41 @@ class StokGudangController extends Controller {
 
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Gagal menyimpan tanggal kadaluarsa: ' . $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Update min/max stok for an obat in a gudang (called from modal)
+     */
+    public function updateMinMax(Request $request)
+    {
+        $request->validate([
+            'obat_id' => 'required|integer|exists:erm_obat,id',
+            'gudang_id' => 'required|integer|exists:erm_gudang,id',
+            'min_stok' => 'nullable|numeric|min:0',
+            'max_stok' => 'nullable|numeric|min:0'
+        ]);
+
+        $obatId = $request->obat_id;
+        $gudangId = $request->gudang_id;
+        $min = $request->min_stok !== null ? $request->min_stok : 0;
+        $max = $request->max_stok !== null ? $request->max_stok : 0;
+
+        try {
+            $rows = ObatStokGudang::where('obat_id', $obatId)->where('gudang_id', $gudangId)->get();
+            if ($rows->isEmpty()) {
+                return response()->json(['success' => false, 'message' => 'Tidak ada baris stok untuk obat/gudang tersebut'], 404);
+            }
+
+            foreach ($rows as $r) {
+                $r->min_stok = $min;
+                $r->max_stok = $max;
+                $r->save();
+            }
+
+            return response()->json(['success' => true, 'message' => 'Min/Max stok berhasil disimpan']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan min/max: ' . $e->getMessage()], 500);
         }
     }
 
