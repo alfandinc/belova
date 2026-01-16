@@ -16,10 +16,14 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4 class="mb-0">Content Plan</h4>
-            <button class="btn btn-primary" id="btnAddContentPlan">Tambah Content Plan</button>
+            <div>
+                <button type="button" class="btn btn-outline-secondary me-2" id="btnToggleFilters"><i class="fas fa-filter me-1"></i> Filters</button>
+                <button class="btn btn-primary" id="btnAddContentPlan">Tambah Content Plan</button>
+            </div>
         </div>
         <div class="card-body">
-            <div class="row mb-3">
+            <div id="filterPanel" class="collapse">
+                <div class="row mb-3">
                 <div class="col-md-2">
                     <label for="filterDateRange">Filter Tanggal Publish</label>
                     <input type="text" id="filterDateRange" class="form-control" autocomplete="off" placeholder="Pilih rentang tanggal">
@@ -65,18 +69,21 @@
                         <option value="Cancelled">Cancelled</option>
                     </select>
                 </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary" id="btnResetFilters" style="margin-bottom:6px;">Reset Filters</button>
+                    </div>
+                </div>
+                </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-bordered" id="contentPlanTable" style="width:100%">
                 <thead>
                     <tr>
-                        <th>No</th>
-                        <th>Brand</th>
+                        <th style="width:60px;white-space:nowrap">No</th>
                         <th>Judul</th>
                         <th>Tanggal Publish</th>
                         <th>Platform</th>
-                        <th>Jenis Konten</th>
-                            <th>Konten Pilar</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -160,6 +167,56 @@ $(function() {
         $(this).val('');
         table.ajax.reload();
     });
+
+    // Collapse panel events: update toggle button label
+    $('#filterPanel').on('shown.bs.collapse', function() {
+        $('#btnToggleFilters').html('<i class="fas fa-filter me-1"></i> Hide Filters');
+    });
+    $('#filterPanel').on('hidden.bs.collapse', function() {
+        $('#btnToggleFilters').html('<i class="fas fa-filter me-1"></i> Show Filters');
+    });
+
+    // Initialize toggle button label according to initial state
+    if ($('#filterPanel').hasClass('show')) {
+        $('#btnToggleFilters').html('<i class="fas fa-filter me-1"></i> Hide Filters');
+    } else {
+        $('#btnToggleFilters').html('<i class="fas fa-filter me-1"></i> Show Filters');
+    }
+
+    // Toggle filters when button clicked
+    $('#btnToggleFilters').on('click', function() {
+        $('#filterPanel').collapse('toggle');
+    });
+    // Reset all filters button
+    $('#btnResetFilters').on('click', function() {
+        console.log('Reset Filters clicked');
+        // Clear multi-selects (set empty array) and single selects (set empty string)
+        try {
+            $('#filterBrand').val([]).trigger('change');
+            $('#filterPlatform').val([]).trigger('change');
+            $('#filterStatus').val('');
+            $('#filterKontenPilar').val('').trigger('change');
+            // trigger change for status if it uses select2
+            try { $('#filterStatus').trigger('change'); } catch(e){}
+        } catch(e) { console.error(e); }
+
+        // Reset date range to empty (clear input). Also reset picker internal dates to defaults.
+        try {
+            var drp = $('#filterDateRange').data('daterangepicker');
+            if (drp) {
+                drp.setStartDate(_defaultStart);
+                drp.setEndDate(_defaultEnd);
+            }
+            $('#filterDateRange').val('');
+        } catch(e) { console.error(e); }
+
+        // Reload table without changing pagination
+        try {
+            if (typeof table !== 'undefined' && table.ajax) {
+                table.ajax.reload(null, false);
+            }
+        } catch(e) { console.error(e); }
+    });
     // (Removed image reference inputs and preview per UI simplification)
     let table = $('#contentPlanTable').DataTable({
         processing: true,
@@ -197,16 +254,19 @@ $(function() {
             }
         },
         columns: [
-            { data: null, name: 'no', orderable: false, searchable: false },
-            { data: 'brand', name: 'brand' },
+            { data: null, name: 'no', orderable: false, searchable: false, width: '60px', className: 'text-center' },
             { data: 'judul', name: 'judul' },
-            { data: 'tanggal_publish', name: 'tanggal_publish', render: function(data) {
+            { data: 'tanggal_publish', name: 'tanggal_publish', render: function(data, type, row) {
                 if (data) {
-                    // Use moment.js to format date in Indonesian on two lines: date and time
+                    // Format as single-line: "14 November 2025 - 15.00"
                     var m = moment(data).locale('id');
                     var datePart = m.format('D MMMM YYYY');
                     var timePart = m.format('HH.mm');
-                    return `<div>${datePart}<br><small style="color:#6c757d">jam ${timePart}</small></div>`;
+                    var result = `${datePart} - ${timePart}`;
+                    if (row && row.assigned_to_name) {
+                        result += `<div class="text-muted small mt-1">Assigned to : ${row.assigned_to_name}</div>`;
+                    }
+                    return result;
                 }
                 return '';
             } },
@@ -267,28 +327,6 @@ $(function() {
                 });
                 return htmlParts.join(' ');
             } },
-            { data: 'jenis_konten', name: 'jenis_konten' },
-            { data: 'konten_pilar', name: 'konten_pilar', render: function(data, type, row) {
-                if (!data) return '';
-                var map = {
-                    'Edukasi': { cls: 'primary', style: '' },
-                    'Awareness': { cls: 'warning', style: '' },
-                    'Engagement/Interaktif': { cls: 'success', style: '' },
-                    'Promo/Testimoni': { cls: 'danger', style: '' },
-                    'Lifestyle/Tips': { cls: 'info', style: '' }
-                };
-                var v = (typeof data === 'string') ? data : (Array.isArray(data) ? data.join(', ') : '');
-                // If multiple values are present (unexpected), render first or all separated
-                if (Array.isArray(data)) {
-                    return data.map(function(d){
-                        var m = map[d] || { cls: 'secondary', style: '' };
-                        return `<span class="badge badge-${m.cls}" style="${m.style};margin-right:6px">${d}</span>`;
-                    }).join(' ');
-                }
-                var m = map[v] || { cls: 'secondary', style: '' };
-                return `<span class="badge badge-${m.cls}" style="${m.style}">${v}</span>`;
-            } },
-            
             { data: 'status', name: 'status', render: function(data, type, row) {
                 // Render as an inline select so user can change status directly
                 var options = ['Draft','Scheduled','Published','Cancelled'];
@@ -317,7 +355,7 @@ $(function() {
             } },
             { data: 'action', orderable: false, searchable: false },
         ],
-        order: [[2, 'desc']],
+        order: [[1, 'desc']],
         drawCallback: function(settings) {
             var api = this.api();
             api.column(0, {search:'applied', order:'applied'}).nodes().each(function(cell, i) {
@@ -331,7 +369,11 @@ $(function() {
                     var id = data.id || $row.find('[data-id]').data('id');
                     var $actionTd = $row.find('td').last();
                     if ($actionTd.length && $actionTd.find('.btn-add-brief').length === 0) {
-                        var btn = `<button class="btn btn-sm btn-outline-secondary btn-add-brief me-1" data-id="${id}" title="Add Brief">Brief</button>`;
+                        var hasBrief = (data && (data.briefs_count || data.briefs_count === 0)) ? (parseInt(data.briefs_count, 10) > 0) : false;
+                        var btnClass = hasBrief ? 'btn btn-sm btn-success btn-add-brief me-1' : 'btn btn-sm btn-outline-primary btn-add-brief me-1';
+                        var btnLabel = hasBrief ? 'View Brief' : 'Add Brief';
+                        var btnTitle = hasBrief ? 'View Brief' : 'Add Brief';
+                        var btn = `<button class="${btnClass}" data-id="${id}" title="${btnTitle}">${btnLabel}</button>`;
                         // place before statistics button if present, otherwise append
                         var $stats = $actionTd.find('.btn-statistics');
                         if ($stats.length) {
@@ -356,6 +398,7 @@ $(function() {
         $('#contentPlanForm').attr('data-id', '');
         $('.select2').val(null).trigger('change');
         $('#brand').val(null).trigger('change');
+        $('#assigned_to').val(null).trigger('change');
         $('#konten_pilar').val(null).trigger('change');
         // clear link publikasi inputs
         $('#link_publikasi_wrapper').find('.link-input-row').remove();
@@ -429,6 +472,8 @@ $(function() {
             $('#status').val(data.status);
             $('#jenis_konten').val(data.jenis_konten).trigger('change');
             $('#konten_pilar').val(data.konten_pilar).trigger('change');
+            // assigned_to may be null
+            try { $('#assigned_to').val(data.assigned_to || '').trigger('change'); } catch(e) {}
             $('#link_asset').val(data.link_asset);
             // render per-platform link inputs
             try { renderLinkInputs(data.platform, data.link_publikasi); } catch(e) {}
@@ -497,6 +542,13 @@ $(function() {
         dropdownParent: $('#contentPlanModal'),
         width: '100%',
         placeholder: 'Pilih Konten Pilar',
+        allowClear: true
+    });
+    // Assigned to select2
+    $('#assigned_to').select2({
+        dropdownParent: $('#contentPlanModal'),
+        width: '100%',
+        placeholder: 'Assign to',
         allowClear: true
     });
 

@@ -67,6 +67,17 @@
               </select>
             </div>
             <div class="col-md-6 mb-2">
+              <label for="assigned_to" class="form-label">Assigned To</label>
+              <select class="form-control select2" id="assigned_to" name="assigned_to">
+                <option value="">(Unassigned)</option>
+                @if(isset($users) && $users->count())
+                  @foreach($users as $u)
+                    <option value="{{ $u->id }}">{{ $u->name }}</option>
+                  @endforeach
+                @endif
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
               <label for="status" class="form-label">Status</label>
               <select class="form-control" id="status" name="status" required>
                 <option value="Draft">Draft</option>

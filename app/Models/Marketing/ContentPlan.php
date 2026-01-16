@@ -22,6 +22,7 @@ class ContentPlan extends Model
         'tanggal_publish',
         'platform',
         'status',
+        'assigned_to',
         'jenis_konten',
         'konten_pilar',
         'target_audience',
@@ -47,5 +48,10 @@ class ContentPlan extends Model
     public function briefs()
     {
         return $this->hasMany(ContentBrief::class, 'content_plan_id');
+    }
+
+    public function assignedTo()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'assigned_to');
     }
 }

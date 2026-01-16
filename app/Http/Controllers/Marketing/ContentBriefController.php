@@ -58,6 +58,7 @@ class ContentBriefController extends Controller
 
         $brief = new ContentBrief();
         $brief->content_plan_id = $data['content_plan_id'];
+        $brief->user_id = $request->user() ? $request->user()->id : null;
         $brief->headline = $data['headline'] ?? null;
         $brief->sub_headline = $data['sub_headline'] ?? null;
         $brief->isi_konten = $data['isi_konten'] ?? null;

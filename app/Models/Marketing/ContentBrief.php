@@ -14,6 +14,7 @@ class ContentBrief extends Model
 
     protected $fillable = [
         'content_plan_id',
+        'user_id',
         'headline',
         'sub_headline',
         'isi_konten',
@@ -27,5 +28,10 @@ class ContentBrief extends Model
     public function contentPlan()
     {
         return $this->belongsTo(ContentPlan::class, 'content_plan_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'user_id');
     }
 }
