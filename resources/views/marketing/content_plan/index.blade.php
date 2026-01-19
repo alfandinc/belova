@@ -241,6 +241,7 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
                                 <th style="min-width:200px">Day</th>
                                 <th>Judul</th>
                                 <th style="min-width:140px">Assigned</th>
+                                <th style="min-width:120px">Aksi</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -653,24 +654,20 @@ $(function() {
 
     function updateStatusStats(resp) {
         try {
-            var items = [];
-            if (resp && resp.data) {
-                var grouped = resp.data;
-                Object.keys(grouped).forEach(function(k){ if (Array.isArray(grouped[k])) items = items.concat(grouped[k]); });
-            } else if (Array.isArray(resp)) { items = resp; }
-
-            // Count 'terlewat' (overdue): status is Scheduled or Draft and tanggal_publish < now
-            var now = moment();
-            var terlewat = 0;
-            items.forEach(function(it){
-                try {
-                    var s = (it.status||'').toString().toLowerCase();
-                    if ((s === 'scheduled' || s === 'draft') && it.tanggal_publish) {
-                        if (moment(it.tanggal_publish).isBefore(now)) terlewat++;
-                    }
-                } catch(e) {}
-            });
-            $('#stat_terlewat').text(terlewat);
+            // Instead of counting only items in the current week payload, request the global
+            // 'terlewat' list from the controller and use its length so the header shows all overdue items.
+            try {
+                var url = "{{ route('marketing.content-plan.status_list') }}";
+                $.getJSON(url, { status: 'terlewat' }).done(function(r){
+                    var rows = (r && r.data) ? r.data : [];
+                    $('#stat_terlewat').text(rows.length);
+                }).fail(function(){
+                    // fallback to zero on error
+                    $('#stat_terlewat').text(0);
+                });
+            } catch(e) {
+                console.error('updateStatusStats fetch global count', e);
+            }
         } catch(e) { console.error('updateStatusStats', e); }
     }
 
@@ -679,6 +676,13 @@ $(function() {
         try {
             var params = getWeekParams();
             if (statusDisplay && statusDisplay.toString().toLowerCase() !== 'all') params.status = statusDisplay;
+            // If requesting 'terlewat' (overdue) we want the full dataset, not limited to the current week
+            // so remove any date_start/date_end filters that getWeekParams() may have added.
+            try {
+                if (params.status && params.status.toString().toLowerCase() === 'terlewat') {
+                    delete params.date_start; delete params.date_end;
+                }
+            } catch(e) {}
             var url = "{{ route('marketing.content-plan.status_list') }}";
             $.getJSON(url, params).done(function(resp){
                 var rows = (resp && resp.data) ? resp.data : [];
@@ -721,6 +725,9 @@ $(function() {
                         $tr.append($('<td>').html(dayHtml));
                         $tr.append($('<td>').html(judulHtml + badgeRow));
                         $tr.append($('<td>').text(it.assigned));
+                        // action: reschedule button
+                        var aksiHtml = '<button class="btn btn-sm btn-outline-primary btn-reschedule" data-id="'+it.id+'">Reschedule</button>';
+                        $tr.append($('<td>').html(aksiHtml));
                         $tb.append($tr);
                     });
                 }
@@ -741,6 +748,14 @@ $(function() {
     // header stat click (compact card)
     $(document).on('click', '.header-stat-terlewat', function(e){
         try { openStatusList('terlewat'); } catch(e){ console.error(e); }
+    });
+
+    // Reschedule button in status list: open edit modal and close the status list modal
+    $(document).on('click', '.btn-reschedule', function(e){
+        e.stopPropagation();
+        var id = $(this).data('id');
+        try { $('#statusListModal').modal('hide'); } catch(er) {}
+        if (id) openEditModal(id);
     });
 
     function reloadAllTables(resetPaging){
@@ -954,6 +969,21 @@ $(function() {
         $('#brand').val(null).trigger('change');
         $('#assigned_to').val(null).trigger('change');
         $('#konten_pilar').val(null).trigger('change');
+        // Clear Brief-related fields so previous brief content doesn't persist
+        try {
+            // destroy any existing summernote instance to ensure clean init later
+            try { if ($.fn && $.fn.summernote) { $('#cb_isi_konten').summernote('destroy'); } } catch(e) {}
+            $('#cb_content_plan_id').val('');
+            $('#cb_id').val('');
+            $('#cb_headline').val('');
+            $('#cb_sub_headline').val('');
+            // clear summernote textarea
+            try{ $('#cb_isi_konten').val(''); } catch(e) {}
+            // clear visual preview and file input
+            try { $('#cb_preview').empty(); $('#cb_visual_references').val(''); } catch(e) {}
+            // reset temporary holder
+            window._cbLoadedIsi = null;
+        } catch(e) {}
         // clear link publikasi inputs
         $('#link_publikasi_wrapper').find('.link-input-row').remove();
         // default status to Scheduled when creating a new content plan
@@ -1118,6 +1148,10 @@ $(function() {
             try { updateBriefTabIndicator(); } catch(e) {}
                 // Prepare brief fields if present in response for later summernote init
                 try {
+                    // destroy any existing summernote to ensure clean state
+                    try { if ($.fn && $.fn.summernote) { $('#cb_isi_konten').summernote('destroy'); } } catch(e) {}
+                    // clear textarea now; content will be applied from window._cbLoadedIsi when summernote initializes
+                    try { $('#cb_isi_konten').val(''); } catch(e) {}
                     // Common response keys that may contain brief content
                     var briefHtml = data.isi_konten || data.cb_isi_konten || data.brief || data.brief_content || null;
                     if (briefHtml) {
