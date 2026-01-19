@@ -42,6 +42,7 @@
                           <select class="form-control select2" id="brand" name="brand[]" multiple required>
                             <option value="Premiere Belova">Premiere Belova</option>
                             <option value="Belova Skin">Belova Skin</option>
+                            <option value="Belova Dental Care">Belova Dental Care</option>
                             <option value="BCL">BCL</option>
                             <option value="dr Fika">dr Fika</option>
                           </select>

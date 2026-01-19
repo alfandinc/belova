@@ -486,6 +486,7 @@ $(function() {
                                     var brandColors = {
                                         'premiere belova': '#0d6efd',
                                         'belova skin': '#6f42c1',
+                                        'belova dental care': '#ff66b2',
                                         'bcl': '#e83e8c',
                                         'dr fika': '#fd7e14'
                                     };
@@ -713,6 +714,7 @@ $(function() {
                             var bLower = brand.toString().toLowerCase();
                             var bStyle = '';
                             if (bLower.indexOf('belova skin') !== -1) bStyle = 'background:#6f42c1;color:#fff;';
+                            else if (bLower.indexOf('belova dental') !== -1) bStyle = 'background:#ff66b2;color:#fff;';
                             else if (bLower.indexOf('premiere') !== -1) bStyle = 'background:#0d6efd;color:#fff;';
                             else if (bLower.indexOf('bcl') !== -1) bStyle = 'background:#e83e8c;color:#fff;';
                             else if (bLower.indexOf('dr fika') !== -1) bStyle = 'background:#fd7e14;color:#fff;';
