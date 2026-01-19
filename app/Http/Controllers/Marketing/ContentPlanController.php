@@ -516,8 +516,8 @@ class ContentPlanController extends Controller
     }
 
     /**
-    * Return flat list of items for a given status (or all) to populate the status-list modal.
-    * Accepts same filters as week() and optional `status` ('Published','Scheduled','Revised','Draft','Cancelled').
+     * Return flat list of items for a given status (or all) to populate the status-list modal.
+     * Accepts same filters as week() and optional `status` ('Published','Scheduled','Draft','Cancelled').
      */
     public function statusList(Request $request)
     {
