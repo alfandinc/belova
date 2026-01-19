@@ -1410,6 +1410,10 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
 
+    // Content Plan: status list modal data endpoint
+    Route::get('/content-plan/status-list', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'statusList'])
+        ->name('marketing.content-plan.status_list');
+
     // Master Merchandise (Marketing)
     Route::get('/master-merchandise', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'index'])->name('marketing.master_merchandise.index');
     Route::get('/master-merchandise/data', [\App\Http\Controllers\Marketing\MasterMerchandiseController::class, 'data'])->name('marketing.master_merchandise.data');
@@ -1502,6 +1506,7 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
 
     // Content Plan Management
     Route::get('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'index'])->name('marketing.content-plan.index');
+    Route::get('content-plan/week', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'week'])->name('marketing.content-plan.week');
     Route::get('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'show'])->name('marketing.content-plan.show');
     Route::post('content-plan', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'store'])->name('marketing.content-plan.store');
     Route::put('content-plan/{id}', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'update'])->name('marketing.content-plan.update');

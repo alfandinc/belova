@@ -19,8 +19,6 @@
                     <div class="mt-1"><strong style="font-weight:600">Brand:</strong> <span id="cb_brand_text" class="text-body">&nbsp;</span></div>
                   </div>
                   <div class="col-md-6">
-                    <div><strong style="font-weight:600">Jenis:</strong> <span id="cb_jenis_konten_text" class="text-body">&nbsp;</span></div>
-                    <div class="mt-1"><strong style="font-weight:600">Platform:</strong> <span id="cb_platform_text" class="text-body">&nbsp;</span></div>
                   </div>
                 </div>
               </div>

@@ -9,162 +9,282 @@
 @push('styles')
 <!-- Summernote CSS (Bootstrap 4) -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs4.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
 <style>
-/* Allow the Judul column to wrap into multiple lines and limit its width */
+/* Allow the Judul column to wrap into multiple lines and give it more room */
 .judul-col{ 
     white-space: normal !important;
     word-break: break-word;
-    max-width: 420px; /* adjust as needed */
+    max-width: 600px; /* allow wider Judul column */
 }
-#contentPlanTable th.judul-col, #contentPlanTable td.judul-col{ 
+/* Jam (time) column */
+.jam-col{ 
+    white-space: nowrap !important;
+    width: 80px;
+    text-align: center;
+}
+/* Ensure jam time is visually prominent */
+.jam-col div strong { font-weight: 700; font-size: 1rem; }
+table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
     white-space: normal !important;
 }
-/* Ensure action buttons have a stable minimum width */
+/* Ensure action buttons have a smaller reserved width so Judul can expand */
 .aksi-col{
     white-space: nowrap !important;
-    min-width: 150px; /* minimum space for action buttons */
-    width:150px;
+    min-width: 60px; /* tighter space for single action button */
+    width:60px;
 }
+/* Normalize badge spacing inside content plan tables */
+.contentPlanTable td .badge, .contentPlanTable th .badge {
+    margin-right: 4px !important;
+    margin-bottom: 4px;
+    display: inline-block;
+}
+/* Subtle separators and cleaner spacing */
+.contentPlanTable { border: none !important; border-collapse: separate !important; }
+.contentPlanTable th, .contentPlanTable td { border: none !important; }
+.contentPlanTable tbody td { border-bottom: 1px solid rgba(0,0,0,0.06) !important; padding: 12px 16px !important; background: transparent; }
+.contentPlanTable tbody tr { background: #ffffff; }
+.contentPlanTable tbody tr:hover { background: #f8f9fa; }
+.table-responsive { padding: 0.5rem; }
+.card .card-body.p-0 { padding: 0.25rem 0.5rem !important; }
+/* Make Judul look clickable and accessible */
+.contentPlanTable td.judul-col .judul-clickable {
+    cursor: pointer;
+    color: #0d6efd; /* bootstrap link color */
+    text-decoration: none;
+}
+.contentPlanTable td.judul-col .judul-clickable:hover {
+    text-decoration: underline;
+    color: #0b5ed7;
+}
+.contentPlanTable td.judul-col .judul-clickable:focus {
+    outline: 2px dashed rgba(13,110,253,0.35);
+    outline-offset: 2px;
+}
+.contentPlanTable td.judul-col .judul-clickable .badge { cursor: default; }
+.contentPlanTable .btn-edit { display: none !important; }
+
+/* Small initials badge for Assigned To shown on the right of the title cell */
+.assigned-name { vertical-align: middle; border-radius: 6px; font-size: .78rem; background: rgba(0,0,0,0.04); color: #212529; padding: .18rem .5rem; max-width: 160px; display: inline-block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+/* Larger modal for Add/Edit Content Plan */
+@media (min-width: 992px) {
+    .modal-dialog.modal-xl { max-width: 1200px; }
+}
+@media (min-width: 1400px) {
+    .modal-dialog.modal-xl { max-width: 1400px; }
+}
+/* Prevent horizontal scrollbar inside modal and make inner flex items wrap */
+#contentPlanModal .modal-content, #contentPlanModal .modal-body, #contentPlanModal .tab-content { overflow-x: hidden; }
+#contentPlanModal .row { flex-wrap: wrap; }
+/* Override preview min-width which previously forced horizontal scroll */
+#cb_preview { min-width: 0 !important; max-width: 100%; }
+/* Ensure tables and inputs inside modal don't exceed container width */
+#contentPlanModal table, #contentPlanModal .form-control, #contentPlanModal .select2-container { max-width: 100%; }
+
+/* Separator between Judul (title) and badges inside the clickable area */
+.contentPlanTable td.judul-col .judul-clickable > .mt-1 {
+    border-top: 1px solid #e9ecef;
+    margin-top: 8px;
+    padding-top: 6px;
+}
+.contentPlanTable td.judul-col .judul-clickable .badge { margin-top: 4px; }
+
+/* Blinking warning icon when publish time is past due */
+.blink-warning { color: #dc3545; margin-left:6px; display:inline-block; }
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.15; }
+    100% { opacity: 1; }
+}
+.blink-warning.blink { animation: blink 1s linear infinite; }
+/* Per-day stats color variants (appear next to the date) */
+.day-stats { margin-left: 8px; }
+.content-stats-row { gap: 8px; }
+.stat-card { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:8px; background:#ffffff; box-shadow:0 1px 3px rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.04); }
+.stat-icon { width:36px; height:36px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; color:#fff; font-size:1.05rem; }
+.stat-number { font-size:1.25rem; font-weight:700; }
+.stat-label { font-size:0.82rem; color:#6c757d; }
+.stat-published .stat-icon { background:#28a745; }
+.stat-scheduled .stat-icon { background:#ffc107; color:#212529; }
+.stat-draft .stat-icon { background:#6c757d; }
+.stat-cancelled .stat-icon { background:#dc3545; }
+.stat-total .stat-icon { background:#0d6efd; }
+.stat-card.small { padding:8px 10px; }
+.day-stats.green { color: #28a745; }
+.day-stats.yellow { color: #856404; /* darker yellow for contrast */ }
+.day-stats.red { color: #dc3545; }
+.day-stats.default { color: #6c757d; }
+/* Compact header stat card (right corner) */
+.header-stat-card {
+    background: #ffffff;
+    border: 1px solid rgba(0,0,0,0.06);
+    padding: 8px 12px;
+    border-radius: 10px;
+    min-width: 170px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.header-stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; }
+.header-stat-card .small { line-height: 1; }
+.header-stat-card .stat-icon {
+    width:36px; height:36px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; background: rgba(220,53,69,0.08); color:#dc3545; font-size:16px;
+}
+.header-stat-card .stat-text { margin-left:10px; text-align:right; }
+.header-stat-card .stat-text .label { font-size:0.78rem; color:#6c757d; }
+.header-stat-card .stat-text .value { font-size:1.1rem; font-weight:700; color:#dc3545; }
+@media (max-width: 768px) {
+    .header-stat-card { min-width: 120px; padding:6px 8px; }
+    .header-stat-card .stat-text .label { display:none; }
+}
+
+/* Make header stat label bolder for emphasis */
+.header-stat-card .stat-text .label { font-weight:700; color: #495057; }
+
+/* Show value (count) before label in header stat */
+.header-stat-card .stat-text { display:flex; align-items:center; gap:8px; text-align:left; }
+.header-stat-card .stat-text .value { font-size:1.25rem; color:#dc3545; }
 </style>
 @endpush
 
 @section('content')
 <div class="container-fluid mt-4">
+    
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4 class="mb-0">Content Plan</h4>
-            <div>
-                <button type="button" class="btn btn-outline-secondary me-2" id="btnToggleFilters"><i class="fas fa-filter me-1"></i> Filters</button>
-                <button class="btn btn-primary" id="btnAddContentPlan">Tambah Content Plan</button>
-            </div>
-        </div>
-        <div class="card-body">
-            <div id="filterPanel" class="collapse">
-                <div class="row mb-3">
-                <div class="col-md-2">
-                    <label for="filterDateRange">Filter Tanggal Publish</label>
-                    <input type="text" id="filterDateRange" class="form-control" autocomplete="off" placeholder="Pilih rentang tanggal">
-                </div>
-                <div class="col-md-2">
-                    <label for="filterBrand">Filter Brand</label>
-                    <select id="filterBrand" class="form-control select2" multiple>
-                        <option value="Premiere Belova">Premiere Belova</option>
-                        <option value="Belova Skin">Belova Skin</option>
-                        <option value="BCL">BCL</option>
-                        <option value="dr Fika">dr Fika</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="filterPlatform">Filter Platform</label>
-                    <select id="filterPlatform" class="form-control select2" multiple>
-                        <option value="Instagram">Instagram</option>
-                        <option value="Facebook">Facebook</option>
-                        <option value="TikTok">TikTok</option>
-                        <option value="YouTube">YouTube</option>
-                        <option value="Website">Website</option>
-                        <option value="Other">Other</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="filterKontenPilar">Filter Konten Pilar</label>
-                    <select id="filterKontenPilar" class="form-control select2">
-                        <option value="">Semua Pilar</option>
-                        <option value="Edukasi">Edukasi</option>
-                        <option value="Awareness">Awareness</option>
-                        <option value="Engagement/Interaktif">Engagement/Interaktif</option>
-                        <option value="Promo/Testimoni">Promo/Testimoni</option>
-                        <option value="Lifestyle/Tips">Lifestyle/Tips</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label for="filterStatus">Filter Status</label>
-                    <select id="filterStatus" class="form-control select2">
-                        <option value="">Semua Status</option>
-                        <option value="Draft">Draft</option>
-                        <option value="Scheduled">Scheduled</option>
-                        <option value="Published">Published</option>
-                        <option value="Cancelled">Cancelled</option>
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <div>
-                        <button type="button" class="btn btn-outline-secondary" id="btnResetFilters" style="margin-bottom:6px;">Reset Filters</button>
+            <div class="d-flex align-items-center">
+                <!-- left spacer to keep title on the left -->
+                <div></div>
+                <!-- right-side: stat card + nav buttons -->
+                <div style="margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:nowrap;">
+                    <div class="header-stat-card header-stat-terlewat" role="button" title="Klik untuk melihat Konten Terlewat">
+                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-text">
+                            <div id="stat_terlewat" class="value">0</div>
+                            <div class="label">Konten Terlewat</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:8px; flex-wrap:nowrap;">
+                        <button type="button" class="btn btn-light btn-sm me-2" id="btnPrevWeek" title="Previous week"><i class="fas fa-chevron-left"></i></button>
+                        <div class="input-group input-group-sm" style="min-width:220px;">
+                            <select id="monthPicker" class="form-control form-control-sm"></select>
+                            <select id="weekPicker" class="form-control form-control-sm" style="max-width:110px">
+                                <option value="1">Week 1</option>
+                                <option value="2">Week 2</option>
+                                <option value="3">Week 3</option>
+                                <option value="4">Week 4</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-light btn-sm ms-2" id="btnNextWeek" title="Next week"><i class="fas fa-chevron-right"></i></button>
                     </div>
                 </div>
-                </div>
             </div>
-            <div class="table-responsive">
-                <table class="table table-bordered" id="contentPlanTable" style="width:100%">
-                <thead>
-                    <tr>
-                        <th style="width:60px;white-space:nowrap">No</th>
-                        <th>Judul</th>
-                        <th>Tanggal Publish</th>
-                        <th>Platform</th>
-                        <th>Status</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-            </table>
-            </div>
+        </div>
+            <div class="card-body">
+            <div id="weekTables" class="row"></div>
         </div>
     </div>
 </div>
 
 @include('marketing.content_plan.partials.modal')
 @include('marketing.content_plan.partials.content_report_modal')
-@include('marketing.content_plan.partials.brief_modal')
+
+<!-- Status picker modal -->
+<div class="modal fade" id="statusModal" tabindex="-1" role="dialog" aria-labelledby="statusModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <form id="statusForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="statusModalLabel">Ubah Status</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="plan_id" value="">
+                    <div class="form-group">
+                        <label for="status_select">Pilih Status</label>
+                        <select id="status_select" name="status" class="form-control">
+                            <option value="Draft">Draft</option>
+                            <option value="Scheduled">Scheduled</option>
+                            <option value="Published">Published</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Status list modal: shows items for selected status -->
+<div class="modal fade" id="statusListModal" tabindex="-1" role="dialog" aria-labelledby="statusListModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="statusListModalLabel">Content items</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-sm" id="statusListTable">
+                        <thead>
+                            <tr>
+                                <th style="min-width:200px">Day</th>
+                                <th>Judul</th>
+                                <th style="min-width:140px">Assigned</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <!-- Summernote JS (Bootstrap 4) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/summernote/0.8.18/summernote-bs4.min.js"></script>
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <script>
 $(function() {
     // Status filter select2
-    $('#filterStatus').select2({
-        width: '100%',
-        placeholder: 'Pilih Status',
-        allowClear: true,
-        dropdownParent: $('#filterStatus').parent()
-    });
+    try { if ($.fn && $.fn.select2) { $('#filterStatus').select2({ width: '100%', placeholder: 'Pilih Status', allowClear: true, dropdownParent: $('#filterStatus').parent() }); } } catch(e) {}
     $('#filterStatus').on('change', function() {
-        table.ajax.reload();
+        reloadAllTables();
     });
     // Konten Pilar filter select2
-    $('#filterKontenPilar').select2({
-        width: '100%',
-        placeholder: 'Pilih Konten Pilar',
-        allowClear: true,
-        dropdownParent: $('#filterKontenPilar').parent()
-    });
+    try { if ($.fn && $.fn.select2) { $('#filterKontenPilar').select2({ width: '100%', placeholder: 'Pilih Konten Pilar', allowClear: true, dropdownParent: $('#filterKontenPilar').parent() }); } } catch(e) {}
     $('#filterKontenPilar').on('change', function() {
-        table.ajax.reload();
+        reloadAllTables();
     });
     // Platform filter select2
-    $('#filterPlatform').select2({
-        width: '100%',
-        placeholder: 'Pilih Platform',
-        allowClear: true,
-        dropdownParent: $('#filterPlatform').parent()
-    });
+    try { if ($.fn && $.fn.select2) { $('#filterPlatform').select2({ width: '100%', placeholder: 'Pilih Platform', allowClear: true, dropdownParent: $('#filterPlatform').parent() }); } } catch(e) {}
     $('#filterPlatform').on('change', function() {
-        table.ajax.reload();
+        reloadAllTables();
     });
     // Brand filter select2
-    $('#filterBrand').select2({
-        width: '100%',
-        placeholder: 'Pilih Brand',
-        allowClear: true,
-        dropdownParent: $('#filterBrand').parent()
-    });
+    try { if ($.fn && $.fn.select2) { $('#filterBrand').select2({ width: '100%', placeholder: 'Pilih Brand', allowClear: true, dropdownParent: $('#filterBrand').parent() }); } } catch(e) {}
     $('#filterBrand').on('change', function() {
-        table.ajax.reload();
+        reloadAllTables();
     });
     // Date Range Picker for filter (default to current month)
-    var _defaultStart = moment().startOf('month');
-    var _defaultEnd = moment().endOf('month');
+    var _defaultStart = moment().startOf('isoWeek');
+    var _defaultEnd = moment().endOf('isoWeek');
     $('#filterDateRange').daterangepicker({
         autoUpdateInput: true,
         startDate: _defaultStart,
@@ -178,11 +298,24 @@ $(function() {
     $('#filterDateRange').val(_defaultStart.format('DD/MM/YYYY') + ' - ' + _defaultEnd.format('DD/MM/YYYY'));
     $('#filterDateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('DD/MM/YYYY') + ' - ' + picker.endDate.format('DD/MM/YYYY'));
-        table.ajax.reload();
+        // update internal week bounds to the selected range
+        try {
+            _defaultStart = picker.startDate.clone();
+            _defaultEnd = picker.endDate.clone();
+        } catch(e) { console.error(e); }
+        // rebuild tables for the new start/end
+        try {
+            if (typeof contentPlanTables !== 'undefined' && contentPlanTables.length) {
+                contentPlanTables.forEach(function(t){ try{ t.destroy(); }catch(e){} });
+                contentPlanTables = [];
+            }
+        } catch(e) { console.error(e); }
+        buildWeekTables();
+        reloadAllTables();
     });
     $('#filterDateRange').on('cancel.daterangepicker', function(ev, picker) {
         $(this).val('');
-        table.ajax.reload();
+        reloadAllTables();
     });
 
     // Collapse panel events: update toggle button label
@@ -229,191 +362,595 @@ $(function() {
 
         // Reload table without changing pagination
         try {
-            if (typeof table !== 'undefined' && table.ajax) {
-                table.ajax.reload(null, false);
-            }
+            reloadAllTables(false);
         } catch(e) { console.error(e); }
     });
     // (Removed image reference inputs and preview per UI simplification)
-    let table = $('#contentPlanTable').DataTable({
-        processing: true,
-        serverSide: true,
-        responsive: true,
-        scrollX: true,
-        autoWidth: false,
-        ajax: {
-            url: '{{ route('marketing.content-plan.index') }}',
-            data: function(d) {
-                let range = $('#filterDateRange').val();
-                if (range) {
-                    let parts = range.split(' - ');
-                    if (parts.length === 2) {
-                        d.date_start = parts[0];
-                        d.date_end = parts[1];
-                    }
-                }
-                let brands = $('#filterBrand').val();
-                if (brands && brands.length > 0) {
-                    d.filter_brand = brands;
-                }
-                let platforms = $('#filterPlatform').val();
-                if (platforms && platforms.length > 0) {
-                    d.filter_platform = platforms;
-                }
-                let status = $('#filterStatus').val();
-                if (status) {
-                    d.filter_status = status;
-                }
-                let kontenPilar = $('#filterKontenPilar').val();
-                if (kontenPilar) {
-                    d.filter_konten_pilar = kontenPilar;
-                }
-            }
-        },
-        columns: [
-            { data: null, name: 'no', orderable: false, searchable: false, width: '60px', className: 'text-center' },
-            { data: 'judul', name: 'judul', className: 'judul-col' },
-            { data: 'tanggal_publish', name: 'tanggal_publish', render: function(data, type, row) {
-                if (data) {
-                    // Format as single-line: "14 November 2025 - 15.00"
-                    var m = moment(data).locale('id');
-                    var datePart = m.format('D MMMM YYYY');
-                    var timePart = m.format('HH.mm');
-                    var result = `${datePart} - ${timePart}`;
-                    if (row && row.assigned_to_name) {
-                        result += `<div class="text-muted small mt-1">Assigned to : ${row.assigned_to_name}</div>`;
-                    }
-                    return result;
-                }
-                return '';
-            } },
-            { data: 'platform', name: 'platform', render: function(data, type, row) {
-                if (!data) data = [];
-                let icons = {
-                    'Instagram': '<i class="fab fa-instagram fa-lg" title="Instagram" style="color:#E4405F; font-size:1.5em;"></i>',
-                    'Facebook': '<i class="fab fa-facebook fa-lg" title="Facebook" style="color:#1877F3; font-size:1.5em;"></i>',
-                    'TikTok': `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" style="vertical-align:middle;position:relative;top:-2px;" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 1000 1000"><path d="M906.25 0H93.75C42.19 0 0 42.19 0 93.75v812.49c0 51.57 42.19 93.75 93.75 93.75l812.5.01c51.56 0 93.75-42.19 93.75-93.75V93.75C1000 42.19 957.81 0 906.25 0zM684.02 319.72c-32.42-21.13-55.81-54.96-63.11-94.38-1.57-8.51-2.45-17.28-2.45-26.25H515l-.17 414.65c-1.74 46.43-39.96 83.7-86.8 83.7-14.57 0-28.27-3.63-40.35-9.99-27.68-14.57-46.63-43.58-46.63-76.97 0-47.96 39.02-86.98 86.97-86.98 8.95 0 17.54 1.48 25.66 4.01V421.89c-8.41-1.15-16.95-1.86-25.66-1.86-105.01 0-190.43 85.43-190.43 190.45 0 64.42 32.18 121.44 81.3 155.92 30.93 21.72 68.57 34.51 109.14 34.51 105.01 0 190.43-85.43 190.43-190.43V400.21c40.58 29.12 90.3 46.28 143.95 46.28V343.03c-28.89 0-55.8-8.59-78.39-23.31z"/></svg>`,
-                    'YouTube': '<i class="fab fa-youtube fa-lg" title="YouTube" style="color:#FF0000; font-size:1.5em;"></i>',
-                    'Website': '<i class="fas fa-globe fa-lg" title="Website" style="color:#28a745; font-size:1.5em;"></i>',
-                    'Other': '<i class="fas fa-ellipsis-h fa-lg" title="Other" style="color:#6c757d; font-size:1.5em;"></i>'
-                };
-                let arr = [];
-                if (Array.isArray(data)) {
-                    arr = data;
-                } else if (typeof data === 'string') {
-                    if (data.indexOf(',') !== -1) {
-                        arr = data.split(',').map(s => s.trim());
-                    } else {
-                        arr = [data.trim()];
-                    }
-                }
+    // Build 7 DataTables, one per day (Monday..Sunday) for the current ISO week
+    var contentPlanTables = [];
+    // map of assigned_to id => display name (used to show initials on cards)
+    var assignedNameMap = {};
+    try {
+        $('#assigned_to option').each(function(){ var v = $(this).val(); var t = $(this).text() ? $(this).text().trim() : ''; if (v) assignedNameMap[v] = t; });
+    } catch(e) { assignedNameMap = {}; }
+    // helper: convert hex to rgba string
+    function hexToRgba(hex, alpha){
+        if (!hex) return 'rgba(0,0,0,'+alpha+')';
+        hex = hex.replace('#','');
+        if (hex.length === 3) hex = hex.split('').map(function(h){ return h+h; }).join('');
+        var r = parseInt(hex.substring(0,2),16);
+        var g = parseInt(hex.substring(2,4),16);
+        var b = parseInt(hex.substring(4,6),16);
+        return 'rgba('+r+','+g+','+b+','+alpha+')';
+    }
+    function buildWeekTables() {
+        $('#weekTables').empty();
+        var weekStart = _defaultStart.clone();
 
-                // normalize links from row.link_publikasi into a mapping by platform
-                var linksMap = {};
-                if (row && row.link_publikasi) {
-                    var lp = row.link_publikasi;
-                    if (Array.isArray(lp)) {
-                        if (lp.length === arr.length) {
-                            arr.forEach(function(p, i){ linksMap[p] = lp[i]; });
-                        } else {
-                            // attempt to map first link to first platform
-                            if (lp.length > 0) linksMap[arr[0]] = lp[0];
-                        }
-                    } else if (typeof lp === 'object') {
-                        linksMap = lp;
-                    } else if (typeof lp === 'string') {
-                        var parts = [];
-                        if (lp.indexOf('||') !== -1) parts = lp.split('||').map(s=>s.trim());
-                        else if (lp.indexOf(',') !== -1) parts = lp.split(',').map(s=>s.trim());
-                        else parts = [lp];
-                        if (parts.length === arr.length) {
-                            arr.forEach(function(p,i){ linksMap[p] = parts[i]; });
-                        } else if (parts.length > 0) {
-                            linksMap[arr[0]] = parts[0];
-                        }
-                    }
-                }
-
-                var htmlParts = arr.map(function(p, idx){
-                    var icon = icons[p] || p;
-                    var link = linksMap[p] || null;
-                    if (link) {
-                        return `<a href="${link}" target="_blank" title="${p}" style="margin-right:8px;">${icon}</a>`;
-                    }
-                    return `<span style="margin-right:8px;">${icon}</span>`;
-                });
-                return htmlParts.join(' ');
-            } },
-            { data: 'status', name: 'status', render: function(data, type, row) {
-                // Render as an inline select so user can change status directly
-                var options = ['Draft','Scheduled','Published','Cancelled'];
-                // Map status to colors
-                var map = {
-                    'draft': {bg: '#6c757d', color: '#ffffff'},
-                    'scheduled': {bg: '#ffc107', color: '#212529'},
-                    'published': {bg: '#28a745', color: '#ffffff'},
-                    'cancelled': {bg: '#dc3545', color: '#ffffff'}
-                };
-                var current = data ? data.toLowerCase() : '';
-                var style = '';
-                if (current && map[current]) {
-                    style = `background-color:${map[current].bg};color:${map[current].color};border-color:transparent;`;
-                }
-                // Wrap select in a div so we can color the background reliably across browsers
-                var html = `<div class="inline-status-wrap" style="display:inline-block;padding:4px 6px;border-radius:4px;${style}">`;
-                html += `<select class="form-control form-control-sm inline-status" data-id="${row.id}" style="min-width:120px;background:transparent;border:0;box-shadow:none;color:inherit;">`;
-                options.forEach(function(opt) {
-                    var sel = (data && data.toLowerCase() === opt.toLowerCase()) ? 'selected' : '';
-                    html += `<option value="${opt}" ${sel}>${opt}</option>`;
-                });
-                html += `</select>`;
-                html += `</div>`;
-                return html;
-            } },
-            { data: 'action', orderable: false, searchable: false, className: 'aksi-col text-center', width: '150px' },
-        ],
-        order: [[1, 'desc']],
-        drawCallback: function(settings) {
-            var api = this.api();
-            api.column(0, {search:'applied', order:'applied'}).nodes().each(function(cell, i) {
-                cell.innerHTML = api.page.info().start + i + 1;
-            });
-            // Inject 'Add Brief' button into action column for each visible row
-            api.rows({page: 'current'}).nodes().each(function(row, i) {
-                try {
-                    var $row = $(row);
-                    var data = api.row(row).data() || {};
-                    var id = data.id || $row.find('[data-id]').data('id');
-                    var $actionTd = $row.find('td').last();
-                    if ($actionTd.length && $actionTd.find('.btn-add-brief').length === 0) {
-                        var hasBrief = (data && (data.briefs_count || data.briefs_count === 0)) ? (parseInt(data.briefs_count, 10) > 0) : false;
-                        var btnClass = hasBrief ? 'btn btn-sm btn-success btn-add-brief me-1' : 'btn btn-sm btn-outline-primary btn-add-brief me-1';
-                        var btnLabel = hasBrief ? 'View Brief' : 'Add Brief';
-                        var btnTitle = hasBrief ? 'View Brief' : 'Add Brief';
-                        var btn = `<button class="${btnClass}" data-id="${id}" title="${btnTitle}">${btnLabel}</button>`;
-                        // place before statistics button if present, otherwise append
-                        var $stats = $actionTd.find('.btn-statistics');
-                        if ($stats.length) {
-                            $stats.first().before(btn);
-                        } else {
-                            $actionTd.append(btn);
-                        }
-                    }
-                } catch (e) {
-                    console.error('error injecting add-brief button', e);
-                }
-            });
+        // Build empty cards/tables for seven days first
+            for (var i=0;i<7;i++){
+            var d = weekStart.clone().add(i, 'days');
+            var dayName = d.format('dddd');
+            var dayFull = d.format('dddd, D MMMM YYYY');
+            var key = d.format('YYYY-MM-DD');
+            var tableId = 'contentPlanTable-' + i;
+            var col = $('<div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card"><div class="card-header d-flex align-items-center"><div><strong style="display:block">'+dayFull+'</strong></div><div class="ml-auto"><button type="button" class="btn btn-sm btn-outline-primary btn-add-card" data-date="'+key+'" title="Tambah Content Plan"><i class="fas fa-plus"></i></button></div></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-bordered contentPlanTable" id="'+tableId+'" data-date="'+key+'" style="width:100%"><thead><tr><th class="jam-col">Time</th><th>Description</th></tr></thead></table></div></div></div></div>');
+            $('#weekTables').append(col);
         }
+
+        // Fetch entire week data in a single request
+        var params = {
+            date_start: _defaultStart.format('DD/MM/YYYY'),
+            date_end: _defaultEnd.format('DD/MM/YYYY')
+        };
+        var brands = $('#filterBrand').val(); if (brands && brands.length) params.filter_brand = brands;
+        var platforms = $('#filterPlatform').val(); if (platforms && platforms.length) params.filter_platform = platforms;
+        var status = $('#filterStatus').val(); if (status) params.filter_status = status;
+        var kontenPilar = $('#filterKontenPilar').val(); if (kontenPilar) params.filter_konten_pilar = kontenPilar;
+
+        $.get('{{ route('marketing.content-plan.week') }}', params).done(function(resp){
+            window._latestWeekResp = resp;
+            var grouped = resp && resp.data ? resp.data : {};
+            try { updateStatusStats(resp); } catch(e) {}
+            // initialize each day's DataTable with client-side data
+            for (var i=0;i<7;i++){
+                try{
+                    var d = weekStart.clone().add(i, 'days');
+                    var key = d.format('YYYY-MM-DD');
+                    var rows = grouped[key] || [];
+                    var tableId = 'contentPlanTable-' + i;
+                    (function(containerId, dataRows){
+                        // Ensure any previous DataTable instance is destroyed before initializing
+                        try { if ($.fn.dataTable.isDataTable('#'+containerId)) { $('#'+containerId).DataTable().destroy(); } } catch(e) {}
+                        var dt = $('#'+containerId).DataTable({
+                            data: dataRows,
+                            destroy: true,
+                            processing: false,
+                            serverSide: false,
+                            responsive: true,
+                            scrollX: true,
+                            autoWidth: false,
+                            searching: false,
+                            lengthChange: false,
+                            paging: false,
+                            info: false,
+                            columns: [
+                                { data: 'tanggal_publish', className: 'jam-col', render: function(data, type, row){
+                                        var time = '';
+                                        if (data) time = moment(data).locale('id').format('HH.mm');
+                                        var status = row && row.status ? row.status : '';
+                                        var map = { 'draft': {bg: '#6c757d', color: '#ffffff'}, 'scheduled': {bg: '#ffc107', color: '#212529'}, 'published': {bg: '#28a745', color: '#ffffff'}, 'cancelled': {bg: '#dc3545', color: '#ffffff'} };
+                                        var sHtml = '';
+                                        if (status) {
+                                            var key = status.toLowerCase();
+                                            var style = '';
+                                            if (map[key]) style = 'background-color:' + map[key].bg + ';color:' + map[key].color + ';border-color:transparent;';
+                                            // make status badge clickable to open status picker modal
+                                            sHtml = '<div class="mt-1"><span class="badge status-badge" data-id="' + (row && row.id ? row.id : '') + '" style="' + style + ';cursor:pointer;">' + status + '</span></div>';
+                                        }
+                                        // show blinking warning if publish datetime is past and not published/cancelled
+                                        var warnHtml = '';
+                                        try {
+                                            if (data) {
+                                                var isPast = moment(data).isBefore(moment());
+                                                var st = (status || '').toLowerCase();
+                                                if (isPast && st !== 'published' && st !== 'cancelled') {
+                                                    warnHtml = '<span class="blink-warning blink" title="Publish time passed"><i class="fas fa-exclamation-triangle"></i></span>';
+                                                }
+                                            }
+                                        } catch(e) { }
+                                        return '<div><strong>' + time + '</strong>' + warnHtml + '</div>' + sHtml;
+                                    } },
+                                { data: 'judul_html', className: 'judul-col', render: function(data, type, row){
+                                        var html = data || '';
+                                        if (row && row.platform_html) {
+                                            html += '<div class="mt-1">' + row.platform_html + '</div>';
+                                        }
+                                        // Append assigned user initial (if available) to the right side
+                                        try {
+                                            var ass = row && row.assigned_to ? row.assigned_to : null;
+                                            var assName = ass && assignedNameMap[ass] ? assignedNameMap[ass] : (row && row.assigned_to_name ? row.assigned_to_name : null);
+                                            if (assName) {
+                                                // show full name to the right of the title
+                                                html += '<span class="assigned-name badge badge-light" title="'+assName+'" style="float:right;margin-left:8px;font-weight:600;padding:.25rem .6rem;font-size:.85rem">'+assName+'</span>';
+                                            }
+                                        } catch(e) {}
+                                        // Wrap in a focusable, clickable container for visual affordance and accessibility
+                                        return '<div class="judul-clickable" tabindex="0" role="button" title="Click to edit">' + html + '</div>';
+                                    } }
+                            ],
+                            order: [[0,'asc']],
+                            rowCallback: function(row, data, displayNum, displayIndex, dataIndex){
+                                try {
+                                    var brandColors = {
+                                        'premiere belova': '#0d6efd',
+                                        'belova skin': '#6f42c1',
+                                        'bcl': '#e83e8c',
+                                        'dr fika': '#fd7e14'
+                                    };
+                                    var color = null;
+                                    if (data && data.brand) {
+                                        var b = data.brand;
+                                        if (Array.isArray(b) && b.length) color = brandColors[b[0].toLowerCase()];
+                                        else if (typeof b === 'string' && b.length) color = brandColors[b.toLowerCase()];
+                                    }
+                                    if (color) {
+                                        $(row).css('background-color', hexToRgba(color, 0.06));
+                                        $(row).find('td').first().css('border-left', '4px solid ' + color);
+                                        // apply brand color to the Judul text for visual association
+                                        try { $(row).find('td.judul-col .judul-clickable').css('color', color); } catch(e) {}
+                                    } else {
+                                        $(row).css('background-color', '');
+                                        $(row).find('td').first().css('border-left', 'none');
+                                        try { $(row).find('td.judul-col .judul-clickable').css('color', ''); } catch(e) {}
+                                    }
+                                    // attach data attributes for drag/drop handling
+                                    try { $(row).attr('data-row-id', data.id); $(row).data('rowData', data); } catch(e) {}
+                                } catch(e) { console.error(e); }
+                            },
+                            drawCallback: function(settings){
+                                // Brief button injection removed — brief now lives in the Edit modal's Brief tab
+                            }
+                        });
+                            contentPlanTables.push(dt);
+                        // Update card header with (published/total) stats for the day
+                        try {
+                            var $tableEl = $('#'+containerId);
+                            var $card = $tableEl.closest('.card');
+                            var displayDate = d.format('dddd, D MMMM YYYY');
+                            var totalCount = Array.isArray(dataRows) ? dataRows.length : 0;
+                            var publishedCount = 0;
+                            try { publishedCount = dataRows.filter(function(r){ return (r.status||'').toLowerCase() === 'published'; }).length; } catch(e) {}
+                            var statCls = 'default';
+                            if (totalCount > 0) {
+                                if (publishedCount === totalCount) statCls = 'green';
+                                else if (publishedCount === 0) statCls = 'red';
+                                else statCls = 'yellow';
+                            }
+                            var statHtml = '<span class="day-stats ' + statCls + '">(' + publishedCount + '/' + totalCount + ')</span>';
+                            $card.find('.card-header strong').html(displayDate + ' ' + statHtml);
+                        } catch(e) { console.error('update header stats', e); }
+                    })(tableId, rows);
+                }catch(e){console.error('init day table', e);}
+            }
+
+            // enable drag & drop between day tables (requires jQuery UI)
+            try {
+                function enableRowDragDrop(){
+                    if (!$.fn.sortable) return;
+                    $('.contentPlanTable tbody').sortable({
+                        connectWith: '.contentPlanTable tbody',
+                        helper: function(e, ui){
+                            ui.children().each(function(){ $(this).width($(this).width()); });
+                            return ui;
+                        },
+                        start: function(e, ui){ ui.item.addClass('dragging'); },
+                        stop: function(e, ui){ ui.item.removeClass('dragging'); },
+                        receive: function(event, ui){
+                            try {
+                                var $moved = ui.item;
+                                var rowData = $moved.data('rowData');
+                                if (!rowData || !rowData.id) return;
+                                var id = rowData.id;
+                                var $targetTable = $(this).closest('table');
+                                var targetDate = $targetTable.data('date'); // YYYY-MM-DD
+                                if (!targetDate) { reloadAllTables(false); return; }
+                                var $sourceTable = $(ui.sender).closest('table');
+                                var sourceDt = $sourceTable.DataTable();
+                                var targetDt = $targetTable.DataTable();
+                                try { sourceDt.rows($moved).remove(); } catch(e) {}
+
+                                // Fetch full plan from server so we can supply required fields for update
+                                $.get('/marketing/content-plan/' + id).done(function(plan){
+                                    try {
+                                        // preserve the time from existing tanggal_publish if present, otherwise default to 09:00:00
+                                        var timePart = '09:00:00';
+                                        if (plan.tanggal_publish) {
+                                            try { timePart = moment(plan.tanggal_publish).format('HH:mm:ss'); } catch(e) {}
+                                        }
+                                        var newTanggal = targetDate + ' ' + timePart; // 'YYYY-MM-DD HH:mm:ss'
+
+                                        // Prepare payload using required fields the controller validates
+                                        var payload = {
+                                            judul: plan.judul || '',
+                                            // brand may be array or string; prefer sending array when possible
+                                            brand: plan.brand && Array.isArray(plan.brand) ? plan.brand : (plan.brand ? [plan.brand] : null),
+                                            deskripsi: plan.deskripsi || null,
+                                            caption: plan.caption || null,
+                                            mention: plan.mention || null,
+                                            tanggal_publish: newTanggal,
+                                            platform: plan.platform && Array.isArray(plan.platform) ? plan.platform : (plan.platform ? (typeof plan.platform === 'string' && plan.platform.indexOf(',') !== -1 ? plan.platform.split(',').map(function(s){ return s.trim(); }) : [plan.platform]) : []),
+                                            status: plan.status || 'Draft',
+                                            konten_pilar: plan.konten_pilar || null,
+                                            jenis_konten: plan.jenis_konten && Array.isArray(plan.jenis_konten) ? plan.jenis_konten : (plan.jenis_konten ? [plan.jenis_konten] : []),
+                                            target_audience: plan.target_audience || null,
+                                            link_asset: plan.link_asset || null,
+                                            link_publikasi: plan.link_publikasi || null,
+                                            catatan: plan.catatan || null,
+                                            assigned_to: plan.assigned_to || null,
+                                            _method: 'PUT'
+                                        };
+
+                                        // Remove null values to avoid sending unwanted nulls
+                                        Object.keys(payload).forEach(function(k){ if (payload[k] === null) delete payload[k]; });
+
+                                        $.ajax({ url: '/marketing/content-plan/' + id, method: 'POST', data: payload })
+                                            .done(function(res){
+                                                try { rowData.tanggal_publish = newTanggal; $moved.data('rowData', rowData); } catch(e){}
+                                                try { targetDt.row.add(rowData).draw(false); } catch(e) { console.error(e); }
+                                                try { reloadAllTables(false); } catch(e) {}
+                                            }).fail(function(xhr){
+                                                // Show server-side validation messages when available
+                                                try {
+                                                    var msg = 'Gagal memindahkan content plan.';
+                                                    if (xhr && xhr.responseJSON) {
+                                                        if (xhr.responseJSON.errors) {
+                                                            msg = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v) ? v.join('<br>') : v; }).join('<br>');
+                                                        } else if (xhr.responseJSON.message) {
+                                                            msg = xhr.responseJSON.message;
+                                                        }
+                                                    }
+                                                    reloadAllTables(false);
+                                                    Swal.fire('Error', msg, 'error');
+                                                } catch(e) { console.error('drag fail handler', e); reloadAllTables(false); Swal.fire('Error','Gagal memindahkan content plan.','error'); }
+                                            });
+                                    } catch(err) {
+                                        console.error('prepare update after fetch', err);
+                                        reloadAllTables(false);
+                                        Swal.fire('Error','Gagal memindahkan content plan.','error');
+                                    }
+                                }).fail(function(xhr){
+                                    // cannot fetch plan -> revert UI
+                                    console.error('fetch plan for move failed', xhr);
+                                    reloadAllTables(false);
+                                    var msg = 'Gagal memindahkan content plan.';
+                                    try { if (xhr && xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message; } catch(e) {}
+                                    Swal.fire('Error', msg, 'error');
+                                });
+                            } catch(err) { console.error('receive drag', err); reloadAllTables(false); }
+                        }
+                    }).disableSelection();
+                }
+                enableRowDragDrop();
+            } catch(e) { console.error('enable drag/drop', e); }
+        }).fail(function(){
+            // on fail, leave empty tables
+            console.error('Failed to fetch week data');
+        });
+    }
+
+    function getWeekParams() {
+        var params = {
+            date_start: _defaultStart.format('DD/MM/YYYY'),
+            date_end: _defaultEnd.format('DD/MM/YYYY')
+        };
+        var brands = $('#filterBrand').val(); if (brands && brands.length) params.filter_brand = brands;
+        var platforms = $('#filterPlatform').val(); if (platforms && platforms.length) params.filter_platform = platforms;
+        var status = $('#filterStatus').val(); if (status) params.filter_status = status;
+        var kontenPilar = $('#filterKontenPilar').val(); if (kontenPilar) params.filter_konten_pilar = kontenPilar;
+        return params;
+    }
+
+    function updateStatusStats(resp) {
+        try {
+            var items = [];
+            if (resp && resp.data) {
+                var grouped = resp.data;
+                Object.keys(grouped).forEach(function(k){ if (Array.isArray(grouped[k])) items = items.concat(grouped[k]); });
+            } else if (Array.isArray(resp)) { items = resp; }
+
+            // Count 'terlewat' (overdue): status is Scheduled or Draft and tanggal_publish < now
+            var now = moment();
+            var terlewat = 0;
+            items.forEach(function(it){
+                try {
+                    var s = (it.status||'').toString().toLowerCase();
+                    if ((s === 'scheduled' || s === 'draft') && it.tanggal_publish) {
+                        if (moment(it.tanggal_publish).isBefore(now)) terlewat++;
+                    }
+                } catch(e) {}
+            });
+            $('#stat_terlewat').text(terlewat);
+        } catch(e) { console.error('updateStatusStats', e); }
+    }
+
+    // Open status list modal by fetching data from the controller endpoint
+    function openStatusList(statusDisplay) {
+        try {
+            var params = getWeekParams();
+            if (statusDisplay && statusDisplay.toString().toLowerCase() !== 'all') params.status = statusDisplay;
+            var url = "{{ route('marketing.content-plan.status_list') }}";
+            $.getJSON(url, params).done(function(resp){
+                var rows = (resp && resp.data) ? resp.data : [];
+                var $tb = $('#statusListTable tbody'); $tb.empty();
+                if (!rows.length) {
+                    $tb.append('<tr><td colspan="3" class="text-muted small">No items</td></tr>');
+                } else {
+                    rows.forEach(function(it){
+                        var $tr = $('<tr>').attr('data-id', it.id);
+                        // Put Day and Time together: day on top, time in muted small text below
+                        var dayHtml = it.day + '<div class="text-muted small mt-1">' + (it.time || '') + '</div>';
+                        // Build badges for status and brand to show under Judul
+                        var status = it.status || '';
+                        var statusBadge = '';
+                        if (status) {
+                            var sKey = status.toString().toLowerCase();
+                            var sClass = 'badge-secondary';
+                            if (sKey === 'published') sClass = 'badge-success';
+                            else if (sKey === 'scheduled') sClass = 'badge-warning';
+                            else if (sKey === 'draft') sClass = 'badge-secondary';
+                            else if (sKey === 'cancelled') sClass = 'badge-danger';
+                            statusBadge = '<span class="badge ' + sClass + '" style="margin-right:6px">' + status + '</span>';
+                        }
+                        var brand = it.brand || '';
+                        var brandBadge = '';
+                        if (brand) {
+                            // choose a color for known brands, default primary
+                            var bLower = brand.toString().toLowerCase();
+                            var bStyle = '';
+                            if (bLower.indexOf('belova skin') !== -1) bStyle = 'background:#6f42c1;color:#fff;';
+                            else if (bLower.indexOf('premiere') !== -1) bStyle = 'background:#0d6efd;color:#fff;';
+                            else if (bLower.indexOf('bcl') !== -1) bStyle = 'background:#e83e8c;color:#fff;';
+                            else if (bLower.indexOf('dr fika') !== -1) bStyle = 'background:#fd7e14;color:#fff;';
+                            else bStyle = '';
+                            brandBadge = '<span class="badge badge-light" style="' + bStyle + ';margin-right:6px">' + brand + '</span>';
+                        }
+
+                        var judulHtml = $('<div>').text(it.judul).html();
+                        var badgeRow = '<div class="mt-1">' + statusBadge + brandBadge + '</div>';
+                        $tr.append($('<td>').html(dayHtml));
+                        $tr.append($('<td>').html(judulHtml + badgeRow));
+                        $tr.append($('<td>').text(it.assigned));
+                        $tb.append($tr);
+                    });
+                }
+                $('#statusListModal').modal('show');
+            }).fail(function(err){ console.error('statusList fetch error', err); });
+        } catch(e) { console.error('openStatusList', e); }
+    }
+
+    // wire stat-card clicks to open the matching list (delegated)
+    $(document).on('click', '.stat-card', function(e){
+        try {
+            var $card = $(this);
+            if ($card.hasClass('stat-terlewat')) openStatusList('terlewat');
+            else openStatusList('all');
+        } catch(e) { console.error('stat-card click', e); }
     });
 
-    // Add Content Plan
-    $('#btnAddContentPlan').on('click', function() {
+    // header stat click (compact card)
+    $(document).on('click', '.header-stat-terlewat', function(e){
+        try { openStatusList('terlewat'); } catch(e){ console.error(e); }
+    });
+
+    function reloadAllTables(resetPaging){
+        // Try to update existing DataTable instances in-place to avoid rebuilding DOM
+        try {
+            var params = getWeekParams();
+            $.get('{{ route('marketing.content-plan.week') }}', params).done(function(resp){
+                window._latestWeekResp = resp;
+                var grouped = resp && resp.data ? resp.data : {};
+                try { updateStatusStats(resp); } catch(e) {}
+                // If we have the expected number of table instances (7), update them in-place
+                if (Array.isArray(contentPlanTables) && contentPlanTables.length === 7) {
+                    var weekStart = _defaultStart.clone();
+                    contentPlanTables.forEach(function(dt, i){
+                        try {
+                            var d = weekStart.clone().add(i, 'days');
+                            var key = d.format('YYYY-MM-DD');
+                            var rows = grouped[key] || [];
+                            // Replace data without destroying table to keep layout stable
+                            dt.clear();
+                            dt.rows.add(rows);
+                            // Update header stats for this table
+                            try {
+                                var tableNode = dt.table().node();
+                                var $tableEl = $(tableNode);
+                                var $card = $tableEl.closest('.card');
+                                var displayDate = d.format('dddd, D MMMM YYYY');
+                                var totalCount = Array.isArray(rows) ? rows.length : 0;
+                                var publishedCount = 0;
+                                try { publishedCount = rows.filter(function(r){ return (r.status||'').toLowerCase() === 'published'; }).length; } catch(e) {}
+                                var statCls = 'default';
+                                if (totalCount > 0) {
+                                    if (publishedCount === totalCount) statCls = 'green';
+                                    else if (publishedCount === 0) statCls = 'red';
+                                    else statCls = 'yellow';
+                                }
+                                var statHtml = '<span class="day-stats ' + statCls + '">(' + publishedCount + '/' + totalCount + ')</span>';
+                                $card.find('.card-header strong').html(displayDate + ' ' + statHtml);
+                            } catch(e) { console.error('update header stats (refresh)', e); }
+                            // preserve paging if requested
+                            if (resetPaging) dt.page('first');
+                            dt.draw(false);
+                        } catch(e) { console.error('refresh dt', e); }
+                    });
+                } else {
+                    // Fallback: rebuild completely
+                    try { if (Array.isArray(contentPlanTables) && contentPlanTables.length) { contentPlanTables.forEach(function(t){ try{ t.destroy(); }catch(e){} }); contentPlanTables = []; } } catch(e) { console.error(e); }
+                    buildWeekTables();
+                }
+            }).fail(function(){
+                console.error('Failed to fetch week data');
+            });
+        } catch(e) { console.error('reloadAllTables error', e); }
+    }
+
+    // build week tables initially
+    buildWeekTables();
+
+    // --- Month & Week picker logic ---
+    function populateMonthPicker() {
+        var $m = $('#monthPicker'); $m.empty();
+        var now = moment();
+        for (var i=0;i<12;i++){
+            var d = now.clone().add(i, 'months');
+            var val = d.format('YYYY-MM');
+            var txt = d.format('MMMM YYYY');
+            $m.append($('<option>').attr('value', val).text(txt));
+        }
+    }
+
+    function getWeekNumberForDateInMonth(d) {
+        var day = d.date();
+        if (day <= 7) return 1;
+        if (day <= 14) return 2;
+        if (day <= 21) return 3;
+        return 4;
+    }
+
+    function applyMonthWeekRange(monthVal, weekNum) {
+        try {
+            var parts = monthVal.split('-');
+            var y = parseInt(parts[0],10); var m = parseInt(parts[1],10);
+            var startDay = 1;
+            if (weekNum === 1) startDay = 1;
+            else if (weekNum === 2) startDay = 8;
+            else if (weekNum === 3) startDay = 15;
+            else startDay = 22;
+            var start = moment([y, m-1, startDay]);
+            var end = null;
+            if (weekNum < 4) end = start.clone().add(6, 'days');
+            else end = moment([y, m-1]).endOf('month');
+            var monthEnd = moment([y,m-1]).endOf('month');
+            if (end.isAfter(monthEnd)) end = monthEnd.clone();
+            _defaultStart = start.clone();
+            _defaultEnd = end.clone();
+            try {
+                var dr = $('#filterDateRange').data('daterangepicker');
+                if (dr) {
+                    dr.setStartDate(_defaultStart);
+                    dr.setEndDate(_defaultEnd);
+                    $('#filterDateRange').val(_defaultStart.format('DD/MM/YYYY') + ' - ' + _defaultEnd.format('DD/MM/YYYY'));
+                }
+            } catch(e){}
+            if (typeof contentPlanTables !== 'undefined' && contentPlanTables.length===7) {
+                reloadAllTables(true);
+            } else {
+                buildWeekTables();
+                reloadAllTables();
+            }
+        } catch(e) { console.error('applyMonthWeekRange', e); }
+    }
+
+    try {
+        populateMonthPicker();
+        var today = moment();
+        $('#monthPicker').val(today.format('YYYY-MM'));
+        $('#weekPicker').val(getWeekNumberForDateInMonth(today));
+    } catch(e) { console.error(e); }
+
+    $('#monthPicker, #weekPicker').on('change', function(){
+        var mv = $('#monthPicker').val(); var w = parseInt($('#weekPicker').val(),10);
+        applyMonthWeekRange(mv, w);
+    });
+
+    $('#btnPrevWeek, #btnNextWeek').on('click', function(){
+        setTimeout(function(){
+            try {
+                var cur = _defaultStart.clone();
+                $('#monthPicker').val(cur.format('YYYY-MM'));
+                $('#weekPicker').val(getWeekNumberForDateInMonth(cur));
+            } catch(e){}
+        }, 50);
+    });
+
+    // Auto-refresh: reload all tables every 10 seconds (pauses when tab is hidden)
+    var autoRefreshInterval = 10000; // milliseconds
+    var autoRefreshTimer = null;
+    function startAutoRefresh() {
+        try {
+            if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+            autoRefreshTimer = setInterval(function(){
+                try {
+                    if (document.hidden) return; // don't refresh when tab not visible
+                    reloadAllTables(false);
+                } catch(e) { console.error('auto-refresh tick', e); }
+            }, autoRefreshInterval);
+        } catch(e) { console.error('startAutoRefresh', e); }
+    }
+    function stopAutoRefresh() {
+        try { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } } catch(e) { }
+    }
+    // start auto-refresh by default
+    startAutoRefresh();
+    // stop/start auto-refresh when page visibility changes and when navigating away
+    // Avoid using the 'unload' event directly because some browsers block it via Permissions Policy.
+    document.addEventListener('visibilitychange', function(){
+        if (document.hidden) stopAutoRefresh(); else startAutoRefresh();
+    });
+    window.addEventListener('pagehide', stopAutoRefresh);
+    window.addEventListener('beforeunload', stopAutoRefresh);
+    // Prev / Next week navigation
+    $(document).on('click', '#btnPrevWeek', function() {
+        try {
+            _defaultStart = _defaultStart.clone().subtract(7, 'days');
+            _defaultEnd = _defaultStart.clone().endOf('isoWeek');
+            var drp = $('#filterDateRange').data('daterangepicker');
+            if (drp) {
+                drp.setStartDate(_defaultStart);
+                drp.setEndDate(_defaultEnd);
+            }
+            $('#filterDateRange').val(_defaultStart.format('DD/MM/YYYY') + ' - ' + _defaultEnd.format('DD/MM/YYYY'));
+            if (typeof contentPlanTables !== 'undefined' && contentPlanTables.length) {
+                contentPlanTables.forEach(function(t){ try{ t.destroy(); }catch(e){} });
+                contentPlanTables = [];
+            }
+            buildWeekTables();
+        } catch(e) { console.error('PrevWeek error', e); }
+    });
+
+    $(document).on('click', '#btnNextWeek', function() {
+        try {
+            _defaultStart = _defaultStart.clone().add(7, 'days');
+            _defaultEnd = _defaultStart.clone().endOf('isoWeek');
+            var drp = $('#filterDateRange').data('daterangepicker');
+            if (drp) {
+                drp.setStartDate(_defaultStart);
+                drp.setEndDate(_defaultEnd);
+            }
+            $('#filterDateRange').val(_defaultStart.format('DD/MM/YYYY') + ' - ' + _defaultEnd.format('DD/MM/YYYY'));
+            if (typeof contentPlanTables !== 'undefined' && contentPlanTables.length) {
+                contentPlanTables.forEach(function(t){ try{ t.destroy(); }catch(e){} });
+                contentPlanTables = [];
+            }
+            buildWeekTables();
+        } catch(e) { console.error('NextWeek error', e); }
+    });
+
+    // Global Add button handler removed — use per-day Add buttons instead
+
+    // Add Content Plan from a specific day card header
+    $(document).on('click', '.btn-add-card', function() {
+        var date = $(this).data('date'); // expected YYYY-MM-DD
         $('#contentPlanForm')[0].reset();
         $('#contentPlanModalLabel').text('Tambah Content Plan');
+        try { $('#tab-edit-tab').trigger('click'); } catch(e){}
         $('#contentPlanModal').modal('show');
         $('#contentPlanForm').attr('data-action', 'store');
         $('#contentPlanForm').attr('data-id', '');
-        $('.select2').val(null).trigger('change');
+        // only reset select2 inputs inside the modal to avoid triggering global filters
+        $('#contentPlanModal .select2').val(null).trigger('change');
         $('#brand').val(null).trigger('change');
         $('#assigned_to').val(null).trigger('change');
         $('#konten_pilar').val(null).trigger('change');
@@ -421,11 +958,18 @@ $(function() {
         $('#link_publikasi_wrapper').find('.link-input-row').remove();
         // default status to Scheduled when creating a new content plan
         try { $('#status').val('Scheduled').trigger('change'); } catch(e) {}
+        // set tanggal_publish to the clicked date (default time 09:00)
+        try {
+            if (date) {
+                $('#tanggal_publish_date').val(date);
+                $('#tanggal_publish_time').val('09:00');
+            }
+        } catch(e) { console.error('set date on add-card', e); }
     });
 
     // Store/Update Content Plan
-    $('#contentPlanForm').on('submit', function(e) {
-        var $btn = $('#contentPlanModal .btn-primary');
+        $('#contentPlanForm').on('submit', function(e) {
+        var $btn = $('#contentPlanModal .btn-save-plan');
         $btn.prop('disabled', true);
         var originalText = $btn.html();
         $btn.html('<span class="spinner-border spinner-border-sm mr-1"></span> Menyimpan...');
@@ -435,7 +979,17 @@ $(function() {
         let url = action === 'store' ? '{{ route('marketing.content-plan.store') }}' : `/marketing/content-plan/${id}`;
         let method = action === 'store' ? 'POST' : 'POST'; // Always POST, use _method for PUT
         let form = this;
-        let formData = new FormData(form);
+            let formData = new FormData(form);
+            // combine split date/time inputs into single tanggal_publish value
+            try {
+                var d = $('#tanggal_publish_date').val();
+                var t = $('#tanggal_publish_time').val() || '09:00';
+                if (d) {
+                    var timePart = (t && t.length === 5) ? t + ':00' : (t || '09:00:00');
+                    var combined = d + ' ' + timePart; // YYYY-MM-DD HH:mm:ss
+                    formData.set('tanggal_publish', combined);
+                }
+            } catch(e) { console.error('combine tanggal_publish', e); }
         if (action === 'update') {
             formData.append('_method', 'PUT');
         }
@@ -446,11 +1000,60 @@ $(function() {
             processData: false,
             contentType: false,
             success: function(res) {
-                $('#contentPlanModal').modal('hide');
-                table.ajax.reload();
-                Swal.fire('Sukses', 'Data berhasil disimpan!', 'success');
-                $btn.prop('disabled', false);
-                $btn.html(originalText);
+                // get saved plan id (response may include created object)
+                var planId = null;
+                try { planId = (res && res.data && res.data.id) ? res.data.id : (res && res.id ? res.id : null); } catch(e) { planId = null; }
+                if (!planId && res && res.success && res.data && res.data.id) planId = res.data.id;
+                if (!planId && !planId) {
+                    // fallback to existing form id (update case)
+                    try { planId = $('#contentPlanForm').attr('data-id') || null; } catch(e) {}
+                }
+
+                // ensure brief knows the content_plan_id
+                try { if (planId) $('#cb_content_plan_id').val(planId); } catch(e) {}
+
+                // Prepare promises: brief and report (if present)
+                var briefPromise = $.Deferred().resolve().promise();
+                try {
+                    if (hasBriefContent()) {
+                        // call submitBrief but don't auto-close modal yet
+                        briefPromise = submitBrief(null, { closeOnComplete: false });
+                    }
+                } catch(e) { briefPromise = $.Deferred().resolve().promise(); }
+
+                var reportPromise = $.Deferred().resolve().promise();
+                try {
+                    // determine whether report has meaningful data (likes/comments non-zero or cr_id present)
+                    var crId = $('#cr_id').val();
+                    var planIdForReport = $('#cr_content_plan_id').val() || planId;
+                    var reportHasData = (crId || (parseInt($('#cr_likes').val()||0) || parseInt($('#cr_comments').val()||0) || parseInt($('#cr_saves').val()||0) || parseInt($('#cr_shares').val()||0) || parseInt($('#cr_reach').val()||0) || parseInt($('#cr_impressions').val()||0)) );
+                    if (reportHasData) {
+                        var fdReport = {
+                            content_plan_id: planIdForReport,
+                            likes: $('#cr_likes').val() || 0,
+                            comments: $('#cr_comments').val() || 0,
+                            saves: $('#cr_saves').val() || 0,
+                            shares: $('#cr_shares').val() || 0,
+                            reach: $('#cr_reach').val() || 0,
+                            impressions: $('#cr_impressions').val() || 0,
+                            recorded_at: $('#cr_recorded_at').val() ? $('#cr_recorded_at').val().replace('T',' ') : null
+                        };
+                        if (!crId) {
+                            reportPromise = $.post('{{ route('marketing.content-report.store') }}', fdReport);
+                        } else {
+                            reportPromise = $.ajax({ url: `/marketing/content-report/${crId}`, method: 'PUT', data: fdReport });
+                        }
+                    }
+                } catch(e) { reportPromise = $.Deferred().resolve().promise(); }
+
+                // When both complete, close modal, reload tables and show success
+                $.when(briefPromise, reportPromise).always(function(){
+                    try { $('#contentPlanModal').modal('hide'); } catch(e) {}
+                    reloadAllTables();
+                    Swal.fire('Sukses', 'Data berhasil disimpan!', 'success');
+                    $btn.prop('disabled', false);
+                    $btn.html(originalText);
+                });
             },
             error: function(xhr) {
                 let msg = 'Terjadi kesalahan.';
@@ -464,13 +1067,14 @@ $(function() {
         });
     });
 
-    // Edit Content Plan
-    $('#contentPlanTable').on('click', '.btn-edit', function() {
-        let id = $(this).data('id');
+    // Helper to open Edit modal by id
+    function openEditModal(id) {
+        if (!id) return;
         $.get(`/marketing/content-plan/${id}`, function(res) {
             let data = res;
             $('#contentPlanForm')[0].reset();
             $('#contentPlanModalLabel').text('Edit Content Plan');
+            try { $('#tab-edit-tab').trigger('click'); } catch(e){}
             $('#contentPlanModal').modal('show');
             $('#contentPlanForm').attr('data-action', 'update');
             $('#contentPlanForm').attr('data-id', id);
@@ -482,9 +1086,17 @@ $(function() {
             } else {
                 $('#brand').val(null).trigger('change');
             }
-            // Format tanggal_publish to 'YYYY-MM-DDTHH:MM' for datetime-local input
-            let tgl = data.tanggal_publish ? data.tanggal_publish.replace(' ', 'T').slice(0,16) : '';
-            $('#tanggal_publish').val(tgl);
+            // Format tanggal_publish to separate date and time inputs
+                try {
+                    if (data.tanggal_publish) {
+                        var m = moment(data.tanggal_publish);
+                        $('#tanggal_publish_date').val(m.format('YYYY-MM-DD'));
+                        $('#tanggal_publish_time').val(m.format('HH:mm'));
+                    } else {
+                        $('#tanggal_publish_date').val('');
+                        $('#tanggal_publish_time').val('09:00');
+                    }
+                } catch(e) { console.error('set edit tanggal_publish', e); $('#tanggal_publish_date').val(''); $('#tanggal_publish_time').val('09:00'); }
             $('#platform').val(data.platform).trigger('change');
             $('#status').val(data.status);
             $('#jenis_konten').val(data.jenis_konten).trigger('change');
@@ -499,16 +1111,133 @@ $(function() {
                 $('#caption').val(data.caption || '');
                 $('#mention').val(data.mention || '');
             } catch(e) {}
-            // populate caption and mention if present
-            try {
-                $('#caption').val(data.caption || '');
-                $('#mention').val(data.mention || '');
-            } catch(e) {}
+            // set hidden brief keys so submitBrief has content_plan_id and brief id if exists
+            try { $('#cb_content_plan_id').val(data.id || ''); } catch(e) {}
+            try { $('#cb_id').val((data.brief && data.brief.id) ? data.brief.id : (data.brief_id || '')); } catch(e) {}
+            // Update brief tab indicator in case brief fields are present on this record
+            try { updateBriefTabIndicator(); } catch(e) {}
+                // Prepare brief fields if present in response for later summernote init
+                try {
+                    // Common response keys that may contain brief content
+                    var briefHtml = data.isi_konten || data.cb_isi_konten || data.brief || data.brief_content || null;
+                    if (briefHtml) {
+                        // store temporarily; will be applied after summernote initializes
+                        window._cbLoadedIsi = briefHtml;
+                    } else {
+                        window._cbLoadedIsi = null;
+                    }
+                    // populate headline/subheadline if available
+                    try { if (data.headline) $('#cb_headline').val(data.headline); } catch(e) {}
+                    try { if (data.sub_headline) $('#cb_sub_headline').val(data.sub_headline); } catch(e) {}
+                } catch(e) { console.error('prepare brief fields', e); }
         });
+    }
+
+    // Keep legacy button wiring but delegate to helper (button hidden in UI)
+    $(document).on('click', '.btn-edit', function() {
+        var id = $(this).data('id');
+        openEditModal(id);
     });
 
+    // Open edit modal when clicking the Judul cell
+    $(document).on('click', '.contentPlanTable tbody', function(e){
+        // delegated handler mounted on tbody; ignore if clicked element is a button/link inside the cell
+    });
+    $(document).on('click', '.contentPlanTable tbody td.judul-col', function(e){
+        // prevent handling clicks on badges, links or buttons inside the cell
+        if ($(e.target).is('a') || $(e.target).closest('button').length || $(e.target).is('button') || $(e.target).closest('.badge').length) return;
+        var $td = $(this);
+        var $tr = $td.closest('tr');
+        // try to get id from DataTable row data
+        try {
+            var $table = $td.closest('table');
+            if ($.fn.dataTable.isDataTable($table)) {
+                var dt = $table.DataTable();
+                var rowData = dt.row($tr).data() || {};
+                var id = rowData.id || $tr.find('[data-id]').data('id');
+                if (id) {
+                    openEditModal(id);
+                }
+            }
+        } catch(e) { console.error('open edit from judul', e); }
+    });
+
+    // allow keyboard activation on the judul clickable (Enter or Space)
+    $(document).on('keydown', '.contentPlanTable tbody td.judul-col .judul-clickable', function(e){
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            var $clickable = $(this);
+            var $tr = $clickable.closest('tr');
+            try {
+                var $table = $clickable.closest('table');
+                if ($.fn.dataTable.isDataTable($table)) {
+                    var dt = $table.DataTable();
+                    var rowData = dt.row($tr).data() || {};
+                    var id = rowData.id || $tr.find('[data-id]').data('id');
+                    if (id) openEditModal(id);
+                }
+            } catch(err) { console.error('keyboard open edit', err); }
+        }
+    });
+
+    // Tab activation: show/hide footer buttons depending on active tab
+    function updateModalFooterButtons() {
+        var action = $('#contentPlanForm').attr('data-action') || '';
+        var briefTabActive = ($('#tab-brief').hasClass('show') || $('#tab-brief').hasClass('active'));
+        if (briefTabActive) {
+            $('.btn-save-plan').hide();
+            // only show Save Brief when editing an existing content plan
+            if (action && action.toLowerCase() !== 'store') {
+                $('.btn-save-brief').show();
+                $('.btn-save-brief').prop('disabled', false);
+            } else {
+                $('.btn-save-brief').hide();
+                $('.btn-save-brief').prop('disabled', true);
+            }
+        } else {
+            $('.btn-save-plan').show();
+            $('.btn-save-brief').hide();
+            $('.btn-save-brief').prop('disabled', true);
+        }
+    }
+    // update when tabs are clicked (Bootstrap 4/5 compat)
+    $('#tab-edit-tab').on('click shown.bs.tab shown.bs.dropdown', updateModalFooterButtons);
+    $('#tab-brief-tab').on('click shown.bs.tab shown.bs.dropdown', updateModalFooterButtons);
+    // ensure correct state when modal opens
+    $('#contentPlanModal').on('shown.bs.modal', function(){ updateModalFooterButtons(); updateBriefTabIndicator(); });
+
+    // Brief tab indicator: show a green check when brief content exists
+    function hasBriefContent() {
+        try {
+            var h = $('#cb_headline').val() || '';
+            var sh = $('#cb_sub_headline').val() || '';
+            var isi = '';
+            var $isiEl = $('#cb_isi_konten');
+            if ($.fn && $.fn.summernote && $isiEl && $isiEl.data('summernote')) {
+                try { isi = $isiEl.summernote('code') || ''; } catch(e) { isi = $isiEl.val() || ''; }
+            } else {
+                isi = $isiEl.val() || '';
+            }
+            var files = 0;
+            var fi = $('#cb_visual_references')[0];
+            if (fi && fi.files) files = fi.files.length;
+            return $.trim(h) !== '' || $.trim(sh) !== '' || $.trim(isi) !== '' || files > 0;
+        } catch(e) { return false; }
+    }
+
+    function updateBriefTabIndicator() {
+        try {
+            if (hasBriefContent()) { $('#tab-brief-tab .brief-check').show(); $('#tab-brief-tab').addClass('text-success'); }
+            else { $('#tab-brief-tab .brief-check').hide(); $('#tab-brief-tab').removeClass('text-success'); }
+        } catch(e) { }
+    }
+
+    // update indicator when brief fields change
+    $(document).on('input', '#cb_headline, #cb_sub_headline, #cb_isi_konten', function(){ updateBriefTabIndicator(); });
+    $(document).on('change', '#cb_visual_references', function(){ updateBriefTabIndicator(); });
+
     // Delete Content Plan
-    $('#contentPlanTable').on('click', '.btn-delete', function() {
+    $(document).on('click', '.btn-delete', function() {
         let id = $(this).data('id');
         Swal.fire({
             title: 'Yakin hapus?',
@@ -521,7 +1250,7 @@ $(function() {
                     url: `/marketing/content-plan/${id}`,
                     method: 'DELETE',
                     success: function() {
-                        table.ajax.reload();
+                        reloadAllTables();
                         Swal.fire('Terhapus!', 'Data berhasil dihapus.', 'success');
                     },
                     error: function() {
@@ -532,42 +1261,86 @@ $(function() {
         });
     });
 
-    // Initialize modal select2s once for smoother rendering
-    $('#brand').select2({
-        dropdownParent: $('#contentPlanModal'),
-        width: '100%',
-        multiple: true,
-        placeholder: 'Pilih Brand'
+    // Publish Content Plan (set status to 'Published') via existing inline-update endpoint
+    $(document).on('click', '.btn-publish', function() {
+        var id = $(this).data('id');
+        if (!id) return;
+        var $btn = $(this);
+        Swal.fire({
+            title: 'Publish content?',
+            text: 'This will set the status to Published.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, publish'
+        }).then(function(result){
+            if (!result.isConfirmed) return;
+            $btn.prop('disabled', true);
+            $.post(`/marketing/content-plan/${id}/inline-update`, { status: 'Published' })
+                .done(function() {
+                    reloadAllTables(false);
+                    Swal.fire('Terpublikasi!', 'Status diubah menjadi Published.', 'success');
+                })
+                .fail(function(xhr) {
+                    var msg = 'Gagal mengubah status.';
+                    if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                    Swal.fire('Error', msg, 'error');
+                })
+                .always(function(){
+                    $btn.prop('disabled', false);
+                });
+        });
     });
-    $('#platform').select2({
-        dropdownParent: $('#contentPlanModal'),
-        width: '100%',
-        multiple: true,
-        placeholder: 'Pilih Platform'
-    });
-    $('#jenis_konten').select2({
-        dropdownParent: $('#contentPlanModal'),
-        width: '100%',
-        multiple: true,
-        placeholder: 'Pilih Jenis Konten'
-    });
-    $('#status').select2({
-        dropdownParent: $('#contentPlanModal'),
-        width: '100%'
-    });
-    $('#konten_pilar').select2({
-        dropdownParent: $('#contentPlanModal'),
-        width: '100%',
-        placeholder: 'Pilih Konten Pilar',
-        allowClear: true
-    });
-    // Assigned to select2
-    $('#assigned_to').select2({
-        dropdownParent: $('#contentPlanModal'),
-        width: '100%',
-        placeholder: 'Assign to',
-        allowClear: true
-    });
+        // Clickable status badge: open small modal to change status
+        $(document).on('click', '.status-badge', function(e){
+            e.stopPropagation();
+            var id = $(this).data('id');
+            var current = $(this).text().trim();
+            $('#statusModal input[name="plan_id"]').val(id);
+            try { $('#status_select').val(current); } catch(e) {}
+            // ensure modal is attached to body to avoid z-index/overflow issues
+            try { $('#statusModal').appendTo('body'); } catch(e) {}
+            $('#statusModal').modal('show');
+        });
+
+        // Submit status change
+        $('#statusForm').on('submit', function(e){
+            e.preventDefault();
+            var $btn = $('#statusForm button[type="submit"]');
+            var id = $('#statusModal input[name="plan_id"]').val();
+            var status = $('#status_select').val();
+            $btn.prop('disabled', true).text('Menyimpan...');
+            $.ajax({
+                url: '/marketing/content-plan/' + id + '/inline-update',
+                method: 'POST',
+                data: { status: status },
+            }).done(function(res){
+                $('#statusModal').modal('hide');
+                reloadAllTables(false);
+                Swal.fire('Sukses', 'Status berhasil diperbarui.', 'success');
+            }).fail(function(xhr){
+                var msg = 'Gagal memperbarui status.';
+                try {
+                    if (xhr && xhr.responseJSON) {
+                        if (xhr.responseJSON.errors) {
+                            msg = Object.values(xhr.responseJSON.errors).map(function(v){ return Array.isArray(v) ? v.join('<br>') : v; }).join('<br>');
+                        } else if (xhr.responseJSON.message) {
+                            msg = xhr.responseJSON.message;
+                        }
+                    }
+                } catch(e){}
+                Swal.fire('Error', msg, 'error');
+                reloadAllTables(false);
+            }).always(function(){ $btn.prop('disabled', false).text('Simpan'); });
+        });
+
+    // Initialize modal select2s once for smoother rendering (guarded)
+    try { if ($.fn && $.fn.select2) { $('#brand').select2({ dropdownParent: $('#contentPlanModal'), width: '100%', multiple: true, placeholder: 'Pilih Brand' }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#platform').select2({ dropdownParent: $('#contentPlanModal'), width: '100%', multiple: true, placeholder: 'Pilih Platform' }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#jenis_konten').select2({ dropdownParent: $('#contentPlanModal'), width: '100%', multiple: true, placeholder: 'Pilih Jenis Konten' }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#status').select2({ dropdownParent: $('#contentPlanModal'), width: '100%' }); } } catch(e) {}
+    try { if ($.fn && $.fn.select2) { $('#konten_pilar').select2({ dropdownParent: $('#contentPlanModal'), width: '100%', placeholder: 'Pilih Konten Pilar', allowClear: true }); } } catch(e) {}
+    // Assigned to select2 (guarded)
+    try { if ($.fn && $.fn.select2) { $('#assigned_to').select2({ dropdownParent: $('#contentPlanModal'), width: '100%', placeholder: 'Assign to', allowClear: true }); } } catch(e) {}
 
     // Render link_publikasi inputs for selected platforms inside the modal
     function renderLinkInputs(platforms, existingLinks) {
@@ -622,7 +1395,7 @@ $(function() {
     });
 
     // Handle inline status change
-    $('#contentPlanTable').on('change', '.inline-status', function() {
+    $(document).on('change', '.inline-status', function() {
         var $select = $(this);
         var id = $select.data('id');
         var value = $select.val();
@@ -653,99 +1426,20 @@ $(function() {
         $.post(`/marketing/content-plan/${id}/inline-update`, { status: value })
             .done(function(res) {
                 // Optionally show a small toast or just reload the row
-                table.ajax.reload(null, false);
+                reloadAllTables(false);
             })
             .fail(function(xhr) {
                 var msg = 'Gagal menyimpan perubahan.';
                 if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
                 Swal.fire('Error', msg, 'error');
-                table.ajax.reload(null, false);
+                reloadAllTables(false);
             })
             .always(function() {
                 $select.prop('disabled', false);
             });
     });
-
-    // Open Content Report modal from actions
-    $('#contentPlanTable').on('click', '.btn-statistics', function() {
-        var id = $(this).data('id');
-        // reset form
-        $('#contentPlanReportForm')[0].reset();
-        $('#cr_id').val('');
-        $('#cr_content_plan_id').val(id);
-        $('#cr_content_plan_title').text('Loading...');
-        // fetch content plan title via existing endpoint
-        $.get(`/marketing/content-plan/${id}`, function(plan) {
-            $('#cr_content_plan_title').text(plan.judul + ' (id:' + id + ')');
-        }).fail(function(){
-            $('#cr_content_plan_title').text('Content Plan #' + id);
-        });
-
-        // fetch all reports for the plan (history)
-        var cr_reports = [];
-        $.get(`/marketing/content-report/by-plan/${id}`, function(reports) {
-            cr_reports = Array.isArray(reports) ? reports : [];
-            var report = cr_reports.length ? cr_reports[0] : null;
-            // populate history table
-            renderHistory(cr_reports);
-
-            if (report) {
-                $('#cr_id').val(report.id);
-                $('#cr_likes').val(report.likes || 0);
-                $('#cr_comments').val(report.comments || 0);
-                $('#cr_saves').val(report.saves || 0);
-                $('#cr_shares').val(report.shares || 0);
-                $('#cr_reach').val(report.reach || 0);
-                $('#cr_impressions').val(report.impressions || 0);
-                // populate readonly ERI and ERR fields if available
-                $('#cr_eri').val(report.eri != null ? Number(report.eri).toFixed(2) : '0.00');
-                $('#cr_err').val(report.err != null ? Number(report.err).toFixed(2) : '0.00');
-                if (report.recorded_at) {
-                    // format to YYYY-MM-DDTHH:MM
-                    var dt = report.recorded_at.replace(' ', 'T').slice(0,16);
-                    $('#cr_recorded_at').val(dt);
-                } else {
-                    // default recorded_at to now (local datetime) when no report exists
-                    var now = new Date();
-                    var local = now.toISOString().slice(0,16);
-                    $('#cr_recorded_at').val(local);
-                }
-            } else {
-                // ensure fields have defaults
-                $('#cr_id').val('');
-                $('#cr_likes').val(0);
-                $('#cr_comments').val(0);
-                $('#cr_saves').val(0);
-                $('#cr_shares').val(0);
-                $('#cr_reach').val(0);
-                $('#cr_impressions').val(0);
-                computeAndShowERIERR();
-                // default recorded_at to now when no existing report
-                var now = new Date();
-                var local = now.toISOString().slice(0,16);
-                $('#cr_recorded_at').val(local);
-            }
-            $('#contentPlanReportModal').modal('show');
-        }).fail(function() {
-            // still show modal even if no report
-            cr_reports = [];
-            renderHistory(cr_reports);
-            // initialize fields with zero to allow live calculation
-            $('#cr_id').val('');
-            $('#cr_likes').val(0);
-            $('#cr_comments').val(0);
-            $('#cr_saves').val(0);
-            $('#cr_shares').val(0);
-            $('#cr_reach').val(0);
-            $('#cr_impressions').val(0);
-            computeAndShowERIERR();
-            // set recorded_at to now by default
-            var now = new Date();
-            var local = now.toISOString().slice(0,16);
-            $('#cr_recorded_at').val(local);
-            $('#contentPlanReportModal').modal('show');
-        });
-    });
+    
+            // Statistics button removed — report modal is accessible via Edit modal's Report tab
 
     // Compute and display ERI/ERR in modal based on current numeric input values
     function computeAndShowERIERR() {
@@ -764,7 +1458,7 @@ $(function() {
     }
 
     // Bind live calculation to input changes inside the modal
-    $('#contentPlanReportModal').on('input', '#cr_likes, #cr_comments, #cr_saves, #cr_shares, #cr_reach, #cr_impressions', function() {
+    $('#contentPlanModal').on('input', '#cr_likes, #cr_comments, #cr_saves, #cr_shares, #cr_reach, #cr_impressions', function() {
         computeAndShowERIERR();
     });
 
@@ -882,8 +1576,8 @@ $(function() {
             // create
             $.post('{{ route('marketing.content-report.store') }}', fd)
                 .done(function(res){
-                    $('#contentPlanReportModal').modal('hide');
-                    table.ajax.reload(null, false);
+                    $('#contentPlanModal').modal('hide');
+                    reloadAllTables(false);
                     Swal.fire('Sukses','Report disimpan','success');
                 })
                 .fail(function(xhr){
@@ -898,8 +1592,8 @@ $(function() {
                 method: 'PUT',
                 data: fd,
             }).done(function(res){
-                $('#contentPlanReportModal').modal('hide');
-                table.ajax.reload(null, false);
+                $('#contentPlanModal').modal('hide');
+                reloadAllTables(false);
                 Swal.fire('Sukses','Report diperbarui','success');
             }).fail(function(xhr){
                 var msg = 'Gagal memperbarui report.';
@@ -909,141 +1603,54 @@ $(function() {
         }
     });
 
-    // Content Brief modal handling (add/edit brief)
-    // Open brief modal when action button is clicked in the datatable (button should have class .btn-add-brief and data-id)
-    $('#contentPlanTable').on('click', '.btn-add-brief', function() {
-        var planId = $(this).data('id');
-        console.log('btn-add-brief clicked, planId=', planId);
-        // reset form and clear previous state to avoid stale data showing
-        $('#contentBriefForm')[0].reset();
-        $('#cb_preview').empty();
-        $('#cb_content_plan_id').val(planId);
-        $('#cb_id').val('');
-        // clear any previously attached DataTransfer files
-        window._cbDataTransfer = new DataTransfer();
-        // clear any previously loaded brief cache
-        window._cbLoadedBrief = null;
-        window._cbLoadedIsi = null;
-        // Ensure any existing summernote instance is destroyed and emptied
-        try {
-            if ($.fn.summernote) {
-                try { $('#cb_isi_konten').summernote('destroy'); } catch(e) {}
-                try { $('#cb_isi_konten').val(''); } catch(e) {}
-            }
-        } catch(e){ /* ignore */ }
-        // init summernote handled on modal shown event
-
-        // Ensure modal is attached to body (avoids stacking-context/z-index issues)
-        var $modal = $('#contentBriefModal');
-        try {
-            $modal.appendTo('body');
-        } catch (e) {
-            console.warn('appendTo body failed', e);
-        }
-
-        // Try Bootstrap 5 modal API first (preferred), otherwise try jQuery plugin
-        try {
-            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                // Ensure static backdrop + keyboard disabled when using the Bootstrap Modal JS API
-                window._cbBsModal = new bootstrap.Modal(document.getElementById('contentBriefModal'), { backdrop: 'static', keyboard: false });
-                window._cbBsModal.show();
-            } else if ($modal && $modal.length && $.fn.modal) {
-                $modal.modal('show');
-            } else {
-                // Last resort: toggle classes manually
-                $modal.addClass('show').css('display','block').attr('aria-modal','true').attr('role','dialog');
-                $('body').addClass('modal-open');
-            }
-        } catch (err) {
-            console.error('Failed to show modal', err);
-        }
-
-        // Fetch latest brief for this plan (if any) and populate form
-        // Also fetch the content plan details to show contextual fields (text-only)
-        $.get(`/marketing/content-plan/${planId}`).done(function(plan){
-            try {
-                var judul = plan.judul || '';
-                var brandStr = '';
-                if (Array.isArray(plan.brand)) brandStr = plan.brand.join(', ');
-                else brandStr = plan.brand || '';
-                var platformStr = '';
-                if (Array.isArray(plan.platform)) platformStr = plan.platform.join(', ');
-                else platformStr = plan.platform || '';
-                var jenis = plan.jenis_konten || '';
-
-                // Set text elements (and fall back to inputs if they exist)
-                if ($('#cb_judul_text').length) { $('#cb_judul_text').text(judul); } else { $('#cb_judul').val(judul); }
-                if ($('#cb_brand_text').length) { $('#cb_brand_text').text(brandStr); } else { $('#cb_brand').val(brandStr); }
-                if ($('#cb_platform_text').length) { $('#cb_platform_text').text(platformStr); } else { $('#cb_platform').val(platformStr); }
-                if ($('#cb_jenis_konten_text').length) { $('#cb_jenis_konten_text').text(jenis); } else { $('#cb_jenis_konten').val(jenis); }
-            } catch(e) {}
-        }).fail(function(){
-            // ignore
-        });
-
-        $.get(`/marketing/content-brief/by-plan/${planId}`)
-            .done(function(res){
-                if (!res) return;
-                window._cbLoadedBrief = res;
-                try {
-                    $('#cb_id').val(res.id || '');
-                    $('#cb_headline').val(res.headline || '');
-                    $('#cb_sub_headline').val(res.sub_headline || '');
-                } catch(e){}
-                // isi_konten: may need to wait for summernote init; store temporarily
-                window._cbLoadedIsi = res.isi_konten || '';
-
-                // If the modal is already visible and summernote is initialized,
-                // write the loaded content immediately so switching rows updates the editor.
-                try {
-                    if ($.fn.summernote && $('#contentBriefModal').hasClass('show')) {
-                        try {
-                            $('#cb_isi_konten').summernote('code', window._cbLoadedIsi);
-                            window._cbLoadedIsi = null;
-                        } catch (e) { /* ignore */ }
-                    }
-                } catch(e) { /* ignore */ }
-
-                // Render existing visual_references (array of storage paths)
-                if (Array.isArray(res.visual_references) && res.visual_references.length) {
-                    var $preview = $('#cb_preview');
-                    $preview.empty();
-                        res.visual_references.forEach(function(p, idx){
-                            var src = '/storage/' + p;
-                            var $wrap = $('<div class="position-relative border rounded bg-white" style="width:100%;height:220px;overflow:hidden;display:block;margin-bottom:12px"></div>');
-                            var $img = $('<img>').attr('src', src).attr('data-full', src).css({'width':'100%','height':'100%','object-fit':'cover','cursor':'zoom-in'});
-                            // mark as existing so removal won't attempt to mutate DataTransfer; simple UI removal hides it
-                            var $remove = $('<button type="button" class="btn btn-sm btn-danger position-absolute" title="Hapus" style="top:6px;right:6px;padding:2px 6px">×</button>');
-                            $remove.on('click', function(){ $wrap.remove(); });
-                            $wrap.append($img).append($remove);
-                            $preview.append($wrap);
-                        });
-                }
-            }).fail(function(xhr){
-                // 204 or 404 will fall here; ignore silently
-            });
-    });
+    // Add-brief button and its handler removed — brief is accessed via the Edit modal's Brief tab
 
     // Initialize Summernote when modal is shown (Bootstrap 4 event)
-    $('#contentBriefModal').on('shown.bs.modal', function() {
-        if ($.fn.summernote) {
-            try { $('#cb_isi_konten').summernote('destroy'); } catch(e) {}
-            try { $('#cb_isi_konten').summernote({height: 200}); } catch(e) { console.warn('summernote init failed', e); }
-            // if we previously loaded content from server, set it into summernote
-            try {
-                if (window._cbLoadedIsi) {
-                    $('#cb_isi_konten').summernote('code', window._cbLoadedIsi);
-                    window._cbLoadedIsi = null;
-                }
-            } catch(e) { /* ignore */ }
+    $('#contentPlanModal').on('shown.bs.modal', function() {
+        // initialize brief editor only when Brief tab is active
+        if ($('#tab-brief').hasClass('show') || $('#tab-brief').hasClass('active')) {
+            if ($.fn.summernote) {
+                try { $('#cb_isi_konten').summernote('destroy'); } catch(e) {}
+                try { $('#cb_isi_konten').summernote({height: 200}); } catch(e) { console.warn('summernote init failed', e); }
+                try {
+                    if (window._cbLoadedIsi) {
+                        $('#cb_isi_konten').summernote('code', window._cbLoadedIsi);
+                        window._cbLoadedIsi = null;
+                        try { updateBriefTabIndicator(); } catch(e) {}
+                    }
+                } catch(e) { }
+            }
         }
+    });
+
+    // Also initialize Summernote when the Brief tab is activated after modal is shown
+    $('#tab-brief-tab').on('shown.bs.tab', function() {
+        try {
+            if ($.fn && $.fn.summernote) {
+                var $el = $('#cb_isi_konten');
+                // avoid re-initializing if already present
+                if (!$el.data('summernote')) {
+                    try { $el.summernote('destroy'); } catch(e) {}
+                    try { $el.summernote({ height: 200 }); } catch(e) { console.warn('summernote init failed on tab show', e); }
+                    try {
+                        if (window._cbLoadedIsi) {
+                            $el.summernote('code', window._cbLoadedIsi);
+                            window._cbLoadedIsi = null;
+                            try { updateBriefTabIndicator(); } catch(e) {}
+                        }
+                    } catch(e) {}
+                }
+            }
+        } catch(e) { console.error('init summernote on tab show', e); }
     });
 
     // Destroy Summernote when modal is hidden to avoid duplicate instances
-    $('#contentBriefModal').on('hidden.bs.modal', function() {
+    $('#contentPlanModal').on('hidden.bs.modal', function() {
         if ($.fn.summernote) {
             try { $('#cb_isi_konten').summernote('destroy'); } catch(e) {}
         }
+        // reset to Edit tab when modal closes
+        try { $('#tab-edit-tab').trigger('click'); } catch(e){}
     });
 
     // Drop area interactions
@@ -1098,11 +1705,11 @@ $(function() {
             }
         }
 
-        // Attach paste listener when modal is shown, remove when hidden
-        $('#contentBriefModal').on('shown.bs.modal', function(){
-            $(document).on('paste.cb', handlePaste);
+        // Attach paste listener when merged modal is shown (only used for Brief tab)
+        $('#contentPlanModal').on('shown.bs.modal', function(){
+            if ($('#tab-brief').hasClass('show') || $('#tab-brief').hasClass('active')) $(document).on('paste.cb', handlePaste);
         });
-        $('#contentBriefModal').on('hidden.bs.modal', function(){
+        $('#contentPlanModal').on('hidden.bs.modal', function(){
             $(document).off('paste.cb', handlePaste);
         });
 
@@ -1155,49 +1762,57 @@ $(function() {
         }
     });
 
-    // Submit brief form via AJAX
-    $('#contentBriefForm').on('submit', function(e){
-        e.preventDefault();
-        var $btn = $('#contentBriefModal .btn-primary');
-        $btn.prop('disabled', true).text('Menyimpan...');
+    // Submit brief (AJAX) — invoked by clicking the Save Brief button
+    function submitBrief(e, opts){
+        if (e && e.preventDefault) e.preventDefault();
+        opts = opts || {};
+        var closeOnComplete = opts.closeOnComplete !== undefined ? opts.closeOnComplete : true;
+        var $btn = $('#contentPlanModal .btn-save-brief');
+        // If called as part of master save, the button may be hidden; still show spinner state if present
+        try { $btn.prop('disabled', true).text('Menyimpan...'); } catch(e) {}
         var fd = new FormData();
         fd.append('content_plan_id', $('#cb_content_plan_id').val());
         fd.append('headline', $('#cb_headline').val());
         fd.append('sub_headline', $('#cb_sub_headline').val());
-        // pull summernote content if available
-        var isi = $('#cb_isi_konten').val();
-        if ($.fn.summernote) isi = $('#cb_isi_konten').summernote('code');
+        var isi = '';
+        try { if ($.fn.summernote) isi = $('#cb_isi_konten').summernote('code'); else isi = $('#cb_isi_konten').val(); } catch(e) { isi = $('#cb_isi_konten').val(); }
         fd.append('isi_konten', isi);
-        // append files from DataTransfer
         var dt = window._cbDataTransfer || {files: []};
         Array.from(dt.files).forEach(function(f, i){ fd.append('visual_references[]', f); });
-        // Always post to the store endpoint; include `id` when updating so server can upsert
         var existingId = $('#cb_id').val();
         if (existingId) fd.append('id', existingId);
 
-        $.ajax({
+        var jq = $.ajax({
             url: '/marketing/content-brief',
             method: 'POST',
             data: fd,
             processData: false,
             contentType: false,
-        }).done(function(res){
-            // hide using the Bootstrap Modal instance if we created one, otherwise fallback to jQuery plugin
-            if (window._cbBsModal && typeof window._cbBsModal.hide === 'function') {
-                try { window._cbBsModal.hide(); } catch(e){ $('#contentBriefModal').modal('hide'); }
-            } else {
-                try { $('#contentBriefModal').modal('hide'); } catch(e) { $('#contentBriefModal').removeClass('show').css('display','none'); $('body').removeClass('modal-open'); }
+        });
+
+        jq.done(function(res){
+            if (closeOnComplete) {
+                if (window._cbBsModal && typeof window._cbBsModal.hide === 'function') {
+                    try { window._cbBsModal.hide(); } catch(e){ $('#contentPlanModal').modal('hide'); }
+                } else {
+                    try { $('#contentPlanModal').modal('hide'); } catch(e) { $('#contentPlanModal').removeClass('show').css('display','none'); $('body').removeClass('modal-open'); }
+                }
+                reloadAllTables(false);
+                Swal.fire('Sukses', 'Content brief disimpan', 'success');
             }
-            table.ajax.reload(null, false);
-            Swal.fire('Sukses', 'Content brief disimpan', 'success');
         }).fail(function(xhr){
             var msg = 'Gagal menyimpan content brief.';
             if (xhr.responseJSON && xhr.responseJSON.errors) msg = Object.values(xhr.responseJSON.errors).join('<br>');
             Swal.fire('Error', msg, 'error');
         }).always(function(){
-            $btn.prop('disabled', false).text('Simpan Brief');
+            try { $btn.prop('disabled', false).text('Simpan Brief'); } catch(e) {}
         });
-    });
+
+        return jq;
+    }
+
+    // wire brief save button
+    $(document).on('click', '.btn-save-brief', submitBrief);
 });
 </script>
 @endpush
