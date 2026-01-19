@@ -210,6 +210,7 @@ table.contentPlanTable th.judul-col, table.contentPlanTable td.judul-col{
                         <select id="status_select" name="status" class="form-control">
                             <option value="Draft">Draft</option>
                             <option value="Scheduled">Scheduled</option>
+                            <option value="Revised">Revised</option>
                             <option value="Published">Published</option>
                             <option value="Cancelled">Cancelled</option>
                         </select>
@@ -440,7 +441,7 @@ $(function() {
                                         var time = '';
                                         if (data) time = moment(data).locale('id').format('HH.mm');
                                         var status = row && row.status ? row.status : '';
-                                        var map = { 'draft': {bg: '#6c757d', color: '#ffffff'}, 'scheduled': {bg: '#ffc107', color: '#212529'}, 'published': {bg: '#28a745', color: '#ffffff'}, 'cancelled': {bg: '#dc3545', color: '#ffffff'} };
+                                        var map = { 'draft': {bg: '#6c757d', color: '#ffffff'}, 'scheduled': {bg: '#ffc107', color: '#212529'}, 'revised': {bg: '#17a2b8', color: '#ffffff'}, 'published': {bg: '#28a745', color: '#ffffff'}, 'cancelled': {bg: '#dc3545', color: '#ffffff'} };
                                         var sHtml = '';
                                         if (status) {
                                             var key = status.toLowerCase();
@@ -703,6 +704,7 @@ $(function() {
                             var sClass = 'badge-secondary';
                             if (sKey === 'published') sClass = 'badge-success';
                             else if (sKey === 'scheduled') sClass = 'badge-warning';
+                            else if (sKey === 'revised') sClass = 'badge-info';
                             else if (sKey === 'draft') sClass = 'badge-secondary';
                             else if (sKey === 'cancelled') sClass = 'badge-danger';
                             statusBadge = '<span class="badge ' + sClass + '" style="margin-right:6px">' + status + '</span>';
