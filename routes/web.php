@@ -16,7 +16,7 @@ use App\Http\Controllers\ERM\StokGudangController;
 use App\Http\Controllers\Admin\{
     UserController,
     RoleController,
-    WhatsAppController
+    // WhatsAppController removed (waweb-js uninstalled)
 };
 use App\Http\Controllers\Finance\{
     BillingController,
@@ -211,47 +211,7 @@ Route::middleware(['auth'])->group(function () {
         ->name('bcl.dashboard');
 });
 
-// WhatsApp admin pages
-Route::middleware(['auth'])->prefix('admin')->group(function () {
-    Route::get('/whatsapp/flows', [WhatsAppController::class, 'flowsView'])->name('admin.whatsapp.flows');
-    Route::get('/whatsapp/scheduled', [WhatsAppController::class, 'scheduledView'])->name('admin.whatsapp.scheduled');
-
-    // Admin API for WhatsApp (used by UI)
-    Route::prefix('api/whatsapp')->group(function () {
-        Route::get('/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listFlows']);
-        Route::post('/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'saveFlow']);
-        Route::delete('/flows/{id}', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'deleteFlow']);
-
-    // Sessions proxy (calls Node service)
-    Route::get('/sessions', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listSessions']);
-
-            Route::get('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduled']);
-            // DataTables server-side fetch
-            Route::get('/scheduled-data', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduledDataTable']);
-            Route::post('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'createScheduled']);
-            Route::delete('/scheduled/{id}', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'deleteScheduled']);
-    });
-
-    // Internal endpoints for Node polling (protected by WHATSAPP_SYNC_TOKEN)
-    Route::prefix('internal/whatsapp')->group(function () {
-        Route::get('/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listFlowsPublic']);
-        Route::get('/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduledPublic']);
-    });
-
-
-});
-
-// // AJAX endpoint to fetch merchandise received by a patient (used in Rawat Jalan datatable)
-// Route::middleware(['auth'])->prefix('erm')->group(function() {
-    
-// });
-// Also expose the internal endpoints at a public path so services running outside of Laravel's auth can access them.
-// These routes are token-protected by WHATSAPP_SYNC_TOKEN in the controller.
-Route::get('/admin/internal/whatsapp/flows', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listFlowsPublic']);
-Route::get('/admin/internal/whatsapp/scheduled', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'listScheduledPublic']);
-// Allow both GET and POST for these internal endpoints so external services (Node) can notify Laravel
-Route::match(['get','post'], '/admin/internal/whatsapp/scheduled/{id}/sent', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledSent']);
-Route::match(['get','post'], '/admin/internal/whatsapp/scheduled/{id}/failed', [\App\Http\Controllers\Admin\WhatsAppAdminApiController::class, 'markScheduledFailed']);
+// WhatsApp (waweb-js) integration removed: Node service and related endpoints deleted
 
 // AJAX: delete (zero-out) all stok records for an obat in a gudang (requires auth + role)
 Route::post('/erm/stok-gudang/delete', [StokGudangController::class, 'deleteObatFromGudang'])
@@ -661,9 +621,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');
     Route::get('/visitation/cek-antrian', [VisitationController::class, 'cekAntrian'])->name('erm.visitations.cekAntrian');
     
-    // WhatsApp Integration Routes
-    Route::post('/visitation/{id}/test-whatsapp', [VisitationController::class, 'testVisitationWhatsApp'])->name('erm.visitation.test-whatsapp');
-    Route::get('/whatsapp/status', [VisitationController::class, 'getWhatsAppStatus'])->name('erm.whatsapp.status');
+    // WhatsApp Integration Routes removed (waweb-js uninstalled)
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
@@ -1623,13 +1581,7 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
             // Activity data for dashboard chart
             Route::get('/activity-data', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'activityData'])->name('admin.activity.data');
             
-    // WhatsApp integration removed
-        // Admin WhatsApp UI (send single message)
-        Route::get('/whatsapp', [\App\Http\Controllers\Admin\WhatsAppController::class, 'index'])->name('admin.whatsapp.index');
-        Route::post('/whatsapp/send', [\App\Http\Controllers\Admin\WhatsAppController::class, 'send'])->name('admin.whatsapp.send');
-        Route::post('/whatsapp/start', [\App\Http\Controllers\Admin\WhatsAppController::class, 'startService'])->name('admin.whatsapp.start');
-        Route::post('/whatsapp/stop', [\App\Http\Controllers\Admin\WhatsAppController::class, 'stopService'])->name('admin.whatsapp.stop');
-        Route::get('/whatsapp/debug', [\App\Http\Controllers\Admin\WhatsAppController::class, 'debug'])->name('admin.whatsapp.debug');
+    // WhatsApp admin UI removed (waweb-js uninstalled)
     });
 
 // WhatsApp webhook routes removed
