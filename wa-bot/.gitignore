@@ -1,0 +1,7 @@
+node_modules/
+.wwebjs_auth/
+npm-debug.log
+dist/
+wawebjs_cache/
+wa.err
+wa.log

@@ -1,0 +1,15 @@
+{
+  "name": "belova-wa-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp Web JS bot for Belova project",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "latest",
+    "qrcode-terminal": "latest",
+    "express": "latest",
+    "node-fetch": "latest"
+  }
+}

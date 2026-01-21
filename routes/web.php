@@ -1580,9 +1580,25 @@ Route::prefix('admin')->middleware(['auth', 'role:Admin'])->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('admin.dashboard');
             // Activity data for dashboard chart
             Route::get('/activity-data', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'activityData'])->name('admin.activity.data');
+            // WhatsApp sessions management (Admin)
+            Route::post('/wa-sessions', [\App\Http\Controllers\Admin\WaSessionController::class, 'store'])->name('admin.wa_sessions.store');
+            Route::delete('/wa-sessions/{waSession}', [\App\Http\Controllers\Admin\WaSessionController::class, 'destroy'])->name('admin.wa_sessions.destroy');
+            
+                    // Admin message log (DataTables)
+                    Route::get('/wa-messages-log', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'index'])->name('admin.wa_messages.index');
+                    Route::get('/wa-messages-log/data', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'data'])->name('admin.wa_messages.data');
+                    Route::get('/wa-messages-log/pasien/{pasien}', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'conversation'])->name('admin.wa_messages.conversation');
+                    Route::get('/wa-messages-log/pasien/{pasien}/partial', [\App\Http\Controllers\Admin\WaMessageLogController::class, 'conversationPartial'])->name('admin.wa_messages.conversation_partial');
             
     // WhatsApp admin UI removed (waweb-js uninstalled)
+    
     });
+
+// Public endpoint for wa-bot to fetch sessions (no auth)
+Route::get('/wa-sessions', [\App\Http\Controllers\Admin\WaSessionController::class, 'index']);
+// Public endpoint to receive message logs from wa-bot (exclude CSRF)
+Route::post('/wa-messages', [\App\Http\Controllers\Admin\WaMessageController::class, 'store'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 // WhatsApp webhook routes removed
 
@@ -1840,4 +1856,15 @@ Route::prefix('workdoc')->middleware('role:Hrd|Manager|Employee|Admin')->group(f
     Route::delete('/surat-keluar/{id}', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'destroy'])->name('workdoc.surat-keluar.destroy');
     Route::get('/surat-keluar/{id}/download', [App\Http\Controllers\Workdoc\SuratKeluarController::class, 'download'])->name('workdoc.surat-keluar.download');
 });
+
+// Admin WhatsApp Test UI (simple forwarder to local Node wa-bot)
+Route::get('/admin/whatsapp-test', [\App\Http\Controllers\Admin\WhatsappTestController::class, 'index'])
+    ->middleware(['auth','role:Admin'])->name('admin.whatsapp_test.index');
+Route::post('/admin/whatsapp-test/send', [\App\Http\Controllers\Admin\WhatsappTestController::class, 'send'])
+    ->middleware(['auth','role:Admin'])->name('admin.whatsapp_test.send');
+
+// AJAX pasien search for WhatsApp Test Select2
+Route::get('/admin/whatsapp-test/pasien-search', [\App\Http\Controllers\Admin\WhatsappTestController::class, 'pasienSearch'])
+    ->middleware(['auth','role:Admin'])->name('admin.whatsapp_test.pasien_search');
+
 
