@@ -802,25 +802,59 @@ class FakturBeliController extends Controller
 
         $items = $query->get();
         $rows = [];
-        foreach ($items as $item) {
-            $rows[] = [
-                'no_faktur' => $item->fakturbeli->no_faktur ?? '',
-                'due_date' => $item->fakturbeli->due_date ?? '',
-                'nama_obat' => $item->obat->nama ?? '',
-                'qty' => $item->qty ?? 0,
-                'satuan' => $item->obat->satuan ?? '',
-                'nama_vendor' => $item->fakturbeli->pemasok->nama ?? '',
-                'harga_per_satuan' => $item->harga ?? 0,
-                'diskon' => isset($item->diskon) ? $item->diskon : '',
-                'diskon_type' => isset($item->diskon_type) ? $item->diskon_type : '',
-                'pajak' => isset($item->tax) ? $item->tax : '',
-                'pajak_type' => isset($item->tax_type) ? $item->tax_type : '',
-                    'global_diskon' => $item->fakturbeli->global_diskon ?? '',
-                    'global_diskon_type' => $item->fakturbeli->global_diskon_type ?? '',
-                    'global_pajak' => $item->fakturbeli->global_pajak ?? '',
-                    'global_pajak_type' => $item->fakturbeli->global_pajak_type ?? '',
-                'total_harga' => $item->total_amount ?? 0,
-            ];
+
+        // Group items by fakturbeli so we can place global pajak only on the first row
+        $grouped = $items->groupBy(function($it) {
+            return $it->fakturbeli->id ?? 0;
+        });
+
+        foreach ($grouped as $fakturId => $groupItems) {
+            // Determine if this faktur uses only global pajak (no per-item tax values)
+            $faktur = $groupItems->first()->fakturbeli;
+            $hasPerItemTax = $groupItems->contains(function($it) {
+                return !empty($it->tax) && floatval($it->tax) != 0;
+            });
+
+            $first = true;
+            foreach ($groupItems as $item) {
+                // For faktur that uses only global pajak, put the numeric global_pajak
+                // only on the first row. Otherwise keep existing behavior (show value+type).
+                if (!empty($faktur->global_pajak) && !$hasPerItemTax) {
+                    if ($first) {
+                        $globalPajakValue = $faktur->global_pajak;
+                        $globalPajakType = '';
+                    } else {
+                        // hide global_pajak on subsequent rows for faktur that use only global pajak
+                        $globalPajakValue = '';
+                        $globalPajakType = '';
+                    }
+                } else {
+                    $globalPajakValue = $faktur->global_pajak ?? '';
+                    $globalPajakType = $faktur->global_pajak_type ?? '';
+                }
+
+                $rows[] = [
+                    'no_faktur' => $faktur->no_faktur ?? '',
+                    'due_date' => $faktur->due_date ?? '',
+                    'nama_obat' => $item->obat->nama ?? '',
+                    'qty' => $item->qty ?? 0,
+                    'satuan' => $item->obat->satuan ?? '',
+                    'nama_vendor' => $faktur->pemasok->nama ?? '',
+                    'harga_per_satuan' => $item->harga ?? 0,
+                    'diskon' => isset($item->diskon) ? $item->diskon : '',
+                    'diskon_type' => isset($item->diskon_type) ? $item->diskon_type : '',
+                    'pajak' => isset($item->tax) ? $item->tax : '',
+                    'pajak_type' => isset($item->tax_type) ? $item->tax_type : '',
+                    'global_diskon' => $faktur->global_diskon ?? '',
+                    'global_diskon_type' => $faktur->global_diskon_type ?? '',
+                    'global_pajak' => $globalPajakValue,
+                    'global_pajak_type' => $globalPajakType,
+                    // Add 11% to the total harga as requested
+                    'total_harga' => (float)($item->total_amount ?? 0) * 1.11,
+                ];
+
+                $first = false;
+            }
         }
 
         $exportArray = array_map(function($r) {
