@@ -7,6 +7,23 @@
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <div class="container-fluid">
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ session('success') }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        @endif
+        @if($errors->any())
+            <div class="alert alert-danger">
+                <ul class="mb-0">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
         <!-- Modal Tambah/Edit Obat -->
         <div class="modal fade" id="obatModal" tabindex="-1" role="dialog" aria-labelledby="obatModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg" role="document">
@@ -171,6 +188,9 @@
     <a href="{{ route('erm.obat.export-excel', request()->all()) }}" class="btn btn-success mb-3" id="btnExportExcel" target="_blank">
         <i class="fas fa-file-excel"></i> Export Excel
     </a>
+    <button type="button" class="btn btn-secondary mb-3 ml-2" data-toggle="modal" data-target="#importCsvModal">
+        <i class="fas fa-file-upload"></i> Import CSV
+    </button>
 
     <!-- Modal: Pilih Kolom Export -->
     <div class="modal fade" id="exportColumnsModal" tabindex="-1" role="dialog" aria-labelledby="exportColumnsModalLabel" aria-hidden="true">
@@ -304,6 +324,36 @@
                     </div>
                 </div>
             </div>
+
+                        <!-- Modal: Import CSV -->
+                        <div class="modal fade" id="importCsvModal" tabindex="-1" role="dialog" aria-labelledby="importCsvModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-xl" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="importCsvModalLabel">Import CSV - Update Obat by ID</h5>
+                                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                            <span aria-hidden="true">&times;</span>
+                                        </button>
+                                    </div>
+                                    <form id="importCsvForm" enctype="multipart/form-data" onsubmit="return false;">
+                                        @csrf
+                                        <div class="modal-body">
+                                            <p class="small text-muted">File must be CSV with header containing at least <strong>ID</strong>. Other columns supported: <strong>Nama</strong>, <strong>Dosis</strong>, <strong>Satuan</strong>.</p>
+                                            <div class="form-group">
+                                                <label for="csv_file">Pilih file CSV</label>
+                                                <input type="file" name="csv_file" id="csv_file" accept=".csv,text/csv" class="form-control-file" required>
+                                            </div>
+                                            <div id="importPreviewArea" style="display:none; max-height:60vh; overflow:auto; margin-top:12px;"></div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                            <button type="button" id="btnPreviewCsv" class="btn btn-info" onclick="(window.previewCsvAction||function(){})()">Preview</button>
+                                            <button type="button" id="btnConfirmImport" class="btn btn-primary" onclick="(window.confirmImportAction||function(){})()" disabled>Import</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
         </div>
     </div>
      
@@ -402,6 +452,14 @@
     @keyframes blink-warning {
         0%, 100% { opacity: 1; }
         50% { opacity: 0; }
+    }
+
+    /* Wider import CSV modal and wrapping table cells */
+    #importCsvModal .modal-dialog {
+        max-width: 1200px;
+    }
+    #importCsvModal .table td, #importCsvModal .table th {
+        white-space: normal;
     }
 </style>
 <script>
@@ -839,4 +897,106 @@
         });
     });
 </script>
+
+<script>
+    // Global fallback functions for CSV preview/import (exposed so onclick attributes work)
+    window.previewCsvAction = window.previewCsvAction || function(){
+        try {
+            console.log('global previewCsvAction called');
+            var el = document.getElementById('csv_file');
+            if(!el) { alert('File input tidak ditemukan'); return; }
+            var file = el.files[0];
+            if(!file) { alert('Pilih file CSV terlebih dahulu'); return; }
+            var fd = new FormData(); fd.append('csv_file', file);
+            $.ajax({
+                url: '{{ route('erm.obat.import_csv_preview') }}',
+                method: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                beforeSend: function(){ showGlobalLoading('Menganalisis file...'); $('#btnPreviewCsv').prop('disabled', true).text('Menganalisis...'); },
+                success: function(res){ console.log('preview result', res); try{ if(typeof window.renderImportPreview === 'function'){ window.renderImportPreview(res); } else { $('#importPreviewArea').html(JSON.stringify(res)).show(); $('#btnConfirmImport').prop('disabled', true); } } catch(e){ console.error(e); $('#importPreviewArea').html('Error rendering preview'); }
+                },
+                error: function(xhr){ alert('Gagal menganalisis file: ' + (xhr.responseText || xhr.statusText)); },
+                complete: function(){ hideGlobalLoading(); $('#btnPreviewCsv').prop('disabled', false).text('Preview'); }
+            });
+        } catch (e) { console.error(e); alert('Terjadi kesalahan: ' + e.message); }
+    };
+
+    window.confirmImportAction = window.confirmImportAction || function(){
+        try {
+            if(!confirm('Yakin menerapkan perubahan yang terlihat pada preview?')) return;
+            var el = document.getElementById('csv_file');
+            if(!el) { alert('File input tidak ditemukan'); return; }
+            var file = el.files[0];
+            if(!file) { alert('File tidak ditemukan'); return; }
+            var fd = new FormData(); fd.append('csv_file', file);
+            $.ajax({
+                url: '{{ route('erm.obat.import_csv') }}',
+                method: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
+                beforeSend: function(){ showGlobalLoading('Mengimpor data...'); $('#btnConfirmImport').prop('disabled', true).text('Mengimport...'); },
+                success: function(){ location.reload(); },
+                error: function(xhr){ alert('Import gagal: ' + (xhr.responseText || xhr.statusText)); },
+                complete: function(){ hideGlobalLoading(); $('#btnConfirmImport').prop('disabled', false).text('Import'); }
+            });
+        } catch (e) { console.error(e); alert('Terjadi kesalahan: ' + e.message); }
+    };
+
+    // Render preview table nicely with highlights
+    window.renderImportPreview = window.renderImportPreview || function(res){
+        try{
+            var rows = res.rows || [];
+            if(!rows.length){
+                $('#importPreviewArea').html('<div class="alert alert-warning">Tidak ada baris yang valid dalam file.</div>').show();
+                $('#btnConfirmImport').prop('disabled', true);
+                return;
+            }
+            var html = '<div class="mb-2"><strong>Preview ('+rows.length+' baris)</strong></div>';
+            html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Ditemukan</th><th>Nama (Lama)</th><th>Nama (Baru)</th><th>Dosis (Lama)</th><th>Dosis (Baru)</th><th>Satuan (Lama)</th><th>Satuan (Baru)</th></tr></thead><tbody>';
+            rows.forEach(function(r){
+                var rowClass = r.found ? '' : 'table-secondary';
+                html += '<tr class="'+rowClass+'">';
+                html += '<td>'+ (r.id || '') +'</td>';
+                html += '<td>'+ (r.found ? 'Ya' : 'Tidak') +'</td>';
+                var fields = ['nama','dosis','satuan'];
+                fields.forEach(function(f){
+                    var existing = (r.existing && r.existing[f]) ? r.existing[f] : '';
+                    var ne = (r.new && r.new[f]) ? r.new[f] : '';
+                    var changed = r.found && ne !== null && ne.toString().trim() !== '' && ne.toString() !== (existing===null?''+existing:existing.toString());
+                    var newHtml = changed ? '<span class="badge badge-warning">'+escapeHtml(ne)+'</span>' : escapeHtml(ne);
+                    html += '<td>'+ escapeHtml(existing) +'</td><td>'+ newHtml +'</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+            $('#importPreviewArea').html(html).show();
+            var anyApply = rows.some(function(r){ return r.found && r.changes; });
+            $('#btnConfirmImport').prop('disabled', !anyApply);
+        }catch(e){ console.error(e); $('#importPreviewArea').html('<div class="alert alert-danger">Gagal menampilkan preview.</div>'); }
+    };
+
+    function escapeHtml(unsafe) {
+        if (unsafe === null || unsafe === undefined) return '';
+        return String(unsafe).replace(/[&<>"'`=\/]/g, function (s) {
+            return ({
+                '&': '&amp;','<': '&lt;','>': '&gt;','"': '&quot;',"'": '&#39;','/': '&#x2F;','`': '&#x60;','=': '&#x3D;'
+            })[s];
+        });
+    }
+
+    // Global loading overlay controls
+    function ensureGlobalLoading() {
+        if ($('#globalLoading').length) return;
+        $('body').append('\n            <div id="globalLoading" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:20500;align-items:center;justify-content:center;">\n+                <div style="text-align:center;color:#fff;max-width:90%;">\n+                    <div class="spinner-border text-light" role="status" style="width:3rem;height:3rem;"></div>\n+                    <div id="globalLoadingText" style="margin-top:12px;font-size:1.05rem;"></div>\n+                </div>\n+            </div>\n        ');
+    }
+
+    function showGlobalLoading(msg){ ensureGlobalLoading(); $('#globalLoadingText').text(msg||'Processing...'); $('#globalLoading').fadeIn(150); }
+    function hideGlobalLoading(){ $('#globalLoading').fadeOut(100); }
+</script>
+
 @endsection

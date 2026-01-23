@@ -1616,6 +1616,10 @@ Route::post('/erm/ic-pendaftaran/store', [IcPendaftaranController::class, 'store
 Route::post('/erm/ic-pendaftaran/check', [IcPendaftaranController::class, 'check'])->name('erm.ic_pendaftaran.check');
 Route::get('/erm/ic-pendaftaran/{pasien}/pdf', [IcPendaftaranController::class, 'pdf'])->name('erm.ic_pendaftaran.pdf');
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
+// Import CSV to update obat by ID
+Route::post('/erm/obat/import-csv', [\App\Http\Controllers\ERM\ObatController::class, 'importCsv'])->name('erm.obat.import_csv');
+// Preview CSV import before applying changes
+Route::post('/erm/obat/import-csv/preview', [\App\Http\Controllers\ERM\ObatController::class, 'importCsvPreview'])->name('erm.obat.import_csv_preview');
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');
 Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDoktersByKlinik'])->name('erm.get-dokters');

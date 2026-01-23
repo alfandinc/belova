@@ -508,6 +508,137 @@ class ObatController extends Controller
     /**
      * Export Obat data to Excel
      */
+    public function importCsvPreview(Request $request)
+    {
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $file = $request->file('csv_file');
+        $path = $file->getRealPath();
+
+        $rows = [];
+
+        if (($handle = fopen($path, 'r')) !== false) {
+            $header = null;
+            while (($row = fgetcsv($handle, 0, ',')) !== false) {
+                if (!$header) {
+                    $header = array_map(function ($h) { return trim($h); }, $row);
+                    continue;
+                }
+                if (count($row) === 0) continue;
+                $data = array_combine($header, $row);
+
+                // helper to fetch field case-insensitively
+                $get = function($names) use ($data) {
+                    foreach ($names as $n) {
+                        if (isset($data[$n])) return trim($data[$n]);
+                    }
+                    return null;
+                };
+
+                $id = $get(['ID','Id','id']);
+                if (!$id || !is_numeric($id)) continue;
+
+                $obat = Obat::withInactive()->find($id);
+
+                $existing = [
+                    'nama' => $obat ? $obat->nama : null,
+                    'dosis' => $obat ? $obat->dosis : null,
+                    'satuan' => $obat ? $obat->satuan : null,
+                ];
+
+                $new = [
+                    'nama' => $get(['Nama','nama','NAME','Name']),
+                    'dosis' => $get(['Dosis','dosis']),
+                    'satuan' => $get(['Satuan','satuan']),
+                ];
+
+                $changes = false;
+                if ($obat) {
+                    foreach (['nama','dosis','satuan'] as $f) {
+                        if ($new[$f] !== null && trim($new[$f]) !== '' && (string)$new[$f] !== (string)($existing[$f] ?? '')) {
+                            $changes = true; break;
+                        }
+                    }
+                }
+
+                $rows[] = [
+                    'id' => (int)$id,
+                    'found' => $obat ? true : false,
+                    'existing' => $existing,
+                    'new' => $new,
+                    'changes' => $changes,
+                ];
+            }
+            fclose($handle);
+        }
+
+        return response()->json(['rows' => $rows]);
+    }
+
+    public function importCsv(Request $request)
+    {
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt',
+        ]);
+
+        $file = $request->file('csv_file');
+        $path = $file->getRealPath();
+
+        $updated = 0;
+        $notFound = [];
+
+        if (($handle = fopen($path, 'r')) !== false) {
+            $header = null;
+            while (($row = fgetcsv($handle, 0, ',')) !== false) {
+                if (!$header) {
+                    $header = array_map(function ($h) { return trim($h); }, $row);
+                    continue;
+                }
+                if (count($row) === 0) continue;
+                $data = array_combine($header, $row);
+
+                // Normalize possible ID header names
+                $id = null;
+                foreach (['ID', 'Id', 'id'] as $k) {
+                    if (isset($data[$k])) { $id = trim($data[$k]); break; }
+                }
+                if (!$id || !is_numeric($id)) continue;
+
+                try {
+                    $obat = Obat::withInactive()->find($id);
+                    if (!$obat) { $notFound[] = $id; continue; }
+
+                    $up = [];
+                    if (isset($data['Nama'])) $up['nama'] = trim($data['Nama']);
+                    if (isset($data['Dosis'])) $up['dosis'] = trim($data['Dosis']);
+                    if (isset($data['Satuan'])) $up['satuan'] = trim($data['Satuan']);
+
+                    if (!empty($up)) {
+                        $obat->update($up);
+                        $updated++;
+                    }
+                } catch (\Exception $e) {
+                    // ignore row and continue
+                    continue;
+                }
+            }
+            fclose($handle);
+        }
+
+        $message = "Import selesai. Diperbarui: {$updated}.";
+        if (!empty($notFound)) {
+            $sample = implode(',', array_slice($notFound, 0, 20));
+            $message .= ' Tidak ditemukan ID: ' . $sample;
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Export Obat data to Excel
+     */
     public function exportExcel(Request $request)
     {
         return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\ObatExport($request), 'data_obat.xlsx');
