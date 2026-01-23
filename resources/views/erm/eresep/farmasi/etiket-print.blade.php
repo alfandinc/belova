@@ -152,13 +152,28 @@
                 </tr>
             </table>
         </div>
+        @php
+            $paketName = null;
+            $components = $items->map(function($it){
+                return ($it->obat_id ?? '') . '|' . ($it->dosis ?? '');
+            })->toArray();
+            sort($components);
+            $pakets = \App\Models\ERM\PaketRacikan::with('details')->where('is_active', 1)->get();
+            foreach ($pakets as $p) {
+                $pcomp = $p->details->map(function($d){
+                    return ($d->obat_id ?? '') . '|' . ($d->dosis ?? '');
+                })->toArray();
+                sort($pcomp);
+                if ($components == $pcomp) {
+                    $paketName = $p->nama_paket;
+                    break;
+                }
+            }
+        @endphp
         <div class="obat-detail">
-            <span style="font-size: 9pt; font-weight: bold;">Obat Racikan</span><br>
-            {{-- <span style="font-size: 7pt; font-weight: normal;">
-            @foreach($items as $item)
-                {{ $item->obat->nama ?? '-' }} ({{ $item->dosis ?? '-' }})<br>
-            @endforeach
-            </span> --}}
+            <span style="font-size: 12pt; font-weight: bold;">
+                {{ $paketName ?? 'Obat Racikan' }} ({{ $items->first()->bungkus ?? $items->first()->jumlah ?? '-' }})
+            </span>
         </div>
         <div class="aturan-pakai">
             {{ $items->first()->aturan_pakai ?? 'Sesuai petunjuk dokter' }}
