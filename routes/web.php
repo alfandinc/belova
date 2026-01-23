@@ -1033,6 +1033,8 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::delete('/billing/{id}', [BillingController::class, 'destroy'])->name('finance.billing.destroy');
     Route::post('/billing/{id}/restore', [BillingController::class, 'restore'])->name('finance.billing.restore');
     Route::delete('/billing/{id}/force', [BillingController::class, 'forceDelete'])->name('finance.billing.forceDelete');
+    // Pengajuan paid history (AJAX DataTable)
+    Route::get('/pengajuan/paid-data', [\App\Http\Controllers\Finance\FinancePengajuanDanaController::class, 'paidData'])->name('finance.pengajuan.paid.data');
 
     // Visitation-level bulk actions from index
     Route::post('/billing/visitation/{visitation_id}/trash', [BillingController::class, 'trashByVisitation'])->name('finance.billing.trashByVisitation');

@@ -108,12 +108,49 @@
                                 <button type="button" class="btn btn-success btn-sm mr-2" id="btnBulkApprove" title="Approve selected" style="display:none;">
                                     <i class="fa fa-check-double mr-1"></i> Approve Selected
                                 </button>
+                                <button type="button" class="btn btn-outline-info ml-2" id="btnRiwayatPembayaran">
+                                    <i class="fas fa-history mr-1"></i> Riwayat Pembayaran
+                                </button>
                                 <button type="button" class="btn btn-primary ml-2" id="btnAddPengajuan">
                                     <i class="fas fa-plus mr-1"></i> Buat Pengajuan
                                 </button>
                             </div>
                         </div>
                     </div>
+
+                            <!-- Riwayat Pembayaran Modal (Bootstrap 4) -->
+                            <div class="modal fade" id="riwayatPembayaranModal" tabindex="-1" role="dialog" aria-labelledby="riwayatPembayaranModalLabel" aria-hidden="true">
+                                <div class="modal-dialog modal-lg" role="document">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="riwayatPembayaranModalLabel">Riwayat Pembayaran</h5>
+                                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-2">
+                                                <input type="text" id="paidFilterTanggal" class="form-control form-control-sm" placeholder="Pilih rentang tanggal" readonly style="max-width:260px;" />
+                                            </div>
+                                            <div class="table-responsive">
+                                                <table id="paidHistoryTable" class="table table-sm table-bordered" style="width:100%">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>No</th>
+                                                            <th>Items</th>
+                                                            <th>Rekening</th>
+                                                            <th>Paid At</th>
+                                                            <th>Grand Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody></tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table id="pengajuanTable" class="table table-bordered dt-responsive" style="width:100%">
@@ -1389,6 +1426,61 @@ $(document).ready(function() {
     // Footer cancel button: hide modal (will trigger existing hidden.bs.modal reset logic)
     $(document).on('click', '#btnCancelPengajuan', function() {
         $('#pengajuanModal').modal('hide');
+    });
+
+    // Riwayat Pembayaran: open modal and initialize DataTable
+    var paidHistoryTable = null;
+    var _paidDaterangeInitialized = false;
+    $(document).on('click', '#btnRiwayatPembayaran', function() {
+        $('#riwayatPembayaranModal').modal('show');
+        // initialize daterangepicker once and default to today
+        if (!_paidDaterangeInitialized && typeof $.fn.daterangepicker === 'function' && typeof moment !== 'undefined') {
+            var today = moment();
+            $('#paidFilterTanggal').daterangepicker({
+                showDropdowns: true,
+                autoUpdateInput: true,
+                locale: { format: 'DD MMMM YYYY' }
+            }, function(start, end) {
+                if (paidHistoryTable) paidHistoryTable.ajax.reload();
+            });
+            // default to today
+            $('#paidFilterTanggal').data('daterangepicker').setStartDate(today);
+            $('#paidFilterTanggal').data('daterangepicker').setEndDate(today);
+            _paidDaterangeInitialized = true;
+        }
+
+        if (paidHistoryTable === null) {
+            paidHistoryTable = $('#paidHistoryTable').DataTable({
+                processing: true,
+                serverSide: true,
+                ajax: {
+                    url: '{!! route('finance.pengajuan.paid.data') !!}',
+                    data: function(d){
+                        var tanggal = $('#paidFilterTanggal').val();
+                        var start = '', end = '';
+                        if (tanggal && tanggal.indexOf(' - ') !== -1) {
+                            var parts = tanggal.split(' - ');
+                            start = parts[0];
+                            end = parts[1] || parts[0];
+                        } else if (tanggal) {
+                            start = tanggal; end = tanggal;
+                        }
+                        d.start_date = start;
+                        d.end_date = end;
+                    }
+                },
+                columns: [
+                    { data: 'id', render: function(data, type, row, meta){ return meta.row + 1; }, orderable:false },
+                    { data: 'items_list', name: 'items_list', orderable: false, searchable: false },
+                    { data: 'rekening', name: 'rekening', orderable: false, searchable: false },
+                    { data: 'payment_date', name: 'payment_date' },
+                    { data: 'grand_total', name: 'grand_total', render: function(data){ if (!data) data=0; return 'Rp ' + Number(data).toLocaleString('id-ID', {minimumFractionDigits:2, maximumFractionDigits:2}); }, orderable:false }
+                ],
+                order: [[3, 'desc']]
+            });
+        } else {
+            paidHistoryTable.ajax.reload();
+        }
     });
 
     // Initialize inline Select2 for faktur search (in footer)

@@ -471,6 +471,17 @@ class FinancePengajuanDanaController extends Controller
                     $isPaid = (isset($row->payment_status) && $row->payment_status === 'paid');
                     if ($isPaid) {
                         $payBadge = '<div class="mt-1"><small><span class="badge" style="background-color:#17a2b8;color:#fff;">Paid</span></small></div>';
+                        // if payment_date exists, show it below the Paid badge in localized Indonesian format
+                        if (!empty($row->payment_date)) {
+                            try {
+                                // Format like: Paid at 21 Januari 2026 09.00 (Indonesian month, dot as time separator)
+                                $pd = Carbon::parse($row->payment_date)->locale('id')->translatedFormat('j F Y H.i');
+                                $payBadge .= '<div class="text-muted small mt-1">' . e('Paid at ' . $pd) . '</div>';
+                            } catch (\Exception $e) {
+                                // fallback to raw value
+                                $payBadge .= '<div class="text-muted small mt-1">' . e('Paid at ' . $row->payment_date) . '</div>';
+                            }
+                        }
                     } else {
                         $payBadge = '<div class="mt-1"><small><span class="badge" style="background-color:#6c757d;color:#fff;">Belum Dibayar</span></small></div>';
                     }
@@ -482,6 +493,77 @@ class FinancePengajuanDanaController extends Controller
             })
             // actions, approvals_list, employee_display, diajukan_ke and items_list contain HTML, mark them as raw so they are not escaped
             ->rawColumns(['actions', 'approvals_list', 'employee_display', 'diajukan_ke', 'items_list'])
+            ->make(true);
+    }
+
+    /**
+     * AJAX: DataTable for paid pengajuan (riwayat pembayaran)
+     */
+    public function paidData(Request $request)
+    {
+        $query = FinancePengajuanDana::with(['items', 'employee.user', 'division', 'rekening'])
+            ->where('payment_status', 'paid');
+
+        // optional date range filter: expect start_date and end_date in request (format: 'DD MMMM YYYY' or 'YYYY-MM-DD')
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        if ($startDate || $endDate) {
+            try {
+                if ($startDate) $sd = Carbon::parse($startDate)->startOfDay();
+                if ($endDate) $ed = Carbon::parse($endDate)->endOfDay();
+                if (isset($sd) && isset($ed)) {
+                    $query->whereBetween('payment_date', [$sd, $ed]);
+                } elseif (isset($sd)) {
+                    $query->where('payment_date', '>=', $sd);
+                } elseif (isset($ed)) {
+                    $query->where('payment_date', '<=', $ed);
+                }
+            } catch (\Exception $e) {
+                // ignore parse errors and return unfiltered
+            }
+        }
+
+        return DataTables::of($query)
+            ->addColumn('kode_pengajuan', function($row){ return $row->kode_pengajuan; })
+            ->addColumn('items_list', function($row){
+                try {
+                    $items = $row->items ?: [];
+                    if (empty($items)) return '';
+                    $lines = [];
+                    foreach ($items as $it) {
+                        // field names in finance_pengajuan_dana_item: nama_item, jumlah, harga_satuan, harga_total_snapshot
+                        $desc = trim($it->nama_item ?? $it->nama ?? '');
+                        $qty = (isset($it->jumlah) ? $it->jumlah : '');
+                        // prefer total snapshot if available, otherwise harga_satuan
+                        $rawPrice = $it->harga_total_snapshot ?? $it->harga_satuan ?? null;
+                        $price = is_null($rawPrice) ? '' : number_format($rawPrice, 2, ',', '.');
+                        $part = e($desc);
+                        if ($qty !== '') $part .= ' (' . e($qty) . ')';
+                        if ($price !== '') $part .= ' - Rp ' . $price;
+                        $lines[] = '<li>' . $part . '</li>';
+                    }
+                    return '<ul class="mb-0">' . implode('', $lines) . '</ul>';
+                } catch (\Exception $e) {
+                    return '';
+                }
+            })
+            ->addColumn('rekening', function($row){
+                try {
+                    $rek = $row->rekening;
+                    if (!$rek) return '';
+                    $rekText = '';
+                    if (!empty($rek->bank)) $rekText .= $rek->bank;
+                    if (!empty($rek->no_rekening)) $rekText .= ($rekText ? ' / ' : '') . $rek->no_rekening;
+                    if (!empty($rek->atas_nama)) $rekText .= ($rekText ? ' / ' : '') . $rek->atas_nama;
+                    if ($rekText) return '<div class="rekening-badge">' . e($rekText) . '</div>';
+                    return '';
+                } catch (\Exception $e) { return ''; }
+            })
+            ->addColumn('payment_date', function($row){
+                return $row->payment_date ? $row->payment_date->format('j F Y H.i') : '';
+            })
+            ->addColumn('grand_total', function($row){ return $row->grand_total; })
+            ->rawColumns(['items_list','rekening'])
             ->make(true);
     }
 
@@ -1186,6 +1268,7 @@ class FinancePengajuanDanaController extends Controller
         }
 
         $pengajuan->payment_status = 'paid';
+        $pengajuan->payment_date = Carbon::now();
         $pengajuan->save();
 
         return response()->json(['success' => true, 'message' => 'Status pembayaran: paid']);

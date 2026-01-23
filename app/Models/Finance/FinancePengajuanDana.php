@@ -22,6 +22,7 @@ class FinancePengajuanDana extends Model
         'deskripsi',
         'status',
         'payment_status',
+        'payment_date',
         'rekening_id',
         'bukti_transaksi',
         'grand_total',
@@ -30,6 +31,7 @@ class FinancePengajuanDana extends Model
     protected $casts = [
         'tanggal_pengajuan' => 'date',
         'bukti_transaksi' => 'array',
+        'payment_date' => 'datetime',
     ];
 
     public function items()
