@@ -1623,6 +1623,15 @@ Route::post('/erm/obat/import-csv/preview', [\App\Http\Controllers\ERM\ObatContr
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');
 Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDoktersByKlinik'])->name('erm.get-dokters');
+// AJAX: list of users with role Beautician for print selection
+Route::get('/erm/beauticians', function() {
+    try {
+        $users = \App\Models\User::whereHas('roles', function($q){ $q->where('name', 'Beautician'); })->select('id','name')->orderBy('name')->get();
+        return response()->json(['success' => true, 'data' => $users]);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'data' => []]);
+    }
+});
 Route::get('/get-apotekers', [EresepController::class, 'getApotekers'])->name('erm.get-apotekers');
 Route::get('/tindakan/search', [App\Http\Controllers\Marketing\TindakanController::class, 'searchTindakan'])->name('marketing.tindakan.search');
 Route::get('/generate-missing-resep-details', [App\Http\Controllers\ERM\VisitationController::class, 'generateMissingResepDetails']);

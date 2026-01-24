@@ -211,6 +211,31 @@
     </div>
   </div>
 </div>
+    <!-- Print Select Beautician Modal -->
+    <div class="modal fade" id="modalSelectBeautician" tabindex="-1" aria-labelledby="modalSelectBeauticianLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalSelectBeauticianLabel">Pilih Beautician untuk Print</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="selectBeautician">Beautician</label>
+                        <select id="selectBeautician" class="form-control">
+                            <option value="">-- Pilih Beautician --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="button" id="confirmPrintWithBeautician" class="btn btn-primary">Print</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 @section('scripts')
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
@@ -528,6 +553,41 @@
         });
         // Show modal
         $('#modalFotoHasil').modal('show');
+    });
+
+    // Intercept clicks to any print-detail link to show beautician selector first
+    $(document).on('click', 'a[href*="/print-detail"]', function(e) {
+        e.preventDefault();
+        var url = $(this).attr('href');
+        window._printTargetUrl = url;
+        // populate select
+        $('#selectBeautician').html('<option value="">-- Pilih Beautician --</option>');
+        $.get('/erm/beauticians').done(function(res) {
+            var data = (res && res.data) ? res.data : res;
+            data.forEach(function(u) {
+                $('#selectBeautician').append(`<option value="${u.id}">${u.name}</option>`);
+            });
+            $('#modalSelectBeautician').modal('show');
+        }).fail(function() {
+            // still show modal but empty
+            $('#modalSelectBeautician').modal('show');
+        });
+    });
+
+    // Confirm print with selected beautician
+    $(document).on('click', '#confirmPrintWithBeautician', function() {
+        var beautId = $('#selectBeautician').val();
+        if (!beautId) {
+            Swal.fire('Pilih Beautician', 'Silakan pilih beautician terlebih dahulu.', 'warning');
+            return;
+        }
+        var url = window._printTargetUrl || '';
+        if (!url) return;
+        var sep = url.indexOf('?') === -1 ? '?' : '&';
+        var finalUrl = url + sep + 'beautician_id=' + encodeURIComponent(beautId);
+        // open in new tab (same behavior as original links)
+        window.open(finalUrl, '_blank');
+        $('#modalSelectBeautician').modal('hide');
     });
     
     // Preview images before upload
