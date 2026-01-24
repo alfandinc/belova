@@ -965,7 +965,55 @@ class EresepController extends Controller
             ->get()
             ->groupBy('visitation_id');
 
-        return view('erm.partials.resep-riwayatdokter', compact('reseps'));
+        // Attempt to detect if a racikan group originates from a PaketRacikan
+        $paketRacikans = PaketRacikan::with('details')->get();
+        $racikanPaketNames = [];
+
+        foreach ($reseps as $visitationId => $group) {
+            $racikans = $group->whereNotNull('racikan_ke')->groupBy('racikan_ke');
+            foreach ($racikans as $ke => $items) {
+                $itemsArr = $items->values();
+                $wadahId = $itemsArr->first()->wadah_id ?? null;
+
+                $foundName = null;
+                foreach ($paketRacikans as $paket) {
+                    if ($paket->wadah_id != $wadahId) continue;
+                    if ($paket->details->count() != $itemsArr->count()) continue;
+
+                    // Try to match all details: obat_id + dosis
+                    $matchedIndexes = [];
+                    foreach ($paket->details as $detail) {
+                        $matched = false;
+                        foreach ($itemsArr as $idx => $it) {
+                            if (in_array($idx, $matchedIndexes, true)) continue;
+                            $itDosis = (string) ($it->dosis ?? '');
+                            $detailDosis = (string) ($detail->dosis ?? '');
+                            if ($it->obat_id == $detail->obat_id && $itDosis === $detailDosis) {
+                                $matched = true;
+                                $matchedIndexes[] = $idx;
+                                break;
+                            }
+                        }
+                        if (! $matched) {
+                            // this paket doesn't match
+                            $matchedIndexes = null;
+                            break;
+                        }
+                    }
+
+                    if (is_array($matchedIndexes)) {
+                        $foundName = $paket->nama_paket;
+                        break;
+                    }
+                }
+
+                if ($foundName) {
+                    $racikanPaketNames[$visitationId][$ke] = $foundName;
+                }
+            }
+        }
+
+        return view('erm.partials.resep-riwayatdokter', compact('reseps', 'racikanPaketNames'));
     }
 
     public function getRiwayatFarmasi($pasienId)

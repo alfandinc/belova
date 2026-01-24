@@ -52,7 +52,14 @@
 
         {{-- Racikan Table --}}
         @foreach ($racikans as $ke => $items)
-            <h6 class="mt-4">Obat Racikan #{{ $ke }}</h6>
+            @php
+                $paketName = isset($racikanPaketNames[$visitationId][$ke]) ? $racikanPaketNames[$visitationId][$ke] : null;
+            @endphp
+            @if($paketName)
+                <h6 class="mt-4">Obat Racikan (<strong>{{ $paketName }}</strong>)</h6>
+            @else
+                <h6 class="mt-4">Obat Racikan #{{ $ke }}</h6>
+            @endif
             <p><strong>Wadah:</strong> {{ $items->first()->wadah->nama ?? '-' }} | <strong>Jumlah Bungkus:</strong> {{ $items->first()->bungkus ?? '-' }}</p>
             <p><strong>Aturan Pakai:</strong> {{ $items->first()->aturan_pakai ?? '-' }}</p>
 
