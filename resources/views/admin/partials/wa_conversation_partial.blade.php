@@ -1,3 +1,5 @@
+<div id="conversationMeta" style="display:none" data-client-label="{{ isset($clientLabel) ? e($clientLabel) : '' }}" data-pasien-name="{{ isset($pasienName) ? e($pasienName) : '' }}"></div>
+
 <div class="chat-modal" style="max-height:60vh; overflow:auto; padding: 1rem;">
     <div class="chat-list">
         @foreach($messages as $m)

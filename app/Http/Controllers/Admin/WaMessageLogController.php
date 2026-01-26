@@ -18,8 +18,13 @@ class WaMessageLogController extends Controller
 
     public function data(Request $request)
     {
-        // return one row per pasien: pick latest message (by id) for each pasien_id (including NULL grouped together)
-        $ids = DB::table('wa_messages')->selectRaw('MAX(id) as id')->groupBy('pasien_id')->pluck('id')->toArray();
+        // return one row per pasien+session: pick latest message (by id) for each combination
+        // group by COALESCE(session_client_id, '') so NULL sessions are grouped consistently
+        $ids = DB::table('wa_messages')
+            ->selectRaw('MAX(id) as id')
+            ->groupBy(DB::raw("COALESCE(session_client_id, '')"), 'pasien_id')
+            ->pluck('id')
+            ->toArray();
 
         $query = WaMessage::with('pasien')
             ->whereIn('id', $ids)
@@ -81,16 +86,60 @@ class WaMessageLogController extends Controller
             ->make(true);
     }
 
-    public function conversation($pasien)
+    public function conversation(Request $request, $pasien)
     {
-        $messages = WaMessage::where('pasien_id', $pasien)->orderBy('created_at', 'asc')->get();
-        return view('admin.wa_conversation', ['messages' => $messages, 'pasien_id' => $pasien]);
+        $session = $request->query('session', null);
+        if ($session === '') $session = null;
+
+        $query = WaMessage::where('pasien_id', $pasien)->orderBy('created_at', 'asc');
+        if (is_null($session)) {
+            $query->whereNull('session_client_id');
+        } else {
+            $query->where('session_client_id', $session);
+        }
+
+        $messages = $query->get();
+
+        // pasien name
+        $pasienName = null;
+        try { $p = \App\Models\ERM\Pasien::find($pasien); $pasienName = $p ? $p->nama : null; } catch (\Exception $e) { $pasienName = null; }
+
+        // client label
+        $clientLabel = null;
+        if (!is_null($session)) {
+            try { $s = \App\Models\WaSession::where('client_id', $session)->first(); $clientLabel = $s ? ($s->label ?: $s->client_id) : $session; } catch (\Exception $e) { $clientLabel = $session; }
+        } else {
+            $clientLabel = null;
+        }
+
+        return view('admin.wa_conversation', ['messages' => $messages, 'pasien_id' => $pasien, 'session' => $session, 'clientLabel' => $clientLabel, 'pasienName' => $pasienName]);
     }
 
     // Return partial HTML for modal chat (AJAX)
-    public function conversationPartial($pasien)
+    public function conversationPartial(Request $request, $pasien)
     {
-        $messages = WaMessage::where('pasien_id', $pasien)->orderBy('created_at', 'asc')->get();
-        return view('admin.partials.wa_conversation_partial', ['messages' => $messages, 'pasien_id' => $pasien]);
+        $session = $request->query('session', null);
+        if ($session === '') $session = null;
+
+        $query = WaMessage::where('pasien_id', $pasien)->orderBy('created_at', 'asc');
+        if (is_null($session)) {
+            $query->whereNull('session_client_id');
+        } else {
+            $query->where('session_client_id', $session);
+        }
+
+        $messages = $query->get();
+
+        // pasien name
+        $pasienName = null;
+        try { $p = \App\Models\ERM\Pasien::find($pasien); $pasienName = $p ? $p->nama : null; } catch (\Exception $e) { $pasienName = null; }
+
+        // client label
+        $clientLabel = null;
+        if (!is_null($session)) {
+            try { $s = \App\Models\WaSession::where('client_id', $session)->first(); $clientLabel = $s ? ($s->label ?: $s->client_id) : $session; } catch (\Exception $e) { $clientLabel = $session; }
+        }
+
+        return view('admin.partials.wa_conversation_partial', ['messages' => $messages, 'pasien_id' => $pasien, 'session' => $session, 'clientLabel' => $clientLabel, 'pasienName' => $pasienName]);
     }
 }

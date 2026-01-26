@@ -91,7 +91,8 @@
                         }
                     }
                     id = id || row.pasien_id || '';
-                    var btn = '<button class="btn btn-sm btn-primary btn-view-chat" data-pasien="'+id+'">View Chat</button>';
+                    var session = row.session_client_id || '';
+                    var btn = '<button class="btn btn-sm btn-primary btn-view-chat" data-pasien="'+id+'" data-session="'+session+'">View Chat</button>';
                     return btn;
                 } }
             ],
@@ -102,14 +103,25 @@
         // refresh every 5 seconds without resetting pagination
         setInterval(function(){ table.ajax.reload(null, false); }, 5000);
 
-        // Handle view chat button
+        // Handle view chat button (passes session id as query param)
         $(document).on('click', '.btn-view-chat', function(){
             var pasien = $(this).data('pasien');
+            var session = $(this).data('session');
             if (!pasien) return alert('No pasien id');
             $('#chatModalBody').html('<div class="text-center">Loading...</div>');
             $('#chatModal').modal('show');
-            $.get('{{ url('/admin/wa-messages-log/pasien') }}/' + pasien + '/partial', function(html){
+            var url = '{{ url('/admin/wa-messages-log/pasien') }}/' + pasien + '/partial';
+            if (typeof session !== 'undefined') url += '?session=' + encodeURIComponent(session);
+            $.get(url, function(html){
                 $('#chatModalBody').html(html);
+                // set modal title from meta if present
+                var meta = $('#chatModalBody').find('#conversationMeta');
+                var clientLabel = meta.data('client-label') || '';
+                var pasienName = meta.data('pasien-name') || '';
+                var title = 'Conversation';
+                if (clientLabel) title += ' ' + clientLabel;
+                if (pasienName) title += ' - ' + pasienName;
+                $('#chatModal .modal-title').text(title);
                 // scroll to bottom
                 var container = $('#chatModalBody .chat-modal');
                 if (container && container.length) container.scrollTop(container.prop('scrollHeight'));

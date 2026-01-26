@@ -51,6 +51,16 @@
                             <label>Message</label>
                             <textarea name="message" rows="4" class="form-control" required>Test message from Belova system</textarea>
                         </div>
+                        <div class="form-group form-inline">
+                            <div class="form-check mr-3">
+                                <input class="form-check-input" type="checkbox" id="schedule_check">
+                                <label class="form-check-label" for="schedule_check">Schedule message</label>
+                            </div>
+                            <div class="">
+                                <input type="datetime-local" name="schedule_at" class="form-control" id="schedule_at_input" style="max-width:300px;" disabled>
+                                <small class="form-text text-muted">Optional. Use local datetime to schedule the message.</small>
+                            </div>
+                        </div>
                         <button class="btn btn-primary">Send</button>
                     </form>
                 </div>
@@ -85,6 +95,12 @@
                                 }
                             });
                             $('#pasien_select').on('select2:clear', function(){ $('input[name=to]').val(''); });
+                            // schedule toggle
+                            $('#schedule_check').on('change', function(){
+                                var enabled = $(this).is(':checked');
+                                $('#schedule_at_input').prop('disabled', !enabled);
+                                if (!enabled) $('#schedule_at_input').val('');
+                            });
                         })();
                     </script>
                 @endsection

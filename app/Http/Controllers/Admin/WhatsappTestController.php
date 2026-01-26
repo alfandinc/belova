@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\JsonResponse;
 use App\Models\ERM\Pasien;
+use App\Models\WaScheduledMessage;
+use Carbon\Carbon;
 
 class WhatsappTestController extends Controller
 {
@@ -31,6 +33,26 @@ class WhatsappTestController extends Controller
             'to' => 'required|string',
             'message' => 'required|string'
         ]);
+        // optional schedule field from `datetime-local` input
+        $scheduleAt = $request->input('schedule_at');
+
+        if (!empty($scheduleAt)) {
+            try {
+                $dt = Carbon::createFromFormat('Y-m-d\TH:i', $scheduleAt);
+            } catch (\Exception $e) {
+                return back()->with('error', 'Invalid schedule datetime format');
+            }
+
+            WaScheduledMessage::create([
+                'client_id' => $request->input('from') ?: null,
+                'to' => $data['to'],
+                'message' => $data['message'],
+                'schedule_at' => $dt,
+                'status' => 'pending',
+            ]);
+
+            return back()->with('success', 'Message scheduled successfully');
+        }
 
         $payload = [
             'to' => $data['to'],

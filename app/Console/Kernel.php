@@ -5,6 +5,7 @@ namespace App\Console;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Console\Commands\UpdateJatahCuti;
+use App\Console\Commands\SendScheduledWhatsapp;
 
 class Kernel extends ConsoleKernel
 {
@@ -17,6 +18,7 @@ class Kernel extends ConsoleKernel
 		UpdateJatahCuti::class,
 		\App\Console\Commands\SimulateKpi::class,
 		\App\Console\Commands\BackfillInvoiceStock::class,
+		SendScheduledWhatsapp::class,
 	];
 
 	/**
@@ -26,6 +28,9 @@ class Kernel extends ConsoleKernel
 	{
 		// Run daily at 00:05 to catch new year and anniversary updates
 		$schedule->command('hrd:update-jatah-cuti')->dailyAt('00:05');
+
+		// Send scheduled WhatsApp messages every minute
+		$schedule->command('wa:send-scheduled')->everyMinute();
 	}
 
 	/**
