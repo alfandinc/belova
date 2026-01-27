@@ -192,7 +192,7 @@
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label for="masalah_medis" class="form-label">Masalah Medis</label>
-                                    <textarea class="form-control" name="masalah_medis" id="masalah_medis" rows="2" ></textarea>
+                                    <textarea class="form-control" name="masalah_medis" id="masalah_medis" rows="2">{{ old('masalah_medis', $asesmenPenunjang->masalah_medis ?? $dataperawat->keluhan_utama ?? '') }}</textarea>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="masalah_keperawatan" class="form-label">Masalah Keperawatan</label>
@@ -221,13 +221,13 @@
                             <!-- Sasaran -->
                             <div class="mb-3">
                                 <label for="sasaran" class="form-label">Sasaran</label>
-                                <input type="text" class="form-control" name="sasaran" id="sasaran" value="Kondisi Umum Baik dan Stabil">
+                                <input type="text" class="form-control" name="sasaran" id="sasaran" value="{{ old('sasaran', $asesmenPenunjang->sasaran ?? 'Kondisi Umum Baik dan Stabil') }}">
                             </div>
 
                             <!-- Rencana Asuhan / Terapi / Intruksi -->
                             <div class="mb-3">
                                 <label for="standing_order" class="form-label">Rencana Asuhan / Terapi / Intruksi (Standing Order)</label>
-                                <textarea class="form-control" name="standing_order" id="standing_order" rows="5">edukasi diet dan olahraga &#10;kepatuhan konsumsi obat sesuai anjuran dokter</textarea>
+                                <textarea class="form-control" name="standing_order" id="standing_order" rows="5">{{ old('standing_order', $asesmenPenunjang->standing_order ?? "edukasi diet dan olahraga\nkepatuhan konsumsi obat sesuai anjuran dokter") }}</textarea>
                             </div>
 
 
@@ -438,12 +438,16 @@
 }
 
     if ($('#keluhan_utama').length > 0) {
-        // Initially set masalah_medis to match keluhan_utama
-        $('#masalah_medis').val($('#keluhan_utama').val());
+        // Only set masalah_medis from keluhan_utama if it's currently empty
+        if (!$('#masalah_medis').val() || $('#masalah_medis').val().trim() === '') {
+            $('#masalah_medis').val($('#keluhan_utama').val());
+        }
 
-        // Update masalah_medis whenever keluhan_utama changes
+        // Update masalah_medis when keluhan_utama changes, but only if masalah_medis is empty
         $('#keluhan_utama').on('input', function () {
-            $('#masalah_medis').val($(this).val());
+            if (!$('#masalah_medis').val() || $('#masalah_medis').val().trim() === '') {
+                $('#masalah_medis').val($(this).val());
+            }
         });
     }
 
