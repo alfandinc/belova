@@ -65,6 +65,8 @@
                         <label>End Date</label>
                         <input type="date" name="end_date" id="promo-end" class="form-control">
                     </div>
+
+                    
                 </div>
                 <div class="form-group">
                     <label>Status</label>
@@ -73,6 +75,47 @@
                         <option value="inactive">Inactive</option>
                         <option value="draft">Draft</option>
                     </select>
+                </div>
+
+                <hr>
+                <h6 class="mt-3">Promo Items</h6>
+                <div class="form-row align-items-end mb-2">
+                    <div class="form-group col-md-3">
+                        <label class="small">Type</label>
+                        <select id="item-type" class="form-control form-control-sm">
+                            <option value="tindakan">Tindakan</option>
+                            <option value="obat">Obat</option>
+                        </select>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label class="small">Item</label>
+                        <select id="item-select" class="form-control form-control-sm"></select>
+                    </div>
+                    <div class="form-group col-md-2">
+                        <label class="small">Discount %</label>
+                        <input type="number" id="item-discount" class="form-control form-control-sm" min="0" max="100" step="0.01">
+                    </div>
+                    <div class="form-group col-md-1">
+                        <button type="button" id="add-item" class="btn btn-primary btn-sm">Add</button>
+                    </div>
+                </div>
+                <input type="hidden" name="items" id="items-json">
+                <div class="card border-0">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped mb-0" id="items-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:90px">Type</th>
+                                        <th>Name</th>
+                                        <th style="width:120px">Discount</th>
+                                        <th style="width:60px"></th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
           </div>
           <div class="modal-footer">
@@ -136,6 +179,11 @@
         $('#btn-add').on('click', function(){
             $('#promo-form')[0].reset();
             $('#promo-id').val('');
+            $('#items-table tbody').empty();
+            $('#items-json').val('');
+            // reset select2
+            $('#item-select').val(null).trigger('change');
+            $('#item-discount').val('');
             $('#promoModal').modal('show');
         });
 
@@ -172,6 +220,22 @@
                     $('#promo-start').val(res.start_date);
                     $('#promo-end').val(res.end_date);
                     $('#promo-status').val(res.status);
+                    // populate items
+                    $('#items-table tbody').empty();
+                    if (res.items && res.items.length) {
+                        res.items.forEach(function(it){
+                            var typeLabel = (it.item_type === 'tindakan') ? '<span class="badge badge-primary">Tindakan</span>' : '<span class="badge badge-secondary">Obat</span>';
+                            var nameLabel = it.name || it.item_name || it.item_id;
+                            var row = '<tr data-type="'+it.item_type+'" data-itemid="'+it.item_id+'">'
+                                +'<td>'+typeLabel+'</td>'
+                                +'<td class="item-name">'+nameLabel+'</td>'
+                                +'<td class="text-center">'+it.discount_percent+'%</td>'
+                                +'<td><button type="button" class="btn btn-sm btn-danger remove-item">Remove</button></td>'
+                                +'</tr>';
+                            $('#items-table tbody').append(row);
+                        });
+                    }
+                    updateItemsJson();
                     $('#promoModal').modal('show');
                 },
                 error: function(){
@@ -188,6 +252,74 @@
                 table.ajax.reload();
             }, error: function(){ alert('Delete failed'); }});
         });
+
+        // initialize select2 for item-select depending on type
+        function initItemSelect(type){
+            // Only destroy if Select2 is already initialized to avoid console errors
+            if ($('#item-select').data('select2')) {
+                $('#item-select').select2('destroy');
+            }
+            $('#item-select').select2({
+                placeholder: 'Search item...',
+                dropdownParent: $('#promoModal'),
+                width: '100%',
+                ajax: {
+                    url: type === 'tindakan' ? '/tindakan/search' : '/obat/search',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params){ return { q: params.term }; },
+                    processResults: function(data){
+                        // endpoints already return { results: [...] }
+                        return data && data.results ? data : { results: [] };
+                    }
+                }
+            });
+        }
+
+        // small CSS fixes to ensure dropdown wraps and appears above modal
+        $('head').append('<style>.select2-container .select2-results__option{white-space:normal;word-wrap:break-word;} .select2-container .select2-dropdown{z-index:3100;}</style>');
+
+        initItemSelect('tindakan');
+        $('#item-type').on('change', function(){
+            initItemSelect($(this).val());
+        });
+
+        // add item to table
+        $('#add-item').on('click', function(){
+            var type = $('#item-type').val();
+            var sel = $('#item-select').select2('data')[0];
+            if (!sel) { alert('Please select an item'); return; }
+            var itemId = sel.id;
+            var itemName = sel.text || sel.name || itemId;
+            var disc = parseFloat($('#item-discount').val()) || 0;
+            var typeLabel = (type === 'tindakan') ? '<span class="badge badge-primary">Tindakan</span>' : '<span class="badge badge-secondary">Obat</span>';
+            var row = '<tr data-type="'+type+'" data-itemid="'+itemId+'">'
+                +'<td>'+typeLabel+'</td>'
+                +'<td class="item-name">'+itemName+'</td>'
+                +'<td class="text-center">'+disc+'%</td>'
+                +'<td><button type="button" class="btn btn-sm btn-danger remove-item">Remove</button></td>'
+                +'</tr>';
+            $('#items-table tbody').append(row);
+            updateItemsJson();
+        });
+
+        // remove item
+        $('#items-table').on('click', '.remove-item', function(){
+            $(this).closest('tr').remove();
+            updateItemsJson();
+        });
+
+        function updateItemsJson(){
+            var items = [];
+            $('#items-table tbody tr').each(function(){
+                items.push({
+                    item_type: $(this).data('type'),
+                    item_id: $(this).data('itemid'),
+                    discount_percent: parseFloat($(this).find('td').eq(2).text()) || 0,
+                });
+            });
+            $('#items-json').val(JSON.stringify(items));
+        }
 
         // native date inputs used; no JS datepicker initialization needed
     });

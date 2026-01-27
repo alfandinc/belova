@@ -84,9 +84,20 @@ class PromoController extends Controller
 
     public function show(Promo $promo)
     {
+        $promo->load('promoItems');
         $data = $promo->toArray();
         $data['start_date'] = $promo->start_date ? $promo->start_date->format('Y-m-d') : null;
         $data['end_date'] = $promo->end_date ? $promo->end_date->format('Y-m-d') : null;
+        // include items with readable info (name will be fetched client-side if needed)
+        $data['items'] = collect($promo->promoItems)->map(function($it){
+            return [
+                'id' => $it->id,
+                'item_type' => $it->item_type,
+                'item_id' => $it->item_id,
+                'discount_percent' => (float)$it->discount_percent,
+            ];
+        })->values();
+
         return response()->json($data);
     }
 
@@ -102,6 +113,30 @@ class PromoController extends Controller
 
         $promo = Promo::create($data);
 
+        // handle items submitted as JSON string
+        $itemsJson = $request->input('items');
+        $items = [];
+        if ($itemsJson) {
+            $items = json_decode($itemsJson, true) ?: [];
+            $validator = \Validator::make(['items' => $items], [
+                'items.*.item_type' => 'required|string|in:tindakan,obat',
+                'items.*.item_id' => 'required|integer',
+                'items.*.discount_percent' => 'required|numeric|min:0|max:100',
+            ]);
+            if ($validator->fails()) {
+                return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+            }
+
+            foreach ($items as $it) {
+                \App\Models\Marketing\PromoItem::create([
+                    'promo_id' => $promo->id,
+                    'item_type' => $it['item_type'],
+                    'item_id' => $it['item_id'],
+                    'discount_percent' => $it['discount_percent'],
+                ]);
+            }
+        }
+
         return response()->json(['success' => true, 'data' => $promo]);
     }
 
@@ -116,6 +151,32 @@ class PromoController extends Controller
         ]);
 
         $promo->update($data);
+
+        // update items: decode JSON string and replace
+        if ($request->has('items')) {
+            $itemsJson = $request->input('items');
+            $items = $itemsJson ? (json_decode($itemsJson, true) ?: []) : [];
+            $validator = \Validator::make(['items' => $items], [
+                'items.*.item_type' => 'required|string|in:tindakan,obat',
+                'items.*.item_id' => 'required|integer',
+                'items.*.discount_percent' => 'required|numeric|min:0|max:100',
+            ]);
+            if ($validator->fails()) {
+                return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+            }
+
+            $promo->promoItems()->delete();
+            if (!empty($items)) {
+                foreach ($items as $it) {
+                    \App\Models\Marketing\PromoItem::create([
+                        'promo_id' => $promo->id,
+                        'item_type' => $it['item_type'],
+                        'item_id' => $it['item_id'],
+                        'discount_percent' => $it['discount_percent'],
+                    ]);
+                }
+            }
+        }
 
         return response()->json(['success' => true, 'data' => $promo]);
     }

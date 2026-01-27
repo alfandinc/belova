@@ -23,4 +23,9 @@ class Promo extends Model
         'start_date' => 'date',
         'end_date' => 'date',
     ];
+
+    public function promoItems()
+    {
+        return $this->hasMany(PromoItem::class, 'promo_id');
+    }
 }
