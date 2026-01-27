@@ -74,6 +74,7 @@ use App\Http\Controllers\AkreditasiController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Marketing\MarketingController;
+use App\Http\Controllers\Marketing\PromoController;
 use App\Http\Controllers\Insiden\LaporanInsidenController;
 use App\Http\Controllers\LaporanDashboardController;
 
@@ -1520,6 +1521,14 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/kunjungan/{id}', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'show'])->name('marketing.kunjungan.show');
     Route::put('/kunjungan/{id}', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'update'])->name('marketing.kunjungan.update');
     Route::delete('/kunjungan/{id}', [\App\Http\Controllers\Marketing\KunjunganMarketingController::class, 'destroy'])->name('marketing.kunjungan.destroy');
+    
+    // Promo management (Marketing)
+    Route::get('/promo', [PromoController::class, 'index'])->name('marketing.promo.index');
+    Route::get('/promo/data', [PromoController::class, 'data'])->name('marketing.promo.data');
+    Route::post('/promo', [PromoController::class, 'store'])->name('marketing.promo.store');
+    Route::get('/promo/{promo}', [PromoController::class, 'show']);
+    Route::put('/promo/{promo}', [PromoController::class, 'update'])->name('marketing.promo.update');
+    Route::delete('/promo/{promo}', [PromoController::class, 'destroy'])->name('marketing.promo.destroy');
 });
 
 
