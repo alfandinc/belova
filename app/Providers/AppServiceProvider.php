@@ -25,8 +25,8 @@ class AppServiceProvider extends ServiceProvider
         //
         config(['app.locale' => 'id']);
 	    Carbon::setLocale('id');
-        Schema::defaultStringLength(191); // untuk menghindari error pada MySQL 5.7 ke bawah
-        // Force HTTPS when running in production (adjust as needed)
+        Schema::defaultStringLength(191); 
+        
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
