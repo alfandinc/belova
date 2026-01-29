@@ -1167,6 +1167,27 @@ $(function() {
                     // populate headline/subheadline if available
                     try { if (data.headline) $('#cb_headline').val(data.headline); } catch(e) {}
                     try { if (data.sub_headline) $('#cb_sub_headline').val(data.sub_headline); } catch(e) {}
+                    // render existing visual references (server-stored) into preview
+                    try {
+                        var serverImgs = [];
+                        if (Array.isArray(data.visual_references)) serverImgs = data.visual_references;
+                        else if (data.brief && Array.isArray(data.brief.visual_references)) serverImgs = data.brief.visual_references;
+                        // clear any existing client-side preview state
+                        try { window._cbDataTransfer = new DataTransfer(); } catch(e) { window._cbDataTransfer = {files: []}; }
+                        var $preview = $('#cb_preview');
+                        $preview.empty();
+                        if (serverImgs && serverImgs.length) {
+                            serverImgs.forEach(function(p){
+                                try {
+                                    var src = (p && p.indexOf('http') === 0) ? p : ('/storage/' + p);
+                                    var $wrap = $('<div class="position-relative border rounded bg-white" style="width:100%;height:220px;overflow:hidden;display:block;margin-bottom:12px"></div>');
+                                    var $img = $('<img>').attr('src', src).attr('data-full', src).css({'width':'100%','height':'100%','object-fit':'cover','cursor':'zoom-in'});
+                                    $wrap.append($img);
+                                    $preview.append($wrap);
+                                } catch(ie){ console.warn('render server img', ie); }
+                            });
+                        }
+                    } catch(e) { console.error('render existing visual refs', e); }
                 } catch(e) { console.error('prepare brief fields', e); }
         });
     }
