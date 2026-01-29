@@ -21,6 +21,8 @@ class ContentBriefController extends Controller
             'sub_headline' => 'nullable|string|max:255',
             'isi_konten' => 'nullable|string',
             'visual_references.*' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
+            'remove_visual_references' => 'nullable|array',
+            'remove_visual_references.*' => 'nullable|string',
         ]);
 
         $paths = [];
@@ -43,8 +45,43 @@ class ContentBriefController extends Controller
             $brief->sub_headline = $data['sub_headline'] ?? $brief->sub_headline;
             $brief->isi_konten = $data['isi_konten'] ?? $brief->isi_konten;
 
-            // merge existing visual references with newly uploaded ones
+            // merge existing visual references with newly uploaded ones,
+            // but first handle any removals requested by the client
             $existing = is_array($brief->visual_references) ? $brief->visual_references : [];
+            $removed = $request->input('remove_visual_references', []);
+            $removed = is_array($removed) ? $removed : [$removed];
+            $normalizedRemoved = [];
+            foreach ($removed as $r) {
+                if (! $r) continue;
+                $nr = $r;
+                // normalize '/storage/...' or absolute URLs to storage relative path
+                if (strpos($nr, '/storage/') !== false) {
+                    $nr = substr($nr, strpos($nr, '/storage/') + strlen('/storage/'));
+                } elseif (strpos($nr, 'http') === 0) {
+                    $pos = strpos($nr, '/storage/');
+                    if ($pos !== false) $nr = substr($nr, $pos + strlen('/storage/'));
+                } else {
+                    // trim leading slash
+                    $nr = ltrim($nr, '/');
+                }
+                $normalizedRemoved[] = $nr;
+                // attempt to delete file from storage
+                try {
+                    if (Storage::disk('public')->exists($nr)) {
+                        Storage::disk('public')->delete($nr);
+                    }
+                } catch (\Throwable $e) {
+                    // log and continue; do not block the request
+                    report($e);
+                }
+            }
+            if (!empty($normalizedRemoved)) {
+                $existing = array_values(array_filter($existing, function($v) use ($normalizedRemoved) {
+                    // normalize stored value as well
+                    $vv = ltrim($v, '/');
+                    return ! in_array($vv, $normalizedRemoved);
+                }));
+            }
             if (!empty($paths)) {
                 $brief->visual_references = array_values(array_merge($existing, $paths));
             } else {

@@ -1176,13 +1176,18 @@ $(function() {
                         try { window._cbDataTransfer = new DataTransfer(); } catch(e) { window._cbDataTransfer = {files: []}; }
                         var $preview = $('#cb_preview');
                         $preview.empty();
+                        // track removed server images separately from client uploads
+                        window._cbRemoved = [];
                         if (serverImgs && serverImgs.length) {
-                            serverImgs.forEach(function(p){
+                            serverImgs.forEach(function(p, idx){
                                 try {
                                     var src = (p && p.indexOf('http') === 0) ? p : ('/storage/' + p);
                                     var $wrap = $('<div class="position-relative border rounded bg-white" style="width:100%;height:220px;overflow:hidden;display:block;margin-bottom:12px"></div>');
+                                    var $remove = $('<button type="button" class="btn btn-sm btn-danger position-absolute cb-server-remove" title="Hapus" style="top:6px;right:6px;padding:2px 6px">×</button>');
+                                    // store original path on element for later removal
+                                    $remove.data('path', p);
                                     var $img = $('<img>').attr('src', src).attr('data-full', src).css({'width':'100%','height':'100%','object-fit':'cover','cursor':'zoom-in'});
-                                    $wrap.append($img);
+                                    $wrap.append($img).append($remove);
                                     $preview.append($wrap);
                                 } catch(ie){ console.warn('render server img', ie); }
                             });
@@ -1808,6 +1813,18 @@ $(function() {
         }
     })();
 
+    // Click on server-image remove buttons: mark server image for deletion and remove thumbnail
+    $('#cb_preview').on('click', '.cb-server-remove', function(e){
+        e.preventDefault();
+        var $btn = $(this);
+        var path = $btn.data('path');
+        if (!path) { $btn.closest('div').remove(); return; }
+        if (!window._cbRemoved) window._cbRemoved = [];
+        window._cbRemoved.push(path);
+        $btn.closest('div').remove();
+        try { updateBriefTabIndicator(); } catch(e){}
+    });
+
     // Click on any preview image: open full-size image in a new tab
     $('#cb_preview').on('click', 'img', function(){
         var src = $(this).data('full') || $(this).attr('src');
@@ -1838,6 +1855,12 @@ $(function() {
         fd.append('isi_konten', isi);
         var dt = window._cbDataTransfer || {files: []};
         Array.from(dt.files).forEach(function(f, i){ fd.append('visual_references[]', f); });
+        // include any server-side images the user removed
+        try {
+            if (window._cbRemoved && Array.isArray(window._cbRemoved)) {
+                window._cbRemoved.forEach(function(p){ fd.append('remove_visual_references[]', p); });
+            }
+        } catch(e) {}
         var existingId = $('#cb_id').val();
         if (existingId) fd.append('id', existingId);
 
