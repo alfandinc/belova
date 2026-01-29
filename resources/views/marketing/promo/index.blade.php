@@ -24,6 +24,7 @@
                             <tr>
                                 <th>No</th>
                                 <th>Name</th>
+                                <th>Items</th>
                                 <th>Periode</th>
                                 <th>Status</th>
                                 <th>Actions</th>
@@ -36,8 +37,8 @@
     </div>
 
     <!-- Modal -->
-    <div class="modal fade" id="promoModal" tabindex="-1" role="dialog">
-      <div class="modal-dialog" role="document">
+        <div class="modal fade" id="promoModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Promo</h5>
@@ -48,69 +49,59 @@
           <form id="promo-form">
           <div class="modal-body">
                 <input type="hidden" name="id" id="promo-id">
-                <div class="form-group">
-                    <label>Name</label>
-                    <input type="text" name="name" id="promo-name" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea name="description" id="promo-description" class="form-control"></textarea>
-                </div>
-                <div class="form-row">
-                    <div class="form-group col-md-6">
-                        <label>Start Date</label>
-                        <input type="date" name="start_date" id="promo-start" class="form-control">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" name="name" id="promo-name" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea name="description" id="promo-description" class="form-control"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label>Start Date</label>
+                                <input type="date" name="start_date" id="promo-start" class="form-control">
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label>End Date</label>
+                                <input type="date" name="end_date" id="promo-end" class="form-control">
+                            </div>
+                        </div>
+                        <!-- status is computed from start/end dates; no manual status field -->
                     </div>
-                    <div class="form-group col-md-6">
-                        <label>End Date</label>
-                        <input type="date" name="end_date" id="promo-end" class="form-control">
-                    </div>
-
-                    
-                </div>
-                <div class="form-group">
-                    <label>Status</label>
-                    <select name="status" id="promo-status" class="form-control">
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
-                        <option value="draft">Draft</option>
-                    </select>
-                </div>
-
-                <hr>
-                <h6 class="mt-3">Promo Items</h6>
-                <div class="form-row align-items-end mb-2">
-                    <div class="form-group col-md-3">
-                        <label class="small">Type</label>
-                        <select id="item-type" class="form-control form-control-sm">
-                            <option value="tindakan">Tindakan</option>
-                            <option value="obat">Obat</option>
-                        </select>
-                    </div>
-                    <div class="form-group col-md-6">
-                        <label class="small">Item</label>
-                        <select id="item-select" class="form-control form-control-sm"></select>
-                    </div>
-                    <div class="form-group col-md-2">
-                        <label class="small">Discount %</label>
-                        <input type="number" id="item-discount" class="form-control form-control-sm" min="0" max="100" step="0.01">
-                    </div>
-                    <div class="form-group col-md-1">
-                        <button type="button" id="add-item" class="btn btn-primary btn-sm">Add</button>
-                    </div>
-                </div>
-                <input type="hidden" name="items" id="items-json">
-                <div class="card border-0">
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
+                    <div class="col-md-7 border-left pl-4">
+                        <h6 class="mb-3">Promo Items</h6>
+                        <div class="form-row align-items-end mb-2">
+                            <div class="form-group col-md-4">
+                                <label class="small">Type</label>
+                                <select id="item-type" class="form-control form-control-sm">
+                                    <option value="tindakan">Tindakan</option>
+                                    <option value="obat">Obat</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-5">
+                                <label class="small">Item</label>
+                                <select id="item-select" class="form-control form-control-sm"></select>
+                            </div>
+                            <div class="form-group col-md-2">
+                                <label class="small">Discount %</label>
+                                <input type="number" id="item-discount" class="form-control form-control-sm" min="0" max="100" step="0.01">
+                            </div>
+                            <div class="form-group col-md-1">
+                                <button type="button" id="add-item" class="btn btn-primary btn-sm">Add</button>
+                            </div>
+                        </div>
+                        <input type="hidden" name="items" id="items-json">
+                        <div class="table-responsive" style="max-height:360px; overflow:auto;">
                             <table class="table table-sm table-striped mb-0" id="items-table">
                                 <thead>
-                                    <tr>
-                                        <th style="width:90px">Type</th>
-                                        <th>Name</th>
-                                        <th style="width:120px">Discount</th>
-                                        <th style="width:60px"></th>
-                                    </tr>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th style="width:120px">Discount</th>
+                                                <th style="width:60px"></th>
+                                            </tr>
                                 </thead>
                                 <tbody></tbody>
                             </table>
@@ -146,6 +137,7 @@
             columns: [
                 {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
                 {data: 'name', name: 'name'},
+                {data: 'items', name: 'items', orderable: false, searchable: false},
                 {data: 'date_range', name: 'date_range', orderable: false, searchable: false},
                 {data: 'status', name: 'status'},
                 {data: 'actions', name: 'actions', orderable: false, searchable: false},
@@ -219,18 +211,17 @@
                     $('#promo-description').val(res.description);
                     $('#promo-start').val(res.start_date);
                     $('#promo-end').val(res.end_date);
-                    $('#promo-status').val(res.status);
+                    // status is computed from dates; no status input to set
                     // populate items
                     $('#items-table tbody').empty();
                     if (res.items && res.items.length) {
                         res.items.forEach(function(it){
-                            var typeLabel = (it.item_type === 'tindakan') ? '<span class="badge badge-primary">Tindakan</span>' : '<span class="badge badge-secondary">Obat</span>';
+                            var typeLabel = (it.item_type === 'tindakan') ? '<i class="fas fa-stethoscope text-primary" title="Tindakan"></i>' : '<i class="fas fa-pills text-success" title="Obat"></i>';
                             var nameLabel = it.name || it.item_name || it.item_id;
                             var row = '<tr data-type="'+it.item_type+'" data-itemid="'+it.item_id+'">'
-                                +'<td>'+typeLabel+'</td>'
-                                +'<td class="item-name">'+nameLabel+'</td>'
-                                +'<td class="text-center">'+it.discount_percent+'%</td>'
-                                +'<td><button type="button" class="btn btn-sm btn-danger remove-item">Remove</button></td>'
+                                +'<td class="item-name align-middle">'+typeLabel+' <span class="ml-2">'+nameLabel+'</span></td>'
+                                +'<td class="text-center item-discount">'+it.discount_percent+'%</td>'
+                                +'<td><button type="button" class="btn btn-sm btn-danger remove-item" title="Remove"><i class="fas fa-times"></i></button></td>'
                                 +'</tr>';
                             $('#items-table tbody').append(row);
                         });
@@ -263,6 +254,7 @@
                 placeholder: 'Search item...',
                 dropdownParent: $('#promoModal'),
                 width: '100%',
+                minimumInputLength: 2,
                 ajax: {
                     url: type === 'tindakan' ? '/tindakan/search' : '/obat/search',
                     dataType: 'json',
@@ -292,12 +284,11 @@
             var itemId = sel.id;
             var itemName = sel.text || sel.name || itemId;
             var disc = parseFloat($('#item-discount').val()) || 0;
-            var typeLabel = (type === 'tindakan') ? '<span class="badge badge-primary">Tindakan</span>' : '<span class="badge badge-secondary">Obat</span>';
+            var typeLabel = (type === 'tindakan') ? '<i class="fas fa-stethoscope text-primary" title="Tindakan"></i>' : '<i class="fas fa-pills text-success" title="Obat"></i>';
             var row = '<tr data-type="'+type+'" data-itemid="'+itemId+'">'
-                +'<td>'+typeLabel+'</td>'
-                +'<td class="item-name">'+itemName+'</td>'
-                +'<td class="text-center">'+disc+'%</td>'
-                +'<td><button type="button" class="btn btn-sm btn-danger remove-item">Remove</button></td>'
+                +'<td class="item-name align-middle">'+typeLabel+' <span class="ml-2">'+itemName+'</span></td>'
+                +'<td class="text-center item-discount">'+disc+'%</td>'
+                +'<td><button type="button" class="btn btn-sm btn-danger remove-item" title="Remove"><i class="fas fa-times"></i></button></td>'
                 +'</tr>';
             $('#items-table tbody').append(row);
             updateItemsJson();
@@ -312,16 +303,20 @@
         function updateItemsJson(){
             var items = [];
             $('#items-table tbody tr').each(function(){
+                var discText = $(this).find('td.item-discount').text() || '';
+                var disc = parseFloat(discText) || 0;
                 items.push({
                     item_type: $(this).data('type'),
                     item_id: $(this).data('itemid'),
-                    discount_percent: parseFloat($(this).find('td').eq(2).text()) || 0,
+                    discount_percent: disc,
                 });
             });
             $('#items-json').val(JSON.stringify(items));
         }
 
         // native date inputs used; no JS datepicker initialization needed
+        
+        // status is computed server-side from start/end dates; no toggle action
     });
 </script>
 @endsection

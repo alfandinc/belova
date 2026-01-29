@@ -87,6 +87,8 @@
         .item-name {
             font-weight: normal;
             margin-bottom: 1px;
+        .item-table { table-layout: fixed; }
+        .item-table .amount { white-space: nowrap; min-width: 70px; }
         }
         .item-table {
             width: 100%;
@@ -268,6 +270,70 @@
                     $displayPercent = round(($lineDisc / $lineNoDisc) * 100, 2);
                 }
             }
+
+            // Try to decompose discount into "gap + percent on promo base" for display
+            $promoDisplay = null;
+            try {
+                // Build candidate ids similar to billing logic
+                $candidates = [];
+                if (isset($item->billable_id)) $candidates[] = $item->billable_id;
+                if (isset($item->billable) && isset($item->billable->obat) && isset($item->billable->obat->id)) $candidates[] = $item->billable->obat->id;
+                if (isset($item->billable) && isset($item->billable->tindakan_id)) $candidates[] = $item->billable->tindakan_id;
+                if (isset($item->billable) && isset($item->billable->id)) $candidates[] = $item->billable->id;
+                $candidates = array_values(array_filter(array_unique($candidates)));
+
+                if (!empty($candidates)) {
+                    $today = \Carbon\Carbon::today()->format('Y-m-d');
+                    $promoItems = \App\Models\Marketing\PromoItem::whereIn('item_id', $candidates)
+                        ->whereIn('item_type', ['tindakan','obat'])
+                        ->whereHas('promo', function($q) use ($today){
+                            $q->where(function($q2) use ($today){
+                                $q2->whereNotNull('start_date')->whereNotNull('end_date')
+                                    ->where('start_date','<=',$today)
+                                    ->where('end_date','>=',$today);
+                            })->orWhere(function($q2) use ($today){
+                                $q2->whereNotNull('start_date')->whereNull('end_date')
+                                    ->where('start_date','<=',$today);
+                            })->orWhere(function($q2) use ($today){
+                                $q2->whereNull('start_date')->whereNotNull('end_date')
+                                    ->where('end_date','>=',$today);
+                            });
+                        })->get();
+
+                    if (!$promoItems->isEmpty()) {
+                        $max = $promoItems->max('discount_percent');
+                        if ($max > 0) {
+                            $winning = $promoItems->firstWhere('discount_percent', $max);
+                            $basePrice = null;
+                            if ($winning) {
+                                if ($winning->item_type === 'tindakan') {
+                                    $t = \App\Models\ERM\Tindakan::find($winning->item_id);
+                                    $basePrice = $t->harga_diskon ?? $t->harga ?? null;
+                                } elseif ($winning->item_type === 'obat') {
+                                    $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
+                                    $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
+                                }
+                            }
+                            if (!$basePrice && isset($item->billable)) {
+                                $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                            }
+                            if (!$basePrice) $basePrice = $unit;
+
+                            $gap = max(0, $unit - $basePrice);
+                            $percent = $max;
+                            $promoDisplay = [
+                                'gap' => $gap,
+                                'percent' => $percent,
+                                'base' => $basePrice,
+                                'percent_nominal' => round($basePrice * ($percent/100), 0),
+                            ];
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // don't break rendering if promo lookup fails
+                $promoDisplay = null;
+            }
         @endphp
         <div class="item-line">
             <div class="item-name">{{ $item->name }}</div>
@@ -277,6 +343,20 @@
                     <td class="amount">{{ number_format($lineFinal, 0, ',', '.') }}</td>
                 </tr>
                 @if($lineDisc > 0)
+                @if($promoDisplay)
+                <tr>
+                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
+                        <span class="discount-inline">Diskon: -{{ number_format($promoDisplay['gap'], 0, ',', '.') }}</span>
+                    </td>
+                    <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
+                </tr>
+                <tr>
+                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
+                        <span class="discount-inline">Diskon Promo: -{{ number_format($promoDisplay['percent_nominal'], 0, ',', '.') }}</span>
+                    </td>
+                    <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
+                </tr>
+                @else
                 <tr>
                     <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
                         @if($displayPercent !== null)
@@ -287,6 +367,7 @@
                     </td>
                     <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
                 </tr>
+                @endif
                 @endif
             </table>
         </div>

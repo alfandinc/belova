@@ -118,7 +118,7 @@
     </div>
 
     <div class="row mb-2">
-        <div class="col">
+        <div class="col-md-8">
             <div class="card shadow-sm mt-2 data-pasien">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
@@ -202,6 +202,48 @@
                             </table>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm mt-2">
+                <div class="card-header d-flex align-items-center">
+                    <h5 class="card-title mb-0"><i class="fas fa-tags mr-2"></i>Active Promos</h5>
+                </div>
+                <div class="card-body">
+                    @php
+                        $today = \Carbon\Carbon::today()->format('Y-m-d');
+                        $activePromos = \App\Models\Marketing\Promo::where(function($q) use ($today){
+                            $q->whereNotNull('start_date')->whereNotNull('end_date')
+                                ->where('start_date','<=',$today)
+                                ->where('end_date','>=',$today);
+                        })->orWhere(function($q) use ($today){
+                            $q->whereNotNull('start_date')->whereNull('end_date')
+                                ->where('start_date','<=',$today);
+                        })->orWhere(function($q) use ($today){
+                            $q->whereNull('start_date')->whereNotNull('end_date')
+                                ->where('end_date','>=',$today);
+                        })->orderBy('start_date','desc')->take(5)->get();
+                    @endphp
+                    @if($activePromos->isEmpty())
+                        <p class="mb-0 text-muted">No active promos</p>
+                    @else
+                        <div class="table-responsive">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tbody>
+                                @foreach($activePromos as $p)
+                                    <tr>
+                                        <td style="width:45%">
+                                            <div><strong>{{ $p->name }}</strong></div>
+                                            <div><small class="text-muted">@if($p->start_date){{ \Carbon\Carbon::parse($p->start_date)->locale('id')->translatedFormat('j F Y') }}@endif @if($p->end_date) - {{ \Carbon\Carbon::parse($p->end_date)->locale('id')->translatedFormat('j F Y') }}@endif</small></div>
+                                        </td>
+                                        <td style="width:55%">{{ $p->description ?? '' }}</td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -652,24 +694,38 @@
                 },
                                 { data: 'diskon', name: 'diskon', width: "8%" },
                                 { data: 'harga_akhir', name: 'harga_akhir', width: "8%",
-                  render: function(data, type, row) {
-                      // Always calculate as harga (unit price) * qty
-                      // Use jumlah_raw as the true unit price, and qty
-                      const harga = (typeof row.jumlah_raw !== 'undefined' && !isNaN(row.jumlah_raw)) ? Number(row.jumlah_raw) : 0;
-                      const qty = row.qty ? Number(row.qty) : 1;
-                      // If diskon applies, calculate finalJumlah
-                      let finalJumlah = harga;
-                      if (row.diskon_raw && row.diskon_raw > 0) {
-                          if (row.diskon_type === '%') {
-                              finalJumlah = harga - (harga * (row.diskon_raw / 100));
-                          } else {
-                              finalJumlah = harga - row.diskon_raw;
-                          }
-                      }
-                      const total = finalJumlah * qty;
-                      return 'Rp ' + formatCurrency(total);
-                  }
-                },
+                                  render: function(data, type, row) {
+                                      const qty = row.qty ? Number(row.qty) : 1;
+
+                                      // Prefer server-provided promo base when present
+                                      if (typeof row.promo_price_base !== 'undefined' && row.promo_price_base && row.diskon_type === '%' && row.diskon_raw) {
+                                          const base = Number(row.promo_price_base) || 0;
+                                          const percent = Number(row.diskon_raw) || 0;
+                                          const unitAfter = base - (base * (percent / 100));
+                                          const total = unitAfter * qty;
+                                          return 'Rp ' + formatCurrency(total);
+                                      }
+
+                                      // If server provided harga_akhir_raw (unit price after server calc), use it
+                                      if (typeof row.harga_akhir_raw !== 'undefined' && !isNaN(row.harga_akhir_raw) && (!row.edited)) {
+                                          const unit = Number(row.harga_akhir_raw) || 0;
+                                          return 'Rp ' + formatCurrency(unit * qty);
+                                      }
+
+                                      // Fallback to legacy client-side calculation using jumlah_raw
+                                      const harga = (typeof row.jumlah_raw !== 'undefined' && !isNaN(row.jumlah_raw)) ? Number(row.jumlah_raw) : 0;
+                                      let finalJumlah = harga;
+                                      if (row.diskon_raw && row.diskon_raw > 0) {
+                                          if (row.diskon_type === '%') {
+                                              finalJumlah = harga - (harga * (row.diskon_raw / 100));
+                                          } else {
+                                              finalJumlah = harga - row.diskon_raw;
+                                          }
+                                      }
+                                      const total = finalJumlah * qty;
+                                      return 'Rp ' + formatCurrency(total);
+                                  }
+                                },
                 { 
                     data: null,
                     width: "10%",

@@ -198,6 +198,11 @@ class BillingController extends Controller
             try {
                 // Avoid duplicate unread notifications with same message
                 $already = false;
+                // track if we applied a promo-derived discount so we can store nominal equivalent
+                $appliedPromo = false;
+                $promoBase = null;
+                $promoPercent = null;
+
                 try {
                     $already = $farmasi->unreadNotifications()->where('data->message', $message)->exists();
                 } catch (\Exception $ex) {
@@ -307,10 +312,85 @@ class BillingController extends Controller
         // Create processed billing items (start with regular items)
         $processedBillings = $regularBillings;
 
-        // Preload active PaketRacikan with details for matching
+        // Preload active PaketRacikans with details for matching
         $activePaketRacikans = PaketRacikan::with(['details' => function($q){ $q->select('id','paket_racikan_id','obat_id','dosis'); }])
             ->where('is_active', true)
             ->get(['id','nama_paket','is_active']);
+
+        // Apply active promos to processed billing items: set diskon (%) when promo matches
+        try {
+            $today = \Carbon\Carbon::today()->format('Y-m-d');
+            foreach ($processedBillings as $pbIndex => $pb) {
+                // skip racikan and pharmacy fee rows
+                if (isset($pb->is_racikan) || isset($pb->is_pharmacy_fee)) continue;
+
+                // collect candidate IDs to match PromoItem.item_id
+                $candidates = [];
+                if (isset($pb->billable_id)) $candidates[] = $pb->billable_id;
+                if (isset($pb->billable) && isset($pb->billable->obat) && isset($pb->billable->obat->id)) $candidates[] = $pb->billable->obat->id;
+                if (isset($pb->billable) && isset($pb->billable->tindakan_id)) $candidates[] = $pb->billable->tindakan_id;
+                if (isset($pb->billable) && isset($pb->billable->id)) $candidates[] = $pb->billable->id;
+                $candidates = array_values(array_filter(array_unique($candidates)));
+                if (empty($candidates)) continue;
+
+                $promoItems = \App\Models\Marketing\PromoItem::whereIn('item_id', $candidates)
+                    ->whereIn('item_type', ['tindakan','obat'])
+                    ->whereHas('promo', function($q) use ($today){
+                        $q->where(function($q2) use ($today){
+                            $q2->whereNotNull('start_date')->whereNotNull('end_date')
+                                ->where('start_date','<=',$today)
+                                ->where('end_date','>=',$today);
+                        })->orWhere(function($q2) use ($today){
+                            $q2->whereNotNull('start_date')->whereNull('end_date')
+                                ->where('start_date','<=',$today);
+                        })->orWhere(function($q2) use ($today){
+                            $q2->whereNull('start_date')->whereNotNull('end_date')
+                                ->where('end_date','>=',$today);
+                        });
+                    })->get();
+
+                if ($promoItems->isEmpty()) continue;
+
+                // choose highest discount_percent among matching promo items
+                $max = $promoItems->max('discount_percent');
+                if ($max > 0) {
+                    $pb->diskon = $max;
+                    $pb->diskon_type = '%';
+
+                    // Choose the winning promo item and pick its discounted price if available
+                    $winning = $promoItems->firstWhere('discount_percent', $max);
+                    $basePrice = null;
+
+                    if ($winning) {
+                        if ($winning->item_type === 'tindakan') {
+                            $t = \App\Models\ERM\Tindakan::find($winning->item_id);
+                            $basePrice = $t->harga_diskon ?? $t->harga ?? null;
+                        } elseif ($winning->item_type === 'obat') {
+                            $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
+                            $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
+                        }
+                    }
+
+                    // Common fallbacks
+                    if (!$basePrice && isset($pb->billable)) {
+                        $basePrice = $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
+                    }
+                    if (!$basePrice) {
+                        $basePrice = $pb->jumlah ?? 0;
+                    }
+
+                    if ($basePrice) {
+                        $pb->promo_price_base = $basePrice;
+                    }
+                }
+
+                // write back
+                $processedBillings[$pbIndex] = $pb;
+            }
+        } catch (\Exception $e) {
+            // if promo application fails, continue without promo discounts
+            Log::warning('Failed to apply promos to billing rows: '.$e->getMessage());
+        }
 
         // Process each racikan group
         foreach ($racikanGroups as $racikanKey => $racikanItems) {
@@ -524,9 +604,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     return $row->racikan_total_price; // Don't multiply by quantity here, frontend will handle it
                 }
 
-                // Get the unit price (harga)  
+                // Get the unit price (harga)
+                // If a promo_price_base is provided (promo applies and uses a special base), prefer it for percentage discounts
                 $unitPrice = $row->jumlah;
-                
+                if (isset($row->promo_price_base) && $row->promo_price_base && $row->diskon_type == '%') {
+                    $unitPrice = $row->promo_price_base;
+                }
+
                 // Apply discount to the unit price
                 if ($row->diskon && $row->diskon > 0) {
                     if ($row->diskon_type == '%') {
@@ -551,8 +635,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 }
 
                 // Get the unit price (harga)
+                // If a promo_price_base is provided (promo applies and uses a special base), prefer it for percentage discounts
                 $unitPrice = $row->jumlah;
-                
+                if (isset($row->promo_price_base) && $row->promo_price_base && $row->diskon_type == '%') {
+                    $unitPrice = $row->promo_price_base;
+                }
+
                 // Apply discount to the unit price
                 if ($row->diskon && $row->diskon > 0) {
                     if ($row->diskon_type == '%') {
@@ -571,6 +659,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                 // Final calculation: unit_price_after_discount * qty
                 $finalPrice = $unitPrice * $qty;
+
+                // no diagnostic logging in production
 
                 return 'Rp ' . number_format($finalPrice, 0, ',', '.');
             })
@@ -591,8 +681,29 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     return '-';
                 }
 
+                // If percent promo and a promo_price_base exists which is lower than original amount,
+                // show the original fixed discount (original - promo_base) plus the percent.
                 if ($row->diskon_type == '%') {
-                    return $row->diskon . '%';
+                    $percentText = number_format($row->diskon, 2) . '%';
+
+                    // Determine original unit amount where possible
+                    $originalAmount = null;
+                    if (isset($row->jumlah) && is_numeric($row->jumlah)) {
+                        $originalAmount = $row->jumlah;
+                    } elseif (isset($row->racikan_total_price)) {
+                        $originalAmount = $row->racikan_total_price;
+                    } elseif (isset($row->fee_total_price)) {
+                        $originalAmount = $row->fee_total_price;
+                    }
+
+                    if ($originalAmount && isset($row->promo_price_base) && is_numeric($row->promo_price_base) && $row->promo_price_base < $originalAmount) {
+                        $fixedDiscount = $originalAmount - $row->promo_price_base;
+                        if ($fixedDiscount > 0) {
+                            return 'Rp ' . number_format($fixedDiscount, 0, ',', '.') . ' + ' . $percentText;
+                        }
+                    }
+
+                    return $percentText;
                 } else {
                     return 'Rp ' . number_format($row->diskon, 0, ',', '.');
                 }
@@ -1327,24 +1438,119 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                 }
                 
-                // Compute final amount applying discount (percent or nominal) on unit price, then multiply by qty
+                // Compute final amount: prefer applying active promo percent on the promo base (prefer harga_diskon)
                 $unitPrice = floatval($item->jumlah ?? 0);
                 $discountVal = floatval($item->diskon ?? 0);
                 $discountType = $item->diskon_type ?? null;
-                if ($discountVal > 0) {
-                    if ($discountType === '%') {
-                        $unitPriceAfter = $unitPrice - ($unitPrice * ($discountVal / 100));
-                    } else {
-                        $unitPriceAfter = $unitPrice - $discountVal;
-                    }
-                    // Ensure non-negative
-                    $unitPriceAfter = max(0, $unitPriceAfter);
-                } else {
-                    $unitPriceAfter = $unitPrice;
-                }
-                $finalAmountComputed = $unitPriceAfter * floatval($item->qty ?? 1);
 
-                InvoiceItem::create([
+                try {
+                    $today = \Carbon\Carbon::today()->format('Y-m-d');
+                    $candidates = [];
+                    if (isset($item->billable_id)) $candidates[] = $item->billable_id;
+                    if (isset($item->billable) && isset($item->billable->obat) && isset($item->billable->obat->id)) $candidates[] = $item->billable->obat->id;
+                    if (isset($item->billable) && isset($item->billable->tindakan_id)) $candidates[] = $item->billable->tindakan_id;
+                    if (isset($item->billable) && isset($item->billable->id)) $candidates[] = $item->billable->id;
+                    $candidates = array_values(array_filter(array_unique($candidates)));
+
+                    if (!empty($candidates)) {
+                        $promoItems = \App\Models\Marketing\PromoItem::whereIn('item_id', $candidates)
+                            ->whereIn('item_type', ['tindakan','obat'])
+                            ->whereHas('promo', function($q) use ($today){
+                                $q->where(function($q2) use ($today){
+                                    $q2->whereNotNull('start_date')->whereNotNull('end_date')
+                                        ->where('start_date','<=',$today)
+                                        ->where('end_date','>=',$today);
+                                })->orWhere(function($q2) use ($today){
+                                    $q2->whereNotNull('start_date')->whereNull('end_date')
+                                        ->where('start_date','<=',$today);
+                                })->orWhere(function($q2) use ($today){
+                                    $q2->whereNull('start_date')->whereNotNull('end_date')
+                                        ->where('end_date','>=',$today);
+                                });
+                            })->get();
+
+                        if (!$promoItems->isEmpty()) {
+                            $max = $promoItems->max('discount_percent');
+                            if ($max > 0) {
+                                // apply percent discount from promo on promo_price_base (prefer harga_diskon)
+                                $winning = $promoItems->firstWhere('discount_percent', $max);
+                                $basePrice = null;
+                                if ($winning) {
+                                    if ($winning->item_type === 'tindakan') {
+                                        $t = \App\Models\ERM\Tindakan::find($winning->item_id);
+                                        $basePrice = $t->harga_diskon ?? $t->harga ?? null;
+                                    } elseif ($winning->item_type === 'obat') {
+                                        $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
+                                        $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
+                                    }
+                                }
+                                if (!$basePrice && isset($item->billable)) {
+                                    $basePrice = $item->billable->harga_diskon ?? $item->billable->unit_price ?? null;
+                                }
+                                if (!$basePrice) $basePrice = $unitPrice;
+
+                                // Overwrite discount to percent and compute unit price after discount based on promo base
+                                $discountVal = $max;
+                                $discountType = '%';
+                                $unitPriceAfter = max(0, $basePrice - ($basePrice * ($discountVal / 100)));
+                                $finalAmountComputed = $unitPriceAfter * floatval($item->qty ?? 1);
+                                // mark applied promo details for later nominal storage calculation
+                                $appliedPromo = true;
+                                $promoBase = $basePrice;
+                                $promoPercent = $max;
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // fallback to existing billing discount fields if promo detection fails
+                    Log::warning('Failed to evaluate promo for invoice item: '.$e->getMessage());
+                }
+
+                // If $finalAmountComputed not set by promo flow, compute using existing billing discount fields
+                if (!isset($finalAmountComputed)) {
+                    if ($discountVal > 0) {
+                        if ($discountType === '%') {
+                            $unitPriceAfter = $unitPrice - ($unitPrice * ($discountVal / 100));
+                        } else {
+                            $unitPriceAfter = $unitPrice - $discountVal;
+                        }
+                        $unitPriceAfter = max(0, $unitPriceAfter);
+                    } else {
+                        $unitPriceAfter = $unitPrice;
+                    }
+                    $finalAmountComputed = $unitPriceAfter * floatval($item->qty ?? 1);
+                }
+
+                    // Compute stored nominal discount value
+                    // Special-case: bundled obat items should not carry an additional charged final amount
+                    if (isset($item->keterangan) && str_contains($item->keterangan, 'Obat Bundled:')) {
+                        $storedDiscount = 0;
+                        $storedDiscountType = null;
+                        $finalAmountComputed = 0;
+                        $unitPrice = 0;
+                    } else {
+                        $storedDiscount = 0;
+                        $storedDiscountType = null;
+                    }
+
+                    if ($appliedPromo && $promoBase !== null && $promoPercent !== null) {
+                        // Nominal gap between original unit price and promo base
+                        $gap = max(0, $unitPrice - $promoBase);
+                        $percentNominal = ($promoBase * ($promoPercent / 100));
+                        $storedDiscount = round($gap + $percentNominal, 2);
+                        $storedDiscountType = 'nominal';
+                    } else {
+                        // Legacy behavior: convert percent to nominal for storage
+                        if ($discountType === '%') {
+                            $storedDiscount = round($unitPrice * ($discountVal / 100), 2);
+                            $storedDiscountType = 'nominal';
+                        } else {
+                            $storedDiscount = round(floatval($discountVal ?? 0), 2);
+                            $storedDiscountType = 'nominal';
+                        }
+                    }
+
+                    InvoiceItem::create([
                     'invoice_id' => $invoice->id,
                     'name' => $name,
                     'description' => $description,
@@ -1394,8 +1600,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         }
                         return null;
                     })(),
-                    'discount' => floatval($item->diskon ?? 0),
-                    'discount_type' => $item->diskon_type ?? null,
+                    'discount' => $storedDiscount,
+                    'discount_type' => $storedDiscountType,
                     // final_amount must reflect discount application
                     'final_amount' => $finalAmountComputed,
                     'billable_type' => $item->billable_type ?? null,

@@ -16,7 +16,7 @@ class PromoController extends Controller
 
     public function data(Request $request)
     {
-        $query = Promo::query();
+        $query = Promo::with('promoItems');
 
         $start = $request->get('start_date');
         $end = $request->get('end_date');
@@ -65,6 +65,32 @@ class PromoController extends Controller
                 $desc = $row->description ? '<br><small class="text-muted">'.e($row->description).'</small>' : '';
                 return '<strong>'.$title.'</strong>'.$desc;
             })
+            ->addColumn('items', function($row){
+                $itemsHtml = '';
+                try {
+                    $items = $row->promoItems ?: [];
+                    if (!empty($items) && count($items) > 0) {
+                        $parts = [];
+                        foreach ($items as $it) {
+                            $iname = null;
+                            if ($it->item_type === 'tindakan') {
+                                $t = \App\Models\ERM\Tindakan::find($it->item_id);
+                                $iname = $t ? $t->nama : null;
+                            } elseif ($it->item_type === 'obat') {
+                                $o = \App\Models\ERM\Obat::withInactive()->find($it->item_id);
+                                $iname = $o ? $o->nama : null;
+                            }
+                            $iname = $iname ? e($iname) : e($it->item_type . ':' . $it->item_id);
+                            $icon = ($it->item_type === 'tindakan') ? '<i class="fas fa-stethoscope text-primary mr-2"></i>' : '<i class="fas fa-pills text-success mr-2"></i>';
+                            $parts[] = '<li style="list-style:none;margin:0;padding:0;">' . $icon . $iname . ' (<strong>'.number_format($it->discount_percent,2).'%</strong>)</li>';
+                        }
+                        $itemsHtml = '<ul class="mb-0" style="padding-left:0;">'.implode('', $parts).'</ul>';
+                    }
+                } catch (\Exception $e) {
+                    $itemsHtml = '';
+                }
+                return $itemsHtml;
+            })
             ->editColumn('status', function($row){
                 $s = strtolower($row->status);
                 if ($s === 'active') {
@@ -78,7 +104,7 @@ class PromoController extends Controller
                 }
                 return '<span class="'.$class.'">'.ucfirst($s).'</span>';
             })
-            ->rawColumns(['actions','status','name'])
+            ->rawColumns(['actions','status','name','items'])
             ->make(true);
     }
 
@@ -90,11 +116,24 @@ class PromoController extends Controller
         $data['end_date'] = $promo->end_date ? $promo->end_date->format('Y-m-d') : null;
         // include items with readable info (name will be fetched client-side if needed)
         $data['items'] = collect($promo->promoItems)->map(function($it){
+            $name = null;
+            try {
+                if ($it->item_type === 'tindakan') {
+                    $t = \App\Models\ERM\Tindakan::find($it->item_id);
+                    $name = $t ? $t->nama : null;
+                } elseif ($it->item_type === 'obat') {
+                    $o = \App\Models\ERM\Obat::withInactive()->find($it->item_id);
+                    $name = $o ? $o->nama : null;
+                }
+            } catch (\Exception $e) {
+                $name = null;
+            }
             return [
                 'id' => $it->id,
                 'item_type' => $it->item_type,
                 'item_id' => $it->item_id,
                 'discount_percent' => (float)$it->discount_percent,
+                'name' => $name,
             ];
         })->values();
 
@@ -108,7 +147,6 @@ class PromoController extends Controller
             'description' => 'nullable|string',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
-            'status' => 'required|string|in:active,inactive,draft',
         ]);
 
         $promo = Promo::create($data);
@@ -147,7 +185,6 @@ class PromoController extends Controller
             'description' => 'nullable|string',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date',
-            'status' => 'required|string|in:active,inactive,draft',
         ]);
 
         $promo->update($data);
@@ -180,6 +217,8 @@ class PromoController extends Controller
 
         return response()->json(['success' => true, 'data' => $promo]);
     }
+
+    // status is computed from start/end dates; no toggle method required
 
     public function destroy(Promo $promo)
     {
