@@ -57,13 +57,15 @@
                                     <i class="ti-control-record"></i>Jadwal Mingguan
                                 </a>
                             </li>
-                            
-                            
+
+
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('hrd.absensi_rekap.index') }}">
                                     <i class="ti-control-record"></i>Rekap Absensi
                                 </a>
                             </li>
+                            @endif
+                            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
                                 <li class="nav-item">
                                     <a class="nav-link" href="{{ route('hrd.dokter-schedule.index') }}">
                                         <i class="ti-control-record"></i>Jadwal Dokter
@@ -79,7 +81,7 @@
                     </li>
                 {{-- @endif --}}
             <!-- Catatan Dosa - New Feature -->
-            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
+                            @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin','Manager'))
                 @php
                     // Query jumlah catatan dosa dengan status 'dalam proses'
                     try {
