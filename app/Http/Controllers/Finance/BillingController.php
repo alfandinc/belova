@@ -1442,6 +1442,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $unitPrice = floatval($item->jumlah ?? 0);
                 $discountVal = floatval($item->diskon ?? 0);
                 $discountType = $item->diskon_type ?? null;
+                // initialize promo tracking variables to avoid undefined variable when promo lookup fails
+                $appliedPromo = false;
+                $promoBase = null;
+                $promoPercent = null;
 
                 try {
                     $today = \Carbon\Carbon::today()->format('Y-m-d');
