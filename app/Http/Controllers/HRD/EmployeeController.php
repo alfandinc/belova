@@ -38,6 +38,11 @@ class EmployeeController extends Controller
         $employees = Employee::with(['division', 'user','position'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
+        // Optionally hide employees with status 'tidak aktif'
+        if ($request->filled('hide_inactive') && $request->input('hide_inactive')) {
+            $employees->whereRaw('LOWER(status) <> ?', ['tidak aktif']);
+        }
+
         // Filter by division if provided
         if ($request->filled('division_id')) {
             $employees->where('division_id', $request->input('division_id'));

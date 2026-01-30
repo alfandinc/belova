@@ -33,6 +33,12 @@
                         <option value="Belova Center Living">Belova Center Living</option>
                     </select>
                 </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="hide-inactive" checked>
+                        <label class="form-check-label" for="hide-inactive">Sembunyikan Tidak Aktif</label>
+                    </div>
+                </div>
             </div>
             <div class="table-responsive">
                 <table id="employees-table" class="table table-bordered table-hover table-striped">
@@ -296,6 +302,8 @@ $(function() {
                 d.division_id = (divVal === 'all' ? '' : divVal);
                 var perVal = $('#filter-perusahaan').val();
                 d.perusahaan = (perVal === 'all' ? '' : perVal);
+                    var hideVal = $('#hide-inactive').is(':checked') ? 1 : '';
+                    d.hide_inactive = hideVal;
             },
             error: function (xhr, error, thrown) {
                 console.error('DataTables error:', error, thrown);
@@ -442,6 +450,10 @@ $(function() {
             // Reinitialize tooltips after each table draw
             $('[data-toggle="tooltip"]').tooltip();
         }
+    });
+    // Reload table when hide-inactive checkbox changes
+    $('#hide-inactive').on('change', function() {
+        table.ajax.reload();
     });
     // Filter by division and perusahaan
     $('#filter-division, #filter-perusahaan').on('change', function() {

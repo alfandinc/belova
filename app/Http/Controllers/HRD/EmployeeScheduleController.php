@@ -34,7 +34,10 @@ class EmployeeScheduleController extends Controller
         $startOfWeek = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfWeek() : Carbon::now()->startOfWeek();
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString()); // array of Y-m-d
         // Ambil employee beserta user dan roles, urutkan per nama
-        $employees = Employee::with(['user.roles'])->orderBy('nama')->get();
+        $employees = Employee::with(['user.roles'])
+            ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
+            ->orderBy('nama')
+            ->get();
         
         // Define role priority order as requested
         $rolePriority = [
@@ -172,7 +175,10 @@ class EmployeeScheduleController extends Controller
     {
         $startOfWeek = $request->input('start_date') ? Carbon::parse($request->input('start_date'))->startOfWeek() : Carbon::now()->startOfWeek();
         $dates = collect(range(0, 6))->map(fn($i) => $startOfWeek->copy()->addDays($i)->toDateString());
-        $employees = Employee::with(['user.roles'])->orderBy('nama')->get();
+        $employees = Employee::with(['user.roles'])
+            ->whereRaw('LOWER(status) <> ?', ['tidak aktif'])
+            ->orderBy('nama')
+            ->get();
         
         // Define role priority order as requested
         $rolePriority = [
