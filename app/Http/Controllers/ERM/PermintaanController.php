@@ -233,6 +233,8 @@ class PermintaanController extends Controller
             'qty_per_box' => $master->qty_per_box,
             'diskon' => $master->diskon,
             'diskon_type' => $master->diskon_type,
+            'principal_id' => $master->principal_id,
+            'principal_nama' => $master->principal ? $master->principal->nama : null,
         ]);
     }
         public function approve($id)

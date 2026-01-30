@@ -170,17 +170,9 @@ $(document).ready(function() {
             let $row = $(this);
             let obatId = $row.find('.obat-select').val();
             let pemasokId = $row.find('.pemasok-select').val();
-            let principalId = $row.find('.principal-select').val();
-            if (obatId && pemasokId && principalId) {
+            if (obatId && pemasokId) {
                 $.get('/erm/permintaan/master-faktur', { obat_id: obatId, pemasok_id: pemasokId }, function(data) {
-                    if (data.found) {
-                        $row.find('.harga-master').val(data.harga);
-                        $row.find('.qtybox-master').val(data.qty_per_box);
-                        $row.find('.diskon-master').val(data.diskon);
-                        $row.find('.diskontype-master').val(data.diskon_type);
-                    } else {
-                        $row.find('.harga-master, .qtybox-master, .diskon-master, .diskontype-master').val('');
-                    }
+                    applyMasterFakturToRow($row, data);
                 });
             }
         });
@@ -192,25 +184,49 @@ $(document).ready(function() {
         $(this).closest('tr').remove();
     });
 
-    // Autofill master faktur fields
-    $('#items-table').on('change', '.obat-select, .pemasok-select, .principal-select', function() {
+    // Autofill master faktur fields when obat or pemasok change
+    $('#items-table').on('change', '.obat-select, .pemasok-select', function() {
         let $row = $(this).closest('tr');
         let obatId = $row.find('.obat-select').val();
         let pemasokId = $row.find('.pemasok-select').val();
-        let principalId = $row.find('.principal-select').val();
-        if (obatId && pemasokId && principalId) {
+        if (obatId && pemasokId) {
             $.get('/erm/permintaan/master-faktur', { obat_id: obatId, pemasok_id: pemasokId }, function(data) {
-                if (data.found) {
-                    $row.find('.harga-master').val(data.harga);
-                    $row.find('.qtybox-master').val(data.qty_per_box);
-                    $row.find('.diskon-master').val(data.diskon);
-                    $row.find('.diskontype-master').val(data.diskon_type);
-                } else {
-                    $row.find('.harga-master, .qtybox-master, .diskon-master, .diskontype-master').val('');
-                }
+                applyMasterFakturToRow($row, data);
             });
+        } else {
+            applyMasterFakturToRow($row, { found: false });
         }
     });
+
+    // helper: apply master faktur data to row
+    function applyMasterFakturToRow($row, data) {
+        if (!data || !data.found) {
+            $row.find('.harga-master').val('');
+            $row.find('.qtybox-master').val('');
+            $row.find('.diskon-master').val('');
+            $row.find('.diskontype-master').val('');
+            return;
+        }
+        $row.find('.harga-master').val(data.harga ?? '');
+        $row.find('.qtybox-master').val(data.qty_per_box ?? '');
+        $row.find('.diskon-master').val(data.diskon ?? '');
+        $row.find('.diskontype-master').val(data.diskon_type ?? '');
+        if (data.principal_id) {
+            let $pselect = $row.find('.principal-select');
+            if ($pselect.find('option[value="'+data.principal_id+'"]').length === 0) {
+                let option = new Option(data.principal_nama || data.principal_id, data.principal_id, true, true);
+                $pselect.append(option).trigger('change');
+            } else {
+                $pselect.val(data.principal_id).trigger('change');
+            }
+        }
+        // if jumlah_box present, autofill qty_total using qtybox-master
+        let jumlahBox = parseInt($row.find('.jumlah-box').val());
+        let qtyBox = parseInt($row.find('.qtybox-master').val());
+        if (qtyBox > 0 && jumlahBox > 0) {
+            $row.find('.qty-total').val(qtyBox * jumlahBox);
+        }
+    }
 
     // Qty total autofill
     $('#items-table').on('input', '.jumlah-box', function() {
