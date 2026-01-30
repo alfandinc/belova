@@ -273,7 +273,12 @@
 
             // Try to decompose discount into "gap + percent on promo base" for display
             $promoDisplay = null;
-            try {
+
+            // If the pre-discount line total is zero or less, skip promo/discount decomposition
+            if ($lineNoDisc <= 0) {
+                $promoDisplay = null;
+            } else {
+                try {
                 // Build candidate ids similar to billing logic
                 $candidates = [];
                 if (isset($item->billable_id)) $candidates[] = $item->billable_id;
@@ -330,9 +335,10 @@
                         }
                     }
                 }
-            } catch (\Exception $e) {
-                // don't break rendering if promo lookup fails
-                $promoDisplay = null;
+                } catch (\Exception $e) {
+                    // don't break rendering if promo lookup fails
+                    $promoDisplay = null;
+                }
             }
         @endphp
         <div class="item-line">
@@ -340,34 +346,43 @@
             <table class="item-table">
                 <tr>
                     <td class="qty-price">{{ $qty }} x {{ number_format($unit, 0, ',', '.') }}</td>
-                    <td class="amount">{{ number_format($lineFinal, 0, ',', '.') }}</td>
+                    <td class="amount">{{ number_format(($lineDisc > 0 && $lineNoDisc > 0) ? $lineFinal : $lineNoDisc, 0, ',', '.') }}</td>
                 </tr>
-                @if($lineDisc > 0)
-                @if($promoDisplay)
-                <tr>
-                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
-                        <span class="discount-inline">Diskon: -{{ number_format($promoDisplay['gap'], 0, ',', '.') }}</span>
-                    </td>
-                    <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
-                </tr>
-                <tr>
-                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
-                        <span class="discount-inline">Diskon Promo: -{{ number_format($promoDisplay['percent_nominal'], 0, ',', '.') }}</span>
-                    </td>
-                    <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
-                </tr>
-                @else
-                <tr>
-                    <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
-                        @if($displayPercent !== null)
-                            <span class="discount-inline">Diskon: -{{ rtrim(rtrim(number_format($displayPercent, 2, ',', '.'), '0'), ',') }}% @if($lineDisc > 0) (-{{ number_format($lineDisc, 0, ',', '.') }}) @endif</span>
-                        @else
-                            <span class="discount-inline">Diskon: -{{ number_format($lineDisc, 0, ',', '.') }}</span>
+                @php
+                    $showDiscount = false;
+                    if (($lineDisc > 0 && $lineNoDisc > 0) || (isset($item->discount) && floatval($item->discount) > 0)) {
+                        $showDiscount = true;
+                    }
+                @endphp
+
+                @if($showDiscount)
+                    @if($promoDisplay && $lineDisc > 0 && $lineNoDisc > 0)
+                        @if(isset($promoDisplay['gap']) && $promoDisplay['gap'] > 0)
+                        <tr>
+                            <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
+                                <span class="discount-inline">Diskon: -{{ number_format($promoDisplay['gap'], 0, ',', '.') }}</span>
+                            </td>
+                            <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
+                        </tr>
                         @endif
-                    </td>
-                    <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
-                </tr>
-                @endif
+                        <tr>
+                            <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
+                                <span class="discount-inline">Diskon Promo: -{{ number_format($promoDisplay['percent_nominal'], 0, ',', '.') }}</span>
+                            </td>
+                            <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
+                        </tr>
+                    @else
+                        <tr>
+                            <td class="qty-price" style="font-size:7pt;font-weight:normal;padding-top:2px;">
+                                @if($displayPercent !== null && floatval($displayPercent) > 0)
+                                    <span class="discount-inline">Diskon: -{{ rtrim(rtrim(number_format($displayPercent, 2, ',', '.'), '0'), ',') }}% @if($lineDisc > 0) (-{{ number_format($lineDisc, 0, ',', '.') }}) @endif</span>
+                                @elseif($lineDisc > 0)
+                                    <span class="discount-inline">Diskon: -{{ number_format($lineDisc, 0, ',', '.') }}</span>
+                                @endif
+                            </td>
+                            <td class="amount" style="font-size:7pt;font-weight:normal;padding-top:2px;">&nbsp;</td>
+                        </tr>
+                    @endif
                 @endif
             </table>
         </div>
@@ -457,9 +472,17 @@
                 $itemDiscountBaseSum = 0; // sum of line totals used to compute percent for item discounts
                 $subtotalLineTotals = 0; // sum of all line totals (unit * qty) to compute invoice-level discount share
                 foreach ($invoice->items as $it) {
+                    $lineQty = $it->quantity ?? 1;
+                    $lineUnit = $it->unit_price ?? 0;
+                    $lineNoDisc = $lineUnit * $lineQty;
+
+                    // Skip zero-priced items from discount aggregation
+                    if ($lineNoDisc <= 0) {
+                        continue;
+                    }
                     $qty = $it->quantity ?? 1;
                     $unit = $it->unit_price ?? 0;
-                    $lineNoDisc = $unit * $qty;
+                    //$lineNoDisc already computed above
                     $subtotalLineTotals += $lineNoDisc;
 
                     // Preferred: if item has a final_amount field, derive discount from it

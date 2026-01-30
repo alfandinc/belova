@@ -324,6 +324,11 @@ class BillingController extends Controller
                 // skip racikan and pharmacy fee rows
                 if (isset($pb->is_racikan) || isset($pb->is_pharmacy_fee)) continue;
 
+                // Skip promo application for zero-priced billing rows (e.g., gratis items)
+                if (floatval($pb->jumlah ?? 0) <= 0) {
+                    continue;
+                }
+
                 // collect candidate IDs to match PromoItem.item_id
                 $candidates = [];
                 if (isset($pb->billable_id)) $candidates[] = $pb->billable_id;
@@ -354,9 +359,6 @@ class BillingController extends Controller
                 // choose highest discount_percent among matching promo items
                 $max = $promoItems->max('discount_percent');
                 if ($max > 0) {
-                    $pb->diskon = $max;
-                    $pb->diskon_type = '%';
-
                     // Choose the winning promo item and pick its discounted price if available
                     $winning = $promoItems->firstWhere('discount_percent', $max);
                     $basePrice = null;
@@ -379,7 +381,10 @@ class BillingController extends Controller
                         $basePrice = $pb->jumlah ?? 0;
                     }
 
-                    if ($basePrice) {
+                    // Only apply promo discount when we have a valid base price (> 0)
+                    if ($basePrice && $basePrice > 0) {
+                        $pb->diskon = $max;
+                        $pb->diskon_type = '%';
                         $pb->promo_price_base = $basePrice;
                     }
                 }
@@ -1438,6 +1443,9 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                 }
                 
+                // Ensure per-item computed values are reset to avoid leaking from previous loop iterations
+                $finalAmountComputed = null;
+
                 // Compute final amount: prefer applying active promo percent on the promo base (prefer harga_diskon)
                 $unitPrice = floatval($item->jumlah ?? 0);
                 $discountVal = floatval($item->diskon ?? 0);
