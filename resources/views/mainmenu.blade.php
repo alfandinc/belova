@@ -770,21 +770,21 @@
                     <div class="menu-sub">Cetak & Download</div>
                 </a>
                 
-                <!-- Belova Mengaji -->
+                <!-- Events dashboard (Belova Mengaji is one of the events) -->
                 @php
-                    // Allow access only to users with role 'Ustad' or 'Admin'
+                    // Keep same access check for event management as before (Ustad/Admin)
                     $hasMengajiAccess = count(array_intersect($userRoles, ['Ustad','Admin'])) > 0;
                 @endphp
-                <a href="{{ $hasMengajiAccess ? '/belova-mengaji' : '#' }}" class="menu-tile tile-belova-mengaji animate-item delay-16" id="belova-mengaji-tile" data-filter="mengaji islam belajar doa"
+                <a href="{{ $hasMengajiAccess ? '/events' : '#' }}" class="menu-tile tile-belova-mengaji animate-item delay-16" id="events-tile" data-filter="events dashboard agenda"
                    @if(!$hasMengajiAccess)
-                       onclick="showRoleWarning(event, 'Belova Mengaji')"
+                       onclick="showRoleWarning(event, 'Events')"
                    @endif>
                     <div class="menu-top">
-                        <div class="menu-icon"><i class="fas fa-book-reader"></i></div>
-                        <div class="menu-badge">Religion</div>
+                        <div class="menu-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <div class="menu-badge">Events</div>
                     </div>
-                    <div class="menu-title">Belova Mengaji</div>
-                    <div class="menu-sub">Belova Mengaji</div>
+                    <div class="menu-title">Events</div>
+                    <div class="menu-sub">Event Dashboard</div>
                 </a>
                 
                 <!-- WiFi Panel -->

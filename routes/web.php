@@ -236,6 +236,11 @@ Route::get('/belova-mengaji/history', [BelovaMengajiController::class, 'history'
 Route::get('/belova-mengaji/export/pdf', [BelovaMengajiController::class, 'exportPdf'])->middleware('auth')->name('belova.mengaji.export.pdf');
 Route::get('/belova-mengaji/export/excel', [BelovaMengajiController::class, 'exportExcel'])->middleware('auth')->name('belova.mengaji.export.excel');
 
+// Events dashboard - consolidated events area
+Route::get('/events', [\App\Http\Controllers\EventsController::class, 'index'])
+    ->middleware('auth')
+    ->name('events.dashboard');
+
 // Statistik (new module) - grouped under `statistik` prefix, uses ERM layout and same middleware as SatuSehat
 Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
     Route::get('/', [\App\Http\Controllers\PusatStatistikController::class, 'index'])

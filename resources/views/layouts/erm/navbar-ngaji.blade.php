@@ -35,6 +35,11 @@
                 <ul class="metismenu left-sidenav-menu">  
                                         <!-- SPK / Riwayat Tindakan Section -->
                     @hasanyrole('Employee|Ustad|Admin')
+                    <!-- Top-level Events Dashboard (no parent) - placed above Belova Mengaji section -->
+                    <li>
+                        <a href="/events"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Events Dashboard</span></a>
+                    </li>
+
                     <li>
                         <a href="javascript: void(0);"><i data-feather="file-text" class="align-self-center menu-icon"></i><span>Belova Mengaji</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
