@@ -1220,25 +1220,49 @@ class TindakanController extends Controller
     public function destroyRiwayatTindakan($id)
     {
         $riwayat = \App\Models\ERM\RiwayatTindakan::findOrFail($id);
+        // Resolve visitation id as a string. The `finance_billing.visitation_id` column is a string,
+        // so avoid casting to integer which can trigger numeric comparisons in MySQL and errors
+        // for alphanumeric values. Prefer the loaded relation id when available.
+        $visitationIdRaw = $riwayat->visitation_id;
+        $visitationIdString = null;
+        if ($riwayat->relationLoaded('visitation') && $riwayat->visitation && isset($riwayat->visitation->id)) {
+            $visitationIdString = (string) $riwayat->visitation->id;
+        } elseif (!is_null($visitationIdRaw)) {
+            $visitationIdString = (string) $visitationIdRaw;
+        }
 
-        // Delete all related billing records for this tindakan, riwayat tindakan, and bundled obats
-        // 1. Billing for tindakan
-        \App\Models\Finance\Billing::where('billable_id', $riwayat->tindakan_id)
-            ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
-            ->where('visitation_id', $riwayat->visitation_id)
-            ->delete();
+        if (empty($visitationIdString)) {
+            Log::warning('destroyRiwayatTindakan: empty visitation_id for riwayat', ['riwayat_id' => $id, 'visitation_id_raw' => $visitationIdRaw]);
+            return response()->json(['success' => false, 'message' => 'Invalid visitation id for this record.'], 400);
+        }
 
-        // 2. Billing for riwayat tindakan
-        \App\Models\Finance\Billing::where('billable_id', $riwayat->id)
-            ->where('billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
-            ->where('visitation_id', $riwayat->visitation_id)
-            ->delete();
+        try {
+            // Delete all related billing records for this tindakan, riwayat tindakan, and bundled obats
+            // 1. Billing for tindakan
+            // Use a raw quoted comparison to force string equality and avoid MySQL numeric coercion
+            $quotedVisitation = str_replace("'", "\\'", $visitationIdString);
+            $quotedBillableTindakan = str_replace("'", "\\'", (string) $riwayat->tindakan_id);
+            \App\Models\Finance\Billing::whereRaw("billable_id = '{$quotedBillableTindakan}'")
+                ->where('billable_type', 'App\\Models\\ERM\\Tindakan')
+                ->whereRaw("visitation_id = '{$quotedVisitation}'")
+                ->delete();
 
-        // 3. Billing for bundled obats
-        \App\Models\Finance\Billing::where('visitation_id', $riwayat->visitation_id)
-            ->where('billable_type', 'App\\Models\\ERM\\Obat')
-            ->where('keterangan', 'like', '%Obat Bundled%')
-            ->delete();
+            // 2. Billing for riwayat tindakan
+            $quotedBillableRiwayat = str_replace("'", "\\'", (string) $riwayat->id);
+            \App\Models\Finance\Billing::whereRaw("billable_id = '{$quotedBillableRiwayat}'")
+                ->where('billable_type', 'App\\Models\\ERM\\RiwayatTindakan')
+                ->whereRaw("visitation_id = '{$quotedVisitation}'")
+                ->delete();
+
+            // 3. Billing for bundled obats
+            \App\Models\Finance\Billing::whereRaw("visitation_id = '{$quotedVisitation}'")
+                ->where('billable_type', 'App\\Models\\ERM\\Obat')
+                ->where('keterangan', 'like', '%Obat Bundled%')
+                ->delete();
+        } catch (\Exception $e) {
+            Log::error('Error deleting billing records in destroyRiwayatTindakan: ' . $e->getMessage(), ['riwayat_id' => $id, 'visitation_id_raw' => $visitationIdRaw, 'visitation_id_used' => $visitationIdString]);
+            return response()->json(['success' => false, 'message' => 'Failed to remove billing records.'], 500);
+        }
         // Delete associated InformConsent if exists
         $informConsent = \App\Models\ERM\InformConsent::where('riwayat_tindakan_id', $riwayat->id)->first();
         if ($informConsent) {
