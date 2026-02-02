@@ -16,7 +16,7 @@ class FarmasiController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat'])
+            $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat.principals'])
                 ->whereHas('fakturbeli', function($q) use ($request) {
                     $q->where('status', 'diapprove');
                     if ($request->filled('date_range')) {
@@ -29,6 +29,12 @@ class FarmasiController extends Controller
                     }
                 });
             return \Yajra\DataTables\DataTables::of($query)
+                ->addColumn('principal', function($item) {
+                    if (!$item->obat) return '';
+                    // obat->principals is a relation (many-to-many)
+                    $names = $item->obat->principals->pluck('nama')->filter()->values()->all();
+                    return is_array($names) ? implode(', ', $names) : '';
+                })
                 ->addColumn('nama_pemasok', function($item) {
                     return optional($item->fakturbeli->pemasok)->nama;
                 })

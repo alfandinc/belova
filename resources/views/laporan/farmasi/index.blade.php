@@ -35,6 +35,7 @@
                         <table id="datatable-rekap" class="table table-bordered table-hover table-sm">
                             <thead class="thead-light">
                                 <tr>
+                                    <th>Principal</th>
                                     <th>Nama Pemasok</th>
                                     <th>Nama Obat</th>
                                     <th>Harga Beli/Satuan</th>
@@ -254,6 +255,7 @@ $(function() {
             }
         },
         columns: [
+            { data: 'principal', name: 'principal' },
             { data: 'nama_pemasok', name: 'nama_pemasok' },
             { data: 'nama_obat', name: 'nama_obat' },
             { data: 'harga_beli', name: 'harga_beli' },

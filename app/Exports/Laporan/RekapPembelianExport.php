@@ -13,7 +13,7 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
 {
     public function collection()
     {
-        $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat'])
+        $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat.principals'])
             ->whereHas('fakturbeli', function($q) {
                 $q->where('status', 'diapprove');
             });
@@ -27,6 +27,7 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
     {
         return [
             'Nama Pemasok',
+            'Principal',
             'Nama Obat',
             'Received Date',
             'Due Date',
@@ -54,6 +55,16 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
         $hargaJadi = $base - $diskonValue + $taxValue;
         return [
             optional($item->fakturbeli->pemasok)->nama,
+            // Principals: join many-to-many names if available
+            (function($obat) {
+                if (!$obat) return '';
+                try {
+                    $names = $obat->principals->pluck('nama')->filter()->values()->all();
+                    return is_array($names) ? implode(', ', $names) : '';
+                } catch (\Exception $e) {
+                    return '';
+                }
+            })(optional($item->obat)),
             optional($item->obat)->nama,
             // Received date (handle string or DateTime)
             (function($fb) {
