@@ -18,7 +18,7 @@ class RunningController extends Controller
      */
     public function data(Request $request)
     {
-        $query = RunningPeserta::select(['id', 'unique_code', 'nama_peserta', 'kategori', 'status', 'created_at']);
+        $query = RunningPeserta::select(['id', 'unique_code', 'nama_peserta', 'kategori', 'status', 'verified_at', 'created_at']);
         return DataTables::of($query)->make(true);
     }
 
@@ -118,6 +118,7 @@ class RunningController extends Controller
         }
 
         $peserta->status = 'verified';
+        $peserta->verified_at = now();
         $peserta->save();
 
         $message = 'Peserta with code ' . $peserta->unique_code . ' marked as verified.';
@@ -127,5 +128,24 @@ class RunningController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Find peserta by code (no mutation). Used for preview before verify.
+     */
+    public function find(Request $request)
+    {
+        $request->validate([
+            'code' => 'required|string',
+        ]);
+
+        $code = trim($request->input('code'));
+        $peserta = RunningPeserta::where('unique_code', $code)->first();
+
+        if (!$peserta) {
+            return response()->json(['ok' => false, 'message' => 'Code not found.'], 404);
+        }
+
+        return response()->json(['ok' => true, 'data' => $peserta]);
     }
 }

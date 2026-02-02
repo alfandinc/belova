@@ -17,7 +17,12 @@ class RunningPeserta extends Model
         'kategori',
         'status',
         'unique_code',
+        'verified_at',
         ];
+
+    protected $casts = [
+        'verified_at' => 'datetime',
+    ];
 
         protected static function booted()
         {

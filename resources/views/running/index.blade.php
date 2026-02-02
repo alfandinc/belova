@@ -19,12 +19,18 @@
         <div class="col-12 col-lg-10">
             <div class="card">
                 <div class="card-body">
-                    <div class="d-flex justify-content-start mb-3">
+                    <div class="d-flex align-items-center mb-3">
                         <div class="mr-2">
                             <a href="#" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#importModal"><i class="fas fa-file-upload"></i> Import Peserta</a>
                         </div>
-                        <div>
-                            <a href="#" class="btn btn-sm btn-outline-success" data-toggle="modal" data-target="#verifyModal"><i class="fas fa-check-circle"></i> Verif Peserta</a>
+                        <div class="ml-auto" style="max-width:420px;">
+                            <div class="input-group">
+                                <input type="text" id="verify_code" class="form-control" placeholder="Type peserta code to verify" aria-label="Verify code">
+                                <div class="input-group-append">
+                                    <span class="input-group-text">Code</span>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Type the unique code shown in the table; a confirmation will appear if matched.</small>
                         </div>
                     </div>
 
@@ -37,6 +43,7 @@
                                     <th>Nama Peserta</th>
                                     <th>Kategori</th>
                                     <th>Status</th>
+                                    <th>Verified At</th>
                                     <th>Created At</th>
                                 </tr>
                             </thead>
@@ -77,33 +84,7 @@
     </div>
 </div>
 
-<!-- Verify Modal -->
-<div class="modal fade" id="verifyModal" tabindex="-1" role="dialog" aria-labelledby="verifyModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <form id="verifyForm" method="POST" action="{{ route('running.verify') }}">
-            @csrf
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="verifyModalLabel">Verify Peserta</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="verify_code">Enter Code</label>
-                        <input type="text" name="code" id="verify_code" class="form-control" placeholder="Enter peserta code" required>
-                        <small class="form-text text-muted">Type the unique code shown in the table to verify a peserta.</small>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-success">Verify</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
+<!-- Verify input moved into page (no modal) -->
 @endsection
 
 @push('scripts')
@@ -122,6 +103,7 @@
                 { data: 'nama_peserta', name: 'nama_peserta' },
                 { data: 'kategori', name: 'kategori' },
                 { data: 'status', name: 'status' },
+                { data: 'verified_at', name: 'verified_at' },
                 { data: 'created_at', name: 'created_at' }
             ],
             order: [[0, 'desc']],
@@ -174,41 +156,70 @@
                 }
             });
         });
+        // Auto-find code as user types and show preview confirmation
+        (function(){
+            var timer = null;
+            var $input = $('#verify_code');
 
-                // Verify form submission via AJAX
-                $('#verifyForm').on('submit', function(e){
-                    e.preventDefault();
-                    var form = this;
-                    var $submit = $(form).find('button[type=submit]');
-                    $submit.prop('disabled', true).text('Verifying...');
-
+            $input.on('input', function(){
+                var val = $(this).val().trim();
+                clearTimeout(timer);
+                if (!val) return; // nothing to do
+                // debounce 500ms
+                timer = setTimeout(function(){
+                    // call find endpoint
                     $.ajax({
-                        url: $(form).attr('action'),
-                        method: 'POST',
-                        data: $(form).serialize(),
-                        headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') },
-                        success: function(resp){
-                            var msg = (resp && resp.message) ? resp.message : 'Verification completed.';
-                            $('#verifyModal').modal('hide');
-                            $(form).trigger('reset');
-                            try {
-                                Swal.fire({ icon: 'success', title: 'Verified', text: msg, timer: 2000, showConfirmButton: false });
-                            } catch(e) { alert(msg); }
-                            pesertaTable.ajax.reload(null, false);
+                        url: '{{ route('running.find') }}',
+                        method: 'GET',
+                        data: { code: val },
+                        success: function(res){
+                            if (res && res.ok && res.data) {
+                                var p = res.data;
+                                var html = '<div style="text-align:left">'
+                                    + '<p><strong>Code:</strong> ' + (p.unique_code || '') + '</p>'
+                                    + '<p><strong>Nama:</strong> ' + (p.nama_peserta || '') + '</p>'
+                                    + '<p><strong>Kategori:</strong> ' + (p.kategori || '') + '</p>'
+                                    + '<p><strong>Status:</strong> ' + (p.status || '') + '</p>'
+                                    + '</div>';
+
+                                Swal.fire({
+                                    title: 'Confirm Verification',
+                                    html: html,
+                                    icon: 'question',
+                                    showCancelButton: true,
+                                    confirmButtonText: 'OK, Verify',
+                                    cancelButtonText: 'Cancel'
+                                }).then(function(result){
+                                    if (result.value) {
+                                        // perform verification POST
+                                        $.ajax({
+                                            url: '{{ route('running.verify') }}',
+                                            method: 'POST',
+                                            data: { code: p.unique_code, _token: $('meta[name="csrf-token"]').attr('content') },
+                                            success: function(resp2){
+                                                var msg = (resp2 && resp2.message) ? resp2.message : 'Verified.';
+                                                try { Swal.fire({ icon: 'success', title: 'Verified', text: msg, timer: 1800, showConfirmButton: false }); } catch(e) { alert(msg); }
+                                                pesertaTable.ajax.reload(null, false);
+                                                // clear inline input
+                                                $('#verify_code').val('').blur();
+                                            },
+                                            error: function(xhr2){
+                                                var text = 'Verification failed.';
+                                                if (xhr2 && xhr2.responseJSON && xhr2.responseJSON.message) text = xhr2.responseJSON.message;
+                                                try { Swal.fire({ icon: 'error', title: 'Verify Error', text: text }); } catch(e) { alert(text); }
+                                            }
+                                        });
+                                    }
+                                });
+                            }
                         },
-                        error: function(xhr){
-                            var text = 'Verification failed.';
-                            if (xhr && xhr.responseJSON && xhr.responseJSON.message) text = xhr.responseJSON.message;
-                            else if (xhr && xhr.responseText) text = xhr.responseText;
-                            try {
-                                Swal.fire({ icon: 'error', title: 'Verify Error', text: text });
-                            } catch(e) { alert(text); }
-                        },
-                        complete: function(){
-                            $submit.prop('disabled', false).text('Verify');
+                        error: function(){
+                            // code not found or server error; ignore silently (or you can show small feedback)
                         }
                     });
-                });
+                }, 500);
+            });
+        })();
     });
 </script>
 @endpush
