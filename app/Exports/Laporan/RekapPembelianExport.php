@@ -13,7 +13,7 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
 {
     public function collection()
     {
-        $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat.principals'])
+        $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat.principals', 'principal'])
             ->whereHas('fakturbeli', function($q) {
                 $q->where('status', 'diapprove');
             });
@@ -57,22 +57,40 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
             optional($item->fakturbeli->pemasok)->nama,
             // Principals: join many-to-many names if available (be defensive)
             (function($item) {
-                $names = [];
-                if (isset($item->obat) && $item->obat) {
-                    try {
+                try {
+                    // 1) Principal directly on the faktur item
+                    if (isset($item->principal) && $item->principal) {
+                        return optional($item->principal)->nama ?: '';
+                    }
+
+                    // 2) Fallback to MasterFaktur (match by obat + pemasok)
+                    $obatId = $item->obat_id ?? null;
+                    $pemasokId = optional($item->fakturbeli)->pemasok_id ?? null;
+                    if ($obatId && $pemasokId) {
+                        $mf = \App\Models\ERM\MasterFaktur::where('obat_id', $obatId)
+                            ->where('pemasok_id', $pemasokId)
+                            ->first();
+                        if ($mf && $mf->principal_id) {
+                            $p = \App\Models\ERM\Principal::find($mf->principal_id);
+                            if ($p) return $p->nama ?: '';
+                        }
+                    }
+
+                    // 3) Last resort: obat->principals many-to-many
+                    if (isset($item->obat) && $item->obat) {
                         $obat = $item->obat;
                         $principals = $obat->principals ?? null;
                         if ($principals instanceof \Illuminate\Support\Collection) {
                             $names = $principals->pluck('nama')->filter()->values()->all();
                         } else {
-                            // fallback to query when relation not loaded or null
                             $names = $obat->principals()->pluck('nama')->filter()->values()->all();
                         }
-                    } catch (\Exception $e) {
-                        $names = [];
+                        return is_array($names) ? implode(', ', $names) : '';
                     }
+                } catch (\Exception $e) {
+                    return '';
                 }
-                return is_array($names) ? implode(', ', $names) : '';
+                return '';
             })($item),
             optional($item->obat)->nama,
             // Received date (handle string or DateTime)

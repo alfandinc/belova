@@ -16,7 +16,7 @@ class FarmasiController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat.principals'])
+            $query = FakturBeliItem::with(['fakturbeli.pemasok', 'obat.principals', 'principal'])
                 ->whereHas('fakturbeli', function($q) use ($request) {
                     $q->where('status', 'diapprove');
                     if ($request->filled('date_range')) {
@@ -30,19 +30,40 @@ class FarmasiController extends Controller
                 });
             return \Yajra\DataTables\DataTables::of($query)
                 ->addColumn('principal', function($item) {
-                    if (!$item->obat) return '';
                     try {
-                        $obat = $item->obat;
-                        $principals = $obat->principals ?? null;
-                        if ($principals instanceof \Illuminate\Support\Collection) {
-                            $names = $principals->pluck('nama')->filter()->values()->all();
-                        } else {
-                            $names = $obat->principals()->pluck('nama')->filter()->values()->all();
+                        // 1) Prefer principal specified on the faktur item itself
+                        if (isset($item->principal) && $item->principal) {
+                            return optional($item->principal)->nama ?: '';
                         }
-                        return is_array($names) ? implode(', ', $names) : '';
+
+                        // 2) Fallback: look up MasterFaktur by obat_id + pemasok_id
+                        $obatId = $item->obat_id ?? null;
+                        $pemasokId = optional($item->fakturbeli)->pemasok_id ?? null;
+                        if ($obatId && $pemasokId) {
+                            $mf = \App\Models\ERM\MasterFaktur::where('obat_id', $obatId)
+                                ->where('pemasok_id', $pemasokId)
+                                ->first();
+                            if ($mf && $mf->principal_id) {
+                                $principal = \App\Models\ERM\Principal::find($mf->principal_id);
+                                if ($principal) return $principal->nama ?: '';
+                            }
+                        }
+
+                        // 3) Last resort: use obat->principals many-to-many
+                        if (isset($item->obat) && $item->obat) {
+                            $obat = $item->obat;
+                            $principals = $obat->principals ?? null;
+                            if ($principals instanceof \Illuminate\Support\Collection) {
+                                $names = $principals->pluck('nama')->filter()->values()->all();
+                            } else {
+                                $names = $obat->principals()->pluck('nama')->filter()->values()->all();
+                            }
+                            return is_array($names) ? implode(', ', $names) : '';
+                        }
                     } catch (\Exception $e) {
                         return '';
                     }
+                    return '';
                 })
                 ->addColumn('nama_pemasok', function($item) {
                     return optional($item->fakturbeli->pemasok)->nama;
