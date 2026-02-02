@@ -241,6 +241,20 @@ Route::get('/events', [\App\Http\Controllers\EventsController::class, 'index'])
     ->middleware('auth')
     ->name('events.dashboard');
 
+// Running section (index only)
+Route::get('/running', [\App\Http\Controllers\RunningController::class, 'index'])
+    ->middleware('auth')
+    ->name('running.index');
+Route::get('/running/data', [\App\Http\Controllers\RunningController::class, 'data'])
+    ->middleware('auth')
+    ->name('running.data');
+Route::post('/running/import', [\App\Http\Controllers\RunningController::class, 'import'])
+    ->middleware('auth')
+    ->name('running.import');
+Route::post('/running/verify', [\App\Http\Controllers\RunningController::class, 'verify'])
+    ->middleware('auth')
+    ->name('running.verify');
+
 // Statistik (new module) - grouped under `statistik` prefix, uses ERM layout and same middleware as SatuSehat
 Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
     Route::get('/', [\App\Http\Controllers\PusatStatistikController::class, 'index'])

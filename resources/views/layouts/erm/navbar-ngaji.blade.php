@@ -51,6 +51,16 @@
                             </li>
                         </ul>
                     </li>
+
+                    <!-- New Running section (separate from Belova Mengaji) -->
+                    <li>
+                        <a href="javascript: void(0);"><i data-feather="activity" class="align-self-center menu-icon"></i><span>Running</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
+                        <ul class="nav-second-level" aria-expanded="false">
+                            <li>
+                                <a href="/running"><i data-feather="list" class="align-self-center menu-icon"></i><span>Index</span></a>
+                            </li>
+                        </ul>
+                    </li>
                     @endhasanyrole                  
 
 
