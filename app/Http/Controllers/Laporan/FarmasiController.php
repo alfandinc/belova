@@ -86,7 +86,7 @@ class FarmasiController extends Controller
                     $hargaJadi = $base - $diskonValue + $taxValue;
                     return number_format($hargaJadi, 2);
                 })
-                ->rawColumns(['nama_pemasok', 'nama_obat', 'harga_beli', 'quantity', 'diskon_persen', 'diskon_nominal', 'harga_jadi'])
+                ->rawColumns(['principal','nama_pemasok', 'nama_obat', 'harga_beli', 'quantity', 'diskon_persen', 'diskon_nominal', 'harga_jadi'])
                 ->make(true);
         }
         
