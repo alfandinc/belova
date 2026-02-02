@@ -31,9 +31,18 @@ class FarmasiController extends Controller
             return \Yajra\DataTables\DataTables::of($query)
                 ->addColumn('principal', function($item) {
                     if (!$item->obat) return '';
-                    // obat->principals is a relation (many-to-many)
-                    $names = $item->obat->principals->pluck('nama')->filter()->values()->all();
-                    return is_array($names) ? implode(', ', $names) : '';
+                    try {
+                        $obat = $item->obat;
+                        $principals = $obat->principals ?? null;
+                        if ($principals instanceof \Illuminate\Support\Collection) {
+                            $names = $principals->pluck('nama')->filter()->values()->all();
+                        } else {
+                            $names = $obat->principals()->pluck('nama')->filter()->values()->all();
+                        }
+                        return is_array($names) ? implode(', ', $names) : '';
+                    } catch (\Exception $e) {
+                        return '';
+                    }
                 })
                 ->addColumn('nama_pemasok', function($item) {
                     return optional($item->fakturbeli->pemasok)->nama;

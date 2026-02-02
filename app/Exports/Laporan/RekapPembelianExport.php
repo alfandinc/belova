@@ -55,16 +55,25 @@ class RekapPembelianExport implements FromCollection, WithHeadings, WithMapping
         $hargaJadi = $base - $diskonValue + $taxValue;
         return [
             optional($item->fakturbeli->pemasok)->nama,
-            // Principals: join many-to-many names if available
-            (function($obat) {
-                if (!$obat) return '';
-                try {
-                    $names = $obat->principals->pluck('nama')->filter()->values()->all();
-                    return is_array($names) ? implode(', ', $names) : '';
-                } catch (\Exception $e) {
-                    return '';
+            // Principals: join many-to-many names if available (be defensive)
+            (function($item) {
+                $names = [];
+                if (isset($item->obat) && $item->obat) {
+                    try {
+                        $obat = $item->obat;
+                        $principals = $obat->principals ?? null;
+                        if ($principals instanceof \Illuminate\Support\Collection) {
+                            $names = $principals->pluck('nama')->filter()->values()->all();
+                        } else {
+                            // fallback to query when relation not loaded or null
+                            $names = $obat->principals()->pluck('nama')->filter()->values()->all();
+                        }
+                    } catch (\Exception $e) {
+                        $names = [];
+                    }
                 }
-            })(optional($item->obat)),
+                return is_array($names) ? implode(', ', $names) : '';
+            })($item),
             optional($item->obat)->nama,
             // Received date (handle string or DateTime)
             (function($fb) {
