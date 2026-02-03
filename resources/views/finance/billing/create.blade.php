@@ -1395,7 +1395,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 edited_items: editedItems,
                 new_items: newItems,
                 deleted_items: deletedItems,
-                totals: window.billingTotals || {}
+                totals: JSON.stringify(window.billingTotals || {})
             };
             
             // console.log('Request data being sent:', requestData);
@@ -1473,7 +1473,7 @@ $('#saveAllChangesBtn').on('click', function() {
                         edited_items: editedItems,
                         new_items: newItems,
                         deleted_items: deletedItems,
-                        totals: window.billingTotals || {}
+                        totals: JSON.stringify(window.billingTotals || {})
                     };
 
                     // Open a single loading modal and update it through the process
@@ -1534,7 +1534,7 @@ $('#saveAllChangesBtn').on('click', function() {
                                     _token: "{{ csrf_token() }}",
                                     visitation_id: correctVisitationId,
                                     items: items,
-                                    totals: window.billingTotals || {},
+                                    totals: JSON.stringify(window.billingTotals || {}),
                                     gudang_selections: collectGudangSelections()
                                 },
                                 success: function(invoiceResponse) {

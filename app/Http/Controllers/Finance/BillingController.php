@@ -796,9 +796,20 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
     {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
-            'totals' => 'required|array',
+            'totals' => 'required',
             'gudang_selections' => 'nullable|array', // Array of item_key => gudang_id
         ]);
+
+        // Accept totals as either an array (normal) or a JSON string (sent from frontend).
+        $totalsInput = $request->input('totals');
+        if (is_string($totalsInput)) {
+            $decoded = json_decode($totalsInput, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $request->merge(['totals' => $decoded]);
+            } else {
+                $request->merge(['totals' => []]);
+            }
+        }
 
         DB::beginTransaction();
 
@@ -1901,8 +1912,19 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             'edited_items' => 'nullable|array',
             'deleted_items' => 'nullable|array',
             'new_items' => 'nullable|array',
-            'totals' => 'nullable|array',
+            'totals' => 'nullable',
         ]);
+
+        // Accept totals as array or JSON string from frontend
+        $totalsInput = $request->input('totals');
+        if (is_string($totalsInput)) {
+            $decoded = json_decode($totalsInput, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $request->merge(['totals' => $decoded]);
+            } else {
+                $request->merge(['totals' => null]);
+            }
+        }
 
         DB::beginTransaction();
         try {
