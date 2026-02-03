@@ -1415,7 +1415,9 @@ $('#saveAllChangesBtn').on('click', function() {
             $.ajax({
                 url: "{{ route('finance.billing.save') }}",
                 type: "POST",
-                data: requestData,
+                data: JSON.stringify(requestData),
+                contentType: 'application/json; charset=utf-8',
+                dataType: 'json',
                 success: function(response) {
                     // console.log('Save response:', response);
                     Swal.fire({
@@ -1530,13 +1532,15 @@ $('#saveAllChangesBtn').on('click', function() {
                                 $.ajax({
                                 url: "{{ route('finance.billing.createInvoice') }}",
                                 type: "POST",
-                                data: {
+                                data: JSON.stringify({
                                     _token: "{{ csrf_token() }}",
                                     visitation_id: correctVisitationId,
                                     items: items,
                                     totals: JSON.stringify(window.billingTotals),
                                     gudang_selections: collectGudangSelections()
-                                },
+                                }),
+                                contentType: 'application/json; charset=utf-8',
+                                dataType: 'json',
                                 success: function(invoiceResponse) {
                                     // The backend returns stock_reduced and stock_message
                                     var stockReduced = invoiceResponse.stock_reduced === true || invoiceResponse.stock_reduced === 1;
