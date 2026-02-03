@@ -37,7 +37,6 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
             return [
                 'Tanggal' => $r->created_at ? $r->created_at->format('Y-m-d H:i:s') : '',
                 'Obat' => $r->item && $r->item->obat ? $r->item->obat->nama : null,
-                'Batch' => $r->item ? $r->item->batch_name : null,
                 'Jenis' => $r->jenis,
                 'Qty' => $r->qty,
                 'Process Status' => $r->process_status,
@@ -54,7 +53,6 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
         return [
             'Tanggal',
             'Obat',
-            'Batch',
             'Jenis',
             'Qty',
             'Process Status',
