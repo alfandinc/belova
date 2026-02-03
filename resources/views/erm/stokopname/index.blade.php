@@ -114,6 +114,12 @@
 .blink-warning {
   animation: blink 1s linear infinite;
 }
+/* Table column sizing helpers */
+.yajra-datatable td.aksi-col { white-space: normal; }
+.yajra-datatable td.col-no { white-space: nowrap; }
+.yajra-datatable td.aksi-col .btn { display: inline-block; margin-bottom: 4px; }
+.yajra-datatable th.aksi-col { width: 220px; }
+.yajra-datatable th.col-no { width: 40px; }
 </style>
 <script>
 $(function () {
@@ -139,12 +145,22 @@ $(function () {
   var table = $('.yajra-datatable').DataTable({
     processing: true,
     serverSide: true,
+    // column sizing: No (0) small, Aksi (5) wider
+    columnDefs: [
+      { targets: 0, width: '40px', className: 'col-no text-center' },
+      { targets: 5, width: '220px', className: 'aksi-col' }
+    ],
     ajax: {
       url: "{{ route('erm.stokopname.index') }}",
       data: function(d) {
         d.periode_bulan = $('#filter_periode_bulan').val();
         d.periode_tahun = $('#filter_periode_tahun').val();
       }
+    },
+    // add class to cells after row is created to ensure styles apply
+    createdRow: function(row, data, dataIndex) {
+      $(row).find('td').eq(0).addClass('col-no');
+      $(row).find('td').eq(5).addClass('aksi-col');
     },
   columns: [
       {

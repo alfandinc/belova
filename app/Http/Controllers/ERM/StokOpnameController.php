@@ -14,6 +14,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StokOpnameTemplateExport;
 use App\Imports\StokOpnameImport;
 use App\Exports\StokOpnameResultsExport;
+use App\Exports\StokOpnameTemuanExport;
 
 class StokOpnameController extends Controller
 {
@@ -530,11 +531,12 @@ class StokOpnameController extends Controller
                 })
                 ->addColumn('aksi', function($row) {
                     $lihatBtn = '<a href="'.route('erm.stokopname.create', $row->id).'" class="btn btn-primary btn-sm">Lihat Stok Opname</a>';
+                    $exportTemuan = ' <a href="'.route('erm.stokopname.exportTemuan', $row->id).'" class="btn btn-info btn-sm">Export Temuan Excel</a>';
                     if ($row->status === 'selesai') {
                         $exportBtn = ' <a href="'.route('erm.stokopname.exportResults', $row->id).'" class="btn btn-success btn-sm">Export Hasil Excel</a>';
-                        return $lihatBtn . $exportBtn;
+                        return $lihatBtn . $exportTemuan . $exportBtn;
                     }
-                    return $lihatBtn;
+                    return $lihatBtn . $exportTemuan;
                 })
                 ->rawColumns(['aksi'])
                 ->make(true);
@@ -740,6 +742,15 @@ class StokOpnameController extends Controller
 
         // Only allow export if stok opname exists. Caller (view) may choose to show button only when status is 'selesai'.
         return Excel::download(new StokOpnameResultsExport($id), 'stok_opname_results_' . $id . '.xlsx');
+    }
+
+    /**
+     * Export temuan (record-only temuan entries) for a stok opname to Excel
+     */
+    public function exportTemuanExcel($id)
+    {
+        $stokOpname = StokOpname::findOrFail($id);
+        return Excel::download(new StokOpnameTemuanExport($id), 'stok_opname_temuan_' . $id . '.xlsx');
     }
 
     public function uploadExcel(Request $request, $id)

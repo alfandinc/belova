@@ -919,6 +919,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/{id}/download-excel', [\App\Http\Controllers\ERM\StokOpnameController::class, 'downloadExcel'])->name('erm.stokopname.downloadExcel');
     // Export stok opname results (items) to Excel
     Route::get('/{id}/export-results', [\App\Http\Controllers\ERM\StokOpnameController::class, 'exportResultsExcel'])->name('erm.stokopname.exportResults');
+    // Export temuan (record-only temuan entries) to Excel
+    Route::get('/{id}/export-temuan', [\App\Http\Controllers\ERM\StokOpnameController::class, 'exportTemuanExcel'])->name('erm.stokopname.exportTemuan');
     Route::post('/{id}/upload-excel', [\App\Http\Controllers\ERM\StokOpnameController::class, 'uploadExcel'])->name('erm.stokopname.uploadExcel');
     // Stok Opname Items DataTable AJAX
     Route::get('/{id}/items-data', [\App\Http\Controllers\ERM\StokOpnameController::class, 'itemsData'])->name('erm.stokopname.itemsData');
