@@ -18,7 +18,14 @@ class RunningController extends Controller
      */
     public function data(Request $request)
     {
-        $query = RunningPeserta::select(['id', 'unique_code', 'nama_peserta', 'kategori', 'status', 'verified_at', 'created_at']);
+        $query = RunningPeserta::select(['id', 'unique_code', 'nama_peserta', 'kategori', 'no_hp', 'email', 'ukuran_kaos', 'notes', 'status', 'verified_at']);
+
+        // apply status filter if provided (expect values: 'all', 'non verified', 'verified')
+        $status = $request->input('status');
+        if ($status && strtolower($status) !== 'all') {
+            $query->where('status', $status);
+        }
+
         return DataTables::of($query)->make(true);
     }
 
@@ -64,11 +71,19 @@ class RunningController extends Controller
                 $nama = $mapped['nama_peserta'] ?? ($mapped['nama'] ?? null);
                 $kategori = $mapped['kategori'] ?? null;
                 $status = $mapped['status'] ?? 'non verified';
+                $no_hp = $mapped['no_hp'] ?? ($mapped['hp'] ?? $mapped['telepon'] ?? null);
+                $email = $mapped['email'] ?? null;
+                $ukuran = $mapped['ukuran_kaos'] ?? $mapped['ukuran'] ?? $mapped['ukuran_tshirt'] ?? null;
+                $notes = $mapped['notes'] ?? $mapped['keterangan'] ?? $mapped['note'] ?? null;
             } else {
-                // assume order: nama_peserta, kategori, status
+                // assume order: nama_peserta, kategori, status, no_hp, email, ukuran_kaos
                 $nama = $data[0] ?? null;
                 $kategori = $data[1] ?? null;
                 $status = $data[2] ?? 'non verified';
+                $no_hp = $data[3] ?? null;
+                $email = $data[4] ?? null;
+                $ukuran = $data[5] ?? null;
+                $notes = $data[6] ?? null;
             }
 
             $nama = trim((string) $nama);
@@ -82,6 +97,10 @@ class RunningController extends Controller
                 'nama_peserta' => $nama,
                 'kategori' => $kategori ? trim($kategori) : null,
                 'status' => $status ? trim($status) : 'non verified',
+                'no_hp' => $no_hp ? trim($no_hp) : null,
+                'email' => $email ? trim($email) : null,
+                'ukuran_kaos' => $ukuran ? trim($ukuran) : null,
+                'notes' => $notes ? trim($notes) : null,
             ]);
             $created++;
             $row++;
@@ -147,5 +166,17 @@ class RunningController extends Controller
         }
 
         return response()->json(['ok' => true, 'data' => $peserta]);
+    }
+
+    /**
+     * Render a ticket view for printing / download
+     */
+    public function ticket($id)
+    {
+        $peserta = RunningPeserta::find($id);
+        if (!$peserta) {
+            abort(404);
+        }
+        return view('running.ticket', compact('peserta'));
     }
 }

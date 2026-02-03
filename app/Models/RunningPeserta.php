@@ -18,6 +18,10 @@ class RunningPeserta extends Model
         'status',
         'unique_code',
         'verified_at',
+        'no_hp',
+        'email',
+        'ukuran_kaos',
+        'notes',
         ];
 
     protected $casts = [

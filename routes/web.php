@@ -257,6 +257,9 @@ Route::post('/running/verify', [\App\Http\Controllers\RunningController::class, 
 Route::get('/running/find', [\App\Http\Controllers\RunningController::class, 'find'])
     ->middleware('auth')
     ->name('running.find');
+Route::get('/running/ticket/{id}', [\App\Http\Controllers\RunningController::class, 'ticket'])
+    ->middleware('auth')
+    ->name('running.ticket');
 
 // Statistik (new module) - grouped under `statistik` prefix, uses ERM layout and same middleware as SatuSehat
 Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(function () {

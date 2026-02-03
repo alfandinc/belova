@@ -23,6 +23,15 @@
                         <div class="mr-2">
                             <a href="#" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#importModal"><i class="fas fa-file-upload"></i> Import Peserta</a>
                         </div>
+                        <div class="ml-3">
+                            <div class="form-group mb-0">
+                                <select id="status_filter" class="form-control form-control-sm">
+                                    <option value="all">All</option>
+                                    <option value="non verified" selected>Non Verified</option>
+                                    <option value="verified">Verified</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="ml-auto" style="max-width:420px;">
                             <div class="input-group">
                                 <input type="text" id="verify_code" class="form-control" placeholder="Type peserta code to verify" aria-label="Verify code">
@@ -41,10 +50,13 @@
                                     <th>ID</th>
                                     <th>Code</th>
                                     <th>Nama Peserta</th>
+                                    <th>No HP</th>
+                                    <th>Email</th>
+                                    <th>Ukuran Kaos</th>
+                                    <th>Notes</th>
                                     <th>Kategori</th>
                                     <th>Status</th>
-                                    <th>Verified At</th>
-                                    <th>Created At</th>
+                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -95,16 +107,58 @@
             serverSide: true,
             ajax: {
                 url: '{{ route('running.data') }}',
-                type: 'GET'
+                type: 'GET',
+                data: function(d){
+                    // send current status filter
+                    d.status = $('#status_filter').val() || 'non verified';
+                }
             },
-            columns: [
+                columns: [
                 { data: 'id', name: 'id' },
                 { data: 'unique_code', name: 'unique_code' },
                 { data: 'nama_peserta', name: 'nama_peserta' },
+                { data: 'no_hp', name: 'no_hp' },
+                { data: 'email', name: 'email' },
+                { data: 'ukuran_kaos', name: 'ukuran_kaos' },
+                { data: 'notes', name: 'notes' },
                 { data: 'kategori', name: 'kategori' },
-                { data: 'status', name: 'status' },
-                { data: 'verified_at', name: 'verified_at' },
-                { data: 'created_at', name: 'created_at' }
+                { data: 'status', name: 'status', render: function(data, type, row){
+                        var s = (data || '').toString();
+                        var label = s.split(' ').map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join(' ');
+                        var lower = s.toLowerCase().trim();
+                        var cls = 'secondary';
+                        if (lower === 'verified') {
+                            cls = 'success';
+                        } else if (lower === 'non verified' || lower === 'non-verified' || lower.indexOf('non') !== -1) {
+                            cls = 'danger';
+                        }
+                        var badge = '<span class="badge badge-' + cls + '">' + label + '</span>';
+
+                        // show verified_at under the badge if present
+                        var verified = row && row.verified_at ? row.verified_at : null;
+                        if (verified) {
+                            var dt = new Date(verified);
+                            if (!isNaN(dt.getTime())) {
+                                var day = dt.getDate();
+                                var month = dt.getMonth();
+                                var year = dt.getFullYear();
+                                var hour = dt.getHours();
+                                var minute = dt.getMinutes();
+                                var months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+                                var mm = months[month] || '';
+                                var minStr = (minute < 10) ? '0' + minute : minute;
+                                var formatted = day + ' ' + mm + ' ' + year + ' ' + hour + '.' + minStr;
+                                return badge + '<div class="text-muted small mt-1">' + formatted + '</div>';
+                            }
+                        }
+                        return badge;
+                    }
+                },
+                { data: null, orderable: false, searchable: false, render: function(data, type, row){
+                        var url = '{{ url('running/ticket') }}/' + row.id;
+                        return '<a class="btn btn-sm btn-outline-primary" target="_blank" href="' + url + '"><i class="fas fa-print"></i> Generate</a>';
+                    }
+                }
             ],
             order: [[0, 'desc']],
             responsive: true
@@ -156,6 +210,10 @@
                 }
             });
         });
+        // reload datatable when status filter changes
+        $('#status_filter').on('change', function(){
+            pesertaTable.ajax.reload();
+        });
         // Auto-find code as user types and show preview confirmation
         (function(){
             var timer = null;
@@ -175,6 +233,43 @@
                         success: function(res){
                             if (res && res.ok && res.data) {
                                 var p = res.data;
+                                // if already verified, show info with timestamp
+                                if (p.status && p.status.toString().toLowerCase().trim() === 'verified') {
+                                    var formatted = '';
+                                    if (p.verified_at) {
+                                        var dtv = new Date(p.verified_at);
+                                        if (!isNaN(dtv.getTime())) {
+                                            var dayv = dtv.getDate();
+                                            var monthv = dtv.getMonth();
+                                            var yearv = dtv.getFullYear();
+                                            var hourv = dtv.getHours();
+                                            var minutev = dtv.getMinutes();
+                                            var monthsv = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+                                            var mmv = monthsv[monthv] || '';
+                                            var minStrv = (minutev < 10) ? '0' + minutev : minutev;
+                                            formatted = dayv + ' ' + mmv + ' ' + yearv + ' ' + hourv + '.' + minStrv;
+                                        }
+                                    }
+                                    var infoHtml = '<div style="text-align:left">'
+                                        + '<p><strong>Code:</strong> ' + (p.unique_code || '') + '</p>'
+                                        + '<p><strong>Nama:</strong> ' + (p.nama_peserta || '') + '</p>'
+                                        + '<p><strong>Kategori:</strong> ' + (p.kategori || '') + '</p>';
+                                    if (formatted) {
+                                        infoHtml += '<p><strong>Peserta sudah terverifikasi pada:</strong> ' + formatted + '</p>';
+                                    } else {
+                                        infoHtml += '<p><strong>Peserta sudah terverifikasi.</strong></p>';
+                                    }
+                                    infoHtml += '</div>';
+
+                                    Swal.fire({
+                                        title: 'Kode sudah digunakan',
+                                        html: infoHtml,
+                                        icon: 'info',
+                                        confirmButtonText: 'OK'
+                                    });
+                                    return;
+                                }
+
                                 var html = '<div style="text-align:left">'
                                     + '<p><strong>Code:</strong> ' + (p.unique_code || '') + '</p>'
                                     + '<p><strong>Nama:</strong> ' + (p.nama_peserta || '') + '</p>'

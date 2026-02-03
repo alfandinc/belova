@@ -1,0 +1,72 @@
+@extends('layouts.erm.app')
+
+@section('content')
+<style>
+.ticket-page {
+    width: 600px;
+    height: 800px;
+    position: relative;
+    background-image: url('{{ asset('img/templates/reg_ticket.jpg') }}');
+    background-size: cover;
+    background-position: center;
+}
+.ticket-name {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: calc(50% - 130px);
+    font-size: 28px;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    text-align: center;
+}
+.ticket-category {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: calc(50% - 95px);
+    font-size: 14px;
+    color: #ffffff;
+    text-align: center;
+}
+.ticket-barcode {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    background: transparent;
+}
+.ticket-barcode svg { width: 520px; height: auto; display: block; }
+</style>
+
+<div class="ticket-page">
+    <div class="ticket-name">{{ $peserta->nama_peserta }}</div>
+    <div class="ticket-category">{{ $peserta->kategori }}</div>
+    <div class="ticket-barcode">
+        <svg id="barcode"></svg>
+        <div class="text-white small mt-2">{{ $peserta->unique_code }}</div>
+    </div>
+</div>
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function(){
+        try {
+            JsBarcode('#barcode', '{{ addslashes($peserta->unique_code) }}', {
+                format: 'CODE128',
+                displayValue: false,
+                width: 3,
+                height: 120,
+                margin: 10
+            });
+        } catch (e) {
+            console.error('Barcode render error', e);
+        }
+    });
+</script>
+@endpush
+
+@endsection
