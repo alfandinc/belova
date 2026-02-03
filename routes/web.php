@@ -260,6 +260,9 @@ Route::get('/running/find', [\App\Http\Controllers\RunningController::class, 'fi
 Route::get('/running/ticket/{id}', [\App\Http\Controllers\RunningController::class, 'ticket'])
     ->middleware('auth')
     ->name('running.ticket');
+Route::get('/running/ticket-html/{id}', [\App\Http\Controllers\RunningController::class, 'ticketHtml'])
+    ->middleware('auth')
+    ->name('running.ticket.html');
 
 // Statistik (new module) - grouped under `statistik` prefix, uses ERM layout and same middleware as SatuSehat
 Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(function () {

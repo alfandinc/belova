@@ -62,6 +62,27 @@
                             <tbody></tbody>
                         </table>
                     </div>
+                    
+                    <!-- Ticket Preview Modal -->
+                    <div class="modal fade" id="ticketModal" tabindex="-1" role="dialog" aria-hidden="true">
+                        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Ticket Preview</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body text-center" id="ticketModalBody">
+                                    <!-- fragment loaded here -->
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" id="downloadTicketBtn" class="btn btn-primary">Download Image</button>
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -100,6 +121,11 @@
 @endsection
 
 @push('scripts')
+<script>
+    // load barcode & html2canvas libs for modal preview + download
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
     $(function(){
         var pesertaTable = $('#peserta-table').DataTable({
@@ -155,8 +181,7 @@
                     }
                 },
                 { data: null, orderable: false, searchable: false, render: function(data, type, row){
-                        var url = '{{ url('running/ticket') }}/' + row.id;
-                        return '<a class="btn btn-sm btn-outline-primary" target="_blank" href="' + url + '"><i class="fas fa-print"></i> Generate</a>';
+                        return '<button class="btn btn-sm btn-outline-primary btn-generate" data-id="' + row.id + '"><i class="fas fa-print"></i> Generate</button>';
                     }
                 }
             ],
@@ -213,6 +238,43 @@
         // reload datatable when status filter changes
         $('#status_filter').on('change', function(){
             pesertaTable.ajax.reload();
+        });
+        
+        // open modal preview when Generate clicked
+        $(document).on('click', '.btn-generate', function(e){
+            e.preventDefault();
+            var id = $(this).data('id');
+            var url = '{{ route('running.ticket.html', ['id' => '__id__']) }}'.replace('__id__', id);
+            $('#ticketModalBody').html('<div class="text-center">Loading preview&hellip;</div>');
+            $('#ticketModal').modal('show');
+            $.get(url).done(function(html){
+                $('#ticketModalBody').html(html);
+                // render barcode inside modal (smaller margin and slightly smaller height)
+                var code = $('#modal-unique-code').text().trim();
+                try {
+                    JsBarcode('#modal-barcode', code, { format: 'CODE128', displayValue: false, width: 2.5, height: 100, margin: 2 });
+                } catch(e) { console.error(e); }
+            }).fail(function(){
+                $('#ticketModalBody').html('<div class="text-danger">Failed to load preview.</div>');
+            });
+        });
+
+        // download ticket as image
+        $('#downloadTicketBtn').on('click', function(){
+            var $page = $('#ticketModalBody').find('.ticket-page').first();
+            if (!$page.length) return alert('No ticket to download');
+            html2canvas($page[0], { scale: 2 }).then(function(canvas){
+                var dataUrl = canvas.toDataURL('image/png');
+                var link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = 'ticket.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }).catch(function(err){
+                console.error(err);
+                alert('Failed to generate image');
+            });
         });
         // Auto-find code as user types and show preview confirmation
         (function(){

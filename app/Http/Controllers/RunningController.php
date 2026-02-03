@@ -179,4 +179,16 @@ class RunningController extends Controller
         }
         return view('running.ticket', compact('peserta'));
     }
+
+    /**
+     * Return ticket HTML fragment (no layout) for modal preview.
+     */
+    public function ticketHtml($id)
+    {
+        $peserta = RunningPeserta::find($id);
+        if (!$peserta) {
+            return response('Not found', 404);
+        }
+        return view('running.ticket_fragment', compact('peserta'));
+    }
 }

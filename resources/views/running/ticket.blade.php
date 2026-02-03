@@ -42,11 +42,16 @@
 </style>
 
 <div class="ticket-page">
-    <div class="ticket-name">{{ $peserta->nama_peserta }}</div>
-    <div class="ticket-category">{{ $peserta->kategori }}</div>
-    <div class="ticket-barcode">
+    <div class="ticket-barcode" style="position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;">
         <svg id="barcode"></svg>
-        <div class="text-white small mt-2">{{ $peserta->unique_code }}</div>
+        <div class="text-white small mt-2" style="font-weight:800;font-size:22px;margin-top:8px;">{{ $peserta->unique_code }}</div>
+    </div>
+
+    <div class="ticket-identity" style="position:absolute;left:50%;transform:translateX(-50%);top:62%;text-align:center;color:#ffffff;line-height:1.3;text-transform:uppercase;letter-spacing:0.5px;">
+        <div style="font-size:18px;font-weight:800;margin-top:0;">Nama : <span style="font-weight:800;">{{ $peserta->nama_peserta }}</span></div>
+        <div style="font-size:18px;font-weight:800;margin-top:6px;">No Telp : <span style="font-weight:800;">{{ $peserta->no_hp ?? '-' }}</span></div>
+        <div style="font-size:18px;font-weight:800;margin-top:6px;">Email : <span style="font-weight:800;">{{ $peserta->email ?? '-' }}</span></div>
+        <div style="font-size:18px;font-weight:800;margin-top:6px;">Ukuran Kaos : <span style="font-weight:800;">{{ strtoupper($peserta->ukuran_kaos ?? '-') }}</span></div>
     </div>
 </div>
 
