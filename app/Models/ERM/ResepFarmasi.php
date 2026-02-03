@@ -63,6 +63,29 @@ class ResepFarmasi extends Model
     }
 
     /**
+     * Append paket_racikan_name to model JSON when available.
+     * This tries to match a PaketRacikanDetail by obat_id + dosis and returns
+     * the parent PaketRacikan.nama_paket if found.
+     */
+    protected $appends = ['paket_racikan_name'];
+
+    public function getPaketRacikanNameAttribute()
+    {
+        try {
+            $detail = PaketRacikanDetail::where('obat_id', $this->obat_id)
+                        ->where('dosis', $this->dosis)
+                        ->with('paketRacikan')
+                        ->first();
+            if ($detail && $detail->paketRacikan) {
+                return $detail->paketRacikan->nama_paket;
+            }
+        } catch (\Exception $e) {
+            Log::warning('Error finding paket racikan for resep: ' . $e->getMessage());
+        }
+        return null;
+    }
+
+    /**
      * Keep billing/invoice in sync when resep is updated or deleted
      */
     protected static function booted()

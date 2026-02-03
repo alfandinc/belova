@@ -268,10 +268,37 @@
                     html += '<div class="card-body">';
                     html += '<h6>Riwayat Resep Dokter</h6>';
                     if (visit.resep_dokter && visit.resep_dokter.length > 0) {
-                        html += '<ul>';
+                        // Group resep by paket name so we show the paket header only once
+                        var groups = {};
                         visit.resep_dokter.forEach(function(r) {
-                            html += '<li>' + (r.obat_nama || '-') + ' | Jumlah: ' + (r.jumlah || '-') + '</li>';
+                            var key = r.paket_racikan_name || '__no_paket__';
+                            if (!groups[key]) groups[key] = [];
+                            groups[key].push(r);
                         });
+                        // Render each group as list items so paket lines have bullets like non-paket items
+                        html += '<ul>';
+                        for (var key in groups) {
+                            var items = groups[key];
+                            if (key !== '__no_paket__') {
+                                // For paket groups: compute group bungkus and list item names only
+                                var itemsNames = items.map(function(r) {
+                                    return (r.obat_nama || '-');
+                                }).join(', ');
+                                var bungkusVals = items.map(function(r) { return r.bungkus; }).filter(function(v) { return v !== null && v !== undefined && v !== ''; });
+                                var groupBungkus = '-';
+                                if (bungkusVals.length > 0) {
+                                    // prefer a uniform bungkus value; otherwise take the first non-empty
+                                    groupBungkus = bungkusVals[0];
+                                }
+                                // Format: PaketName | Jumlah: X | (item1, item2)
+                                html += '<li><strong>' + key + '</strong> | Jumlah: ' + groupBungkus + ' | (' + itemsNames + ')</li>';
+                            } else {
+                                // no paket: show regular items
+                                items.forEach(function(r) {
+                                    html += '<li>' + (r.obat_nama || '-') + ' | Jumlah: ' + (r.jumlah || '-') + '</li>';
+                                });
+                            }
+                        }
                         html += '</ul>';
                     } else {
                         html += '<div class="text-muted">Tidak ada resep dokter</div>';

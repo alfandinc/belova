@@ -359,6 +359,8 @@ class MarketingController extends Controller
                         'racikan_ke' => $r->racikan_ke,
                         'aturan_pakai' => $r->aturan_pakai,
                         'wadah' => $r->wadah ? $r->wadah->nama : null,
+                        // include computed paket name from model accessor
+                        'paket_racikan_name' => $r->paket_racikan_name ?? null,
                     ];
                 });
             // Riwayat tindakan for this visitation
