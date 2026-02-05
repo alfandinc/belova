@@ -264,6 +264,23 @@ Route::get('/running/ticket-html/{id}', [\App\Http\Controllers\RunningController
     ->middleware('auth')
     ->name('running.ticket.html');
 
+// Public token-protected ticket HTML for bot (no auth middleware)
+Route::get('/running/ticket-html-public/{id}', [\App\Http\Controllers\RunningController::class, 'ticketHtmlForBot'])
+    ->name('running.ticket.html.public');
+
+// Send running ticket via WhatsApp (single / bulk)
+Route::post('/running/send-whatsapp', [\App\Http\Controllers\RunningController::class, 'sendWhatsapp'])
+    ->middleware('auth')
+    ->name('running.send_whatsapp');
+Route::post('/running/send-whatsapp-bulk', [\App\Http\Controllers\RunningController::class, 'sendWhatsappBulk'])
+    ->middleware('auth')
+    ->name('running.send_whatsapp_bulk');
+
+// Store generated ticket image for peserta (called from UI after html2canvas)
+Route::post('/running/store-ticket-image', [\App\Http\Controllers\RunningController::class, 'storeTicketImage'])
+    ->middleware('auth')
+    ->name('running.store_ticket_image');
+
 // Statistik (new module) - grouped under `statistik` prefix, uses ERM layout and same middleware as SatuSehat
 Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(function () {
     Route::get('/', [\App\Http\Controllers\PusatStatistikController::class, 'index'])

@@ -23,6 +23,9 @@
                         <div class="mr-2">
                             <a href="#" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#importModal"><i class="fas fa-file-upload"></i> Import Peserta</a>
                         </div>
+                        <div class="ml-2">
+                            <button id="btnSendSelected" class="btn btn-sm btn-outline-success"><i class="fas fa-paper-plane"></i> Send Selected</button>
+                        </div>
                         <div class="ml-3">
                             <div class="form-group mb-0">
                                 <select id="status_filter" class="form-control form-control-sm">
@@ -47,6 +50,7 @@
                         <table class="table table-striped table-bordered" id="peserta-table" style="width:100%">
                             <thead>
                                 <tr>
+                                    <th><input type="checkbox" id="select-all"></th>
                                     <th>ID</th>
                                     <th>Code</th>
                                     <th>Nama Peserta</th>
@@ -140,6 +144,10 @@
                 }
             },
                 columns: [
+                { data: null, orderable: false, searchable: false, render: function(data, type, row){
+                        return '<input type="checkbox" class="row-select" value="' + row.id + '">';
+                    }
+                },
                 { data: 'id', name: 'id' },
                 { data: 'unique_code', name: 'unique_code' },
                 { data: 'nama_peserta', name: 'nama_peserta' },
@@ -181,7 +189,10 @@
                     }
                 },
                 { data: null, orderable: false, searchable: false, render: function(data, type, row){
-                        return '<button class="btn btn-sm btn-outline-primary btn-generate" data-id="' + row.id + '"><i class="fas fa-print"></i> Generate</button>';
+                        return '<div class="btn-group" role="group">'
+                            + '<button class="btn btn-sm btn-outline-primary btn-generate" data-id="' + row.id + '"><i class="fas fa-print"></i> Generate</button>'
+                            + '<button class="btn btn-sm btn-outline-success btn-send" data-id="' + row.id + '" data-to="' + (row.no_hp || '') + '"><i class="fas fa-paper-plane"></i> Send</button>'
+                            + '</div>';
                     }
                 }
             ],
@@ -241,9 +252,11 @@
         });
         
         // open modal preview when Generate clicked
+        var currentTicketPesertaId = null;
         $(document).on('click', '.btn-generate', function(e){
             e.preventDefault();
             var id = $(this).data('id');
+            currentTicketPesertaId = id;
             var url = '{{ route('running.ticket.html', ['id' => '__id__']) }}'.replace('__id__', id);
             $('#ticketModalBody').html('<div class="text-center">Loading preview&hellip;</div>');
             $('#ticketModal').modal('show');
@@ -259,20 +272,52 @@
             });
         });
 
-        // download ticket as image
+        // download ticket as image and store on server for sending
         $('#downloadTicketBtn').on('click', function(){
             var $page = $('#ticketModalBody').find('.ticket-page').first();
             if (!$page.length) return alert('No ticket to download');
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Generating...');
             html2canvas($page[0], { scale: 2 }).then(function(canvas){
                 var dataUrl = canvas.toDataURL('image/png');
+                // trigger download for user
                 var link = document.createElement('a');
                 link.href = dataUrl;
                 link.download = 'ticket.png';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+
+                // also upload to server and attach to pending scheduled messages
+                if (currentTicketPesertaId) {
+                    $.ajax({
+                        url: '{{ route('running.store_ticket_image') }}',
+                        method: 'POST',
+                        data: { peserta_id: currentTicketPesertaId, image_data: dataUrl, _token: $('meta[name="csrf-token"]').attr('content') },
+                        success: function(resp){
+                            if (resp && resp.ok) {
+                                try { Swal.fire({ icon: 'success', title: 'Saved', text: 'Ticket image saved and attached to queued messages.', timer: 1500, showConfirmButton: false }); } catch(e) {}
+                                pesertaTable.ajax.reload(null, false);
+                            } else {
+                                var msg = (resp && resp.message) ? resp.message : 'Failed to save image';
+                                try { Swal.fire({ icon: 'error', title: 'Save Error', text: msg }); } catch(e) { alert(msg); }
+                            }
+                        },
+                        error: function(xhr){
+                            var text = 'Upload failed';
+                            if (xhr && xhr.responseJSON && xhr.responseJSON.message) text = xhr.responseJSON.message;
+                            try { Swal.fire({ icon: 'error', title: 'Save Error', text: text }); } catch(e) { alert(text); }
+                        },
+                        complete: function(){
+                            $btn.prop('disabled', false).html('Download Image');
+                        }
+                    });
+                } else {
+                    $btn.prop('disabled', false).html('Download Image');
+                }
             }).catch(function(err){
                 console.error(err);
+                $btn.prop('disabled', false).html('Download Image');
                 alert('Failed to generate image');
             });
         });
@@ -377,6 +422,126 @@
                 }, 500);
             });
         })();
+
+        // select all checkbox behavior
+        $('#select-all').on('change', function(){
+            var checked = $(this).is(':checked');
+            $('#peserta-table').find('input.row-select').prop('checked', checked);
+        });
+
+        // single send button: generate image (offscreen), upload, then enqueue and send
+        $(document).on('click', '.btn-send', function(e){
+            e.preventDefault();
+            var id = $(this).data('id');
+            var to = $(this).data('to') || '';
+            if (!id) return;
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Preparing...');
+
+            // fetch ticket fragment HTML
+            var url = '{{ route('running.ticket.html', ['id' => '__id__']) }}'.replace('__id__', id);
+            $.get(url).done(function(html){
+                // create offscreen container
+                var $off = $('<div style="position:fixed;left:-9999px;top:0;" id="_ticket_offscreen"></div>');
+                $('body').append($off);
+                $off.html(html);
+                // render barcode inside offscreen
+                try {
+                    var code = $off.find('#modal-unique-code').text().trim();
+                    JsBarcode($off.find('#modal-barcode')[0], code, { format: 'CODE128', displayValue: false, width: 2.5, height: 100, margin: 2 });
+                } catch (e) { console.error('barcode render failed', e); }
+
+                // ensure styles/images load, then capture
+                setTimeout(function(){
+                    var el = $off.find('.ticket-page')[0];
+                    if (!el) {
+                        $off.remove();
+                        $btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send');
+                        return alert('Failed to prepare ticket');
+                    }
+                    html2canvas(el, { scale: 2 }).then(function(canvas){
+                        var dataUrl = canvas.toDataURL('image/png');
+                        // upload to server
+                        $.ajax({
+                            url: '{{ route('running.store_ticket_image') }}',
+                            method: 'POST',
+                            data: { peserta_id: id, image_data: dataUrl, _token: $('meta[name="csrf-token"]').attr('content') },
+                            success: function(resp){
+                                if (resp && resp.ok) {
+                                    // then enqueue scheduled send with returned image_path
+                                    $.ajax({
+                                        url: '{{ route('running.send_whatsapp') }}',
+                                        method: 'POST',
+                                        data: { peserta_id: id, to: to, image_path: resp.image_path, _token: $('meta[name="csrf-token"]').attr('content') },
+                                        success: function(r2){
+                                            if (r2 && r2.ok) {
+                                                try { Swal.fire({ icon: 'success', title: 'Queued', text: 'Ticket queued and will be sent shortly.', timer: 1500, showConfirmButton: false }); } catch(e) {}
+                                                pesertaTable.ajax.reload(null, false);
+                                            } else {
+                                                var msg = (r2 && r2.message) ? r2.message : 'Failed to queue message';
+                                                try { Swal.fire({ icon: 'error', title: 'Error', text: msg }); } catch(e) { alert(msg); }
+                                            }
+                                        },
+                                        error: function(){ try { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to enqueue message' }); } catch(e) { alert('Failed to enqueue message'); } }
+                                    });
+                                } else {
+                                    var msg = (resp && resp.message) ? resp.message : 'Failed to save image';
+                                    try { Swal.fire({ icon: 'error', title: 'Save Error', text: msg }); } catch(e) { alert(msg); }
+                                }
+                            },
+                            error: function(){ try { Swal.fire({ icon: 'error', title: 'Save Error', text: 'Failed to upload image' }); } catch(e) { alert('Failed to upload image'); } },
+                            complete: function(){
+                                $off.remove();
+                                $btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send');
+                            }
+                        });
+                    }).catch(function(err){
+                        console.error(err);
+                        $off.remove();
+                        $btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send');
+                        try { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to render ticket image' }); } catch(e) { alert('Failed to render ticket image'); }
+                    });
+                }, 600);
+            }).fail(function(){
+                $btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send');
+                try { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load ticket preview' }); } catch(e) { alert('Failed to load ticket preview'); }
+            });
+        });
+
+        // bulk send selected
+        $('#btnSendSelected').on('click', function(){
+            var ids = [];
+            $('#peserta-table').find('input.row-select:checked').each(function(){ ids.push(parseInt($(this).val())); });
+            if (!ids.length) {
+                try { Swal.fire({ icon: 'info', title: 'No selection', text: 'Please select at least one peserta.' }); } catch(e) { alert('Please select at least one peserta.'); }
+                return;
+            }
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Queueing...');
+            $.ajax({
+                url: '{{ route('running.send_whatsapp_bulk') }}',
+                method: 'POST',
+                data: { peserta_ids: ids, _token: $('meta[name="csrf-token"]').attr('content') },
+                success: function(resp){
+                    if (resp && resp.ok) {
+                        var msg = 'Queued ' + (resp.created || 0) + ' messages.';
+                        try { Swal.fire({ icon: 'success', title: 'Queued', text: msg, timer: 2000, showConfirmButton: false }); } catch(e) {}
+                        pesertaTable.ajax.reload(null, false);
+                    } else {
+                        var msg = (resp && resp.message) ? resp.message : 'Failed to queue messages';
+                        try { Swal.fire({ icon: 'error', title: 'Error', text: msg }); } catch(e) { alert(msg); }
+                    }
+                },
+                error: function(xhr){
+                    var text = 'Request failed';
+                    if (xhr && xhr.responseJSON && xhr.responseJSON.message) text = xhr.responseJSON.message;
+                    try { Swal.fire({ icon: 'error', title: 'Error', text: text }); } catch(e) { alert(text); }
+                },
+                complete: function(){
+                    $btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Selected');
+                }
+            });
+        });
     });
 </script>
 @endpush

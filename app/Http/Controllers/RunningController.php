@@ -5,12 +5,136 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\RunningPeserta;
 use Yajra\DataTables\Facades\DataTables;
+use App\Models\RunningWaScheduledMessage;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class RunningController extends Controller
 {
     public function index()
     {
         return view('running.index');
+    }
+
+    /**
+     * Enqueue a running ticket to be sent via WhatsApp (single)
+     */
+    public function sendWhatsapp(Request $request)
+    {
+        $request->validate([
+            'peserta_id' => 'required|integer',
+            'to' => 'nullable|string',
+            'client_id' => 'nullable|string',
+            'image_path' => 'nullable|string'
+        ]);
+
+        $peserta = RunningPeserta::find($request->input('peserta_id'));
+        if (!$peserta) {
+            return response()->json(['ok' => false, 'message' => 'Peserta not found'], 404);
+        }
+
+        $to = $request->input('to') ?: $peserta->no_hp;
+        if (!$to) {
+            return response()->json(['ok' => false, 'message' => 'No phone number available for peserta'], 422);
+        }
+
+        // sanitize phone (keep digits and plus)
+        $toClean = preg_replace('/[^0-9+]/', '', $to);
+
+        $row = RunningWaScheduledMessage::create([
+            'peserta_id' => $peserta->id,
+            'client_id' => $request->input('client_id') ?: null,
+            'to' => $toClean,
+            'message' => null,
+            'image_path' => $request->input('image_path') ?: null,
+            'schedule_at' => Carbon::now(),
+            'status' => 'pending'
+        ]);
+
+        return response()->json(['ok' => true, 'id' => $row->id]);
+    }
+
+    /**
+     * Enqueue multiple running tickets to be sent via WhatsApp (bulk)
+     */
+    public function sendWhatsappBulk(Request $request)
+    {
+        $request->validate([
+            'peserta_ids' => 'required|array',
+            'peserta_ids.*' => 'integer'
+        ]);
+
+        $ids = $request->input('peserta_ids', []);
+        $created = 0;
+        $createdIds = [];
+
+        foreach ($ids as $pid) {
+            $p = RunningPeserta::find($pid);
+            if (!$p) continue;
+            $to = $p->no_hp;
+            if (!$to) continue;
+            $toClean = preg_replace('/[^0-9+]/', '', $to);
+            try {
+                $row = RunningWaScheduledMessage::create([
+                    'peserta_id' => $p->id,
+                    'client_id' => null,
+                    'to' => $toClean,
+                    'message' => null,
+                    'schedule_at' => Carbon::now(),
+                    'status' => 'pending'
+                ]);
+                $created++;
+                $createdIds[] = $row->id;
+            } catch (\Exception $e) {
+                // skip failing rows
+                continue;
+            }
+        }
+
+        return response()->json(['ok' => true, 'created' => $created, 'ids' => $createdIds]);
+    }
+
+    /**
+     * Store ticket image uploaded from the browser (html2canvas) and attach to pending scheduled messages
+     */
+    public function storeTicketImage(Request $request)
+    {
+        $request->validate([
+            'peserta_id' => 'required|integer',
+            'image_data' => 'required|string'
+        ]);
+
+        $peserta = RunningPeserta::find($request->input('peserta_id'));
+        if (!$peserta) return response()->json(['ok' => false, 'message' => 'Peserta not found'], 404);
+
+        $data = $request->input('image_data');
+        if (strpos($data, 'base64,') !== false) {
+            $parts = explode('base64,', $data);
+            $data = $parts[1];
+        }
+
+        $bin = base64_decode($data);
+        if ($bin === false) return response()->json(['ok' => false, 'message' => 'Invalid image data'], 422);
+
+        $dir = storage_path('app/public/running_tickets');
+        if (!is_dir($dir)) mkdir($dir, 0755, true);
+        $filename = 'ticket-' . $peserta->id . '-' . time() . '.png';
+        $full = $dir . DIRECTORY_SEPARATOR . $filename;
+
+        file_put_contents($full, $bin);
+
+        // update pending scheduled messages for this peserta that don't yet have image_path
+        try {
+            RunningWaScheduledMessage::where('peserta_id', $peserta->id)
+                ->where('status', 'pending')
+                ->whereNull('image_path')
+                ->update(['image_path' => $full]);
+        } catch (\Exception $e) {
+            // non-fatal
+        }
+
+        return response()->json(['ok' => true, 'image_path' => $full, 'public_url' => Storage::url('running_tickets/' . $filename)]);
     }
 
     /**
@@ -189,6 +313,25 @@ class RunningController extends Controller
         if (!$peserta) {
             return response('Not found', 404);
         }
+        return view('running.ticket_fragment', compact('peserta'));
+    }
+
+    /**
+     * Public (token-protected) ticket HTML for bots / headless access.
+     * If WA_BOT_TOKEN is set in env, the request must include ?wa_bot_token=VALUE
+     */
+    public function ticketHtmlForBot(Request $request, $id)
+    {
+        $peserta = RunningPeserta::find($id);
+        if (!$peserta) {
+            return response('Not found', 404);
+        }
+
+        $token = env('WA_BOT_TOKEN');
+        if ($token && $request->query('wa_bot_token') !== $token) {
+            return response('Unauthorized', 401);
+        }
+
         return view('running.ticket_fragment', compact('peserta'));
     }
 }

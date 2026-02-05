@@ -1,4 +1,4 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const express = require('express');
 const fs = require('fs');
@@ -8,6 +8,9 @@ const fetch = require('node-fetch');
 const app = express();
 app.use(express.json());
 app.get('/', (req, res) => res.send('WA Bot running'));
+
+// Small sleep helper (compatible across Puppeteer versions)
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Session source URLs (Laravel endpoint)
 const ENV_URL = process.env.WA_SESSIONS_URL || process.env.WA_BOT_SESSIONS_URL || null;
@@ -148,10 +151,10 @@ app.get('/sessions', (req, res) => {
   res.json(out);
 });
 
-// Send message endpoint: accepts { from, to, message }
+// Send message endpoint: accepts { from, to, message } or { from, to, image_url, caption }
 app.post('/send', async (req, res) => {
-  const { from, to, message } = req.body || {};
-  if (!to || !message) return res.status(400).json({ error: 'to and message are required' });
+  const { from, to, message, image_url } = req.body || {};
+  if (!to || (!message && !image_url)) return res.status(400).json({ error: 'to and message or image_url are required' });
 
   const sessionId = from || sessionIds[0];
   const client = clients[sessionId];
@@ -178,11 +181,60 @@ app.post('/send', async (req, res) => {
     console.log(`[${sessionId}] Sending message to`, chatId);
 
     let sent;
-    try {
-      sent = await client.sendMessage(chatId, message, { sendSeen: false });
-    } catch (e) {
-      console.warn(`[${sessionId}] send with sendSeen:false failed, retrying without option:`, e && e.message ? e.message : e);
-      sent = await client.sendMessage(chatId, message);
+    // if image_url provided, fetch it and send as media with optional caption
+    if (req.body && req.body.image_url) {
+      try {
+        const imageUrl = req.body.image_url;
+        const caption = req.body.caption || '';
+        const res = await fetch(imageUrl);
+        if (!res.ok) throw new Error('Failed to fetch image: ' + res.status);
+        const buf = await res.buffer();
+        const mime = res.headers.get('content-type') || 'image/jpeg';
+        const filename = path.basename(new URL(imageUrl).pathname) || ('image.' + mime.split('/')[1] || 'jpg');
+        const base64 = buf.toString('base64');
+        const media = new MessageMedia(mime, base64, filename);
+        try {
+          sent = await client.sendMessage(chatId, media, { caption: caption, sendSeen: false });
+        } catch (e1) {
+          console.warn(`[${sessionId}] direct media send failed, attempting file fallback:`, e1 && e1.message ? e1.message : e1);
+          // if the failure is the known markedUnread TypeError, attempt a retry with minimal options
+          if (e1 && e1.message && e1.message.includes('markedUnread')) {
+            try {
+              console.warn(`[${sessionId}] detected markedUnread error, retrying media send without caption/options`);
+              sent = await client.sendMessage(chatId, media, { sendSeen: false });
+            } catch (eRetry) {
+              console.warn(`[${sessionId}] retry after markedUnread failed:`, eRetry && eRetry.message ? eRetry.message : eRetry);
+            }
+          }
+          // fallback: write to temp file and use MessageMedia.fromFilePath
+          try {
+            const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'wa-'));
+            const tmpPath = path.join(tmpDir, filename);
+            fs.writeFileSync(tmpPath, buf);
+            const media2 = MessageMedia.fromFilePath(tmpPath);
+            try {
+              sent = await client.sendMessage(chatId, media2, { caption: caption });
+            } finally {
+              // cleanup
+              try { fs.unlinkSync(tmpPath); } catch(e){}
+              try { fs.rmdirSync(tmpDir); } catch(e){}
+            }
+          } catch (e2) {
+            console.error(`[${sessionId}] file-fallback media send failed:`, e2 && e2.stack ? e2.stack : e2);
+            throw e2;
+          }
+        }
+      } catch (e) {
+        console.error(`[${sessionId}] failed to send image:`, e && e.message ? e.message : e);
+        return res.status(500).json({ error: 'failed_fetch_image', message: e.message || String(e) });
+      }
+    } else {
+      try {
+        sent = await client.sendMessage(chatId, message, { sendSeen: false });
+      } catch (e) {
+        console.warn(`[${sessionId}] send with sendSeen:false failed, retrying without option:`, e && e.message ? e.message : e);
+        sent = await client.sendMessage(chatId, message);
+      }
     }
 
     // log outgoing message to server (best-effort)
@@ -212,6 +264,117 @@ app.post('/send', async (req, res) => {
     return res.json({ ok: true, id: sent && sent.id ? sent.id._serialized : null });
   } catch (err) {
     console.error(`[${sessionId}] Error sending message:`, err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// Send ticket endpoint: accepts { from, to, peserta_id }
+app.post('/send-ticket', async (req, res) => {
+  const { from, to, peserta_id } = req.body || {};
+  if (!to || !peserta_id) return res.status(400).json({ error: 'to and peserta_id are required' });
+
+  const sessionId = from || sessionIds[0];
+  const client = clients[sessionId];
+  if (!client) return res.status(400).json({ error: 'invalid_from', message: 'Requested from session does not exist' });
+  if (statuses[sessionId] !== 'ready' && statuses[sessionId] !== 'authenticated') {
+    return res.status(400).json({ error: 'not_ready', message: `Session ${sessionId} not ready` });
+  }
+
+  // candidate Laravel base URLs
+  const baseCandidates = [
+    process.env.WHATSAPP_LARAVEL_URL || null,
+    'http://localhost/belova',
+    'http://localhost/belova/public',
+    'http://localhost'
+  ].filter(u => !!u);
+
+  let ticketUrl = null;
+  let lastErr = null;
+  for (const base of baseCandidates) {
+    try {
+      const token = process.env.WA_BOT_TOKEN || null;
+      const baseTrim = base.replace(/\/$/, '');
+      const candidates = [];
+      // always try public endpoint first (include token if available)
+      let publicUrl = baseTrim + '/running/ticket-html-public/' + encodeURIComponent(peserta_id);
+      if (token) publicUrl += '?wa_bot_token=' + encodeURIComponent(token);
+      candidates.push(publicUrl);
+      // fallback to auth-protected fragment (may return login page if not accessible)
+      candidates.push(baseTrim + '/running/ticket-html/' + encodeURIComponent(peserta_id));
+
+      for (const url of candidates) {
+        try {
+          const r = await fetch(url);
+          if (r.ok) { ticketUrl = url; break; }
+          lastErr = new Error('Bad response ' + r.status + ' from ' + url);
+        } catch (ee) { lastErr = ee; }
+      }
+      if (ticketUrl) break;
+    } catch (e) { lastErr = e; }
+  }
+
+  if (!ticketUrl) {
+    console.error('Failed to locate ticket HTML URL:', lastErr && lastErr.message ? lastErr.message : lastErr);
+    return res.status(500).json({ error: 'no_ticket_url', message: lastErr && lastErr.message ? lastErr.message : 'Failed to locate ticket URL' });
+  }
+
+  try {
+    const plain = String(to).replace(/[^0-9]/g, '');
+    let numberId = null;
+    try { numberId = await client.getNumberId(plain); } catch(e) { console.warn(`[${sessionId}] getNumberId failed:`, e && e.message ? e.message : e); }
+    if (!numberId) return res.status(400).json({ error: 'number_not_registered', message: 'Target number is not a WhatsApp user' });
+    const chatId = numberId._serialized || `${plain}@c.us`;
+
+    // If Laravel provided a pre-generated image_path, prefer sending that file directly
+    if (req.body && req.body.image_path) {
+      const imgPath = req.body.image_path;
+      try {
+        if (fs.existsSync(imgPath)) {
+          const media = MessageMedia.fromFilePath(imgPath);
+          let sent = null;
+          try {
+            sent = await client.sendMessage(chatId, media, { caption: 'Registration Ticket', sendSeen: false });
+          } catch (e) {
+            console.warn(`[${sessionId}] send ticket from file with options failed, retrying without options:`, e && e.message ? e.message : e);
+            sent = await client.sendMessage(chatId, media);
+          }
+          return res.json({ ok: true, id: sent && sent.id ? sent.id._serialized : null });
+        } else {
+          console.warn(`[${sessionId}] provided image_path does not exist: ${imgPath}`);
+        }
+      } catch (e) {
+        console.error(`[${sessionId}] error while sending image_path file:`, e && e.stack ? e.stack : e);
+      }
+    }
+
+    // fallback: render via Puppeteer (existing flow)
+    const browser = client.pupBrowser;
+    if (!browser) return res.status(500).json({ error: 'no_browser', message: 'Puppeteer browser not available' });
+
+    const page = await browser.newPage();
+    try {
+      await page.setViewport({ width: 900, height: 1200 });
+      await page.goto(ticketUrl, { waitUntil: 'networkidle0', timeout: 30000 });
+      // small delay to allow dynamic rendering (compatible fallback)
+      await sleep(500);
+      const buf = await page.screenshot({ fullPage: true, type: 'png' });
+      const base64 = buf.toString('base64');
+      const media = new MessageMedia('image/png', base64, `ticket-${peserta_id}.png`);
+
+      let sent = null;
+      try {
+        sent = await client.sendMessage(chatId, media, { caption: 'Registration Ticket', sendSeen: false });
+      } catch (e) {
+        console.warn(`[${sessionId}] send ticket with options failed, retrying without options:`, e && e.message ? e.message : e);
+        sent = await client.sendMessage(chatId, media);
+      }
+
+      return res.json({ ok: true, id: sent && sent.id ? sent.id._serialized : null });
+    } finally {
+      try { await page.close(); } catch(e){}
+    }
+  } catch (err) {
+    console.error('Error sending ticket:', err && err.stack ? err.stack : err);
     return res.status(500).json({ error: err.message || String(err) });
   }
 });

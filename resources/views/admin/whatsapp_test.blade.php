@@ -21,7 +21,7 @@
                         <div class="alert alert-danger">{{ session('error') }}</div>
                     @endif
 
-                    <form method="POST" action="{{ route('admin.whatsapp_test.send') }}">
+                    <form method="POST" action="{{ route('admin.whatsapp_test.send') }}" enctype="multipart/form-data">
                         @csrf
                         <div class="form-group">
                             <label>From (session)</label>
@@ -39,26 +39,41 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label>Select Pasien (optional)</label>
-                            <select id="pasien_select" class="form-control" style="width:100%"></select>
-                            <small class="form-text text-muted">Choosing a pasien will autofill the phone number below.</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Phone Number (international, no +, e.g. 628123...)</label>
-                            <input type="text" name="to" class="form-control" placeholder="62812xxxx" required>
-                        </div>
-                        <div class="form-group">
-                            <label>Message</label>
-                            <textarea name="message" rows="4" class="form-control" required>Test message from Belova system</textarea>
+                            <label>Recipients</label>
+                            <div id="recipients">
+                                <div class="recipient-row mb-2 row" data-index="0">
+                                    <div class="col-md-3">
+                                        <label>Pasien (optional)</label>
+                                        <select name="pasien_id[]" class="form-control pasien_select" style="width:100%"></select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label>Phone</label>
+                                        <input type="text" name="to[]" class="form-control" placeholder="62812xxxx">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label>Message</label>
+                                        <textarea name="message[]" rows="2" class="form-control">Test message from Belova system</textarea>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label>Image</label>
+                                        <input type="file" name="image[]" accept="image/*" class="form-control-file">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" id="add_recipient" class="btn btn-sm btn-secondary">Add recipient</button>
+                                <button type="button" id="remove_recipient" class="btn btn-sm btn-danger">Remove last</button>
+                            </div>
+                            <small class="form-text text-muted">You can add multiple recipients with different message/image per row.</small>
                         </div>
                         <div class="form-group form-inline">
                             <div class="form-check mr-3">
-                                <input class="form-check-input" type="checkbox" id="schedule_check">
-                                <label class="form-check-label" for="schedule_check">Schedule message</label>
+                                <input class="form-check-input" type="checkbox" id="schedule_check_all">
+                                <label class="form-check-label" for="schedule_check_all">Schedule all messages</label>
                             </div>
                             <div class="">
-                                <input type="datetime-local" name="schedule_at" class="form-control" id="schedule_at_input" style="max-width:300px;" disabled>
-                                <small class="form-text text-muted">Optional. Use local datetime to schedule the message.</small>
+                                <input type="datetime-local" name="schedule_at" class="form-control" id="schedule_at_input_all" style="max-width:300px;" disabled>
+                                <small class="form-text text-muted">Optional. Use local datetime to schedule all messages. Per-row schedule not implemented.</small>
                             </div>
                         </div>
                         <button class="btn btn-primary">Send</button>
@@ -71,35 +86,70 @@
                 @section('scripts')
                     <script>
                         (function(){
-                            // initialize Select2 for pasien search
                             if (typeof $ === 'undefined' || typeof $.fn.select2 === 'undefined') {
                                 return;
                             }
 
-                            $('#pasien_select').select2({
-                                placeholder: 'Search pasien by name or phone',
-                                allowClear: true,
-                                ajax: {
-                                    url: '{{ route('admin.whatsapp_test.pasien_search') }}',
-                                    dataType: 'json',
-                                    delay: 250,
-                                    data: function(params){ return { q: params.term }; },
-                                    processResults: function(data){ return { results: data.results }; }
-                                }
+                            function initPasienSelect($el) {
+                                $el.select2({
+                                    placeholder: 'Search pasien by name or phone',
+                                    allowClear: true,
+                                    ajax: {
+                                        url: '{{ route('admin.whatsapp_test.pasien_search') }}',
+                                        dataType: 'json',
+                                        delay: 250,
+                                        data: function(params){ return { q: params.term }; },
+                                        processResults: function(data){ return { results: data.results }; }
+                                    }
+                                });
+                                $el.on('select2:select', function(e){
+                                    var data = e.params.data;
+                                    if (data && data.phone) {
+                                        $(this).closest('.recipient-row').find('input[name="to[]"]').val(data.phone);
+                                    }
+                                });
+                                $el.on('select2:clear', function(){ $(this).closest('.recipient-row').find('input[name="to[]"]').val(''); });
+                            }
+
+                            // init first pasien select
+                            initPasienSelect($('.pasien_select'));
+
+                            // add/remove recipient rows
+                            var idx = 1;
+                            $('#add_recipient').on('click', function(){
+                                var $row = $('<div class="recipient-row mb-2 row" data-index="'+idx+'">'
+                                    + '<div class="col-md-3">'
+                                      + '<label>Pasien (optional)</label>'
+                                      + '<select name="pasien_id[]" class="form-control pasien_select" style="width:100%"></select>'
+                                    + '</div>'
+                                    + '<div class="col-md-3">'
+                                      + '<label>Phone</label>'
+                                      + '<input type="text" name="to[]" class="form-control" placeholder="62812xxxx">'
+                                    + '</div>'
+                                    + '<div class="col-md-4">'
+                                      + '<label>Message</label>'
+                                      + '<textarea name="message[]" rows="2" class="form-control"></textarea>'
+                                    + '</div>'
+                                    + '<div class="col-md-2">'
+                                      + '<label>Image</label>'
+                                      + '<input type="file" name="image[]" accept="image/*" class="form-control-file">'
+                                    + '</div>'
+                                  + '</div>');
+                                $('#recipients').append($row);
+                                initPasienSelect($row.find('.pasien_select'));
+                                idx++;
                             });
 
-                            $('#pasien_select').on('select2:select', function(e){
-                                var data = e.params.data;
-                                if (data && data.phone) {
-                                    $('input[name=to]').val(data.phone);
-                                }
+                            $('#remove_recipient').on('click', function(){
+                                var $rows = $('#recipients .recipient-row');
+                                if ($rows.length > 1) $rows.last().remove();
                             });
-                            $('#pasien_select').on('select2:clear', function(){ $('input[name=to]').val(''); });
-                            // schedule toggle
-                            $('#schedule_check').on('change', function(){
+
+                            // schedule all toggle
+                            $('#schedule_check_all').on('change', function(){
                                 var enabled = $(this).is(':checked');
-                                $('#schedule_at_input').prop('disabled', !enabled);
-                                if (!enabled) $('#schedule_at_input').val('');
+                                $('#schedule_at_input_all').prop('disabled', !enabled);
+                                if (!enabled) $('#schedule_at_input_all').val('');
                             });
                         })();
                     </script>
