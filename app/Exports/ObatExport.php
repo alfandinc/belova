@@ -101,13 +101,9 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
                 case 'satuan':
                     $row[] = $obat->satuan; break;
                 case 'is_generik':
-                    // Debug log to inspect raw value and coerced value
-                    try {
-                        Log::debug('ObatExport is_generik raw', ['id' => $obat->id, 'raw' => $obat->getAttributes()['is_generik'] ?? null, 'accessor' => $obat->is_generik]);
-                    } catch (\Exception $e) {
-                        // ignore logging errors
-                    }
-                    $row[] = (int) ($obat->is_generik ?? 0); break;
+                    // Ensure we write a visible '0' or '1' string so Excel doesn't render it as empty
+                    $raw = $obat->getAttributes()['is_generik'] ?? ($obat->is_generik ?? 0);
+                    $row[] = (string) ((int) $raw); break;
                 default:
                     $row[] = '';
             }
