@@ -702,28 +702,29 @@
                                           const base = Number(row.promo_price_base) || 0;
                                           const percent = Number(row.diskon_raw) || 0;
                                           const unitAfter = base - (base * (percent / 100));
-                                          const total = unitAfter * qty;
-                                          return 'Rp ' + formatCurrency(total);
+                                          const totalAfter = unitAfter * qty;
+                                          return 'Rp ' + formatCurrency(totalAfter);
                                       }
 
-                                      // If server provided harga_akhir_raw (unit price after server calc), use it
+                                      // If server provided harga_akhir_raw (line total after discount), use it
                                       if (typeof row.harga_akhir_raw !== 'undefined' && !isNaN(row.harga_akhir_raw) && (!row.edited)) {
-                                          const unit = Number(row.harga_akhir_raw) || 0;
-                                          return 'Rp ' + formatCurrency(unit * qty);
+                                          const lineTotal = Number(row.harga_akhir_raw) || 0;
+                                          return 'Rp ' + formatCurrency(lineTotal);
                                       }
 
-                                      // Fallback to legacy client-side calculation using jumlah_raw
+                                      // Fallback calculation: compute discount from (unit * qty)
                                       const harga = (typeof row.jumlah_raw !== 'undefined' && !isNaN(row.jumlah_raw)) ? Number(row.jumlah_raw) : 0;
-                                      let finalJumlah = harga;
+                                      const lineNoDisc = harga * qty;
+                                      let lineAfter = lineNoDisc;
                                       if (row.diskon_raw && row.diskon_raw > 0) {
                                           if (row.diskon_type === '%') {
-                                              finalJumlah = harga - (harga * (row.diskon_raw / 100));
+                                              lineAfter = lineNoDisc - (lineNoDisc * (row.diskon_raw / 100));
                                           } else {
-                                              finalJumlah = harga - row.diskon_raw;
+                                              lineAfter = lineNoDisc - row.diskon_raw;
                                           }
                                       }
-                                      const total = finalJumlah * qty;
-                                      return 'Rp ' + formatCurrency(total);
+                                      lineAfter = Math.max(0, lineAfter);
+                                      return 'Rp ' + formatCurrency(lineAfter);
                                   }
                                 },
                 { 
@@ -1080,17 +1081,20 @@
                 } else {
                     billingData[idx].diskon = '-';
                 }
-                let finalJumlah = jumlah;
+                const lineNoDisc = jumlah * qty;
+                let lineAfter = lineNoDisc;
                 if (diskon && diskon > 0) {
                     if (diskon_type === '%') {
-                        finalJumlah = jumlah - (jumlah * (diskon / 100));
+                        lineAfter = lineNoDisc - (lineNoDisc * (diskon / 100));
                     } else {
-                        finalJumlah = jumlah - diskon;
+                        // Nominal discount is treated as line discount: (unit * qty) - diskon_rp
+                        lineAfter = lineNoDisc - diskon;
                     }
                 }
-                // Store only the final unit price, not multiplied by qty
-                billingData[idx].harga_akhir_raw = finalJumlah;
-                billingData[idx].harga_akhir = 'Rp ' + formatCurrency(finalJumlah * qty);
+                lineAfter = Math.max(0, lineAfter);
+                // Store the final line total (already multiplied by qty)
+                billingData[idx].harga_akhir_raw = lineAfter;
+                billingData[idx].harga_akhir = 'Rp ' + formatCurrency(lineAfter);
                 billingData[idx].edited = true;
                 // Ensure racikan_ke is included for racikan items
                 if (billingData[idx].is_racikan && billingData[idx].billable && billingData[idx].billable.racikan_ke) {
@@ -1109,8 +1113,7 @@
             setTimeout(function() {
                 const item = billingData.find(item => item.id == id);
                 if (item) {
-                    const qty = item.qty || 1;
-                    const total = item.harga_akhir_raw * qty;
+                    const total = item.harga_akhir_raw;
                     // console.log('[DEBUG] Total in DataTable for item', id, ':', total);
                 }
             }, 200);
@@ -1242,7 +1245,7 @@
                 diskon: 0,
                 diskon_type: 'nominal',
                 harga_akhir: 'Rp ' + formatCurrency(harga * qty),
-                harga_akhir_raw: harga,
+                harga_akhir_raw: harga * qty,
                 deleted: false,
                 deskripsi: description,
                 is_racikan: true,
@@ -1257,12 +1260,10 @@
         function calculateTotals() {
             // console.log('Current billingData for totals:', billingData);
             let subtotal = 0;
-            // Sum up all harga_akhir_raw * qty values from non-deleted items
+            // Sum up all line totals (harga_akhir_raw) from non-deleted items
             billingData.forEach(function(item) {
                 if (!item.deleted && !isNaN(item.harga_akhir_raw) && item.harga_akhir_raw > 0) {
-                    const qty = item.qty || 1;
-                    const value = parseFloat(item.harga_akhir_raw) * qty;
-                    subtotal += value;
+                    subtotal += parseFloat(item.harga_akhir_raw);
                 }
             });
             // Display subtotal
@@ -1715,6 +1716,7 @@ $('#saveAllChangesBtn').on('click', function() {
             const data = e.params.data;
             const harga = parseHarga(data.harga);
             const qty = parseInt(data.qty) || 1;
+            const total = harga * qty;
             billingData.push({
                 id: 'tindakan-' + data.id,
                 billable_id: data.id,
@@ -1725,8 +1727,8 @@ $('#saveAllChangesBtn').on('click', function() {
                 qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
-                harga_akhir: 'Rp ' + formatCurrency(harga),
-                harga_akhir_raw: harga,
+                harga_akhir: 'Rp ' + formatCurrency(total),
+                harga_akhir_raw: total,
                 deleted: false,
                 deskripsi: ''
             });
@@ -1746,6 +1748,7 @@ $('#saveAllChangesBtn').on('click', function() {
             const data = e.params.data;
             const harga = parseHarga(data.harga);
             const qty = parseInt(data.qty) || 1;
+            const total = harga * qty;
             billingData.push({
                 id: 'lab-' + data.id,
                 billable_id: data.id,
@@ -1756,8 +1759,8 @@ $('#saveAllChangesBtn').on('click', function() {
                 qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
-                harga_akhir: 'Rp ' + formatCurrency(harga),
-                harga_akhir_raw: harga,
+                harga_akhir: 'Rp ' + formatCurrency(total),
+                harga_akhir_raw: total,
                 deleted: false,
                 deskripsi: ''
             });
@@ -1777,6 +1780,7 @@ $('#saveAllChangesBtn').on('click', function() {
             const data = e.params.data;
             const harga = parseHarga(data.harga);
             const qty = parseInt(data.qty) || 1;
+            const total = harga * qty;
             billingData.push({
                 id: 'konsultasi-' + data.id,
                 billable_id: data.id,
@@ -1787,8 +1791,8 @@ $('#saveAllChangesBtn').on('click', function() {
                 qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
-                harga_akhir: 'Rp ' + formatCurrency(harga),
-                harga_akhir_raw: harga,
+                harga_akhir: 'Rp ' + formatCurrency(total),
+                harga_akhir_raw: total,
                 deleted: false,
                 deskripsi: ''
             });
@@ -1802,6 +1806,7 @@ $('#saveAllChangesBtn').on('click', function() {
             const data = e.params.data;
             const harga = parseHarga(data.harga);
             const qty = parseInt(data.qty) || 1;
+            const total = harga * qty;
             billingData.push({
                 id: 'obat-' + data.id,
                 billable_id: data.id,
@@ -1812,8 +1817,8 @@ $('#saveAllChangesBtn').on('click', function() {
                 qty: qty,
                 diskon: 0,
                 diskon_type: 'nominal',
-                harga_akhir: 'Rp ' + formatCurrency(harga),
-                harga_akhir_raw: harga,
+                harga_akhir: 'Rp ' + formatCurrency(total),
+                harga_akhir_raw: total,
                 deleted: false,
                 deskripsi: ''
             });

@@ -606,27 +606,39 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 
                 // For racikan items
                 if (isset($row->is_racikan) && $row->is_racikan) {
-                    return $row->racikan_total_price; // Don't multiply by quantity here, frontend will handle it
+                    $qty = $row->racikan_bungkus ?? 0;
+                    return floatval($row->racikan_total_price) * floatval($qty);
                 }
 
-                // Get the unit price (harga)
+                // Get quantity
+                $qty = isset($row->qty) ? $row->qty : (
+                    $row->billable_type == 'App\\Models\\ERM\\ResepFarmasi'
+                        ? ($row->billable->jumlah ?? 1)
+                        : ($row->billable->qty ?? 1)
+                );
+                $qty = floatval($qty ?: 1);
+
+                // Base unit price (harga)
                 // If a promo_price_base is provided (promo applies and uses a special base), prefer it for percentage discounts
-                $unitPrice = $row->jumlah;
+                $unitBase = floatval($row->jumlah ?? 0);
                 if (isset($row->promo_price_base) && $row->promo_price_base && $row->diskon_type == '%') {
-                    $unitPrice = $row->promo_price_base;
+                    $unitBase = floatval($row->promo_price_base);
                 }
 
-                // Apply discount to the unit price
-                if ($row->diskon && $row->diskon > 0) {
+                $lineNoDisc = $unitBase * $qty;
+                $discountVal = floatval($row->diskon ?? 0);
+
+                // Apply discount: percent applies proportionally; nominal is treated as LINE discount
+                $lineAfter = $lineNoDisc;
+                if ($discountVal > 0) {
                     if ($row->diskon_type == '%') {
-                        $unitPrice = $unitPrice - ($unitPrice * ($row->diskon / 100));
+                        $lineAfter = $lineNoDisc - ($lineNoDisc * ($discountVal / 100));
                     } else {
-                        $unitPrice = $unitPrice - $row->diskon;
+                        $lineAfter = $lineNoDisc - $discountVal;
                     }
                 }
 
-                // Return the unit price after discount - frontend will multiply by qty
-                return $unitPrice;
+                return max(0, $lineAfter);
             })
             ->addColumn('harga_akhir', function ($row) {
                 // For pharmacy fees
@@ -639,35 +651,34 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     return 'Rp ' . number_format($row->racikan_total_price * $row->racikan_bungkus, 0, ',', '.');
                 }
 
-                // Get the unit price (harga)
-                // If a promo_price_base is provided (promo applies and uses a special base), prefer it for percentage discounts
-                $unitPrice = $row->jumlah;
-                if (isset($row->promo_price_base) && $row->promo_price_base && $row->diskon_type == '%') {
-                    $unitPrice = $row->promo_price_base;
-                }
-
-                // Apply discount to the unit price
-                if ($row->diskon && $row->diskon > 0) {
-                    if ($row->diskon_type == '%') {
-                        $unitPrice = $unitPrice - ($unitPrice * ($row->diskon / 100));
-                    } else {
-                        $unitPrice = $unitPrice - $row->diskon;
-                    }
-                }
-
-                // Get quantity
+                // Quantity
                 $qty = isset($row->qty) ? $row->qty : (
-                    $row->billable_type == 'App\Models\ERM\ResepFarmasi'
+                    $row->billable_type == 'App\\Models\\ERM\\ResepFarmasi'
                         ? ($row->billable->jumlah ?? 1)
                         : ($row->billable->qty ?? 1)
                 );
+                $qty = floatval($qty ?: 1);
 
-                // Final calculation: unit_price_after_discount * qty
-                $finalPrice = $unitPrice * $qty;
+                // Base unit price
+                $unitBase = floatval($row->jumlah ?? 0);
+                if (isset($row->promo_price_base) && $row->promo_price_base && $row->diskon_type == '%') {
+                    $unitBase = floatval($row->promo_price_base);
+                }
 
-                // no diagnostic logging in production
+                $lineNoDisc = $unitBase * $qty;
+                $discountVal = floatval($row->diskon ?? 0);
+                $lineAfter = $lineNoDisc;
+                if ($discountVal > 0) {
+                    if ($row->diskon_type == '%') {
+                        $lineAfter = $lineNoDisc - ($lineNoDisc * ($discountVal / 100));
+                    } else {
+                        // Nominal discount is treated as LINE discount
+                        $lineAfter = $lineNoDisc - $discountVal;
+                    }
+                }
+                $lineAfter = max(0, $lineAfter);
 
-                return 'Rp ' . number_format($finalPrice, 0, ',', '.');
+                return 'Rp ' . number_format($lineAfter, 0, ',', '.');
             })
             ->addColumn('qty', function ($row) {
                 if (isset($row->is_racikan) && $row->is_racikan) {
@@ -1531,17 +1542,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                 // If $finalAmountComputed not set by promo flow, compute using existing billing discount fields
                 if (!isset($finalAmountComputed)) {
+                    $qty = floatval($item->qty ?? 1);
+                    $qty = $qty > 0 ? $qty : 1;
+
                     if ($discountVal > 0) {
                         if ($discountType === '%') {
                             $unitPriceAfter = $unitPrice - ($unitPrice * ($discountVal / 100));
+                            $unitPriceAfter = max(0, $unitPriceAfter);
+                            $finalAmountComputed = $unitPriceAfter * $qty;
                         } else {
-                            $unitPriceAfter = $unitPrice - $discountVal;
+                            // Nominal discount is treated as LINE discount
+                            $lineNoDisc = $unitPrice * $qty;
+                            $finalAmountComputed = max(0, $lineNoDisc - $discountVal);
                         }
-                        $unitPriceAfter = max(0, $unitPriceAfter);
                     } else {
-                        $unitPriceAfter = $unitPrice;
+                        $finalAmountComputed = $unitPrice * $qty;
                     }
-                    $finalAmountComputed = $unitPriceAfter * floatval($item->qty ?? 1);
                 }
 
                     // Compute stored nominal discount value
