@@ -334,6 +334,9 @@
                         <a href="javascript: void(0);"> <i data-feather="dollar-sign" class="align-self-center menu-icon"></i><span>Payroll</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
                             <li class="nav-item"><a class="nav-link" href="#" onclick="checkSlipGaji(event)"><i class="ti-control-record"></i>Slip Gaji Saya</a></li>
+                            @if(Auth::check() && (Auth::user()->hasRole('Hrd') || (Auth::user()->hasRole('Manager') && Auth::user()->hasRole('Finance'))))
+                            <li class="nav-item"><a class="nav-link" href="#" onclick="checkGajiDokter(event)"><i class="ti-control-record"></i>Gaji Dokter</a></li>
+                            @endif
 
                             @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
                             <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.master.index') }}"><i class="ti-control-record"></i>Master Payroll</a></li>
@@ -387,9 +390,21 @@
 
 @push('scripts')
 <script>
+// nextRedirect can be set by callers to override where to go after successful verification
+window.nextRedirect = null;
+
 function checkSlipGaji(e) {
     e.preventDefault();
+    // reset redirect to default behavior (use response.url)
+    window.nextRedirect = null;
     // Show password verification modal
+    $('#passwordVerificationModal').modal('show');
+}
+
+function checkGajiDokter(e) {
+    e.preventDefault();
+    // Set redirect to the Gaji Dokter index page after successful verification
+    window.nextRedirect = '{{ route('hrd.payroll.slip_gaji_dokter.index') }}';
     $('#passwordVerificationModal').modal('show');
 }
 
@@ -414,7 +429,7 @@ function verifyPasswordAndGetSlip() {
         },
         success: function(response) {
             $('#passwordVerificationModal').modal('hide');
-            
+
             if (!response.success) {
                 Swal.fire({
                     icon: response.type,
@@ -424,10 +439,18 @@ function verifyPasswordAndGetSlip() {
             } else {
                 // Password is correct and slip is available
                 $('#passwordVerificationModal').modal('hide');
-                // Redirect user to their slip history page
-                window.location.href = response.url;
+                // If a custom redirect was requested (e.g. Gaji Dokter), use it.
+                if (window.nextRedirect) {
+                    var redirect = window.nextRedirect;
+                    // reset for next time
+                    window.nextRedirect = null;
+                    window.location.href = redirect;
+                } else {
+                    // Default: redirect to URL returned by server
+                    window.location.href = response.url;
+                }
             }
-            
+
             // Clear the password field
             $('#password').val('');
         },
