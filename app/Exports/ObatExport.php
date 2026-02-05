@@ -100,7 +100,7 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
                 case 'satuan':
                     $row[] = $obat->satuan; break;
                 case 'is_generik':
-                    $row[] = (int) $obat->is_generik; break;
+                    $row[] = (int) ($obat->is_generik ?? 0); break;
                 default:
                     $row[] = '';
             }
