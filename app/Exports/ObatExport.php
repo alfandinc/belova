@@ -2,6 +2,7 @@
 namespace App\Exports;
 
 use App\Models\ERM\Obat;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -100,6 +101,12 @@ class ObatExport implements FromCollection, WithHeadings, WithMapping
                 case 'satuan':
                     $row[] = $obat->satuan; break;
                 case 'is_generik':
+                    // Debug log to inspect raw value and coerced value
+                    try {
+                        Log::debug('ObatExport is_generik raw', ['id' => $obat->id, 'raw' => $obat->getAttributes()['is_generik'] ?? null, 'accessor' => $obat->is_generik]);
+                    } catch (\Exception $e) {
+                        // ignore logging errors
+                    }
                     $row[] = (int) ($obat->is_generik ?? 0); break;
                 default:
                     $row[] = '';
