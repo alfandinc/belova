@@ -253,6 +253,10 @@
                                     <input class="custom-control-input column-choice" type="checkbox" id="col-satuan" value="satuan" checked>
                                     <label class="custom-control-label" for="col-satuan">Satuan</label>
                                 </div>
+                                <div class="custom-control custom-checkbox">
+                                    <input class="custom-control-input column-choice" type="checkbox" id="col-is-generik" value="is_generik" checked>
+                                    <label class="custom-control-label" for="col-is-generik">Generik</label>
+                                </div>
                             </div>
                         </div>
                         <small class="text-muted d-block mt-2">Hanya obat aktif yang akan diexport.</small>

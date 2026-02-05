@@ -22,7 +22,7 @@ class Obat extends Model
     {
         return $this->stokGudang()->where('gudang_id', $gudangId)->sum('stok');
     }
-    use HasFactory;
+    
 
     protected $table = 'erm_obat';
 
@@ -60,8 +60,12 @@ class Obat extends Model
         'status_aktif',
         'hpp',
         'hpp_jual',
+        'is_generik',
     ];
     
+    protected $casts = [
+        'is_generik' => 'boolean',
+    ];
     /**
      * The "booted" method of the model.
      * This ensures that only active medications are shown by default
