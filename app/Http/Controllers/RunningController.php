@@ -42,11 +42,15 @@ class RunningController extends Controller
         // sanitize phone (keep digits and plus)
         $toClean = preg_replace('/[^0-9+]/', '', $to);
 
+        // Prepare templated message
+        $template = "Halo {peserta_name} !👋\n\nPengambilan racepack Belova Premiere Run 2 Wellness akan dilaksanakan pada:\n\n📅 Tanggal : Jumat, 13 Februari 2026\n⏰ Waktu : 10.00 – 15.00 WIB\ndan\n📅 Tanggal : Sabtu, 14 Februari 2026\n⏰ Waktu : 11.00 – 20.00 WIB\n\n📍 Lokasi : Klinik Utama Premiere Belova,\n\nSaat pengambilan, wajib menunjukkan Registration Ticket dan menyerahkan Waiver yang suda ditandatangani kepada panitia pelaksana di lokasi pengambilan.\n\nSampai jumpa di Belova Premiere Run 2 Wellness tanggal 15 Februari nanti! 👟✨";
+        $messageText = str_replace('{peserta_name}', $peserta->nama_peserta ?? '', $template);
+
         $row = RunningWaScheduledMessage::create([
             'peserta_id' => $peserta->id,
             'client_id' => $request->input('client_id') ?: null,
             'to' => $toClean,
-            'message' => null,
+            'message' => $messageText,
             'image_path' => $request->input('image_path') ?: null,
             'schedule_at' => Carbon::now(),
             'status' => 'pending'

@@ -330,14 +330,52 @@ app.post('/send-ticket', async (req, res) => {
       const imgPath = req.body.image_path;
       try {
         if (fs.existsSync(imgPath)) {
+          // If a message text is provided, send it first
+          if (req.body.message) {
+            try {
+              await client.sendMessage(chatId, req.body.message, { sendSeen: false });
+            } catch (eMsg) {
+              console.warn(`[${sessionId}] send text before image failed, retrying without options:`, eMsg && eMsg.message ? eMsg.message : eMsg);
+              try { await client.sendMessage(chatId, req.body.message); } catch(e2) { console.warn('text send failed', e2 && e2.message ? e2.message : e2); }
+            }
+          }
+
           const media = MessageMedia.fromFilePath(imgPath);
           let sent = null;
           try {
-            sent = await client.sendMessage(chatId, media, { caption: 'Registration Ticket', sendSeen: false });
+            sent = await client.sendMessage(chatId, media, { caption: '', sendSeen: false });
           } catch (e) {
             console.warn(`[${sessionId}] send ticket from file with options failed, retrying without options:`, e && e.message ? e.message : e);
             sent = await client.sendMessage(chatId, media);
           }
+
+          // attempt to send a document (waiver) after the image, if available
+          try {
+            let docPath = null;
+            if (req.body && req.body.document_path) {
+              docPath = req.body.document_path;
+            } else {
+              const defaultDoc = path.resolve(__dirname, '../public/img/templates/WAIVER-BELOVAPREMIERERUN.pdf');
+              if (fs.existsSync(defaultDoc)) docPath = defaultDoc;
+            }
+
+            if (docPath && fs.existsSync(docPath)) {
+              try {
+                const docMedia = MessageMedia.fromFilePath(docPath);
+                try {
+                  await client.sendMessage(chatId, docMedia, { sendMediaAsDocument: true, fileName: path.basename(docPath), sendSeen: false });
+                } catch (eDoc) {
+                  console.warn(`[${sessionId}] document send with options failed, retrying without options:`, eDoc && eDoc.message ? eDoc.message : eDoc);
+                  await client.sendMessage(chatId, docMedia, { sendMediaAsDocument: true, fileName: path.basename(docPath) });
+                }
+              } catch (eDoc2) {
+                console.error(`[${sessionId}] failed to prepare/send document:`, eDoc2 && eDoc2.stack ? eDoc2.stack : eDoc2);
+              }
+            }
+          } catch (eDocOuter) {
+            console.warn(`[${sessionId}] document send check failed:`, eDocOuter && eDocOuter.message ? eDocOuter.message : eDocOuter);
+          }
+
           return res.json({ ok: true, id: sent && sent.id ? sent.id._serialized : null });
         } else {
           console.warn(`[${sessionId}] provided image_path does not exist: ${imgPath}`);
@@ -367,6 +405,30 @@ app.post('/send-ticket', async (req, res) => {
       } catch (e) {
         console.warn(`[${sessionId}] send ticket with options failed, retrying without options:`, e && e.message ? e.message : e);
         sent = await client.sendMessage(chatId, media);
+      }
+
+      // attempt to send the waiver document after the screenshot image
+      try {
+        const defaultDoc = path.resolve(__dirname, '../public/img/templates/WAIVER-BELOVAPREMIERERUN.pdf');
+        let docPath = null;
+        if (req.body && req.body.document_path) docPath = req.body.document_path;
+        else if (fs.existsSync(defaultDoc)) docPath = defaultDoc;
+
+        if (docPath && fs.existsSync(docPath)) {
+          try {
+            const docMedia = MessageMedia.fromFilePath(docPath);
+            try {
+              await client.sendMessage(chatId, docMedia, { sendMediaAsDocument: true, fileName: path.basename(docPath), sendSeen: false });
+            } catch (eDoc) {
+              console.warn(`[${sessionId}] document send with options failed, retrying without options:`, eDoc && eDoc.message ? eDoc.message : eDoc);
+              await client.sendMessage(chatId, docMedia, { sendMediaAsDocument: true, fileName: path.basename(docPath) });
+            }
+          } catch (eDoc2) {
+            console.error(`[${sessionId}] failed to prepare/send document:`, eDoc2 && eDoc2.stack ? eDoc2.stack : eDoc2);
+          }
+        }
+      } catch (eDocOuter) {
+        console.warn(`[${sessionId}] document send check failed:`, eDocOuter && eDocOuter.message ? eDocOuter.message : eDocOuter);
       }
 
       return res.json({ ok: true, id: sent && sent.id ? sent.id._serialized : null });

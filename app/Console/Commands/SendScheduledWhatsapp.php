@@ -125,6 +125,7 @@ class SendScheduledWhatsapp extends Command
             }
 
             $payload = [ 'to' => $r->to, 'peserta_id' => $r->peserta_id ];
+            if (!empty($r->message)) $payload['message'] = $r->message;
             if (!empty($r->client_id)) $payload['from'] = $r->client_id;
             if (!empty($r->image_path)) $payload['image_path'] = $r->image_path;
 

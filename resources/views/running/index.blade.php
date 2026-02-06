@@ -508,7 +508,7 @@
             });
         });
 
-        // bulk send selected
+        // bulk send selected: generate image, upload, then enqueue per peserta sequentially
         $('#btnSendSelected').on('click', function(){
             var ids = [];
             $('#peserta-table').find('input.row-select:checked').each(function(){ ids.push(parseInt($(this).val())); });
@@ -517,30 +517,87 @@
                 return;
             }
             var $btn = $(this);
-            $btn.prop('disabled', true).text('Queueing...');
-            $.ajax({
-                url: '{{ route('running.send_whatsapp_bulk') }}',
-                method: 'POST',
-                data: { peserta_ids: ids, _token: $('meta[name="csrf-token"]').attr('content') },
-                success: function(resp){
-                    if (resp && resp.ok) {
-                        var msg = 'Queued ' + (resp.created || 0) + ' messages.';
-                        try { Swal.fire({ icon: 'success', title: 'Queued', text: msg, timer: 2000, showConfirmButton: false }); } catch(e) {}
-                        pesertaTable.ajax.reload(null, false);
-                    } else {
-                        var msg = (resp && resp.message) ? resp.message : 'Failed to queue messages';
-                        try { Swal.fire({ icon: 'error', title: 'Error', text: msg }); } catch(e) { alert(msg); }
+            $btn.prop('disabled', true).text('Preparing...');
+
+            // helper to process one peserta: fetch fragment, render barcode, capture, upload, enqueue
+            function processOne(id) {
+                return new Promise(function(resolve){
+                    var url = '{{ route('running.ticket.html', ['id' => '__id__']) }}'.replace('__id__', id);
+                    $.get(url).done(function(html){
+                        var $off = $('<div style="position:fixed;left:-9999px;top:0;" id="_ticket_offscreen_' + id + '"></div>');
+                        $('body').append($off);
+                        $off.html(html);
+                        try {
+                            var code = $off.find('#modal-unique-code').text().trim();
+                            JsBarcode($off.find('#modal-barcode')[0], code, { format: 'CODE128', displayValue: false, width: 2.5, height: 100, margin: 2 });
+                        } catch (e) { console.error('barcode render failed', e); }
+
+                        setTimeout(function(){
+                            var el = $off.find('.ticket-page')[0];
+                            if (!el) {
+                                $off.remove();
+                                return resolve({ ok: false, id: id, message: 'Failed to prepare ticket' });
+                            }
+                            html2canvas(el, { scale: 2 }).then(function(canvas){
+                                var dataUrl = canvas.toDataURL('image/png');
+                                // upload
+                                $.ajax({
+                                    url: '{{ route('running.store_ticket_image') }}',
+                                    method: 'POST',
+                                    data: { peserta_id: id, image_data: dataUrl, _token: $('meta[name="csrf-token"]').attr('content') },
+                                    success: function(resp){
+                                        if (resp && resp.ok) {
+                                            // enqueue send with returned image_path
+                                            $.ajax({
+                                                url: '{{ route('running.send_whatsapp') }}',
+                                                method: 'POST',
+                                                data: { peserta_id: id, image_path: resp.image_path, _token: $('meta[name="csrf-token"]').attr('content') },
+                                                success: function(r2){
+                                                    $off.remove();
+                                                    if (r2 && r2.ok) return resolve({ ok: true, id: id });
+                                                    return resolve({ ok: false, id: id, message: (r2 && r2.message) ? r2.message : 'Failed to enqueue' });
+                                                },
+                                                error: function(){ $off.remove(); return resolve({ ok: false, id: id, message: 'Enqueue error' }); }
+                                            });
+                                        } else {
+                                            $off.remove();
+                                            return resolve({ ok: false, id: id, message: (resp && resp.message) ? resp.message : 'Failed to save image' });
+                                        }
+                                    },
+                                    error: function(){ $off.remove(); return resolve({ ok: false, id: id, message: 'Upload failed' }); }
+                                });
+                            }).catch(function(err){
+                                console.error(err);
+                                $off.remove();
+                                return resolve({ ok: false, id: id, message: 'Render failed' });
+                            });
+                        }, 600);
+                    }).fail(function(){ return resolve({ ok: false, id: id, message: 'Failed to load ticket fragment' }); });
+                });
+            }
+
+            // sequentially process all ids to avoid browser overload
+            (async function(){
+                var results = [];
+                for (var i = 0; i < ids.length; i++) {
+                    $btn.text('Processing ' + (i+1) + ' / ' + ids.length + '...');
+                    try {
+                        // small delay between items
+                        await new Promise(r=>setTimeout(r, 250));
+                        var res = await processOne(ids[i]);
+                        results.push(res);
+                    } catch(e) {
+                        results.push({ ok: false, id: ids[i], message: 'Unexpected error' });
                     }
-                },
-                error: function(xhr){
-                    var text = 'Request failed';
-                    if (xhr && xhr.responseJSON && xhr.responseJSON.message) text = xhr.responseJSON.message;
-                    try { Swal.fire({ icon: 'error', title: 'Error', text: text }); } catch(e) { alert(text); }
-                },
-                complete: function(){
-                    $btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Selected');
                 }
-            });
+
+                var successCount = results.filter(r=>r.ok).length;
+                var failCount = results.length - successCount;
+                var msg = 'Queued ' + successCount + ' messages.' + (failCount ? (' ' + failCount + ' failed.') : '');
+                try { Swal.fire({ icon: (failCount? 'warning':'success'), title: 'Bulk Send Complete', text: msg, timer: 3000, showConfirmButton: false }); } catch(e) { alert(msg); }
+                pesertaTable.ajax.reload(null, false);
+                $btn.prop('disabled', false).html('<i class="fas fa-paper-plane"></i> Send Selected');
+            })();
         });
     });
 </script>
