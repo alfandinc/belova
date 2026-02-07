@@ -16,8 +16,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
 use Spatie\Permission\Models\Role;
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class EmployeeController extends Controller
 {
@@ -131,22 +129,20 @@ class EmployeeController extends Controller
             $divisions = Division::all();
             $gajiPokokList = \App\Models\HRD\PrMasterGajipokok::all();
             $tunjanganJabatanList = \App\Models\HRD\PrMasterTunjanganJabatan::all();
-            // Generate next `no_induk` for current month (YYMM + 3-digit sequence)
-            $now = Carbon::now();
-            $prefix = $now->format('y') . $now->format('m');
-            $maxSeq = DB::table('hrd_employee')
-                ->where('no_induk', 'like', $prefix . '%')
-                ->select(DB::raw("MAX(CAST(SUBSTRING(no_induk, 5) AS UNSIGNED)) as max_seq"))
-                ->value('max_seq');
-            $nextSeq = str_pad(($maxSeq ? $maxSeq + 1 : 1), 3, '0', STR_PAD_LEFT);
-            $nextNoInduk = $prefix . $nextSeq;
+
+            // compute next no_induk for form default
+            $prefix = date('y') . date('m');
+            $count = Employee::where('no_induk', 'like', $prefix . '%')->count();
+            $nextSeq = $count + 1;
+            $nextNoInduk = $prefix . str_pad($nextSeq, 3, '0', STR_PAD_LEFT);
 
             return view('hrd.employee.form', compact(
                 'positions',
                 'divisions',
                 'gajiPokokList',
-                'tunjanganJabatanList'
-            ))->with('nextNoInduk', $nextNoInduk);
+                'tunjanganJabatanList',
+                'nextNoInduk'
+            ));
     }
 
     public function store(Request $request)
@@ -212,17 +208,6 @@ class EmployeeController extends Controller
         $employeeData = $data;
         if (isset($data['no_darurat'])) {
             $employeeData['no_darurat'] = $data['no_darurat'];
-        }
-        // If no_induk not provided, generate it based on tanggal_masuk (or today)
-        if (empty($employeeData['no_induk'])) {
-            $date = isset($data['tanggal_masuk']) ? Carbon::parse($data['tanggal_masuk']) : Carbon::now();
-            $prefix = $date->format('y') . $date->format('m');
-            $maxSeq = DB::table('hrd_employee')
-                ->where('no_induk', 'like', $prefix . '%')
-                ->select(DB::raw("MAX(CAST(SUBSTRING(no_induk, 5) AS UNSIGNED)) as max_seq"))
-                ->value('max_seq');
-            $nextSeq = str_pad(($maxSeq ? $maxSeq + 1 : 1), 3, '0', STR_PAD_LEFT);
-            $employeeData['no_induk'] = $prefix . $nextSeq;
         }
         // Encode instagram array as JSON if present
         if (isset($data['instagram']) && is_array($data['instagram'])) {
@@ -384,5 +369,25 @@ class EmployeeController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Return next `no_induk` value in format YYMMXXX where
+     * YY = last two digits of year, MM = month, XXX = sequential 3-digit number
+     */
+    public function nextNoInduk()
+    {
+        $prefix = date('y') . date('m');
+
+        // Count existing records that start with this prefix
+        $count = Employee::where('no_induk', 'like', $prefix . '%')->count();
+
+        $nextSeq = $count + 1;
+        $next = $prefix . str_pad($nextSeq, 3, '0', STR_PAD_LEFT);
+
+        return response()->json([
+            'success' => true,
+            'next' => $next
+        ]);
     }
 }

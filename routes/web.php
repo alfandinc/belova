@@ -176,6 +176,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/hrd', [HRDDashboardController::class, 'index'])
         ->middleware('role:Hrd|Manager|Employee|Admin|Ceo')
         ->name('hrd.dashboard');
+    // AJAX: generate next employee `no_induk` in YYMMXXX format
+    Route::get('hrd/employee/next-no-induk', [App\Http\Controllers\HRD\EmployeeController::class, 'nextNoInduk'])
+        ->name('hrd.employee.nextNoInduk');
     // Memorandum routes moved to Workdoc section
     // AJAX: Pending approvals filtered by date range (no reload)
     Route::get('/hrd/pending-approvals', [HRDDashboardController::class, 'pendingApprovals'])

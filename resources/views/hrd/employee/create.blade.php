@@ -44,7 +44,7 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="no_induk"><i class="fas fa-fingerprint mr-1"></i>No Induk</label>
-                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', isset($nextNoInduk) ? $nextNoInduk : '') }}" readonly required>
+                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', isset($nextNoInduk) ? $nextNoInduk : '') }}" required>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -226,6 +226,29 @@ $(function() {
     $('.select2').select2({
         width: '100%',
     });
+    
+    // Autofill `no_induk` on page load using server-generated next value
+    if ($('#no_induk').val().trim() === '') {
+        // compute client-side fallback prefix YYMM
+        var now = new Date();
+        var fallbackPrefix = String(now.getFullYear()).slice(-2) + String(now.getMonth()+1).padStart(2, '0');
+        $.ajax({
+            url: "{{ route('hrd.employee.nextNoInduk') }}",
+            method: 'GET',
+            dataType: 'json',
+            success: function(resp) {
+                if (resp && resp.success && resp.next) {
+                    $('#no_induk').val(resp.next);
+                } else {
+                    $('#no_induk').val(fallbackPrefix + '001');
+                }
+            },
+            error: function() {
+                // Fallback to YYMM001 if server not reachable
+                $('#no_induk').val(fallbackPrefix + '001');
+            }
+        });
+    }
     
       // Custom file input handling
     $('.custom-file-input').on('change', function() {
