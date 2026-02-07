@@ -891,6 +891,9 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/obat', [ObatController::class, 'store'])->name('erm.obat.store');
     Route::get('/obat/{id}/edit', [ObatController::class, 'edit'])->name('erm.obat.edit');
     Route::get('/obat/{id}/relations', [ObatController::class, 'relations'])->name('erm.obat.relations');
+    // CSV import preview & import (AJAX)
+    Route::post('/obat/import-csv-preview', [ObatController::class, 'importCsvPreview'])->name('erm.obat.import_csv_preview');
+    Route::post('/obat/import-csv', [ObatController::class, 'importCsv'])->name('erm.obat.import_csv');
     Route::delete('/obat/{id}', [ObatController::class, 'destroy'])->name('erm.obat.destroy');
 
     // Surat Istirahat & Surat Mondok (Combined)
@@ -1688,10 +1691,7 @@ Route::post('/erm/ic-pendaftaran/store', [IcPendaftaranController::class, 'store
 Route::post('/erm/ic-pendaftaran/check', [IcPendaftaranController::class, 'check'])->name('erm.ic_pendaftaran.check');
 Route::get('/erm/ic-pendaftaran/{pasien}/pdf', [IcPendaftaranController::class, 'pdf'])->name('erm.ic_pendaftaran.pdf');
 Route::get('/obat/search', [ObatController::class, 'search'])->name('obat.search');
-// Import CSV to update obat by ID
-Route::post('/erm/obat/import-csv', [\App\Http\Controllers\ERM\ObatController::class, 'importCsv'])->name('erm.obat.import_csv');
-// Preview CSV import before applying changes
-Route::post('/erm/obat/import-csv/preview', [\App\Http\Controllers\ERM\ObatController::class, 'importCsvPreview'])->name('erm.obat.import_csv_preview');
+// Import CSV to update obat by ID (handled inside ERM route group)
 Route::get('/wadah/search', [EresepController::class, 'search'])->name('wadah.search');
 Route::get('/keluhan-utama/search', [KeluhanUtamaController::class, 'search'])->name('keluhan-utama.search');
 Route::get('/get-dokters/{klinik_id}', [VisitationController::class, 'getDoktersByKlinik'])->name('erm.get-dokters');

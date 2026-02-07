@@ -342,7 +342,7 @@
                                     <form id="importCsvForm" enctype="multipart/form-data" onsubmit="return false;">
                                         @csrf
                                         <div class="modal-body">
-                                            <p class="small text-muted">File must be CSV with header containing at least <strong>ID</strong>. Other columns supported: <strong>Nama</strong>, <strong>Dosis</strong>, <strong>Satuan</strong>.</p>
+                                            <p class="small text-muted">File must be CSV with header containing at least <strong>ID</strong>. Other columns supported: <strong>Nama</strong>, <strong>Dosis</strong>, <strong>Satuan</strong>, <strong>Generik</strong> (values: 1/0, yes/no, true/false).</p>
                                             <div class="form-group">
                                                 <label for="csv_file">Pilih file CSV</label>
                                                 <input type="file" name="csv_file" id="csv_file" accept=".csv,text/csv" class="form-control-file" required>
@@ -961,7 +961,7 @@
                 return;
             }
             var html = '<div class="mb-2"><strong>Preview ('+rows.length+' baris)</strong></div>';
-            html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Ditemukan</th><th>Nama (Lama)</th><th>Nama (Baru)</th><th>Dosis (Lama)</th><th>Dosis (Baru)</th><th>Satuan (Lama)</th><th>Satuan (Baru)</th></tr></thead><tbody>';
+            html += '<div class="table-responsive"><table class="table table-sm table-bordered"><thead><tr><th>ID</th><th>Ditemukan</th><th>Nama (Lama)</th><th>Nama (Baru)</th><th>Dosis (Lama)</th><th>Dosis (Baru)</th><th>Satuan (Lama)</th><th>Satuan (Baru)</th><th>Generik (Lama)</th><th>Generik (Baru)</th></tr></thead><tbody>';
             rows.forEach(function(r){
                 var rowClass = r.found ? '' : 'table-secondary';
                 html += '<tr class="'+rowClass+'">';
@@ -975,6 +975,19 @@
                     var newHtml = changed ? '<span class="badge badge-warning">'+escapeHtml(ne)+'</span>' : escapeHtml(ne);
                     html += '<td>'+ escapeHtml(existing) +'</td><td>'+ newHtml +'</td>';
                 });
+                // Generik column (boolean-like)
+                var existingG = (r.existing && (r.existing.is_generik !== undefined && r.existing.is_generik !== null)) ? r.existing.is_generik : '';
+                var newG = (r.new && (r.new.is_generik !== undefined && r.new.is_generik !== null)) ? r.new.is_generik : '';
+                function labelGen(v){
+                    if (v === '' || v === null || v === undefined) return '';
+                    var s = String(v).toLowerCase();
+                    if (['1','true','yes','y','ya','aktif','generik'].indexOf(s) !== -1) return 'Ya';
+                    if (['0','false','no','n','tidak','non'].indexOf(s) !== -1) return 'Tidak';
+                    return escapeHtml(v);
+                }
+                var genChanged = r.found && newG !== '' && String(newG) !== String(existingG);
+                var newGHtml = genChanged ? '<span class="badge badge-warning">'+labelGen(newG)+'</span>' : labelGen(newG);
+                html += '<td>'+ labelGen(existingG) +'</td><td>'+ newGHtml +'</td>';
                 html += '</tr>';
             });
             html += '</tbody></table></div>';

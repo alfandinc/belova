@@ -546,18 +546,21 @@ class ObatController extends Controller
                     'nama' => $obat ? $obat->nama : null,
                     'dosis' => $obat ? $obat->dosis : null,
                     'satuan' => $obat ? $obat->satuan : null,
+                    'is_generik' => $obat ? $obat->is_generik : null,
                 ];
 
                 $new = [
                     'nama' => $get(['Nama','nama','NAME','Name']),
                     'dosis' => $get(['Dosis','dosis']),
                     'satuan' => $get(['Satuan','satuan']),
+                    'is_generik' => $get(['IsGenerik','is_generik','Is Generik','Generik','generik']),
                 ];
 
                 $changes = false;
                 if ($obat) {
-                    foreach (['nama','dosis','satuan'] as $f) {
-                        if ($new[$f] !== null && trim($new[$f]) !== '' && (string)$new[$f] !== (string)($existing[$f] ?? '')) {
+                    foreach (['nama','dosis','satuan','is_generik'] as $f) {
+                        $nval = $new[$f];
+                        if ($nval !== null && trim((string)$nval) !== '' && (string)$nval !== (string)($existing[$f] ?? '')) {
                             $changes = true; break;
                         }
                     }
@@ -610,10 +613,33 @@ class ObatController extends Controller
                     $obat = Obat::withInactive()->find($id);
                     if (!$obat) { $notFound[] = $id; continue; }
 
+                    // helper to fetch field case-insensitively
+                    $getField = function($names) use ($data) {
+                        foreach ($names as $n) {
+                            if (isset($data[$n])) return trim($data[$n]);
+                        }
+                        return null;
+                    };
+
                     $up = [];
-                    if (isset($data['Nama'])) $up['nama'] = trim($data['Nama']);
-                    if (isset($data['Dosis'])) $up['dosis'] = trim($data['Dosis']);
-                    if (isset($data['Satuan'])) $up['satuan'] = trim($data['Satuan']);
+                    $nama = $getField(['Nama','nama','NAME','Name']);
+                    $dosis = $getField(['Dosis','dosis']);
+                    $satuan = $getField(['Satuan','satuan']);
+                    $isGenerikRaw = $getField(['IsGenerik','is_generik','Is Generik','Generik','generik']);
+
+                    if ($nama !== null && $nama !== '') $up['nama'] = $nama;
+                    if ($dosis !== null && $dosis !== '') $up['dosis'] = $dosis;
+                    if ($satuan !== null && $satuan !== '') $up['satuan'] = $satuan;
+
+                    if ($isGenerikRaw !== null && $isGenerikRaw !== '') {
+                        $v = strtolower($isGenerikRaw);
+                        if (in_array($v, ['1','true','yes','y','ya','aktif','generik'], true)) $norm = 1;
+                        elseif (in_array($v, ['0','false','no','n','tidak','non','non-generik'], true)) $norm = 0;
+                        elseif (is_numeric($isGenerikRaw)) $norm = (int)$isGenerikRaw;
+                        else $norm = null;
+
+                        if ($norm !== null) $up['is_generik'] = $norm;
+                    }
 
                     if (!empty($up)) {
                         $obat->update($up);
@@ -631,6 +657,10 @@ class ObatController extends Controller
         if (!empty($notFound)) {
             $sample = implode(',', array_slice($notFound, 0, 20));
             $message .= ' Tidak ditemukan ID: ' . $sample;
+        }
+
+        if ($request->ajax()) {
+            return response()->json(['success' => true, 'message' => $message]);
         }
 
         return redirect()->back()->with('success', $message);
