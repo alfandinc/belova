@@ -298,6 +298,7 @@ $(function() {
         ajax: {
             url: "{{ route('hrd.employee.index') }}",
             data: function(d) {
+                // (debug logging removed)
                 var divVal = $('#filter-division').val();
                 d.division_id = (divVal === 'all' ? '' : divVal);
                 var perVal = $('#filter-perusahaan').val();
@@ -445,6 +446,13 @@ $(function() {
                     `;
                 }
             }
+        ],
+        // Ensure DataTables sends explicit DB column names for server-side ordering
+        columnDefs: [
+            { targets: 0, name: 'hrd_employee.nik' },
+            { targets: 1, name: 'hrd_employee.no_induk' },
+            { targets: 2, name: 'hrd_employee.nama' },
+            { targets: 6, name: 'hrd_employee.kontrak_berakhir' }
         ],
         drawCallback: function() {
             // Reinitialize tooltips after each table draw

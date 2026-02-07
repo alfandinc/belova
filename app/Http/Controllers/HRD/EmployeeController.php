@@ -35,6 +35,7 @@ class EmployeeController extends Controller
     public function index(Request $request)
 {
     if ($request->ajax()) {
+        // (debug logging removed)
         $employees = Employee::with(['division', 'user','position'])
             ->select('hrd_employee.*'); // Explicitly select all employee columns
 
@@ -63,36 +64,56 @@ class EmployeeController extends Controller
             ->rawColumns(['action']);
 
         // Ensure server-side ordering works for 'no_induk' column (explicit mapping)
+        // Basic mapping for DataTables column name
         $dataTable->orderColumn('no_induk', 'hrd_employee.no_induk $1');
+        // Numeric-aware ordering for fully-qualified column name.
+        // - Group numeric-only values first (0) and non-numeric after (1)
+        // - Then order numeric values by their numeric cast using the requested direction ($1)
+        // - Finally fall back to string order for mixed/alphanumeric values
+        $dataTable->orderColumn('hrd_employee.no_induk', "(CASE WHEN hrd_employee.no_induk REGEXP '^[0-9]+$' THEN 0 ELSE 1 END) ASC, (CASE WHEN hrd_employee.no_induk REGEXP '^[0-9]+$' THEN CAST(hrd_employee.no_induk AS UNSIGNED) END) $1, hrd_employee.no_induk $1");
 
         // Add custom sorting for kontrak_berakhir column    
-        $dataTable->order(function ($query) use ($request) {
-            if ($request->has('order') && $request->input('order.0.column') == 6) { // Sisa Kontrak column
-                $direction = $request->input('order.0.dir');
-                if ($direction == 'asc') {
-                    $query->orderByRaw("
-                        CASE 
-                            WHEN status = 'kontrak' THEN 0 
-                            ELSE 1 
-                        END,
-                        CASE 
-                            WHEN status = 'kontrak' THEN kontrak_berakhir
-                            ELSE NULL
-                        END " . $direction);
-                } else {
-                    $query->orderByRaw("
-                        CASE 
-                            WHEN status = 'kontrak' THEN 0
-                            WHEN status = 'tetap' THEN 1
-                            ELSE 2
-                        END,
-                        CASE
-                            WHEN status = 'kontrak' THEN kontrak_berakhir
-                            ELSE NULL
-                        END " . $direction);
-                }
-            }
-        });
+                $dataTable->order(function ($query) use ($request) {
+                    if (! $request->has('order')) {
+                        return;
+                    }
+
+                    $colIndex = (int) $request->input('order.0.column');
+                    $direction = $request->input('order.0.dir', 'asc');
+                    $columns = $request->input('columns', []);
+                    $colName = isset($columns[$colIndex]['name']) ? $columns[$colIndex]['name'] : null;
+
+                    if (! $colName) {
+                        return;
+                    }
+
+                    // Special case: Sisa Kontrak column
+                    if ($colIndex === 6 || in_array($colName, ['kontrak_berakhir', 'hrd_employee.kontrak_berakhir'])) {
+                        if ($direction == 'asc') {
+                            $query->orderByRaw("CASE WHEN status = 'kontrak' THEN 0 ELSE 1 END, CASE WHEN status = 'kontrak' THEN kontrak_berakhir ELSE NULL END asc");
+                        } else {
+                            $query->orderByRaw("CASE WHEN status = 'kontrak' THEN 0 WHEN status = 'tetap' THEN 1 ELSE 2 END, CASE WHEN status = 'kontrak' THEN kontrak_berakhir ELSE NULL END desc");
+                        }
+                        return;
+                    }
+
+                    // Safe mapping for simple columns to avoid SQL injection and invalid columns
+                    $safeMap = [
+                        'nik' => 'hrd_employee.nik',
+                        'no_induk' => 'hrd_employee.no_induk',
+                        'hrd_employee.no_induk' => 'hrd_employee.no_induk',
+                        'nama' => 'hrd_employee.nama',
+                        'status' => 'hrd_employee.status',
+                        'kontrak_berakhir' => 'hrd_employee.kontrak_berakhir',
+                    ];
+
+                    if (isset($safeMap[$colName])) {
+                        $query->orderByRaw($safeMap[$colName] . ' ' . ($direction === 'desc' ? 'desc' : 'asc'));
+                    } else {
+                        // For relation columns like 'position.name' or 'division.name', fallback
+                        // to no-op (or implement joins if needed). We skip ordering for unsafe names.
+                    }
+                });
 
         return $dataTable->make(true);
     }
