@@ -62,6 +62,9 @@ class EmployeeController extends Controller
             })
             ->rawColumns(['action']);
 
+        // Ensure server-side ordering works for 'no_induk' column (explicit mapping)
+        $dataTable->orderColumn('no_induk', 'hrd_employee.no_induk $1');
+
         // Add custom sorting for kontrak_berakhir column    
         $dataTable->order(function ($query) use ($request) {
             if ($request->has('order') && $request->input('order.0.column') == 6) { // Sisa Kontrak column
