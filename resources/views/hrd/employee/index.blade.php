@@ -317,7 +317,7 @@ $(function() {
         },
         columns: [
             {data: 'nik', name: 'nik', defaultContent: '-'},
-            {data: 'no_induk', name: 'no_induk', defaultContent: '-'},
+            {data: 'no_induk', name: 'hrd_employee.no_induk', defaultContent: '-', orderable: true},
             {data: 'nama', name: 'nama', defaultContent: '-'},
             {data: 'position.name', name: 'position.name', defaultContent: '-'},
             {data: 'division.name', name: 'division.name', defaultContent: '-'},
