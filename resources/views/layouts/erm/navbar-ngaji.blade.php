@@ -34,7 +34,7 @@
             <div class="menu-content h-100" data-simplebar>
                 <ul class="metismenu left-sidenav-menu">  
                                         <!-- SPK / Riwayat Tindakan Section -->
-                    @hasanyrole('Employee|Ustad|Admin')
+                    @auth
                     <!-- Top-level Events Dashboard (no parent) - placed above Belova Mengaji section -->
                     <li>
                         <a href="/events"><i data-feather="grid" class="align-self-center menu-icon"></i><span>Events Dashboard</span></a>
@@ -61,7 +61,7 @@
                             </li>
                         </ul>
                     </li>
-                    @endhasanyrole                  
+                    @endauth                  
 
 
 

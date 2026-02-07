@@ -18,6 +18,7 @@ class RunningPeserta extends Model
         'status',
         'unique_code',
         'verified_at',
+        'registered_at',
         'no_hp',
         'email',
         'ukuran_kaos',
@@ -26,6 +27,7 @@ class RunningPeserta extends Model
 
     protected $casts = [
         'verified_at' => 'datetime',
+        'registered_at' => 'datetime',
     ];
 
         protected static function booted()

@@ -251,9 +251,15 @@ Route::get('/running/data', [\App\Http\Controllers\RunningController::class, 'da
 Route::post('/running/import', [\App\Http\Controllers\RunningController::class, 'import'])
     ->middleware('auth')
     ->name('running.import');
+Route::get('/running/export-csv', [\App\Http\Controllers\RunningController::class, 'exportCsv'])
+    ->middleware('auth')
+    ->name('running.export_csv');
 Route::post('/running/verify', [\App\Http\Controllers\RunningController::class, 'verify'])
     ->middleware('auth')
     ->name('running.verify');
+Route::post('/running/{id}/mark-sent', [\App\Http\Controllers\RunningController::class, 'markSent'])
+    ->middleware('auth')
+    ->name('running.mark_sent');
 Route::get('/running/find', [\App\Http\Controllers\RunningController::class, 'find'])
     ->middleware('auth')
     ->name('running.find');
@@ -264,6 +270,7 @@ Route::get('/running/ticket-html/{id}', [\App\Http\Controllers\RunningController
     ->middleware('auth')
     ->name('running.ticket.html');
 
+    
 // Public token-protected ticket HTML for bot (no auth middleware)
 Route::get('/running/ticket-html-public/{id}', [\App\Http\Controllers\RunningController::class, 'ticketHtmlForBot'])
     ->name('running.ticket.html.public');
@@ -276,10 +283,19 @@ Route::post('/running/send-whatsapp-bulk', [\App\Http\Controllers\RunningControl
     ->middleware('auth')
     ->name('running.send_whatsapp_bulk');
 
+// Verify peserta with notes (AJAX)
+Route::post('/running/{id}/verify-with-notes', [\App\Http\Controllers\RunningController::class, 'verifyWithNotes'])
+    ->middleware('auth')
+    ->name('running.verify_with_notes');
+
 // Store generated ticket image for peserta (called from UI after html2canvas)
 Route::post('/running/store-ticket-image', [\App\Http\Controllers\RunningController::class, 'storeTicketImage'])
     ->middleware('auth')
     ->name('running.store_ticket_image');
+// Interstitial preview page for WhatsApp message (copies message and opens chat)
+Route::get('/running/wa-preview', [\App\Http\Controllers\RunningController::class, 'waPreview'])
+    ->middleware('auth')
+    ->name('running.wa_preview');
 
 // Statistik (new module) - grouped under `statistik` prefix, uses ERM layout and same middleware as SatuSehat
 Route::prefix('statistik')->middleware(['auth','role:Satusehat|Admin'])->group(function () {

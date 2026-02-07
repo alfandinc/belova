@@ -771,14 +771,7 @@
                 </a>
                 
                 <!-- Events dashboard (Belova Mengaji is one of the events) -->
-                @php
-                    // Keep same access check for event management as before (Ustad/Admin)
-                    $hasMengajiAccess = count(array_intersect($userRoles, ['Ustad','Admin'])) > 0;
-                @endphp
-                <a href="{{ $hasMengajiAccess ? '/events' : '#' }}" class="menu-tile tile-belova-mengaji animate-item delay-16" id="events-tile" data-filter="events dashboard agenda"
-                   @if(!$hasMengajiAccess)
-                       onclick="showRoleWarning(event, 'Events')"
-                   @endif>
+                <a href="/events" class="menu-tile tile-belova-mengaji animate-item delay-16" id="events-tile" data-filter="events dashboard agenda">
                     <div class="menu-top">
                         <div class="menu-icon"><i class="fas fa-calendar-alt"></i></div>
                         <div class="menu-badge">Events</div>

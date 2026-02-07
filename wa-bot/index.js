@@ -7,6 +7,14 @@ const fetch = require('node-fetch');
 
 const app = express();
 app.use(express.json());
+// allow simple CORS for local dev so browser can query /sessions
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
 app.get('/', (req, res) => res.send('WA Bot running'));
 
 // Small sleep helper (compatible across Puppeteer versions)
@@ -97,6 +105,18 @@ function createClientForId(id) {
   });
 }
 
+// helper: check whether the whatsapp-web.js injection helper is available on the page
+async function isWWebJSInjected(client) {
+  try {
+    const page = client.pupPage;
+    if (!page) return false;
+    const t = await page.evaluate(() => (typeof window.WWebJS));
+    return t !== 'undefined';
+  } catch (e) {
+    return false;
+  }
+}
+
 async function refreshSessionsFromServer() {
   let lastError = null;
   for (const url of CANDIDATE_URLS) {
@@ -161,6 +181,28 @@ app.post('/send', async (req, res) => {
   if (!client) return res.status(400).json({ error: 'invalid_from', message: 'Requested from session does not exist' });
   if (statuses[sessionId] !== 'ready' && statuses[sessionId] !== 'authenticated') {
     return res.status(400).json({ error: 'not_ready', message: `Session ${sessionId} not ready` });
+  }
+
+  // quick diagnostic: ensure the injection helper exists in page context
+  try {
+    const injected = await isWWebJSInjected(client);
+    if (!injected) {
+      console.error(`[${sessionId}] window.WWebJS NOT injected — send-ticket aborted`);
+      return res.status(500).json({ error: 'wwebjs_not_injected', message: 'WA helper not available in page context; restart bot or update whatsapp-web.js/puppeteer' });
+    }
+  } catch (e) {
+    console.warn(`[${sessionId}] wwebjs injection check failed:`, e && e.message ? e.message : e);
+  }
+
+  // quick diagnostic: ensure the injection helper exists in page context
+  try {
+    const injected = await isWWebJSInjected(client);
+    if (!injected) {
+      console.error(`[${sessionId}] window.WWebJS NOT injected — send aborted`);
+      return res.status(500).json({ error: 'wwebjs_not_injected', message: 'WA helper not available in page context; restart bot or update whatsapp-web.js/puppeteer' });
+    }
+  } catch (e) {
+    console.warn(`[${sessionId}] wwebjs injection check failed:`, e && e.message ? e.message : e);
   }
 
   try {
