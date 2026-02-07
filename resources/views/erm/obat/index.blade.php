@@ -313,8 +313,8 @@
                                 <label for="filter_paten">Jenis Obat</label>
                                 <select id="filter_paten" class="form-control select2">
                                     <option value="">Semua Jenis</option>
-                                    <option value="1">Obat Paten (punya zat aktif)</option>
-                                    <option value="0">Obat Tidak Paten (tanpa zat aktif)</option>
+                                    <option value="1">Obat Generik</option>
+                                    <option value="0">Obat Paten</option>
                                 </select>
                             </div>
                         </div>
@@ -558,14 +558,14 @@
                     // Always send the status_aktif parameter
                     // Even when it's empty, to ensure the controller gets it
                     d.status_aktif = $('#filter_status').val();
-                    // Send has_zat_aktif for Paten/Tidak Paten filter (1/0/empty)
-                    d.has_zat_aktif = $('#filter_paten').val();
+                    // Send is_generik for Generik/Paten filter (1/0/empty)
+                    d.is_generik = $('#filter_paten').val();
                     
                     console.log('Sending filters:', {
                         kategori: d.kategori,
                         metode_bayar_id: d.metode_bayar_id,
                         status_aktif: d.status_aktif,
-                        has_zat_aktif: d.has_zat_aktif
+                        is_generik: d.is_generik
                     });
                 }
             },
@@ -600,14 +600,16 @@
                         }
                         var nameHtml = data ? data : '-';
                         var badgeHtml = '<span class="' + badgeClass + '" style="margin-top:6px; display:inline-block;">' + (metode || '-') + '</span>';
-                        var patenBadge;
-                        if (row.has_zat_aktif) {
-                            patenBadge = '<span class="badge badge-info" style="margin-top:6px; margin-left:6px; display:inline-block;">Obat Paten</span>';
+                        var generikBadge;
+                        // If is_generik is truthy/1 => show Obat Generik, else Obat Paten
+                        if (row.is_generik === 1 || row.is_generik === true || String(row.is_generik) === '1') {
+                            generikBadge = '<span class="badge badge-success" style="margin-top:6px; margin-left:6px; display:inline-block;">Obat Generik</span>';
                         } else {
-                            patenBadge = '<span class="badge badge-secondary" style="margin-top:6px; margin-left:6px; display:inline-block;">Obat Tidak Paten</span>';
+                            generikBadge = '<span class="badge badge-info" style="margin-top:6px; margin-left:6px; display:inline-block;">Obat Paten</span>';
                         }
-                        return '<div>' + nameHtml + '<br/>' + badgeHtml + patenBadge + '</div>';
+                        return '<div>' + nameHtml + '<br/>' + badgeHtml + generikBadge + '</div>';
                     }
+                },
                 },
                 { 
                     data: 'hpp',
@@ -846,7 +848,7 @@
             if (statusFilter === '') {
                 console.log('All statuses selected');
             }
-            console.log('Jenis Obat (has_zat_aktif):', $('#filter_paten').val());
+            console.log('Jenis Obat (is_generik):', $('#filter_paten').val());
             
             table.ajax.reload();
         });

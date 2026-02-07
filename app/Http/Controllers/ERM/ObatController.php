@@ -169,8 +169,15 @@ class ObatController extends Controller
             if ($request->filled('status_aktif')) {
                 $query->where('status_aktif', $request->status_aktif);
             }
-            // Filter by presence of zat aktif (paten/tidak paten)
-            if ($request->has('has_zat_aktif') && $request->has_zat_aktif !== '') {
+            // Filter by Generik/Paten using is_generik if provided; fall back to has_zat_aktif for compatibility
+            if ($request->has('is_generik') && $request->is_generik !== '') {
+                $flag = (string) $request->is_generik;
+                if ($flag === '1') {
+                    $query->where('is_generik', 1);
+                } elseif ($flag === '0') {
+                    $query->where('is_generik', 0);
+                }
+            } elseif ($request->has('has_zat_aktif') && $request->has_zat_aktif !== '') {
                 $flag = (string) $request->has_zat_aktif;
                 if ($flag === '1') {
                     $query->whereHas('zatAktifs');
@@ -183,9 +190,13 @@ class ObatController extends Controller
                 ->addColumn('metode_bayar', function ($obat) {
                     return $obat->metodeBayar ? $obat->metodeBayar->nama : '-';
                 })
-                // Helper flag to indicate whether obat has any zat aktif (for patent badge on frontend)
+                // Helper flag to indicate whether obat has any zat aktif (legacy)
                 ->addColumn('has_zat_aktif', function ($obat) {
                     return $obat->zatAktifs && $obat->zatAktifs->count() > 0;
+                })
+                // Expose is_generik so frontend can render Generik/Paten badge
+                ->addColumn('is_generik', function ($obat) {
+                    return $obat->is_generik;
                 })
                 ->addColumn('zat_aktif', function ($obat) {
                     $zats = [];
