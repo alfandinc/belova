@@ -44,7 +44,7 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="no_induk"><i class="fas fa-fingerprint mr-1"></i>No Induk</label>
-                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk') }}" required>
+                            <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', isset($nextNoInduk) ? $nextNoInduk : '') }}" readonly required>
                         </div>
                     </div>
                     <div class="col-md-6">
