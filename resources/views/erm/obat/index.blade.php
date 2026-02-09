@@ -610,7 +610,6 @@
                         return '<div>' + nameHtml + '<br/>' + badgeHtml + generikBadge + '</div>';
                     }
                 },
-                },
                 { 
                     data: 'hpp',
                     name: 'hpp',
