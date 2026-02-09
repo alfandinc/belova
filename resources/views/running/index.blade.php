@@ -21,31 +21,32 @@
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <div class="mr-2">
-                            <a href="#" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#importModal"><i class="fas fa-file-upload"></i> Import Peserta</a>
-                        </div>
-                        <div class="ml-2">
-                            <a href="#" id="btnExportCsv" class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-csv"></i> Export CSV (All)</a>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fas fa-tools"></i> Options
+                                </button>
+                                <div class="dropdown-menu">
+                                    <a href="#" class="dropdown-item" data-toggle="modal" data-target="#importModal"><i class="fas fa-file-upload mr-1"></i> Import Peserta</a>
+                                    <a href="#" id="btnExportCsv" class="dropdown-item"><i class="fas fa-file-csv mr-1"></i> Export CSV (All)</a>
+                                    <a href="#" id="btnExportExcel" class="dropdown-item"><i class="fas fa-file-excel mr-1"></i> Export Excel (All)</a>
+                                </div>
+                            </div>
                         </div>
                         <div class="ml-2">
                             <button id="btnSendSelected" class="btn btn-sm btn-outline-success"><i class="fas fa-paper-plane"></i> Send Selected</button>
                         </div>
                         <div class="ml-3">
-                            <div class="form-group mb-0">
-                                <div class="d-flex">
-                                    <select id="status_filter" class="form-control form-control-sm mr-2">
-                                        <option value="all">All</option>
-                                        <option value="non verified" selected>Non Verified</option>
-                                        <option value="verified">Verified</option>
-                                    </select>
-                                    <select id="sent_filter" class="form-control form-control-sm">
-                                        <option value="not_sent" selected>Not Sent</option>
-                                        <option value="all">All</option>
-                                        <option value="sent">Sent</option>
-                                    </select>
-                                    <select id="wa_session_select" class="form-control form-control-sm ml-2" title="Select WA session to use">
-                                        <option value="">(Auto)</option>
-                                    </select>
-                                </div>
+                            <div class="form-group mb-0 d-flex">
+                                <select id="status_filter" class="form-control form-control-sm mr-2">
+                                    <option value="all">All</option>
+                                    <option value="non verified" selected>Non Verified</option>
+                                    <option value="verified">Verified</option>
+                                </select>
+                                <select id="email_sent_filter" class="form-control form-control-sm" title="Filter by email sent status">
+                                    <option value="not_sent" selected>Email Not Sent</option>
+                                    <option value="sent">Email Sent</option>
+                                    <option value="all">All Emails</option>
+                                </select>
                             </div>
                         </div>
                         <div class="ml-auto" style="max-width:420px;">
@@ -104,6 +105,66 @@
 </div>
 
 <!-- Import Modal -->
+                <!-- Message Template Modal -->
+                <div class="modal fade" id="messageTemplateModal" tabindex="-1" role="dialog" aria-hidden="true">
+                    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Email Message Template</h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row">
+                                    <div class="col-md-7">
+                                        <div class="mb-3">
+                                            <strong>To:</strong>
+                                            <div class="d-flex align-items-center mt-1">
+                                                <div class="text-monospace flex-grow-1" id="mt_to_display"></div>
+                                                <button id="mt_copy_email" type="button" class="btn btn-outline-primary btn-sm ml-2">Copy Email (Q)</button>
+                                            </div>
+                                            <input type="text" id="mt_email_raw" class="d-none" value="">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <strong>Subject:</strong>
+                                            <div class="d-flex mt-1">
+                                                <input type="text" id="mt_subject" class="form-control" readonly>
+                                                <button id="mt_copy_subject" type="button" class="btn btn-outline-primary btn-sm ml-2">Copy Subject (W)</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-2">
+                                            <strong>Body:</strong>
+                                            <textarea id="mt_body" class="form-control mt-1" rows="12" readonly style="white-space:pre-wrap;word-break:break-word;"></textarea>
+                                            <div class="mt-2 text-right">
+                                                <button id="mt_copy_body" type="button" class="btn btn-primary btn-sm">Copy Body (E)</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <div class="mb-2 text-center">
+                                            <strong>Ticket image to attach:</strong>
+                                        </div>
+                                        <div class="text-center">
+                                            <div class="d-inline-block" style="border:1px dashed #ddd;padding:6px;background:#fafafa;">
+                                                <img id="mt_ticket_image" src="" alt="Ticket Image" class="img-fluid" style="max-height:480px;cursor:grab;">
+                                            </div>
+                                            <div class="mt-2 small text-muted">You can drag this image into your email composer.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" id="mt_mark_sent" class="btn btn-success">Check</button>
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Import Modal -->
 <div class="modal fade" id="importModal" tabindex="-1" role="dialog" aria-labelledby="importModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <form method="POST" action="{{ route('running.import') }}" enctype="multipart/form-data">
@@ -154,9 +215,9 @@
                 url: '{{ route('running.data') }}',
                 type: 'GET',
                 data: function(d){
-                    // send current status filter
+                    // send current status + email_sent filters
                     d.status = $('#status_filter').val() || 'non verified';
-                    d.sent = $('#sent_filter').val() || 'not_sent';
+                    d.email_sent = $('#email_sent_filter').val() || 'not_sent';
                 }
             },
                 columns: [
@@ -165,13 +226,7 @@
                     }
                 },
                 { data: 'unique_code', name: 'unique_code', render: function(data, type, row){
-                        var out = data || '';
-                        try {
-                            if (row.sent_logs_count && parseInt(row.sent_logs_count) > 0) {
-                                out = out + ' <i class="fas fa-check-circle text-success" title="Message sent"></i>';
-                            }
-                        } catch(e) {}
-                        return out;
+                        return data || '';
                     }
                 },
                 { data: 'nama_peserta', name: 'nama_peserta', render: function(data, type, row){
@@ -216,71 +271,27 @@
                         return badge;
                     }
                 },
-                        { data: null, orderable: false, searchable: false, render: function(data, type, row){
-                                var actions = '<div class="btn-group" role="group">';
-                                if (isAdmin) {
-                                    // Hidden: Generate and Send removed from actions; keep Open WA and Mark Sent
-                                    actions += '<button class="btn btn-sm btn-outline-info btn-open-wa" data-id="' + row.id + '" data-to="' + (row.no_hp || '') + '"><i class="fab fa-whatsapp"></i> Open WA</button>';
-                                    actions += '<button class="btn btn-sm btn-outline-success btn-mark-sent" data-id="' + row.id + '"><i class="fas fa-check-circle"></i> Mark Sent</button>';
-                                }
-                                actions += '<button class="btn btn-sm btn-outline-warning btn-verify" data-id="' + row.id + '"><i class="fas fa-check"></i> Verif</button>';
-                                actions += '</div>';
-                                return actions;
-                            }
+                { data: null, orderable: false, searchable: false, render: function(data, type, row){
+                        var actions = '<div class="btn-group" role="group">';
+                        if (isAdmin) {
+                            // Hidden: Generate and Send removed from actions; show Message Template (email) and Email Sent toggle
+                            actions += '<button class="btn btn-sm btn-outline-info btn-open-wa" data-id="' + row.id + '" data-to="' + (row.email || '') + '"><i class="fas fa-envelope"></i> Message Template</button>';
+
+                            var emailLabel = (row.email_sent && String(row.email_sent) !== '0') ? 'Email Sent: Yes' : 'Email Sent: No';
+                            var emailBtnClass = (row.email_sent && String(row.email_sent) !== '0') ? 'btn-outline-success' : 'btn-outline-secondary';
+                            actions += '<button class="btn btn-sm ' + emailBtnClass + ' btn-toggle-email-sent" data-id="' + row.id + '"><i class="fas fa-envelope"></i> ' + emailLabel + '</button>';
                         }
+                        actions += '<button class="btn btn-sm btn-outline-warning btn-verify" data-id="' + row.id + '"><i class="fas fa-check"></i> Verif</button>';
+                        actions += '</div>';
+                        return actions;
+                    }
+                }
             ],
             order: [[1, 'desc']],
             responsive: true
         });
 
-        // load available WA sessions from local bot and refresh periodically
-        async function loadWaSessions() {
-            var $sel = $('#wa_session_select');
-            var prev = $sel.val();
-            $sel.prop('disabled', true);
-            try {
-                const resp = await fetch('http://localhost:3000/sessions');
-                if (!resp.ok) throw new Error('Bad response ' + resp.status);
-                const list = await resp.json();
-
-                // build HTML once so we can compare and avoid rewriting when identical
-                var html = '';
-                html += '<option value="">(Auto)</option>';
-                list.forEach(function(s){
-                    var label = s.id + ' (' + (s.status || 'unknown') + ')';
-                    html += '<option value="' + (s.id || '') + '">' + label + '</option>';
-                });
-
-                // only replace options if changed to avoid clearing user's selection
-                if ($sel.data('lastHtml') !== html) {
-                    $sel.html(html);
-                    $sel.data('lastHtml', html);
-                    // try to restore previous selection if still available
-                    if (prev && $sel.find('option[value="' + prev + '"]').length) {
-                        $sel.val(prev);
-                    } else {
-                        $sel.val('');
-                    }
-                } else {
-                    // unchanged — keep current value (or previous)
-                    if (prev) $sel.val(prev);
-                }
-            } catch (e) {
-                // ignore — bot may be down
-                if (!$sel.data('lastHtml')) {
-                    $sel.empty();
-                    $sel.append($('<option>').attr('value','').text('(Auto)'));
-                    $sel.data('lastHtml', $sel.html());
-                }
-                // restore previous if possible
-                if (prev) $sel.val(prev);
-            } finally {
-                $sel.prop('disabled', false);
-            }
-        }
-        // initial load and periodic refresh
-        loadWaSessions();
-        setInterval(loadWaSessions, 10000);
+        // WA sessions are now handled automatically by the bot; no manual selector
 
         // hide privileged bulk-send if not admin
         try { if (!isAdmin) { $('#btnSendSelected').hide(); } } catch(e) {}
@@ -331,13 +342,88 @@
                 }
             });
         });
-        // reload datatable when status filter changes
-        $('#status_filter').on('change', function(){
+        // reload datatable when status or email-sent filter changes
+        $('#status_filter, #email_sent_filter').on('change', function(){
             pesertaTable.ajax.reload();
         });
 
-        $('#sent_filter').on('change', function(){
-            pesertaTable.ajax.reload();
+        // Helpers for message template modal copy buttons + keyboard shortcuts (Q/W/E when modal open)
+        function mtCopyFromElement(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var text = el.value || el.innerText || '';
+            (async function(){
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        var ta = document.createElement('textarea');
+                        ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                        ta.value = text;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                    }
+                    // success is silent on purpose; user preferred no popup
+                } catch (e) {
+                    alert('Copy failed. Please select and copy manually.');
+                }
+            })();
+        }
+
+        $('#mt_copy_email').on('click', function(){ mtCopyFromElement('mt_email_raw'); });
+        $('#mt_copy_subject').on('click', function(){ mtCopyFromElement('mt_subject'); });
+        $('#mt_copy_body').on('click', function(){ mtCopyFromElement('mt_body'); });
+
+        // Mark email as sent from inside the Message Template modal
+        $('#mt_mark_sent').on('click', function(){
+            if (!messageTemplatePesertaId) {
+                $('#messageTemplateModal').modal('hide');
+                return;
+            }
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Saving...');
+            $.ajax({
+                url: '{{ url('/running') }}/' + encodeURIComponent(messageTemplatePesertaId) + '/mark-email-sent',
+                method: 'POST',
+                data: { _token: $('meta[name="csrf-token"]').attr('content') },
+                success: function(resp){
+                    if (resp && resp.ok) {
+                        $('#messageTemplateModal').modal('hide');
+                        if (typeof pesertaTable !== 'undefined') {
+                            pesertaTable.ajax.reload(null, false);
+                        }
+                    } else {
+                        var msg = (resp && resp.message) ? resp.message : 'Failed to mark email as sent';
+                        try { Swal.fire({ icon: 'error', title: 'Error', text: msg }); } catch(e) { alert(msg); }
+                    }
+                },
+                error: function(xhr){
+                    var text = 'Request failed';
+                    if (xhr && xhr.responseJSON && xhr.responseJSON.message) text = xhr.responseJSON.message;
+                    try { Swal.fire({ icon: 'error', title: 'Error', text: text }); } catch(e) { alert(text); }
+                },
+                complete: function(){
+                    $btn.prop('disabled', false).text('Check');
+                }
+            });
+        });
+
+        $(document).on('keydown', function(ev){
+            if (!$('#messageTemplateModal').hasClass('show')) return;
+            if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
+            var key = (ev.key || '').toLowerCase();
+            if (key === 'q') {
+                ev.preventDefault();
+                mtCopyFromElement('mt_email_raw');
+            } else if (key === 'w') {
+                ev.preventDefault();
+                mtCopyFromElement('mt_subject');
+            } else if (key === 'e') {
+                ev.preventDefault();
+                mtCopyFromElement('mt_body');
+            }
         });
 
         // Export CSV (All): always export entire dataset regardless of current table page
@@ -346,9 +432,47 @@
             var url = '{{ route('running.export_csv') }}' + '?status=all&export_all=1';
             window.location = url;
         });
+
+        // Export Excel (All): same data, Excel-friendly headers/extension
+        $('#btnExportExcel').on('click', function(e){
+            e.preventDefault();
+            var url = '{{ route('running.export_csv') }}' + '?status=all&export_all=1&as=excel';
+            window.location = url;
+        });
+
+        // Toggle email_sent status
+        $('#peserta-table').on('click', '.btn-toggle-email-sent', function(e){
+            e.preventDefault();
+            var id = $(this).data('id');
+            if (!id) return;
+            var $btn = $(this);
+            $btn.prop('disabled', true).text('Updating...');
+            $.ajax({
+                url: '{{ url('/running') }}/' + encodeURIComponent(id) + '/toggle-email-sent',
+                method: 'POST',
+                data: { _token: $('meta[name="csrf-token"]').attr('content') },
+                success: function(resp){
+                    if (resp && resp.ok) {
+                        pesertaTable.ajax.reload(null, false);
+                    } else {
+                        var msg = (resp && resp.message) ? resp.message : 'Failed to update email status';
+                        try { Swal.fire({ icon: 'error', title: 'Error', text: msg }); } catch(e) { alert(msg); }
+                    }
+                },
+                error: function(xhr){
+                    var text = 'Request failed';
+                    if (xhr && xhr.responseJSON && xhr.responseJSON.message) text = xhr.responseJSON.message;
+                    try { Swal.fire({ icon: 'error', title: 'Error', text: text }); } catch(e) { alert(text); }
+                },
+                complete: function(){
+                    $btn.prop('disabled', false).html('<i class="fas fa-envelope"></i>');
+                }
+            });
+        });
         
         // open modal preview when Generate clicked
         var currentTicketPesertaId = null;
+        var messageTemplatePesertaId = null; // tracks peserta for the Email Message Template modal
         $(document).on('click', '.btn-generate', function(e){
             e.preventDefault();
             var id = $(this).data('id');
@@ -629,7 +753,7 @@
                                     $.ajax({
                                         url: '{{ route('running.send_whatsapp') }}',
                                         method: 'POST',
-                                        data: { peserta_id: id, to: to, image_path: resp.image_path, client_id: $('#wa_session_select').val() || null, _token: $('meta[name="csrf-token"]').attr('content') },
+                                        data: { peserta_id: id, to: to, image_path: resp.image_path, client_id: null, _token: $('meta[name="csrf-token"]').attr('content') },
                                         success: function(r2){
                                             if (r2 && r2.ok) {
                                                 try { Swal.fire({ icon: 'success', title: 'Queued', text: 'Ticket queued and will be sent shortly.', timer: 1500, showConfirmButton: false }); } catch(e) {}
@@ -665,14 +789,13 @@
             });
         });
 
-        // open WA (manual) button: generate image, upload, then open WhatsApp with prefilled message
-        // Note: wa.me / web.whatsapp.com cannot auto-attach files; we provide public links to the image and waiver
-        var defaultWaiverUrl = '{{ asset("img/templates/WAIVER-BELOVAPREMIERERUN.pdf") }}';
+        // message template button: generate ticket image, upload, then open an email-friendly template preview
         $(document).on('click', '.btn-open-wa', function(e){
             e.preventDefault();
             var id = $(this).data('id');
             var to = $(this).data('to') || '';
             if (!id) return;
+            messageTemplatePesertaId = id;
             var $btn = $(this);
             $btn.prop('disabled', true).text('Preparing...');
 
@@ -689,7 +812,7 @@
 
                 setTimeout(function(){
                     var el = $off.find('.ticket-page')[0];
-                    if (!el) { $off.remove(); $btn.prop('disabled', false).html('<i class="fab fa-whatsapp"></i> Open WA'); return alert('Failed to prepare ticket'); }
+                    if (!el) { $off.remove(); $btn.prop('disabled', false).html('<i class="fas fa-envelope"></i> Message Template'); return alert('Failed to prepare ticket'); }
                     html2canvas(el, { scale: 2 }).then(function(canvas){
                         var dataUrl = canvas.toDataURL('image/png');
                         // upload to server to get a public URL
@@ -700,7 +823,6 @@
                             success: function(resp){
                                 if (resp && resp.ok) {
                                     var publicUrl = resp.public_url || '';
-                                    var waiverUrl = defaultWaiverUrl || '';
                                     // build templated message (keep consistent with server template)
                                     // build emoji characters at runtime to avoid file-encoding issues
                                     var EMOJI = {
@@ -722,7 +844,7 @@
                                         + EMOJI.alarm + ' 12.00 – 20.00 WIB\n\n'
                                         + EMOJI.pin + ' Lokasi : Klinik Utama Premiere Belova\nJl. Melon Raya 1 no. 27 Karangasem, Laweyan, Surakarta\n\n'
                                         + 'Saat pengambilan racepack, peserta wajib menunjukkan Registration Ticket serta menyerahkan formulir Waiver yang telah dicetak dan ditandatangani kepada panitia di lokasi pengambilan racepack.\n\n'
-                                        + 'Sampai jumpa di Belova Premiere Run 2 Wellness tanggal 15 Februari 2026 nanti! ' + EMOJI.runner + EMOJI.sparkles;
+                                        + 'Sampai jumpa di Belova Premiere Run 2 Wellness tanggal 15 Februari 2026 nanti! ' + EMOJI.runner + EMOJI.sparkles + '\n\n';
                                     // replace name
                                     // Extract peserta name from the ticket fragment; fallback to trimmed text
                                     var name = '';
@@ -730,15 +852,12 @@
                                         name = $off.find('.ticket-identity').find('div').first().find('span').text() || '';
                                     } catch(e) { name = ''; }
                                     var messageText = template.replace('{peserta_name}', (name || '').toString().trim());
-                                    // do NOT append image/waiver links to the prepared message
-                                    // we open the generated ticket image in a separate tab for manual review/attach
+                                    // do NOT append image/waiver links directly; the ticket image will be opened separately
 
-                                    // always use wa.me link which works across platforms
-                                    var plain = String(to).replace(/[^0-9]/g, '');
-                                    var encoded = encodeURIComponent(messageText);
-                                    var waLink = 'https://wa.me/' + plain + '?text=' + encoded;
+                                    // subject line for email
+                                    var subject = 'Belova Premiere Run 2 Wellness - Registration & Racepack Information';
 
-                                    // copy prepared message to clipboard, open ticket image, then open chat (without text)
+                                    // copy prepared message to clipboard, then show in-page message template modal
                                     (async function(){
                                         try {
                                             // attempt Clipboard API
@@ -754,20 +873,35 @@
                                                 document.execCommand('copy');
                                                 document.body.removeChild(ta);
                                             }
-                                            try { Swal.fire({ icon: 'success', title: 'Copied', text: 'Message copied to clipboard. Paste it into WhatsApp.', timer: 1800, showConfirmButton: false }); } catch(e) {}
+                                            try { Swal.fire({ icon: 'success', title: 'Copied', text: 'Message copied to clipboard. Paste it into your email.', timer: 1800, showConfirmButton: false }); } catch(e) {}
                                         } catch (e) {
-                                            try { Swal.fire({ icon: 'warning', title: 'Copy failed', text: 'Could not copy message to clipboard. The message will still be opened in WhatsApp (you may need to paste manually).', timer: 2500, showConfirmButton: false }); } catch(e2) {}
+                                            try { Swal.fire({ icon: 'warning', title: 'Copy failed', text: 'Could not copy message to clipboard. The template will still open so you can copy manually.', timer: 2500, showConfirmButton: false }); } catch(e2) {}
                                         }
 
-                                        // prepare preview URL and plain phone
-                                        var plainOnly = String(to).replace(/[^0-9]/g, '');
-                                        var previewUrl = '{{ route('running.wa_preview') }}'
-                                            + '?phone=' + encodeURIComponent(plainOnly)
-                                            + '&message=' + encodeURIComponent(messageText)
-                                            + (publicUrl ? ('&image=' + encodeURIComponent(publicUrl)) : '');
+                                        // Populate and show the message template modal
+                                        var email = String(to || '').trim();
+                                        var toDisplay = '';
+                                        if (name && name.toString().trim()) {
+                                            toDisplay = name.toString().trim();
+                                            if (email) {
+                                                toDisplay += ' <' + email + '>';
+                                            }
+                                        } else if (email) {
+                                            toDisplay = email;
+                                        }
 
-                                        // Try a synchronous copy first (textarea + execCommand) so subsequent window.open calls
-                                        // remain considered user-initiated and avoid popup blocking.
+                                        $('#mt_to_display').text(toDisplay);
+                                        $('#mt_email_raw').val(email);
+                                        $('#mt_subject').val(subject);
+                                        $('#mt_body').val(messageText);
+                                        if (publicUrl) {
+                                            $('#mt_ticket_image').attr('src', publicUrl).show();
+                                        } else {
+                                            $('#mt_ticket_image').attr('src', '').hide();
+                                        }
+                                        $('#messageTemplateModal').modal('show');
+
+                                        // Try a synchronous copy first so clipboard has the body immediately
                                         var didCopySync = false;
                                         try {
                                             var ta = document.createElement('textarea');
@@ -781,23 +915,15 @@
                                             didCopySync = false;
                                         }
 
-                                        // Open in desired order: wa.me (without text), preview, then ticket image last (so it appears on top)
-                                        var waOnly = 'https://wa.me/' + plainOnly;
-                                        window.open(waOnly, '_blank');
-                                        // open preview second
-                                        window.open(previewUrl, '_blank');
-                                        // open ticket image last (use window features to encourage separate window)
-                                        if (publicUrl) window.open(publicUrl, '_blank', 'noopener,noreferrer,width=900,height=1200');
-
                                         // Attempt async clipboard write as well (best-effort) and show a toast
                                         if (!didCopySync && navigator.clipboard && navigator.clipboard.writeText) {
                                             navigator.clipboard.writeText(messageText).then(function(){
-                                                try { Swal.fire({ icon: 'success', title: 'Copied', text: 'Message copied to clipboard. Paste it into WhatsApp.', timer: 1800, showConfirmButton: false }); } catch(e) {}
+                                                try { Swal.fire({ icon: 'success', title: 'Copied', text: 'Message copied to clipboard. Paste it into your email.', timer: 1800, showConfirmButton: false }); } catch(e) {}
                                             }).catch(function(){
                                                 try { Swal.fire({ icon: 'warning', title: 'Copy failed', text: 'Could not copy message to clipboard. Please copy manually from the preview page.', timer: 2500, showConfirmButton: false }); } catch(e) {}
                                             });
                                         } else if (didCopySync) {
-                                            try { Swal.fire({ icon: 'success', title: 'Copied', text: 'Message copied to clipboard. Paste it into WhatsApp.', timer: 1200, showConfirmButton: false }); } catch(e) {}
+                                            try { Swal.fire({ icon: 'success', title: 'Copied', text: 'Message copied to clipboard. Paste it into your email.', timer: 1200, showConfirmButton: false }); } catch(e) {}
                                         } else {
                                             try { Swal.fire({ icon: 'info', title: 'Ready', text: 'Preview opened. Copy the message from the preview page.', timer: 1800, showConfirmButton: false }); } catch(e) {}
                                         }
@@ -810,53 +936,14 @@
                                 }
                             },
                             error: function(){ try { Swal.fire({ icon: 'error', title: 'Save Error', text: 'Failed to upload image' }); } catch(e) { alert('Failed to upload image'); } },
-                            complete: function(){ $off.remove(); $btn.prop('disabled', false).html('<i class="fab fa-whatsapp"></i> Open WA'); }
+                            complete: function(){ $off.remove(); $btn.prop('disabled', false).html('<i class="fas fa-envelope"></i> Message Template'); }
                         });
-                    }).catch(function(err){ console.error(err); $off.remove(); $btn.prop('disabled', false).html('<i class="fab fa-whatsapp"></i> Open WA'); try { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to render ticket image' }); } catch(e) { alert('Failed to render ticket image'); } });
+                    }).catch(function(err){ console.error(err); $off.remove(); $btn.prop('disabled', false).html('<i class="fas fa-envelope"></i> Message Template'); try { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to render ticket image' }); } catch(e) { alert('Failed to render ticket image'); } });
                 }, 600);
-            }).fail(function(){ $btn.prop('disabled', false).html('<i class="fab fa-whatsapp"></i> Open WA'); try { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load ticket preview' }); } catch(e) { alert('Failed to load ticket preview'); } });
+            }).fail(function(){ $btn.prop('disabled', false).html('<i class="fas fa-envelope"></i> Message Template'); try { Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to load ticket preview' }); } catch(e) { alert('Failed to load ticket preview'); } });
         });
 
-        // mark as sent button (manual)
-        $(document).on('click', '.btn-mark-sent', function(e){
-            e.preventDefault();
-            var id = $(this).data('id');
-            if (!id) return;
-            var $btn = $(this);
-            try {
-                Swal.fire({
-                    title: 'Mark as Sent?',
-                    text: 'This will mark the peserta as having received the message (manual override).',
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonText: 'Yes, mark sent'
-                }).then(function(res){
-                    if (!res || !res.value) return;
-                    $btn.prop('disabled', true).text('Marking...');
-                    $.ajax({
-                        url: '{{ url('/running') }}/' + encodeURIComponent(id) + '/mark-sent',
-                        method: 'POST',
-                        data: { _token: $('meta[name="csrf-token"]').attr('content') },
-                        success: function(resp){
-                            if (resp && resp.ok) {
-                                try { Swal.fire({ icon: 'success', title: 'Marked', text: resp.message || 'Peserta marked as sent', timer: 1500, showConfirmButton: false }); } catch(e) {}
-                                pesertaTable.ajax.reload(null, false);
-                            } else {
-                                var msg = (resp && resp.message) ? resp.message : 'Failed to mark';
-                                try { Swal.fire({ icon: 'error', title: 'Error', text: msg }); } catch(e) { alert(msg); }
-                            }
-                        },
-                        error: function(xhr){
-                            var text = 'Request failed.';
-                            if (xhr && xhr.responseJSON && xhr.responseJSON.message) text = xhr.responseJSON.message;
-                            try { Swal.fire({ icon: 'error', title: 'Error', text: text }); } catch(e) { alert(text); }
-                        },
-                        complete: function(){ $btn.prop('disabled', false).html('<i class="fas fa-check-circle"></i> Mark Sent'); }
-                    });
-                });
-            } catch(e) { alert('Action failed'); }
-        });
-
+        
         // bulk send selected: generate image, upload, then enqueue per peserta sequentially
         $('#btnSendSelected').on('click', function(){
             var ids = [];
@@ -900,7 +987,7 @@
                                             $.ajax({
                                                 url: '{{ route('running.send_whatsapp') }}',
                                                 method: 'POST',
-                                                    data: { peserta_id: id, image_path: resp.image_path, client_id: $('#wa_session_select').val() || null, _token: $('meta[name="csrf-token"]').attr('content') },
+                                                    data: { peserta_id: id, image_path: resp.image_path, client_id: null, _token: $('meta[name="csrf-token"]').attr('content') },
                                                 success: function(r2){
                                                     $off.remove();
                                                     if (r2 && r2.ok) return resolve({ ok: true, id: id });

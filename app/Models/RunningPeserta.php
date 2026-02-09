@@ -21,6 +21,7 @@ class RunningPeserta extends Model
         'registered_at',
         'no_hp',
         'email',
+        'email_sent',
         'ukuran_kaos',
         'notes',
         ];

@@ -152,9 +152,40 @@ class RunningController extends Controller
     public function data(Request $request)
     {
         $query = RunningPeserta::select([
-            'running_pesertas.id', 'unique_code', 'nama_peserta', 'kategori', 'no_hp', 'email', 'ukuran_kaos', 'notes', 'status', 'verified_at', 'registered_at',
+            'running_pesertas.id', 'unique_code', 'nama_peserta', 'kategori', 'no_hp', 'email', 'email_sent', 'ukuran_kaos', 'notes', 'status', 'verified_at', 'registered_at',
             DB::raw('(select count(*) from running_wa_message_logs where running_wa_message_logs.peserta_id = running_pesertas.id and running_wa_message_logs.direction = "out") as sent_logs_count')
         ]);
+
+        // Require public lookup params (nama, no_hp, email) when called from public datatable
+        $namaInput = trim((string) $request->input('nama', ''));
+        $hpInput = (string) $request->input('no_hp', '');
+        $emailInput = trim((string) $request->input('email', ''));
+        if ($request->has('require_all_inputs') && (! $request->filled('nama') || ! $request->filled('no_hp') || ! $request->filled('email'))) {
+            // Force empty result when not all required inputs are present
+            $query->whereRaw('0 = 1');
+            return DataTables::of($query)->make(true);
+        }
+
+        // If any of the filter inputs are provided, apply them.
+        // Use OR across nama/no_hp/email so the user doesn't need all
+        // three to match exactly; any matching field will return results.
+        if ($request->filled('nama') || $request->filled('no_hp') || $request->filled('email')) {
+            $query->where(function($q) use ($request, $namaInput, $hpInput, $emailInput) {
+                if ($request->filled('nama')) {
+                    $q->orWhere('nama_peserta', 'like', '%' . $namaInput . '%');
+                }
+                if ($request->filled('no_hp')) {
+                    // normalize digits-only for simple matching and allow partial matches
+                    $hp = preg_replace('/[^0-9]/', '', $hpInput);
+                    if ($hp !== '') {
+                        $q->orWhereRaw("REPLACE(REPLACE(REPLACE(no_hp, ' ', ''), '-', ''), '+', '') like ?", ["%{$hp}%"]);
+                    }
+                }
+                if ($request->filled('email')) {
+                    $q->orWhere('email', 'like', '%' . $emailInput . '%');
+                }
+            });
+        }
 
         // apply status filter if provided (expect values: 'all', 'non verified', 'verified')
         $status = $request->input('status');
@@ -162,22 +193,14 @@ class RunningController extends Controller
             $query->where('status', $status);
         }
 
-        // apply sent filter if provided (expect values: 'all', 'sent', 'not_sent')
-        $sent = $request->input('sent');
-        if ($sent && $sent !== 'all') {
-            if ($sent === 'sent') {
-                $query->whereExists(function($q){
-                    $q->select(DB::raw(1))
-                      ->from('running_wa_message_logs')
-                      ->whereRaw('running_wa_message_logs.peserta_id = running_pesertas.id')
-                      ->where('direction', 'out');
-                });
-            } elseif ($sent === 'not_sent') {
-                $query->whereNotExists(function($q){
-                    $q->select(DB::raw(1))
-                      ->from('running_wa_message_logs')
-                      ->whereRaw('running_wa_message_logs.peserta_id = running_pesertas.id')
-                      ->where('direction', 'out');
+        // apply email_sent filter if provided (expect values: 'all', 'sent', 'not_sent')
+        $emailSentFilter = $request->input('email_sent');
+        if ($emailSentFilter && $emailSentFilter !== 'all') {
+            if ($emailSentFilter === 'sent') {
+                $query->where('email_sent', true);
+            } elseif ($emailSentFilter === 'not_sent') {
+                $query->where(function($q){
+                    $q->whereNull('email_sent')->orWhere('email_sent', false);
                 });
             }
         }
@@ -297,12 +320,22 @@ class RunningController extends Controller
             $query->where('status', $status);
         }
 
-        $fileName = 'running_peserta_' . date('Ymd_His') . '.csv';
-
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
-        ];
+        // Decide output format: default CSV, optional Excel-friendly headers
+        $as = strtolower((string) $request->input('as', 'csv'));
+        if ($as === 'excel') {
+            // Excel can open CSV; use .xls extension and Excel content type
+            $fileName = 'running_peserta_' . date('Ymd_His') . '.xls';
+            $headers = [
+                'Content-Type' => 'application/vnd.ms-excel',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+            ];
+        } else {
+            $fileName = 'running_peserta_' . date('Ymd_His') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+            ];
+        }
 
         $callback = function() use ($query) {
             $handle = fopen('php://output', 'w');
@@ -453,23 +486,74 @@ class RunningController extends Controller
     }
 
     /**
-     * Show an interstitial preview page for WhatsApp message.
-     * Expects query params: phone, message, optional image (public URL)
+     * Show an interstitial preview page for an email-style message template.
+     * Preferred query params: id (peserta id), optional img (ticket image URL).
+     * For backward compatibility, still accepts name/email/subject/message/image.
      */
     public function waPreview(Request $request)
     {
-        $phone = $request->query('phone');
-        $message = $request->query('message');
-        $image = $request->query('image');
+        $defaultSubject = 'Belova Premiere Run 2 Wellness - Registration & Racepack Information';
 
-        if (!$phone) {
-            abort(400, 'phone is required');
+        $name = null;
+        $email = null;
+        $subject = $defaultSubject;
+        $message = '';
+        $image = $request->query('img') ?: $request->query('image');
+
+        // Preferred: build from peserta id
+        if ($request->filled('id')) {
+            $peserta = RunningPeserta::find($request->query('id'));
+            if ($peserta) {
+                $name = $peserta->nama_peserta;
+                $email = $peserta->email;
+            }
+
+            // Build the same template body used on the client, but server-side
+            $wave = "👋";
+            $starstruck = "🤩";
+            $calendar = "📅";
+            $alarm = "⏰";
+            $pin = "📍";
+            $runner = "🏃";
+            $sparkles = "✨";
+
+            $displayName = $name ?: '';
+            $lines = [];
+            $lines[] = 'Halo ' . $displayName . ' !' . $wave;
+            $lines[] = '';
+            $lines[] = 'Terimakasih banyak sudah melakukan pendaftaran di Belova Premiere Run 2 Wellness ' . $starstruck;
+            $lines[] = 'Pengambilan racepack Belova Premiere Run 2 Wellness akan dilaksanakan pada :';
+            $lines[] = '';
+            $lines[] = $calendar . ' Jumat, 13 Februari 2026';
+            $lines[] = $alarm . ' 10.00 – 15.00 WIB';
+            $lines[] = 'dan';
+            $lines[] = $calendar . ' Sabtu, 14 Februari 2026';
+            $lines[] = $alarm . ' 12.00 – 20.00 WIB';
+            $lines[] = '';
+            $lines[] = $pin . ' Lokasi : Klinik Utama Premiere Belova';
+            $lines[] = 'Jl. Melon Raya 1 no. 27 Karangasem, Laweyan, Surakarta';
+            $lines[] = '';
+            $lines[] = 'Saat pengambilan racepack, peserta wajib menunjukkan Registration Ticket serta menyerahkan formulir Waiver yang telah dicetak dan ditandatangani kepada panitia di lokasi pengambilan racepack.';
+            $lines[] = '';
+            $lines[] = 'Sampai jumpa di Belova Premiere Run 2 Wellness tanggal 15 Februari 2026 nanti! ' . $runner . $sparkles;
+            // add an extra blank line at the end for nicer spacing when pasted into email
+            $lines[] = '';
+
+            $message = implode("\n", $lines);
+        } else {
+            // Fallback: use provided query params (legacy behavior)
+            $name = $request->query('name');
+            $email = $request->query('email');
+            $subject = $request->query('subject') ?: $defaultSubject;
+            $message = $request->query('message') ?: '';
         }
 
         return view('running.wa_preview', [
-            'phone' => $phone,
-            'message' => $message ?: '',
-            'image' => $image ?: null
+            'name' => $name,
+            'email' => $email,
+            'subject' => $subject,
+            'message' => $message,
+            'image' => $image ?: null,
         ]);
     }
 
@@ -500,6 +584,97 @@ class RunningController extends Controller
         } catch (\Exception $e) {
             return response()->json(['ok' => false, 'message' => 'Failed to mark sent: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Toggle email_sent flag for a peserta (manual control from UI).
+     */
+    public function toggleEmailSent(Request $request, $id)
+    {
+        $peserta = RunningPeserta::find($id);
+        if (!$peserta) {
+            return response()->json(['ok' => false, 'message' => 'Peserta not found'], 404);
+        }
+
+        $peserta->email_sent = ! (bool) $peserta->email_sent;
+        $peserta->save();
+
+        return response()->json([
+            'ok' => true,
+            'email_sent' => (bool) $peserta->email_sent,
+            'message' => 'Email sent status updated',
+        ]);
+    }
+
+    /**
+     * Mark email_sent as true (used by the Email Message Template modal "Check" button).
+     */
+    public function markEmailSent(Request $request, $id)
+    {
+        $peserta = RunningPeserta::find($id);
+        if (!$peserta) {
+            return response()->json(['ok' => false, 'message' => 'Peserta not found'], 404);
+        }
+
+        if (! $peserta->email_sent) {
+            $peserta->email_sent = true;
+            $peserta->save();
+        }
+
+        return response()->json([
+            'ok' => true,
+            'email_sent' => true,
+            'message' => 'Email marked as sent',
+        ]);
+    }
+
+    /**
+     * Public ticket HTML endpoint for the Belova Premiere Run page.
+     * Returns the same fragment used for ticket image generation.
+     */
+    public function publicTicketHtml($id)
+    {
+        $peserta = RunningPeserta::find($id);
+        if (!$peserta) {
+            return response('Not found', 404);
+        }
+        return view('running.ticket_fragment', compact('peserta'));
+    }
+
+    /**
+     * Public download for generated ticket image if available.
+     * Falls back to rendering the ticket HTML view when no image file exists.
+     */
+    public function publicTicketImageDownload($id)
+    {
+        $peserta = RunningPeserta::find($id);
+        if (!$peserta) {
+            abort(404);
+        }
+
+        // look for stored ticket images under storage/app/public/running_tickets
+        try {
+            $files = Storage::disk('public')->files('running_tickets');
+            $match = null;
+            foreach ($files as $f) {
+                if (preg_match('/ticket-' . $peserta->id . '-.*\.png$/', $f)) {
+                    $match = $f;
+                    break;
+                }
+            }
+            if ($match) {
+                $full = storage_path('app/public/' . $match);
+                if (is_file($full)) {
+                    return response()->download($full, ($peserta->unique_code ?: 'ticket-' . $peserta->id) . '.png', ['Content-Type' => 'image/png']);
+                }
+            }
+        } catch (\Exception $e) {
+            // continue to fallback
+        }
+
+        // fallback: render a public ticket page that uses the same
+        // ticket fragment + JsBarcode setup as the running index page
+        return view('running.ticket_public', compact('peserta'));
     }
 
     /**

@@ -263,6 +263,12 @@ Route::post('/running/verify', [\App\Http\Controllers\RunningController::class, 
 Route::post('/running/{id}/mark-sent', [\App\Http\Controllers\RunningController::class, 'markSent'])
     ->middleware('auth')
     ->name('running.mark_sent');
+Route::post('/running/{id}/mark-email-sent', [\App\Http\Controllers\RunningController::class, 'markEmailSent'])
+    ->middleware('auth')
+    ->name('running.mark_email_sent');
+Route::post('/running/{id}/toggle-email-sent', [\App\Http\Controllers\RunningController::class, 'toggleEmailSent'])
+    ->middleware('auth')
+    ->name('running.toggle_email_sent');
 Route::get('/running/find', [\App\Http\Controllers\RunningController::class, 'find'])
     ->middleware('auth')
     ->name('running.find');
@@ -277,6 +283,23 @@ Route::get('/running/ticket-html/{id}', [\App\Http\Controllers\RunningController
 // Public token-protected ticket HTML for bot (no auth middleware)
 Route::get('/running/ticket-html-public/{id}', [\App\Http\Controllers\RunningController::class, 'ticketHtmlForBot'])
     ->name('running.ticket.html.public');
+
+// Public-facing Belova Premiere Run page (no auth required)
+Route::get('/belovapremiererun', function(){
+    return view('belovapremiererun.index');
+})->name('belovapremiererun.index');
+
+// Public data endpoint for the Belova Premiere Run datatable
+Route::get('/belovapremiererun/data', [\App\Http\Controllers\RunningController::class, 'data'])
+    ->name('belovapremiererun.data');
+
+// Public ticket HTML (fragment) for Belova Premiere Run, used by public page JS
+Route::get('/belovapremiererun/ticket-html/{id}', [\App\Http\Controllers\RunningController::class, 'publicTicketHtml'])
+    ->name('belovapremiererun.ticket_html');
+
+// Public download route for generated ticket images (if available)
+Route::get('/belovapremiererun/ticket-download/{id}', [\App\Http\Controllers\RunningController::class, 'publicTicketImageDownload'])
+    ->name('belovapremiererun.ticket_download');
 
 // Send running ticket via WhatsApp (single / bulk)
 Route::post('/running/send-whatsapp', [\App\Http\Controllers\RunningController::class, 'sendWhatsapp'])
