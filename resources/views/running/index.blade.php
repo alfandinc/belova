@@ -278,7 +278,8 @@
                             // Admin-only extra actions grouped under an Options dropdown
                             actions += '<div class="btn-group" role="group">'
                                 + '<button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">'
-                                + '<i class="fas fa-ellipsis-h"></i> Options'</n+                                + '</button>'
+                                + '<i class="fas fa-ellipsis-h"></i> Options'
+                                + '</button>'
                                 + '<div class="dropdown-menu dropdown-menu-right">';
 
                             actions += '<a href="#" class="dropdown-item btn-open-wa" data-id="' + row.id + '" data-to="' + (row.email || '') + '"><i class="fas fa-envelope mr-1"></i> Message Template</a>';
