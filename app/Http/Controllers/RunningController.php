@@ -237,8 +237,20 @@ class RunningController extends Controller
             if ($row === 0) {
                 // detect header row if it contains known column names (case-insensitive)
                 $lower = array_map(function($v){ return strtolower(trim($v)); }, $data);
-                // common header names we accept: nama, nama_peserta, nohp, no_hp, email, jersey, ukuran_kaos, kategori, regdate, registered_at
-                $known = ['nama','nama_peserta','nohp','no_hp','hp','telepon','email','jersey','ukuran','ukuran_kaos','ukuran_tshirt','kategori','regdate','registered_at','notes','keterangan'];
+                // common header names we accept: match exportCsv + older variants
+                // id, unique_code, nama_peserta, kategori, status, no_hp, email, email_sent, ukuran_kaos, notes,
+                // verified_at, registered_at, plus some legacy aliases
+                $known = [
+                    'id','unique_code',
+                    'nama','nama_peserta',
+                    'nohp','no_hp','hp','telepon',
+                    'email','email_sent',
+                    'jersey','ukuran','ukuran_kaos','ukuran_tshirt',
+                    'kategori','status',
+                    'regdate','registered_at','reg_date',
+                    'verified_at',
+                    'notes','keterangan','note',
+                ];
                 $hasKnown = false;
                 foreach ($lower as $col) { if (in_array($col, $known)) { $hasKnown = true; break; } }
                 if ($hasKnown) { $header = $lower; $row++; continue; }
@@ -246,6 +258,9 @@ class RunningController extends Controller
 
             // map columns
             $registeredAt = null;
+            $verifiedAt = null;
+            $uniqueCode = null;
+            $emailSent = null;
             if ($header) {
                 $mapped = array_combine($header, $data + array_fill(0, max(0, count($header) - count($data)), null));
                 $nama = $mapped['nama_peserta'] ?? ($mapped['nama'] ?? null);
@@ -255,10 +270,26 @@ class RunningController extends Controller
                 $email = $mapped['email'] ?? null;
                 $ukuran = $mapped['ukuran_kaos'] ?? ($mapped['jersey'] ?? ($mapped['ukuran'] ?? $mapped['ukuran_tshirt'] ?? null));
                 $notes = $mapped['notes'] ?? ($mapped['keterangan'] ?? $mapped['note'] ?? null);
+                $uniqueCode = $mapped['unique_code'] ?? null;
+                // registration date parsing
                 // registration date parsing
                 $regRaw = $mapped['registered_at'] ?? ($mapped['regdate'] ?? ($mapped['reg_date'] ?? null));
                 if ($regRaw) {
                     try { $registeredAt = \Carbon\Carbon::parse(trim($regRaw)); } catch (\Exception $e) { $registeredAt = null; }
+                }
+                // verified_at parsing (optional)
+                $verRaw = $mapped['verified_at'] ?? null;
+                if ($verRaw) {
+                    try { $verifiedAt = \Carbon\Carbon::parse(trim($verRaw)); } catch (\Exception $e) { $verifiedAt = null; }
+                }
+                // email_sent parsing (optional boolean-ish)
+                if (array_key_exists('email_sent', $mapped)) {
+                    $rawEmailSent = strtolower(trim((string) $mapped['email_sent']));
+                    if (in_array($rawEmailSent, ['1','true','yes','y'], true)) {
+                        $emailSent = true;
+                    } elseif (in_array($rawEmailSent, ['0','false','no','n'], true)) {
+                        $emailSent = false;
+                    }
                 }
             } else {
                 // assume order: nama_peserta, kategori, status, no_hp, email, ukuran_kaos
@@ -290,8 +321,17 @@ class RunningController extends Controller
                 'ukuran_kaos' => $ukuran ? trim($ukuran) : null,
                 'notes' => $notes ? trim($notes) : null,
             ];
+            if (!empty($uniqueCode)) {
+                $attrs['unique_code'] = trim($uniqueCode);
+            }
             if (!empty($registeredAt)) {
                 $attrs['registered_at'] = $registeredAt;
+            }
+            if (!empty($verifiedAt)) {
+                $attrs['verified_at'] = $verifiedAt;
+            }
+            if ($emailSent !== null) {
+                $attrs['email_sent'] = $emailSent;
             }
             RunningPeserta::create($attrs);
             $created++;
@@ -315,7 +355,21 @@ class RunningController extends Controller
     {
         $status = $request->input('status');
 
-        $query = RunningPeserta::select(['id', 'unique_code', 'nama_peserta', 'no_hp', 'email', 'ukuran_kaos', 'kategori', 'status', 'notes', 'verified_at', 'registered_at'])->orderBy('id', 'asc');
+        // select all relevant peserta fields so export is a full snapshot
+        $query = RunningPeserta::select([
+            'id',
+            'unique_code',
+            'nama_peserta',
+            'kategori',
+            'status',
+            'no_hp',
+            'email',
+            'email_sent',
+            'ukuran_kaos',
+            'notes',
+            'verified_at',
+            'registered_at',
+        ])->orderBy('id', 'asc');
         if ($status && strtolower($status) !== 'all') {
             $query->where('status', $status);
         }
@@ -339,19 +393,36 @@ class RunningController extends Controller
 
         $callback = function() use ($query) {
             $handle = fopen('php://output', 'w');
-            // header row
-            fputcsv($handle, ['id','unique_code','nama_peserta','no_hp','email','ukuran_kaos','kategori','notes','registered_at']);
+            // header row: must stay in sync with import() known headers
+            fputcsv($handle, [
+                'id',
+                'unique_code',
+                'nama_peserta',
+                'kategori',
+                'status',
+                'no_hp',
+                'email',
+                'email_sent',
+                'ukuran_kaos',
+                'notes',
+                'verified_at',
+                'registered_at',
+            ]);
 
             foreach ($query->cursor() as $p) {
                 fputcsv($handle, [
                     $p->id,
                     $p->unique_code,
                     $p->nama_peserta,
+                    $p->kategori,
+                    $p->status,
                     $p->no_hp,
                     $p->email,
+                    // cast email_sent to 1/0 so it survives Excel round-trips
+                    $p->email_sent ? 1 : 0,
                     $p->ukuran_kaos,
-                    $p->kategori,
                     $p->notes,
+                    $p->verified_at ? (is_string($p->verified_at) ? $p->verified_at : $p->verified_at->toDateTimeString()) : null,
                     $p->registered_at ? (is_string($p->registered_at) ? $p->registered_at : $p->registered_at->toDateTimeString()) : null,
                 ]);
             }
