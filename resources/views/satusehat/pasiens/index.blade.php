@@ -32,6 +32,14 @@
                         @endforeach
                     </select>
                 </div>
+                <div class="col-md-2">
+                    <label for="filterHasDiagnosa">Diagnosa</label>
+                    <select id="filterHasDiagnosa" class="form-control">
+                        <option value="1" selected>Hanya yang punya diagnosa</option>
+                        <option value="0">Hanya yang belum punya diagnosa</option>
+                        <option value="">Semua</option>
+                    </select>
+                </div>
             </div>
             <table id="pasiens-table" class="table table-striped table-bordered" style="width:100%">
                 <thead>
@@ -66,7 +74,7 @@ $(function(){
     });
 
     // reload table when filters change
-    $(document).on('change', '#filterKlinik, #filterEncounterStatus', function(){ if(window.pasiensTable){ window.pasiensTable.ajax.reload(); } });
+    $(document).on('change', '#filterKlinik, #filterEncounterStatus, #filterHasDiagnosa', function(){ if(window.pasiensTable){ window.pasiensTable.ajax.reload(); } });
 
     // create DataTable after daterangepicker so initial load uses the week range
     window.pasiensTable = $('#pasiens-table').DataTable({
@@ -86,6 +94,7 @@ $(function(){
                 // attach selected klinik and encounter status filters
                 d.klinik_id = $('#filterKlinik').val();
                 d.encounter_status = $('#filterEncounterStatus').val();
+                d.has_diagnosa = $('#filterHasDiagnosa').val() || '1';
             },
             dataSrc: 'data'
         },

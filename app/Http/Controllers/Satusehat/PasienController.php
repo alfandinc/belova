@@ -1030,6 +1030,35 @@ class PasienController extends Controller
             });
         }
 
+        // Filter by diagnosa presence (default: only rows that have diagnosa)
+        $filterDiagnosa = $request->get('has_diagnosa', '1');
+        if ($filterDiagnosa === '1') {
+            // only visitations with at least one diagnosakerja_* filled
+            $query = $query->whereHas('asesmenPenunjang', function ($q) {
+                $q->where(function ($qq) {
+                    $qq->whereNotNull('diagnosakerja_1')
+                       ->orWhereNotNull('diagnosakerja_2')
+                       ->orWhereNotNull('diagnosakerja_3')
+                       ->orWhereNotNull('diagnosakerja_4')
+                       ->orWhereNotNull('diagnosakerja_5')
+                       ->orWhereNotNull('diagnosakerja_6');
+                });
+            });
+        } elseif ($filterDiagnosa === '0') {
+            // only visitations without any diagnosakerja_* (or no asesmenPenunjang at all)
+            $query = $query->where(function ($q) {
+                $q->whereDoesntHave('asesmenPenunjang')
+                  ->orWhereHas('asesmenPenunjang', function ($qq) {
+                      $qq->whereNull('diagnosakerja_1')
+                         ->whereNull('diagnosakerja_2')
+                         ->whereNull('diagnosakerja_3')
+                         ->whereNull('diagnosakerja_4')
+                         ->whereNull('diagnosakerja_5')
+                         ->whereNull('diagnosakerja_6');
+                  });
+            });
+        }
+
         $rows = $query->get()->map(function ($v) {
             $pasienId = $v->pasien_id;
             $patientUrl = $pasienId ? route('erm.pasien.show', $pasienId) : '#';
