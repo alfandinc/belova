@@ -273,14 +273,23 @@
                 },
                 { data: null, orderable: false, searchable: false, render: function(data, type, row){
                         var actions = '<div class="btn-group" role="group">';
+
                         if (isAdmin) {
-                            // Hidden: Generate and Send removed from actions; show Message Template (email) and Email Sent toggle
-                            actions += '<button class="btn btn-sm btn-outline-info btn-open-wa" data-id="' + row.id + '" data-to="' + (row.email || '') + '"><i class="fas fa-envelope"></i> Message Template</button>';
+                            // Admin-only extra actions grouped under an Options dropdown
+                            actions += '<div class="btn-group" role="group">'
+                                + '<button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">'
+                                + '<i class="fas fa-ellipsis-h"></i> Options'</n+                                + '</button>'
+                                + '<div class="dropdown-menu dropdown-menu-right">';
+
+                            actions += '<a href="#" class="dropdown-item btn-open-wa" data-id="' + row.id + '" data-to="' + (row.email || '') + '"><i class="fas fa-envelope mr-1"></i> Message Template</a>';
 
                             var emailLabel = (row.email_sent && String(row.email_sent) !== '0') ? 'Email Sent: Yes' : 'Email Sent: No';
-                            var emailBtnClass = (row.email_sent && String(row.email_sent) !== '0') ? 'btn-outline-success' : 'btn-outline-secondary';
-                            actions += '<button class="btn btn-sm ' + emailBtnClass + ' btn-toggle-email-sent" data-id="' + row.id + '"><i class="fas fa-envelope"></i> ' + emailLabel + '</button>';
+                            actions += '<a href="#" class="dropdown-item btn-toggle-email-sent" data-id="' + row.id + '"><i class="fas fa-envelope mr-1"></i> ' + emailLabel + '</a>';
+
+                            actions += '</div></div>';
                         }
+
+                        // Always show Verify button
                         actions += '<button class="btn btn-sm btn-outline-warning btn-verify" data-id="' + row.id + '"><i class="fas fa-check"></i> Verif</button>';
                         actions += '</div>';
                         return actions;
