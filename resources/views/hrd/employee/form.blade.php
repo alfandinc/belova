@@ -207,7 +207,7 @@
                                     <div class="input-group-prepend">
                                         <span class="input-group-text"><i class="fas fa-fingerprint"></i></span>
                                     </div>
-                                    <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', $employee->no_induk ?? '') }}">
+                                    <input type="text" id="no_induk" name="no_induk" class="form-control" value="{{ old('no_induk', $employee->no_induk ?? ($nextNoInduk ?? '') ) }}">
                                 </div>
                             </div>
                             <div class="form-group col-md-6">
