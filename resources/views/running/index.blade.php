@@ -290,8 +290,8 @@
                             actions += '</div></div>';
                         }
 
-                        // Always show Verify button
-                        actions += '<button class="btn btn-sm btn-outline-warning btn-verify" data-id="' + row.id + '"><i class="fas fa-check"></i> Verif</button>';
+                        // Always show Verify button (solid green)
+                        actions += '<button class="btn btn-sm btn-success btn-verify" data-id="' + row.id + '"><i class="fas fa-check"></i> Verif</button>';
                         actions += '</div>';
                         return actions;
                     }
