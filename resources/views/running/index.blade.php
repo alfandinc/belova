@@ -43,9 +43,9 @@
                                     <option value="verified">Verified</option>
                                 </select>
                                 <select id="email_sent_filter" class="form-control form-control-sm" title="Filter by email sent status">
-                                    <option value="not_sent" selected>Email Not Sent</option>
+                                    <option value="not_sent">Email Not Sent</option>
                                     <option value="sent">Email Sent</option>
-                                    <option value="all">All Emails</option>
+                                    <option value="all" selected>All Emails</option>
                                 </select>
                             </div>
                         </div>
@@ -217,7 +217,7 @@
                 data: function(d){
                     // send current status + email_sent filters
                     d.status = $('#status_filter').val() || 'non verified';
-                    d.email_sent = $('#email_sent_filter').val() || 'not_sent';
+                    d.email_sent = $('#email_sent_filter').val() || 'all';
                 }
             },
                 columns: [
