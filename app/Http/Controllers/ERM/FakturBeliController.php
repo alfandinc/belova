@@ -836,6 +836,8 @@ class FakturBeliController extends Controller
                 $rows[] = [
                     'no_faktur' => $faktur->no_faktur ?? '',
                     'due_date' => $faktur->due_date ?? '',
+                    'requested_date' => $faktur->requested_date ?? '',
+                    'received_date' => $faktur->received_date ?? '',
                     'nama_obat' => $item->obat->nama ?? '',
                     'qty' => $item->qty ?? 0,
                     'satuan' => $item->obat->satuan ?? '',
@@ -861,6 +863,8 @@ class FakturBeliController extends Controller
             return [
                 $r['no_faktur'],
                 $r['due_date'],
+                $r['requested_date'],
+                $r['received_date'],
                 $r['nama_obat'],
                 $r['qty'],
                 $r['satuan'],
@@ -874,7 +878,7 @@ class FakturBeliController extends Controller
             ];
         }, $rows);
 
-        $headings = ['No Faktur', 'Tanggal Jatuh Tempo', 'Nama Obat', 'Qty', 'Satuan', 'Nama Vendor', 'Harga Per Satuan', 'Diskon', 'Pajak', 'Global Diskon', 'Global Pajak', 'Total Harga'];
+        $headings = ['No Faktur', 'Tanggal Jatuh Tempo', 'Tanggal Permintaan', 'Tanggal Terima', 'Nama Obat', 'Qty', 'Satuan', 'Nama Vendor', 'Harga Per Satuan', 'Diskon', 'Pajak', 'Global Diskon', 'Global Pajak', 'Total Harga'];
 
         $export = new class($exportArray, $headings) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithHeadings {
             private $array;
