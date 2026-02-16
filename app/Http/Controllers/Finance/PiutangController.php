@@ -51,6 +51,32 @@ class PiutangController extends Controller
         }
 
         return DataTables::of($query)
+            ->filter(function ($query) use ($request) {
+                $search = $request->get('search');
+                $value = is_array($search) && isset($search['value']) ? trim($search['value']) : null;
+
+                if ($value === null || $value === '') {
+                    return;
+                }
+
+                $query->where(function ($q) use ($value) {
+                    // Search basic piutang fields
+                    $q->where('finance_piutangs.id', 'like', "%{$value}%")
+                      ->orWhere('finance_piutangs.amount', 'like', "%{$value}%")
+                      ->orWhere('finance_piutangs.payment_status', 'like', "%{$value}%");
+
+                    // Search related invoice number
+                    $q->orWhereHas('invoice', function ($iq) use ($value) {
+                        $iq->where('invoice_number', 'like', "%{$value}%");
+                    });
+
+                    // Search related patient name / RM
+                    $q->orWhereHas('visitation.pasien', function ($pq) use ($value) {
+                        $pq->where('nama', 'like', "%{$value}%")
+                           ->orWhere('id', 'like', "%{$value}%");
+                    });
+                });
+            })
             ->addColumn('nama_pasien', function ($row) {
                 if ($row->visitation && $row->visitation->pasien) {
                     $name = $row->visitation->pasien->nama;
