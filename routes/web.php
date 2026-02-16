@@ -1302,6 +1302,13 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
         Route::put('gantishift/{id}/manager', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'persetujuanManager'])->name('hrd.gantishift.manager');
         Route::put('gantishift/{id}/hrd', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'persetujuanHRD'])->name('hrd.gantishift.hrd');
         Route::put('gantishift/{id}/target-approval', [\App\Http\Controllers\HRD\PengajuanGantiShiftController::class, 'targetEmployeeApproval'])->name('hrd.gantishift.target-approval');
+
+        // Shift Management (used from Jadwal Karyawan page)
+        Route::prefix('master/shift')->name('hrd.master.shift.')->group(function () {
+            Route::post('/', [\App\Http\Controllers\HRD\ShiftController::class, 'store'])->name('store');
+            Route::put('/{shift}', [\App\Http\Controllers\HRD\ShiftController::class, 'update'])->name('update');
+            Route::delete('/{shift}', [\App\Http\Controllers\HRD\ShiftController::class, 'destroy'])->name('destroy');
+        });
         
         // Master Data Routes
         // Division Management

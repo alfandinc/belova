@@ -63,30 +63,50 @@
                             @foreach($dates as $date)
                                 @php
                                     $key = $employee->id . '_' . $date;
-                                    $schedule = $schedules[$key][0] ?? null;
+                                    $daySchedules = $schedules[$key] ?? collect();
+                                    if ($daySchedules instanceof \Illuminate\Support\Collection) {
+                                        $daySchedules = $daySchedules->values();
+                                    } else {
+                                        $daySchedules = collect($daySchedules);
+                                    }
+
+                                    $firstSchedule = $daySchedules[0] ?? null;
                                     $isLibur = false;
-                                    $shiftName = '';
                                     $cellClass = '';
-                                    $shiftLabel = '';
-                                    if ($schedule) {
-                                        $isLibur = isset($schedule->is_libur) && $schedule->is_libur;
-                                        $shiftName = $schedule->shift ? strtolower($schedule->shift->name) : '';
-                                        $cellClass = $isLibur ? 'bg-danger text-white' : ($shiftName ? 'shift-' . $shiftName : '');
-                                        $shiftLabel = $isLibur
-                                            ? ($schedule->label ?? 'Libur/Cuti')
-                                            : (($schedule && $schedule->shift)
-                                                ? (\Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->start_time)->format('H:i')
-                                                    . ' - ' .
-                                                    \Carbon\Carbon::createFromFormat('H:i:s', $schedule->shift->end_time)->format('H:i'))
-                                                : '-');
+
+                                    if ($firstSchedule) {
+                                        $isLibur = isset($firstSchedule->is_libur) && $firstSchedule->is_libur;
+
+                                        if ($isLibur) {
+                                            $cellClass = 'bg-danger text-white';
+                                        } else {
+                                            // For working days, we will draw per-shift rows inside the cell
+                                            // and keep the td background neutral.
+                                        }
                                     } else {
                                         // No schedule for this day: treat as Libur/Cuti
                                         $isLibur = true;
                                         $cellClass = 'bg-danger text-white';
-                                        $shiftLabel = 'Libur';
                                     }
                                 @endphp
-                                <td class="{{ $isLibur ? 'bg-danger' : $cellClass }}" style="{{ $isLibur ? 'background:#e74c3c;color:#fff;' : '' }}"><strong>{{ $shiftLabel }}</strong></td>
+                                <td class="{{ $isLibur ? 'bg-danger' : '' }}" style="{{ $isLibur ? 'background:#e74c3c;color:#fff;' : '' }}">
+                                    @if($isLibur)
+                                        <strong>{{ $firstSchedule->label ?? 'Libur/Cuti' }}</strong>
+                                    @else
+                                        @foreach($daySchedules as $scheduleItem)
+                                            @if($scheduleItem->shift)
+                                                @php
+                                                    $shiftName = strtolower($scheduleItem->shift->name);
+                                                    $start = \Carbon\Carbon::createFromFormat('H:i:s', $scheduleItem->shift->start_time)->format('H:i');
+                                                    $end   = \Carbon\Carbon::createFromFormat('H:i:s', $scheduleItem->shift->end_time)->format('H:i');
+                                                @endphp
+                                                <div class="shift-{{ $shiftName }}" style="margin-bottom:2px; padding:2px 4px; border-radius:2px;">
+                                                    <strong>{{ $start }} - {{ $end }}</strong>
+                                                </div>
+                                            @endif
+                                        @endforeach
+                                    @endif
+                                </td>
                             @endforeach
                         </tr>
                     @endif

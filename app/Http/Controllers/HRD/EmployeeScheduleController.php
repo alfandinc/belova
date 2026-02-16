@@ -17,12 +17,20 @@ class EmployeeScheduleController extends Controller
     {
         $employeeId = $request->input('employee_id');
         $date = $request->input('date');
+        $scheduleId = $request->input('schedule_id');
         if (!$employeeId || !$date) {
             return response()->json(['success' => false, 'message' => 'Missing employee_id or date'], 400);
         }
-        $deleted = EmployeeSchedule::where('employee_id', $employeeId)
-            ->where('date', $date)
-            ->delete();
+
+        $query = EmployeeSchedule::where('employee_id', $employeeId)
+            ->where('date', $date);
+
+        // Jika ada schedule_id, hapus hanya jadwal tersebut.
+        if ($scheduleId) {
+            $query->where('id', $scheduleId);
+        }
+
+        $deleted = $query->delete();
         if ($request->ajax()) {
             return response()->json(['success' => $deleted > 0]);
         }
@@ -152,13 +160,25 @@ class EmployeeScheduleController extends Controller
     public function store(Request $request)
     {
         $data = $request->input('schedule', []);
+
         foreach ($data as $employeeId => $days) {
-            foreach ($days as $date => $shiftId) {
-                if ($shiftId) {
-                    EmployeeSchedule::updateOrCreate(
-                        ['employee_id' => $employeeId, 'date' => Carbon::parse($date)->toDateString()], // pastikan Y-m-d
-                        ['shift_id' => $shiftId]
-                    );
+            foreach ($days as $date => $shiftIds) {
+                $normalizedDate = Carbon::parse($date)->toDateString();
+
+                // Hapus semua jadwal existing untuk karyawan & tanggal ini,
+                // lalu simpan kembali berdasarkan input (bisa 0, 1, atau 2 shift).
+                EmployeeSchedule::where('employee_id', $employeeId)
+                    ->where('date', $normalizedDate)
+                    ->delete();
+
+                $shiftIds = array_values(array_filter((array) $shiftIds)); // buang yang kosong
+
+                foreach ($shiftIds as $shiftId) {
+                    EmployeeSchedule::create([
+                        'employee_id' => $employeeId,
+                        'date'        => $normalizedDate,
+                        'shift_id'    => $shiftId,
+                    ]);
                 }
             }
         }
