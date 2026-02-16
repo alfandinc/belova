@@ -5,6 +5,7 @@ namespace App\Models\Finance;
 use App\Models\ERM\Visitation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Finance\Piutang;
 
 class Invoice extends Model
 {
@@ -51,6 +52,11 @@ class Invoice extends Model
     public function visitation()
     {
         return $this->belongsTo(Visitation::class);
+    }
+
+    public function piutangs()
+    {
+        return $this->hasMany(Piutang::class, 'invoice_id');
     }
 
     // Generate a unique invoice number

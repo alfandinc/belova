@@ -2147,7 +2147,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $klinikId = $request->input('klinik_id');
         $includeDeleted = filter_var($request->input('include_deleted', false), FILTER_VALIDATE_BOOLEAN);
         
-        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice'])
+        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice.piutangs'])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
             ->where('status_kunjungan', 2);
 
@@ -2284,10 +2284,33 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 return null;
             })
                 ->addColumn('status', function ($visitation) {
-                        // If invoice exists, determine full/partial/unpaid status
-                        if ($visitation->invoice) {
-                            $amountPaid = floatval($visitation->invoice->amount_paid ?? 0);
-                            $totalAmount = floatval($visitation->invoice->total_amount ?? 0);
+                        $invoice = $visitation->invoice;
+
+                        // Special handling for piutang invoices: use Piutang.payment_status when available
+                        if ($invoice && isset($invoice->payment_method) && $invoice->payment_method === 'piutang') {
+                            $piutang = $invoice->relationLoaded('piutangs') ? $invoice->piutangs->first() : null;
+
+                            if ($piutang && isset($piutang->payment_status)) {
+                                $status = strtolower($piutang->payment_status);
+
+                                if ($status === 'paid') {
+                                    return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
+                                }
+
+                                if ($status === 'partial') {
+                                    return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
+                                }
+
+                                // Default for piutang when explicitly unpaid or unknown -> unpaid
+                                return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                            }
+                            // If no Piutang record found, fall through to generic invoice-based status below
+                        }
+
+                        // Generic invoice-based status (non-piutang or fallback)
+                        if ($invoice) {
+                            $amountPaid = floatval($invoice->amount_paid ?? 0);
+                            $totalAmount = floatval($invoice->total_amount ?? 0);
 
                             // Fully paid
                             if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
