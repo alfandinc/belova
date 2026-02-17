@@ -9,17 +9,6 @@
     .table th, .table td { border: 1px solid #333; padding: 4px 7px; text-align: center; font-size: 11px; }
     .table th { background: #f5f5f5; font-weight: bold; font-size: 12px; }
     .division-header { background: #e9ecef; font-weight: bold; color: #333; text-align: left; font-size: 12px; }
-    .shift-pagi-office { background: #a3cfbb; color: #212529; }
-    .shift-pagi-service { background: #a3cfbb; color: #212529; }
-    .shift-middle-office { background: #90caf9; color: #212529; }
-    .shift-middle-service { background: #90caf9; color: #212529; }
-    .shift-siang-office { background: #ffe082; color: #212529; }
-    .shift-siang-service { background: #ffe082; color: #212529; }
-    .shift-malam { background: #b39ddb; color: #212529; }
-    .shift-long { background: #f48fb1; color: #212529; }
-    .shift-khusus-1 { background: #f48fb1; color: #212529; }
-    .shift-khusus-2 { background: #f48fb1; color: #212529; }
-    .shift-praktek-pagi { background: #a3cfbb; color: #212529; }
 
     .legend-box { border: 1px solid #ccc; border-radius: 8px; padding: 7px; margin-bottom: 7px; }
     .legend-item { display: flex; align-items: center; margin-bottom: 3px; }
@@ -27,6 +16,27 @@
     </style>
 </head>
 <body>
+@php
+    $resolveShiftColors = function($shift) {
+        $bg = $shift && !empty($shift->color) ? trim($shift->color) : '#a3cfbb';
+        if ($bg[0] !== '#') {
+            $bg = '#' . $bg;
+        }
+        $hex = ltrim($bg, '#');
+        if (strlen($hex) === 3) {
+            $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+        }
+        if (strlen($hex) !== 6) {
+            return ['bg' => $bg, 'text' => '#000000'];
+        }
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        $brightness = ($r * 299 + $g * 587 + $b * 114) / 1000;
+        $text = $brightness > 150 ? '#000000' : '#ffffff';
+        return ['bg' => $bg, 'text' => $text];
+    };
+@endphp
     <h2 style="text-align:center; font-size:16px; margin-bottom:12px;">
         Jadwal Karyawan Mingguan (Periode: {{ $startOfWeek->format('d M Y') }} - {{ $startOfWeek->copy()->addDays(6)->format('d M Y') }})
     </h2>
@@ -99,8 +109,9 @@
                                                     $shiftName = strtolower($scheduleItem->shift->name);
                                                     $start = \Carbon\Carbon::createFromFormat('H:i:s', $scheduleItem->shift->start_time)->format('H:i');
                                                     $end   = \Carbon\Carbon::createFromFormat('H:i:s', $scheduleItem->shift->end_time)->format('H:i');
+                                                    $colors = $resolveShiftColors($scheduleItem->shift);
                                                 @endphp
-                                                <div class="shift-{{ $shiftName }}" style="margin-bottom:2px; padding:2px 4px; border-radius:2px;">
+                                                <div style="margin-bottom:2px; padding:2px 4px; border-radius:2px; background: {{ $colors['bg'] }}; color: {{ $colors['text'] }};">
                                                     <strong>{{ $start }} - {{ $end }}</strong>
                                                 </div>
                                             @endif

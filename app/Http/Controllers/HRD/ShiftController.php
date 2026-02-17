@@ -59,6 +59,7 @@ class ShiftController extends Controller
             'start_time' => ['required', 'string', 'max:8'],
             'end_time'   => ['required', 'string', 'max:8'],
             'active'     => ['nullable', 'boolean'],
+            'color'      => ['nullable', 'string', 'max:20'],
         ]);
 
         $validated['start_time'] = $this->normalizeTime($validated['start_time']);
@@ -66,6 +67,15 @@ class ShiftController extends Controller
 
         // Default to active if not explicitly provided
         $validated['active'] = $request->boolean('active', true);
+
+        // Normalize color (optional) - ensure it starts with '#'
+        if (!empty($validated['color'])) {
+            $color = trim($validated['color']);
+            if ($color && $color[0] !== '#') {
+                $color = '#' . $color;
+            }
+            $validated['color'] = $color;
+        }
 
         return $validated;
     }

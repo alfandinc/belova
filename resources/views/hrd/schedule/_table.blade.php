@@ -4,35 +4,11 @@
     <input type="hidden" id="week-end" value="{{ \Carbon\Carbon::parse($dates[count($dates)-1])->toDateString() }}">
     <div class="table-responsive">
         <style>
-            /* Keep table cell background neutral; color only the selects */
-            .table td.shift-pagi-office,
-            .table td.shift-pagi-service,
-            .table td.shift-middle-office,
-            .table td.shift-middle-service,
-            .table td.shift-siang-office,
-            .table td.shift-siang-service,
-            .table td.shift-malam,
-            .table td.shift-long,
-            .table td.shift-khusus-1,
-            .table td.shift-khusus-2,
-            .table td.shift-praktek-pagi,
-            .table td.shift-praktek-malam {
-                background: transparent !important;
-                color: inherit !important;
-            }
             .shift-cell { transition: background 0.2s; }
-            .shift-select.shift-pagi-office { background: #28a745 !important; color: #fff !important; }
-            .shift-select.shift-pagi-service { background: #68b800 !important; color: #fff !important; }
-            .shift-select.shift-middle-office { background: #007bff !important; color: #fff !important; }
-            .shift-select.shift-middle-service { background: #2890ff !important; color: #fff !important; }
-            .shift-select.shift-siang-office { background: #ffc107 !important; color: #212529 !important; }
-            .shift-select.shift-siang-service { background: #ffd54f !important; color: #212529 !important; }
-            .shift-select.shift-malam { background: #6f42c1 !important; color: #fff !important; }
-            .shift-select.shift-long { background: #b10085 !important; color: #fff !important; }
-            .shift-select.shift-khusus-1 { background: #f080ff !important; color: #212529 !important; }
-            .shift-select.shift-khusus-2 { background: #ff8bff !important; color: #212529 !important; }
-            .shift-select.shift-praktek-pagi { background: #9dff90 !important; color: #212529 !important; }
-            .shift-select.shift-praktek-malam { background: #6f42c1 !important; color: #fff !important; }
+            /* Stronger separator between employees */
+            tr.employee-row > td {
+                border-top: 2px solid #c0c0c0 !important;
+            }
         </style>
         <table class="table table-bordered">
             <thead>
@@ -51,8 +27,12 @@
                         </td>
                     </tr>
                     @foreach($employees as $employee)
-                        <tr>
-                            <td>{{ $employee->nama }}</td>
+                        <tr class="employee-row">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <span>{{ $employee->nama }}</span>
+                                </div>
+                            </td>
                             @foreach($dates as $date)
                                 @php
                                     $key = $employee->id . '_' . $date;
@@ -67,7 +47,9 @@
                                     $isLibur = $firstSchedule && isset($firstSchedule->is_libur) && $firstSchedule->is_libur;
                                     $firstShiftId = $firstSchedule ? ($firstSchedule->shift_id ?? '') : '';
                                     $secondShiftId = $secondSchedule ? ($secondSchedule->shift_id ?? '') : '';
-                                    $firstShiftName = $firstSchedule && $firstSchedule->shift ? strtolower($firstSchedule->shift->name) : '';
+                                    $firstShiftName = $firstSchedule && $firstSchedule->shift
+                                        ? \Illuminate\Support\Str::slug($firstSchedule->shift->name)
+                                        : '';
                                 @endphp
                                 <td class="shift-cell {{ $isLibur ? 'bg-danger text-white' : ($firstShiftName ? 'shift-' . $firstShiftName : '') }}">
                                     @if($isLibur)
@@ -82,22 +64,37 @@
                                                     data-date="{{ $date }}">
                                                     <option value="">-</option>
                                                     @foreach($shifts as $shift)
-                                                        <option value="{{ $shift->id }}" data-shift-name="{{ strtolower($shift->name) }}" {{ ($firstShiftId == $shift->id) ? 'selected' : '' }}>
+                                                        <option value="{{ $shift->id }}"
+                                                                data-shift-name="{{ \Illuminate\Support\Str::slug($shift->name) }}"
+                                                                data-shift-color="{{ $shift->color }}"
+                                                                {{ ($firstShiftId == $shift->id) ? 'selected' : '' }}>
                                                             {{ $shift->name }}
                                                         </option>
                                                     @endforeach
                                                 </select>
-                                                @if($firstSchedule && !$isLibur && isset($firstSchedule->id))
-                                                    <button type="button" class="btn btn-sm btn-danger ml-2 delete-schedule-btn"
-                                                            data-employee-id="{{ $employee->id }}"
-                                                            data-date="{{ $date }}"
-                                                            data-schedule-id="{{ $firstSchedule->id }}"
-                                                            title="Hapus Jadwal">
-                                                        <i class="fa fa-trash"></i>
+                                                <div class="btn-group ml-2">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                        <i class="fa fa-ellipsis-v"></i>
                                                     </button>
-                                                @endif
+                                                    <div class="dropdown-menu dropdown-menu-right">
+                                                        @if($firstSchedule && !$isLibur && isset($firstSchedule->id))
+                                                            <a href="#" class="dropdown-item delete-schedule-btn"
+                                                               data-employee-id="{{ $employee->id }}"
+                                                               data-date="{{ $date }}"
+                                                               data-schedule-id="{{ $firstSchedule->id }}">
+                                                                Hapus Shift
+                                                            </a>
+                                                        @endif
+                                                        @if(!$secondSchedule)
+                                                            <a href="#" class="dropdown-item option-double-shift"
+                                                               data-employee-id="{{ $employee->id }}">
+                                                                Double Shift
+                                                            </a>
+                                                        @endif
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div class="d-flex align-items-center">
+                                            <div class="align-items-center second-shift-row second-shift-employee-{{ $employee->id }} {{ $secondSchedule ? 'd-flex' : 'd-none' }}">
                                                 <select
                                                     name="schedule[{{ $employee->id }}][{{ $date }}][]"
                                                     class="form-control shift-select"
@@ -105,19 +102,28 @@
                                                     data-date="{{ $date }}">
                                                     <option value="">-</option>
                                                     @foreach($shifts as $shift)
-                                                        <option value="{{ $shift->id }}" data-shift-name="{{ strtolower($shift->name) }}" {{ ($secondShiftId == $shift->id) ? 'selected' : '' }}>
+                                                        <option value="{{ $shift->id }}"
+                                                                data-shift-name="{{ \Illuminate\Support\Str::slug($shift->name) }}"
+                                                                data-shift-color="{{ $shift->color }}"
+                                                                {{ ($secondShiftId == $shift->id) ? 'selected' : '' }}>
                                                             {{ $shift->name }}
                                                         </option>
                                                     @endforeach
                                                 </select>
                                                 @if($secondSchedule && !$isLibur && isset($secondSchedule->id))
-                                                    <button type="button" class="btn btn-sm btn-danger ml-2 delete-schedule-btn"
-                                                            data-employee-id="{{ $employee->id }}"
-                                                            data-date="{{ $date }}"
-                                                            data-schedule-id="{{ $secondSchedule->id }}"
-                                                            title="Hapus Jadwal Kedua">
-                                                        <i class="fa fa-trash"></i>
-                                                    </button>
+                                                    <div class="btn-group ml-2">
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                            <i class="fa fa-ellipsis-v"></i>
+                                                        </button>
+                                                        <div class="dropdown-menu dropdown-menu-right">
+                                                            <a href="#" class="dropdown-item delete-schedule-btn"
+                                                               data-employee-id="{{ $employee->id }}"
+                                                               data-date="{{ $date }}"
+                                                               data-schedule-id="{{ $secondSchedule->id }}">
+                                                                Hapus Shift Kedua
+                                                            </a>
+                                                        </div>
+                                                    </div>
                                                 @endif
                                             </div>
                                         </div>
@@ -156,11 +162,11 @@
                         <table id="shift-table" class="table table-sm table-bordered mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width:25%;">Nama Shift</th>
+                                    <th style="width:30%;">Nama Shift</th>
                                     <th style="width:20%;">Jam Mulai</th>
                                     <th style="width:20%;">Jam Selesai</th>
                                     <th style="width:15%;">Status</th>
-                                    <th style="width:20%;">Aksi</th>
+                                    <th style="width:15%;">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -171,7 +177,12 @@
                                 @endphp
                                 @foreach($managementShifts as $shift)
                                     <tr>
-                                        <td>{{ $shift->name }}</td>
+                                        <td>
+                                            @if(!empty($shift->color))
+                                                <span class="d-inline-block mr-2" style="width:18px;height:14px;border-radius:3px;background: {{ $shift->color }};"></span>
+                                            @endif
+                                            {{ $shift->name }}
+                                        </td>
                                         <td>{{ substr($shift->start_time, 0, 5) }}</td>
                                         <td>{{ substr($shift->end_time, 0, 5) }}</td>
                                         <td class="text-center">
@@ -188,6 +199,7 @@
                                                     data-shift-start="{{ substr($shift->start_time, 0, 5) }}"
                                                     data-shift-end="{{ substr($shift->end_time, 0, 5) }}"
                                                     data-shift-active="{{ $shift->active ? 1 : 0 }}"
+                                                    data-shift-color="{{ $shift->color }}"
                                                     title="Edit Shift">
                                                 Edit
                                             </button>

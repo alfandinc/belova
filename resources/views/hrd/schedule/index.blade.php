@@ -55,6 +55,11 @@
                             <input type="time" class="form-control" id="shift-end" step="60" min="00:00" max="23:59">
                         </div>
                         <div class="form-group">
+                            <label for="shift-color">Warna Shift</label>
+                            <input type="color" class="form-control" id="shift-color" value="#007bff">
+                            <small class="form-text text-muted">Pilih warna background untuk shift ini.</small>
+                        </div>
+                        <div class="form-group">
                             <label for="shift-active">Status</label>
                             <select class="form-control" id="shift-active">
                                 <option value="1">Aktif</option>
@@ -96,13 +101,53 @@ function showAlert(type, message) {
 // State for shift modal
 var currentShiftMode = null; // 'add' or 'edit'
 
+// Helper to resolve shift color from management table by shift ID
+function getShiftColorById(shiftId) {
+    if (!shiftId) return null;
+    var btn = document.querySelector('#shift-table .shift-edit-btn[data-shift-id="' + shiftId + '"]');
+    return btn ? btn.getAttribute('data-shift-color') : null;
+}
+
+// Determine appropriate text color (black/white) based on background brightness
+function getContrastTextColor(hexColor) {
+    if (!hexColor) return '#000000';
+    var c = hexColor.trim();
+    if (c[0] === '#') c = c.slice(1);
+    if (c.length === 3) {
+        c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+    }
+    if (c.length !== 6) return '#000000';
+    var r = parseInt(c.substr(0, 2), 16);
+    var g = parseInt(c.substr(2, 2), 16);
+    var b = parseInt(c.substr(4, 2), 16);
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return '#000000';
+    var brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 150 ? '#000000' : '#ffffff';
+}
+
 function updateShiftColor(select) {
     var cell = select.closest('td');
+    if (!cell) return;
+
+    // Reset classes and inline styles
     cell.className = 'shift-cell';
     select.className = 'form-control shift-select';
+    select.style.removeProperty('background-color');
+    select.style.removeProperty('color');
+
     var selected = select.options[select.selectedIndex];
+    if (!selected) return;
+
+    var shiftId = select.value;
+    var shiftColor = selected.getAttribute('data-shift-color') || getShiftColorById(shiftId);
     var shiftName = selected.getAttribute('data-shift-name');
-    if(shiftName) {
+
+    if (shiftColor) {
+        // Apply dynamic color from database, use !important to beat theme CSS
+        select.style.setProperty('background-color', shiftColor, 'important');
+        select.style.setProperty('color', getContrastTextColor(shiftColor), 'important');
+    } else if (shiftName) {
+        // Fallback to legacy class-based coloring
         cell.classList.add('shift-' + shiftName);
         select.classList.add('shift-' + shiftName);
     }
@@ -384,6 +429,27 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        // Opsi: Double Shift dari menu dalam sel (hanya untuk hari tersebut)
+        if (e.target.classList.contains('option-double-shift') || (e.target.closest && e.target.closest('.option-double-shift'))) {
+            e.preventDefault();
+            var opt = e.target.classList.contains('option-double-shift') ? e.target : e.target.closest('.option-double-shift');
+            var cell = opt.closest('td');
+            if (!cell) return;
+
+            var secondRow = cell.querySelector('.second-shift-row');
+            if (!secondRow) return;
+
+            var isHidden = secondRow.classList.contains('d-none');
+            if (isHidden) {
+                secondRow.classList.remove('d-none');
+                secondRow.classList.add('d-flex');
+            } else {
+                secondRow.classList.remove('d-flex');
+                secondRow.classList.add('d-none');
+            }
+            return;
+        }
+
         // Shift management: add new shift
         if (e.target.id === 'btn-add-shift' || (e.target.closest && e.target.closest('#btn-add-shift'))) {
             e.preventDefault();
@@ -399,7 +465,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 name: btnEdit.getAttribute('data-shift-name'),
                 start: btnEdit.getAttribute('data-shift-start'),
                 end: btnEdit.getAttribute('data-shift-end'),
-                active: btnEdit.getAttribute('data-shift-active') || '1'
+                active: btnEdit.getAttribute('data-shift-active') || '1',
+                color: btnEdit.getAttribute('data-shift-color') || '#007bff'
             });
         }
 
@@ -456,6 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     showLoading(false);
                 });
             });
+            return;
         }
     });
     attachNavEvents();
@@ -493,6 +561,7 @@ function openShiftForm(mode, shift) {
     var start = shift.start || '';
     var end = shift.end || '';
     var active = (typeof shift.active !== 'undefined') ? String(shift.active) : '1';
+    var color = shift.color || '#007bff';
 
     var modal = $('#shiftModal');
     modal.find('#shiftModalLabel').text(title);
@@ -501,6 +570,7 @@ function openShiftForm(mode, shift) {
     modal.find('#shift-start').val(start);
     modal.find('#shift-end').val(end);
     modal.find('#shift-active').val(active);
+    modal.find('#shift-color').val(color);
 
     modal.modal('show');
 }
@@ -517,6 +587,7 @@ document.addEventListener('DOMContentLoaded', function(){
         var startVal = document.getElementById('shift-start').value.trim();
         var endVal = document.getElementById('shift-end').value.trim();
         var activeVal = document.getElementById('shift-active').value;
+        var colorVal = document.getElementById('shift-color').value;
 
         if (!nameVal || !startVal || !endVal) {
             showAlert('danger', 'Semua field shift wajib diisi');
@@ -544,7 +615,8 @@ document.addEventListener('DOMContentLoaded', function(){
                 name: nameVal,
                 start_time: startVal,
                 end_time: endVal,
-                active: activeVal
+                active: activeVal,
+                color: colorVal
             })
         })
         .then(function(res){ return res.json(); })
