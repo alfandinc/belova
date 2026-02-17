@@ -82,36 +82,45 @@
 
                                     $firstSchedule = $daySchedules[0] ?? null;
                                     $isLibur = false;
-                                    $cellClass = '';
 
                                     if ($firstSchedule) {
                                         $isLibur = isset($firstSchedule->is_libur) && $firstSchedule->is_libur;
-
-                                        if ($isLibur) {
-                                            $cellClass = 'bg-danger text-white';
-                                        } else {
-                                            // For working days, we will draw per-shift rows inside the cell
-                                            // and keep the td background neutral.
-                                        }
                                     } else {
                                         // No schedule for this day: treat as Libur/Cuti
                                         $isLibur = true;
-                                        $cellClass = 'bg-danger text-white';
+                                    }
+
+                                    // For working days, see if there is exactly one shift so we can color the whole cell
+                                    $singleShift = null;
+                                    $singleShiftColors = null;
+                                    if (!$isLibur) {
+                                        $workShifts = $daySchedules->filter(function($item) {
+                                            return $item->shift !== null;
+                                        });
+                                        if ($workShifts->count() === 1) {
+                                            $singleShift = $workShifts->first();
+                                            $singleShiftColors = $resolveShiftColors($singleShift->shift);
+                                        }
                                     }
                                 @endphp
-                                <td class="{{ $isLibur ? 'bg-danger' : '' }}" style="{{ $isLibur ? 'background:#e74c3c;color:#fff;' : '' }}">
+                                <td style="@if($isLibur)background:#e74c3c;color:#fff;@elseif($singleShift)background:{{ $singleShiftColors['bg'] }};color:{{ $singleShiftColors['text'] }};@elseif(!$isLibur && !$singleShift && $daySchedules->count() > 0)padding:0;@endif">
                                     @if($isLibur)
                                         <strong>{{ $firstSchedule->label ?? 'Libur/Cuti' }}</strong>
+                                    @elseif($singleShift)
+                                        @php
+                                            $start = \Carbon\Carbon::createFromFormat('H:i:s', $singleShift->shift->start_time)->format('H:i');
+                                            $end   = \Carbon\Carbon::createFromFormat('H:i:s', $singleShift->shift->end_time)->format('H:i');
+                                        @endphp
+                                        <strong>{{ $start }} - {{ $end }}</strong>
                                     @else
                                         @foreach($daySchedules as $scheduleItem)
                                             @if($scheduleItem->shift)
                                                 @php
-                                                    $shiftName = strtolower($scheduleItem->shift->name);
                                                     $start = \Carbon\Carbon::createFromFormat('H:i:s', $scheduleItem->shift->start_time)->format('H:i');
                                                     $end   = \Carbon\Carbon::createFromFormat('H:i:s', $scheduleItem->shift->end_time)->format('H:i');
                                                     $colors = $resolveShiftColors($scheduleItem->shift);
                                                 @endphp
-                                                <div style="margin-bottom:2px; padding:2px 4px; border-radius:2px; background: {{ $colors['bg'] }}; color: {{ $colors['text'] }};">
+                                                <div style="padding:4px 7px; background: {{ $colors['bg'] }}; color: {{ $colors['text'] }}; @if(!$loop->last)border-bottom:1px solid #333;@endif">
                                                     <strong>{{ $start }} - {{ $end }}</strong>
                                                 </div>
                                             @endif
