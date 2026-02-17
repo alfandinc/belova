@@ -26,7 +26,49 @@
     </div>
     <div id="alert-wrapper"></div>
     <div id="jadwal-wrapper">
-    @include('hrd.schedule._table', compact('dates','employeesByDivision','shifts','schedules','startOfWeek'))
+    @include('hrd.schedule._table', ['dates' => $dates, 'employeesByDivision' => $employeesByDivision, 'shifts' => $shifts, 'allShifts' => $allShifts, 'schedules' => $schedules, 'startOfWeek' => $startOfWeek])
+    </div>
+
+    <!-- Shift Management Modal -->
+    <div class="modal fade" id="shiftModal" tabindex="-1" role="dialog" aria-labelledby="shiftModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form id="shift-form">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="shiftModalLabel">Tambah Shift</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="shift-id">
+                        <div class="form-group">
+                            <label for="shift-name">Nama Shift</label>
+                            <input type="text" class="form-control" id="shift-name" placeholder="Pagi-Service">
+                        </div>
+                        <div class="form-group">
+                            <label for="shift-start">Jam Mulai</label>
+                            <input type="time" class="form-control" id="shift-start" step="60" min="00:00" max="23:59">
+                        </div>
+                        <div class="form-group">
+                            <label for="shift-end">Jam Selesai</label>
+                            <input type="time" class="form-control" id="shift-end" step="60" min="00:00" max="23:59">
+                        </div>
+                        <div class="form-group">
+                            <label for="shift-active">Status</label>
+                            <select class="form-control" id="shift-active">
+                                <option value="1">Aktif</option>
+                                <option value="0">Tidak Aktif</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 @endsection
@@ -51,6 +93,9 @@ function showAlert(type, message) {
         position: 'top-end'
     });
 }
+// State for shift modal
+var currentShiftMode = null; // 'add' or 'edit'
+
 function updateShiftColor(select) {
     var cell = select.closest('td');
     cell.className = 'shift-cell';
@@ -110,11 +155,25 @@ function autoSaveSchedule(select) {
     .then(function(res){ return res.json(); })
     .then(function(data){
         if (data && data.success) {
-            showAlert('success', 'Jadwal otomatis disimpan');
+            // Reload current week view so delete buttons and state reflect saved schedules
+            var weekStart = document.getElementById('week-start').value;
+            fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(res){ return res.text(); })
+            .then(function(html){
+                document.getElementById('jadwal-wrapper').innerHTML = html;
+                reapplyShiftColors();
+                updateWeekNav();
+                attachNavEvents();
+                initShiftDataTable();
+                showLoading(false);
+                showAlert('success', 'Jadwal otomatis disimpan');
+            });
         } else {
             showAlert('danger', 'Gagal menyimpan jadwal');
+            showLoading(false);
         }
-        showLoading(false);
     })
     .catch(function(){
         showAlert('danger', 'Gagal menyimpan jadwal');
@@ -139,6 +198,130 @@ function updateWeekNav() {
     nextWeekDate.setDate(nextWeekDate.getDate() + 7);
     document.getElementById('next-week-date').value = nextWeekDate.toISOString().slice(0,10);
 }
+
+// Inisialisasi DataTable untuk manajemen shift
+function initShiftDataTable() {
+    if (typeof $ === 'undefined' || !$.fn || !$.fn.DataTable) {
+        return; // jQuery/DataTables tidak tersedia
+    }
+    var table = $('#shift-table');
+    if (!table.length) return;
+
+    if ($.fn.DataTable.isDataTable('#shift-table')) {
+        table.DataTable().destroy();
+    }
+
+    var dataTable = table.DataTable({
+        paging: false,
+        searching: true,
+        info: false,
+        ordering: true,
+        order: [[0, 'asc']],
+        initComplete: function () {
+            var api = this.api();
+            // Sembunyikan filter bawaan DataTables
+            $(api.table().container()).find('.dataTables_filter').hide();
+
+            var statusFilter = $('#shift-status-filter');
+            // Default: hanya tampilkan Aktif
+            statusFilter.val('active');
+            api.column(3).search('^\\s*Aktif\\s*$', true, false).draw();
+
+            statusFilter.off('change').on('change', function () {
+                var val = $(this).val();
+                if (val === 'active') {
+                    api.column(3).search('^\\s*Aktif\\s*$', true, false).draw();
+                } else if (val === 'inactive') {
+                    api.column(3).search('^\\s*Tidak\\s+Aktif\\s*$', true, false).draw();
+                } else {
+                    api.column(3).search('', false, false).draw();
+                }
+            });
+        }
+    });
+}
+
+// Make navigation event binding reusable so it can be called
+// after AJAX reloads as well as on initial page load.
+function attachNavEvents() {
+    // Detach event listener lama dengan cloneNode agar event lama benar-benar hilang
+    var prevForm = document.getElementById('prev-week-form');
+    var nextForm = document.getElementById('next-week-form');
+    var thisWeekBtn = document.getElementById('this-week-btn');
+    if (!prevForm || !nextForm || !thisWeekBtn) {
+        return;
+    }
+    var prevFormClone = prevForm.cloneNode(true);
+    var nextFormClone = nextForm.cloneNode(true);
+    var thisWeekBtnClone = thisWeekBtn.cloneNode(true);
+    prevForm.parentNode.replaceChild(prevFormClone, prevForm);
+    nextForm.parentNode.replaceChild(nextFormClone, nextForm);
+    thisWeekBtn.parentNode.replaceChild(thisWeekBtnClone, thisWeekBtn);
+
+    prevFormClone.addEventListener('submit', function(e){
+        e.preventDefault();
+        var form = this;
+        var startDate = document.getElementById('prev-week-date').value;
+        showLoading(true);
+        fetch(form.action + '?start_date=' + startDate, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById('jadwal-wrapper').innerHTML = html;
+            reapplyShiftColors();
+            updateWeekNav();
+            attachNavEvents();
+            initShiftDataTable();
+            showLoading(false);
+        });
+    });
+    nextFormClone.addEventListener('submit', function(e){
+        e.preventDefault();
+        var form = this;
+        var startDate = document.getElementById('next-week-date').value;
+        showLoading(true);
+        fetch(form.action + '?start_date=' + startDate, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById('jadwal-wrapper').innerHTML = html;
+            reapplyShiftColors();
+            updateWeekNav();
+            attachNavEvents();
+            initShiftDataTable();
+            showLoading(false);
+        });
+    });
+    thisWeekBtnClone.addEventListener('click', function(){
+        var now = new Date();
+        var nowDay = now.getDay();
+        var mondayDiff = (nowDay === 0 ? -6 : 1) - nowDay;
+        var monday = new Date(now);
+        monday.setDate(now.getDate() + mondayDiff);
+        var mondayStr = monday.toISOString().slice(0,10);
+        var currentWeekStart = document.getElementById('week-start').value;
+        if (currentWeekStart === mondayStr) {
+            showAlert('info', 'Sudah berada di minggu ini!');
+            return;
+        }
+        showLoading(true);
+        fetch('{{ route('hrd.schedule.index') }}?start_date=' + mondayStr, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById('jadwal-wrapper').innerHTML = html;
+            reapplyShiftColors();
+            updateWeekNav();
+            attachNavEvents();
+            initShiftDataTable();
+            showLoading(false);
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     reapplyShiftColors();
     // Handle delete schedule button click
@@ -185,6 +368,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 reapplyShiftColors();
                                 updateWeekNav();
                                 attachNavEvents();
+                                initShiftDataTable();
                                 showLoading(false);
                             });
                         }else{
@@ -214,7 +398,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 id: btnEdit.getAttribute('data-shift-id'),
                 name: btnEdit.getAttribute('data-shift-name'),
                 start: btnEdit.getAttribute('data-shift-start'),
-                end: btnEdit.getAttribute('data-shift-end')
+                end: btnEdit.getAttribute('data-shift-end'),
+                active: btnEdit.getAttribute('data-shift-active') || '1'
             });
         }
 
@@ -258,6 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             reapplyShiftColors();
                             updateWeekNav();
                             attachNavEvents();
+                            initShiftDataTable();
                             showLoading(false);
                         });
                     } else {
@@ -272,79 +458,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
-    function attachNavEvents() {
-        // Detach event listener lama dengan cloneNode agar event lama benar-benar hilang
-        var prevForm = document.getElementById('prev-week-form');
-        var nextForm = document.getElementById('next-week-form');
-        var thisWeekBtn = document.getElementById('this-week-btn');
-        var prevFormClone = prevForm.cloneNode(true);
-        var nextFormClone = nextForm.cloneNode(true);
-        var thisWeekBtnClone = thisWeekBtn.cloneNode(true);
-        prevForm.parentNode.replaceChild(prevFormClone, prevForm);
-        nextForm.parentNode.replaceChild(nextFormClone, nextForm);
-        thisWeekBtn.parentNode.replaceChild(thisWeekBtnClone, thisWeekBtn);
-
-        prevFormClone.addEventListener('submit', function(e){
-            e.preventDefault();
-            var form = this;
-            var startDate = document.getElementById('prev-week-date').value;
-            showLoading(true);
-            fetch(form.action + '?start_date=' + startDate, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(res => res.text())
-            .then(html => {
-                document.getElementById('jadwal-wrapper').innerHTML = html;
-                reapplyShiftColors();
-                updateWeekNav();
-                attachNavEvents();
-                showLoading(false);
-            });
-        });
-        nextFormClone.addEventListener('submit', function(e){
-            e.preventDefault();
-            var form = this;
-            var startDate = document.getElementById('next-week-date').value;
-            showLoading(true);
-            fetch(form.action + '?start_date=' + startDate, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(res => res.text())
-            .then(html => {
-                document.getElementById('jadwal-wrapper').innerHTML = html;
-                reapplyShiftColors();
-                updateWeekNav();
-                attachNavEvents();
-                showLoading(false);
-            });
-        });
-        thisWeekBtnClone.addEventListener('click', function(){
-            var now = new Date();
-            var nowDay = now.getDay();
-            var mondayDiff = (nowDay === 0 ? -6 : 1) - nowDay;
-            var monday = new Date(now);
-            monday.setDate(now.getDate() + mondayDiff);
-            var mondayStr = monday.toISOString().slice(0,10);
-            var currentWeekStart = document.getElementById('week-start').value;
-            if (currentWeekStart === mondayStr) {
-                showAlert('info', 'Sudah berada di minggu ini!');
-                return;
-            }
-            showLoading(true);
-            fetch('{{ route('hrd.schedule.index') }}?start_date=' + mondayStr, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            })
-            .then(res => res.text())
-            .then(html => {
-                document.getElementById('jadwal-wrapper').innerHTML = html;
-                reapplyShiftColors();
-                updateWeekNav();
-                attachNavEvents();
-                showLoading(false);
-            });
-        });
-    }
     attachNavEvents();
+    initShiftDataTable();
+    // Legacy manual submit (kept for safety, though jadwal sekarang auto-save)
     document.addEventListener('submit', function(e){
         if(e.target && e.target.id === 'jadwal-form'){
             e.preventDefault();
@@ -367,43 +483,49 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
-
+// Open Bootstrap modal for shift add/edit
 function openShiftForm(mode, shift) {
+    currentShiftMode = mode;
     shift = shift || {};
+
     var title = mode === 'edit' ? 'Edit Shift' : 'Tambah Shift';
     var name = shift.name || '';
     var start = shift.start || '';
     var end = shift.end || '';
+    var active = (typeof shift.active !== 'undefined') ? String(shift.active) : '1';
 
-    swal.fire({
-        title: title,
-        html:
-            '<div class="text-left">' +
-                '<label>Nama Shift</label>' +
-                '<input id="swal-shift-name" class="swal2-input" placeholder="Pagi-Service" value="' + name + '">' +
-                '<label>Jam Mulai (HH:MM)</label>' +
-                '<input id="swal-shift-start" class="swal2-input" placeholder="08:00" value="' + start + '">' +
-                '<label>Jam Selesai (HH:MM)</label>' +
-                '<input id="swal-shift-end" class="swal2-input" placeholder="17:00" value="' + end + '">' +
-            '</div>',
-        focusConfirm: false,
-        showCancelButton: true,
-        preConfirm: function () {
-            var nameVal = document.getElementById('swal-shift-name').value.trim();
-            var startVal = document.getElementById('swal-shift-start').value.trim();
-            var endVal = document.getElementById('swal-shift-end').value.trim();
-            if (!nameVal || !startVal || !endVal) {
-                swal.showValidationMessage('Semua field wajib diisi');
-                return false;
-            }
-            return { name: nameVal, start_time: startVal, end_time: endVal };
+    var modal = $('#shiftModal');
+    modal.find('#shiftModalLabel').text(title);
+    modal.find('#shift-id').val(shift.id || '');
+    modal.find('#shift-name').val(name);
+    modal.find('#shift-start').val(start);
+    modal.find('#shift-end').val(end);
+    modal.find('#shift-active').val(active);
+
+    modal.modal('show');
+}
+
+// Handle shift form submit via AJAX
+document.addEventListener('DOMContentLoaded', function(){
+    var shiftForm = document.getElementById('shift-form');
+    if (!shiftForm) return;
+
+    shiftForm.addEventListener('submit', function(e){
+        e.preventDefault();
+        var id = document.getElementById('shift-id').value;
+        var nameVal = document.getElementById('shift-name').value.trim();
+        var startVal = document.getElementById('shift-start').value.trim();
+        var endVal = document.getElementById('shift-end').value.trim();
+        var activeVal = document.getElementById('shift-active').value;
+
+        if (!nameVal || !startVal || !endVal) {
+            showAlert('danger', 'Semua field shift wajib diisi');
+            return;
         }
-    }).then(function(result){
-        if (!result.value) return;
 
         var url, method;
-        if (mode === 'edit' && shift.id) {
-            url = "{{ route('hrd.master.shift.update', ['shift' => '__ID__']) }}".replace('__ID__', shift.id);
+        if (currentShiftMode === 'edit' && id) {
+            url = "{{ route('hrd.master.shift.update', ['shift' => '__ID__']) }}".replace('__ID__', id);
             method = 'PUT';
         } else {
             url = "{{ route('hrd.master.shift.store') }}";
@@ -416,14 +538,20 @@ function openShiftForm(mode, shift) {
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
             },
-            body: JSON.stringify(result.value)
+            body: JSON.stringify({
+                name: nameVal,
+                start_time: startVal,
+                end_time: endVal,
+                active: activeVal
+            })
         })
         .then(function(res){ return res.json(); })
         .then(function(data){
             if (data && data.success) {
                 showAlert('success', 'Shift berhasil disimpan');
+                $('#shiftModal').modal('hide');
                 // Reload current week view to refresh legend & selects
                 var weekStart = document.getElementById('week-start').value;
                 fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
@@ -435,6 +563,7 @@ function openShiftForm(mode, shift) {
                     reapplyShiftColors();
                     updateWeekNav();
                     attachNavEvents();
+                    initShiftDataTable();
                     showLoading(false);
                 });
             } else {
@@ -447,6 +576,6 @@ function openShiftForm(mode, shift) {
             showLoading(false);
         });
     });
-}
+});
 </script>
 @endpush

@@ -15,6 +15,11 @@ class Shift extends Model
         'name',
         'start_time',
         'end_time',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
     ];
 
     public function schedules()

@@ -118,7 +118,10 @@ class EmployeeScheduleController extends Controller
             $originalRole = array_search($displayLabel, $roleDisplayLabels);
             return $rolePriority[$originalRole] ?? 999;
         });
-        $shifts = Shift::all();
+        // Shifts aktif untuk dropdown penjadwalan
+        $activeShifts = Shift::where('active', true)->get();
+        // Semua shift (aktif & tidak aktif) untuk manajemen shift
+        $allShifts = Shift::all();
         $schedules = EmployeeSchedule::whereIn('date', $dates)
             ->with('shift')
             ->get()
@@ -149,7 +152,14 @@ class EmployeeScheduleController extends Controller
                 }
             }
         }
-        $viewData = compact('dates', 'employeesByDivision', 'shifts', 'schedules', 'startOfWeek');
+        $viewData = [
+            'dates' => $dates,
+            'employeesByDivision' => $employeesByDivision,
+            'shifts' => $activeShifts,
+            'allShifts' => $allShifts,
+            'schedules' => $schedules,
+            'startOfWeek' => $startOfWeek,
+        ];
         if ($request->ajax()) {
             return view('hrd.schedule._table', $viewData)->render();
         }

@@ -130,66 +130,82 @@
             </tbody>
         </table>
     </div>
-    <!-- Legenda Shift dan Tombol Simpan sejajar -->
+    <!-- Legenda / Manajemen Shift menggunakan DataTable -->
     <div class="row mt-3 align-items-start">
-        <div class="col-md-6">
+        <div class="col-md-8">
             <div class="card shadow-sm">
                 <div class="card-header bg-white" style="font-weight:bold;">
                     <div class="d-flex justify-content-between align-items-center">
-                        <span>Legenda Shift</span>
+                        <div class="d-flex align-items-center">
+                            <span>Manajemen Shift</span>
+                            <div class="ml-3">
+                                <select id="shift-status-filter" class="form-control form-control-sm">
+                                    <option value="active" selected>Aktif</option>
+                                    <option value="inactive">Tidak Aktif</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </div>
+                        </div>
                         <button type="button" class="btn btn-sm btn-primary" id="btn-add-shift">
                             <i class="fa fa-plus"></i> Tambah Shift
                         </button>
                     </div>
                 </div>
                 <div class="card-body p-2">
-                    <ul class="list-unstyled mb-0">
-                        @foreach($shifts as $shift)
-                            @php
-                                $shiftClass = 'shift-' . strtolower($shift->name);
-                                $color = '#fff';
-                                $bg = '#f5f5f5';
-                                if($shiftClass == 'shift-pagi-office') { $bg = '#28a745'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-pagi-service') { $bg = '#68b800'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-middle-office') { $bg = '#007bff'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-middle-service') { $bg = '#2890ff'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-siang-office') { $bg = '#ffc107'; $color = '#212529'; }
-                                elseif($shiftClass == 'shift-siang-service') { $bg = '#ffd54f'; $color = '#212529'; }
-                                elseif($shiftClass == 'shift-malam') { $bg = '#6f42c1'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-long') { $bg = '#b10085'; $color = '#fff'; }
-                                elseif($shiftClass == 'shift-khusus-1') { $bg = '#f080ff'; $color = '#212529'; }
-                                elseif($shiftClass == 'shift-khusus-2') { $bg = '#ff8bff'; $color = '#212529'; }
-                                elseif($shiftClass == 'shift-praktek-pagi') { $bg = '#9dff90'; $color = '#212529'; }
-                            @endphp
-                            <li class="mb-2">
-                                <div style="background:{{ $bg }};color:{{ $color }};border-radius:8px;padding:7px 12px;display:flex;align-items-center;justify-content:space-between;">
-                                    <div style="display:flex;align-items:center;">
-                                        <span style="font-weight:bold;font-size:13px;width:90px;">{{ $shift->name }}</span>
-                                        <span style="font-size:12px;margin-left:10px;">{{ $shift->start_time }} - {{ $shift->end_time }}</span>
-                                    </div>
-                                    <div>
-                                        <button type="button" class="btn btn-sm btn-light shift-edit-btn"
-                                                data-shift-id="{{ $shift->id }}"
-                                                data-shift-name="{{ $shift->name }}"
-                                                data-shift-start="{{ substr($shift->start_time, 0, 5) }}"
-                                                data-shift-end="{{ substr($shift->end_time, 0, 5) }}"
-                                                title="Edit Shift">
-                                            <i class="fa fa-pencil"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-light text-danger shift-delete-btn"
-                                                data-shift-id="{{ $shift->id }}"
-                                                title="Hapus Shift">
-                                            <i class="fa fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </li>
-                        @endforeach
-                    </ul>
+                    <div class="table-responsive">
+                        <table id="shift-table" class="table table-sm table-bordered mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:25%;">Nama Shift</th>
+                                    <th style="width:20%;">Jam Mulai</th>
+                                    <th style="width:20%;">Jam Selesai</th>
+                                    <th style="width:15%;">Status</th>
+                                    <th style="width:20%;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @php
+                                    // $shifts berisi hanya shift aktif untuk dropdown,
+                                    // $allShifts (jika ada) digunakan untuk manajemen shift.
+                                    $managementShifts = isset($allShifts) ? $allShifts : $shifts;
+                                @endphp
+                                @foreach($managementShifts as $shift)
+                                    <tr>
+                                        <td>{{ $shift->name }}</td>
+                                        <td>{{ substr($shift->start_time, 0, 5) }}</td>
+                                        <td>{{ substr($shift->end_time, 0, 5) }}</td>
+                                        <td class="text-center">
+                                            @if($shift->active)
+                                                <span class="badge badge-success">Aktif</span>
+                                            @else
+                                                <span class="badge badge-secondary">Tidak Aktif</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-sm btn-outline-primary shift-edit-btn mr-1"
+                                                    data-shift-id="{{ $shift->id }}"
+                                                    data-shift-name="{{ $shift->name }}"
+                                                    data-shift-start="{{ substr($shift->start_time, 0, 5) }}"
+                                                    data-shift-end="{{ substr($shift->end_time, 0, 5) }}"
+                                                    data-shift-active="{{ $shift->active ? 1 : 0 }}"
+                                                    title="Edit Shift">
+                                                Edit
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger shift-delete-btn"
+                                                    data-shift-id="{{ $shift->id }}"
+                                                    title="Hapus Shift">
+                                                Hapus
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 text-right d-flex align-items-start justify-content-end">
+        <div class="col-md-4 text-right d-flex align-items-start justify-content-end">
             <!-- Buttons removed: jadwal now auto-saves and print is accessed elsewhere if needed -->
         </div>
     </div>

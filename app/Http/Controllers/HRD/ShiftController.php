@@ -58,10 +58,14 @@ class ShiftController extends Controller
             'name'       => ['required', 'string', 'max:191'],
             'start_time' => ['required', 'string', 'max:8'],
             'end_time'   => ['required', 'string', 'max:8'],
+            'active'     => ['nullable', 'boolean'],
         ]);
 
         $validated['start_time'] = $this->normalizeTime($validated['start_time']);
         $validated['end_time']   = $this->normalizeTime($validated['end_time']);
+
+        // Default to active if not explicitly provided
+        $validated['active'] = $request->boolean('active', true);
 
         return $validated;
     }
