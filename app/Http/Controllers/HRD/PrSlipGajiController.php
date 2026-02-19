@@ -277,6 +277,14 @@ class PrSlipGajiController extends Controller
     public function update(Request $request, $id)
     {
         $slip = PrSlipGaji::findOrFail($id);
+
+        // Safety: paid slips are read-only
+        if (strtolower((string) $slip->status_gaji) === 'paid') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Slip dengan status Paid tidak bisa diedit.'
+            ], 403);
+        }
         // Accept basic editable fields
         $slip->status_gaji = $request->input('status_gaji', $slip->status_gaji);
         $slip->total_hari_masuk = $request->input('total_hari_masuk', $slip->total_hari_masuk);
@@ -290,7 +298,10 @@ class PrSlipGajiController extends Controller
         $slip->poin_kehadiran = $request->input('poin_kehadiran', $slip->poin_kehadiran);
         $slip->uang_kpi = $request->input('uang_kpi', $slip->uang_kpi);
         $slip->jasa_medis = $request->input('jasa_medis', $slip->jasa_medis);
-        $slip->total_jam_lembur = $request->input('total_jam_lembur', $slip->total_jam_lembur);
+        $lemburMinutesInput = $request->input('total_jam_lembur', null);
+        if ($lemburMinutesInput !== null) {
+            $slip->total_jam_lembur = $lemburMinutesInput;
+        }
         $slip->uang_lembur = $request->input('uang_lembur', $slip->uang_lembur);
         $slip->potongan_pinjaman = $request->input('potongan_pinjaman', $slip->potongan_pinjaman);
         $slip->potongan_bpjs_kesehatan = $request->input('potongan_bpjs_kesehatan', $slip->potongan_bpjs_kesehatan);
@@ -305,6 +316,9 @@ class PrSlipGajiController extends Controller
 
         // Handle jasmed_file upload
         if ($request->hasFile('jasmed_file')) {
+            $request->validate([
+                'jasmed_file' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+            ]);
             $file = $request->file('jasmed_file');
             $path = $file->store('jasmed_files', 'public');
             $slip->jasmed_file = $path;
@@ -327,6 +341,36 @@ class PrSlipGajiController extends Controller
         }
         if ($tambahan) {
             $slip->pendapatan_tambahan = $tambahan;
+        }
+
+        // If total_jam_lembur was changed but uang_lembur was not explicitly provided, recompute uang lembur.
+        if ($lemburMinutesInput !== null && !$request->has('uang_lembur')) {
+            $gajiPokok = floatval($slip->gaji_pokok ?? 0);
+            $totalHariMasuk = intval($slip->total_hari_masuk ?? 0);
+            $gajiPerJam = $gajiPokok > 0 ? ($gajiPokok / 173) : 0;
+            $gajiPerHari = ($gajiPokok > 0 && $totalHariMasuk > 0) ? ($gajiPokok / $totalHariMasuk) : 0;
+
+            $jamLembur = floatval($slip->total_jam_lembur ?? 0) / 60;
+            $uangLembur = 0;
+            if ($jamLembur > 0) {
+                if ($jamLembur <= 6) {
+                    $uangLembur += min(1, $jamLembur) * 1.5 * $gajiPerJam;
+                    if ($jamLembur > 1) {
+                        $uangLembur += min(5, $jamLembur - 1) * 2 * $gajiPerJam;
+                    }
+                } else {
+                    $uangLembur += $gajiPerHari;
+                    $sisaJam = $jamLembur - 6;
+                    if ($sisaJam > 0) {
+                        $uangLembur += min(1, $sisaJam) * 1.5 * $gajiPerJam;
+                        if ($sisaJam > 1) {
+                            $uangLembur += min(3, $sisaJam - 1) * 2 * $gajiPerJam;
+                        }
+                    }
+                }
+            }
+
+            $slip->uang_lembur = $uangLembur;
         }
 
         // Recalculate totals
@@ -363,6 +407,191 @@ class PrSlipGajiController extends Controller
         $slip->save();
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Sync derived fields for slips in a given month using latest schedules and approved requests.
+        * - Updates: total_hari_scheduled, total_hari_masuk, uang_makan, tunjangan_masa_kerja, total_jam_lembur, uang_lembur,
+     *            gaji_perjam, gaji_perhari, total_pendapatan, total_gaji
+     * - Skips slips with status_gaji = paid
+     */
+    public function sync(Request $request)
+    {
+        $request->validate([
+            'bulan' => 'required|string',
+        ]);
+
+        $bulan = $request->input('bulan');
+        // Normalize to YYYY-MM
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $bulan)) {
+            $bulan = substr($bulan, 0, 7);
+        }
+
+        $year = substr($bulan, 0, 4);
+        $month = substr($bulan, 5, 2);
+        $monthStart = \Carbon\Carbon::create($year, $month, 1)->startOfDay();
+        $monthEnd = (clone $monthStart)->endOfMonth()->startOfDay();
+
+        $calcOverlapDays = function ($start, $end) use ($monthStart, $monthEnd) {
+            $s = \Carbon\Carbon::parse($start)->startOfDay();
+            $e = \Carbon\Carbon::parse($end)->startOfDay();
+
+            if ($e->lt($monthStart) || $s->gt($monthEnd)) {
+                return 0;
+            }
+
+            $effectiveStart = $s->greaterThan($monthStart) ? $s : $monthStart;
+            $effectiveEnd = $e->lessThan($monthEnd) ? $e : $monthEnd;
+            return $effectiveStart->diffInDays($effectiveEnd) + 1;
+        };
+
+        $uangMakanMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Uang Makan')->first();
+        $uangMakanNominal = $uangMakanMaster ? floatval($uangMakanMaster->nominal) : 0;
+
+        $tunjanganMasaKerjaMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Tunjangan Masa Kerja')->first();
+        $tunjanganMasaKerjaNominal = $tunjanganMasaKerjaMaster ? floatval($tunjanganMasaKerjaMaster->nominal) : 0;
+
+        $slips = PrSlipGaji::with(['employee', 'employee.division'])
+            ->where('bulan', $bulan)
+            ->get();
+
+        $updated = 0;
+        $skippedPaid = 0;
+
+        foreach ($slips as $slip) {
+            if (($slip->status_gaji ?? 'draft') === 'paid') {
+                $skippedPaid++;
+                continue;
+            }
+
+            $employee = $slip->employee;
+            if (!$employee) {
+                continue;
+            }
+
+            $totalHariScheduled = $employee->schedules()
+                ->whereYear('date', $year)
+                ->whereMonth('date', $month)
+                ->count();
+
+            $approvedLibur = \App\Models\HRD\PengajuanLibur::query()
+                ->where('employee_id', $employee->id)
+                ->where('status_hrd', 'disetujui')
+                ->whereDate('tanggal_mulai', '<=', $monthEnd)
+                ->whereDate('tanggal_selesai', '>=', $monthStart)
+                ->get();
+
+            $liburDays = 0;
+            foreach ($approvedLibur as $req) {
+                $liburDays += $calcOverlapDays($req->tanggal_mulai, $req->tanggal_selesai);
+            }
+
+            $approvedTidakMasuk = \App\Models\HRD\PengajuanTidakMasuk::query()
+                ->where('employee_id', $employee->id)
+                ->where('status_hrd', 'disetujui')
+                ->whereDate('tanggal_mulai', '<=', $monthEnd)
+                ->whereDate('tanggal_selesai', '>=', $monthStart)
+                ->get();
+
+            $tidakMasukDays = 0;
+            foreach ($approvedTidakMasuk as $req) {
+                $tidakMasukDays += $calcOverlapDays($req->tanggal_mulai, $req->tanggal_selesai);
+            }
+
+            $totalHariMasuk = max(intval($totalHariScheduled) - intval($liburDays) - intval($tidakMasukDays), 0);
+
+            // Derived allowances
+            $uangMakan = $uangMakanNominal * $totalHariMasuk;
+
+            // Tunjangan Masa Kerja = master nominal * full years since tanggal_masuk (as of end-of-month)
+            $masaKerjaTahun = 0;
+            if ($employee->tanggal_masuk) {
+                $tanggalMasuk = \Carbon\Carbon::parse($employee->tanggal_masuk)->startOfDay();
+                $diffYears = (int) $tanggalMasuk->diffInYears($monthEnd, false);
+                $masaKerjaTahun = max($diffYears, 0);
+            }
+            $tunjanganMasaKerja = $tunjanganMasaKerjaNominal * $masaKerjaTahun;
+
+            // Recompute gaji per jam / hari based on current gaji pokok and total hari masuk
+            $gajiPokok = floatval($slip->gaji_pokok ?? 0);
+            $gajiPerJam = $gajiPokok > 0 ? ($gajiPokok / 173) : 0;
+            $gajiPerHari = ($gajiPokok > 0 && $totalHariMasuk > 0) ? ($gajiPokok / $totalHariMasuk) : 0;
+
+            // Recompute lembur (minutes) + uang lembur
+            $totalJamLembur = PengajuanLembur::where('employee_id', $employee->id)
+                ->whereYear('tanggal', $year)
+                ->whereMonth('tanggal', $month)
+                ->where('status_hrd', 'disetujui')
+                ->sum('total_jam');
+
+            $uangLembur = 0;
+            $jamLembur = floatval($totalJamLembur) / 60;
+            if ($jamLembur > 0) {
+                if ($jamLembur <= 6) {
+                    $uangLembur += min(1, $jamLembur) * 1.5 * $gajiPerJam;
+                    if ($jamLembur > 1) {
+                        $uangLembur += min(5, $jamLembur - 1) * 2 * $gajiPerJam;
+                    }
+                } else {
+                    $uangLembur += $gajiPerHari;
+                    $sisaJam = $jamLembur - 6;
+                    if ($sisaJam > 0) {
+                        $uangLembur += min(1, $sisaJam) * 1.5 * $gajiPerJam;
+                        if ($sisaJam > 1) {
+                            $uangLembur += min(3, $sisaJam - 1) * 2 * $gajiPerJam;
+                        }
+                    }
+                }
+            }
+
+            // Recompute totals
+            $existingTambahan = is_array($slip->pendapatan_tambahan)
+                ? array_sum(array_column($slip->pendapatan_tambahan, 'amount'))
+                : 0;
+
+            $basePendapatan = (
+                ($slip->gaji_pokok ?? 0)
+                + ($slip->tunjangan_jabatan ?? 0)
+                + ($tunjanganMasaKerja ?? 0)
+                + ($uangMakan ?? 0)
+                + ($uangLembur ?? 0)
+                + ($slip->jasa_medis ?? 0)
+                + ($slip->uang_kpi ?? 0)
+            );
+            $totalPendapatan = $basePendapatan + $existingTambahan;
+
+            $totalPotongan = $slip->total_potongan;
+            if ($totalPotongan === null) {
+                $totalPotongan = (
+                    ($slip->potongan_pinjaman ?? 0)
+                    + ($slip->potongan_bpjs_kesehatan ?? 0)
+                    + ($slip->potongan_jamsostek ?? 0)
+                    + ($slip->potongan_penalty ?? 0)
+                    + ($slip->potongan_lain ?? 0)
+                );
+            }
+
+            $slip->total_hari_scheduled = $totalHariScheduled;
+            $slip->total_hari_masuk = $totalHariMasuk;
+            $slip->uang_makan = $uangMakan;
+            $slip->tunjangan_masa_kerja = $tunjanganMasaKerja;
+            $slip->gaji_perjam = $gajiPerJam;
+            $slip->gaji_perhari = $gajiPerHari;
+            $slip->total_jam_lembur = $totalJamLembur;
+            $slip->uang_lembur = $uangLembur;
+            $slip->total_pendapatan = $totalPendapatan;
+            $slip->total_gaji = ($totalPendapatan ?? 0) - ($totalPotongan ?? 0);
+
+            $slip->save();
+            $updated++;
+        }
+
+        return response()->json([
+            'success' => true,
+            'updated' => $updated,
+            'skipped_paid' => $skippedPaid,
+            'message' => "Sync selesai. Updated: {$updated}, Skipped paid: {$skippedPaid}.",
+        ]);
     }
     // Return omset input fields for all available penghasil omset
     public function getOmsetInputs(Request $request)
@@ -413,9 +642,8 @@ class PrSlipGajiController extends Controller
             $bulan = date('Y-m', strtotime($filterBulan));
         }
         Log::info('filterBulan: ' . $filterBulan . ', bulan: ' . $bulan);
-        $kpiSummary = \App\Models\HRD\PrKpiSummary::where('bulan', $bulan)->first();
         $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
-        return view('hrd.payroll.slip_gaji.index', compact('bulan', 'kpiSummary', 'totalOmset'));
+        return view('hrd.payroll.slip_gaji.index', compact('bulan', 'totalOmset'));
     }
 
     public function storeAll(Request $request)
@@ -424,9 +652,11 @@ class PrSlipGajiController extends Controller
         // Validate required inputs for creating slips
         $request->validate([
             'bulan' => 'required|string',
-            'periode_penilaian_id' => 'required',
-            'omset_bulanan' => 'required|array',
-            'omset_bulanan.*' => 'required|numeric'
+            // periode_penilaian_id is now optional; when omitted, penilaian points will be 0
+            'periode_penilaian_id' => 'nullable',
+            // omset inputs are optional; when empty they are treated as 0
+            'omset_bulanan' => 'nullable|array',
+            'omset_bulanan.*' => 'nullable|numeric'
         ]);
         // Get master potongan values once
         $potonganBpjsKesehatan = \App\Models\HRD\PrMasterPotongan::where('nama_potongan', 'IURAN BPJS KESEHATAN')->value('nominal');
@@ -442,6 +672,9 @@ class PrSlipGajiController extends Controller
         // Save omset bulanan data first
         $totalOmset = 0;
         foreach ($omsetBulanan as $insentifOmsetId => $nominal) {
+            if ($nominal === null || $nominal === '') {
+                $nominal = 0;
+            }
             \App\Models\HRD\PrOmsetBulanan::updateOrCreate(
                 [
                     'bulan' => $bulan,
@@ -457,7 +690,31 @@ class PrSlipGajiController extends Controller
         // Parse year and month from 'bulan' (format: YYYY-MM)
         $year = substr($bulan, 0, 4);
         $month = substr($bulan, 5, 2);
-        $employees = Employee::all();
+
+        $monthStart = \Carbon\Carbon::create($year, $month, 1)->startOfDay();
+        $monthEnd = (clone $monthStart)->endOfMonth()->startOfDay();
+
+        $calcOverlapDays = function ($start, $end) use ($monthStart, $monthEnd) {
+            $s = \Carbon\Carbon::parse($start)->startOfDay();
+            $e = \Carbon\Carbon::parse($end)->startOfDay();
+
+            if ($e->lt($monthStart) || $s->gt($monthEnd)) {
+                return 0;
+            }
+
+            $effectiveStart = $s->greaterThan($monthStart) ? $s : $monthStart;
+            $effectiveEnd = $e->lessThan($monthEnd) ? $e : $monthEnd;
+
+            // Inclusive day count
+            return $effectiveStart->diffInDays($effectiveEnd) + 1;
+        };
+        // Only create slips for active employees (exclude status: 'tidak aktif' with any casing/spacing)
+        $employees = Employee::query()
+            ->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhereRaw("LOWER(REPLACE(TRIM(status), ' ', '')) <> ?", ['tidakaktif']);
+            })
+            ->get();
 
         // Get master tunjangan lain values once
         $uangMakanMaster = \App\Models\HRD\PrMasterTunjanganLain::where('nama_tunjangan', 'Uang Makan')->first();
@@ -472,6 +729,10 @@ class PrSlipGajiController extends Controller
         $periodePenilaianId = $request->input('periode_penilaian_id');
 
         foreach ($employees as $employee) {
+            $employeeStatusNormalized = strtolower(preg_replace('/\s+/', '', trim((string) ($employee->status ?? ''))));
+            if ($employeeStatusNormalized === 'tidakaktif') {
+                continue;
+            }
             // Calculate poin penilaian (average score for selected period)
             $poinPenilaian = 0;
             if ($periodePenilaianId) {
@@ -503,11 +764,32 @@ class PrSlipGajiController extends Controller
                 ->whereMonth('date', $month)
                 ->count();
 
-            // Count total hari masuk
-            $totalHariMasuk = $employee->attendanceRekap()
-                ->whereYear('date', $year)
-                ->whereMonth('date', $month)
-                ->count();
+            // Total hari masuk = scheduled - approved leave - approved absence (HRD approved)
+            $approvedLibur = \App\Models\HRD\PengajuanLibur::query()
+                ->where('employee_id', $employee->id)
+                ->where('status_hrd', 'disetujui')
+                ->whereDate('tanggal_mulai', '<=', $monthEnd)
+                ->whereDate('tanggal_selesai', '>=', $monthStart)
+                ->get();
+
+            $liburDays = 0;
+            foreach ($approvedLibur as $req) {
+                $liburDays += $calcOverlapDays($req->tanggal_mulai, $req->tanggal_selesai);
+            }
+
+            $approvedTidakMasuk = \App\Models\HRD\PengajuanTidakMasuk::query()
+                ->where('employee_id', $employee->id)
+                ->where('status_hrd', 'disetujui')
+                ->whereDate('tanggal_mulai', '<=', $monthEnd)
+                ->whereDate('tanggal_selesai', '>=', $monthStart)
+                ->get();
+
+            $tidakMasukDays = 0;
+            foreach ($approvedTidakMasuk as $req) {
+                $tidakMasukDays += $calcOverlapDays($req->tanggal_mulai, $req->tanggal_selesai);
+            }
+
+            $totalHariMasuk = max(intval($totalHariScheduled) - intval($liburDays) - intval($tidakMasukDays), 0);
 
             // Get gaji pokok nominal from master
             $gajiPokok = $employee->golGajiPokok ? $employee->golGajiPokok->nominal : 0;
@@ -524,7 +806,7 @@ class PrSlipGajiController extends Controller
             if ($employee->tanggal_masuk) {
                 $tanggalMasuk = \Carbon\Carbon::parse($employee->tanggal_masuk);
                 $referenceDate = \Carbon\Carbon::create($year, $month)->endOfMonth();
-                $masaKerjaTahun = (int) $tanggalMasuk->diffInYears($referenceDate);
+                $masaKerjaTahun = max((int) $tanggalMasuk->diffInYears($referenceDate, false), 0);
             }
             // Only give tunjangan masa kerja if masa kerja >= 1 year, and only count full years
             $tunjanganMasaKerja = ($masaKerjaTahun >= 1) ? ($tunjanganMasaKerjaNominal * $masaKerjaTahun) : 0;
@@ -602,12 +884,9 @@ class PrSlipGajiController extends Controller
 
             // Calculate poin kehadiran
             $selisih = $totalHariScheduled - $totalHariMasuk;
-            $pengajuanTidakMasuk = \App\Models\HRD\PengajuanTidakMasuk::where('employee_id', $employee->id)
-                ->whereYear('tanggal_mulai', $year)
-                ->whereMonth('tanggal_mulai', $month)
-                ->where('status_hrd', 'disetujui')
-                ->sum('total_hari');
-            $excused = min($pengajuanTidakMasuk, $selisih);
+            // Under the new hari masuk rule, approved libur & tidak masuk are "excused"
+            $approvedExcusedDays = intval($liburDays) + intval($tidakMasukDays);
+            $excused = min($approvedExcusedDays, $selisih);
             $unexcused = max($selisih - $excused, 0);
             $minus = ($unexcused * 1) + ($excused * 0.5);
             $poinKehadiran = max($initialPoinKehadiran - $minus - $latenessMinus, 0);
@@ -615,6 +894,23 @@ class PrSlipGajiController extends Controller
 
             // Store slip gaji for each employee, without uang_kpi
             $totalBenefit = ($benefitBpjsKesehatan ?? 0) + ($benefitJht ?? 0) + ($benefitJkk ?? 0) + ($benefitJkm ?? 0);
+
+            $totalPendapatan = (
+                floatval($gajiPokok)
+                + floatval($tunjanganJabatan)
+                + floatval($tunjanganMasaKerja)
+                + floatval($uangMakan)
+                + floatval($uangLembur)
+                // jasa_medis, uang_kpi, pendapatan_tambahan are not set in generation flow
+            );
+
+            $totalPotongan = (
+                floatval($potonganBpjsKesehatan ?? 0)
+                + floatval($potonganJamsostek ?? 0)
+            );
+
+            $totalGaji = $totalPendapatan - $totalPotongan;
+
             PrSlipGaji::updateOrCreate(
                 [
                     'employee_id' => $employee->id,
@@ -637,6 +933,9 @@ class PrSlipGajiController extends Controller
                     'total_benefit' => $totalBenefit,
                     'potongan_bpjs_kesehatan' => $potonganBpjsKesehatan,
                     'potongan_jamsostek' => $potonganJamsostek,
+                    'total_pendapatan' => $totalPendapatan,
+                    'total_potongan' => $totalPotongan,
+                    'total_gaji' => $totalGaji,
                     'total_jam_lembur' => $totalJamLembur,
                     'uang_lembur' => $uangLembur,
                     'poin_penilaian' => $poinPenilaian,
@@ -654,7 +953,13 @@ class PrSlipGajiController extends Controller
         $month = substr($bulan, 5, 2);
 
         // Then create slip gaji records for all employees
-        $employees = Employee::all();
+        // Only create slips for active employees (exclude status: 'tidak aktif')
+        $employees = Employee::query()
+            ->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhere('status', '!=', 'tidak aktif');
+            })
+            ->get();
         foreach ($employees as $employee) {
             // Count total hari scheduled
             $totalHariScheduled = $employee->schedules()
@@ -662,11 +967,32 @@ class PrSlipGajiController extends Controller
                 ->whereMonth('date', $month)
                 ->count();
 
-            // Count total hari masuk
-            $totalHariMasuk = $employee->attendanceRekap()
-                ->whereYear('date', $year)
-                ->whereMonth('date', $month)
-                ->count();
+            // Total hari masuk = scheduled - approved leave - approved absence (HRD approved)
+            $approvedLibur = \App\Models\HRD\PengajuanLibur::query()
+                ->where('employee_id', $employee->id)
+                ->where('status_hrd', 'disetujui')
+                ->whereDate('tanggal_mulai', '<=', $monthEnd)
+                ->whereDate('tanggal_selesai', '>=', $monthStart)
+                ->get();
+
+            $liburDays = 0;
+            foreach ($approvedLibur as $req) {
+                $liburDays += $calcOverlapDays($req->tanggal_mulai, $req->tanggal_selesai);
+            }
+
+            $approvedTidakMasuk = \App\Models\HRD\PengajuanTidakMasuk::query()
+                ->where('employee_id', $employee->id)
+                ->where('status_hrd', 'disetujui')
+                ->whereDate('tanggal_mulai', '<=', $monthEnd)
+                ->whereDate('tanggal_selesai', '>=', $monthStart)
+                ->get();
+
+            $tidakMasukDays = 0;
+            foreach ($approvedTidakMasuk as $req) {
+                $tidakMasukDays += $calcOverlapDays($req->tanggal_mulai, $req->tanggal_selesai);
+            }
+
+            $totalHariMasuk = max(intval($totalHariScheduled) - intval($liburDays) - intval($tidakMasukDays), 0);
 
             // Get gaji pokok nominal from master
             $gajiPokok = $employee->golGajiPokok ? $employee->golGajiPokok->nominal : 0;
@@ -696,37 +1022,114 @@ class PrSlipGajiController extends Controller
     public function data(Request $request)
     {
         $bulan = $request->get('bulan');
-        $query = PrSlipGaji::with(['employee.division']);
+        $status = $request->get('status');
+        $query = PrSlipGaji::query()
+            ->leftJoin('hrd_employee as e', 'e.id', '=', 'pr_slip_gaji.employee_id')
+            ->leftJoin('hrd_division as d', 'd.id', '=', 'e.division_id')
+            ->select([
+                'pr_slip_gaji.*',
+                'e.no_induk as employee_no_induk',
+                'e.nama as employee_nama',
+                'd.name as division_name_join',
+            ]);
         if ($bulan) {
             $query->where('bulan', $bulan);
+        }
+        if ($status && in_array($status, ['draft', 'diapprove', 'paid'], true)) {
+            $query->where('pr_slip_gaji.status_gaji', $status);
         }
         return datatables()->of($query)
             ->addColumn('id', function($row) {
                 return $row->id;
             })
             ->addColumn('no_induk', function($row) {
-                return $row->employee ? $row->employee->no_induk : '';
+                return $row->employee_no_induk ?? '';
             })
             ->addColumn('nama', function($row) {
-                return $row->employee ? $row->employee->nama : '';
+                return $row->employee_nama ?? '';
             })
-            ->addColumn('divisi', function($row) {
-                return $row->employee && $row->employee->division ? $row->employee->division->name : '';
+            ->addColumn('division_name', function($row) {
+                return $row->division_name_join ?? '';
             })
             ->addColumn('jumlah_hari_masuk', function($row) {
                 return $row->total_hari_masuk;
             })
-            ->addColumn('kpi_poin', function($row) {
-                return $row->kpi_poin;
-            })
             ->addColumn('jumlah_pendapatan', function($row) {
                 return number_format($row->total_pendapatan, 2);
             })
-            ->addColumn('jumlah_potongan', function($row) {
-                return number_format($row->total_potongan, 2);
+            // IMPORTANT:
+            // Do NOT use addColumn() for real DB fields that need ordering.
+            // Yajra treats addColumn fields as computed/extra, which disables server-side sorting.
+            // Fields like gaji_pokok, tunjangan_*, uang_*, total_jam_lembur, total_gaji, etc.
+            // will be returned directly from `pr_slip_gaji.*` and stay orderable.
+            ->addColumn('pendapatan_tambahan_label', function($row) {
+                // placeholder for client-side button (display handled on client)
+                return '';
             })
-            ->addColumn('total_gaji', function($row) {
-                return number_format($row->total_gaji, 2);
+            ->addColumn('pendapatan_tambahan', function($row) {
+                return $row->pendapatan_tambahan ? json_encode($row->pendapatan_tambahan) : json_encode([]);
+            })
+            ->addColumn('pendapatan_tambahan_total', function($row) {
+                $items = is_array($row->pendapatan_tambahan) ? $row->pendapatan_tambahan : [];
+                $sum = 0;
+                foreach ($items as $it) {
+                    $amt = isset($it['amount']) ? floatval(str_replace([',',' '],'',$it['amount'])) : 0;
+                    $sum += $amt;
+                }
+                return number_format($sum, 2);
+            })
+            ->addColumn('benefit_bpjs_kesehatan', function($row) {
+                return $row->benefit_bpjs_kesehatan ?? 0;
+            })
+            ->addColumn('benefit_jht', function($row) {
+                return $row->benefit_jht ?? 0;
+            })
+            ->addColumn('benefit_jkk', function($row) {
+                return $row->benefit_jkk ?? 0;
+            })
+            ->addColumn('benefit_jkm', function($row) {
+                return $row->benefit_jkm ?? 0;
+            })
+            ->addColumn('potongan_pinjaman', function($row) {
+                return $row->potongan_pinjaman ?? 0;
+            })
+            ->addColumn('potongan_bpjs_kesehatan', function($row) {
+                return $row->potongan_bpjs_kesehatan ?? 0;
+            })
+            ->addColumn('potongan_jamsostek', function($row) {
+                return $row->potongan_jamsostek ?? 0;
+            })
+            ->addColumn('potongan_penalty', function($row) {
+                return $row->potongan_penalty ?? 0;
+            })
+            ->addColumn('potongan_lain', function($row) {
+                return $row->potongan_lain ?? 0;
+            })
+            ->addColumn('jumlah_potongan', function($row) {
+                $p1 = floatval($row->potongan_pinjaman ?? 0);
+                $p2 = floatval($row->potongan_bpjs_kesehatan ?? 0);
+                $p3 = floatval($row->potongan_jamsostek ?? 0);
+                $p4 = floatval($row->potongan_penalty ?? 0);
+                $p5 = floatval($row->potongan_lain ?? 0);
+                $sum = $p1 + $p2 + $p3 + $p4 + $p5;
+                $stored = floatval($row->total_potongan ?? 0);
+                if ($stored > 0 && $stored != $sum) {
+                    $sum = $stored;
+                }
+                return number_format($sum, 2);
+            })
+            ->addColumn('total_benefit', function($row) {
+                $b1 = floatval($row->benefit_bpjs_kesehatan ?? 0);
+                $b2 = floatval($row->benefit_jht ?? 0);
+                $b3 = floatval($row->benefit_jkk ?? 0);
+                $b4 = floatval($row->benefit_jkm ?? 0);
+                $sum = $b1 + $b2 + $b3 + $b4;
+                // fallback to stored total_benefit if it's larger (preserve any manual overrides)
+                $stored = floatval($row->total_benefit ?? 0);
+                if ($stored > 0 && $stored != $sum) {
+                    $sum = $stored;
+                }
+                return number_format($sum, 2);
             })
             ->addColumn('status', function($row) {
                 return $row->status_gaji;
@@ -799,34 +1202,95 @@ class PrSlipGajiController extends Controller
             ->make(true);
     }
 
-    public function detail($id)
+    public function detail(Request $request, $id)
     {
         $slip = PrSlipGaji::with(['employee.division'])->findOrFail($id);
+        // if only=potongan requested, return potongan partial
+        if ($request->get('only') === 'potongan') {
+            return view('hrd.payroll.slip_gaji._modal_potongan', compact('slip'))->render();
+        }
+        // if only=benefit requested, return benefit partial
+        if ($request->get('only') === 'benefit') {
+            return view('hrd.payroll.slip_gaji._modal_benefit', compact('slip'))->render();
+        }
+        // if only=pendapatan requested, return pendapatan partial
+        if ($request->get('only') === 'pendapatan') {
+            return view('hrd.payroll.slip_gaji._modal_pendapatan', compact('slip'))->render();
+        }
         return view('hrd.payroll.slip_gaji._detail', compact('slip'))->render();
     }
 
     public function changeStatus(Request $request, $id)
     {
     $slip = PrSlipGaji::findOrFail($id);
+
+    if (strtolower((string)($slip->status_gaji ?? '')) === 'paid') {
+        return response()->json([
+            'success' => false,
+            'message' => 'Slip sudah Paid dan tidak bisa diubah statusnya.',
+        ], 403);
+    }
+
     $slip->status_gaji = $request->input('status_gaji', $slip->status_gaji == 'draft' ? 'final' : 'draft');
     $slip->save();
     return response()->json(['success' => true]);
     }
 
-    public function getKpiSummary(Request $request)
+    public function bulkStatus(Request $request)
     {
-        $filterBulan = $request->get('bulan') ?? date('Y-m');
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filterBulan)) {
-            $bulan = substr($filterBulan, 0, 7);
-        } elseif (preg_match('/^\d{4}-\d{2}$/', $filterBulan)) {
-            $bulan = $filterBulan;
-        } else {
-            $bulan = date('Y-m', strtotime($filterBulan));
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'status_gaji' => 'required|in:draft,diapprove,paid',
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Input tidak valid.',
+                'errors' => $validator->errors(),
+            ], 422);
         }
-        $kpiSummary = \App\Models\HRD\PrKpiSummary::where('bulan', $bulan)->first();
+
+        $status = strtolower((string) $request->input('status_gaji'));
+        $ids = array_values(array_unique($request->input('ids', [])));
+
+        $slips = PrSlipGaji::whereIn('id', $ids)->get()->keyBy('id');
+
+        $updated = 0;
+        $unchanged = 0;
+        $skippedPaid = 0;
+        $missing = 0;
+
+        foreach ($ids as $id) {
+            $slip = $slips->get($id);
+            if (!$slip) {
+                $missing++;
+                continue;
+            }
+
+            if (strtolower((string) ($slip->status_gaji ?? '')) === 'paid') {
+                $skippedPaid++;
+                continue;
+            }
+
+            if (strtolower((string) ($slip->status_gaji ?? '')) === $status) {
+                $unchanged++;
+                continue;
+            }
+
+            $slip->status_gaji = $status;
+            $slip->save();
+            $updated++;
+        }
+
         return response()->json([
-            'total_kpi_poin' => $kpiSummary ? number_format($kpiSummary->total_kpi_poin, 2) : '-',
-            'average_kpi_poin' => $kpiSummary ? number_format($kpiSummary->average_kpi_poin, 2) : '-',
+            'success' => true,
+            'updated' => $updated,
+            'unchanged' => $unchanged,
+            'skipped_paid' => $skippedPaid,
+            'missing' => $missing,
+            'message' => "Bulk status selesai. Updated: {$updated}, Unchanged: {$unchanged}, Skipped paid: {$skippedPaid}, Missing: {$missing}.",
         ]);
     }
 

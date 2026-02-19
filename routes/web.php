@@ -1900,6 +1900,10 @@ Route::prefix('hrd/payroll/slip-gaji')->middleware(['auth', 'role:Employee|Manag
     Route::get('/detail/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'detail'])->name('hrd.payroll.slip_gaji.detail');
     Route::put('/status/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'changeStatus'])->name('hrd.payroll.slip_gaji.status');
     Route::post('/update/{id}', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'update'])->name('hrd.payroll.slip_gaji.update');
+    Route::post('/bulk-status', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'bulkStatus'])
+        ->middleware(['role:Hrd|Admin|Manager|Ceo'])
+        ->name('hrd.payroll.slip_gaji.bulk_status');
+    Route::post('/sync', [App\Http\Controllers\HRD\PrSlipGajiController::class, 'sync'])->name('hrd.payroll.slip_gaji.sync');
     Route::get('/print/{id}', [\App\Http\Controllers\HRD\PrSlipGajiController::class, 'print']);
 });
 

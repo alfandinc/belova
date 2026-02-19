@@ -7,26 +7,8 @@ $(function() {
         $('#modalBuatSlipGaji').modal('show');
     });
 
-    // Load omset data and periode penilaian when bulan changes
+    // Only require bulan; omset inputs are no longer auto-loaded
     $('#bulan').attr('required', true);
-    $('#bulan').on('change', function() {
-        var bulan = $(this).val();
-        if(bulan) {
-            // Load omset bulanan inputs
-            $.get('{{ url('hrd/payroll/slip-gaji/omset-bulanan') }}?bulan=' + bulan, function(res) {
-                $('#omsetBulananInputs').html(res);
-            });
-            // Load periode penilaian options
-            $.get('{{ url('hrd/performance-evaluation-periods-for-month') }}?bulan=' + bulan, function(periods) {
-                var $select = $('#periode_penilaian_id');
-                $select.empty();
-                $select.append('<option value="">Pilih Periode Penilaian</option>');
-                periods.forEach(function(p) {
-                    $select.append('<option value="' + p.id + '">' + p.name + ' (' + p.start_date.substring(0,10) + ')</option>');
-                });
-            });
-        }
-    });
 
     // Save slip gaji for all employees
     $('#formBuatSlipGaji').submit(function(e) {
