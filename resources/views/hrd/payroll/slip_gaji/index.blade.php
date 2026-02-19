@@ -165,6 +165,12 @@
 
     <!-- Hidden holder: will be moved next to the DataTables Search box (left side) -->
     <div id="slipGajiToolbarHolder" class="d-none">
+        <select id="filterDivision" class="form-control form-control-sm mr-2" style="width:180px;">
+            <option value="">All Division</option>
+            @foreach(($divisions ?? []) as $div)
+                <option value="{{ $div->id }}">{{ $div->name }}</option>
+            @endforeach
+        </select>
         <select id="filterStatus" class="form-control form-control-sm mr-2" style="width:140px;">
             <option value="">All Status</option>
             <option value="draft">Draft</option>

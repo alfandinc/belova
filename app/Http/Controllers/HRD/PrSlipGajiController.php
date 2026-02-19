@@ -643,7 +643,8 @@ class PrSlipGajiController extends Controller
         }
         Log::info('filterBulan: ' . $filterBulan . ', bulan: ' . $bulan);
         $totalOmset = \App\Models\HRD\PrOmsetBulanan::where('bulan', $bulan)->sum('nominal');
-        return view('hrd.payroll.slip_gaji.index', compact('bulan', 'totalOmset'));
+        $divisions = \App\Models\HRD\Division::query()->orderBy('name')->get();
+        return view('hrd.payroll.slip_gaji.index', compact('bulan', 'totalOmset', 'divisions'));
     }
 
     public function storeAll(Request $request)
@@ -1023,6 +1024,7 @@ class PrSlipGajiController extends Controller
     {
         $bulan = $request->get('bulan');
         $status = $request->get('status');
+        $divisionId = $request->get('division_id');
         $query = PrSlipGaji::query()
             ->leftJoin('hrd_employee as e', 'e.id', '=', 'pr_slip_gaji.employee_id')
             ->leftJoin('hrd_division as d', 'd.id', '=', 'e.division_id')
@@ -1037,6 +1039,9 @@ class PrSlipGajiController extends Controller
         }
         if ($status && in_array($status, ['draft', 'diapprove', 'paid'], true)) {
             $query->where('pr_slip_gaji.status_gaji', $status);
+        }
+        if ($divisionId !== null && $divisionId !== '' && is_numeric($divisionId)) {
+            $query->where('e.division_id', intval($divisionId));
         }
         return datatables()->of($query)
             ->addColumn('id', function($row) {

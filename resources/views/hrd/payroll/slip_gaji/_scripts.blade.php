@@ -182,6 +182,7 @@ $(function() {
             data: function(d) {
                 d.bulan = $('#filterBulan').val();
                 d.status = $('#filterStatus').val();
+                d.division_id = $('#filterDivision').val();
             }
         },
         pageLength: -1,
@@ -615,6 +616,11 @@ $(function() {
         table.ajax.reload();
     });
 
+    // Division filter change
+    $(document).on('change', '#filterDivision', function() {
+        table.ajax.reload();
+    });
+
     // Inline edit handler (change on input/select)
     $('#slipGajiTable').on('change', '.slip-inline-edit', function() {
         var $el = $(this);
@@ -929,6 +935,11 @@ $(function() {
             // load partial potongan modal HTML
             $('#modalPotongan').remove();
             $('body').append(res);
+
+            var empName = data.nama || '';
+            var title = empName ? ('Edit Potongan - ' + empName) : 'Edit Potongan';
+            $('#modalPotongan').find('#modalPotonganLabel').text(title);
+
             // fill values if server returned inputs with values (our partial uses blank inputs, fill here)
             $('#modalPotongan').find('#potongan_slip_id').val(data.id);
             $('#modalPotongan').find('#potongan_pinjaman').val(data.potongan_pinjaman || '');
@@ -957,6 +968,11 @@ $(function() {
         $.get('{{ url('hrd/payroll/slip-gaji/detail') }}/' + data.id + '?only=benefit', function(res) {
             $('#modalBenefit').remove();
             $('body').append(res);
+
+            var empName = data.nama || '';
+            var title = empName ? ('Edit Benefit - ' + empName) : 'Edit Benefit';
+            $('#modalBenefit').find('#modalBenefitLabel').text(title);
+
             $('#modalBenefit').find('#benefit_slip_id').val(data.id);
             $('#modalBenefit').find('#benefit_bpjs_kesehatan').val(data.benefit_bpjs_kesehatan || '');
             $('#modalBenefit').find('#benefit_jht').val(data.benefit_jht || '');
@@ -983,6 +999,11 @@ $(function() {
         $.get('{{ url('hrd/payroll/slip-gaji/detail') }}/' + data.id + '?only=pendapatan', function(res) {
             $('#modalPendapatan').remove();
             $('body').append(res);
+
+            var empName = data.nama || '';
+            var title = empName ? ('Edit Pendapatan Tambahan - ' + empName) : 'Edit Pendapatan Tambahan';
+            $('#modalPendapatan').find('#modalPendapatanLabel').text(title);
+
             // set slip id; rows are rendered server-side from $slip->pendapatan_tambahan
             $('#modalPendapatan').find('#pendapatan_slip_id').val(data.id);
 
