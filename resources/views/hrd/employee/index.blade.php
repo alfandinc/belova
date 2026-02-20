@@ -515,12 +515,19 @@ $(function() {
     }
 
     function getGenderFromRow(row) {
-        // Try multiple possible field names
+        // Prefer single-letter codes 'L'/'P' (case-insensitive) since DB stores that
         var g = row.jenis_kelamin || row.gender || row.jk || row.sex || row.kelamin || row.gender_id || null;
         if (!g) return null;
-        g = String(g).toLowerCase();
-        if (g === 'l' || g === 'male' || g === 'laki' || g === 'laki-laki' || g === 'laki laki') return 'male';
-        if (g === 'p' || g === 'female' || g === 'perempuan' || g === 'wanita') return 'female';
+        g = String(g).trim();
+        if (g.length === 1) {
+            var ch = g.toLowerCase();
+            if (ch === 'l') return 'male';
+            if (ch === 'p') return 'female';
+        }
+        // Fallback to more verbose values if not a single-letter code
+        var gl = g.toLowerCase();
+        if (gl === 'male' || gl === 'laki' || gl === 'laki-laki' || gl === 'laki laki' || gl === 'man') return 'male';
+        if (gl === 'female' || gl === 'perempuan' || gl === 'wanita' || gl === 'woman') return 'female';
         return null;
     }
 
