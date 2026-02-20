@@ -343,6 +343,35 @@ class AbsensiRekapController extends Controller
     }
 
     /**
+     * Calculate minutes of overtime (jam_keluar - shift_end) considering overnight shifts
+     */
+    private function calculateOvertimeMinutes($jamKeluar, $shiftEnd, $date)
+    {
+        if (!$jamKeluar || !$shiftEnd) {
+            return 0;
+        }
+
+        $jamKeluarTime = strpos($jamKeluar, ' ') !== false ? 
+            strtotime($jamKeluar) : 
+            strtotime($date . ' ' . $jamKeluar);
+        $shiftEndTime = strtotime($date . ' ' . $shiftEnd);
+
+        if ($shiftEnd === '00:00:00' || ($shiftEnd < '12:00:00' && $shiftEnd !== '00:00:00')) {
+            $shiftEndTime += 24 * 3600;
+        }
+
+        $jamKeluarTimeOnly = date('H:i:s', $jamKeluarTime);
+        if ($jamKeluarTimeOnly < '12:00:00' && $shiftEnd > '12:00:00') {
+            $jamKeluarTime += 24 * 3600;
+        } else if ($shiftEnd === '00:00:00' && $jamKeluarTimeOnly > '00:00:00' && $jamKeluarTimeOnly < '12:00:00') {
+            $jamKeluarTime += 24 * 3600;
+        }
+
+        $diff = $jamKeluarTime - $shiftEndTime;
+        return $diff > 0 ? round($diff / 60) : 0;
+    }
+
+    /**
      * Find the best jam masuk and jam keluar based on shift schedule
      * Supports cross-date selection for overnight shifts
      */
@@ -821,6 +850,7 @@ class AbsensiRekapController extends Controller
         $overtimeCount = 0;
         $onTimeCount = 0;
         $employeeLateMinutes = [];
+        $employeeOvertimeMinutes = [];
         
         foreach ($records as $record) {
             $isLate = false;
@@ -861,6 +891,20 @@ class AbsensiRekapController extends Controller
             if ($this->hasOvertime($jamKeluar, $shiftEnd, $record->date)) {
                 $overtimeCount++;
                 $hasOvertimeFlag = true;
+                // Calculate overtime minutes
+                $overtimeMinutes = $this->calculateOvertimeMinutes($jamKeluar, $shiftEnd, $record->date);
+                $empId = $record->employee_id;
+                $empName = $record->employee ? $record->employee->nama : 'Unknown';
+                if (!isset($employeeOvertimeMinutes[$empId])) {
+                    $employeeOvertimeMinutes[$empId] = [
+                        'employee_id' => $empId,
+                        'employee_name' => $empName,
+                        'total_overtime_minutes' => 0,
+                        'overtime_instances' => 0
+                    ];
+                }
+                $employeeOvertimeMinutes[$empId]['total_overtime_minutes'] += $overtimeMinutes;
+                $employeeOvertimeMinutes[$empId]['overtime_instances']++;
             }
             
             // Count on-time (not late and has both jam_masuk and jam_keluar)
@@ -871,6 +915,23 @@ class AbsensiRekapController extends Controller
         
         // Prepare lateness lists
         $sortedLate = collect($employeeLateMinutes)->sortByDesc('total_late_minutes')->values();
+        // Prepare overtime lists
+        $sortedOvertime = collect($employeeOvertimeMinutes)->sortByDesc('total_overtime_minutes')->values();
+
+        // Get top 5 most overtime employees
+        $top5OvertimeEmployees = $sortedOvertime->take(5)
+            ->map(function($employee) {
+                $avgMinutes = $employee['overtime_instances'] > 0 ? 
+                    round($employee['total_overtime_minutes'] / $employee['overtime_instances'], 1) : 0;
+                return [
+                    'employee_name' => $employee['employee_name'],
+                    'total_overtime_minutes' => $employee['total_overtime_minutes'],
+                    'overtime_instances' => $employee['overtime_instances'],
+                    'avg_minutes_overtime' => $avgMinutes,
+                    'formatted_total' => $this->formatMinutes($employee['total_overtime_minutes']),
+                    'formatted_avg' => $this->formatMinutes($avgMinutes)
+                ];
+            })->values();
 
         // Get top 5 most late employees
         $top5LateEmployees = $sortedLate->take(5)
@@ -889,8 +950,9 @@ class AbsensiRekapController extends Controller
             })
             ->values();
 
-        // If requested, prepare full list
+        // If requested, prepare full lists
         $allLateEmployees = null;
+        $allOvertimeEmployees = null;
         if ($request->input('full_list')) {
             $allLateEmployees = $sortedLate->map(function($employee) {
                 $avgMinutesLate = $employee['late_instances'] > 0 ? 
@@ -904,6 +966,19 @@ class AbsensiRekapController extends Controller
                     'formatted_avg' => $this->formatMinutes($avgMinutesLate)
                 ];
             })->values();
+
+            $allOvertimeEmployees = $sortedOvertime->map(function($employee) {
+                $avgMinutes = $employee['overtime_instances'] > 0 ? 
+                    round($employee['total_overtime_minutes'] / $employee['overtime_instances'], 1) : 0;
+                return [
+                    'employee_name' => $employee['employee_name'],
+                    'total_overtime_minutes' => $employee['total_overtime_minutes'],
+                    'overtime_instances' => $employee['overtime_instances'],
+                    'avg_minutes_overtime' => $avgMinutes,
+                    'formatted_total' => $this->formatMinutes($employee['total_overtime_minutes']),
+                    'formatted_avg' => $this->formatMinutes($avgMinutes)
+                ];
+            })->values();
         }
         
         return response()->json([
@@ -915,7 +990,9 @@ class AbsensiRekapController extends Controller
             'overtime_percentage' => $totalEmployees > 0 ? round(($overtimeCount / $totalEmployees) * 100, 1) : 0,
             'on_time_percentage' => $totalEmployees > 0 ? round(($onTimeCount / $totalEmployees) * 100, 1) : 0,
             'top_5_late_employees' => $top5LateEmployees,
-            'all_late_employees' => $allLateEmployees
+            'all_late_employees' => $allLateEmployees,
+            'top_5_overtime_employees' => $top5OvertimeEmployees ?? collect([]),
+            'all_overtime_employees' => $allOvertimeEmployees
         ]);
     }
 

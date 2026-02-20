@@ -137,10 +137,10 @@
         </div>
     </div>
     
-    <!-- Top 5 Most Late Employees Card -->
+    <!-- Top 5 Most Late & Overtime Employees Cards -->
     <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
+        <div class="col-md-6 mb-3">
+            <div class="card shadow h-100">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-danger">
                         <i class="fas fa-clock text-danger"></i>
@@ -158,6 +158,49 @@
                             <i class="fas fa-spinner fa-spin"></i> Loading...
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-3">
+            <div class="card shadow h-100">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                    <h6 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-bolt text-warning"></i>
+                        Top 5 Karyawan Paling Sering Overtime
+                    </h6>
+                    <div>
+                        <button id="showAllOvertimeBtn" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-list"></i> Tampilkan Semua
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="top5OvertimeEmployees">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: All Overtime Employees -->
+    <div class="modal fade" id="allOvertimeModal" tabindex="-1" role="dialog" aria-labelledby="allOvertimeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="allOvertimeModalLabel">Daftar Overtime Semua Karyawan</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="allOvertimeModalBody">
+                    <div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
                 </div>
             </div>
         </div>
@@ -529,6 +572,49 @@ $(function() {
         container.html(html);
     }
 
+    // Function to update Top 5 Overtime Employees display
+    function updateTop5OvertimeEmployees(employees) {
+        const container = $('#top5OvertimeEmployees');
+        if (!employees || employees.length === 0) {
+            container.html(`
+                <div class="text-center text-muted">
+                    <i class="fas fa-check-circle text-success"></i>
+                    <p class="mb-0">Tidak ada karyawan dengan overtime dalam periode ini</p>
+                </div>
+            `);
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-sm">';
+        html += `
+            <thead>
+                <tr>
+                    <th width="5%">#</th>
+                    <th width="45%">Nama Karyawan</th>
+                    <th width="25%">Total Overtime</th>
+                    <th width="25%">Jumlah Overtime</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+
+        employees.forEach((employee, index) => {
+            const badgeClass = index === 0 ? 'warning' : (index === 1 ? 'secondary' : 'light');
+            const crown = index === 0 ? '<i class="fas fa-crown text-warning mr-1"></i>' : '';
+            html += `
+                <tr>
+                    <td><span class="badge badge-${badgeClass}">${index + 1}</span></td>
+                    <td>${crown}${employee.employee_name}</td>
+                    <td><span class="text-warning font-weight-bold">${employee.formatted_total}</span></td>
+                    <td><span class="badge badge-light">${employee.overtime_instances}x</span></td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table></div>';
+        container.html(html);
+    }
+
     // Helper: build date_range (YYYY-MM-DD - YYYY-MM-DD) from month input
     function getDateRangeFromMonth() {
         var m = $('#filterMonth').val();
@@ -661,8 +747,9 @@ $(function() {
                 $('#overtimeProgressBar').css('width', '0%').animate({width: response.overtime_percentage + '%'}, 800);
                 $('#onTimeProgressBar').css('width', '0%').animate({width: response.on_time_percentage + '%'}, 800);
                 
-                // Update Top 5 Late Employees
+                // Update Top 5 Late and Overtime Employees
                 updateTop5LateEmployees(response.top_5_late_employees || []);
+                updateTop5OvertimeEmployees(response.top_5_overtime_employees || []);
                 
                 // Update aria attributes
                 $('#lateProgressBar').attr('aria-valuenow', response.late_percentage);
@@ -872,6 +959,49 @@ $(function() {
             },
             error: function(xhr) {
                 $('#allLateModalBody').html('<div class="text-danger">Gagal mengambil data.</div>');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-list"></i> Tampilkan Semua');
+            }
+        });
+    });
+
+    // Show All Overtime Employees button handler
+    $('#showAllOvertimeBtn').on('click', function() {
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+        $.ajax({
+            url: '{{ route('hrd.absensi_rekap.statistics') }}',
+            type: 'GET',
+            data: {
+                date_range: getDateRangeFromMonth(),
+                employee_ids: $('#employeeFilter').val(),
+                full_list: 1
+            },
+            success: function(res) {
+                var list = res.all_overtime_employees || [];
+                if (!list.length) {
+                    $('#allOvertimeModalBody').html('<div class="text-center text-muted">Tidak ada data overtime untuk periode ini.</div>');
+                } else {
+                    var html = '<div class="table-responsive"><table class="table table-sm table-bordered">';
+                    html += '<thead><tr><th>#</th><th>Nama</th><th>Total Overtime</th><th>Jumlah Overtime</th><th>Rata-rata Overtime</th></tr></thead><tbody>';
+                    list.forEach(function(emp, idx) {
+                        var pos = idx + 1;
+                        html += '<tr>' +
+                            '<td>' + pos + '</td>' +
+                            '<td>' + emp.employee_name + '</td>' +
+                            '<td><strong class="text-warning">' + (emp.formatted_total || '') + '</strong></td>' +
+                            '<td>' + (emp.overtime_instances || 0) + 'x</td>' +
+                            '<td>' + (emp.formatted_avg || '') + '</td>' +
+                            '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    $('#allOvertimeModalBody').html(html);
+                }
+                $('#allOvertimeModal').modal('show');
+            },
+            error: function(xhr) {
+                $('#allOvertimeModalBody').html('<div class="text-danger">Gagal mengambil data.</div>');
             },
             complete: function() {
                 btn.prop('disabled', false).html('<i class="fas fa-list"></i> Tampilkan Semua');
