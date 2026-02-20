@@ -54,7 +54,7 @@
                             @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('hrd.schedule.index') }}">
-                                    <i class="ti-control-record"></i>Jadwal Mingguan
+                                    <i class="ti-control-record"></i>Jadwal Karyawan
                                 </a>
                             </li>
 
@@ -72,11 +72,7 @@
                                     </a>
                                 </li>
                             @endif
-                            <li class="nav-item">
-                                <a class="nav-link" href="{{ route('hrd.schedule.print') }}" target="_blank">
-                                    <i class="ti-control-record"></i>Jadwal Saya
-                                </a>
-                            </li>
+                            
                         </ul>
                     </li>
                 {{-- @endif --}}
@@ -306,26 +302,10 @@
             <li>
                 <a href="javascript: void(0);"> <i data-feather="users" class="align-self-center menu-icon"></i><span>Kepegawaian</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                 <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.create') }}"><i class="ti-control-record"></i>Tambah Pegawai Baru</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.employee.index') }}"><i class="ti-control-record"></i>Data Pegawai</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.dokters.create') }}"><i class="ti-control-record"></i>Tambah Dokter Baru</a></li>
                     <li class="nav-item"><a class="nav-link" href="{{ route('hrd.dokters.index') }}"><i class="ti-control-record"></i>Data Dokter</a></li>
-                    
-                </ul>
-            </li>
-                <li>
-                        {{-- Rekap Absensi now grouped under Jadwal dan Absensi --}}
-                
-            
-            <!-- For HRD and CEO: Division and Position Management -->
-            <li>
-                <a href="javascript: void(0);"> <i data-feather="briefcase" class="align-self-center menu-icon"></i><span>Master Data</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
-                <ul class="nav-second-level" aria-expanded="false">
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.division.index') }}"><i class="ti-control-record"></i>Divisi</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.position.index') }}"><i class="ti-control-record"></i>Jabatan</a></li>
-                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.jatah-libur.index') }}"><i class="ti-control-record"></i>Jatah Libur</a></li>
-                    {{-- <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Posisi/Jabatan</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#"><i class="ti-control-record"></i>Saldo Cuti</a></li> --}}
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.division.index') }}"><i class="ti-control-record"></i>Data Divisi &amp; Jabatan</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ route('hrd.master.jatah-libur.index') }}"><i class="ti-control-record"></i>Kuota Libur</a></li>
                 </ul>
             </li>
             @endif
@@ -333,18 +313,17 @@
                     <li>
                         <a href="javascript: void(0);"> <i data-feather="dollar-sign" class="align-self-center menu-icon"></i><span>Payroll</span><span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span></a>
                         <ul class="nav-second-level" aria-expanded="false">
-                            <li class="nav-item"><a class="nav-link" href="#" onclick="checkSlipGaji(event)"><i class="ti-control-record"></i>Slip Gaji Saya</a></li>
+                            @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
+                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.master.index') }}"><i class="ti-control-record"></i>Master Payroll</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji.index') }}"><i class="ti-control-record"></i>Payroll Karyawan</a></li>
+                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji_dokter.index') }}"><i class="ti-control-record"></i>Payroll Dokter</a></li>
+                            @endif
+
                             @if(Auth::check() && (Auth::user()->hasRole('Hrd') || (Auth::user()->hasRole('Manager') && Auth::user()->hasRole('Finance'))))
                             <li class="nav-item"><a class="nav-link" href="#" onclick="checkGajiDokter(event)"><i class="ti-control-record"></i>Gaji Dokter</a></li>
                             @endif
 
-                            @if(Auth::check() && (Auth::user()->hasAnyRole('Hrd','Admin') || Auth::user()->hasAnyRole('Ceo','Admin')))
-                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.master.index') }}"><i class="ti-control-record"></i>Master Payroll</a></li>
-                            <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.insentif_omset.index') }}"><i class="ti-control-record"></i>Insentif Omset</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.kpi.index') }}"><i class="ti-control-record"></i>KPI</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji.index') }}"><i class="ti-control-record"></i>Slip Gaji</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{{ route('hrd.payroll.slip_gaji_dokter.index') }}"><i class="ti-control-record"></i>Slip Gaji Dokter</a></li>
-                            @endif
+                            <li class="nav-item"><a class="nav-link" href="#" onclick="checkSlipGaji(event)"><i class="ti-control-record"></i>My Payroll</a></li>
                         </ul>
                     </li>
             

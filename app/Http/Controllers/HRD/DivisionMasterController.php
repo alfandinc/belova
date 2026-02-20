@@ -12,7 +12,8 @@ class DivisionMasterController extends Controller
 {
     public function index()
     {
-        return view('hrd.master.division.index');
+        $divisions = Division::all();
+        return view('hrd.master.division.index', compact('divisions'));
     }
 
     public function getData()

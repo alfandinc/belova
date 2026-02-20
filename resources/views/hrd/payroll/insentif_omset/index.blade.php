@@ -10,7 +10,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="card-title">Insentif Omset</h4>
-                    <button class="btn btn-primary" id="btnAdd">Tambah Insentif Omset</button>
+                    <button class="btn btn-primary" id="btnAddInsentifOmset">Tambah Insentif Omset</button>
                 </div>
                 <div class="card-body">
                     <table id="insentifOmsetTable" class="table table-bordered table-striped" style="width:100%">

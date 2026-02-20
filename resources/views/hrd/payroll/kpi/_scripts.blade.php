@@ -11,7 +11,7 @@ $(function() {
         ]
     });
 
-    $('#btnAdd').click(function() {
+    $('#btnAddKpi').click(function() {
         $('#formKpi')[0].reset();
         $('#id').val('');
         $('#modalKpi').modal('show');

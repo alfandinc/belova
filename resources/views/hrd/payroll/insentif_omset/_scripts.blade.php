@@ -14,7 +14,7 @@ $(function() {
         ]
     });
 
-    $('#btnAdd').click(function() {
+    $('#btnAddInsentifOmset').click(function() {
         $('#formInsentifOmset')[0].reset();
         $('#id').val('');
         $('#modalInsentifOmset').modal('show');

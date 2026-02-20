@@ -141,7 +141,10 @@
         // Open modal for adding new position
         $('#btnAddPosition').on('click', function() {
             $('#positionModalLabel').text('Tambah Jabatan');
-            $('#positionForm')[0].reset();
+            var formEl = $('#positionForm')[0];
+            if (formEl) {
+                formEl.reset();
+            }
             $('#position_id').val('');
             $('#division_id').val('').trigger('change');
             $('.invalid-feedback').text('');

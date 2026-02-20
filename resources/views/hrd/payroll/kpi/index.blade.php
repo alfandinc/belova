@@ -11,7 +11,7 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="card-title">KPI</h4>
-                    <button class="btn btn-primary" id="btnAdd">Tambah KPI</button>
+                    <button class="btn btn-primary" id="btnAddKpi">Tambah KPI</button>
                 </div>
                 <div class="card-body">
                     <table id="kpiTable" class="table table-bordered table-striped" style="width:100%">

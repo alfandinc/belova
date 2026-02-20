@@ -6,40 +6,54 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="card shadow">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-            <h3 class="card-title m-0 font-weight-bold text-primary">Daftar Karyawan</h3>
-            <a href="{{ route('hrd.employee.create') }}" class="btn btn-primary">
-                <i class="fas fa-plus mr-1"></i> Tambah Karyawan
-            </a>
-        </div>
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label for="filter-division">Filter Divisi:</label>
-                    <select id="filter-division" class="form-control select2">
-                        <option value="all">-- Semua Divisi --</option>
-                        @foreach($divisions as $division)
-                            <option value="{{ $division->id }}">{{ $division->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label for="filter-perusahaan">Filter Perusahaan:</label>
-                    <select id="filter-perusahaan" class="form-control select2">
-                        <option value="all">-- Semua Perusahaan --</option>
-                        <option value="Klinik Utama Premiere Belova">Klinik Utama Premiere Belova</option>
-                        <option value="Klinik Pratama Belova">Klinik Pratama Belova</option>
-                        <option value="Belova Center Living">Belova Center Living</option>
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="hide-inactive" checked>
-                        <label class="form-check-label" for="hide-inactive">Sembunyikan Tidak Aktif</label>
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Data Karyawan</h3>
+                <div class="text-muted small">Kelola data karyawan, filter berdasarkan divisi, perusahaan, dan status aktif.</div>
+                <!-- Stats summary for employees (simple inline) -->
+                <div id="employee-stats" class="mt-3">
+                    <div id="employee-stats-items" class="d-flex flex-wrap align-items-center" style="gap:12px;">
+                        <div class="mr-4 mb-1"><span class="badge badge-warning">Kontrak</span><span class="stat-colon" style="font-weight:400;margin:0 10px;color:inherit;">:</span><strong id="stat-kontrak">0</strong></div>
+                        <div class="mr-4 mb-1"><span class="badge badge-success">Tetap</span><span class="stat-colon" style="font-weight:400;margin:0 10px;color:inherit;">:</span><strong id="stat-tetap">0</strong></div>
+                        <div class="mr-4 mb-1"><span class="badge badge-info">Freelance</span><span class="stat-colon" style="font-weight:400;margin:0 10px;color:inherit;">:</span><strong id="stat-freelance">0</strong></div>
+                        <div class="mr-4 mb-1"><span class="badge badge-secondary">Rata-rata Usia</span><span class="stat-colon" style="font-weight:400;margin:0 10px;color:inherit;">:</span><strong id="stat-usia">-</strong></div>
+                        <div class="mr-4 mb-1"><span class="badge badge-primary">Laki-laki</span><span class="stat-colon" style="font-weight:400;margin:0 10px;color:inherit;">:</span><strong id="stat-male">0</strong></div>
+                        <div class="mr-4 mb-1"><span class="badge" style="background:#e83e8c;color:#fff;">Perempuan</span><span class="stat-colon" style="font-weight:400;margin:0 10px;color:inherit;">:</span><strong id="stat-female">0</strong></div>
                     </div>
                 </div>
             </div>
+            <div class="mt-2 mt-sm-0">
+                <a href="{{ route('hrd.employee.create') }}" class="btn btn-primary">
+                    <i class="fas fa-plus mr-1"></i> Tambah Karyawan
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter toolbar (will be moved next to DataTables search box) -->
+    <div id="employeeToolbarHolder" class="d-none">
+        <select id="filter-division" class="form-control form-control-sm mr-2" style="width: 200px; max-width: 100%;">
+            <option value="all">-- Semua Divisi --</option>
+            @foreach($divisions as $division)
+                <option value="{{ $division->id }}">{{ $division->name }}</option>
+            @endforeach
+        </select>
+        <select id="filter-perusahaan" class="form-control form-control-sm mr-2" style="width: 220px; max-width: 100%;">
+            <option value="all">-- Semua Perusahaan --</option>
+            <option value="Klinik Utama Premiere Belova">Klinik Utama Premiere Belova</option>
+            <option value="Klinik Pratama Belova">Klinik Pratama Belova</option>
+            <option value="Belova Center Living">Belova Center Living</option>
+        </select>
+        <select id="filter-status" class="form-control form-control-sm mr-2" style="width: 200px; max-width: 100%;">
+            <option value="active" selected>Hanya Karyawan Aktif</option>
+            <option value="all">Semua Status</option>
+            <option value="inactive">Hanya Tidak Aktif</option>
+        </select>
+    </div>
+
+    <div class="card shadow">
+        <div class="card-body">
             <div class="table-responsive">
                 <table id="employees-table" class="table table-bordered table-hover table-striped">
                     <thead class="thead-light">
@@ -60,6 +74,7 @@
                     </tbody>
                 </table>
             </div>
+            
             <!-- DataTables will handle pagination and info display automatically -->
         </div>
     </div>
@@ -259,17 +274,6 @@
 @section('scripts')
 <script>
 $(function() {
-    // Initialize select2 for division and perusahaan filter
-    $('#filter-division').select2({
-        width: '100%',
-        placeholder: '-- Semua Divisi --',
-        allowClear: true
-    });
-    $('#filter-perusahaan').select2({
-        width: '100%',
-        placeholder: '-- Semua Perusahaan --',
-        allowClear: true
-    });
     // Initialize tooltips
     $('body').tooltip({
         selector: '[data-toggle="tooltip"]',
@@ -281,6 +285,9 @@ $(function() {
         serverSide: true,
         responsive: true,
         dom: '<"top"fl>rt<"bottom"ip><"clear">',
+        // Show all entries by default and keep a length menu including 'Semua'
+        pageLength: -1,
+        lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'Semua']],
         order: [[6, 'asc']], // Order by the 7th column (Sisa Kontrak) in ascending order
         language: {
             processing: '<i class="fa fa-spinner fa-spin fa-3x fa-fw"></i><span class="sr-only">Loading...</span>',
@@ -303,8 +310,8 @@ $(function() {
                 d.division_id = (divVal === 'all' ? '' : divVal);
                 var perVal = $('#filter-perusahaan').val();
                 d.perusahaan = (perVal === 'all' ? '' : perVal);
-                    var hideVal = $('#hide-inactive').is(':checked') ? 1 : '';
-                    d.hide_inactive = hideVal;
+                var statusVal = $('#filter-status').val();
+                d.status_filter = statusVal;
             },
             error: function (xhr, error, thrown) {
                 console.error('DataTables error:', error, thrown);
@@ -317,11 +324,44 @@ $(function() {
             }
         },
         columns: [
-            {data: 'nik', name: 'nik', defaultContent: '-'},
+            {data: 'nik', name: 'nik', defaultContent: '-', visible: false},
             {data: 'no_induk', name: 'hrd_employee.no_induk', defaultContent: '-', orderable: true},
-            {data: 'nama', name: 'nama', defaultContent: '-'},
-            {data: 'position.name', name: 'position.name', defaultContent: '-'},
-            {data: 'division.name', name: 'division.name', defaultContent: '-'},
+            {
+                data: 'nama',
+                name: 'nama',
+                defaultContent: '-',
+                render: function(data, type, row) {
+                    var nama = data || '-';
+                    var nik = row.nik || '-';
+                    return '<div class="font-weight-bold"><a href="#" class="show-employee text-dark" data-id="' + row.id + '">' + nama + '</a></div>' +
+                           '<div class="text-muted small">NIK: ' + nik + '</div>';
+                }
+            },
+            {
+                data: 'position.name',
+                name: 'position.name',
+                defaultContent: '-',
+                render: function(data, type, row) {
+                    var positionName = data || '-';
+                    var divisionName = (row.division && row.division.name) ? row.division.name : '-';
+
+                    var dropdown = '' +
+                        '<div class="dropdown ml-2 position-dropdown-wrapper">' +
+                            '<button class="btn btn-sm btn-light p-1 position-change-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-id="' + row.id + '" data-division-id="' + (row.division && row.division.id ? row.division.id : '') + '" title="Ubah posisi">' +
+                                '<i class="fas fa-ellipsis-v"></i>' +
+                            '</button>' +
+                            '<div class="dropdown-menu dropdown-menu-right p-0" id="position-menu-' + row.id + '">' +
+                                '<div class="px-3 py-2 text-muted small">Memuat...</div>' +
+                            '</div>' +
+                        '</div>';
+
+                    return '<div class="d-flex justify-content-between align-items-center">' +
+                                '<div>' + positionName + '<div class="text-muted small">' + divisionName + '</div></div>' +
+                                dropdown +
+                           '</div>';
+                }
+            },
+            {data: 'division.name', name: 'division.name', defaultContent: '-', visible: false},
             {
                 data: 'status', 
                 name: 'status', 
@@ -336,9 +376,93 @@ $(function() {
                     
                     var status = data || 'tidak aktif';
                     var statusColor = statusColors[status] || 'secondary';
-                    
-                    return '<span class="badge badge-pill badge-' + statusColor + '">' + 
-                           (status.charAt(0).toUpperCase() + status.slice(1)) + '</span>';
+
+                    var badgeHtml = '<span class="badge badge-pill badge-' + statusColor + '">' + 
+                                    (status.charAt(0).toUpperCase() + status.slice(1)) + '</span>';
+
+                    var kontrakInfoHtml = '';
+
+                    if (status === 'kontrak' && row.kontrak_berakhir) {
+                        var today = new Date();
+                        var endDate = new Date(row.kontrak_berakhir);
+
+                        today.setHours(0, 0, 0, 0);
+                        endDate.setHours(0, 0, 0, 0);
+
+                        var diffTime = endDate - today;
+                        var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                        var formattedEndDate = endDate.toLocaleDateString('id-ID', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                        });
+
+                        var formattedDuration = '';
+                        var textColor = '';
+
+                        if (diffDays < 0) {
+                            textColor = 'text-danger';
+                            formattedDuration = 'Kontrak Berakhir';
+                        } else if (diffDays === 0) {
+                            textColor = 'text-warning';
+                            formattedDuration = 'Berakhir Hari Ini';
+                        } else {
+                            var years = 0;
+                            var months = 0;
+                            var days = diffDays;
+
+                            if (days >= 365) {
+                                years = Math.floor(days / 365);
+                                days = days % 365;
+                            }
+
+                            if (days >= 30) {
+                                months = Math.floor(days / 30);
+                                days = days % 30;
+                            }
+
+                            var parts = [];
+
+                            if (years > 0) {
+                                parts.push(years + ' thn');
+                            }
+
+                            if (months > 0) {
+                                parts.push(months + ' bln');
+                            }
+
+                            if (days > 0 || parts.length === 0) {
+                                parts.push(days + ' hari');
+                            }
+
+                            formattedDuration = parts.join(' ');
+                            textColor = diffDays <= 30 ? 'text-warning' : '';
+                        }
+
+                        kontrakInfoHtml = '<div class="small ' + textColor + '" data-toggle="tooltip" title="Berakhir pada: ' + 
+                                           formattedEndDate + '">' + formattedDuration + '</div>';
+                    }
+
+                    // Build a right-aligned three-dot dropdown for status actions
+                    var dropdownHtml = '\n' +
+                        '<div class="dropdown ml-2">' +
+                            '<button class="btn btn-sm btn-light p-1 change-status-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Ubah status">' +
+                                '<i class="fas fa-ellipsis-v"></i>' +
+                            '</button>' +
+                            '<div class="dropdown-menu dropdown-menu-right">' +
+                                '<a class="dropdown-item change-status" href="#" data-id="' + row.id + '" data-status="tetap">Tetap</a>' +
+                                '<a class="dropdown-item change-status" href="#" data-id="' + row.id + '" data-status="kontrak">Kontrak</a>' +
+                                '<a class="dropdown-item change-status" href="#" data-id="' + row.id + '" data-status="tidak aktif">Tidak Aktif</a>' +
+                                '<a class="dropdown-item change-status" href="#" data-id="' + row.id + '" data-status="freelance">Freelance</a>' +
+                                (row.status === 'kontrak' ? '<div class="dropdown-divider"></div><a class="dropdown-item" href="{{ url('/hrd/employee') }}/' + row.id + '/contracts">Manage Kontrak</a>' : '') +
+                            '</div>' +
+                        '</div>';
+
+                    return '<div class="d-flex justify-content-between align-items-center">' +
+                                '<div>' + badgeHtml + kontrakInfoHtml + '</div>' +
+                                dropdownHtml +
+                           '</div>';
                 }
             },
             {
@@ -347,80 +471,7 @@ $(function() {
                 defaultContent: '-',
                 orderable: true,
                 type: 'date',
-                render: function(data, type, row) {
-                    // For employees with status other than 'kontrak', just show a dash
-                    if (row.status !== 'kontrak' || !row.kontrak_berakhir) {
-                        return '-';
-                    }
-                    
-                    // Calculate days remaining in contract
-                    var today = new Date();
-                    var endDate = new Date(row.kontrak_berakhir);
-                    
-                    // Reset time part for accurate day calculation
-                    today.setHours(0, 0, 0, 0);
-                    endDate.setHours(0, 0, 0, 0);
-                    
-                    var diffTime = endDate - today;
-                    var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    
-                    // Format the end date for tooltip display
-                    var formattedEndDate = endDate.toLocaleDateString('id-ID', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric'
-                    });
-                    
-                    // Calculate years, months, and days
-                    var formattedDuration = '';
-                    var textColor = '';
-                    
-                    if (diffDays < 0) {
-                        textColor = 'text-danger';
-                        formattedDuration = 'Kontrak Berakhir';
-                    } else if (diffDays === 0) {
-                        textColor = 'text-warning';
-                        formattedDuration = 'Berakhir Hari Ini';
-                    } else {
-                        // Calculate years, months, and days more accurately
-                        var years = 0;
-                        var months = 0;
-                        var days = diffDays;
-                        
-                        // Calculate years
-                        if (days >= 365) {
-                            years = Math.floor(days / 365);
-                            days = days % 365;
-                        }
-                        
-                        // Calculate months
-                        if (days >= 30) {
-                            months = Math.floor(days / 30);
-                            days = days % 30;
-                        }
-                        
-                        // Format the duration string
-                        var parts = [];
-                        
-                        if (years > 0) {
-                            parts.push(years + ' thn');
-                        }
-                        
-                        if (months > 0) {
-                            parts.push(months + ' bln');
-                        }
-                        
-                        if (days > 0 || parts.length === 0) {
-                            parts.push(days + ' hari');
-                        }
-                        
-                        formattedDuration = parts.join(' ');
-                        textColor = diffDays <= 30 ? 'text-warning' : '';
-                    }
-                    
-                    return '<div class="' + textColor + '" data-toggle="tooltip" title="Berakhir pada: ' + 
-                           formattedEndDate + '">' + formattedDuration + '</div>';
-                }
+                visible: false
             },
             {
                 data: 'action', 
@@ -428,22 +479,11 @@ $(function() {
                 orderable: false, 
                 searchable: false,
                 render: function(data, type, row) {
-                    return `
-                        <div class="btn-group">                            
-                            <button type="button" class="btn btn-sm btn-info show-employee table-action-btn" data-id="${row.id}" title="View">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <a href="{{ url('/hrd/employee') }}/${row.id}/edit" class="btn btn-sm btn-primary table-action-btn" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <a href="{{ url('/hrd/employee') }}/${row.id}/contracts" class="btn btn-sm btn-info table-action-btn" title="Kontrak">
-                                <i class="fas fa-file-contract"></i>
-                            </a>
-                            <button type="button" class="btn btn-sm btn-danger delete-employee table-action-btn" data-id="${row.id}" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
+                    var html = '';
+                    html += '<div class="btn-group">';
+                    html += '<a href="{{ url('/hrd/employee') }}/' + row.id + '/edit" class="btn btn-sm btn-primary table-action-btn" title="Edit Data">Edit Data</a>';
+                    html += '</div>';
+                    return html;
                 }
             }
         ],
@@ -457,63 +497,290 @@ $(function() {
         drawCallback: function() {
             // Reinitialize tooltips after each table draw
             $('[data-toggle="tooltip"]').tooltip();
+            // Update stats summary based on currently shown rows (applied filters)
+            updateEmployeeStats();
         }
     });
-    // Reload table when hide-inactive checkbox changes
-    $('#hide-inactive').on('change', function() {
+
+    // Compute and render employee stats based on DataTable rows (respecting current filters/search)
+    function parseDateSafe(val) {
+        if (!val) return null;
+        try {
+            var d = new Date(val);
+            if (isNaN(d.getTime())) return null;
+            return d;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function getGenderFromRow(row) {
+        // Try multiple possible field names
+        var g = row.jenis_kelamin || row.gender || row.jk || row.sex || row.kelamin || row.gender_id || null;
+        if (!g) return null;
+        g = String(g).toLowerCase();
+        if (g === 'l' || g === 'male' || g === 'laki' || g === 'laki-laki' || g === 'laki laki') return 'male';
+        if (g === 'p' || g === 'female' || g === 'perempuan' || g === 'wanita') return 'female';
+        return null;
+    }
+
+    function updateEmployeeStats() {
+        var rows = table.rows({ search: 'applied' }).data().toArray();
+        var kontrak = 0, tetap = 0, freelance = 0;
+        var male = 0, female = 0;
+        var ageSum = 0, ageCount = 0;
+
+        rows.forEach(function(r) {
+            var status = (r.status || '').toString().toLowerCase();
+            if (status === 'kontrak') kontrak++;
+            else if (status === 'tetap') tetap++;
+            else if (status === 'freelance') freelance++;
+
+            var g = getGenderFromRow(r);
+            if (g === 'male') male++;
+            if (g === 'female') female++;
+
+            var dob = r.tanggal_lahir || r.tgl_lahir || r.birth_date || r.birthdate || null;
+            var d = parseDateSafe(dob);
+            if (d) {
+                var today = new Date();
+                var age = today.getFullYear() - d.getFullYear();
+                var m = today.getMonth() - d.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < d.getDate())) {
+                    age--;
+                }
+                if (!isNaN(age) && age >= 0) {
+                    ageSum += age;
+                    ageCount++;
+                }
+            }
+        });
+
+        var avgAge = ageCount > 0 ? (ageSum / ageCount) : null;
+
+        $('#stat-kontrak').text(kontrak);
+        $('#stat-tetap').text(tetap);
+        $('#stat-freelance').text(freelance);
+        $('#stat-male').text(male);
+        $('#stat-female').text(female);
+        $('#stat-usia').text(avgAge ? Math.round(avgAge * 10) / 10 + ' thn' : '-');
+    }
+
+    // Move custom filters next to DataTables search box
+    var $toolbarContent = $('#employeeToolbarHolder').children().detach();
+    var $wrapper = $('#employees-table_wrapper');
+    var $filter = $wrapper.find('.dataTables_filter');
+
+    // Align filters and search box together on the right side
+    $filter.addClass('d-flex align-items-center justify-content-end flex-wrap');
+
+    var $leftArea = $('<div class="d-flex align-items-center flex-wrap mb-2 mb-sm-0" id="employeeToolbar"></div>');
+    $leftArea.append($toolbarContent);
+    $filter.prepend($leftArea);
+
+    // Style the built-in search label to sit on the right
+    $filter.find('label').addClass('mb-0 ml-sm-3');
+
+    $('#employeeToolbarHolder').remove();
+
+    // Reload table when any filter changes
+    $('#filter-division, #filter-perusahaan, #filter-status').on('change', function() {
         table.ajax.reload();
     });
-    // Filter by division and perusahaan
-    $('#filter-division, #filter-perusahaan').on('change', function() {
-        table.ajax.reload();
-    });
-    
+
     // DataTables built-in search and pagination are now used
     
-    // Handle delete button with SweetAlert
-    $('#employees-table').on('click', '.delete-employee', function() {
+    // Handle status change from the three-dot dropdown in the Status column
+    $('#employees-table').on('click', '.change-status', function(e) {
+        e.preventDefault();
         var employeeId = $(this).data('id');
-        
+        var newStatus = $(this).data('status');
+
         Swal.fire({
-            title: 'Apakah Anda yakin?',
-            text: "Data karyawan akan dihapus!",
-            icon: 'warning',
+            title: 'Ubah status?',
+            text: 'Set status karyawan menjadi: ' + newStatus,
+            icon: 'question',
             showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Ya, hapus!',
+            confirmButtonText: 'Ya, ubah',
             cancelButtonText: 'Batal'
-        }).then((result) => {
+        }).then(function(result) {
             if (result.value) {
                 $.ajax({
                     url: '/hrd/employee/' + employeeId,
-                    type: 'DELETE',
+                    type: 'POST',
                     data: {
-                        "_token": "{{ csrf_token() }}"
+                        _method: 'PUT',
+                        status: newStatus,
+                        _token: '{{ csrf_token() }}'
                     },
                     success: function(response) {
-                        if (response.success) {
+                        if (response && response.success) {
                             Swal.fire({
                                 icon: 'success',
-                                title: 'Terhapus!',
-                                text: response.message,
-                                timer: 2000,
+                                title: 'Berhasil',
+                                text: response.message || 'Status diperbarui',
+                                timer: 1500,
                                 timerProgressBar: true
                             });
-                            table.ajax.reload();
+                            table.ajax.reload(null, false);
                         } else {
                             Swal.fire({
                                 icon: 'error',
-                                title: 'Error!',
-                                text: response.message
+                                title: 'Error',
+                                text: (response && response.message) ? response.message : 'Gagal mengubah status'
                             });
                         }
                     },
-                    error: function(xhr) {
+                    error: function() {
                         Swal.fire({
                             icon: 'error',
-                            title: 'Error!',
-                            text: 'Terjadi kesalahan saat menghapus data'
+                            title: 'Error',
+                            text: 'Gagal mengubah status. Coba lagi.'
+                        });
+                    }
+                });
+            }
+        });
+    });
+
+    // Cache for positions list
+    var positionsCache = null;
+
+    // Populate position dropdown when toggle is clicked
+    $(document).on('click', '.position-change-toggle', function(e) {
+        var $btn = $(this);
+        var employeeId = $btn.data('id');
+        var empDivId = $btn.data('division-id');
+        var $menu = $('#position-menu-' + employeeId);
+
+        // try to find the row's division name from DataTable data
+        var empDivName = '';
+        try {
+            var rowDataArr = table.rows().data().toArray();
+            for (var i = 0; i < rowDataArr.length; i++) {
+                if (rowDataArr[i].id == employeeId) {
+                    if (rowDataArr[i].division && rowDataArr[i].division.name) empDivName = rowDataArr[i].division.name;
+                    break;
+                }
+            }
+        } catch (err) {
+            empDivName = '';
+        }
+
+        // If already populated, do nothing
+        if ($menu.data('populated')) {
+            return;
+        }
+
+        // Fetch positions list (DataTables endpoint returns {data: [...]})
+        var loadPositions = function(callback) {
+            if (positionsCache) {
+                return callback(positionsCache);
+            }
+            $.ajax({
+                url: '/hrd/master/position/data',
+                type: 'GET',
+                success: function(resp) {
+                    // DataTables returns an object with `data` array
+                    var list = resp && resp.data ? resp.data : [];
+                    positionsCache = list;
+                    callback(list);
+                },
+                error: function() {
+                    $menu.html('<div class="px-3 py-2 text-danger small">Gagal memuat posisi</div>');
+                }
+            });
+        };
+
+        $menu.html('<div class="px-3 py-2 small text-muted">Memuat...</div>');
+
+        loadPositions(function(list) {
+            if (!list || list.length === 0) {
+                $menu.html('<div class="px-3 py-2 small text-muted">Tidak ada posisi</div>');
+                $menu.data('populated', true);
+                return;
+            }
+
+            // Filter positions by the employee's division if available
+            var filtered = list.filter(function(p) {
+                if ((!empDivId || empDivId === '') && (!empDivName || empDivName === '')) return true;
+                if (empDivId && empDivId !== '') {
+                    if (p.division && p.division.id && String(p.division.id) == String(empDivId)) return true;
+                    if (p.division_id && String(p.division_id) == String(empDivId)) return true;
+                }
+                if (empDivName && empDivName !== '') {
+                    if (p.division_name && String(p.division_name) == String(empDivName)) return true;
+                    if (p.division && p.division.name && String(p.division.name) == String(empDivName)) return true;
+                }
+                return false;
+            });
+
+            if (!filtered || filtered.length === 0) {
+                $menu.html('<div class="px-3 py-2 small text-muted">Tidak ada posisi untuk divisi ini</div>');
+                $menu.data('populated', true);
+                return;
+            }
+
+            var html = '';
+            filtered.forEach(function(p) {
+                var divName = (p.division_name) ? p.division_name : (p.division && p.division.name ? p.division.name : '');
+                html += '<a href="#" class="dropdown-item change-position" data-employee-id="' + employeeId + '" data-position-id="' + p.id + '">';
+                html += '<div class="d-flex flex-column"><span>' + (p.name || '-') + '</span>';
+                if (divName) html += '<small class="text-muted">' + divName + '</small>';
+                html += '</div></a>';
+            });
+
+            $menu.html(html);
+            $menu.data('populated', true);
+        });
+    });
+
+    // Handle selecting a new position from the dropdown
+    $(document).on('click', '.change-position', function(e) {
+        e.preventDefault();
+        var employeeId = $(this).data('employee-id');
+        var positionId = $(this).data('position-id');
+
+        Swal.fire({
+            title: 'Ubah posisi?',
+            text: 'Set posisi karyawan menjadi pilihan ini.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, ubah',
+            cancelButtonText: 'Batal'
+        }).then(function(result) {
+            if (result.value) {
+                $.ajax({
+                    url: '/hrd/employee/' + employeeId,
+                    type: 'POST',
+                    data: {
+                        _method: 'PUT',
+                        position_id: positionId,
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response && response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Berhasil',
+                                text: response.message || 'Posisi diperbarui',
+                                timer: 1200,
+                                timerProgressBar: true
+                            });
+                            table.ajax.reload(null, false);
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: (response && response.message) ? response.message : 'Gagal mengubah posisi'
+                            });
+                        }
+                    },
+                    error: function() {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: 'Gagal mengubah posisi. Coba lagi.'
                         });
                     }
                 });
@@ -533,7 +800,8 @@ $(function() {
     @endif
     
     // Handle employee detail modal
-    $('#employees-table').on('click', '.show-employee', function() {
+    $('#employees-table').on('click', '.show-employee', function(e) {
+        e.preventDefault();
         var employeeId = $(this).data('id');
         
         // Show loading spinner

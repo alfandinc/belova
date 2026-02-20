@@ -27,6 +27,7 @@ class Employee extends Model
         'nama',
         'tempat_lahir',
         'tanggal_lahir',
+        'jenis_kelamin',
         'nik',
         'no_induk',
         'no_darurat', // Emergency contact number
