@@ -116,6 +116,26 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal: All Late Employees -->
+    <div class="modal fade" id="allLateModal" tabindex="-1" role="dialog" aria-labelledby="allLateModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="allLateModalLabel">Daftar Keterlambatan Semua Karyawan</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="allLateModalBody">
+                    <div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <!-- Top 5 Most Late Employees Card -->
     <div class="row mb-4">
@@ -126,6 +146,11 @@
                         <i class="fas fa-clock text-danger"></i>
                         Top 5 Karyawan Paling Sering Terlambat
                     </h6>
+                    <div>
+                        <button id="showAllLateBtn" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-list"></i> Tampilkan Semua
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div id="top5LateEmployees">
@@ -807,6 +832,49 @@ $(function() {
             },
             complete: function() {
                 btn.prop('disabled', false).html(originalText);
+            }
+        });
+    });
+
+    // Show All Late Employees button handler
+    $('#showAllLateBtn').on('click', function() {
+        var btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Loading...');
+        $.ajax({
+            url: '{{ route('hrd.absensi_rekap.statistics') }}',
+            type: 'GET',
+            data: {
+                date_range: getDateRangeFromMonth(),
+                employee_ids: $('#employeeFilter').val(),
+                full_list: 1
+            },
+            success: function(res) {
+                var list = res.all_late_employees || [];
+                if (!list.length) {
+                    $('#allLateModalBody').html('<div class="text-center text-muted">Tidak ada data keterlambatan untuk periode ini.</div>');
+                } else {
+                    var html = '<div class="table-responsive"><table class="table table-sm table-bordered">';
+                    html += '<thead><tr><th>#</th><th>Nama</th><th>Total Keterlambatan</th><th>Jumlah Terlambat</th><th>Rata-rata Terlambat</th></tr></thead><tbody>';
+                    list.forEach(function(emp, idx) {
+                        var pos = idx + 1;
+                        html += '<tr>' +
+                            '<td>' + pos + '</td>' +
+                            '<td>' + emp.employee_name + '</td>' +
+                            '<td><strong class="text-danger">' + (emp.formatted_total || '') + '</strong></td>' +
+                            '<td>' + (emp.late_instances || 0) + 'x</td>' +
+                            '<td>' + (emp.formatted_avg || '') + '</td>' +
+                            '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    $('#allLateModalBody').html(html);
+                }
+                $('#allLateModal').modal('show');
+            },
+            error: function(xhr) {
+                $('#allLateModalBody').html('<div class="text-danger">Gagal mengambil data.</div>');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-list"></i> Tampilkan Semua');
             }
         });
     });

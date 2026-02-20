@@ -869,10 +869,11 @@ class AbsensiRekapController extends Controller
             }
         }
         
+        // Prepare lateness lists
+        $sortedLate = collect($employeeLateMinutes)->sortByDesc('total_late_minutes')->values();
+
         // Get top 5 most late employees
-        $top5LateEmployees = collect($employeeLateMinutes)
-            ->sortByDesc('total_late_minutes')
-            ->take(5)
+        $top5LateEmployees = $sortedLate->take(5)
             ->map(function($employee) {
                 $avgMinutesLate = $employee['late_instances'] > 0 ? 
                     round($employee['total_late_minutes'] / $employee['late_instances'], 1) : 0;
@@ -887,6 +888,23 @@ class AbsensiRekapController extends Controller
                 ];
             })
             ->values();
+
+        // If requested, prepare full list
+        $allLateEmployees = null;
+        if ($request->input('full_list')) {
+            $allLateEmployees = $sortedLate->map(function($employee) {
+                $avgMinutesLate = $employee['late_instances'] > 0 ? 
+                    round($employee['total_late_minutes'] / $employee['late_instances'], 1) : 0;
+                return [
+                    'employee_name' => $employee['employee_name'],
+                    'total_late_minutes' => $employee['total_late_minutes'],
+                    'late_instances' => $employee['late_instances'],
+                    'avg_minutes_late' => $avgMinutesLate,
+                    'formatted_total' => $this->formatMinutes($employee['total_late_minutes']),
+                    'formatted_avg' => $this->formatMinutes($avgMinutesLate)
+                ];
+            })->values();
+        }
         
         return response()->json([
             'total_records' => $totalEmployees,
@@ -896,7 +914,8 @@ class AbsensiRekapController extends Controller
             'late_percentage' => $totalEmployees > 0 ? round(($lateCount / $totalEmployees) * 100, 1) : 0,
             'overtime_percentage' => $totalEmployees > 0 ? round(($overtimeCount / $totalEmployees) * 100, 1) : 0,
             'on_time_percentage' => $totalEmployees > 0 ? round(($onTimeCount / $totalEmployees) * 100, 1) : 0,
-            'top_5_late_employees' => $top5LateEmployees
+            'top_5_late_employees' => $top5LateEmployees,
+            'all_late_employees' => $allLateEmployees
         ]);
     }
 
