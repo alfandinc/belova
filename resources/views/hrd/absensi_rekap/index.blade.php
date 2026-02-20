@@ -646,8 +646,7 @@ $(function() {
         });
     }
 
-    // Load initial statistics
-    loadStatistics();
+
 
     // Date range picker
     $('#dateRange').daterangepicker({
@@ -665,6 +664,8 @@ $(function() {
     var startOfMonth = moment().startOf('month');
     var endOfMonth = moment().endOf('month');
     $('#dateRange').val(startOfMonth.format('YYYY-MM-DD') + ' - ' + endOfMonth.format('YYYY-MM-DD'));
+    // Load initial statistics after default date is set so stats respect the current month
+    loadStatistics();
     $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
         $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
         table.ajax.reload();

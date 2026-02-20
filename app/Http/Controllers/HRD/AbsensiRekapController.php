@@ -567,9 +567,10 @@ class AbsensiRekapController extends Controller
         if ($dateRange) {
             $dates = explode(' - ', $dateRange);
             if (count($dates) === 2) {
-                $start = $dates[0];
-                $end = $dates[1];
-                $query->whereBetween('date', [$start, $end]);
+                // normalize dates to Y-m-d to ensure correct filtering
+                $start = date('Y-m-d', strtotime($dates[0]));
+                $end = date('Y-m-d', strtotime($dates[1]));
+                $query->whereDate('date', '>=', $start)->whereDate('date', '<=', $end);
             }
         }
         $employeeIds = $request->input('employee_ids');
@@ -770,6 +771,15 @@ class AbsensiRekapController extends Controller
     public function statistics(Request $request)
     {
         $query = AttendanceRekap::with(['employee']);
+        // Exclude records where the related employee is freelance or not active
+        $query->whereHas('employee', function($q) {
+            $q->whereNotIn('status', ['freelance', 'tidak aktif']);
+        });
+        // Log incoming filters for debugging
+        \Log::info('AbsensiRekapController::statistics called', [
+            'date_range' => $request->input('date_range'),
+            'employee_ids' => $request->input('employee_ids')
+        ]);
         
         // Apply same filters as data method
         $dateRange = $request->input('date_range');
@@ -792,6 +802,19 @@ class AbsensiRekapController extends Controller
         }
         
         $records = $query->get();
+        // Log record date range for verification
+        try {
+            $dates = $records->pluck('date')->filter()->values();
+            if ($dates->count() > 0) {
+                \Log::info('AbsensiRekapController::statistics records date span', [
+                    'min' => $dates->min(),
+                    'max' => $dates->max(),
+                    'count' => $dates->count()
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('Failed to compute records date span: ' . $e->getMessage());
+        }
         
         $totalEmployees = $records->count();
         $lateCount = 0;
