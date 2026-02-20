@@ -141,8 +141,8 @@
     <div class="row mb-3">
         <div class="col-md-4">
             <div class="form-group mb-0">
-                <label for="dateRange">Filter Tanggal:</label>
-                <input type="text" id="dateRange" class="form-control" placeholder="Pilih rentang tanggal" autocomplete="off">
+                <label for="filterMonth">Filter Bulan:</label>
+                <input type="month" id="filterMonth" class="form-control" autocomplete="off">
             </div>
         </div>
         <div class="col-md-4">
@@ -504,26 +504,35 @@ $(function() {
         container.html(html);
     }
 
+    // Helper: build date_range (YYYY-MM-DD - YYYY-MM-DD) from month input
+    function getDateRangeFromMonth() {
+        var m = $('#filterMonth').val();
+        if (!m) return '';
+        var start = moment(m + '-01').startOf('month').format('YYYY-MM-DD');
+        var end = moment(m + '-01').endOf('month').format('YYYY-MM-DD');
+        return start + ' - ' + end;
+    }
+
     // Function to load statistics
     function loadStatistics() {
         $.ajax({
             url: '{{ route('hrd.absensi_rekap.statistics') }}',
             type: 'GET',
             data: {
-                date_range: $('#dateRange').val(),
+                date_range: getDateRangeFromMonth(),
                 employee_ids: $('#employeeFilter').val()
             },
             success: function(response) {
                 console.log('Statistics request data:', {
-                    date_range: $('#dateRange').val(),
+                    date_range: getDateRangeFromMonth(),
                     employee_ids: $('#employeeFilter').val()
                 });
             // Show lateness recap modal before submitting
             $('#showLatenessRecapModalBtn').on('click', function() {
-                var dateRange = $('#dateRange').val();
+                var dateRange = getDateRangeFromMonth();
                 var employeeIds = $('#employeeFilter').val();
                 if (!dateRange) {
-                    alert('Pilih rentang tanggal terlebih dahulu!');
+                    alert('Pilih bulan terlebih dahulu!');
                     return;
                 }
                 $(this).prop('disabled', true).text('Memproses...');
@@ -580,7 +589,7 @@ $(function() {
 
             // Confirm and submit lateness recap
             $('#confirmLatenessRecapBtn').on('click', function() {
-                var dateRange = $('#dateRange').val();
+                var dateRange = getDateRangeFromMonth();
                 var employeeIds = $('#employeeFilter').val();
                 $.ajax({
                     url: '/hrd/absensi-rekap/submit-lateness-recap',
@@ -648,31 +657,11 @@ $(function() {
 
 
 
-    // Date range picker
-    $('#dateRange').daterangepicker({
-        locale: { format: 'YYYY-MM-DD' },
-        autoUpdateInput: false,
-        opens: 'left',
-        ranges: {
-            'Hari ini': [moment(), moment()],
-            '7 Hari Terakhir': [moment().subtract(6, 'days'), moment()],
-            'Bulan ini': [moment().startOf('month'), moment().endOf('month')],
-            'Bulan lalu': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
-        }
-    });
-    // Set default to current month
-    var startOfMonth = moment().startOf('month');
-    var endOfMonth = moment().endOf('month');
-    $('#dateRange').val(startOfMonth.format('YYYY-MM-DD') + ' - ' + endOfMonth.format('YYYY-MM-DD'));
-    // Load initial statistics after default date is set so stats respect the current month
+    // Initialize month picker and default to current month
+    $('#filterMonth').val(moment().format('YYYY-MM'));
+    // Load initial statistics after default month is set
     loadStatistics();
-    $('#dateRange').on('apply.daterangepicker', function(ev, picker) {
-        $(this).val(picker.startDate.format('YYYY-MM-DD') + ' - ' + picker.endDate.format('YYYY-MM-DD'));
-        table.ajax.reload();
-        loadStatistics();
-    });
-    $('#dateRange').on('cancel.daterangepicker', function(ev, picker) {
-        $(this).val('');
+    $('#filterMonth').on('change', function() {
         table.ajax.reload();
         loadStatistics();
     });
@@ -690,7 +679,7 @@ $(function() {
         ajax: {
             url: '{{ route('hrd.absensi_rekap.data') }}',
             data: function(d) {
-                d.date_range = $('#dateRange').val();
+                d.date_range = getDateRangeFromMonth();
                 d.employee_ids = $('#employeeFilter').val();
             }
         },
