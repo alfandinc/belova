@@ -5,15 +5,58 @@
 @endsection
 @section('content')
 <div class="container-fluid">
-    <h2>Rekap Absensi</h2>
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Rekap Absensi</h3>
+                <div class="text-muted small">Kelola rekap absensi per bulan: upload data, sync shift, download, dan edit jam masuk/keluar.</div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Download Rekap Absensi Excel Button -->
-    <a href="{{ route('hrd.absensi_rekap.export_excel') }}" class="btn btn-success mb-3">
-        <i class="fas fa-file-excel"></i> Download Rekap Excel
-    </a>
-    
+    <!-- Compact Filters & Actions (moved above stats) -->
+
+    <!-- Compact Filters & Actions (moved above stats) -->
+    <div class="stats-controls d-flex flex-wrap align-items-end justify-content-between mb-3">
+        <div class="d-flex align-items-end flex-wrap">
+            
+            <div class="form-group mr-3 mb-0">
+                <label for="employeeFilter" class="mb-1">Filter Karyawan:</label>
+                <select id="employeeFilter" class="form-control form-control-sm" style="min-width:220px;">
+                    <option value="">Semua Karyawan</option>
+                    @foreach(\App\Models\HRD\Employee::orderBy('nama')->get() as $emp)
+                        <option value="{{ $emp->id }}">{{ $emp->nama }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+
+        
+
+        <!-- Modal for lateness recap confirmation -->
+        <div class="modal fade" id="latenessRecapModal" tabindex="-1" role="dialog" aria-labelledby="latenessRecapModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="latenessRecapModalLabel">Konfirmasi Rekap Keterlambatan Bulan Ini</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="latenessRecapTableContainer"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                        <button type="button" id="confirmLatenessRecapBtn" class="btn btn-success btn-sm">Konfirmasi & Simpan</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Statistics Cards -->
-    <div class="row mb-4" id="statisticsCards">
+    <div class="row" id="statisticsCards">
         <div class="col-xl-3 col-md-6 mb-4">
             <div class="card border-left-primary shadow h-100 py-2">
                 <div class="card-body">
@@ -137,8 +180,9 @@
         </div>
     </div>
     
+    
     <!-- Top 5 Most Late & Overtime Employees Cards -->
-    <div class="row mb-4">
+    <div class="row pull-up-top5" id="top5Row">
         <div class="col-md-6 mb-3">
             <div class="card shadow h-100">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
@@ -186,98 +230,31 @@
         </div>
     </div>
 
-    <!-- Modal: All Overtime Employees -->
-    <div class="modal fade" id="allOvertimeModal" tabindex="-1" role="dialog" aria-labelledby="allOvertimeModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="allOvertimeModalLabel">Daftar Overtime Semua Karyawan</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body" id="allOvertimeModalBody">
-                    <div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
-                </div>
+    
+    
+    <!-- Actions: Upload / Sync / Download placed at the bottom of Top-5 cards -->
+    <div class="mb-3 d-flex justify-content-end align-items-center w-100" id="rekapActions">
+        <form id="uploadForm" enctype="multipart/form-data" class="mr-2 d-flex align-items-center">
+            @csrf
+            <div class="custom-file mr-2">
+                <input type="file" name="file" id="file" class="custom-file-input" required>
+                <label class="custom-file-label btn btn-outline-secondary" for="file">Choose XLS</label>
             </div>
+            <button type="submit" class="btn btn-primary btn-sm mr-3">Upload</button>
+        </form>
+
+        <button id="syncShiftsBtn" class="btn btn-warning btn-sm mr-2">
+            <i class="fas fa-sync"></i> Sync Shift
+        </button>
+        <a href="{{ route('hrd.absensi_rekap.export_excel') }}" class="btn btn-success btn-sm">
+            <i class="fas fa-file-excel"></i> Download
+        </a>
+        <div class="form-group mb-0 ml-3" id="filterMonthContainer">
+            <label for="filterMonth" class="mb-1 sr-only">Filter Bulan</label>
+            <input type="month" id="filterMonth" class="form-control form-control-sm" style="width:170px;">
         </div>
     </div>
-    
-    <div class="row mb-3">
-        <div class="col-md-4">
-            <div class="form-group mb-0">
-                <label for="filterMonth">Filter Bulan:</label>
-                <input type="month" id="filterMonth" class="form-control" autocomplete="off">
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-group mb-0">
-                <label for="employeeFilter">Filter Karyawan:</label>
-                <select id="employeeFilter" class="form-control">
-                    <option value="">Semua Karyawan</option>
-                    @foreach(\App\Models\HRD\Employee::orderBy('nama')->get() as $emp)
-                        <option value="{{ $emp->id }}">{{ $emp->nama }}</option>
-                    @endforeach
-                </select>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-4 ml-auto">
-            <form id="uploadForm" enctype="multipart/form-data">
-                @csrf
-                <div class="input-group">
-                    <div class="custom-file">
-                        <input type="file" name="file" id="file" class="custom-file-input" required>
-                        <label class="custom-file-label" for="file">Choose XLS file</label>
-                    </div>
-                    <div class="input-group-append">
-                        <button type="submit" class="btn btn-primary">Upload</button>
-                    </div>
-                </div>
-            </form>
-            <button id="showLatenessRecapModalBtn" class="btn btn-success mt-2" style="width:100%">
-                <i class="fas fa-file-export"></i> Submit Rekap Keterlambatan Bulan Ini
-            </button>
-            <!-- Modal for lateness recap confirmation -->
-            <div class="modal fade" id="latenessRecapModal" tabindex="-1" role="dialog" aria-labelledby="latenessRecapModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-lg" role="document">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="latenessRecapModalLabel">Konfirmasi Rekap Keterlambatan Bulan Ini</h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            <div id="latenessRecapTableContainer"></div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                            <button type="button" id="confirmLatenessRecapBtn" class="btn btn-success">Konfirmasi & Simpan</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Add Sync Shifts Button -->
-    <div class="row mb-3">
-        <div class="col-md-8">
-            <button id="syncShiftsBtn" class="btn btn-warning mr-2" data-toggle="tooltip" data-placement="top" 
-                    title="Sync shift data and recalculate work hours for all attendance records">
-                <i class="fas fa-sync"></i> Sync Shift Data & Work Hours
-            </button>
-            <br>
-            <small class="text-muted">
-                <i class="fas fa-info-circle"></i> 
-                <strong>Sync:</strong> Fix shift times and recalculate work hours for all records
-            </small>
-        </div>
-    </div>
-    
+
     <hr>
     <table id="rekapTable" class="table table-bordered table-striped">
         <thead>
@@ -381,6 +358,38 @@
 
 @push('styles')
 <style>
+/* Compact controls for stats header */
+.stats-controls .form-group { margin-bottom: 0; margin-right: 0.75rem; }
+.stats-controls .actions { min-width: 220px; }
+.stats-controls .actions .btn { padding: .35rem .6rem; font-size: .875rem; }
+.stats-controls .custom-file .custom-file-label { font-size: .85rem; }
+.stats-controls .small-note { font-size: .8rem; color: #6c757d; margin-top: .35rem; }
+
+/* DataTable toolbar layout: left = employee filter, right = search */
+#rekapTable_wrapper .dt-employee-filter { display: flex; align-items: center; }
+#rekapTable_wrapper .dt-employee-filter .form-group { margin: 0; }
+#rekapTable_wrapper .dataTables_filter { text-align: right !important; }
+#rekapTable_wrapper .dataTables_filter label { float: none !important; margin-bottom: 0; white-space: nowrap; }
+
+/* Reduce spacing between statistics cards and Top-5 section (stronger selectors) */
+#statisticsCards { margin-bottom: 0 !important; }
+#statisticsCards > [class*="col-"] { margin-bottom: 0 !important; }
+#statisticsCards .mb-4 { margin-bottom: 0 !important; }
+#top5Row { margin-top: 0 !important; margin-bottom: .15rem !important; }
+/* Remove hr spacing near the top section */
+hr { margin-top: 0 !important; margin-bottom: .35rem !important; }
+
+/* If still too spaced, allow pulling Top-5 slightly up */
+.pull-up-top5 { margin-top: -8px !important; }
+
+/* Tighten Top-5 -> Actions spacing - strongest overrides */
+#top5Row > .col-md-6, #top5Row > [class*="col-"] { margin-bottom: 0 !important; padding-bottom: 0 !important; }
+#top5Row .mb-3 { margin-bottom: 0 !important; }
+#top5Row .card { margin-bottom: 0 !important; }
+#top5Row + #rekapActions { margin-top: 0 !important; }
+#rekapActions { margin-top: 0 !important; padding-top: 0 !important; }
+#rekapActions .mr-2, #rekapActions .ml-3, #rekapActions form { margin-top: 0 !important; }
+
 /* Bootstrap 4 Dashboard Cards */
 .border-left-primary {
     border-left: 0.25rem solid #4e73df !important;
@@ -417,6 +426,19 @@
 .card {
     transition: all 0.3s;
 }
+
+/* Compact cards for tighter layout on this page */
+.card { margin-bottom: 0.5rem; }
+.card .card-body { padding: 0.6rem 0.9rem; }
+.card .card-header { padding: 0.45rem 0.9rem; }
+.card .card-body .h5 { margin-bottom: 0.25rem; }
+.card .card-body .text-xs { margin-bottom: 0; }
+.row.mb-4 { margin-bottom: 0.4rem !important; }
+
+/* Reduce gap between Top-5 row and actions */
+#top5Row { margin-bottom: 0 !important; }
+#rekapActions { margin-top: 0 !important; padding-top: 0 !important; }
+#top5Row .card { margin-bottom: 0.25rem !important; }
 
 .card:hover {
     transform: translateY(-5px);
@@ -788,6 +810,9 @@ $(function() {
     var table = $('#rekapTable').DataTable({
         processing: true,
         serverSide: true,
+        dom: '<"row mb-2"<"col-sm-12 col-md-6 dt-employee-filter"><"col-sm-12 col-md-6"f>>rtip',
+        lengthChange: false,
+        pageLength: -1,
         ajax: {
             url: '{{ route('hrd.absensi_rekap.data') }}',
             data: function(d) {
@@ -835,6 +860,27 @@ $(function() {
                 }
             }
         ]
+    });
+
+    // Move the employee filter into the dedicated left toolbar column (left of search)
+    $(document).ready(function() {
+        var $empGroup = $('#employeeFilter').closest('.form-group');
+        var $target = $('#rekapTable_wrapper .dt-employee-filter');
+        if ($empGroup.length && $target.length) {
+            $empGroup.appendTo($target).css({display: 'inline-block', marginBottom: '0'});
+            $empGroup.find('label').addClass('sr-only');
+
+            // Re-init select2 after moving to keep width correct
+            if ($('#employeeFilter').data('select2')) {
+                $('#employeeFilter').select2('destroy');
+            }
+            $('#employeeFilter').css({minWidth: '220px'}).select2({
+                placeholder: 'Pilih Karyawan',
+                allowClear: true,
+                width: '220px',
+                dropdownAutoWidth: true
+            });
+        }
     });
 
     $('#employeeFilter').on('change', function() {
