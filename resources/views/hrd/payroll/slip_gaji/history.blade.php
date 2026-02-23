@@ -18,6 +18,7 @@
                         $yearsList = isset($years) && is_array($years) ? $years : [date('Y')];
                         $selectedYear = isset($currentYear) ? $currentYear : date('Y');
                     @endphp
+                    <option value="all" {{ (string)$selectedYear === 'all' ? 'selected' : '' }}>All Time</option>
                     @foreach($yearsList as $y)
                         <option value="{{ $y }}" {{ (string)$selectedYear === (string)$y ? 'selected' : '' }}>{{ $y }}</option>
                     @endforeach
@@ -68,8 +69,9 @@
 
             function renderTrendIcon(trend) {
                 if (!trend) return '';
-                if (trend === 'up') return '<span class="badge badge-success ml-2 small" style="font-size:0.75rem;line-height:1">incrased &#9650;</span>';
-                if (trend === 'down') return '<span class="badge badge-danger ml-2 small" style="font-size:0.75rem;line-height:1">decrased &#9660;</span>';
+                if (trend === 'up') return '<span class="badge badge-success ml-2 small" aria-label="increased" title="increased" style="font-size:0.75rem;line-height:1">&#9650;</span>';
+                if (trend === 'down') return '<span class="badge badge-danger ml-2 small" aria-label="decreased" title="decreased" style="font-size:0.75rem;line-height:1">&#9660;</span>';
+                if (trend === 'same') return '<span class="badge badge-warning ml-2 small" aria-label="no change" title="no change" style="font-size:0.75rem;line-height:1">=</span>';
                 return '';
             }
 

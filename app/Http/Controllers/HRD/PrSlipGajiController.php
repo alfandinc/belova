@@ -1195,8 +1195,13 @@ class PrSlipGajiController extends Controller
         }
 
         $year = $request->input('year');
-        if (!preg_match('/^\d{4}$/', (string) $year)) {
-            $year = date('Y');
+        $filterAll = false;
+        if ($year === 'all') {
+            $filterAll = true;
+        } else {
+            if (!preg_match('/^\d{4}$/', (string) $year)) {
+                $year = date('Y');
+            }
         }
 
         $months = [
@@ -1216,15 +1221,21 @@ class PrSlipGajiController extends Controller
             return ['year' => intval(date('Y')), 'month' => intval(date('m'))];
         };
 
-        // Load all rows for the year so we can compute month-to-month trends reliably.
-        $slips = PrSlipGaji::where('employee_id', $employee->id)
-            ->where('status_gaji', 'paid')
-            ->where(function ($q) use ($year) {
-                // Supports: YYYY-MM / YYYY-MM-DD and legacy MM-YYYY
-                $q->where('bulan', 'like', $year . '-%')
-                    ->orWhere('bulan', 'like', '%-' . $year);
-            })
-            ->get();
+        // Load rows (all time or filtered by year) so we can compute month-to-month trends reliably.
+        if ($filterAll) {
+            $slips = PrSlipGaji::where('employee_id', $employee->id)
+                ->where('status_gaji', 'paid')
+                ->get();
+        } else {
+            $slips = PrSlipGaji::where('employee_id', $employee->id)
+                ->where('status_gaji', 'paid')
+                ->where(function ($q) use ($year) {
+                    // Supports: YYYY-MM / YYYY-MM-DD and legacy MM-YYYY
+                    $q->where('bulan', 'like', $year . '-%')
+                        ->orWhere('bulan', 'like', '%-' . $year);
+                })
+                ->get();
+        }
 
         $rows = $slips
             ->map(function ($slip) use ($parseBulan, $months) {
