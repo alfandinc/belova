@@ -1152,7 +1152,34 @@ class PrSlipGajiController extends Controller
      */
     public function historyPage()
     {
-        return view('hrd.payroll.slip_gaji.history');
+        $currentYear = date('Y');
+        $years = [$currentYear];
+
+        $user = Auth::user();
+        $employee = $user ? $user->employee : null;
+
+        if ($employee) {
+            $bulans = PrSlipGaji::where('employee_id', $employee->id)
+                ->where('status_gaji', 'paid')
+                ->pluck('bulan');
+
+            foreach ($bulans as $raw) {
+                $raw = (string) $raw;
+                if (preg_match('/^(\d{4})-(\d{2})/', $raw, $m)) {
+                    $years[] = $m[1];
+                } elseif (preg_match('/^(\d{2})-(\d{4})$/', $raw, $m)) {
+                    $years[] = $m[2];
+                }
+            }
+
+            $years = array_values(array_unique($years));
+            rsort($years);
+        }
+
+        return view('hrd.payroll.slip_gaji.history', [
+            'years' => $years,
+            'currentYear' => $currentYear,
+        ]);
     }
 
     /**
@@ -1167,42 +1194,86 @@ class PrSlipGajiController extends Controller
             return datatables()->of(collect([]))->make(true);
         }
 
-        // Only include slips that have been paid
-        $query = PrSlipGaji::where('employee_id', $employee->id)
-            ->where('status_gaji', 'paid')
-            ->orderBy('bulan', 'desc');
+        $year = $request->input('year');
+        if (!preg_match('/^\d{4}$/', (string) $year)) {
+            $year = date('Y');
+        }
 
-        return datatables()->of($query)
-            ->addColumn('bulan_label', function($row) {
-                // Expecting bulan in format YYYY-MM or YYYY-MM-DD
-                $raw = $row->bulan;
-                // Normalize to YYYY-MM
-                if (preg_match('/^(\d{4})-(\d{2})/', $raw, $m)) {
-                    $year = $m[1];
-                    $month = intval($m[2]);
-                } else {
-                    // fallback to current month
-                    $year = date('Y');
-                    $month = intval(date('m'));
-                }
-                $months = [
-                    1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-                    5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-                    9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        $months = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+        ];
+
+        $parseBulan = function ($raw) {
+            $raw = (string) $raw;
+            if (preg_match('/^(\d{4})-(\d{2})/', $raw, $m)) {
+                return ['year' => intval($m[1]), 'month' => intval($m[2])];
+            }
+            if (preg_match('/^(\d{2})-(\d{4})$/', $raw, $m)) {
+                return ['year' => intval($m[2]), 'month' => intval($m[1])];
+            }
+            return ['year' => intval(date('Y')), 'month' => intval(date('m'))];
+        };
+
+        // Load all rows for the year so we can compute month-to-month trends reliably.
+        $slips = PrSlipGaji::where('employee_id', $employee->id)
+            ->where('status_gaji', 'paid')
+            ->where(function ($q) use ($year) {
+                // Supports: YYYY-MM / YYYY-MM-DD and legacy MM-YYYY
+                $q->where('bulan', 'like', $year . '-%')
+                    ->orWhere('bulan', 'like', '%-' . $year);
+            })
+            ->get();
+
+        $rows = $slips
+            ->map(function ($slip) use ($parseBulan, $months) {
+                $parsed = $parseBulan($slip->bulan);
+                $monthKey = sprintf('%04d-%02d', $parsed['year'], $parsed['month']);
+                $label = (isset($months[$parsed['month']]) ? $months[$parsed['month']] : 'Bulan') . ' ' . $parsed['year'];
+
+                return [
+                    'id' => $slip->id,
+                    'month_key' => $monthKey,
+                    'bulan_label' => $label,
+                    'kpi_poin' => floatval($slip->kpi_poin ?? 0),
+                    'total_hari_masuk' => intval($slip->total_hari_masuk ?? 0),
+                    'total_gaji' => number_format($slip->total_gaji ?? 0, 2),
+                    'total_gaji_raw' => floatval($slip->total_gaji ?? 0),
+                    'status' => (string) ($slip->status_gaji ?? ''),
                 ];
-                $label = (isset($months[$month]) ? $months[$month] : 'Bulan') . ' ' . $year;
-                return $label;
             })
-            ->addColumn('total_gaji', function($row) {
-                return number_format($row->total_gaji ?? 0, 2);
-            })
-            ->addColumn('status', function($row) {
-                return $row->status_gaji;
-            })
-            ->addColumn('action', function($row) {
-                $printUrl = url('hrd/payroll/slip-gaji/print/' . $row->id);
-                return '<a href="' . $printUrl . '" class="btn btn-sm btn-primary" target="_blank">Cetak PDF</a>';
-            })
+            ->sortByDesc('month_key')
+            ->values();
+
+        // Compute trend vs previous month (older month).
+        $rows = $rows->map(function ($row, $idx) use ($rows) {
+            $prev = $rows->get($idx + 1);
+            if (!$prev) {
+                $row['kpi_trend'] = null;
+                $row['total_gaji_trend'] = null;
+                return $row;
+            }
+
+            $row['kpi_trend'] = ($row['kpi_poin'] > $prev['kpi_poin'])
+                ? 'up'
+                : (($row['kpi_poin'] < $prev['kpi_poin']) ? 'down' : 'same');
+
+            $row['total_gaji_trend'] = ($row['total_gaji_raw'] > $prev['total_gaji_raw'])
+                ? 'up'
+                : (($row['total_gaji_raw'] < $prev['total_gaji_raw']) ? 'down' : 'same');
+
+            return $row;
+        });
+
+        // Add action HTML
+        $rows = $rows->map(function ($row) {
+            $printUrl = url('hrd/payroll/slip-gaji/print/' . $row['id']);
+            $row['action'] = '<a href="' . $printUrl . '" class="btn btn-sm btn-primary" target="_blank">Lihat Slip Gaji</a>';
+            return $row;
+        });
+
+        return datatables()->of($rows)
             ->rawColumns(['action'])
             ->make(true);
     }
