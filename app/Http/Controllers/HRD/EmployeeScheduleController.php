@@ -7,6 +7,7 @@ use App\Models\HRD\Employee;
 use App\Models\HRD\Shift;
 use App\Models\HRD\EmployeeSchedule;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class EmployeeScheduleController extends Controller
 {
@@ -196,6 +197,129 @@ class EmployeeScheduleController extends Controller
             return response()->json(['success' => true]);
         }
         return redirect()->route('hrd.schedule.index')->with('success', 'Jadwal berhasil disimpan');
+    }
+
+    /**
+     * Copy schedules from a source week to a target week.
+     * Default behavior: do NOT overwrite existing schedules in target week.
+     */
+    public function copyWeek(Request $request)
+    {
+        $validated = $request->validate([
+            'target_start_date' => ['required', 'date'],
+            'source_start_date' => ['nullable', 'date'],
+            'overwrite' => ['nullable'],
+        ]);
+
+        $targetStart = Carbon::parse($validated['target_start_date'])->startOfWeek();
+        $sourceStart = isset($validated['source_start_date']) && $validated['source_start_date']
+            ? Carbon::parse($validated['source_start_date'])->startOfWeek()
+            : $targetStart->copy()->subWeek();
+
+        $overwrite = filter_var($request->input('overwrite', false), FILTER_VALIDATE_BOOLEAN);
+
+        $targetDates = collect(range(0, 6))->map(fn($i) => $targetStart->copy()->addDays($i)->toDateString());
+        $sourceDates = collect(range(0, 6))->map(fn($i) => $sourceStart->copy()->addDays($i)->toDateString());
+
+        $employeeIds = Employee::whereRaw('LOWER(status) <> ?', ['tidak aktif'])->pluck('id');
+
+        // Build a set of employee_id_date that should be treated as Libur/Cuti on target week
+        $liburMap = [];
+        $libur = \App\Models\HRD\PengajuanLibur::where('status_manager', 'disetujui')
+            ->whereIn('employee_id', $employeeIds)
+            ->where(function ($q) use ($targetDates) {
+                $q->whereIn('tanggal_mulai', $targetDates)->orWhereIn('tanggal_selesai', $targetDates);
+            })
+            ->get();
+        foreach ($libur as $cuti) {
+            $empId = $cuti->employee_id;
+            $start = Carbon::parse($cuti->tanggal_mulai);
+            $end = Carbon::parse($cuti->tanggal_selesai);
+            foreach ($targetDates as $date) {
+                $cur = Carbon::parse($date);
+                if ($cur->betweenIncluded($start, $end)) {
+                    $liburMap[$empId . '_' . $date] = true;
+                }
+            }
+        }
+
+        $existingTarget = [];
+        if (!$overwrite) {
+            $existingTarget = EmployeeSchedule::whereIn('employee_id', $employeeIds)
+                ->whereIn('date', $targetDates)
+                ->get()
+                ->groupBy(fn($item) => $item->employee_id . '_' . $item->date)
+                ->toArray();
+        }
+
+        $sourceSchedules = EmployeeSchedule::whereIn('employee_id', $employeeIds)
+            ->whereIn('date', $sourceDates)
+            ->orderBy('employee_id')
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        // Map: empId_sourceDate => [shiftId, shiftId2]
+        $sourceMap = [];
+        foreach ($sourceSchedules as $row) {
+            $k = $row->employee_id . '_' . $row->date;
+            if (!isset($sourceMap[$k])) {
+                $sourceMap[$k] = [];
+            }
+            $sourceMap[$k][] = $row->shift_id;
+        }
+
+        $inserted = 0;
+        DB::beginTransaction();
+        try {
+            foreach ($sourceMap as $key => $shiftIds) {
+                [$empId, $srcDate] = explode('_', $key, 2);
+                $src = Carbon::parse($srcDate);
+                $offsetDays = $sourceStart->diffInDays($src, false);
+                $tgtDate = $targetStart->copy()->addDays($offsetDays)->toDateString();
+
+                if (!in_array($tgtDate, $targetDates->all(), true)) {
+                    continue;
+                }
+
+                if (isset($liburMap[$empId . '_' . $tgtDate])) {
+                    continue;
+                }
+
+                if (!$overwrite) {
+                    if (isset($existingTarget[$empId . '_' . $tgtDate])) {
+                        continue;
+                    }
+                } else {
+                    EmployeeSchedule::where('employee_id', $empId)
+                        ->where('date', $tgtDate)
+                        ->delete();
+                }
+
+                $shiftIds = array_values(array_filter((array) $shiftIds));
+                foreach ($shiftIds as $shiftId) {
+                    EmployeeSchedule::create([
+                        'employee_id' => $empId,
+                        'date' => $tgtDate,
+                        'shift_id' => $shiftId,
+                    ]);
+                    $inserted++;
+                }
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Jadwal berhasil dicopy dari minggu sebelumnya.',
+            'inserted' => $inserted,
+            'source_start' => $sourceStart->toDateString(),
+            'target_start' => $targetStart->toDateString(),
+        ]);
     }
 
         /**
