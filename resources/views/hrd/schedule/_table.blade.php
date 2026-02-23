@@ -13,9 +13,9 @@
         <table class="table table-bordered">
             <thead>
                 <tr>
-                    <th>Karyawan</th>
+                    <th class="font-weight-bold">Karyawan</th>
                     @foreach($dates as $date)
-                        <th>{{ \Carbon\Carbon::parse($date)->format('D, d M') }}</th>
+                        <th class="font-weight-bold">{{ \Carbon\Carbon::parse($date)->format('D, d M') }}</th>
                     @endforeach
                 </tr>
             </thead>

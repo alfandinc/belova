@@ -6,7 +6,14 @@
 
 @section('content')
 <div class="container-fluid">
-    <h4 class="mb-3">Jadwal Karyawan Mingguan</h4>
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Jadwal Karyawan Mingguan</h3>
+                <div class="text-muted small">Kelola jadwal karyawan per minggu: atur shift dan copy jadwal ke Minggu Ini.</div>
+            </div>
+        </div>
+    </div>
     <div class="d-flex justify-content-between align-items-center mb-3" id="week-nav">
         <form id="prev-week-form" method="GET" action="{{ route('hrd.schedule.index') }}" class="d-inline">
             <input type="hidden" name="start_date" id="prev-week-date" value="{{ $startOfWeek->copy()->subWeek()->toDateString() }}">
