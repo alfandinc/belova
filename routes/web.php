@@ -1252,7 +1252,12 @@ Route::prefix('hrd')->middleware('role:Hrd|Manager|Employee|Admin|Ceo')->group(f
     // Jadwal Dokter
     Route::get('dokter-schedule', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'index'])->name('hrd.dokter-schedule.index');
     Route::get('dokter-schedule/get', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'getSchedules'])->name('hrd.dokter-schedule.get');
+    Route::post('dokter-schedule/store-single', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'storeSingle'])->name('hrd.dokter-schedule.store_single');
+    Route::post('dokter-schedule/move/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'moveJadwal'])->name('hrd.dokter-schedule.move');
     Route::post('dokter-schedule/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'store'])->name('hrd.dokter-schedule.store');
+    // Create or update doctor shifts (HRD)
+    Route::post('dokter-shifts/store', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'storeShift'])->name('hrd.dokter-shifts.store');
+    Route::post('dokter-shifts/update/{id}', [\App\Http\Controllers\HRD\DokterScheduleController::class, 'updateShift'])->name('hrd.dokter-shifts.update');
         // HRD Absensi Rekap routes
 
     // Absensi Rekap routes (no double prefix)
