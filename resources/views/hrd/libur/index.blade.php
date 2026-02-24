@@ -5,47 +5,89 @@
 @endsection
 
 @section('content')
-@section('content')
 <div class="container-fluid px-2">
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Pengajuan Cuti/Libur</h3>
+                <div class="text-muted small">Kelola pengajuan cuti dan ganti libur karyawan</div>
+            </div>
+            <div class="d-flex align-items-center">
+                <input type="text" id="dateRange" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
+                <a href="#" class="btn btn-sm btn-primary" id="btnCreateLibur">
+                    <i class="fas fa-plus-circle mr-2"></i>Buat Pengajuan Baru
+                </a>
+            </div>
+        </div>
+    </div>
+
             <div class="row">
-                <div class="col-sm-12">
-                    <div class="page-title-box">
-                        <div class="row">
-                            <div class="col">
-                                <h4 class="page-title">Pengajuan Cuti/Libur</h4>
+                <div class="col-md-12">
+                    @if(auth()->user()->hasAnyRole(['Employee','Manager','Hrd']))
+                        <div class="d-flex flex-wrap align-items-center mb-2">
+                            <div class="mr-3">
+                                <div class="alert alert-info py-2 mb-2">
+                                    <p class="mb-0"><strong>Saldo Cuti Tahunan:</strong> {{ auth()->user()->employee->jatahLibur->jatah_cuti_tahunan ?? 0 }} hari</p>
+                                </div>
                             </div>
-                            <div class="col-auto align-self-center">
-                                    <input type="text" id="dateRange" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
-                                <a href="#" class="btn btn-sm btn-primary" id="btnCreateLibur">
-                                    <i class="fas fa-plus-circle mr-2"></i>Buat Pengajuan Baru
-                                </a>
+                            <div>
+                                <div class="alert alert-info py-2 mb-2">
+                                    <p class="mb-0"><strong>Saldo Ganti Libur:</strong> {{ auth()->user()->employee->jatahLibur->jatah_ganti_libur ?? 0 }} hari</p>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    @endif
+
+                    @if(auth()->user()->hasAnyRole(['Employee','Manager']))
+                        <table id="tableLiburKaryawan" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Tanggal</th>
+                                    <th>Alasan</th>
+                                    <th>Catatan</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    @endif
+
+                    @if(auth()->user()->hasRole('Manager'))
+                        <h5 class="mt-4">Persetujuan Tim (Manager)</h5>
+                        <table id="tableLiburManager" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama Karyawan</th>
+                                    <th>Tanggal</th>
+                                    <th>Alasan</th>
+                                    <th>Catatan</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    @endif
+
+                    @if(auth()->user()->hasRole('Hrd'))
+                        <h5 class="mt-4">Persetujuan HRD</h5>
+                        <table id="tableLiburHRD" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama Karyawan</th>
+                                    <th>Tanggal</th>
+                                    <th>Alasan</th>
+                                    <th>Catatan</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    @endif
                 </div>
             </div>
-            
-            <style>
-                /* Hide any dynamically added "akan mengajukan libur" messages */
-                [id$="day-info"], 
-                div:contains("Anda akan mengajukan libur"),
-                p:contains("Anda akan mengajukan libur") {
-                    display: none !important;
-                }
-            </style>
-            
-            @if(auth()->user()->hasRole('Employee'))
-                @include('hrd.libur.karyawan-index')
-            @elseif(auth()->user()->hasRole('Manager'))
-                @if(isset($viewType) && $viewType == 'team')
-                    @include('hrd.libur.manager-index')
-                @else
-                    @include('hrd.libur.karyawan-index')
-                @endif
-            @elseif(auth()->user()->hasRole('Hrd'))
-                @include('hrd.libur.hrd-index')
-            @endif
-
         </div>
 
 <!-- Modal Create Pengajuan -->
@@ -308,7 +350,8 @@ $(document).ready(function() {
     
     // Also clean up any dynamically added elements with specific IDs
     $('[id$="day-info"]').not('#modalCreateLibur [id$="day-info"]').remove();
-    // Initialize DataTable for Employee
+    // Initialize DataTable for Employee (if table exists)
+    if ($('#tableLiburKaryawan').length) {
     var tableKaryawan = $('#tableLiburKaryawan').DataTable({
         processing: true,
         serverSide: true,
@@ -321,16 +364,17 @@ $(document).ready(function() {
         },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'jenis_libur', name: 'jenis_libur'},
             {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'total_hari', name: 'total_hari'},
-            {data: 'status_manager', name: 'status_manager'},
-            {data: 'status_hrd', name: 'status_hrd'},
+            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
+            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
+            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
         ]
     });
+    }
     
-    // Initialize DataTable for Manager
+    // Initialize DataTable for Manager (if table exists)
+    if ($('#tableLiburManager').length) {
     var tableManager = $('#tableLiburManager').DataTable({
         processing: true,
         serverSide: true,
@@ -344,15 +388,17 @@ $(document).ready(function() {
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
-            {data: 'jenis_libur', name: 'jenis_libur'},
             {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'total_hari', name: 'total_hari'},
+            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
+            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
             {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
         ]
     });
+    }
     
-    // Initialize DataTable for HRD
+    // Initialize DataTable for HRD (if table exists)
+    if ($('#tableLiburHRD').length) {
     var tableHRD = $('#tableLiburHRD').DataTable({
         processing: true,
         serverSide: true,
@@ -366,13 +412,14 @@ $(document).ready(function() {
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee.nama', name: 'employee.nama'},
-            {data: 'jenis_libur', name: 'jenis_libur'},
             {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'total_hari', name: 'total_hari'},
+            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
+            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
             {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
         ]
     });
+    }
     
     // Create modal
     $('#btnCreateLibur').click(function() {

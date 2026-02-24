@@ -141,49 +141,63 @@ class PengajuanLiburController extends Controller
                 ->addColumn('tanggal_range', function($row) {
                     $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                     $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                    return $mulai.' - '.$selesai;
+                    $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
+                    $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
+                    return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
+                        ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
                 })
-                ->addColumn('status_manager', function($row) {
-                    if ($row->status_manager == 'menunggu') {
-                        return '<span class="badge badge-warning">Menunggu</span>';
-                    } elseif ($row->status_manager == 'disetujui') {
-                        return '<span class="badge badge-success">Disetujui</span>';
-                    } else {
-                        return '<span class="badge badge-danger">Ditolak</span>';
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
+                    })
+                ->addColumn('catatan', function($row) {
+                    $out = '';
+                    if (!empty($row->notes_manager)) {
+                        $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
                     }
+                    if (!empty($row->notes_hrd)) {
+                        $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                    }
+                    return $out;
                 })
-                ->addColumn('status_hrd', function($row) {
-                    if ($row->status_hrd == 'menunggu') {
-                        return '<span class="badge badge-warning">Menunggu</span>';
-                    } elseif ($row->status_hrd == 'disetujui') {
-                        return '<span class="badge badge-success">Disetujui</span>';
+                ->addColumn('status_pengajuan', function($row) {
+                    if ($row->status_hrd == 'disetujui') {
+                        return '<span class="badge badge-success">Disetujui HRD</span>';
+                    } elseif ($row->status_hrd == 'ditolak') {
+                        return '<span class="badge badge-danger">Ditolak HRD</span>';
+                    } elseif ($row->status_manager == 'disetujui') {
+                        return '<span class="badge badge-warning">Disetujui Manager</span>';
+                    } elseif ($row->status_manager == 'ditolak') {
+                        return '<span class="badge badge-danger">Ditolak Manager</span>';
                     } else {
-                        return '<span class="badge badge-danger">Ditolak</span>';
+                        return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
                     }
                 })
                 ->addColumn('action', function($row) {
                     $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button>';
                     return $btn;
                 })
-                ->rawColumns(['status_manager', 'status_hrd', 'action'])
+                ->rawColumns(['tanggal_range','status_pengajuan','catatan', 'action'])
                 ->make(true);
         } 
         // For manager team view - show team requests
         else if ($viewType == 'team' && $user->hasRole('Manager')) {
             $employee = $user->employee;
-            if ($employee) {
-                $division = $employee->division;
-                if ($division) {
-                    $teamEmployeeIds = $division->employees->pluck('id')->toArray();
-                    // Show all requests from team, not just 'menunggu'
-                    $data = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
-                        ->where(function($q) use ($filterStart, $filterEnd) {
-                            $q->whereDate('tanggal_mulai', '<=', $filterEnd)
-                              ->whereDate('tanggal_selesai', '>=', $filterStart);
-                        })
-                        ->with('employee')
-                        ->latest()
-                        ->get();
+                if ($employee) {
+                    $division = $employee->division;
+                    if ($division) {
+                        $teamEmployeeIds = $division->employees->pluck('id')->toArray();
+                        // Exclude the manager's own requests from the team approval list
+                        // (they are already shown in 'Pengajuan Saya')
+                        // Show all requests from team, not just 'menunggu'
+                        $data = PengajuanLibur::whereIn('employee_id', $teamEmployeeIds)
+                            ->where('employee_id', '!=', $employee->id)
+                            ->where(function($q) use ($filterStart, $filterEnd) {
+                                $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                                  ->whereDate('tanggal_selesai', '>=', $filterStart);
+                            })
+                            ->with('employee')
+                            ->latest()
+                            ->get();
                     
                     return DataTables::of($data)
                         ->addIndexColumn()
@@ -193,7 +207,23 @@ class PengajuanLiburController extends Controller
                         ->addColumn('tanggal_range', function($row) {
                             $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                             $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                            return $mulai.' - '.$selesai;
+                            $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
+                            $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
+                            return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
+                                ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
+                        })
+                        ->addColumn('alasan', function($row) {
+                            return e($row->alasan);
+                        })
+                        ->addColumn('catatan', function($row) {
+                            $out = '';
+                            if (!empty($row->notes_manager)) {
+                                $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                            }
+                            if (!empty($row->notes_hrd)) {
+                                $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                            }
+                            return $out;
                         })
                         ->addColumn('action', function($row) {
                             $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
@@ -214,7 +244,7 @@ class PengajuanLiburController extends Controller
                                 return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
                             }
                         })
-                        ->rawColumns(['action', 'status_pengajuan'])
+                        ->rawColumns(['tanggal_range','action', 'status_pengajuan','catatan'])
                         ->make(true);
                 }
             }
@@ -239,31 +269,42 @@ class PengajuanLiburController extends Controller
                 ->addColumn('tanggal_range', function($row) {
                     $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                     $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                    return $mulai.' - '.$selesai;
+                    $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
+                    $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
+                    return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
+                        ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
                 })
-                ->addColumn('status_manager', function($row) {
-                    if ($row->status_manager == 'menunggu') {
-                        return '<span class="badge badge-warning">Menunggu</span>';
-                    } elseif ($row->status_manager == 'disetujui') {
-                        return '<span class="badge badge-success">Disetujui</span>';
-                    } else {
-                        return '<span class="badge badge-danger">Ditolak</span>';
+                ->addColumn('alasan', function($row) {
+                    return e($row->alasan);
+                })
+                ->addColumn('catatan', function($row) {
+                    $out = '';
+                    if (!empty($row->notes_manager)) {
+                        $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
                     }
+                    if (!empty($row->notes_hrd)) {
+                        $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                    }
+                    return $out;
                 })
-                ->addColumn('status_hrd', function($row) {
-                    if ($row->status_hrd == 'menunggu') {
-                        return '<span class="badge badge-warning">Menunggu</span>';
-                    } elseif ($row->status_hrd == 'disetujui') {
-                        return '<span class="badge badge-success">Disetujui</span>';
+                ->addColumn('status_pengajuan', function($row) {
+                    if ($row->status_hrd == 'disetujui') {
+                        return '<span class="badge badge-success">Disetujui HRD</span>';
+                    } elseif ($row->status_hrd == 'ditolak') {
+                        return '<span class="badge badge-danger">Ditolak HRD</span>';
+                    } elseif ($row->status_manager == 'disetujui') {
+                        return '<span class="badge badge-warning">Disetujui Manager</span>';
+                    } elseif ($row->status_manager == 'ditolak') {
+                        return '<span class="badge badge-danger">Ditolak Manager</span>';
                     } else {
-                        return '<span class="badge badge-danger">Ditolak</span>';
+                        return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
                     }
                 })
                 ->addColumn('action', function($row) {
                     $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button>';
                     return $btn;
                 })
-                ->rawColumns(['status_manager', 'status_hrd', 'action'])
+                ->rawColumns(['tanggal_range','status_pengajuan','catatan', 'action'])
                 ->make(true);
         }
         // For HRD approval view
@@ -286,7 +327,23 @@ class PengajuanLiburController extends Controller
                 ->addColumn('tanggal_range', function($row) {
                     $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                     $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                    return $mulai.' - '.$selesai;
+                    $jenisLabel = $row->jenis_libur == 'cuti_tahunan' ? 'Cuti Tahunan' : 'Ganti Libur';
+                    $badgeClass = $row->jenis_libur == 'cuti_tahunan' ? 'badge-info' : 'badge-secondary';
+                    return $mulai.' - '.$selesai.' <strong>('.$row->total_hari.' Hari)</strong>'
+                        ." <div class=\"mt-1\"><span class=\"badge $badgeClass\">$jenisLabel</span></div>";
+                })
+                ->addColumn('alasan', function($row) {
+                    return e($row->alasan);
+                })
+                ->addColumn('catatan', function($row) {
+                    $out = '';
+                    if (!empty($row->notes_manager)) {
+                        $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                    }
+                    if (!empty($row->notes_hrd)) {
+                        $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                    }
+                    return $out;
                 })
                 ->addColumn('action', function($row) {
                     $btn = '<button type="button" class="btn btn-sm btn-info btn-detail" data-id="'.$row->id.'"><i class="fas fa-eye"></i></button> ';
@@ -307,7 +364,7 @@ class PengajuanLiburController extends Controller
                         return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
                     }
                 })
-                ->rawColumns(['action', 'status_pengajuan'])
+                ->rawColumns(['tanggal_range','action', 'status_pengajuan','catatan'])
                 ->make(true);
         }
         

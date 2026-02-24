@@ -111,34 +111,14 @@
                             }
                         }
                     @endphp
-                    <a href="javascript: void(0);"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Pengajuan Cuti/Libur</span>
+                    <a href="{{ route('hrd.libur.index') }}"> <i data-feather="calendar" class="align-self-center menu-icon"></i><span>Cuti & Libur</span>
                         @if($pendingLiburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                             <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
                         @endif
                         @if($pendingLiburManager > 0 && Auth::user()->hasAnyRole('Manager','Admin'))
                             <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
                         @endif
-                        <span class="menu-arrow"><i class="mdi mdi-chevron-right"></i></span>
                     </a>
-                    <ul class="nav-second-level" aria-expanded="false">
-                        <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}"><i class="ti-control-record"></i>Pengajuan Saya</a></li>
-                        <!-- For Managers: Approval cuti team -->
-                        @if(Auth::check() && Auth::user()->hasAnyRole('Manager','Admin'))
-                        <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=team"><i class="ti-control-record"></i>Persetujuan Tim
-                            @if($pendingLiburManager > 0)
-                                <span class="badge badge-info ml-1">{{ $pendingLiburManager }}</span>
-                            @endif
-                        </a></li>
-                        @endif
-                        <!-- For HRD: Full leave management -->
-                        @if(Auth::check() && Auth::user()->hasAnyRole('Hrd','Admin'))
-                        <li class="nav-item"><a class="nav-link" href="{{ route('hrd.libur.index') }}?view=approval"><i class="ti-control-record"></i>Persetujuan HRD
-                            @if($pendingLiburHRD > 0)
-                                <span class="badge badge-warning ml-1">{{ $pendingLiburHRD }}</span>
-                            @endif
-                        </a></li>
-                        @endif
-                    </ul>
             </li>
 
             <!-- Pengajuan Tidak Masuk (Sakit/Izin) - Visible to all authenticated users -->
@@ -197,7 +177,7 @@
             <li>
                 <a href="{{ route('hrd.lembur.index') }}">
                     <i data-feather="clock" class="align-self-center menu-icon"></i>
-                    <span>Pengajuan Lembur</span>
+                    <span>Lembur</span>
                     @if($pendingLemburHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingLemburHRD }}</span>
                     @endif
@@ -241,7 +221,7 @@
             <li>
                 <a href="{{ route('hrd.gantishift.index') }}">
                     <i data-feather="refresh-cw" class="align-self-center menu-icon"></i>
-                    <span>Pengajuan Ganti/Tukar Shift</span>
+                    <span>Ganti/Tukar Sihft</span>
                     @if($pendingGantiShiftHRD > 0 && Auth::user()->hasAnyRole('Hrd','Admin'))
                         <span class="badge badge-warning ml-1">{{ $pendingGantiShiftHRD }}</span>
                     @endif
