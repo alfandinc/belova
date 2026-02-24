@@ -48,7 +48,28 @@ class PengajuanLemburController extends Controller
                         return $row->employee->nama ?? '-';
                     })
                     ->addColumn('tanggal', function($row) {
-                        return $row->tanggal->locale('id')->translatedFormat('j F Y');
+                        $tgl = $row->tanggal->locale('id')->translatedFormat('j F Y');
+                        $mulai = $row->jam_mulai;
+                        $selesai = $row->jam_selesai;
+                        $mulai = str_replace(':', '.', substr($mulai, 0, 5));
+                        $selesai = str_replace(':', '.', substr($selesai, 0, 5));
+                        $jamRange = $mulai . ' - ' . $selesai;
+                        $totalJam = e($row->total_jam_formatted);
+                        return '<div><i class="fas fa-calendar-alt mr-1"></i>' . $tgl . '</div>'
+                            . '<div class="mt-1"><i class="fas fa-clock mr-1"></i>' . $jamRange . ' <strong>(' . $totalJam . ')</strong></div>';
+                    })
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
+                    })
+                    ->addColumn('catatan', function($row) {
+                        $out = '';
+                        if (!empty($row->notes_manager)) {
+                            $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                        }
+                        if (!empty($row->notes_hrd)) {
+                            $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                        }
+                        return $out ?: '-';
                     })
                     ->addColumn('jam_mulai', function($row) {
                         return $row->jam_mulai;
@@ -66,11 +87,18 @@ class PengajuanLemburController extends Controller
                     ->addColumn('total_jam', function($row) {
                         return $row->total_jam_formatted;
                     })
-                    ->addColumn('status_manager', function($row) {
-                        return $row->status_manager ?? '-';
-                    })
-                    ->addColumn('status_hrd', function($row) {
-                        return $row->status_hrd ?? '-';
+                    ->addColumn('status_pengajuan', function($row) {
+                        if ($row->status_hrd == 'disetujui') {
+                            return '<span class="badge badge-success">Disetujui HRD</span>';
+                        } elseif ($row->status_hrd == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak HRD</span>';
+                        } elseif ($row->status_manager == 'disetujui') {
+                            return '<span class="badge badge-warning">Disetujui Manager</span>';
+                        } elseif ($row->status_manager == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak Manager</span>';
+                        } else {
+                            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                        }
                     })
                     ->addColumn('action', function($row) use ($user) {
                         $buttons = [];
@@ -83,7 +111,7 @@ class PengajuanLemburController extends Controller
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
-                    ->rawColumns(['action'])
+                        ->rawColumns(['tanggal', 'catatan', 'status_pengajuan', 'action'])
                     ->make(true);
             }
             // Manager: own + division
@@ -103,7 +131,28 @@ class PengajuanLemburController extends Controller
                         return $row->employee->nama ?? '-';
                     })
                     ->addColumn('tanggal', function($row) {
-                        return $row->tanggal->locale('id')->translatedFormat('j F Y');
+                        $tgl = $row->tanggal->locale('id')->translatedFormat('j F Y');
+                        $mulai = $row->jam_mulai;
+                        $selesai = $row->jam_selesai;
+                        $mulai = str_replace(':', '.', substr($mulai, 0, 5));
+                        $selesai = str_replace(':', '.', substr($selesai, 0, 5));
+                        $jamRange = $mulai . ' - ' . $selesai;
+                        $totalJam = e($row->total_jam_formatted);
+                        return '<div><i class="fas fa-calendar-alt mr-1"></i>' . $tgl . '</div>'
+                            . '<div class="mt-1"><i class="fas fa-clock mr-1"></i>' . $jamRange . ' <strong>(' . $totalJam . ')</strong></div>';
+                    })
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
+                    })
+                    ->addColumn('catatan', function($row) {
+                        $out = '';
+                        if (!empty($row->notes_manager)) {
+                            $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                        }
+                        if (!empty($row->notes_hrd)) {
+                            $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                        }
+                        return $out ?: '-';
                     })
                     ->addColumn('jam_mulai', function($row) {
                         return $row->jam_mulai;
@@ -121,11 +170,18 @@ class PengajuanLemburController extends Controller
                     ->addColumn('total_jam', function($row) {
                         return $row->total_jam_formatted;
                     })
-                    ->addColumn('status_manager', function($row) {
-                        return $row->status_manager ?? '-';
-                    })
-                    ->addColumn('status_hrd', function($row) {
-                        return $row->status_hrd ?? '-';
+                    ->addColumn('status_pengajuan', function($row) {
+                        if ($row->status_hrd == 'disetujui') {
+                            return '<span class="badge badge-success">Disetujui HRD</span>';
+                        } elseif ($row->status_hrd == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak HRD</span>';
+                        } elseif ($row->status_manager == 'disetujui') {
+                            return '<span class="badge badge-warning">Disetujui Manager</span>';
+                        } elseif ($row->status_manager == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak Manager</span>';
+                        } else {
+                            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                        }
                     })
                     ->addColumn('action', function($row) use ($user) {
                         $buttons = [];
@@ -138,7 +194,7 @@ class PengajuanLemburController extends Controller
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
-                    ->rawColumns(['action'])
+                        ->rawColumns(['tanggal', 'catatan', 'status_pengajuan', 'action'])
                     ->make(true);
             }
             // Employee: only own
@@ -151,7 +207,28 @@ class PengajuanLemburController extends Controller
                 return DataTables::of($data)
                     ->addIndexColumn()
                     ->addColumn('tanggal', function($row) {
-                        return $row->tanggal->locale('id')->translatedFormat('j F Y');
+                        $tgl = $row->tanggal->locale('id')->translatedFormat('j F Y');
+                        $mulai = $row->jam_mulai;
+                        $selesai = $row->jam_selesai;
+                        $mulai = str_replace(':', '.', substr($mulai, 0, 5));
+                        $selesai = str_replace(':', '.', substr($selesai, 0, 5));
+                        $jamRange = $mulai . ' - ' . $selesai;
+                        $totalJam = e($row->total_jam_formatted);
+                        return '<div><i class="fas fa-calendar-alt mr-1"></i>' . $tgl . '</div>'
+                            . '<div class="mt-1"><i class="fas fa-clock mr-1"></i>' . $jamRange . ' <strong>(' . $totalJam . ')</strong></div>';
+                    })
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
+                    })
+                    ->addColumn('catatan', function($row) {
+                        $out = '';
+                        if (!empty($row->notes_manager)) {
+                            $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                        }
+                        if (!empty($row->notes_hrd)) {
+                            $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                        }
+                        return $out ?: '-';
                     })
                     ->addColumn('jam_mulai', function($row) {
                         return $row->jam_mulai;
@@ -169,11 +246,18 @@ class PengajuanLemburController extends Controller
                     ->addColumn('total_jam', function($row) {
                         return $row->total_jam_formatted;
                     })
-                    ->addColumn('status_manager', function($row) {
-                        return $row->status_manager ?? '-';
-                    })
-                    ->addColumn('status_hrd', function($row) {
-                        return $row->status_hrd ?? '-';
+                    ->addColumn('status_pengajuan', function($row) {
+                        if ($row->status_hrd == 'disetujui') {
+                            return '<span class="badge badge-success">Disetujui HRD</span>';
+                        } elseif ($row->status_hrd == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak HRD</span>';
+                        } elseif ($row->status_manager == 'disetujui') {
+                            return '<span class="badge badge-warning">Disetujui Manager</span>';
+                        } elseif ($row->status_manager == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak Manager</span>';
+                        } else {
+                            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                        }
                     })
                     ->addColumn('action', function($row) use ($user) {
                         $buttons = [];
@@ -186,7 +270,7 @@ class PengajuanLemburController extends Controller
                         }
                         return '<div class="btn-group btn-group-sm" role="group">'.implode('', $buttons).'</div>';
                     })
-                    ->rawColumns(['action'])
+                        ->rawColumns(['tanggal', 'catatan', 'status_pengajuan', 'action'])
                     ->make(true);
             }
             // Default: nothing

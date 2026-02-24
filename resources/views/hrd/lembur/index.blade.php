@@ -5,26 +5,25 @@
 @endsection
 
 @section('content')
-@section('content')
 <div class="container-fluid px-2">
-            <div class="row">
-                <div class="col-sm-12">
-                    <div class="page-title-box">
-                        <div class="row">
-                            <div class="col">
-                                <h4 class="page-title">Pengajuan Lembur</h4>
-                            </div>
-                            <div class="col-auto align-self-center">
-                                <input type="text" id="dateRangeLembur" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
-                                <a href="#" class="btn btn-sm btn-primary" id="btnCreateLembur">
-                                    <i class="fas fa-plus-circle mr-2"></i>Ajukan Lembur
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12">
-                    <table class="table table-bordered" id="tableLembur">
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Pengajuan Lembur</h3>
+                <div class="text-muted small">Kelola pengajuan lembur karyawan</div>
+            </div>
+            <div class="d-flex align-items-center">
+                <input type="text" id="dateRangeLembur" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
+                <a href="#" class="btn btn-sm btn-primary" id="btnCreateLembur">
+                    <i class="fas fa-plus-circle mr-2"></i>Ajukan Lembur
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <table class="table table-bordered" id="tableLembur">
                         <thead>
                             <tr>
                                 <th>No</th>
@@ -32,17 +31,16 @@
                                 <th>Nama Pegawai</th>
                                 @endif
                                 <th>Tanggal</th>
-                                <th>Waktu</th>
-                                <th>Total Jam</th>
-                                <th>Status Manager</th>
-                                <th>Status HRD</th>
+                                <th>Alasan</th>
+                                <th>Catatan</th>
+                                <th>Status</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
                     </table>
-                </div>
-            </div>
         </div>
+    </div>
+</div>
 
 <!-- Modal Create Lembur -->
 <div class="modal fade" id="modalCreateLembur" tabindex="-1" role="dialog" aria-labelledby="modalCreateLemburLabel" aria-hidden="true">
@@ -224,11 +222,10 @@ $(document).ready(function() {
             @if(\App\Models\User::find(Auth::id())->hasRole('Manager') || \App\Models\User::find(Auth::id())->hasRole('Hrd'))
             {data: 'employee_nama', name: 'employee_nama'},
             @endif
-            {data: 'tanggal', name: 'tanggal'},
-            {data: 'jam_range', name: 'jam_range', orderable: false, searchable: false},
-            {data: 'total_jam', name: 'total_jam'},
-            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
-            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
+            {data: 'tanggal', name: 'tanggal', orderable: false, searchable: false},
+            {data: 'alasan', name: 'alasan'},
+            {data: 'catatan', name: 'catatan', orderable: false, searchable: false},
+            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
         ],
         columnDefs: [
@@ -238,18 +235,6 @@ $(document).ready(function() {
             this.api().columns.adjust();
         }
     });
-
-    function renderStatusBadge(status) {
-        if (status === 'menunggu') {
-            return '<span class="badge badge-warning">Menunggu</span>';
-        } else if (status === 'disetujui') {
-            return '<span class="badge badge-success">Disetujui</span>';
-        } else if (status === 'ditolak') {
-            return '<span class="badge badge-danger">Ditolak</span>';
-        } else {
-            return '-';
-        }
-    }
 
     $('#btnCreateLembur').click(function() {
         $('#formCreateLembur')[0].reset();
