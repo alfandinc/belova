@@ -5,73 +5,68 @@
 @endsection
 
 @section('content')
-@section('content')
 <div class="container-fluid px-2">
-            <div class="row">
-                <div class="col-sm-12">
-                    <div class="page-title-box">
-                        <div class="row">
-                            <div class="col">
-                                <h4 class="page-title">Pengajuan Tidak Masuk (Sakit/Izin)</h4>
-                            </div>
-                            <div class="col-auto align-self-center">
-                                <input type="text" id="dateRangeTidakMasuk" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
-                                <a href="#" class="btn btn-sm btn-primary" id="btnCreateTidakMasuk">
-                                    <i class="fas fa-plus-circle mr-2"></i>Ajukan Tidak Masuk
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <div class="row mb-2">
+        <div class="col-12 d-flex flex-wrap justify-content-between align-items-center">
+            <div>
+                <h3 class="mb-0 font-weight-bold">Pengajuan Tidak Masuk</h3>
+                <div class="text-muted small">Kelola pengajuan sakit dan izin karyawan</div>
             </div>
+            <div class="d-flex align-items-center">
+                <input type="text" id="dateRangeTidakMasuk" class="form-control form-control-sm d-inline-block mr-2" style="width: 260px;" placeholder="Filter tanggal" />
+                <a href="#" class="btn btn-sm btn-primary" id="btnCreateTidakMasuk">
+                    <i class="fas fa-plus-circle mr-2"></i>Ajukan Tidak Masuk
+                </a>
+            </div>
+        </div>
+    </div>
             <div class="row">
                 <div class="col-md-12">
-                    @if(auth()->user()->hasRole('Employee'))
+                    @if(auth()->user()->hasAnyRole(['Employee','Manager']))
                     <table id="tableTidakMasukPersonal" class="table table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>No</th>
-                                <th>Jenis</th>
                                 <th>Tanggal</th>
-                                <th>Total Hari</th>
-                                <th>Status Manager</th>
-                                <th>Status HRD</th>
+                                <th>Alasan</th>
+                                <th>Catatan</th>
+                                <th>Status</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
                     </table>
                     @endif
                     @if(auth()->user()->hasRole('Manager'))
+                    <h5 class="mt-4">Persetujuan Tim (Manager)</h5>
                     <table id="tableTidakMasukTeam" class="table table-bordered table-striped">
                         <thead>
                             <tr>
                                 <th>No</th>
-                                <th>Nama Pegawai</th>
-                                <th>Jenis</th>
+                                <th>Nama Karyawan</th>
                                 <th>Tanggal</th>
-                                <th>Total Hari</th>
-                                <th>Status Manager</th>
-                                <th>Status HRD</th>
+                                <th>Alasan</th>
+                                <th>Catatan</th>
+                                <th>Status</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>
                     </table>
                     @endif
                     @if(auth()->user()->hasRole('Hrd'))
-                    <table id="tableTidakMasukApproval" class="table table-bordered table-striped">
-                        <thead>
-                            <tr>
-                                <th>No</th>
-                                <th>Nama Pegawai</th>
-                                <th>Jenis</th>
-                                <th>Tanggal</th>
-                                <th>Total Hari</th>
-                                <th>Status Manager</th>
-                                <th>Status HRD</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                    </table>
+                        <h5 class="mt-4">Persetujuan HRD</h5>
+                        <table id="tableTidakMasukApproval" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>Nama Karyawan</th>
+                                    <th>Tanggal</th>
+                                    <th>Alasan</th>
+                                    <th>Catatan</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                        </table>
                     @endif
                 </div>
             </div>
@@ -269,8 +264,8 @@ $(document).ready(function() {
         }
     });
 
-    // DataTable untuk Employee
-    @if(auth()->user()->hasRole('Employee'))
+    // DataTable untuk Personal (Employee/Manager)
+    @if(auth()->user()->hasAnyRole(['Employee','Manager']))
     var tablePersonal = $('#tableTidakMasukPersonal').DataTable({
         processing: true,
         serverSide: true,
@@ -283,11 +278,10 @@ $(document).ready(function() {
         },
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
-            {data: 'jenis', name: 'jenis'},
             {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'total_hari', name: 'total_hari'},
-            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
-            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
+            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
+            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
+            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
         ]
     });
@@ -307,11 +301,10 @@ $(document).ready(function() {
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee_nama', name: 'employee_nama'},
-            {data: 'jenis', name: 'jenis'},
             {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'total_hari', name: 'total_hari'},
-            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
-            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
+            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
+            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
+            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
         ]
     });
@@ -331,11 +324,10 @@ $(document).ready(function() {
         columns: [
             {data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false},
             {data: 'employee_nama', name: 'employee_nama'},
-            {data: 'jenis', name: 'jenis'},
             {data: 'tanggal_range', name: 'tanggal_range', orderable: false, searchable: false},
-            {data: 'total_hari', name: 'total_hari'},
-            {data: 'status_manager', name: 'status_manager', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
-            {data: 'status_hrd', name: 'status_hrd', orderable: false, searchable: false, render: function(data){return renderStatusBadge(data);}},
+            {data: 'alasan', name: 'alasan', orderable: false, searchable: true},
+            {data: 'catatan', name: 'catatan', orderable: false, searchable: true},
+            {data: 'status_pengajuan', name: 'status_pengajuan', orderable: false, searchable: false},
             {data: 'action', name: 'action', orderable: false, searchable: false},
         ]
     });

@@ -55,15 +55,89 @@ class PengajuanTidakMasukController extends Controller
                         return ucfirst($row->jenis);
                     })
                     ->addColumn('tanggal_range', function($row) {
+                            $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
+                            $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
+                            return $mulai.' - '.$selesai.' <br><strong>('.($row->total_hari ?? 1).' Hari)</strong>'
+                                ." <div class=\"mt-1\"><span class=\"badge badge-info\">".ucfirst($row->jenis)."</span></div>";
+                        })
+                        ->addColumn('alasan', function($row) {
+                            return e($row->alasan);
+                        })
+                        ->addColumn('catatan', function($row) {
+                            $out = '';
+                            if (!empty($row->notes_manager)) {
+                                $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                            }
+                            if (!empty($row->notes_hrd)) {
+                                $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                            }
+                            return $out;
+                        })
+                        ->addColumn('status_pengajuan', function($row) {
+                            if ($row->status_hrd == 'disetujui') {
+                                return '<span class="badge badge-success">Disetujui HRD</span>';
+                            } elseif ($row->status_hrd == 'ditolak') {
+                                return '<span class="badge badge-danger">Ditolak HRD</span>';
+                            } elseif ($row->status_manager == 'disetujui') {
+                                return '<span class="badge badge-warning">Disetujui Manager</span>';
+                            } elseif ($row->status_manager == 'ditolak') {
+                                return '<span class="badge badge-danger">Ditolak Manager</span>';
+                            } else {
+                                return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                            }
+                        })
+                    ->addColumn('action', function($row) {
+                        $btns = '<div class="btn-group btn-group-sm" role="group">';
+                        $btns .= '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
+                        $btns .= '</div>';
+                        return $btns;
+                    })
+                    ->rawColumns(['tanggal_range','status_pengajuan','catatan','action'])
+                    ->make(true);
+            }
+            // Manager: data sendiri (view=personal)
+            else if (($viewType == 'personal' || empty($viewType)) && $user->hasRole('Manager')) {
+                $data = PengajuanTidakMasuk::where('employee_id', $user->employee->id)
+                    ->where(function($q) use ($filterStart, $filterEnd) {
+                        $q->whereDate('tanggal_mulai', '<=', $filterEnd)
+                          ->whereDate('tanggal_selesai', '>=', $filterStart);
+                    })
+                    ->latest()
+                    ->get();
+
+                return DataTables::of($data)
+                    ->addIndexColumn()
+                    ->addColumn('tanggal_range', function($row) {
                         $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                         $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                        return $mulai.' - '.$selesai;
+                        return $mulai.' - '.$selesai.' <br><strong>('.($row->total_hari ?? 1).' Hari)</strong>'
+                            ." <div class=\"mt-1\"><span class=\"badge badge-info\">".ucfirst($row->jenis)."</span></div>";
                     })
-                    ->addColumn('status_manager', function($row) {
-                        return $row->status_manager ?? '-';
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
                     })
-                    ->addColumn('status_hrd', function($row) {
-                        return $row->status_hrd ?? '-';
+                    ->addColumn('catatan', function($row) {
+                        $out = '';
+                        if (!empty($row->notes_manager)) {
+                            $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                        }
+                        if (!empty($row->notes_hrd)) {
+                            $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                        }
+                        return $out;
+                    })
+                    ->addColumn('status_pengajuan', function($row) {
+                        if ($row->status_hrd == 'disetujui') {
+                            return '<span class="badge badge-success">Disetujui HRD</span>';
+                        } elseif ($row->status_hrd == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak HRD</span>';
+                        } elseif ($row->status_manager == 'disetujui') {
+                            return '<span class="badge badge-warning">Disetujui Manager</span>';
+                        } elseif ($row->status_manager == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak Manager</span>';
+                        } else {
+                            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                        }
                     })
                     ->addColumn('action', function($row) {
                         $btns = '<div class="btn-group btn-group-sm" role="group">';
@@ -71,7 +145,7 @@ class PengajuanTidakMasukController extends Controller
                         $btns .= '</div>';
                         return $btns;
                     })
-                    ->rawColumns(['action'])
+                    ->rawColumns(['tanggal_range','status_pengajuan','catatan','action'])
                     ->make(true);
             }
             // Manager: data semua employee di divisinya (view=team)
@@ -79,6 +153,7 @@ class PengajuanTidakMasukController extends Controller
                 $division = $user->employee->division;
                 $employeeIds = $division ? $division->employees->pluck('id')->toArray() : [];
                 $data = PengajuanTidakMasuk::whereIn('employee_id', $employeeIds)
+                    ->where('employee_id', '!=', $user->employee->id)
                     ->where(function($q) use ($filterStart, $filterEnd) {
                         $q->whereDate('tanggal_mulai', '<=', $filterEnd)
                           ->whereDate('tanggal_selesai', '>=', $filterStart);
@@ -97,13 +172,34 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('tanggal_range', function($row) {
                         $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                         $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                        return $mulai.' - '.$selesai;
+                        return $mulai.' - '.$selesai.' <br><strong>('.($row->total_hari ?? 1).' Hari)</strong>'
+                            ." <div class=\"mt-1\"><span class=\"badge badge-info\">".ucfirst($row->jenis)."</span></div>";
                     })
-                    ->addColumn('status_manager', function($row) {
-                        return $row->status_manager ?? '-';
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
                     })
-                    ->addColumn('status_hrd', function($row) {
-                        return $row->status_hrd ?? '-';
+                    ->addColumn('catatan', function($row) {
+                        $out = '';
+                        if (!empty($row->notes_manager)) {
+                            $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                        }
+                        if (!empty($row->notes_hrd)) {
+                            $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                        }
+                        return $out;
+                    })
+                    ->addColumn('status_pengajuan', function($row) {
+                        if ($row->status_hrd == 'disetujui') {
+                            return '<span class="badge badge-success">Disetujui HRD</span>';
+                        } elseif ($row->status_hrd == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak HRD</span>';
+                        } elseif ($row->status_manager == 'disetujui') {
+                            return '<span class="badge badge-warning">Disetujui Manager</span>';
+                        } elseif ($row->status_manager == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak Manager</span>';
+                        } else {
+                            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                        }
                     })
                     ->addColumn('action', function($row) {
                         $btns = '<div class="btn-group btn-group-sm" role="group">';
@@ -112,7 +208,7 @@ class PengajuanTidakMasukController extends Controller
                         $btns .= '</div>';
                         return $btns;
                     })
-                    ->rawColumns(['action'])
+                    ->rawColumns(['tanggal_range','status_pengajuan','catatan','action'])
                     ->make(true);
             }
             // HRD: semua data untuk approval (view=approval)
@@ -135,13 +231,34 @@ class PengajuanTidakMasukController extends Controller
                     ->addColumn('tanggal_range', function($row) {
                         $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                         $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                        return $mulai.' - '.$selesai;
+                        return $mulai.' - '.$selesai.' <br><strong>('.($row->total_hari ?? 1).' Hari)</strong>'
+                            ." <div class=\"mt-1\"><span class=\"badge badge-info\">".ucfirst($row->jenis)."</span></div>";
                     })
-                    ->addColumn('status_manager', function($row) {
-                        return $row->status_manager ?? '-';
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
                     })
-                    ->addColumn('status_hrd', function($row) {
-                        return $row->status_hrd ?? '-';
+                    ->addColumn('catatan', function($row) {
+                        $out = '';
+                        if (!empty($row->notes_manager)) {
+                            $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                        }
+                        if (!empty($row->notes_hrd)) {
+                            $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                        }
+                        return $out;
+                    })
+                    ->addColumn('status_pengajuan', function($row) {
+                        if ($row->status_hrd == 'disetujui') {
+                            return '<span class="badge badge-success">Disetujui HRD</span>';
+                        } elseif ($row->status_hrd == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak HRD</span>';
+                        } elseif ($row->status_manager == 'disetujui') {
+                            return '<span class="badge badge-warning">Disetujui Manager</span>';
+                        } elseif ($row->status_manager == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak Manager</span>';
+                        } else {
+                            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                        }
                     })
                     ->addColumn('action', function($row) {
                         $btns = '<div class="btn-group btn-group-sm" role="group">';
@@ -150,7 +267,7 @@ class PengajuanTidakMasukController extends Controller
                         $btns .= '</div>';
                         return $btns;
                     })
-                    ->rawColumns(['action'])
+                    ->rawColumns(['tanggal_range','status_pengajuan','catatan','action'])
                     ->make(true);
             }
             // Default: data sendiri
@@ -164,25 +281,43 @@ class PengajuanTidakMasukController extends Controller
                     ->get();
                 return DataTables::of($data)
                     ->addIndexColumn()
-                    ->addColumn('jenis', function($row) {
-                        return ucfirst($row->jenis);
-                    })
                     ->addColumn('tanggal_range', function($row) {
                         $mulai = $row->tanggal_mulai->locale('id')->translatedFormat('j F Y');
                         $selesai = $row->tanggal_selesai->locale('id')->translatedFormat('j F Y');
-                        return $mulai.' - '.$selesai;
+                        return $mulai.' - '.$selesai.' <br><strong>('.($row->total_hari ?? 1).' Hari)</strong>'
+                            ." <div class=\"mt-1\"><span class=\"badge badge-info\">".ucfirst($row->jenis)."</span></div>";
                     })
-                    ->addColumn('status_manager', function($row) {
-                        return $row->status_manager ?? '-';
+                    ->addColumn('alasan', function($row) {
+                        return e($row->alasan);
                     })
-                    ->addColumn('status_hrd', function($row) {
-                        return $row->status_hrd ?? '-';
+                    ->addColumn('catatan', function($row) {
+                        $out = '';
+                        if (!empty($row->notes_manager)) {
+                            $out .= '<div><strong>Manager:</strong> ' . e($row->notes_manager) . '</div>';
+                        }
+                        if (!empty($row->notes_hrd)) {
+                            $out .= '<div><strong>HRD:</strong> ' . e($row->notes_hrd) . '</div>';
+                        }
+                        return $out;
+                    })
+                    ->addColumn('status_pengajuan', function($row) {
+                        if ($row->status_hrd == 'disetujui') {
+                            return '<span class="badge badge-success">Disetujui HRD</span>';
+                        } elseif ($row->status_hrd == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak HRD</span>';
+                        } elseif ($row->status_manager == 'disetujui') {
+                            return '<span class="badge badge-warning">Disetujui Manager</span>';
+                        } elseif ($row->status_manager == 'ditolak') {
+                            return '<span class="badge badge-danger">Ditolak Manager</span>';
+                        } else {
+                            return '<span class="badge badge-secondary">Menunggu Persetujuan</span>';
+                        }
                     })
                     ->addColumn('action', function($row) {
                         $btn = '<button class="btn btn-info btn-detail" data-id="'.$row->id.'">Detail</button>';
                         return $btn;
                     })
-                    ->rawColumns(['action'])
+                    ->rawColumns(['tanggal_range','status_pengajuan','catatan','action'])
                     ->make(true);
             }
         }
@@ -220,13 +355,14 @@ class PengajuanTidakMasukController extends Controller
             $totalHari = 1;
         }
 
-        $employee = Auth::user()->employee;
+        $user = Auth::user();
+        $employee = $user->employee;
         $buktiPath = null;
         if ($request->hasFile('bukti')) {
             $file = $request->file('bukti');
             $buktiPath = $file->store('bukti_tidak_masuk', 'public');
         }
-        $pengajuan = PengajuanTidakMasuk::create([
+        $payload = [
             'employee_id' => $employee->id,
             'jenis' => $request->jenis,
             'tanggal_mulai' => $request->tanggal_mulai,
@@ -234,7 +370,16 @@ class PengajuanTidakMasukController extends Controller
             'total_hari' => $totalHari,
             'alasan' => $request->alasan,
             'bukti' => $buktiPath,
-        ]);
+        ];
+
+        // If a Manager submits their own request, auto-approve at manager level
+        if ($user->hasRole('Manager')) {
+            $payload['status_manager'] = 'disetujui';
+            $payload['notes_manager'] = 'Auto-approved (Manager membuat pengajuan)';
+            $payload['tanggal_persetujuan_manager'] = now();
+        }
+
+        $pengajuan = PengajuanTidakMasuk::create($payload);
 
         if ($request->ajax()) {
             return response()->json(['data' => $pengajuan]);
