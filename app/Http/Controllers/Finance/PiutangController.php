@@ -178,23 +178,22 @@ class PiutangController extends Controller
                 $invoice->save();
             }
 
-            // Update piutang record
+            // Update piutang record: increment paid_amount and set metadata
+            $currentPaid = floatval($piutang->paid_amount ?? 0);
+            $piutang->paid_amount = $currentPaid + $amount;
             $piutang->payment_date = $paymentDate;
             $piutang->payment_method = $paymentMethod;
             $piutang->user_id = auth()->id();
 
-            // Determine payment_status based on invoice (if available)
-            if ($invoice) {
-                $paid = floatval($invoice->amount_paid ?? 0);
-                $total = floatval($invoice->total_amount ?? 0);
-                if ($paid <= 0) $piutang->payment_status = 'unpaid';
-                elseif ($paid > 0 && $paid < $total) $piutang->payment_status = 'partial';
-                else $piutang->payment_status = 'paid';
+            // Determine payment_status based on piutang amounts (prefer piutang amounts)
+            $paidPiutang = floatval($piutang->paid_amount ?? 0);
+            $totalPiutang = floatval($piutang->amount ?? 0);
+            if ($paidPiutang <= 0) {
+                $piutang->payment_status = 'unpaid';
+            } elseif ($paidPiutang > 0 && $paidPiutang < $totalPiutang) {
+                $piutang->payment_status = 'partial';
             } else {
-                // If no invoice, mark as paid if amount >= piutang amount
-                if ($amount >= floatval($piutang->amount)) $piutang->payment_status = 'paid';
-                elseif ($amount > 0) $piutang->payment_status = 'partial';
-                else $piutang->payment_status = 'unpaid';
+                $piutang->payment_status = 'paid';
             }
 
             $piutang->save();

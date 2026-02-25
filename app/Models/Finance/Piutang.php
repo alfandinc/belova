@@ -17,6 +17,7 @@ class Piutang extends Model
         'visitation_id',
         'invoice_id',
         'amount',
+        'paid_amount',
         'payment_status',
         'payment_date',
         'payment_method',
@@ -26,7 +27,8 @@ class Piutang extends Model
 
     protected $casts = [
         'payment_date' => 'datetime',
-        'amount' => 'decimal:2'
+        'amount' => 'decimal:2',
+        'paid_amount' => 'decimal:2'
     ];
 
     public function invoice()

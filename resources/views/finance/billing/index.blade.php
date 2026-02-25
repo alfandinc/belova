@@ -51,7 +51,7 @@
                                 <div class="d-flex align-items-center" style="flex:0 0 auto;">
                                     <div class="form-check d-flex align-items-center">
                                         <input class="form-check-input" type="checkbox" value="1" id="show-deleted">
-                                        <label class="form-check-label small ms-2 mb-0" for="show-deleted">Tampilkan Terhapus</label>
+                                        <label class="form-check-label small ml-2 mb-0" for="show-deleted">Tampilkan Terhapus</label>
                                     </div>
                                 </div>
                             </div>
@@ -128,6 +128,80 @@
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Modal: PDF Preview -->
+                    <div class="modal fade" id="modalPdfPreview" tabindex="-1" role="dialog" aria-labelledby="modalPdfPreviewLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-xl" role="document" style="max-width:95%;">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="modalPdfPreviewLabel">Preview PDF</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                        <span aria-hidden="true">&times;</span>
+                                    </button>
+                                </div>
+                                <div class="modal-body" style="padding:0; min-height:60vh;">
+                                    <div id="pdf-preview-loading" style="text-align:center; padding:1.5rem; display:none;"><div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div></div>
+                                    <div id="pdf-preview-container" style="width:100%; height:80vh;">
+                                        <!-- iframe inserted here -->
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                                    <a id="pdf-preview-download" class="btn btn-primary" href="#" target="_blank">Buka di Tab Baru</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Modal: Terima Pembayaran (from Piutang page) -->
+                    <div class="modal fade" id="modalTerimaPembayaran" tabindex="-1" role="dialog" aria-hidden="true">
+                        <div class="modal-dialog modal-md" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Terima Pembayaran</h5>
+                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="form-terima-pembayaran">
+                                        <input type="hidden" name="piutang_id" id="piutang_id">
+                                        <div class="mb-2">
+                                            <label>Invoice</label>
+                                            <input type="text" id="piutang_invoice" class="form-control" readonly>
+                                        </div>
+                                        <!-- Kekurangan moved to inline label next to Jumlah -->
+                                        <div class="mb-2">
+                                            <label>Jumlah (Rp) <small id="piutang_kekurangan_label" class="ml-2 text-danger"></small></label>
+                                            <input type="number" step="0.01" name="amount" id="piutang_amount" class="form-control" required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label>Tanggal Bayar</label>
+                                            <input type="datetime-local" name="payment_date" id="piutang_payment_date" class="form-control" required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label>Metode Pembayaran</label>
+                                            <select name="payment_method" id="piutang_payment_method" class="form-control">
+                                                <option value="cash">Tunai</option>
+                                                <option value="piutang">Piutang</option>
+                                                <option value="edc_bca">EDC BCA</option>
+                                                <option value="edc_bni">EDC BNI</option>
+                                                <option value="edc_bri">EDC BRI</option>
+                                                <option value="edc_mandiri">EDC Mandiri</option>
+                                                <option value="qris">QRIS</option>
+                                                <option value="transfer">Transfer</option>
+                                                <option value="shopee">Shopee</option>
+                                                <option value="tiktokshop">Tiktokshop</option>
+                                                <option value="tokopedia">Tokopedia</option>
+                                                <option value="asuransi_inhealth">Asuransi InHealth</option>
+                                                <option value="asuransi_brilife">Asuransi Brilife</option>
+                                            </select>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                    <button type="button" id="btn-submit-terima" class="btn btn-primary">Simpan Pembayaran</button>
                                 </div>
                             </div>
                         </div>
@@ -239,7 +313,32 @@
                             var noRm = row.no_rm || '';
                             var html = '<div class="patient-name-cell">';
                             html += '<div class="font-weight-bold">' + escapeHtml(name) + '</div>';
-                            if (noRm) html += '<small class="text-muted d-block">' + escapeHtml(noRm) + '</small>';
+                            // compute metode bayar (but render together with no_rm to place badge left of id)
+                            var metodeName = '';
+                            try {
+                                if (row && row.visitation) {
+                                    var vb = row.visitation;
+                                    if (vb.metodeBayar && (vb.metodeBayar.nama || vb.metodeBayar.name)) metodeName = vb.metodeBayar.nama || vb.metodeBayar.name;
+                                    if (!metodeName && (vb.metode_bayar_name || vb.metode_bayar)) metodeName = vb.metode_bayar_name || vb.metode_bayar;
+                                }
+                                if (!metodeName) {
+                                    metodeName = row.metode_bayar_name || row.metode_bayar || row.metodeBayar || row.metodeBayar_name || row.metodeBayarName || '';
+                                }
+                                if (metodeName && typeof metodeName === 'object') {
+                                    metodeName = metodeName.nama || metodeName.name || String(metodeName);
+                                }
+                            } catch(e) { metodeName = ''; }
+
+                            if (noRm || (metodeName && String(metodeName).trim() !== '')) {
+                                html += '<div class="mt-1 d-flex align-items-center">';
+                                if (metodeName && String(metodeName).trim() !== '') {
+                                    html += '<span class="badge badge-info">' + escapeHtml(String(metodeName)) + '</span>';
+                                }
+                                if (noRm) {
+                                    html += '<span class="badge badge-secondary ml-2">' + escapeHtml(noRm) + '</span>';
+                                }
+                                html += '</div>';
+                            }
                             html += '</div>';
                             return html;
                         }
@@ -295,7 +394,7 @@
                             if (jenis || klinikLabel) {
                                 html += '<div class="mt-1">';
                                 if (jenis) html += '<span class="badge badge-info">' + escapeHtml(jenis) + '</span>';
-                                if (klinikLabel) html += ' <span class="badge ' + klinikBadgeClass + ' ms-1">' + escapeHtml(klinikLabel) + '</span>';
+                                if (klinikLabel) html += ' <span class="badge ' + klinikBadgeClass + ' ml-1">' + escapeHtml(klinikLabel) + '</span>';
                                 html += '</div>';
                             }
                             html += '</div>';
@@ -309,39 +408,134 @@
                             var inv = data || row.invoice_number || '';
                             var statusHtml = row.status || '';
                             var badge = '';
-                            // If invoice payment method is piutang, show Piutang badge
                             if (row.payment_method && String(row.payment_method).toLowerCase() === 'piutang') {
-                                // determine whether the invoice/piutang is already paid by inspecting server status text
-                                var plainFromServer = $('<div>').html(statusHtml).text() || '';
-                                var sLower = String(plainFromServer).toLowerCase();
-                                if (sLower.indexOf('sudah') !== -1 || sLower.indexOf('lunas') !== -1) {
-                                    badge = '<span class="badge badge-success">Piutang Sudah Bayar</span>';
+                                // Prefer authoritative piutang relation if available to determine paid vs remaining
+                                var piutangRel = null;
+                                try {
+                                    if (row.invoice && row.invoice.piutangs && Array.isArray(row.invoice.piutangs) && row.invoice.piutangs.length) {
+                                        piutangRel = row.invoice.piutangs[0];
+                                    } else if (row.piutang) {
+                                        piutangRel = row.piutang;
+                                    }
+                                } catch(e) { piutangRel = null; }
+
+                                if (piutangRel) {
+                                    var amt = Number(piutangRel.amount || piutangRel.total || piutangRel.nominal || 0) || 0;
+                                    var paidAmt = Number(piutangRel.paid_amount || piutangRel.paid || piutangRel.amount_paid || 0) || 0;
+                                    if (paidAmt >= amt && amt > 0) {
+                                        badge = '<span class="badge badge-success">Piutang Sudah Bayar</span>';
+                                    } else if (paidAmt > 0 && paidAmt < amt) {
+                                        badge = '<span class="badge badge-warning">Piutang Belum Lunas</span>';
+                                    } else {
+                                        badge = '<span class="badge badge-danger">Piutang</span>';
+                                    }
                                 } else {
-                                    badge = '<span class="badge badge-warning">Piutang</span>';
+                                    var plainFromServer = $('<div>').html(statusHtml).text() || '';
+                                    var sLower = String(plainFromServer).toLowerCase();
+                                    if (sLower.indexOf('sudah') !== -1 || sLower.indexOf('lunas') !== -1) {
+                                        badge = '<span class="badge badge-success">Piutang Sudah Bayar</span>';
+                                    } else {
+                                        badge = '<span class="badge badge-warning">Piutang</span>';
+                                    }
                                 }
                             } else if (statusHtml) {
-                                // Strip any HTML coming from server and use plain text
                                 var plain = $('<div>').html(statusHtml).text();
                                 var s = String(plain).toLowerCase();
                                 var cls = 'badge-secondary';
-                                // Explicit 'belum lunas' (contains both words) => yellow
                                 if (s.indexOf('belum') !== -1 && s.indexOf('lunas') !== -1) {
                                     cls = 'badge-warning';
-                                }
-                                // Fully paid or explicitly 'sudah' OR 'lunas' without 'belum' => green
-                                else if (s.indexOf('sudah') !== -1 || (s.indexOf('lunas') !== -1 && s.indexOf('belum') === -1)) {
+                                } else if (s.indexOf('sudah') !== -1 || (s.indexOf('lunas') !== -1 && s.indexOf('belum') === -1)) {
                                     cls = 'badge-success';
-                                }
-                                // Any other 'belum' (unpaid) => red
-                                else if (s.indexOf('belum') !== -1) {
+                                } else if (s.indexOf('belum') !== -1) {
                                     cls = 'badge-danger';
                                 }
                                 badge = '<span class="badge ' + cls + '">' + escapeHtml(plain) + '</span>';
                             }
-                            var html = '<div class="invoice-cell">';
+
+                            // Build invoice cell with invoice number + badge stacked, and a right-aligned three-dots dropdown
+                            var html = '<div class="invoice-cell d-flex align-items-center justify-content-between">';
+                            html += '<div class="invoice-left">';
                             html += '<div class="font-weight-bold">' + escapeHtml(inv) + '</div>';
                             if (badge) html += '<div class="mt-1">' + badge + '</div>';
+                            // show invoice total under invoice number if available
+                            try {
+                                var totalVal = 0;
+                                if (row && row.invoice && (row.invoice.total_amount !== undefined && row.invoice.total_amount !== null)) totalVal = row.invoice.total_amount;
+                                else if (row && (row.total_amount !== undefined && row.total_amount !== null)) totalVal = row.total_amount;
+                                else if (row && (row.total || row.amount || row.total_amount)) totalVal = row.total || row.amount || row.total_amount || 0;
+                                if (totalVal && Number(totalVal) > 0) {
+                                    var totalFmt = (function(n){ try { return 'Rp ' + Number(n).toLocaleString('id-ID', {minimumFractionDigits:0, maximumFractionDigits:0}); } catch(e) { return n; } })(totalVal);
+                                    // if this invoice has a piutang relation and is partially paid, show remaining
+                                    var remainingHtml = '';
+                                    try {
+                                        var rem = null;
+                                        var piutangRel = null;
+                                        if (row && row.invoice && row.invoice.piutangs && Array.isArray(row.invoice.piutangs) && row.invoice.piutangs.length) piutangRel = row.invoice.piutangs[0];
+                                        else if (row && row.piutang) piutangRel = row.piutang;
+
+                                        if (piutangRel) {
+                                            var pAmt = Number(piutangRel.amount || piutangRel.total_amount || piutangRel.total || 0) || 0;
+                                            var pPaid = Number(piutangRel.paid_amount || piutangRel.paid || piutangRel.amount_paid || 0) || 0;
+                                            rem = pAmt - pPaid;
+                                        } else {
+                                            // Try common server-side fields for shortage or compute from totals
+                                            var cand = Number(row.shortage_amount || row.shortage || row.kekurangan || 0) || 0;
+                                            if (cand && cand > 0) {
+                                                rem = cand;
+                                            } else {
+                                                var totFallback = Number((row && row.invoice && (row.invoice.total_amount || row.invoice.total)) || row.total_amount || row.total || row.amount || 0) || 0;
+                                                var paidFallback = Number((row && row.invoice && (row.invoice.amount_paid || row.invoice.amountPaid)) || row.amount_paid || row.amountPaid || row.paid_amount || row.paid || 0) || 0;
+                                                rem = totFallback - paidFallback;
+                                            }
+                                        }
+                                        if (isFinite(rem) && rem > 0) {
+                                            var remFmt = 'Rp ' + Number(rem).toLocaleString('id-ID', {minimumFractionDigits:0, maximumFractionDigits:0});
+                                            remainingHtml = ' <span class="text-danger">(Kurang ' + remFmt + ')</span>';
+                                        }
+                                    } catch(e) { /* ignore */ }
+                                    html += '<div class="mt-1 text-muted"><small>Total: <strong>' + totalFmt + '</strong>' + remainingHtml + '</small></div>';
+                                }
+                            } catch(e) { }
                             html += '</div>';
+
+                            // Attempt to extract print links/buttons from row.action HTML
+                            var actionsHtml = row.action || '';
+                            var printItemsHtml = ''; // will hold menu items
+                            if (actionsHtml) {
+                                try {
+                                    var $tmp = $('<div>').html(actionsHtml);
+                                    // find anchors or buttons that indicate printing
+                                    $tmp.find('a, button').each(function() {
+                                        var $el = $(this);
+                                        var txt = ($el.text() || '').trim();
+                                        var title = ($el.attr('title') || '').trim();
+                                        if (/cetak\s*nota\s*v?2/i.test(txt) || /cetak\s*nota\s*v?2/i.test(title)) {
+                                            // create menu item preserving href and onclick
+                                            var href = $el.attr('href') || '#';
+                                            var onclick = $el.attr('onclick') || '';
+                                            printItemsHtml += '<a class="dropdown-item" href="' + href + '"' + (onclick ? ' onclick="' + onclick + '"' : '') + '>Cetak Invoice</a>';
+                                        } else if (/cetak\s*nota/i.test(txt) || /cetak\s*nota/i.test(title)) {
+                                            var href2 = $el.attr('href') || '#';
+                                            var onclick2 = $el.attr('onclick') || '';
+                                            printItemsHtml += '<a class="dropdown-item" href="' + href2 + '"' + (onclick2 ? ' onclick="' + onclick2 + '"' : '') + '>Cetak Nota</a>';
+                                        }
+                                    });
+                                } catch (e) { /* ignore parse errors */ }
+                            }
+
+                            if (printItemsHtml) {
+                                // three-dots dropdown button styled like slip_gaji: dropleft + ellipsis icon
+                                html += '<div class="invoice-actions ml-3">';
+                                html += '<div class="btn-group dropleft">';
+                                html += '<button type="button" class="btn btn-sm btn-light dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">';
+                                html += '<i class="fa fa-ellipsis-v"></i>';
+                                html += '</button>';
+                                html += '<div class="dropdown-menu dropdown-menu-right p-2" style="min-width:160px;">' + printItemsHtml + '</div>';
+                                html += '</div>';
+                                html += '</div>';
+                            }
+
+                            html += '</div>'; // .invoice-cell
                             return html;
                         }
                         return data;
@@ -358,11 +552,11 @@
                                 if ($el.data('no-icon')) return;
                                 // remove spacing utilities and inline margins so btn-group packs buttons tightly
                                 $el.css({ 'margin-left': '', 'margin-right': '' });
-                                $el.removeClass('me-1 ms-1 ml-1 mr-1 ms-2 me-2');
+                                $el.removeClass('mr-1 ml-1 ml-2 mr-2');
                                 // ensure consistent small button styling inside group
                                 $el.addClass('btn btn-sm');
                                 var text = $el.text().trim();
-                                if (/lihat\s*billing/i.test(text)) { $el.html('<i class="ti-eye" aria-hidden="true"></i>'); $el.attr('title', 'Lihat Billing'); }
+                                if (/lihat\s*billing/i.test(text)) { $el.html('<i class="ti-eye" aria-hidden="true"></i> Billing'); $el.attr('title', 'Lihat Billing'); }
                                 else if (/cetak\s*nota\s*v?2/i.test(text)) { $el.html('<i class="ti-printer" aria-hidden="true"></i>'); $el.attr('title', 'Cetak Nota v2'); }
                                 else if (/cetak\s*nota/i.test(text)) { $el.html('<i class="ti-printer" aria-hidden="true"></i>'); $el.attr('title', 'Cetak Nota'); }
                                 else if (/edit/i.test(text)) { $el.html('<i class="ti-pencil" aria-hidden="true"></i>'); $el.attr('title', 'Edit'); }
@@ -371,10 +565,72 @@
                             });
 
                             // Group action buttons into a btn-group for compact layout
-                            var $buttons = $container.find('a, button');
+                            // Exclude print-nota links because we render those in the invoice column
+                            var $buttons = $container.find('a, button').filter(function() {
+                                var t = ($(this).text() || '').trim();
+                                var title = ($(this).attr('title') || '').trim();
+                                return !(/cetak\s*nota/i.test(t) || /cetak\s*nota/i.test(title));
+                            });
                             if ($buttons.length) {
                                 var $group = $('<div class="btn-group" role="group"></div>');
                                 $buttons.each(function() { $group.append($(this)); });
+
+                                // If this row represents a piutang (credit) invoice, append a Terima button
+                                var isPiutang = false;
+                                try {
+                                    if (row && row.payment_method && String(row.payment_method).toLowerCase() === 'piutang') isPiutang = true;
+                                    if (!isPiutang && row && (row.piutang || row.saldo || row.amount_due || row.piutang_id)) isPiutang = true;
+                                } catch (e) { isPiutang = false; }
+
+                                if (isPiutang) {
+                                    // Prefer nested invoice.piutangs data if present (server-side relation)
+                                    var piutangId = '';
+                                    var amount = 0;
+                                    var paid = 0;
+                                    var invoice = '';
+                                    try {
+                                        if (row && row.invoice) {
+                                            invoice = row.invoice.invoice_number || row.invoice_number || invoice;
+                                            var piutangs = row.invoice.piutangs || (row.invoice.piutang ? [row.invoice.piutang] : null);
+                                            if (Array.isArray(piutangs) && piutangs.length > 0) {
+                                                var p = piutangs[0];
+                                                piutangId = p.id || piutangId;
+                                                amount = (p.amount !== undefined && p.amount !== null) ? p.amount : amount;
+                                                paid = (p.paid_amount !== undefined && p.paid_amount !== null) ? p.paid_amount : paid;
+                                            }
+                                        }
+                                    } catch (e) { /* ignore */ }
+                                    // Fallbacks if nested data not available
+                                    piutangId = piutangId || (row && (row.piutang_id || (row.piutang && row.piutang.id))) || row.id || '';
+                                    amount = amount || (row && (row.piutang_amount || row.saldo || row.amount_due || row.total || row.amount)) || 0;
+                                    paid = paid || (row && (row.paid_amount || row.paid || row.amount_paid || 0)) || 0;
+                                    // Only show Terima button if there is remaining amount to receive
+                                    var remainingPiutang = Number(amount) - Number(paid);
+                                    if (!isFinite(remainingPiutang) || remainingPiutang < 0) remainingPiutang = 0;
+                                    if (remainingPiutang > 0) {
+                                        var $terima = $('<button type="button" class="btn btn-sm btn-success btn-terima-pembayaran"></button>');
+                                        $terima.attr('data-id', piutangId);
+                                        $terima.attr('data-amount', amount);
+                                        $terima.attr('data-paid', paid);
+                                        $terima.attr('data-invoice', invoice);
+                                        // add icon + text inside button
+                                        $terima.html('<i class="ti-wallet" aria-hidden="true"></i> <span class="ml-1">Terima</span>');
+                                        // try to place Terima to the right side of the Billing button if exists
+                                        var $billingBtn = $group.find('a,button').filter(function() {
+                                            var t = ($(this).attr('title') || '').toLowerCase();
+                                            var txt = ($(this).text() || '').toLowerCase();
+                                            if (t.indexOf('lihat billing') !== -1) return true;
+                                            if (txt.indexOf('billing') !== -1 && $(this).find('i.ti-eye').length>0) return true;
+                                            return false;
+                                        }).first();
+                                        if ($billingBtn && $billingBtn.length) {
+                                            $billingBtn.after($terima);
+                                        } else {
+                                            $group.append($terima);
+                                        }
+                                    }
+                                }
+
                                 return $group.prop('outerHTML');
                             }
 
@@ -523,6 +779,149 @@
         function escapeHtml(unsafe) {
             return String(unsafe).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
+
+        // Intercept Cetak actions inside invoice dropdown and show PDF preview in modal
+        $(document).on('click', '.invoice-cell .dropdown-item', function(e) {
+            var $el = $(this);
+            var txt = ($el.text() || '').trim();
+            if (!/cetak/i.test(txt)) return; // not a print item
+            e.preventDefault();
+            var href = $el.attr('href') || $el.data('href') || '';
+            var onclick = $el.attr('onclick') || '';
+
+            // If we have a valid href (not '#'), load it in iframe preview
+            if (href && href !== '#') {
+                $('#pdf-preview-container').empty();
+                $('#pdf-preview-loading').show();
+                $('#pdf-preview-download').attr('href', href).show();
+
+                // Create iframe and append
+                var $iframe = $('<iframe>', {
+                    src: href,
+                    style: 'width:100%; height:80vh; border:0;'
+                });
+                // When iframe loads, hide spinner
+                $iframe.on('load', function() { $('#pdf-preview-loading').hide(); });
+                $('#pdf-preview-container').append($iframe);
+                $('#modalPdfPreview').modal('show');
+                return;
+            }
+
+            // Fallback: if onclick handler exists, try to execute it (best-effort)
+            if (onclick) {
+                try {
+                    // attempt to execute inline onclick (keep original context)
+                    var fn = new Function(onclick);
+                    fn.call(this);
+                } catch (err) {
+                    console.error('Failed to execute onclick preview:', err);
+                }
+            }
+        });
+
+        // Clear iframe when modal hidden to free memory
+        $('#modalPdfPreview').on('hidden.bs.modal', function() {
+            $('#pdf-preview-container').empty();
+            $('#pdf-preview-loading').hide();
+            $('#pdf-preview-download').attr('href', '#').hide();
+        });
+
+        // Handle opening the Terima Pembayaran modal when clicking Terima on billing page
+        $(document).on('click', '.btn-terima-pembayaran', function() {
+            var id = $(this).data('id');
+            var amount = $(this).data('amount');
+            var paid = $(this).data('paid') || 0;
+            var invoice = $(this).data('invoice');
+            // helper to parse currency/number strings into a float
+            function parseMoney(val) {
+                if (val === null || val === undefined) return 0;
+                if (typeof val === 'number') return val;
+                var s = String(val).trim();
+                if (!s) return 0;
+                // remove currency letters and spaces
+                s = s.replace(/[^0-9.,-]/g, '');
+                // if both dot and comma exist, assume dot thousand separator and comma decimal (e.g. 1.234,56)
+                if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+                    s = s.replace(/\./g, ''); // remove thousand sep
+                    s = s.replace(/,/g, '.'); // decimal separator
+                } else if (s.indexOf(',') !== -1 && s.indexOf('.') === -1) {
+                    // assume comma is decimal separator
+                    s = s.replace(/,/g, '.');
+                } else {
+                    // leave dots as-is (dot decimal or integer)
+                }
+                var f = parseFloat(s);
+                return isNaN(f) ? 0 : f;
+            }
+            // compute remaining robustly
+            var amtNum = parseMoney(amount);
+            var paidNum = parseMoney(paid);
+            var remaining = amtNum - paidNum;
+            if (!isFinite(remaining) || remaining < 0) remaining = 0;
+            // format currency for display (ID locale)
+            function formatRupiah(num) {
+                try { return 'Rp ' + Number(num).toLocaleString('id-ID', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+                catch(e) { return num; }
+            }
+            // prefill jumlah with already paid amount (so user sees paid total)
+            $('#piutang_amount').val(paidNum || 0);
+            // update inline label (format: "kurang : RP 10.000") and color
+            var $label = $('#piutang_kekurangan_label');
+            function formatKekuranganLabelValue(num) {
+                try { return 'kurang : RP ' + Number(num).toLocaleString('id-ID', {minimumFractionDigits:0, maximumFractionDigits:0}); }
+                catch(e) { return 'kurang : RP ' + num; }
+            }
+            function updateKekuranganLabel(rem) {
+                if (!isFinite(rem) || rem <= 0) {
+                    $label.removeClass('text-danger').addClass('text-success').text('LUNAS');
+                } else {
+                    $label.removeClass('text-success').addClass('text-danger').text(formatKekuranganLabelValue(rem));
+                }
+            }
+            updateKekuranganLabel(remaining);
+
+            // bind input handler to update kekurangan when jumlah changes
+            $('#piutang_amount').off('input.piutang').on('input.piutang', function() {
+                var entered = parseMoney($(this).val());
+                var newRem = amtNum - (paidNum + (isNaN(entered) ? 0 : entered));
+                if (!isFinite(newRem) || newRem < 0) newRem = 0;
+                updateKekuranganLabel(newRem);
+            });
+            $('#piutang_id').val(id);
+            $('#piutang_invoice').val(invoice);
+            // default payment date to now
+            var now = new Date();
+            var pad = function(n){return n<10?'0'+n:n};
+            var local = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+            $('#piutang_payment_date').val(local);
+            $('#modalTerimaPembayaran').modal('show');
+        });
+
+        // Submit Terima Pembayaran (same behavior as Piutang page)
+        $('#btn-submit-terima').on('click', function() {
+            var id = $('#piutang_id').val();
+            if (!id) return;
+            var payload = {
+                amount: $('#piutang_amount').val(),
+                payment_date: $('#piutang_payment_date').val(),
+                payment_method: $('#piutang_payment_method').val(),
+                _token: csrfToken
+            };
+            $.post('{{ url('/finance/piutang') }}' + '/' + id + '/receive', payload)
+                .done(function(res) {
+                    if (res && res.success) {
+                        $('#modalTerimaPembayaran').modal('hide');
+                        billingTable.ajax.reload(null, false);
+                        Swal.fire('Sukses', res.message || 'Pembayaran tercatat', 'success');
+                    } else {
+                        Swal.fire('Gagal', res.message || 'Gagal menyimpan pembayaran', 'error');
+                    }
+                }).fail(function(xhr) {
+                    var msg = 'Terjadi kesalahan';
+                    try { msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : msg; } catch(e){}
+                    Swal.fire('Gagal', msg, 'error');
+                });
+        });
 
         $(document).on('click', '.btn-restore-visitation', function() {
             var id = $(this).data('id');

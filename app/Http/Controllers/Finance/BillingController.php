@@ -2147,7 +2147,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $klinikId = $request->input('klinik_id');
         $includeDeleted = filter_var($request->input('include_deleted', false), FILTER_VALIDATE_BOOLEAN);
         
-        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice.piutangs'])
+        $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice.piutangs', 'metodeBayar'])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
             ->where('status_kunjungan', 2);
 
