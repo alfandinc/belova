@@ -109,13 +109,7 @@
             });
         }
     </script>
-    <div class="row mb-1 mt-1">
-        <div class="col text-right mb-0">
-            <a href="{{ route('finance.billing.index') }}" class="btn btn-danger font-weight-bold px-3" title="Kembali ke daftar billing">
-                <i class="fas fa-arrow-left mr-2"></i> Kembali ke Daftar Billing
-            </a>
-        </div>
-    </div>
+    
 
     <div class="row mb-2">
         <div class="col-md-8">
@@ -267,6 +261,11 @@
                         <div class="col-md-3 mb-2">
                             <label for="select-konsultasi">Tambah Biaya Lain-Lain</label>
                             <select id="select-konsultasi" class="form-control select2"></select>
+                        </div>
+                        <div class="col-md-9 mb-2 text-right d-flex align-items-end justify-content-end">
+                            <button id="closeBillingTabBtn" type="button" class="btn btn-danger font-weight-bold px-3" title="Tutup tab">
+                                <i class="fas fa-times mr-2"></i> Tutup
+                            </button>
                         </div>
                         {{--
                         <div class="col-md-3 mb-2">
@@ -461,8 +460,22 @@
 @endsection
 
 @section('scripts')
-<script>
-    $(document).ready(function() {
+    <script>
+        $(document).ready(function() {
+        // Close button: try to close the browser tab; fallback to billing index
+        $('#closeBillingTabBtn').on('click', function(e) {
+            e.preventDefault();
+            try {
+                window.close();
+            } catch (err) {
+                // ignore
+            }
+            // If window.close() did not work (most browsers block it), redirect back
+            setTimeout(function() {
+                window.location.href = "{{ route('finance.billing.index') }}";
+            }, 300);
+        });
+
         // Prefill billing fields if old invoice exists
         if (window.oldInvoice) {
             if (window.oldInvoice.global_discount !== '') $('#global_discount').val(window.oldInvoice.global_discount);

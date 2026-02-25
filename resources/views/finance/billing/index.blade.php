@@ -549,6 +549,8 @@
                             // Map text to icons and set accessible titles
                             $container.find('a, button').each(function() {
                                 var $el = $(this);
+                                // ensure anchor billing links open in new tab
+                                try { if ($el.is('a')) $el.attr('target', '_blank'); } catch(e) {}
                                 if ($el.data('no-icon')) return;
                                 // remove spacing utilities and inline margins so btn-group packs buttons tightly
                                 $el.css({ 'margin-left': '', 'margin-right': '' });
@@ -562,6 +564,16 @@
                                 else if (/edit/i.test(text)) { $el.html('<i class="ti-pencil" aria-hidden="true"></i>'); $el.attr('title', 'Edit'); }
                                 else if (/hapus|delete|remove/i.test(text) && $el.find('i').length === 0) { $el.html('<i class="ti-trash" aria-hidden="true"></i>'); $el.attr('title', 'Hapus'); }
                                 $el.attr('aria-label', $el.attr('title') || text);
+                            });
+
+                            // Fallback: if a Billing button exists but is not an anchor, open its href/data-href in new tab when clicked
+                            $(document).off('click.openBilling').on('click.openBilling', '.btn[title="Lihat Billing"]', function(e){
+                                var $b = $(this);
+                                var href = $b.attr('href') || $b.data('href') || $b.attr('data-href') || '';
+                                if (href && href !== '#') {
+                                    e.preventDefault();
+                                    window.open(href, '_blank');
+                                }
                             });
 
                             // Group action buttons into a btn-group for compact layout
