@@ -164,6 +164,186 @@ class BillingController extends Controller
     // Ensure RekapPenjualanExport uses total_amount for revenue calculation
     return (new \App\Exports\Finance\RekapPenjualanExport($startDate, $endDate, $klinikId, $dokterId, 'total_amount'))->download('rekap-penjualan.xlsx');
     }
+
+    /**
+     * Preview data for Rekap Penjualan (DataTables AJAX)
+     */
+    public function previewRekapPenjualan(Request $request)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $klinikId = $request->input('klinik_id');
+        $dokterId = $request->input('dokter_id');
+
+        $query = InvoiceItem::query()
+            ->whereHas('invoice.visitation', function($q) use ($startDate, $endDate, $klinikId, $dokterId) {
+                $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+                if ($klinikId) $q->where('klinik_id', $klinikId);
+                if ($dokterId) $q->where('dokter_id', $dokterId);
+            })
+            ->with(['invoice.visitation.pasien', 'invoice.visitation.dokter.user', 'invoice.visitation.klinik', 'invoice.piutangs', 'invoice']);
+
+        return DataTables::of($query)
+            ->addColumn('tanggal_visit', function($item){
+                return optional(optional($item->invoice)->visitation)->tanggal_visitation;
+            })
+            ->addColumn('tanggal_invoice', function($item){
+                return optional($item->invoice)->updated_at;
+            })
+            ->addColumn('no_rm', function($item){
+                return optional(optional($item->invoice)->visitation->pasien)->id ?? '-';
+            })
+            ->addColumn('nama_pasien', function($item){
+                return optional(optional($item->invoice)->visitation->pasien)->nama ?? '-';
+            })
+            ->addColumn('nama_dokter', function($item){
+                $dok = optional(optional($item->invoice)->visitation->dokter)->user->name ?? null;
+                return $dok;
+            })
+            ->addColumn('nama_klinik', function($item){
+                return optional(optional($item->invoice)->visitation->klinik)->nama ?? null;
+            })
+            ->addColumn('jenis', function($item){
+                $billableType = $item->billable_type ?? '';
+                $itemNameLower = strtolower($item->name ?? '');
+                if (stripos($billableType, 'Resep') !== false || stripos($billableType, 'Obat') !== false || str_contains($itemNameLower, 'obat')) return 'Obat/Produk';
+                if (stripos($billableType, 'Tindakan') !== false) return 'Tindakan';
+                if (stripos($billableType, 'Lab') !== false) return 'Laboratorium';
+                return 'Lain-lain';
+            })
+            ->addColumn('nama_item', function($item){ return $item->name; })
+            ->addColumn('qty', function($item){ return $item->quantity ?? 1; })
+            ->addColumn('harga', function($item){ return $item->unit_price ?? 0; })
+            ->addColumn('harga_sebelum_diskon', function($item){ return ($item->quantity ?? 1) * ($item->unit_price ?? 0); })
+            ->addColumn('diskon_nominal', function($item){
+                $qty = $item->quantity ?? 1; $unit = $item->unit_price ?? 0; $total = $qty * $unit;
+                $diskon = $item->discount ?? 0; $type = strtolower(trim((string)($item->discount_type ?? 'nominal')));
+                $isPercent = in_array($type, ['persen','percent','%'], true);
+                return $isPercent ? ($total * $diskon / 100) : $diskon;
+            })
+            ->addColumn('diskon', function($item){ return $item->discount; })
+            ->addColumn('harga_setelah_diskon', function($item){
+                $qty = $item->quantity ?? 1; $unit = $item->unit_price ?? 0; $total = $qty * $unit;
+                $diskon = $item->discount ?? 0; $type = strtolower(trim((string)($item->discount_type ?? 'nominal')));
+                $isPercent = in_array($type, ['persen','percent','%'], true);
+                $diskonNominal = $isPercent ? ($total * $diskon / 100) : $diskon;
+                return $total - $diskonNominal;
+            })
+            ->addColumn('status', function($item){
+                $invoice = $item->invoice;
+                $total = floatval($invoice->total_amount ?? 0); $paid = floatval($invoice->amount_paid ?? 0);
+                if ($total > 0 && $paid >= $total) return 'Sudah Dibayar';
+                if ($paid > 0 && $paid < $total) return 'Belum Lunas';
+                return 'Belum Dibayar';
+            })
+            ->addColumn('payment_method', function($item){
+                // re-use export logic: prefer piutang payment method when applicable
+                $invoice = $item->invoice;
+                $paidMethod = $invoice ? $invoice->payment_method : null;
+                $piutangs = $invoice && $invoice->relationLoaded('piutangs') ? $invoice->piutangs : ($invoice ? $invoice->piutangs : collect());
+                $latestPiutang = $piutangs ? $piutangs->sortByDesc(function($p){ return $p->payment_date ?? $p->updated_at ?? $p->created_at; })->first() : null;
+                if ($invoice && $invoice->payment_method === 'piutang') {
+                    $settled = $piutangs ? $piutangs->first(function($pi){
+                        if (!$pi) return false; $status = strtolower((string)($pi->payment_status ?? '')); if (in_array($status, ['paid','lunas','sudah bayar','sudah dibayar'], true)) return true; $amount = floatval($pi->amount ?? 0); $paid = floatval($pi->paid_amount ?? 0); return $amount>0 && $paid>= $amount; }) : null;
+                    if ($settled) {
+                        $pm = $piutangs->filter(function($p){ return $p && !empty($p->payment_method); })->sortByDesc(function($p){ return $p->payment_date ?? $p->updated_at ?? $p->created_at; })->first();
+                        if ($pm && !empty($pm->payment_method)) return $pm->payment_method;
+                    } else {
+                        if ($latestPiutang && !empty($latestPiutang->payment_method)) return $latestPiutang->payment_method;
+                    }
+                }
+                return $paidMethod;
+            })
+            ->addColumn('notes', function($item){
+                $invoice = $item->invoice;
+                if (!$invoice) return '';
+                $total = floatval($invoice->total_amount ?? 0);
+                $paid = floatval($invoice->amount_paid ?? 0);
+                $invoiceRemaining = max(0, $total - $paid);
+
+                $piutangs = $invoice->relationLoaded('piutangs') ? ($invoice->piutangs ?? collect()) : ($invoice->piutangs ?? collect());
+                $latestPiutang = $piutangs ? $piutangs->sortByDesc(function($p){ return $p->payment_date ?? $p->updated_at ?? $p->created_at; })->first() : null;
+                $piutangAmount = $latestPiutang ? floatval($latestPiutang->amount ?? 0) : 0;
+                $piutangPaid = $latestPiutang ? floatval($latestPiutang->paid_amount ?? 0) : 0;
+                $piutangRemaining = max(0, $piutangAmount - $piutangPaid);
+                $piutangStatus = $latestPiutang ? strtolower(trim((string)($latestPiutang->payment_status ?? ''))) : '';
+
+                $settledPiutang = $piutangs->first(function($piutang){
+                    if (!$piutang) return false;
+                    $status = strtolower(trim((string)($piutang->payment_status ?? '')));
+                    if (in_array($status, ['paid','lunas','sudah bayar','sudah dibayar'], true)) return true;
+                    $amount = floatval($piutang->amount ?? 0);
+                    $paidAmount = floatval($piutang->paid_amount ?? 0);
+                    return $amount > 0 && $paidAmount >= $amount;
+                });
+
+                if ($invoice->payment_method === 'piutang') {
+                    if ($settledPiutang || ($total > 0 && $paid >= $total)) {
+                        return 'Lunas via piutang';
+                    }
+                    if (in_array($piutangStatus, ['unpaid','belum bayar','belum dibayar',''], true) && $piutangPaid <= 0) {
+                        return 'Piutang belum bayar';
+                    }
+                    $remaining = $piutangRemaining > 0 ? $piutangRemaining : $invoiceRemaining;
+                    return 'Kekurangan: Rp ' . number_format($remaining, 0, ',', '.');
+                }
+
+                if ($total > 0 && $paid < $total) {
+                    return 'Kekurangan: Rp ' . number_format($invoiceRemaining, 0, ',', '.');
+                }
+                return '';
+            })
+            ->make(true);
+    }
+
+    /**
+     * Preview data for Invoice export (DataTables AJAX)
+     */
+    public function previewInvoiceExport(Request $request)
+    {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $klinikId = $request->input('klinik_id');
+        $dokterId = $request->input('dokter_id');
+
+        $query = Invoice::query()
+            ->whereHas('visitation', function($q) use ($startDate, $endDate, $klinikId, $dokterId) {
+                $q->whereBetween('tanggal_visitation', [$startDate, $endDate]);
+                if ($klinikId) $q->where('klinik_id', $klinikId);
+                if ($dokterId) $q->where('dokter_id', $dokterId);
+            })
+            ->with(['visitation.pasien', 'visitation.dokter.user', 'visitation.klinik', 'piutangs']);
+
+        return DataTables::of($query)
+            ->addColumn('tanggal_visit', function($invoice){ return optional($invoice->visitation)->tanggal_visitation; })
+            ->addColumn('tanggal_dibayar', function($invoice){ return $invoice->payment_date; })
+            ->addColumn('no_rm', function($invoice){ return optional(optional($invoice->visitation)->pasien)->id; })
+            ->addColumn('nama_pasien', function($invoice){ return optional(optional($invoice->visitation)->pasien)->nama; })
+            ->addColumn('nama_dokter', function($invoice){ return optional(optional($invoice->visitation)->dokter->user)->name ?? null; })
+            ->addColumn('nama_klinik', function($invoice){ return optional(optional($invoice->visitation)->klinik)->nama ?? null; })
+            ->addColumn('subtotal', function($invoice){ return $invoice->subtotal; })
+            ->addColumn('discount', function($invoice){ return $invoice->discount; })
+            ->addColumn('tax', function($invoice){ return $invoice->tax; })
+            ->addColumn('total_amount', function($invoice){ return $invoice->total_amount; })
+            ->addColumn('amount_paid', function($invoice){ return $invoice->amount_paid; })
+            ->addColumn('change_amount', function($invoice){ return $invoice->change_amount; })
+            ->addColumn('payment_method', function($invoice){
+                $paidMethod = $invoice->payment_method;
+                $piutangs = $invoice->piutangs ?? collect();
+                $latestPiutang = $piutangs->sortByDesc(function($p){ return $p->payment_date ?? $p->updated_at ?? $p->created_at; })->first();
+                $settled = $piutangs->first(function($pi){ if (!$pi) return false; $status = strtolower((string)($pi->payment_status ?? '')); if (in_array($status, ['paid','lunas','sudah bayar','sudah dibayar'], true)) return true; $amount = floatval($pi->amount ?? 0); $paid = floatval($pi->paid_amount ?? 0); return $amount>0 && $paid>= $amount; });
+                if ($invoice && $invoice->payment_method === 'piutang') {
+                    if ($settled) {
+                        $pm = $piutangs->filter(function($p){ return $p && !empty($p->payment_method); })->sortByDesc(function($p){ return $p->payment_date ?? $p->updated_at ?? $p->created_at; })->first();
+                        if ($pm && !empty($pm->payment_method)) return $pm->payment_method;
+                    } else {
+                        if ($latestPiutang && !empty($latestPiutang->payment_method)) return $latestPiutang->payment_method;
+                    }
+                }
+                return $paidMethod;
+            })
+            ->make(true);
+    }
     public function index()
     {
         $visitations = Visitation::with(['pasien','klinik'])->get();

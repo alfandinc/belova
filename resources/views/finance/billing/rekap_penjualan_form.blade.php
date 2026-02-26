@@ -4,124 +4,11 @@
     @include('layouts.finance.navbar')
 @endsection
 
-@section('scripts')
-<script>
-function formatRupiah(num) {
-    return 'Rp ' + (num ? num.toLocaleString('id-ID') : '0');
-}
-
-function updateStatistik() {
-    var daterange = $('#stat_daterange').val();
-    var klinikId = $('#stat_klinik').val();
-    var dates = daterange.split(' - ');
-    var startDate = dates[0];
-    var endDate = dates.length > 1 ? dates[1] : dates[0];
-    $.get("{{ route('finance.rekap-penjualan.statistik') }}", {start_date: startDate, end_date: endDate, klinik_id: klinikId}, function(data) {
-        $('#stat-pendapatan').text(formatRupiah(data.pendapatan));
-        $('#stat-nota').text(data.jumlahNota);
-        $('#stat-kunjungan').text(data.jumlahKunjungan);
-        var persen = data.persen !== null ? (data.persen >= 0 ? '+' : '') + data.persen.toFixed(2) + '%' : '-';
-        $('#stat-persen').html('<span class="' + (data.persen >= 0 ? 'text-success' : 'text-danger') + '">' + persen + '</span>');
-        // Update chart with daily pendapatan
-        if(window.pendapatanChart) {
-            var categories = data.dailyPendapatan.map(function(item){ return item.date; });
-            var values = data.dailyPendapatan.map(function(item){ return item.pendapatan; });
-            window.pendapatanChart.updateOptions({
-                xaxis: { categories: categories },
-                series: [{ name: 'Pendapatan', data: values }],
-                title: { text: 'Pendapatan Harian', align: 'left' }
-            });
-        }
-    });
-}
-
-$(function() {
-    $('#stat_klinik').select2({width: '100%'});
-    $('#stat_daterange').daterangepicker({
-        singleDatePicker: false,
-        showDropdowns: true,
-        locale: { format: 'YYYY-MM-DD' },
-        autoUpdateInput: true
-    });
-
-    // Inisialisasi chart satu kali
-    window.pendapatanChart = new ApexCharts(document.querySelector("#chart-pendapatan"), {
-        chart: { type: 'bar', height: 200 },
-        series: [{ name: 'Pendapatan', data: [0] }],
-        xaxis: { categories: ['Hari Ini'] },
-        colors: ['#28a745'],
-        dataLabels: { enabled: true, formatter: function(val){ return formatRupiah(val); } },
-        title: { text: 'Pendapatan Hari Ini', align: 'left' },
-        yaxis: { labels: { formatter: function(val){ return formatRupiah(val); } } }
-    });
-    window.pendapatanChart.render();
-
-    $('#stat_daterange, #stat_klinik').on('change', updateStatistik);
-    updateStatistik();
-});
-</script>
-@endsection
+{{-- Statistik script removed --}}
 
 @section('content')
 
 <div class="container-fluid py-4">
-    <div class="mb-4">
-        <h2 class="fw-bold text-primary mb-3">Statistik Pendapatan Harian</h2>
-        <div class="card shadow rounded mb-4 p-3">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-4">
-                    <label for="stat_daterange" class="form-label">Tanggal</label>
-                    <input type="text" id="stat_daterange" class="form-control" autocomplete="off" style="background:#fff;" />
-                </div>
-                <div class="col-md-4">
-                    <label for="stat_klinik" class="form-label">Klinik</label>
-                    <select name="klinik_id" id="stat_klinik" class="form-control select2">
-                        <option value="">Semua Klinik</option>
-                        @foreach($kliniks as $klinik)
-                            <option value="{{ $klinik->id }}" {{ $klinikId == $klinik->id ? 'selected' : '' }}>{{ $klinik->nama }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-        </div>
-        <div class="row mb-4 g-3">
-            <div class="col-md-3">
-                <div class="card shadow rounded h-100 stat-card">
-                    <div class="card-body text-center">
-                        <div class="fw-bold text-secondary mb-1">Pendapatan</div>
-                        <div class="h3 text-success" id="stat-pendapatan">Rp 0</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow rounded h-100 stat-card">
-                    <div class="card-body text-center">
-                        <div class="fw-bold text-secondary mb-1">Jumlah Nota</div>
-                        <div class="h3" id="stat-nota">0</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow rounded h-100 stat-card">
-                    <div class="card-body text-center">
-                        <div class="fw-bold text-secondary mb-1">Jumlah Kunjungan</div>
-                        <div class="h3" id="stat-kunjungan">0</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card shadow rounded h-100 stat-card">
-                    <div class="card-body text-center">
-                        <div class="fw-bold text-secondary mb-1">Perubahan Pendapatan</div>
-                        <div class="h3" id="stat-persen">-</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="card shadow rounded mb-4 p-3">
-            <div id="chart-pendapatan"></div>
-        </div>
-    </div>
 
     <div class="mb-5">
         <h2 class="fw-bold text-primary mb-3">Rekap Penjualan</h2>
@@ -158,6 +45,37 @@ $(function() {
                 </div>
             </div>
         </form>
+    </div>
+    <!-- Rekap Penjualan Preview inserted below Rekap form -->
+    <div class="mb-4">
+        <div class="card shadow rounded mb-4 p-3">
+            <h5>Rekap Penjualan Preview</h5>
+            <div class="table-responsive">
+                <table id="rekap-preview-table" class="table table-striped table-bordered" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Tanggal Visit</th>
+                            <th>No RM</th>
+                            <th>Nama Pasien</th>
+                            <th>Nama Dokter</th>
+                            <th>Nama Klinik</th>
+                            <th>Jenis</th>
+                            <th>Nama Item</th>
+                            <th>Qty</th>
+                            <th>Harga</th>
+                            <th>Harga Sebelum Diskon</th>
+                            <th>Diskon Nominal</th>
+                            <th>Diskon</th>
+                            <th>Harga Setelah Diskon</th>
+                            <th>Status</th>
+                            <th>Payment Method</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div class="mb-5">
@@ -196,7 +114,86 @@ $(function() {
             </div>
         </form>
     </div>
+        </form>
+    </div>
+
+    <!-- Invoice Preview inserted below Invoice form -->
+    <div class="mb-4">
+        <div class="card shadow rounded mb-4 p-3">
+            <h5>Invoice Preview</h5>
+            <div class="table-responsive">
+                <table id="invoice-preview-table" class="table table-striped table-bordered" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Tanggal Visit</th>
+                            <th>Tanggal Dibayar</th>
+                            <th>No RM</th>
+                            <th>Nama Pasien</th>
+                            <th>Nama Dokter</th>
+                            <th>Nama Klinik</th>
+                            <th>Subtotal</th>
+                            <th>Discount</th>
+                            <th>Tax</th>
+                            <th>Total Amount</th>
+                            <th>Amount Paid</th>
+                            <th>Change Amount</th>
+                            <th>Payment Method</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
+@section('scripts')
+<script>
+$(function(){
+    $('#filter_klinik, #filter_klinik_invoice, #filter_dokter, #filter_dokter_invoice').select2({width: '100%'});
+
+    var rekapTable = $('#rekap-preview-table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{{ route('finance.rekap-penjualan.preview') }}',
+            data: function(d){
+                d.start_date = $('#start_date').val();
+                d.end_date = $('#end_date').val();
+                d.klinik_id = $('#filter_klinik').val();
+                d.dokter_id = $('#filter_dokter').val();
+            }
+        },
+        columns: [
+            { data: 'tanggal_visit' },{ data: 'no_rm' },{ data: 'nama_pasien' },{ data: 'nama_dokter' },{ data: 'nama_klinik' },{ data: 'jenis' },{ data: 'nama_item' },{ data: 'qty' },{ data: 'harga' },{ data: 'harga_sebelum_diskon' },{ data: 'diskon_nominal' },{ data: 'diskon' },{ data: 'harga_setelah_diskon' },{ data: 'status' },{ data: 'payment_method' },{ data: 'notes' }
+        ],
+        pageLength: 10
+    });
+
+    var invoiceTable = $('#invoice-preview-table').DataTable({
+        processing: true,
+        serverSide: true,
+        ajax: {
+            url: '{{ route('finance.invoice.export.preview') }}',
+            data: function(d){
+                d.start_date = $('#invoice_start_date').val();
+                d.end_date = $('#invoice_end_date').val();
+                d.klinik_id = $('#filter_klinik_invoice').val();
+                d.dokter_id = $('#filter_dokter_invoice').val();
+            }
+        },
+        columns: [
+            { data: 'tanggal_visit' },{ data: 'tanggal_dibayar' },{ data: 'no_rm' },{ data: 'nama_pasien' },{ data: 'nama_dokter' },{ data: 'nama_klinik' },{ data: 'subtotal' },{ data: 'discount' },{ data: 'tax' },{ data: 'total_amount' },{ data: 'amount_paid' },{ data: 'change_amount' },{ data: 'payment_method' }
+        ],
+        pageLength: 10
+    });
+
+    // Reload previews when filters change
+    $('#start_date, #end_date, #filter_klinik, #filter_dokter').on('change', function(){ rekapTable.ajax.reload(); });
+    $('#invoice_start_date, #invoice_end_date, #filter_klinik_invoice, #filter_dokter_invoice').on('change', function(){ invoiceTable.ajax.reload(); });
+});
+</script>
+@endsection
 
 <style>
     .stat-card {

@@ -1153,9 +1153,15 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         // Rekap Penjualan
         Route::get('/rekap-penjualan', [BillingController::class, 'rekapPenjualanForm'])->name('finance.rekap-penjualan.form');
         Route::get('/rekap-penjualan/download', [BillingController::class, 'downloadRekapPenjualanExcel'])->name('finance.rekap-penjualan.download');
+        // Preview for Rekap Penjualan
+        Route::get('/rekap-penjualan/preview', [BillingController::class, 'previewRekapPenjualan'])->name('finance.rekap-penjualan.preview');
+        Route::get('/rekap-penjualan/preview', [BillingController::class, 'previewRekapPenjualan'])->name('finance.rekap-penjualan.preview');
         // Invoice Excel Export
         Route::get('/invoice-export', [InvoiceController::class, 'invoiceExportForm'])->name('finance.invoice.export.form');
         Route::get('/invoice-export/download', [InvoiceController::class, 'downloadInvoiceExcel'])->name('finance.invoice.export.download');
+        // Preview for Invoice export
+        Route::get('/invoice-export/preview', [BillingController::class, 'previewInvoiceExport'])->name('finance.invoice.export.preview');
+        Route::get('/invoice-export/preview', [BillingController::class, 'previewInvoiceExport'])->name('finance.invoice.export.preview');
         Route::get('/rekap-penjualan/statistik', [BillingController::class, 'statistikPendapatanAjax'])->name('finance.rekap-penjualan.statistik');
         
         // Retur Pembelian routes

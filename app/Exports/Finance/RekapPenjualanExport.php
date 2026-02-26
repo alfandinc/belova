@@ -37,7 +37,12 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
                     $q->where('dokter_id', $this->dokterId);
                 }
             })
-            ->with(['invoice.visitation.pasien', 'invoice.visitation.dokter.user', 'invoice.visitation.klinik']);
+            ->with([
+                'invoice.visitation.pasien',
+                'invoice.visitation.dokter.user',
+                'invoice.visitation.klinik',
+                'invoice.piutangs',
+            ]);
     }
 
     public function headings(): array
@@ -59,6 +64,7 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             'Harga Setelah Diskon',
             'Status',
             'Payment Method',
+            'Notes',
         ];
     }
 
@@ -69,7 +75,89 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
         $pasien = $visitation ? $visitation->pasien : null;
         $dokter = $visitation && $visitation->dokter ? $visitation->dokter->user->name ?? $visitation->dokter->id : null;
         $klinik = $visitation && $visitation->klinik ? $visitation->klinik->nama : null;
-        $status = ($invoice && $invoice->amount_paid > 0) ? 'Sudah Dibayar' : 'Belum Dibayar';
+
+        $totalAmount = $invoice ? floatval($invoice->total_amount ?? 0) : 0;
+        $amountPaid = $invoice ? floatval($invoice->amount_paid ?? 0) : 0;
+        $invoiceRemaining = max(0, $totalAmount - $amountPaid);
+        $isInvoiceFullyPaid = ($totalAmount > 0) && ($amountPaid >= $totalAmount);
+
+        $paidMethod = $invoice ? $invoice->payment_method : null;
+        $notes = '';
+
+        $formatRupiah = function ($value) {
+            return 'Rp ' . number_format(floatval($value), 0, ',', '.');
+        };
+
+        $piutangs = ($invoice && $invoice->relationLoaded('piutangs')) ? ($invoice->piutangs ?? collect()) : collect();
+        $latestPiutang = $piutangs
+            ->sortByDesc(function ($p) {
+                return $p->payment_date ?? $p->updated_at ?? $p->created_at;
+            })
+            ->first();
+
+        $piutangStatus = $latestPiutang ? strtolower(trim((string)($latestPiutang->payment_status ?? ''))) : '';
+        $piutangAmount = $latestPiutang ? floatval($latestPiutang->amount ?? 0) : 0;
+        $piutangPaid = $latestPiutang ? floatval($latestPiutang->paid_amount ?? 0) : 0;
+        $piutangRemaining = max(0, $piutangAmount - $piutangPaid);
+
+        $settledPiutang = $piutangs->first(function ($piutang) {
+            if (!$piutang) return false;
+            $status = strtolower(trim((string)($piutang->payment_status ?? '')));
+            if (in_array($status, ['paid', 'lunas', 'sudah bayar', 'sudah dibayar'], true)) return true;
+            $amount = floatval($piutang->amount ?? 0);
+            $paidAmount = floatval($piutang->paid_amount ?? 0);
+            return $amount > 0 && $paidAmount >= $amount;
+        });
+
+        $isPiutangInvoice = ($invoice && $invoice->payment_method === 'piutang');
+        $isPiutangSettled = $isPiutangInvoice && ($settledPiutang || $isInvoiceFullyPaid);
+
+        // Status + payment method + notes
+        if ($isPiutangInvoice) {
+            if ($isPiutangSettled) {
+                $status = 'Sudah Dibayar';
+                $piutangForMethod = $piutangs
+                    ->filter(function ($p) {
+                        return $p && !empty($p->payment_method);
+                    })
+                    ->sortByDesc(function ($p) {
+                        return $p->payment_date ?? $p->updated_at ?? $p->created_at;
+                    })
+                    ->first();
+
+                if ($piutangForMethod && !empty($piutangForMethod->payment_method)) {
+                    $paidMethod = $piutangForMethod->payment_method;
+                }
+                $notes = 'Lunas via piutang';
+            } else {
+                // Not settled yet
+                if (in_array($piutangStatus, ['partial'], true)) {
+                    $status = 'Belum Lunas';
+                } else {
+                    $status = 'Belum Dibayar';
+                }
+
+                if (in_array($piutangStatus, ['unpaid', 'belum bayar', 'belum dibayar', ''], true) && $piutangPaid <= 0) {
+                    $notes = 'Piutang belum bayar';
+                } else {
+                    $remaining = $piutangRemaining > 0 ? $piutangRemaining : $invoiceRemaining;
+                    $notes = 'Kekurangan: ' . $formatRupiah($remaining);
+                    if ($latestPiutang && !empty($latestPiutang->payment_method)) {
+                        $paidMethod = $latestPiutang->payment_method;
+                    }
+                }
+            }
+        } else {
+            if ($isInvoiceFullyPaid) {
+                $status = 'Sudah Dibayar';
+            } elseif ($amountPaid > 0 && $invoiceRemaining > 0) {
+                $status = 'Belum Lunas';
+                $notes = 'Kekurangan: ' . $formatRupiah($invoiceRemaining);
+            } else {
+                $status = 'Belum Dibayar';
+            }
+        }
+
         // Compute total price and diskon nominal
         $qty = $item->quantity ?? 1;
         $unit = $item->unit_price ?? 0;
@@ -110,7 +198,8 @@ class RekapPenjualanExport implements FromQuery, WithHeadings, WithMapping, Resp
             $item->discount,
             $hargaSetelahDiskon,
             $status,
-            $invoice ? $invoice->payment_method : null,
+            $paidMethod,
+            $notes,
         ];
     }
 }
