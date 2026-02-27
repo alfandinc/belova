@@ -158,21 +158,21 @@
                    
                     <div class="mb-3">
                         <div class="btn-group mr-2" role="group" aria-label="Cetak">
-                            <button class="btn btn-primary btn-sm btn-cetakresep" ><i class="fas fa-print mr-1"></i>Cetak Resep</button>
-                            <button class="btn btn-primary btn-sm btn-cetakedukasi" ><i class="fas fa-book-medical mr-1"></i>Cetak Edukasi</button>
-                            <button class="btn btn-primary btn-sm btn-cetaketiket" ><i class="fas fa-tags mr-1"></i>Cetak Etiket</button>
-                            <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal"><i class="fas fa-id-card mr-1"></i>Etiket Biru</button>
+                            <button class="btn btn-primary btn-sm btn-cetakresep" >Cetak Resep</button>
+                            <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
+                            <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
+                            <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal">Etiket Biru</button>
                         </div>
-                        <button id="paket-racikan" class="btn btn-sm btn-warning mr-2"><i class="fas fa-boxes mr-1"></i>Paket Racikan</button>
+                        <button id="paket-racikan" class="btn btn-sm btn-warning mr-2">Paket Racikan</button>
                         <div class="btn-group mr-2" role="group" aria-label="Riwayat">
                             <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
-                                <i class="fas fa-user-md mr-1"></i>Riwayat Dokter
+                                Riwayat Dokter
                             </button>
                             <button class="btn btn-sm btn-warning btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
-                                <i class="fas fa-clinic-medical mr-1"></i>Riwayat Farmasi
+                                Riwayat Farmasi
                             </button>
                         </div>
-                        <button id="submit-all" class="btn btn-success btn-sm"><i class="fas fa-paper-plane mr-1"></i>Submit Resep</button>
+                        <button id="submit-all" class="btn btn-success btn-sm">Submit Resep</button>
                         {{-- <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button> --}}
                     </div>
                 </div>
