@@ -170,13 +170,16 @@ class RawatJalanController extends Controller
                     $nama = $v->nama_pasien ?? '-';
                     $icons = '';
                     
-                    // Check patient age
+                    // Check patient age and render as a small badge instead of an icon
                     if ($v->tanggal_lahir) {
                         $birthDate = new \DateTime($v->tanggal_lahir);
                         $today = new \DateTime();
                         $age = $today->diff($birthDate)->y;
+                        // Use a badge for age; pink for <17, neutral for others
                         if ($age < 17) {
-                            $icons .= '<span class="status-pasien-icon" style="background-color: #ff69b4; color: white; padding: 2px 5px; border-radius: 3px; margin-right: 5px;" title="Pasien di bawah 17 tahun"><i class="fas fa-baby-carriage"></i></span>';
+                            $icons .= ' <small class="badge" style="background-color:#ff69b4;color:#fff;margin-right:5px;" title="Pasien di bawah 17 tahun">' . $age . ' th</small>';
+                        } else {
+                            $icons .= ' <small class="badge badge-secondary" style="margin-right:5px;">' . $age . ' th</small>';
                         }
                     }
                     
@@ -189,11 +192,13 @@ class RawatJalanController extends Controller
                             . '<i class="fas fa-shopping-bag" style="font-size:11px;color:#fff"></i>'
                             . '</span></a>';
                     }
-                    // Show review icon if pasien has been reviewed (status_review === 'sudah')
+                    // Show review status as a badge if pasien has been reviewed (status_review === 'sudah')
                     if (isset($v->status_review) && strtolower($v->status_review) === 'sudah') {
-                        $icons .= ' <span class="status-pasien-icon d-inline-flex align-items-center justify-content-center" style="width:20px;height:20px;background-color:#28a745;border-radius:3px;color:#fff;margin-right:5px;" title="Sudah Review"><i class="fas fa-map-marker-alt" style="font-size:11px;color:#fff"></i></span>';
+                        $icons .= ' <small class="badge badge-success" style="margin-right:5px;" title="Sudah Review">Sudah Review</small>';
                     }
-                    return $icons . ' ' . $nama;
+                    // Return only the patient name here; badges (age, review, merch, RM) will
+                    // be rendered client-side so they appear under the name consistently.
+                    return $nama;
                 })
                 ->addColumn('tanggal', function ($v) {
                     return \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
@@ -872,6 +877,39 @@ class RawatJalanController extends Controller
         }
         $visitation->save();
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Update metode bayar for a visitation (AJAX)
+     */
+    public function updateMetodeBayar(Request $request)
+    {
+        $request->validate([
+            'visitation_id' => 'required|exists:erm_visitations,id',
+            'metode_bayar_id' => 'required|exists:erm_metode_bayar,id',
+        ]);
+
+        try {
+            $visitation = Visitation::findOrFail($request->visitation_id);
+            $visitation->metode_bayar_id = $request->metode_bayar_id;
+            $visitation->save();
+
+            $metodeName = null;
+            if ($visitation->metodeBayar) {
+                $metodeName = $visitation->metodeBayar->nama;
+            } else {
+                $m = MetodeBayar::find($request->metode_bayar_id);
+                $metodeName = $m ? $m->nama : null;
+            }
+
+            // Optionally clear related caches
+            Cache::forget('visitation_stats_' . now()->format('Y-m-d') . '_dok_all');
+
+            return response()->json(['success' => true, 'metode' => $metodeName]);
+        } catch (\Exception $e) {
+            Log::error('updateMetodeBayar error: ' . $e->getMessage(), ['request' => $request->all()]);
+            return response()->json(['success' => false, 'message' => 'Internal Server Error'], 500);
+        }
     }
 
     // Store Screening Batuk

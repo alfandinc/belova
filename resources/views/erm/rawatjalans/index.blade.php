@@ -19,6 +19,21 @@
 
 .dataTables_wrapper td {
     vertical-align: middle;
+    white-space: normal; /* allow wrapping for long text like dokter names */
+}
+
+/* Uniform inline badge spacing */
+.badge-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.badge-group .badge { margin: 0; }
+/* Pink badge for children */
+.badge-pink {
+    background-color: #ff69b4;
+    color: #fff;
 }
 
 /* Smooth blinking animation for lab and tindakan icons */
@@ -1012,14 +1027,10 @@ Terima kasih.
                                 Antrian
                             @endif
                         </th>
-                        <th>No RM</th>
                         <th>Nama Pasien</th>
                         <th>Tanggal Kunjungan</th>
-                        <th>Waktu Kunjungan</th> <!-- Add header for waktu_kunjungan -->
-                        <th>Spesialisasi</th>
                         <th>Dokter</th>
                         <!-- Selesai Asesmen column removed; will show under Dokumen -->
-                        <th>Metode Bayar</th>
                         <th>Dokumen</th>
                     </tr>
                 </thead>
@@ -1107,7 +1118,10 @@ $(document).ready(function () {
     }, 2000);
     @endif
 
-    // Set default value to today for both start and end date
+    // Ensure Moment.js uses Indonesian locale and set default value to today for date inputs
+    if (typeof moment !== 'undefined' && typeof moment.locale === 'function') {
+        moment.locale('id');
+    }
     var today = moment().format('YYYY-MM-DD');
     $('#filter_start_date').val(today);
     $('#filter_end_date').val(today);
@@ -1134,6 +1148,35 @@ $(document).ready(function () {
         });
     };
 var userRole = "{{ $role }}";
+    // Map metode bayar ids to badge classes (consistent palette)
+    @php
+        $palette = ['badge-primary','badge-light text-dark','badge-success','badge-danger','badge-warning','badge-info','badge-dark'];
+        $metodeMap = [];
+        $i = 0;
+        foreach($metodeBayar as $m) {
+            $metodeMap[$m->id] = $palette[$i % count($palette)];
+            $i++;
+        }
+        // Build a specialization -> badge class map from available dokters
+        $spesialisasiMap = [];
+        $j = 0;
+        $seen = [];
+        foreach($dokters as $d) {
+            if ($d->spesialisasi && $d->spesialisasi->nama) {
+                $name = $d->spesialisasi->nama;
+                if (!isset($seen[$name])) {
+                    $spesialisasiMap[$name] = $palette[$j % count($palette)];
+                    $seen[$name] = true;
+                    $j++;
+                }
+            }
+        }
+    @endphp
+    var metodeColorMap = {!! json_encode($metodeMap) !!};
+    // expose globally so other script blocks can access it
+    window.metodeColorMap = metodeColorMap;
+    var spesialisasiColorMap = {!! json_encode($spesialisasiMap) !!};
+    window.spesialisasiColorMap = spesialisasiColorMap;
     let table = $('#rawatjalan-table').DataTable({
         processing: true,
         serverSide: true,
@@ -1148,7 +1191,7 @@ var userRole = "{{ $role }}";
                 d.klinik_id = $('#filter_klinik').val();
             }
         },
-        order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
+        order: [[2, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC (adjusted after removing No RM column)
         columns: [
             { 
                 data: 'antrian', 
@@ -1163,39 +1206,231 @@ var userRole = "{{ $role }}";
                     }
                 }
             },
-            { data: 'no_rm', name: 'no_rm', searchable: true, orderable: false },
                 {
                     data: 'nama_pasien',
                     name: 'nama_pasien',
                     searchable: true,
                     orderable: false,
                     render: function(data, type, row, meta) {
-                        let iconHtml = '';
-                        let status = row.status_pasien || 'Regular';
-                        if (status === 'VIP') {
-                            iconHtml += '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#FFD700;border-radius:3px;" title="VIP Member"><i class="fas fa-crown text-white" style="font-size:11px;"></i></span>';
-                        } else if (status === 'Familia') {
-                            iconHtml += '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#32CD32;border-radius:3px;" title="Familia Member"><i class="fas fa-users text-white" style="font-size:11px;"></i></span>';
-                        } else if (status === 'Black Card') {
-                            iconHtml += '<span class="status-pasien-icon d-inline-flex align-items-center justify-content-center mr-2" style="width:20px;height:20px;background-color:#2F2F2F;border-radius:3px;" title="Black Card Member"><i class="fas fa-credit-card text-white" style="font-size:11px;"></i></span>';
+                            function getTxt(v){ return $('<div>').text(v||'').text().trim(); }
+                            var sp = getTxt(row.status_pasien);
+                            var sa = getTxt(row.status_akses);
+                            var sr = getTxt(row.status_review);
+
+                            function badgePasien(val){
+                                var v = (val||'').toLowerCase();
+                                if (v.includes('vip')) return '<span class="badge badge-warning"><i class="fas fa-crown mr-1"></i>VIP</span>';
+                                if (v.includes('familia')) return '<span class="badge badge-primary"><i class="fas fa-users mr-1"></i>Familia</span>';
+                                if (v.includes('black')) return '<span class="badge badge-dark"><i class="fas fa-id-card mr-1"></i>Black</span>';
+                                if (v.includes('red')) return '<span class="badge badge-danger"><i class="fas fa-flag mr-1"></i>Red</span>';
+                                return ''; // hide badge for regular/other statuses
+                            }
+                            function badgeAkses(val){
+                                var v = (val||'').toLowerCase();
+                                // Only show the badge when the status explicitly indicates 'akses cepat'
+                                if (v.includes('akses cepat') || v.includes('akses_cepat') || v.includes('akses-cep')) {
+                                    return '<span class="badge badge-primary"><i class="fas fa-wheelchair mr-1"></i>Akses Cepat</span>';
+                                }
+                                return ''; // do not show any badge for normal/other statuses
+                            }
+                            function badgeReview(val){
+                                var v = (val||'').toLowerCase();
+                                // Do not show badge when already reviewed
+                                if (v.includes('sudah')) return '';
+                                // Show 'Belum Review' with a map marker icon for not-yet-reviewed
+                                return '<span class="badge badge-light text-dark"><i class="fas fa-map-marker-alt mr-1"></i>Belum Review</span>';
+                            }
+
+                            var badgesArr = [];
+                            badgesArr.push(badgePasien(sp));
+                            badgesArr.push(badgeAkses(sa));
+                            badgesArr.push(badgeReview(sr));
+
+                            // Age badge (compute if tanggal_lahir present)
+                            try {
+                                if (row.tanggal_lahir) {
+                                    var birth = new Date(row.tanggal_lahir);
+                                    if (!isNaN(birth)) {
+                                        var today = new Date();
+                                        var age = today.getFullYear() - birth.getFullYear();
+                                        var m = today.getMonth() - birth.getMonth();
+                                        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+                                        if (!isNaN(age) && age < 17) {
+                                            badgesArr.push('<span class="badge badge-pink"><i class="fas fa-baby-carriage mr-1"></i>' + age + ' th</span>');
+                                        }
+                                    }
+                                }
+                            } catch(e) {}
+
+                            // Merchandise badge / link (if pasien has merch)
+                            try {
+                                var merchCount = parseInt(row.merchandise_count || 0);
+                                if (merchCount > 0) {
+                                    var pasienId = row.pasien_id || '';
+                                    var merchHtml = '<a href="#" class="pasien-merch" data-pasien-id="' + pasienId + '" title="Lihat merchandise yang diterima">'
+                                        + '<span class="badge badge-primary"><i class="fas fa-gift mr-1"></i>Merch</span></a>';
+                                    badgesArr.push(merchHtml);
+                                }
+                            } catch(e) {}
+
+                            var badgesInner = badgesArr.join('');
+
+                            // Render name with RM/id beside the name and any badges below
+                            let rm = row.no_rm ? row.no_rm : '';
+
+                            let nameHtml = '<div class="d-flex flex-column">'
+                                           + '<div class="align-self-start"><strong>' + $('<div>').text(data||'').html() + (rm ? ' (' + $('<div>').text(rm).text() + ')' : '') + '</strong></div>'
+                                           + '<div class="mt-2 badge-group">'
+                                               + (badgesInner ? badgesInner : '')
+                                           + '</div>'
+                                           + '</div>';
+
+                            return nameHtml;
                         }
-
-                        // NOTE: review icon is rendered server-side to avoid duplication when using server-side processing.
-
-                        return iconHtml + data;
-                    }
                 },
-            { data: 'tanggal', name: 'tanggal_visitation', searchable: true },
-            { data: 'waktu_kunjungan', name: 'waktu_kunjungan', searchable: false, orderable: false }, // Add waktu_kunjungan column
-            { data: 'spesialisasi', name: 'spesialisasi', searchable: false, orderable: false },
-            { data: 'dokter_nama', name: 'dokter_nama', searchable: false, orderable: false },
-            { data: 'metode_bayar', name: 'metode_bayar', searchable: true, orderable: false },
+            { 
+                data: 'tanggal', 
+                name: 'tanggal_visitation', 
+                searchable: true,
+                render: function(data, type, row, meta) {
+                    // Format tanggal to include weekday (Indonesian). Fallback to server string if parsing fails.
+                    var formattedDate = data || '';
+                    try {
+                        // Prefer Moment.js with Indonesian locale when available
+                        if (typeof moment !== 'undefined') {
+                            var m = moment(data, moment.ISO_8601, true);
+                            if (!m.isValid()) {
+                                m = moment(data, 'D MMMM YYYY', 'id', true);
+                            }
+                            if (!m.isValid()) {
+                                m = moment(data);
+                            }
+                            if (m && m.isValid()) {
+                                // If moment has the locale loaded this will be localized
+                                formattedDate = m.format('dddd, D MMMM YYYY');
+                            }
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    // Fallback: if formattedDate is English (or moment locale not present), build Indonesian string manually
+                    var tryManual = false;
+                    if (!formattedDate) tryManual = true;
+                    // quick check for english weekday names
+                    var engWeekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                    for (var i=0;i<engWeekdays.length;i++) {
+                        if (formattedDate.indexOf(engWeekdays[i]) !== -1) { tryManual = true; break; }
+                    }
+                    if (tryManual) {
+                        var monthsId = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+                        var daysId = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+                        var dt = null;
+                        // try Date parse
+                        try {
+                            dt = new Date(data);
+                            if (isNaN(dt.getTime())) dt = null;
+                        } catch(e) { dt = null; }
+                        if (!dt) {
+                            // try extract numbers: D M YYYY or D MMMM YYYY
+                            var parts = (data || '').trim().split(/\s+/);
+                            // attempt to find day and year
+                            var day = null, month = null, year = null;
+                            // find numeric part for day and year
+                            for (var p=0;p<parts.length;p++) {
+                                if (/^\d{1,2}$/.test(parts[p])) {
+                                    if (!day) day = parseInt(parts[p],10);
+                                } else if (/^\d{4}$/.test(parts[p])) {
+                                    year = parts[p];
+                                } else {
+                                    // try match month name (english or indonesian)
+                                    var idx = monthsId.findIndex(function(m){ return m.toLowerCase()===parts[p].toLowerCase(); });
+                                    if (idx !== -1) month = idx;
+                                    // english months
+                                    var engMonths = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                                    idx = engMonths.findIndex(function(m){ return m.toLowerCase()===parts[p].toLowerCase(); });
+                                    if (idx !== -1) month = idx;
+                                }
+                            }
+                            if (day && month !== null && year) {
+                                dt = new Date(year, month, day);
+                            }
+                        }
+                        if (dt && !isNaN(dt.getTime())) {
+                            var weekdayName = daysId[dt.getDay()];
+                            var dayNum = dt.getDate();
+                            var monthName = monthsId[dt.getMonth()];
+                            var yearNum = dt.getFullYear();
+                            formattedDate = weekdayName + ', ' + dayNum + ' ' + monthName + ' ' + yearNum;
+                        }
+                    }
+
+                    // Make bold
+                    if (formattedDate) formattedDate = '<strong>' + formattedDate + '</strong>';
+
+                    var waktu = row.waktu_kunjungan || '';
+                    var waktuHtml = '';
+                    if (waktu && waktu !== '-') {
+                        waktuHtml = '<small class="badge badge-light text-dark">' + waktu + '</small>';
+                    }
+
+                    // Metode bayar moved here
+                    var metode = row.metode_bayar || '';
+                    var metodeId = row.metode_bayar_id || '';
+                    var visitationId = row.id || '';
+                    var metodeHtml = '';
+                    if (metode) {
+                        var metodeEsc = ('' + metode).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        var badgeClass = 'badge-info';
+                        try {
+                            if (metodeId && window.metodeColorMap && window.metodeColorMap[metodeId]) badgeClass = window.metodeColorMap[metodeId];
+                        } catch(e) {}
+                        metodeHtml = ' <a href="#" class="metode-bayar-btn" data-metode="' + metodeEsc + '" data-metode-id="' + metodeId + '" data-visitation-id="' + visitationId + '"><small class="badge ' + badgeClass + ' ml-1">' + metode + '</small></a>';
+                    }
+
+                    // Jenis kunjungan badge (1: Konsultasi, 2: Produk/Obat, 3: Lab)
+                    var jenis = row.jenis_kunjungan || '';
+                    var jenisHtml = '';
+                    if (jenis !== '' && jenis !== null && typeof jenis !== 'undefined') {
+                        var jenisText = '';
+                        var jenisClass = 'badge-light text-dark';
+                        if (jenis == 1 || jenis === '1') { jenisText = 'Konsultasi'; jenisClass = 'badge-success'; }
+                        else if (jenis == 2 || jenis === '2') { jenisText = 'Produk/Obat'; jenisClass = 'badge-primary'; }
+                        else if (jenis == 3 || jenis === '3') { jenisText = 'Lab'; jenisClass = 'badge-warning'; }
+                        if (jenisText) jenisHtml = ' <small class="badge ' + jenisClass + ' ml-1">' + jenisText + '</small>';
+                    }
+
+                    return '<div>' + formattedDate + '<div class="mt-1">' + metodeHtml + jenisHtml + (waktuHtml ? ' ' + waktuHtml : '') + '</div></div>';
+                }
+            },
+            { 
+                data: 'dokter_nama', 
+                name: 'dokter_nama', 
+                searchable: false, 
+                orderable: false,
+                render: function(data, type, row, meta) {
+                    var nama = data || '-';
+                    var spes = row.spesialisasi || '';
+                    var badgeClass = 'badge-light text-dark';
+                    try {
+                        if (spes && window.spesialisasiColorMap && window.spesialisasiColorMap[spes]) badgeClass = window.spesialisasiColorMap[spes];
+                    } catch(e) {}
+                    var spesHtml = '';
+                    if (spes) {
+                        var spesEsc = (''+spes).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                        spesHtml = '<div class="mt-1"><small class="badge ' + badgeClass + '">' + spesEsc + '</small></div>';
+                    }
+                    return '<div><strong>' + nama + '</strong>' + spesHtml + '</div>';
+                }
+            },
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
-            { targets: 0, width: "8%" }, // Antrian
-            { targets: 6, width: "15%" }, // Dokter
-            { targets: 8, width: "15%" }, // Dokumen
+            { targets: 0, width: "8%" },  // Antrian
+            { targets: 1, width: "30%" }, // Nama Pasien
+            { targets: 2, width: "20%" }, // Tanggal
+            { targets: 3, width: "30%" }, // Dokter
+            { targets: 4, width: "12%" }, // Dokumen
         ],
         createdRow: function(row, data, dataIndex) {
     if (data.status_kunjungan == 2) {
@@ -1339,7 +1574,7 @@ var userRole = "{{ $role }}";
                         res3.data.forEach(function(item){
                             (item.lab_tests || []).forEach(function(t, idx){
                                 const s = (t.status || '-');
-                                const badgeClass = s === 'completed' ? 'badge-success' : (s === 'requested' ? 'badge-info' : 'badge-secondary');
+                                const badgeClass = s === 'completed' ? 'badge-success' : (s === 'requested' ? 'badge-info' : 'badge-light text-dark');
                                 const processedAt = t.processed_at || '-';
                                 const completedAt = t.completed_at || '-';
 
@@ -1552,7 +1787,7 @@ $(document).on('click','.lab-icon', function(e){
             let html = '<table class="table table-bordered table-sm"><thead><tr><th>Pemeriksaan</th><th>Status</th><th>Requested</th><th>Diproses</th><th>Selesai</th><th>Durasi Proses</th></tr></thead><tbody>';
             res.data.forEach(function(t){
                 const s = t.status || '-';
-                const badgeClass = s === 'completed' ? 'badge-success' : (s === 'requested' ? 'badge-info' : (s==='processed'?'badge-warning':'badge-secondary'));
+                const badgeClass = s === 'completed' ? 'badge-success' : (s === 'requested' ? 'badge-info' : (s==='processed'?'badge-warning':'badge-light text-dark'));
                 html += '<tr>' +
                     '<td>'+ (t.lab_test || '-') +'</td>' +
                     '<td><span class="badge '+badgeClass+'">'+s+'</span></td>' +
@@ -2097,5 +2332,91 @@ $(document).on('click', '.pasien-merch', function(e) {
 });
 </script>
 
+<!-- Modal: Metode Bayar Edit -->
+<div class="modal fade" id="modalMetodeBayar" tabindex="-1" role="dialog" aria-labelledby="modalMetodeBayarTitle" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalMetodeBayarTitle">Ubah Metode Bayar</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="form-metode-bayar">
+            <div class="modal-body">
+                <input type="hidden" id="metode-visitation-id" name="visitation_id" />
+                <div class="form-group mb-2">
+                    <label for="metode-bayar-select">Pilih Metode Bayar</label>
+                    <select id="metode-bayar-select" name="metode_bayar_id" class="form-control">
+                        <option value="">-- Pilih --</option>
+                        @foreach($metodeBayar as $m)
+                            <option value="{{ $m->id }}">{{ $m->nama }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="submit" class="btn btn-primary" id="save-metode-bayar-btn">Simpan</button>
+            </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Open metode bayar modal when badge clicked (populate select)
+$(document).on('click', '.metode-bayar-btn', function(e){
+    e.preventDefault();
+    var metode = $(this).data('metode') || '-';
+    var metodeId = $(this).data('metode-id') || '';
+    var visitationId = $(this).data('visitation-id') || '';
+    $('#metode-visitation-id').val(visitationId);
+    $('#metode-bayar-select').val(metodeId);
+    $('#modalMetodeBayar').modal('show');
+});
+
+// Submit metode bayar change
+$('#form-metode-bayar').submit(function(e){
+    e.preventDefault();
+    var visitationId = $('#metode-visitation-id').val();
+    var metodeId = $('#metode-bayar-select').val();
+    if (!visitationId || !metodeId) {
+        Swal.fire('Error', 'Pilih metode bayar terlebih dahulu.', 'warning');
+        return;
+    }
+    var url = '{{ route("erm.rawatjalans.updateMetodeBayar") }}';
+    $.post(url, {
+        _token: '{{ csrf_token() }}',
+        visitation_id: visitationId,
+        metode_bayar_id: metodeId
+    }, function(res){
+            if (res.success) {
+                // update badge text and class in table
+                var selector = '.metode-bayar-btn[data-visitation-id="' + visitationId + '"]';
+                var el = $(selector);
+                var newText = res.metode || $('#metode-bayar-select option:selected').text();
+                var newClass = (window.metodeColorMap && window.metodeColorMap[metodeId]) ? window.metodeColorMap[metodeId] : 'badge-info';
+                if (el.length) {
+                    var small = el.find('small.badge');
+                    small.text(newText);
+                    // remove previous badge- classes and add new
+                    small.removeClass(function(index, className) {
+                        return (className.match(/(^|\s)badge-\S+/g) || []).join(' ');
+                    }).addClass('badge ' + newClass + ' ml-1');
+                    el.data('metode', newText);
+                    el.data('metode-id', metodeId);
+                }
+                $('#modalMetodeBayar').modal('hide');
+                Swal.fire('Berhasil', 'Metode bayar diperbarui.', 'success');
+            } else {
+            Swal.fire('Gagal', res.message || 'Gagal memperbarui metode bayar.', 'error');
+        }
+    }).fail(function(xhr){
+        Swal.fire('Error', 'Terjadi kesalahan saat menyimpan.', 'error');
+        console.error(xhr.responseText);
+    });
+});
+</script>
 
 @endsection

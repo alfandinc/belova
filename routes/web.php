@@ -712,6 +712,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     // WhatsApp Integration Routes removed (waweb-js uninstalled)
     Route::get('/rawatjalans', [RawatJalanController::class, 'index'])->name('erm.rawatjalans.index');
     Route::get('/rawatjalans/stats', [RawatJalanController::class, 'getStats'])->name('erm.rawatjalans.stats');
+    Route::post('/rawatjalans/update-metode', [RawatJalanController::class, 'updateMetodeBayar'])->name('erm.rawatjalans.updateMetodeBayar');
     Route::get('/rawatjalans/rujuks', [App\Http\Controllers\ERM\RawatJalanController::class, 'listRujuks'])->name('erm.rawatjalans.rujuks');
     Route::get('/rujuk/{id}/surat', [App\Http\Controllers\ERM\RawatJalanController::class, 'printRujukSurat'])->name('erm.rujuk.surat');
     Route::get('/rawatjalans/lab-permintaan', [App\Http\Controllers\ERM\RawatJalanController::class, 'listLabPermintaan'])->name('erm.rawatjalans.labpermintaan');
