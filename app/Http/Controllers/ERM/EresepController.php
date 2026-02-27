@@ -687,6 +687,12 @@ class EresepController extends Controller
     public function farmasidestroyNonRacikan($id)
     {
         $resep = ResepFarmasi::findOrFail($id);
+
+        Billing::where('visitation_id', $resep->visitation_id)
+            ->where('billable_type', ResepFarmasi::class)
+            ->where('billable_id', $resep->id)
+            ->delete();
+
         $resep->delete();
 
         return response()->json(['message' => 'Resep berhasil dihapus']);
@@ -708,6 +714,11 @@ class EresepController extends Controller
         // Delete each model instance so model events (observers) run and keep billing/invoice in sync
         foreach ($reseps as $r) {
             try {
+                Billing::where('visitation_id', $r->visitation_id)
+                    ->where('billable_type', ResepFarmasi::class)
+                    ->where('billable_id', $r->id)
+                    ->delete();
+
                 $r->delete();
             } catch (\Exception $e) {
                 \Illuminate\Support\Facades\Log::warning('Failed deleting resep id '.$r->id.': '.$e->getMessage());
@@ -858,12 +869,12 @@ class EresepController extends Controller
     DB::beginTransaction();
     
     try {
-        // If force, delete only billing items for Obat
-        if ($force) {
-            Billing::where('visitation_id', $visitationId)
-                ->where('billable_type', 'App\Models\ERM\ResepFarmasi')
-                ->delete();
-        }
+        // Always re-sync billing rows for resep farmasi on submit.
+        // Prevents stale/duplicate billing rows if resep items were deleted/edited after a previous submit.
+        Billing::withTrashed()
+            ->where('visitation_id', $visitationId)
+            ->where('billable_type', ResepFarmasi::class)
+            ->forceDelete();
 
         // Fetch all related prescriptions
         $reseps = ResepFarmasi::where('visitation_id', $visitationId)->with('obat')->get();
@@ -897,10 +908,34 @@ class EresepController extends Controller
 
         // Create billing records (NO STOCK REDUCTION HERE)
         foreach ($reseps as $resep) {
+            // Ensure harga is present; some legacy/create paths may not set it (e.g., paket-copy, update create)
+            if ($resep->harga === null) {
+                $basePrice = ($resep->obat && $resep->obat->harga_nonfornas !== null) ? (float) $resep->obat->harga_nonfornas : 0.0;
+                $harga = $basePrice;
+                if ($resep->racikan_ke) {
+                    $prescribedDosis = 0.0;
+                    $baseDosis = 0.0;
+                    if (preg_match('/(\d+(?:[.,]\d+)?)/', (string) ($resep->dosis ?? ''), $m)) {
+                        $prescribedDosis = (float) str_replace(',', '.', $m[1]);
+                    }
+                    if ($resep->obat && preg_match('/(\d+(?:[.,]\d+)?)/', (string) ($resep->obat->dosis ?? ''), $m2)) {
+                        $baseDosis = (float) str_replace(',', '.', $m2[1]);
+                    }
+                    if ($baseDosis > 0 && $prescribedDosis > 0) {
+                        $harga = $basePrice * ($prescribedDosis / $baseDosis);
+                    }
+                }
+                $resep->harga = $harga;
+                try { $resep->save(); } catch (\Exception $ex) {
+                    Log::warning('Failed to backfill harga for resep id '.$resep->id.': '.$ex->getMessage());
+                }
+            }
+
             $qty = $resep->racikan_ke ? ($resep->bungkus ?? 1) : ($resep->jumlah ?? 1);
             
             Billing::updateOrCreate(
                 [
+                    'visitation_id' => $resep->visitation_id,
                     'billable_id' => $resep->id,
                     'billable_type' => ResepFarmasi::class,
                 ],
@@ -1044,7 +1079,6 @@ class EresepController extends Controller
             ];
         }));
     }
-
 
     public function getResepDokterByVisitation($visitationId)
     {
@@ -1503,6 +1537,7 @@ class EresepController extends Controller
                 'id' => $customId,
                 'visitation_id' => $visitationId,
                 'obat_id' => $detail->obat_id,
+                'jumlah' => 1,
                 'aturan_pakai' => $aturanPakai, // Gunakan aturan pakai dari modal
                 'racikan_ke' => $newRacikanKe,
                 'wadah_id' => $paketRacikan->wadah_id,
@@ -1513,10 +1548,30 @@ class EresepController extends Controller
             ]);
         }
 
+        // Return created rows with stok_gudang so client can display correct stock immediately
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $createdRows = ResepDokter::with('obat')
+            ->where('visitation_id', $visitationId)
+            ->where('racikan_ke', $newRacikanKe)
+            ->get()
+            ->map(function ($r) use ($gudangId) {
+                $stokGudang = ($gudangId && $r->obat) ? $r->obat->getStokByGudang($gudangId) : 0;
+                return [
+                    'id' => $r->id,
+                    'obat_id' => $r->obat_id,
+                    'dosis' => $r->dosis,
+                    'jumlah' => $r->jumlah ?? 1,
+                    'obat_nama' => $r->obat->nama ?? '',
+                    'stok_gudang' => (int) $stokGudang,
+                ];
+            })
+            ->values();
+
         return response()->json([
             'success' => true,
             'message' => "Paket racikan '{$paketRacikan->nama_paket}' berhasil ditambahkan dengan {$bungkus} bungkus.",
-            'racikan_ke' => $newRacikanKe
+            'racikan_ke' => $newRacikanKe,
+            'obats' => $createdRows,
         ]);
     }
 
@@ -1549,24 +1604,61 @@ class EresepController extends Controller
                 $customId = now()->format('YmdHis') . strtoupper(Str::random(7));
             } while (ResepFarmasi::where('id', $customId)->exists());
 
+            // Compute harga unit like farmasistoreRacikan (base price * dosis ratio)
+            $obatModel = Obat::find($detail->obat_id);
+            $basePrice = $obatModel ? ($obatModel->harga_nonfornas ?? 0) : 0;
+            $prescribedDosisStr = (string) ($detail->dosis ?? '');
+            $baseDosisStr = (string) ($obatModel->dosis ?? '');
+            preg_match('/(\d+(?:[.,]\d+)?)/', $prescribedDosisStr, $prescribedMatches);
+            preg_match('/(\d+(?:[.,]\d+)?)/', $baseDosisStr, $baseMatches);
+            $prescribedDosis = !empty($prescribedMatches[1]) ? (float) str_replace(',', '.', $prescribedMatches[1]) : 0;
+            $baseDosis = !empty($baseMatches[1]) ? (float) str_replace(',', '.', $baseMatches[1]) : 0;
+            $harga = $basePrice;
+            if ($baseDosis > 0 && $prescribedDosis > 0) {
+                $harga = $basePrice * ($prescribedDosis / $baseDosis);
+            }
+
             ResepFarmasi::create([
                 'id' => $customId,
                 'visitation_id' => $visitationId,
                 'obat_id' => $detail->obat_id,
+                'jumlah' => 1,
+                'diskon' => 0,
                 'aturan_pakai' => $aturanPakai,
                 'racikan_ke' => $newRacikanKe,
                 'wadah_id' => $paketRacikan->wadah_id,
                 'bungkus' => $bungkus,
                 'dosis' => $detail->dosis,
+                'harga' => $harga,
                 'user_id' => Auth::id(),
                 'created_at' => now(),
             ]);
         }
 
+        // Return created rows with stok_gudang so client can display correct stock immediately
+        $gudangId = \App\Models\ERM\GudangMapping::getDefaultGudangId('resep');
+        $createdRows = ResepFarmasi::with('obat')
+            ->where('visitation_id', $visitationId)
+            ->where('racikan_ke', $newRacikanKe)
+            ->get()
+            ->map(function ($r) use ($gudangId) {
+                $stokGudang = ($gudangId && $r->obat) ? $r->obat->getStokByGudang($gudangId) : 0;
+                return [
+                    'id' => $r->id,
+                    'obat_id' => $r->obat_id,
+                    'dosis' => $r->dosis,
+                    'jumlah' => $r->jumlah ?? 1,
+                    'obat_nama' => $r->obat->nama ?? '',
+                    'stok_gudang' => (int) $stokGudang,
+                ];
+            })
+            ->values();
+
         return response()->json([
             'success' => true,
             'message' => "Paket racikan '{$paketRacikan->nama_paket}' berhasil diterapkan ke Farmasi dengan {$bungkus} bungkus.",
-            'racikan_ke' => $newRacikanKe
+            'racikan_ke' => $newRacikanKe,
+            'obats' => $createdRows,
         ]);
     }
 
@@ -1756,13 +1848,12 @@ class EresepController extends Controller
             $data['sore'] = isset($validated['sore']) && $validated['sore'] == 1;
             $data['malam'] = isset($validated['malam']) && $validated['malam'] == 1;
 
-            // Render Blade view to HTML
             $html = view('erm.eresep.farmasi.etiket-biru-print', $data)->render();
-            // Use mPDF for PDF generation with A4 page to allow
-            // positioning the label at the top-right corner of the sheet.
-            // The label itself keeps its own size via CSS (10cm x 1.5cm).
+
             $mpdf = new \Mpdf\Mpdf([
-                'format' => 'A4',
+                'mode' => 'utf-8',
+                // Label is 10cm x 1.5cm
+                'format' => [100, 15],
                 'margin_left' => 0,
                 'margin_right' => 0,
                 'margin_top' => 0,

@@ -10,8 +10,12 @@
             </div>
             <div class="modal-body">
                 <div class="row">
-                    <div class="col-md-8">
-                        <h6><strong>Daftar Paket Racikan</strong></h6>                        <div class="table-responsive">
+                    <div class="col-md-7">
+                        <h6><strong>Daftar Paket Racikan</strong></h6>
+                        <div class="mb-2">
+                            <input type="text" class="form-control form-control-sm" id="searchPaketRacikan" placeholder="Cari paket racikan...">
+                        </div>
+                        <div class="table-responsive">
                             <table class="table table-sm table-bordered" id="paketRacikanTable">
                                 <thead class="thead-light">
                                     <tr>
@@ -29,9 +33,10 @@
                             </table>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-5">
                         <h6><strong>Buat Paket Racikan Baru</strong></h6>
                         <form id="formPaketRacikan">
+                            <input type="hidden" name="id" id="paketId" value="">
                             <div class="form-group">
                                 <label>Nama Paket</label>
                                 <input type="text" class="form-control" name="nama_paket" required>
@@ -52,7 +57,9 @@
                             </div>
                             <div class="form-group">
                                 <label>Aturan Pakai Default</label>
-                                <input type="text" class="form-control" name="aturan_pakai_default" placeholder="3 x 1 hari">
+                                <select class="form-control select2-aturan-pakai" name="aturan_pakai_default" style="width:100%">
+                                    <option value="">Pilih Aturan Pakai</option>
+                                </select>
                             </div>
                             
                             <h6><strong>Obat dalam Paket</strong></h6>
@@ -130,7 +137,9 @@
                 </div>
                 <div class="form-group">
                     <label for="paketAturanPakai">Aturan Pakai <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="paketAturanPakai" placeholder="Contoh: 3 x 1 hari" required>
+                    <select class="form-control select2-aturan-pakai-modal" id="paketAturanPakai" required style="width:100%">
+                        <option value="">Pilih Aturan Pakai</option>
+                    </select>
                 </div>
                 <input type="hidden" id="selectedPaketId">
             </div>

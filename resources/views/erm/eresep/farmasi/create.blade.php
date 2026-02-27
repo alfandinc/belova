@@ -5,6 +5,24 @@
 @endsection
 @section('content')
 
+<style>
+    /* Small badge used for section titles (match Dokter e-resep) */
+    .eresep-badge {
+        display: inline-block;
+        padding: .25rem .5rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #212529;
+        background-color: #ffc107; /* yellow */
+        border-radius: .375rem;
+        vertical-align: middle;
+    }
+    .eresep-badge i {
+        margin-right: .4rem;
+        vertical-align: middle;
+    }
+</style>
+
 @include('erm.partials.modal-alergipasien')
 @include('erm.partials.modal-resephistory')
 @include('erm.partials.modal-resepedukasi')
@@ -139,19 +157,22 @@
                     </div>
                    
                     <div class="mb-3">
-                        <button class="btn btn-primary btn-sm btn-cetakresep" >Cetak Resep</button>
-                        <button class="btn btn-primary btn-sm btn-cetakedukasi" >Cetak Edukasi</button>
-                        <button class="btn btn-primary btn-sm btn-cetaketiket" >Cetak Etiket</button>
-                        <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal">Etiket Biru</button>
-                        <button id="paket-racikan" class="btn btn-sm btn-warning">Paket Racikan</button>
-                        <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
-                            Riwayat Dokter
-                        </button>
-
-                        <button class="btn btn-sm btn-warning btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
-                            Riwayat Farmasi
-                        </button>
-                        <button id="submit-all" class="btn btn-success btn-sm">Submit Resep</button>
+                        <div class="btn-group mr-2" role="group" aria-label="Cetak">
+                            <button class="btn btn-primary btn-sm btn-cetakresep" ><i class="fas fa-print mr-1"></i>Cetak Resep</button>
+                            <button class="btn btn-primary btn-sm btn-cetakedukasi" ><i class="fas fa-book-medical mr-1"></i>Cetak Edukasi</button>
+                            <button class="btn btn-primary btn-sm btn-cetaketiket" ><i class="fas fa-tags mr-1"></i>Cetak Etiket</button>
+                            <button class="btn btn-primary btn-sm btn-cetaketiketbiru" data-toggle="modal" data-target="#etiketBiruModal"><i class="fas fa-id-card mr-1"></i>Etiket Biru</button>
+                        </div>
+                        <button id="paket-racikan" class="btn btn-sm btn-warning mr-2"><i class="fas fa-boxes mr-1"></i>Paket Racikan</button>
+                        <div class="btn-group mr-2" role="group" aria-label="Riwayat">
+                            <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}" data-title="Riwayat Resep Dokter" data-type="dokter">
+                                <i class="fas fa-user-md mr-1"></i>Riwayat Dokter
+                            </button>
+                            <button class="btn btn-sm btn-warning btn-riwayat" data-url="{{ route('resep.historyfarmasi', $pasien->id) }}" data-title="Riwayat Resep Farmasi" data-type="farmasi">
+                                <i class="fas fa-clinic-medical mr-1"></i>Riwayat Farmasi
+                            </button>
+                        </div>
+                        <button id="submit-all" class="btn btn-success btn-sm"><i class="fas fa-paper-plane mr-1"></i>Submit Resep</button>
                         {{-- <button class="btn btn-danger btn-sm" onclick="window.close()">Keluar</button> --}}
                     </div>
                 </div>
@@ -167,7 +188,7 @@
                 @endif
 <div id="resep-wrapper">
                 <!-- NON RACIKAN -->
-                <h5 style="color: blue;"><strong>Resep Non Racikan</strong></h5>
+                <h5><span class="eresep-badge"><i class="fas fa-pills"></i>Resep Non Racikan</span></h5>
                 <div class="racikan-card mb-4 p-3 border rounded">
                     <div class="row add-obat-row mb-3">
                         <div class="col-md-4">
@@ -241,13 +262,13 @@
                 </div>
 
                 <!-- RACIKAN -->
-                <h5 style="color: blue;"><strong>Resep Racikan</strong></h5>
+                <h5><span class="eresep-badge"><i class="fas fa-capsules"></i>Resep Racikan</span></h5>
                 
                 <div id="racikan-container">
                     @foreach ($racikans as $ke => $items)
                     <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="{{ $ke }}">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 style="color: blue;"><strong>Racikan {{ $ke }}</strong></h5>
+                            <h5><strong>Racikan {{ $ke }}</strong></h5>
                             <div>
                                 <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
                                 <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
@@ -846,7 +867,7 @@
             const racikanCard = `
                 <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanCount}">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 style="color: yellow;"><strong>Racikan ${racikanCount}</strong></h5>
+                        <h5><strong>Racikan ${racikanCount}</strong></h5>
                         <div>
                             <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
                             <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>
@@ -2123,14 +2144,35 @@
             $.ajax({ url: "{{ route('erm.paket-racikan.copy.farmasi') }}", method: 'POST', data: { _token: "{{ csrf_token() }}", paket_racikan_id: paketId, visitation_id: visitationId, bungkus: bungkus, aturan_pakai: aturanPakai }, success: function(response) {
                     if (response.success) {
                         $('#gunakanPaketModalFarmasi').addClass('reload-after-close');
-                        racikanCount = response.racikan_ke;
+                        const createdRacikanKe = response.racikan_ke;
+                        racikanCount = createdRacikanKe;
                         // Prefer client-side rendering from paket data saved earlier
                         let paketData = $('#selectedPaketIdFarmasi').data('paket') || null;
                         if (paketData && typeof paketData === 'string') {
                             try { paketData = JSON.parse(paketData); } catch (e) { paketData = null; }
                         }
                         if (paketData) {
-                            createRacikanCardFromPaketWithCustomData(paketData, response.racikan_ke, bungkus, aturanPakai);
+                            createRacikanCardFromPaketWithCustomData(paketData, createdRacikanKe, bungkus, aturanPakai);
+                            // PATCH: Update stok/ids from server response if available (stok depends on gudang mapping)
+                            if (response.obats && Array.isArray(response.obats)) {
+                                const card = $('#racikan-container .racikan-card[data-racikan-ke="' + createdRacikanKe + '"]').last();
+                                if (card.length) {
+                                    const tbody = card.find('.resep-table-body');
+                                    response.obats.forEach(function(ob){
+                                        const stokGudang = parseInt(ob.stok_gudang || 0, 10);
+                                        const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
+                                        // Find the existing row rendered from paket data and patch it
+                                        const row = tbody.find('tr[data-obat-id="' + ob.obat_id + '"]').first();
+                                        if (row.length) {
+                                            row.attr('data-id', ob.id);
+                                            row.attr('data-obat-id', ob.obat_id);
+                                            row.attr('data-dosis', ob.dosis);
+                                            row.attr('data-jumlah', ob.jumlah || 1);
+                                            row.find('td').eq(2).html(`<span style="color: ${stokColor};">${stokGudang}</span>`);
+                                        }
+                                    });
+                                }
+                            }
                             updateTotalPrice();
                         } else {
                             // fallback to server fetch if paket data not available
@@ -2198,7 +2240,7 @@
             let racikanCard = `
                 <div class="racikan-card mb-4 p-3 border rounded" data-racikan-ke="${racikanKe}">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h5 style="color: yellow;"><strong>Racikan ${racikanKe}</strong></h5>
+                        <h5><strong>Racikan ${racikanKe}</strong></h5>
                         <div>
                             <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
                             <button class="btn btn-danger btn-sm hapus-racikan">Hapus Racikan</button>

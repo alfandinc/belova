@@ -29,6 +29,22 @@
     #racikan-container .resep-table-body tr.row-in-farmasi {
         background-color: rgba(40, 167, 69, 0.1) !important;
     }
+
+    /* Small badge used for section titles */
+    .eresep-badge {
+        display: inline-block;
+        padding: .25rem .5rem;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #212529;
+        background-color: #ffc107; /* yellow */
+        border-radius: .375rem;
+        vertical-align: middle;
+    }
+    .eresep-badge i {
+        margin-right: .4rem;
+        vertical-align: middle;
+    }
 </style>
 
 @include('erm.partials.modal-alergipasien')
@@ -67,7 +83,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div style="display: flex; align-items: center;">
                         <h4 style="margin: 0;">Total Harga: <strong>Rp.</strong></h4>
-                        <h4 id="total-harga" style="margin: 0; color: white;"><strong>0</strong></h4>
+                        <h4 id="total-harga" style="margin: 0;"><strong>0</strong></h4>
                     </div>
                     <div class="mb-3">
                         <button class="btn btn-sm btn-info btn-riwayat" data-url="{{ route('resep.historydokter', $pasien->id) }}">
@@ -84,15 +100,15 @@
                 </div>
 
                 <div class="mb-3">
-                    <h5>Dokter Input : {{ auth()->user()->name }}</h5>
-                    <textarea class="form-control" id="catatan_dokter" placeholder="Tuliskan catatan disini ..." rows="3">{{ $catatan_dokter ?? ($catatan_resep ?? '') }}</textarea>
-                    <div class="mt-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">Dokter Input : {{ auth()->user()->name }}</h5>
                         <button class="btn btn-success btn-sm" id="simpan-catatan">Simpan Catatan</button>
                     </div>
+                    <textarea class="form-control" id="catatan_dokter" placeholder="Tuliskan catatan disini ..." rows="3">{{ $catatan_dokter ?? ($catatan_resep ?? '') }}</textarea>
                 </div>
 
                 <!-- NON RACIKAN -->
-                <h5 style="color: yellow;"><strong>Resep Non Racikan</strong></h5>
+                <h5><span class="eresep-badge"><i class="fas fa-pills"></i>Resep Non Racikan</span></h5>
                 <div class="racikan-card mb-4 p-3 border rounded">
                     <div class="row mb-3">
                         <div class="col-md-4">
@@ -128,7 +144,7 @@
                         </small>
                     </div>
 
-                    <table class="table table-bordered" style="color: white;">
+                    <table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
@@ -170,7 +186,7 @@
                 </div>
 
                 <!-- RACIKAN -->
-                <h5 style="color: yellow;"><strong>Resep Racikan</strong></h5>
+                <h5><span class="eresep-badge"><i class="fas fa-capsules"></i>Resep Racikan</span></h5>
                 <div class="mb-3">
                     <small class="text-muted">
                         <i class="fas fa-info-circle"></i> Keterangan: 
@@ -184,7 +200,7 @@
                         
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h5 style=""><strong>Racikan {{ $ke }}
-                                <span class="racikan-harga-detail" style="color: #ffc107; font-size: 1rem; font-weight: normal; margin-left: 10px;"></span>
+                                <span class="racikan-harga-detail" style="font-size: 1rem; font-weight: normal; margin-left: 10px;"></span>
                             </strong></h5>
                             <div>
                                 <button class="btn btn-warning btn-sm edit-racikan mr-2">Edit Racikan</button>
@@ -192,7 +208,7 @@
                             </div>
                         </div>
 
-                        <table class="table table-bordered text-white">
+                        <table class="table table-bordered">
                             <thead>
                                 <tr>
                                     <th>Nama Obat</th>
@@ -771,7 +787,7 @@
                         </div>
                     </div>
 
-                    <table class="table table-bordered text-white">
+                    <table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
@@ -1359,6 +1375,13 @@
         // Initialize selects when modal is fully shown
         $('#paketRacikanModal').on('shown.bs.modal', function() {
             initializePaketRacikanSelects();
+            // ensure any prefilled aturan pakai values are present so select2 shows them
+            $('.select2-aturan-pakai').each(function(){
+                const v = $(this).val();
+                if (v && $(this).find('option[value="'+v+'"]').length === 0) {
+                    $(this).append(new Option(v, v, true, true)).trigger('change');
+                }
+            });
         });
 
         // Reset button click handler
@@ -1366,49 +1389,97 @@
             resetFormPaket();
         });
 
-        // Load Paket Racikan List
-        function loadPaketRacikanList() {
-            console.log('Loading paket racikan list...');
+        // Load Paket Racikan List (supports optional search term and multiple response shapes)
+        function loadPaketRacikanList(searchTerm = '') {
             $.ajax({
                 url: "{{ route('erm.paket-racikan.list') }}",
                 method: 'GET',
+                data: { q: searchTerm },
                 success: function(response) {
-                    console.log('Paket racikan list loaded:', response);
-                    if (response.success) {
-                        let tbody = $('#paketRacikanTableBody');
-                        tbody.empty();
-                        
-                        if (response.data.length === 0) {
-                            tbody.append('<tr><td colspan="4" class="text-center">Belum ada paket racikan</td></tr>');
-                        } else {
-                            response.data.forEach(function(paket, index) {
-                                let wadahNama = paket.wadah ? paket.wadah.nama : '-';
-                                
-                                tbody.append(`
-                                    <tr>
-                                        <td>${index + 1}</td>
-                                        <td>${paket.nama_paket}</td>
-                                        <td>${wadahNama}</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}" data-paket='${JSON.stringify(paket)}'>Gunakan</button>
-                                            <button class="btn btn-sm btn-info detail-paket" data-paket='${JSON.stringify(paket)}'>Detail</button>
-                                            <button class="btn btn-sm btn-danger delete-paket" data-id="${paket.id}">Hapus</button>
-                                        </td>
-                                    </tr>
-                                `);
-                            });
-                        }
+                    let paketList = [];
+                    if (!response) {
+                        paketList = [];
+                    } else if (Array.isArray(response)) {
+                        paketList = response;
+                    } else if (Array.isArray(response.data)) {
+                        paketList = response.data;
+                    } else if (response.success && Array.isArray(response.data)) {
+                        paketList = response.data;
+                    } else if (response.success && Array.isArray(response.pakets)) {
+                        paketList = response.pakets;
+                    }
+
+                    let tbody = $('#paketRacikanTableBody');
+                    tbody.empty();
+                    if (paketList.length === 0) {
+                        tbody.append('<tr><td colspan="4" class="text-center">Belum ada paket racikan</td></tr>');
+                    } else {
+                        paketList.forEach(function(paket, index) {
+                            const paketJson = JSON.stringify(paket).replace(/'/g, "\\'");
+                            let wadahNama = paket.wadah ? paket.wadah.nama : '-';
+                            tbody.append(`
+                                <tr>
+                                    <td>${index + 1}</td>
+                                    <td>${paket.nama_paket}</td>
+                                    <td>${wadahNama}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}" data-paket='${paketJson}'>Gunakan</button>
+                                        <button class="btn btn-sm btn-info edit-paket" data-paket='${paketJson}'>Edit</button>
+                                        <button class="btn btn-sm btn-danger delete-paket" data-id="${paket.id}">Hapus</button>
+                                    </td>
+                                </tr>
+                            `);
+                        });
                     }
                 },
-                error: function(xhr) {
-                    console.error('Error loading paket racikan:', xhr);
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal Memuat Data',
-                        text: 'Gagal memuat daftar paket racikan: ' + (xhr.responseJSON?.message || xhr.statusText),
-                        confirmButtonColor: '#3085d6'
-                    });
+                error: function() {
+                    const tbody = $('#paketRacikanTableBody');
+                    tbody.empty();
+                    tbody.append('<tr><td colspan="4" class="text-center text-danger">Gagal memuat paket racikan</td></tr>');
                 }
+            });
+        }
+
+        // Simple debounce helper
+        function debounce(fn, wait) {
+            let t;
+            return function() {
+                const ctx = this, args = arguments;
+                clearTimeout(t);
+                t = setTimeout(function(){ fn.apply(ctx, args); }, wait);
+            };
+        }
+
+        // Hook up search input to reload daftar paket
+        $(document).on('input', '#searchPaketRacikan', debounce(function(){
+            const term = $(this).val();
+            loadPaketRacikanList(term);
+        }, 300));
+
+        // Initialize Select2 helper for aturan pakai (shared)
+        function initAturanPakaiSelect2(selector, dropdownParent) {
+            $(selector).select2({
+                width: '100%',
+                placeholder: '-- Pilih Template Aturan Pakai --',
+                allowClear: true,
+                minimumInputLength: 0,
+                ajax: {
+                    url: '{{ route('erm.aturan-pakai.list.active') }}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) { return { q: params.term }; },
+                    processResults: function(data) {
+                        return { results: (data || []).map(function(item){
+                            if (typeof item === 'string') return { id: item, text: item };
+                            return { id: item.template || item.id || item, text: item.template || item.name || item };
+                        }) };
+                    },
+                    cache: true
+                },
+                templateResult: function(item){ return item && item.text ? $('<div>').text(item.text) : item.text; },
+                templateSelection: function(item){ return item && item.text ? item.text : item.text; },
+                dropdownParent: dropdownParent || undefined,
+                escapeMarkup: function(m){ return m; }
             });
         }
 
@@ -1445,7 +1516,7 @@
                 }
             });
 
-            // Initialize obat select2
+            // Initialize obat select2 (ensure dropdownParent so it renders inside modal)
             $('.select2-obat-paket').select2({
                 placeholder: 'Pilih Obat',
                 allowClear: true,
@@ -1457,18 +1528,21 @@
                         return { q: params.term };
                     },
                     processResults: function (data) {
-                        // If your endpoint returns {results: [...]}, use that
                         if (Array.isArray(data.results)) {
                             return { results: data.results };
                         } else {
-                            // fallback for array response
                             return { results: data };
                         }
                     },
                     cache: true
                 },
-                minimumInputLength: 2
+                minimumInputLength: 2,
+                dropdownParent: $('#paketRacikanModal')
             });
+
+            // Initialize modal aturan pakai selects for create form and modal confirm
+            initAturanPakaiSelect2('.select2-aturan-pakai', $('#paketRacikanModal'));
+            initAturanPakaiSelect2('#paketAturanPakai', $('#gunakanPaketModal'));
         }
 
         // Add Obat to Paket
@@ -1494,7 +1568,7 @@
             
             $('#obatPaketContainer').append(newObatItem);
             
-            // Initialize select2 for the newly added obat select
+            // Initialize select2 for the newly added obat select (ensure dropdownParent)
             let newSelect = $('#obatPaketContainer .select2-obat-paket').last();
             newSelect.select2({
                 placeholder: 'Pilih Obat',
@@ -1511,7 +1585,8 @@
                     },
                     cache: true
                 },
-                minimumInputLength: 2
+                minimumInputLength: 2,
+                dropdownParent: $('#paketRacikanModal')
             });
             
             updateRemoveButtons();
@@ -1632,7 +1707,7 @@
                 return;
             }
             
-            // Show loading state
+                // Handler untuk kembali ke modal paket racikan jika user batal di modal konfirmasi
             $(this).html('<i class="fas fa-spinner fa-spin"></i> Loading...').prop('disabled', true);
             
             $.ajax({
@@ -1654,15 +1729,38 @@
                         racikanCount = response.racikan_ke;
                         
                         // Dapatkan data paket untuk membuat card
-                        let paketData = null;
-                        $('.copy-paket[data-id="' + paketId + '"]').each(function() {
-                            let row = $(this).closest('tr');
-                            paketData = row.find('.detail-paket').data('paket');
-                        });
+                        // Prefer to read paket data from the copy button itself
+                        let paketDataRaw = $('.copy-paket[data-id="' + paketId + '"]').first().data('paket');
+                        let paketData = paketDataRaw;
+                        try { if (typeof paketDataRaw === 'string') paketData = JSON.parse(paketDataRaw); } catch(e) { paketData = paketDataRaw; }
                         
                         if (paketData) {
                             // Buat racikan card dari data paket dengan bungkus dan aturan pakai custom
                             createRacikanCardFromPaketWithCustomData(paketData, response.racikan_ke, bungkus, aturanPakai);
+
+                            // PATCH: Update stok + set row ids from server response (stok depends on gudang mapping)
+                            if (response.obats && Array.isArray(response.obats)) {
+                                const createdRacikanKe = response.racikan_ke;
+                                const card = $('#racikan-container .racikan-card[data-racikan-ke="' + createdRacikanKe + '"]').last();
+                                if (card.length) {
+                                    const tbody = card.find('.resep-table-body');
+                                    response.obats.forEach(function(ob){
+                                        const row = tbody.find('tr[data-obat-id="' + ob.obat_id + '"]').first();
+                                        if (!row.length) return;
+
+                                        // set DB row id on the first td[data-id]
+                                        const td = row.find('td[data-id]').first();
+                                        if (td.length) {
+                                            td.attr('data-id', ob.id);
+                                        }
+
+                                        // update stok cell (column "Sisa Stok" is index 5)
+                                        const stokGudang = parseInt(ob.stok_gudang || 0, 10);
+                                        const stokColor = stokGudang < 10 ? 'red' : (stokGudang < 100 ? 'yellow' : 'green');
+                                        row.find('td').eq(5).css('color', stokColor).text(stokGudang);
+                                    });
+                                }
+                            }
                             
                             // Update total price
                             updateTotalPrice();
@@ -1713,6 +1811,93 @@
             });
         });
 
+        // Edit Paket (populate form for editing) - Dokter
+        $(document).on('click', '.edit-paket', function() {
+            let paketRaw = $(this).attr('data-paket');
+            let paket = null;
+            try { paket = paketRaw ? JSON.parse(paketRaw) : $(this).data('paket'); } catch(e) { paket = $(this).data('paket'); }
+            if (!paket) return;
+            resetFormPaket();
+            // set paket id for update
+            $('#paketId').val(paket.id || '');
+            // populate fields
+            $('#formPaketRacikan input[name="nama_paket"]').val(paket.nama_paket || '');
+            // wadah (select2) - set value then trigger change
+            if (paket.wadah && paket.wadah.id) {
+                $('.select2-wadah-paket').val(paket.wadah.id).trigger('change');
+            } else {
+                $('.select2-wadah-paket').val('').trigger('change');
+            }
+            $('#formPaketRacikan input[name="bungkus_default"]').val(paket.bungkus_default || 10);
+            const aturanVal = paket.aturan_pakai_default || '';
+            const aturanSelect = $('.select2-aturan-pakai');
+            if (aturanSelect.length) {
+                if (!aturanSelect.hasClass('select2-hidden-accessible')) {
+                    initAturanPakaiSelect2('.select2-aturan-pakai', $('#paketRacikanModal'));
+                }
+                if (aturanVal && aturanSelect.find('option[value="'+aturanVal+'"]').length === 0) {
+                    aturanSelect.append(new Option(aturanVal, aturanVal, true, true));
+                }
+                aturanSelect.val(aturanVal).trigger('change');
+            } else {
+                // fallback for legacy input
+                $('#formPaketRacikan input[name="aturan_pakai_default"]').val(aturanVal || '');
+            }
+
+            // populate obat items
+            const container = $('#obatPaketContainer');
+            container.empty();
+            if (Array.isArray(paket.details) && paket.details.length) {
+                paket.details.forEach(function(detail, idx) {
+                    const obatId = detail.obat ? detail.obat.id : (detail.obat_id || '');
+                    const obatNama = detail.obat ? detail.obat.nama : '';
+                    const dosis = detail.dosis || '';
+                    container.append(`
+                        <div class="obat-paket-item mb-2">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <select class="form-control select2-obat-paket" name="obats[${idx}][obat_id]" required>
+                                        ${obatId ? `<option value="${obatId}" selected>${obatNama}</option>` : '<option value="">Pilih Obat</option>'}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="text" class="form-control" name="obats[${idx}][dosis]" value="${dosis}" placeholder="Dosis" required>
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="button" class="btn btn-danger btn-sm remove-obat-paket">×</button>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+                    obatPaketCount = idx + 1;
+                });
+            } else {
+                // ensure at least one row
+                container.html(`
+                    <div class="obat-paket-item mb-2">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <select class="form-control select2-obat-paket" name="obats[0][obat_id]" required>
+                                    <option value="">Pilih Obat</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="obats[0][dosis]" placeholder="Dosis" required>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-danger btn-sm remove-obat-paket" style="display:none;">×</button>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                obatPaketCount = 0;
+            }
+            initializePaketRacikanSelects();
+            updateRemoveButtons();
+            // show modal (ensure it's visible)
+            $('#paketRacikanModal').modal('show');
+        });
+
         // Handler untuk kembali ke modal paket racikan jika user batal di modal konfirmasi
         $('#gunakanPaketModal').on('hidden.bs.modal', function (e) {
             // Jika modal ditutup tanpa konfirmasi, buka kembali modal paket racikan
@@ -1720,6 +1905,17 @@
                 setTimeout(function() {
                     $('#paketRacikanModal').modal('show');
                 }, 300);
+            }
+        });
+
+        // Ensure aturan pakai select2 in konfirmasi modal is initialized and shows prefilled value
+        $('#gunakanPaketModal').on('shown.bs.modal', function() {
+            if (!$('#paketAturanPakai').hasClass('select2-hidden-accessible')) {
+                initAturanPakaiSelect2('#paketAturanPakai', $('#gunakanPaketModal'));
+            }
+            const v = $('#paketAturanPakai').val();
+            if (v && $('#paketAturanPakai').find('option[value="'+v+'"]').length === 0) {
+                $('#paketAturanPakai').append(new Option(v, v, true, true)).trigger('change');
             }
         });
 
@@ -1774,7 +1970,7 @@
                         </div>
                     </div>
 
-                    <table class="table table-bordered text-white">
+                    <table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
@@ -1918,7 +2114,7 @@
                         </div>
                     </div>
 
-                    <table class="table table-bordered text-white">
+                    <table class="table table-bordered">
                         <thead>
                             <tr>
                                 <th>Nama Obat</th>
