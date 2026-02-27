@@ -1383,7 +1383,21 @@ var userRole = "{{ $role }}";
                         var metodeEsc = ('' + metode).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                         var badgeClass = 'badge-info';
                         try {
-                            if (metodeId && window.metodeColorMap && window.metodeColorMap[metodeId]) badgeClass = window.metodeColorMap[metodeId];
+                            // Name-based overrides for specific payment methods
+                            var mLower = (metodeEsc || '').toLowerCase();
+                            if (mLower.indexOf('umum') !== -1) {
+                                badgeClass = 'badge-success'; // green for ID Umum / Umum
+                            } else if (mLower.indexOf('inhealth') !== -1) {
+                                badgeClass = 'badge-info'; // light blue
+                            } else if (mLower.indexOf('bri life') !== -1 || mLower.indexOf('brilife') !== -1) {
+                                badgeClass = 'badge-primary'; // blue
+                            } else if (mLower.indexOf('bni life') !== -1 || mLower.indexOf('bnilife') !== -1) {
+                                badgeClass = 'badge-warning'; // yellow
+                            } else if (mLower.indexOf('admedika') !== -1) {
+                                badgeClass = 'badge-danger'; // red
+                            } else if (metodeId && window.metodeColorMap && window.metodeColorMap[metodeId]) {
+                                badgeClass = window.metodeColorMap[metodeId];
+                            }
                         } catch(e) {}
                         metodeHtml = ' <a href="#" class="metode-bayar-btn" data-metode="' + metodeEsc + '" data-metode-id="' + metodeId + '" data-visitation-id="' + visitationId + '"><small class="badge ' + badgeClass + ' ml-1">' + metode + '</small></a>';
                     }
@@ -2396,7 +2410,20 @@ $('#form-metode-bayar').submit(function(e){
                 var selector = '.metode-bayar-btn[data-visitation-id="' + visitationId + '"]';
                 var el = $(selector);
                 var newText = res.metode || $('#metode-bayar-select option:selected').text();
-                var newClass = (window.metodeColorMap && window.metodeColorMap[metodeId]) ? window.metodeColorMap[metodeId] : 'badge-info';
+                // Determine class: prefer metodeColorMap by id, otherwise apply name-based mapping same as renderer
+                var newClass = 'badge-info';
+                try {
+                    if (metodeId && window.metodeColorMap && window.metodeColorMap[metodeId]) {
+                        newClass = window.metodeColorMap[metodeId];
+                    } else {
+                        var nt = (newText || '').toLowerCase();
+                        if (nt.indexOf('umum') !== -1) newClass = 'badge-success';
+                        else if (nt.indexOf('inhealth') !== -1) newClass = 'badge-info';
+                        else if (nt.indexOf('bri life') !== -1 || nt.indexOf('brilife') !== -1) newClass = 'badge-primary';
+                        else if (nt.indexOf('bni life') !== -1 || nt.indexOf('bnilife') !== -1) newClass = 'badge-warning';
+                        else if (nt.indexOf('admedika') !== -1) newClass = 'badge-danger';
+                    }
+                } catch(e) {}
                 if (el.length) {
                     var small = el.find('small.badge');
                     small.text(newText);
