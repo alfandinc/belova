@@ -12,6 +12,9 @@
                 <h3 class="mb-0 font-weight-bold">Jadwal Karyawan Mingguan</h3>
                 <div class="text-muted small">Kelola jadwal karyawan per minggu: atur shift dan copy jadwal ke Minggu Ini.</div>
             </div>
+            <div class="d-flex align-items-center">
+                <button id="save-schedule-btn" type="button" class="btn btn-primary btn-sm" disabled>Simpan Jadwal</button>
+            </div>
         </div>
     </div>
     <div class="d-flex justify-content-between align-items-center mb-3" id="week-nav">
@@ -116,6 +119,8 @@ function showAlert(type, message) {
 }
 // State for shift modal
 var currentShiftMode = null; // 'add' or 'edit'
+// Pending changes storage: { employeeId: { date: [shiftId, ...] } }
+var pendingChanges = {};
 
 // Helper to resolve shift color from management table by shift ID
 function getShiftColorById(shiftId) {
@@ -170,40 +175,49 @@ function updateShiftColor(select) {
 }
 function reapplyShiftColors() {
     document.querySelectorAll('.shift-select').forEach(function(sel){
-        // Attach unified handler for color + auto-save
-        sel.addEventListener('change', function(){ handleShiftChange(sel); });
+        // Attach unified handler for color + marking pending changes
+        sel.removeEventListener && sel.removeEventListener('change', null);
+        sel.addEventListener('change', function(){ onShiftChanged(sel); });
         updateShiftColor(sel);
     });
 }
-function handleShiftChange(select) {
+
+function onShiftChanged(select) {
     updateShiftColor(select);
-    autoSaveSchedule(select);
+    markPendingChange(select);
 }
 
-function autoSaveSchedule(select) {
+function markPendingChange(select) {
     var employeeId = select.getAttribute('data-employee-id');
     var date = select.getAttribute('data-date');
     if (!employeeId || !date) return;
-
     var cell = select.closest('td');
     if (!cell) return;
-
-    // Collect both selects in this cell to send full state (max 2 shifts)
     var selects = cell.querySelectorAll('.shift-select');
     var shiftIds = [];
-    selects.forEach(function(s) {
-        if (s.value) {
-            shiftIds.push(s.value);
-        }
-    });
+    selects.forEach(function(s) { if (s.value) shiftIds.push(s.value); });
+    if (!pendingChanges[employeeId]) pendingChanges[employeeId] = {};
+    pendingChanges[employeeId][date] = shiftIds;
+    updateSaveButtonState();
+}
 
-    var payload = {
-        schedule: {}
-    };
-    payload.schedule[employeeId] = {};
-    payload.schedule[employeeId][date] = shiftIds;
+function updateSaveButtonState() {
+    var btn = document.getElementById('save-schedule-btn');
+    if (!btn) return;
+    var hasPending = Object.keys(pendingChanges).length > 0 && Object.values(pendingChanges).some(function(d){ return Object.keys(d).length>0; });
+    btn.disabled = !hasPending;
+}
 
+function savePendingChanges() {
+    var btn = document.getElementById('save-schedule-btn');
+    if (!btn) return;
+    if (Object.keys(pendingChanges).length === 0) {
+        showAlert('info', 'Tidak ada perubahan untuk disimpan');
+        return;
+    }
+    var payload = { schedule: pendingChanges };
     showLoading(true);
+    btn.disabled = true;
     fetch("{{ route('hrd.schedule.store') }}", {
         method: 'POST',
         headers: {
@@ -216,7 +230,7 @@ function autoSaveSchedule(select) {
     .then(function(res){ return res.json(); })
     .then(function(data){
         if (data && data.success) {
-            // Reload current week view so delete buttons and state reflect saved schedules
+            // Refresh week view to reflect saved schedules
             var weekStart = document.getElementById('week-start').value;
             fetch("{{ route('hrd.schedule.index') }}?start_date=" + weekStart, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -224,21 +238,26 @@ function autoSaveSchedule(select) {
             .then(function(res){ return res.text(); })
             .then(function(html){
                 document.getElementById('jadwal-wrapper').innerHTML = html;
+                // Clear pending changes and UI
+                pendingChanges = {};
+                updateSaveButtonState();
                 reapplyShiftColors();
                 updateWeekNav();
                 attachNavEvents();
                 initShiftDataTable();
                 showLoading(false);
-                showAlert('success', 'Jadwal otomatis disimpan');
+                showAlert('success', 'Jadwal disimpan');
             });
         } else {
             showAlert('danger', 'Gagal menyimpan jadwal');
             showLoading(false);
+            btn.disabled = false;
         }
     })
     .catch(function(){
         showAlert('danger', 'Gagal menyimpan jadwal');
         showLoading(false);
+        btn.disabled = false;
     });
 }
 function updateWeekNav() {
@@ -624,6 +643,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     attachNavEvents();
     initShiftDataTable();
+    // Bind Save button to submit pending changes
+    var saveBtn = document.getElementById('save-schedule-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', function(e){
+            e.preventDefault();
+            savePendingChanges();
+        });
+    }
     // Legacy manual submit (kept for safety, though jadwal sekarang auto-save)
     document.addEventListener('submit', function(e){
         if(e.target && e.target.id === 'jadwal-form'){
