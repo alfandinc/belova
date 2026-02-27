@@ -36,6 +36,22 @@
     color: #fff;
 }
 
+/* Black card explicit style (ensure visible on all themes) */
+.badge-black {
+    background-color: #343a40 !important;
+    color: #fff !important;
+}
+
+/* Ensure patient name link matches surrounding text */
+.open-manage-modal {
+    color: inherit !important;
+    text-decoration: none !important;
+    font-family: inherit !important;
+    font-weight: inherit !important;
+    text-transform: none !important;
+}
+.open-manage-modal:hover { color: inherit !important; text-decoration: none !important; }
+
 /* Smooth blinking animation for lab and tindakan icons */
 .blinking {
     animation: blinking-animation 1s linear infinite;
@@ -156,6 +172,126 @@
 </style>
 
 @include('erm.partials.modal-reschedule')
+<!-- Unified Manage Pasien Modal (copied from pasien index) -->
+<div class="modal fade" id="modalManagePasien" tabindex="-1" role="dialog" aria-labelledby="modalManagePasienLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalManagePasienLabel">Kelola Pasien</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="font-weight-bold" id="managePasienNama">-</div>
+                            <div class="text-muted small">No. RM: <span id="managePasienId">-</span></div>
+                        </div>
+                    </div>
+                </div>
+                <hr/>
+                <div class="row">
+                    <div class="col-md-6">
+                        <form id="manageStatusForm">
+                            <div class="form-group">
+                                <label for="manage_status_pasien">Status Pasien</label>
+                                <select class="form-control" id="manage_status_pasien" name="status_pasien" required>
+                                    <option value="Regular">Regular</option>
+                                    <option value="VIP">VIP</option>
+                                    <option value="Familia">Familia</option>
+                                    <option value="Black Card">Black Card</option>
+                                    <option value="Red Flag">Red Flag</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_status_akses">Status Akses</label>
+                                <select class="form-control" id="manage_status_akses" name="status_akses" required>
+                                    <option value="normal">Normal</option>
+                                    <option value="akses cepat">Akses Cepat</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="manage_status_review">Status Review</label>
+                                <select class="form-control" id="manage_status_review" name="status_review" required>
+                                    <option value="sudah">Sudah</option>
+                                    <option value="belum">Belum</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="d-block">Merchandise</label>
+                        <div id="unifiedMerchChecklistContainer"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary" id="saveManagePasien">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Edit Status Akses -->
+<div class="modal fade" id="modalEditStatusAkses" tabindex="-1" role="dialog" aria-labelledby="modalEditStatusAksesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditStatusAksesLabel">Edit Status Akses</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editStatusAksesForm">
+                    <div class="form-group">
+                        <label for="edit_status_akses">Status Akses</label>
+                        <select class="form-control" id="edit_status_akses" name="status_akses" required>
+                            <option value="normal">Normal</option>
+                            <option value="akses cepat">Akses Cepat</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveEditStatusAkses">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Edit Status Review -->
+<div class="modal fade" id="modalEditStatusReview" tabindex="-1" role="dialog" aria-labelledby="modalEditStatusReviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEditStatusReviewLabel">Edit Status Review</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editStatusReviewForm">
+                    <div class="form-group">
+                        <label for="edit_status_review">Status Review</label>
+                        <select class="form-control" id="edit_status_review" name="status_review" required>
+                            <option value="sudah">Sudah</option>
+                            <option value="belum">Belum</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveEditStatusReview">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="modal fade" id="modalKonfirmasi" tabindex="-1" role="dialog" aria-labelledby="modalKonfirmasiTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -1221,7 +1357,7 @@ var userRole = "{{ $role }}";
                                 var v = (val||'').toLowerCase();
                                 if (v.includes('vip')) return '<span class="badge badge-warning"><i class="fas fa-crown mr-1"></i>VIP</span>';
                                 if (v.includes('familia')) return '<span class="badge badge-primary"><i class="fas fa-users mr-1"></i>Familia</span>';
-                                if (v.includes('black')) return '<span class="badge badge-dark"><i class="fas fa-id-card mr-1"></i>Black</span>';
+                                if (v.includes('black')) return '<span class="badge badge-black"><i class="fas fa-id-card mr-1"></i>Black</span>';
                                 if (v.includes('red')) return '<span class="badge badge-danger"><i class="fas fa-flag mr-1"></i>Red</span>';
                                 return ''; // hide badge for regular/other statuses
                             }
@@ -1278,8 +1414,9 @@ var userRole = "{{ $role }}";
                             // Render name with RM/id beside the name and any badges below
                             let rm = row.no_rm ? row.no_rm : '';
 
+                            var pasienId = row.pasien_id || '';
                             let nameHtml = '<div class="d-flex flex-column">'
-                                           + '<div class="align-self-start"><strong>' + $('<div>').text(data||'').html() + (rm ? ' (' + $('<div>').text(rm).text() + ')' : '') + '</strong></div>'
+                                           + '<div class="align-self-start"><strong><a href="#" class="open-manage-modal" data-id="' + pasienId + '" style="color:inherit;text-decoration:none;">' + $('<div>').text(data||'').html() + (rm ? ' (' + $('<div>').text(rm).text() + ')' : '') + '</a></strong></div>'
                                            + '<div class="mt-2 badge-group">'
                                                + (badgesInner ? badgesInner : '')
                                            + '</div>'
@@ -2273,6 +2410,134 @@ function displayScreeningData(data) {
     const createdAt = new Date(data.created_at);
     $('#view-created-at').text(createdAt.toLocaleString('id-ID'));
 }
+</script>
+
+<script>
+// Manage Pasien modal handlers (mirrors pasien index behavior)
+function renderMerchChecklist(masterList, pasienReceipts) {
+    let receivedIds = (pasienReceipts || []).map(r => (r.merchandise_id || r.merchandise_id === 0) ? r.merchandise_id : null).filter(Boolean);
+    let $container = $('#unifiedMerchChecklistContainer');
+    $container.empty();
+
+    if (!masterList.length) {
+        $container.html('<p class="text-muted">No merchandise items available.</p>');
+        return;
+    }
+
+    let $form = $('<div class="list-group"></div>');
+    let qtyMap = {};
+    (pasienReceipts || []).forEach(r => { if (r.merchandise_id) qtyMap[r.merchandise_id] = r.quantity || 1; });
+
+    masterList.forEach(item => {
+        let received = receivedIds.includes(item.id);
+        let checked = received ? 'checked' : '';
+        let qty = received ? (qtyMap[item.id] || 1) : 1;
+        let stock = item.stock || 0;
+        let disabledAttr = stock <= 0 ? 'disabled' : '';
+        let stockBadge = stock <= 0 ? '<span class="badge badge-danger ml-2">Habis</span>' : `<small class="text-muted ml-2">Stok: ${stock}</small>`;
+
+        let $row = $(
+            `<label class="list-group-item d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                    <input type="checkbox" class="merch-checkbox mr-3" data-id="${item.id}" data-stock="${stock}" ${checked} ${disabledAttr}>
+                    <div>
+                        <div><strong>${item.name}</strong> ${stockBadge}</div>
+                        <div class="small text-muted">${item.description || ''}</div>
+                    </div>
+                </div>
+                <div class="ml-3">
+                    <input type="number" min="1" class="form-control form-control-sm merch-qty" data-id="${item.id}" data-stock="${stock}" value="${qty}" style="width:80px;" ${received ? '' : 'disabled'} ${stock <= 0 ? 'disabled' : ''}>
+                </div>
+            </label>`
+        );
+        $form.append($row);
+    });
+
+    $container.append($form);
+}
+
+function openManageModal(pasienId){
+    if (!pasienId) return;
+    $('#modalManagePasien').data('pasien-id', pasienId);
+    $.get("{{ route('erm.pasien.show', '') }}/" + pasienId, function(resp){
+        $('#manage_status_pasien').val(resp.status_pasien || 'Regular');
+        $('#manage_status_akses').val(resp.status_akses || 'normal');
+        $('#manage_status_review').val(resp.status_review || 'belum');
+        $('#managePasienNama').text(resp.nama || '-');
+        $('#managePasienId').text(resp.id || pasienId);
+    }).always(function(){
+        let pid = $('#modalManagePasien').data('pasien-id');
+        $('#unifiedMerchChecklistContainer').html('<p class="text-muted">Memuat...</p>');
+        $.when(
+            $.get('/marketing/master-merchandise/data').fail(()=>{}),
+            $.get('/erm/pasiens/' + pid + '/merchandises').fail(()=>{})
+        ).done(function(masterResp, pasienResp){
+            let masterData = masterResp && masterResp[0] ? (masterResp[0].data || masterResp[0]) : [];
+            let pasienData = pasienResp && pasienResp[0] ? (pasienResp[0].data || pasienResp[0]) : [];
+            renderMerchChecklist(masterData, pasienData);
+        }).fail(function(){
+            $('#unifiedMerchChecklistContainer').html('<p class="text-danger">Gagal memuat data.</p>');
+        });
+        $('#modalManagePasien').modal('show');
+    });
+}
+
+$(document).on('click', '.open-manage-modal', function(e){ e.preventDefault(); openManageModal($(this).data('id')); });
+$(document).on('click', '.btn-merch-checklist', function(){ openManageModal($(this).data('id')); });
+
+$('#saveManagePasien').on('click', function(){
+    let pasienId = $('#modalManagePasien').data('pasien-id');
+    let p = $('#manage_status_pasien').val();
+    let a = $('#manage_status_akses').val();
+    let r = $('#manage_status_review').val();
+    let reqs = [];
+    reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status', { _token: $('meta[name="csrf-token"]').attr('content'), status_pasien: p }));
+    reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status-akses', { _token: $('meta[name="csrf-token"]').attr('content'), status_akses: a }));
+    reqs.push($.post('/erm/pasiens/' + pasienId + '/update-status-review', { _token: $('meta[name="csrf-token"]').attr('content'), status_review: r }));
+    $.when.apply($, reqs).done(function(){
+        Swal.fire({ icon: 'success', title: 'Tersimpan', text: 'Status pasien diperbarui.', timer: 1500, showConfirmButton: false });
+        $('#rawatjalan-table').DataTable().ajax.reload(null, false);
+    }).fail(function(){
+        Swal.fire({ icon: 'error', title: 'Gagal', text: 'Tidak dapat menyimpan status.' });
+    });
+});
+
+// Merchandise checkbox & qty handlers (delegated)
+$(document).on('change', '.merch-checkbox', function(){
+    let checked = $(this).is(':checked');
+    let merchId = $(this).data('id');
+    let pasienId = $('#modalManagePasien').data('pasien-id');
+    if (!pasienId) return alert('Pasien ID missing');
+    let $qtyInput = $('.merch-qty[data-id="' + merchId + '"]');
+    let stock = parseInt($qtyInput.data('stock') || 0, 10);
+    let qty = parseInt($qtyInput.val() || 1, 10);
+    if (stock <= 0) { Swal.fire({ icon: 'warning', title: 'Stok habis', text: 'Stok item ini habis dan tidak dapat ditambahkan.' }); $(this).prop('checked', false); return; }
+    if (qty > stock) { Swal.fire({ icon: 'warning', title: 'Stok tidak cukup', text: `Permintaan qty (${qty}) melebihi stok (${stock}).` }); $qtyInput.val(stock); return; }
+    if (checked) {
+        $qtyInput.prop('disabled', false);
+        $.post('/erm/pasiens/' + pasienId + '/merchandises', { _token: $('meta[name="csrf-token"]').attr('content'), merchandise_id: merchId, quantity: qty }).done(function(resp){ if (resp && resp.id) $qtyInput.data('pm-id', resp.id); }).fail(function(){ alert('Failed to add merchandise'); $(this).prop('checked', false); $qtyInput.prop('disabled', true); });
+    } else {
+        $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){ let rec = (resp.data || []).find(r => r.merchandise_id == merchId); if (!rec) return; $.ajax({ url: '/erm/pasiens/' + pasienId + '/merchandises/' + rec.id, type: 'DELETE', data: { _token: $('meta[name="csrf-token"]').attr('content') }, success: function(){ $qtyInput.prop('disabled', true); $qtyInput.removeData('pm-id'); }, error: function(){ alert('Failed to remove merchandise'); } }); });
+    }
+});
+
+$(document).on('change', '.merch-qty', function(){
+    let $input = $(this);
+    let merchId = $input.data('id');
+    let pasienId = $('#modalManagePasien').data('pasien-id');
+    if (!pasienId) return alert('Pasien ID missing');
+    let qty = parseInt($input.val() || 1, 10); if (qty < 1) { qty = 1; $input.val(1); }
+    let stock = parseInt($input.data('stock') || 0, 10); if (stock <= 0) { Swal.fire({ icon: 'warning', title: 'Stok habis', text: 'Stok item ini habis dan tidak dapat diubah.' }); $input.val(1); return; }
+    if (qty > stock) { Swal.fire({ icon: 'warning', title: 'Stok tidak cukup', text: `Permintaan qty (${qty}) melebihi stok (${stock}).` }); $input.val(stock); qty = stock; }
+    let $checkbox = $('.merch-checkbox[data-id="' + merchId + '"]'); if (!$checkbox.is(':checked')) return; let pmId = $input.data('pm-id'); if (pmId) { $.ajax({ url: '/erm/pasiens/' + pasienId + '/merchandises/' + pmId, type: 'PUT', data: { _token: $('meta[name="csrf-token"]').attr('content'), quantity: qty } }); return; } $.get('/erm/pasiens/' + pasienId + '/merchandises', function(resp){ let rec = (resp.data || []).find(r => r.merchandise_id == merchId); if (!rec) return; $.ajax({ url: '/erm/pasiens/' + pasienId + '/merchandises/' + rec.id, type: 'PUT', data: { _token: $('meta[name="csrf-token"]').attr('content'), quantity: qty }, success: function(){ $input.data('pm-id', rec.id); } }); });
+});
+
+// Small edit-status handlers
+$(document).on('click', '.edit-status-akses-btn', function() { let pasienId = $(this).data('pasien-id'); let currentStatus = $(this).data('current-status'); $('#edit_status_akses').val(currentStatus); $('#modalEditStatusAkses').data('pasien-id', pasienId); $('#modalEditStatusAkses').modal('show'); });
+$('#saveEditStatusAkses').on('click', function() { let pasienId = $('#modalEditStatusAkses').data('pasien-id'); let newStatus = $('#edit_status_akses').val(); $.ajax({ url: '/erm/pasiens/' + pasienId + '/update-status-akses', type: 'POST', data: { _token: $('meta[name="csrf-token"]').attr('content'), status_akses: newStatus }, success: function(response) { if(response.success) { $('#modalEditStatusAkses').modal('hide'); $('#rawatjalan-table').DataTable().ajax.reload(); Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Status akses pasien berhasil diperbarui.', timer: 2000, showConfirmButton: false }); } } }); });
+
+$(document).on('click', '.edit-status-review-btn', function() { let pasienId = $(this).data('pasien-id'); let currentStatus = $(this).data('current-status'); $('#edit_status_review').val(currentStatus); $('#modalEditStatusReview').data('pasien-id', pasienId); $('#modalEditStatusReview').modal('show'); });
+$('#saveEditStatusReview').on('click', function() { let pasienId = $('#modalEditStatusReview').data('pasien-id'); let newStatus = $('#edit_status_review').val(); $.ajax({ url: '/erm/pasiens/' + pasienId + '/update-status-review', type: 'POST', data: { _token: $('meta[name="csrf-token"]').attr('content'), status_review: newStatus }, success: function(response) { if(response.success) { $('#modalEditStatusReview').modal('hide'); $('#rawatjalan-table').DataTable().ajax.reload(); Swal.fire({ icon: 'success', title: 'Berhasil!', text: 'Status review pasien berhasil diperbarui.', timer: 2000, showConfirmButton: false }); } } }); });
 </script>
 
 <!-- Modal: Pasien Merchandise -->
