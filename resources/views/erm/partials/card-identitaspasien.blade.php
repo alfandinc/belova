@@ -1,73 +1,31 @@
-<div class="card" style="border: 2.5px solid #0d6efd; border-radius: 18px; box-shadow: 0 8px 40px 0 rgba(13,110,253,0.22); margin-bottom: 24px; padding: 18px 18px 18px 18px;">
+<div class="card" style="border: 2.5px solid #0d6efd; border-radius: 18px; box-shadow: 0 8px 40px 0 rgba(13,110,253,0.22); margin-bottom: 60px; padding: 6px;">
         <div class="card-body">  
-                  
+
+            <div class="row mb-2">
+                <div class="col-12">
+                    <div style="white-space:nowrap; display:flex; align-items:center; gap:6px;">
+                        <h3 class="mb-0" style="margin:0; line-height:1; display:inline-block;"><strong>{{ ucfirst($visitation->pasien->nama ?? '-') }}</strong></h3>
+                        @if($visitation->pasien->gender == 'Laki-laki')
+                            <span class="d-inline-flex align-items-center justify-content-center"
+                                style="width: 24px; height: 24px; background-color: #0d6efd; border-radius: 6px; flex:0 0 24px; display:inline-flex; align-items:center; justify-content:center;">
+                                <i class="fas fa-mars text-white" style="font-size: 12px; line-height:1;"></i>
+                            </span>
+                        @elseif($visitation->pasien->gender == 'Perempuan')
+                            <span class="d-inline-flex align-items-center justify-content-center"
+                                style="width: 24px; height: 24px; background-color: hotpink; border-radius: 6px; flex:0 0 24px; display:inline-flex; align-items:center; justify-content:center;">
+                                <i class="fas fa-venus text-white" style="font-size: 12px; line-height:1;"></i>
+                            </span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
             <div class="row mt-0">
                 <!-- Kolom Nama -->
                 <div class="col-md-3 ">
-                    <div class="row mb-0 mt-0">
+                    <div class="row mt-0 mb-0">
                         <div class="col-12 d-flex align-items-center">
                             
-                            <h3><strong>{{ ucfirst($visitation->pasien->nama ?? '-') }}</strong></h3>
-                            @if($visitation->pasien->gender == 'Laki-laki')
-                                <span class="d-inline-flex align-items-center justify-content-center ml-2"
-                                    style="width: 25px; height: 25px; background-color: #0d6efd; border-radius: 4px;">
-                                    <i class="fas fa-mars text-white" style="font-size: 20px;"></i>
-                                </span>
-                            @elseif($visitation->pasien->gender == 'Perempuan')
-                                <span class="d-inline-flex align-items-center justify-content-center ml-2"
-                                    style="width: 25px; height: 25px; background-color: hotpink; border-radius: 4px;">
-                                    <i class="fas fa-venus text-white" style="font-size: 20px;"></i>
-                                </span>
-                            @endif
-                            
-                            {{-- Status Pasien Icon --}}
-                            @php
-                                $statusConfig = [
-                                    'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
-                                    'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
-                                    'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member'],
-                                    'Regular' => ['color' => '#6C757D', 'icon' => 'fas fa-user', 'title' => 'Regular Member']
-                                ];
-                                $status = $visitation->pasien->status_pasien ?? 'Regular';
-                                $config = $statusConfig[$status] ?? $statusConfig['Regular'];
-                            @endphp
-                            
-                            <span class="d-inline-flex align-items-center justify-content-center ml-2 status-pasien-icon" 
-                                  style="width: 25px; height: 25px; background-color: {{ $config['color'] }}; border-radius: 4px; cursor: pointer;"
-                                  title="Edit Status Pasien"
-                                  data-toggle="modal" 
-                                  data-target="#modalStatusCombined"
-                                  data-pasien-id="{{ $visitation->pasien->id }}"
-                                  data-current-status-pasien="{{ $status }}"
-                                  data-current-status-akses="{{ $visitation->pasien->status_akses ?? 'normal' }}">
-                                <i class="{{ $config['icon'] }} text-white" style="font-size: 14px;"></i>
-                            </span>
-                            
-                            {{-- Status Akses Icon (only show for "akses cepat") --}}
-                            @if(($visitation->pasien->status_akses ?? 'normal') == 'akses cepat')
-                                <span class="d-inline-flex align-items-center justify-content-center ml-2 status-akses-icon" 
-                                      style="width: 25px; height: 25px; background-color: #007BFF; border-radius: 4px; cursor: pointer;"
-                                      title="Edit Status Pasien"
-                                      data-toggle="modal" 
-                                      data-target="#modalStatusCombined"
-                                      data-pasien-id="{{ $visitation->pasien->id }}"
-                                      data-current-status-pasien="{{ $status }}"
-                                      data-current-status-akses="akses cepat">
-                                    <i class="fas fa-wheelchair text-white" style="font-size: 14px;"></i>
-                                </span>
-                            @endif
-                            
-                            {{-- Edit button for both statuses --}}
-                            <button type="button" class="btn btn-sm btn-link p-0 ml-2 edit-combined-status-btn" 
-                                  data-toggle="modal" 
-                                  data-target="#modalStatusCombined"
-                                  data-pasien-id="{{ $visitation->pasien->id }}"
-                                  data-current-status-pasien="{{ $status }}"
-                                  data-current-status-akses="{{ $visitation->pasien->status_akses ?? 'normal' }}"
-                                  title="Edit Status Pasien">
-                              <i class="fas fa-edit text-primary"></i>
-                            </button>
-                             
                         </div>     
                     </div> 
                     <div class="row mt-0 mb-2">
@@ -77,104 +35,172 @@
                               
                         </div>
                     </div>
-                    <div class="row mb-1 mt-4 align-items-center">
-    <div class="col-12 text-end">
-        <span style="padding: 6px 6px; border: 2px solid #0d6efd; border-radius: 8px; font-weight: bold; background: #f8f9fa; color: #0d6efd; box-shadow: 0 2px 8px 0 rgba(13,110,253,0.10);">
-            Last Visit: 
-            {{-- 25 Desember 2025 --}}
-            {{ $lastVisitDate }}
-        </span>
-    </div>
-        <div class="col-12 text-end mt-3">
-        <span id="lastLabSpan" style="padding: 6px 6px; border: 2px solid #198754; border-radius: 8px; font-weight: bold; background: #f8f9fa; color: #198754; box-shadow: 0 2px 8px 0 rgba(25,135,84,0.10); cursor:pointer;" data-toggle="modal" data-target="#modalLastLabPermintaan">
-            Last Lab:
-            @if(isset($lastLabVisitDate) && $lastLabVisitDate)
-                @php
-                    $labDate = \Carbon\Carbon::parse($lastLabVisitDate);
-                @endphp
-                {{-- Show formatted date plus relative time so recent labs aren't hidden by a 1-month threshold --}}
-                {{ $labDate->translatedFormat('d F Y') }} @if(method_exists($labDate, 'diffForHumans')) — {{ $labDate->diffForHumans() }} @endif
-            @else
-                -
-            @endif
-        </span>
+                    {{-- Status badges under NO. RM --}}
+                    <div class="row mb-2">
+                        <div class="col-12">
+                            @php
+                                $statusConfig = [
+                                    'VIP' => ['color' => '#FFD700', 'icon' => 'fas fa-crown', 'title' => 'VIP Member'],
+                                    'Familia' => ['color' => '#32CD32', 'icon' => 'fas fa-users', 'title' => 'Familia Member'],
+                                    'Black Card' => ['color' => '#2F2F2F', 'icon' => 'fas fa-credit-card', 'title' => 'Black Card Member'],
+                                    'Regular' => ['color' => '#6C757D', 'icon' => 'fas fa-user', 'title' => 'Regular Member']
+                                ];
+                                $status = $visitation->pasien->status_pasien ?? 'Regular';
+                                $config = $statusConfig[$status] ?? $statusConfig['Regular'];
+                                $akses = $visitation->pasien->status_akses ?? 'normal';
+                            @endphp
 
+                            <div class="d-flex align-items-center" style="gap:6px;flex-wrap:wrap;">
+                                <span class="badge d-inline-flex align-items-center" style="background: {{ $config['color'] }}; color: #fff; padding:4px 8px; border-radius:10px; font-size:13px;">
+                                    <i class="{{ $config['icon'] }}" style="margin-right:8px;font-size:12px;"></i>
+                                    <strong style="font-weight:600;">{{ $status }}</strong>
+                                </span>
+
+                                @if($akses == 'akses cepat')
+                                    <span class="badge d-inline-flex align-items-center" style="background:#007BFF; color:#fff; padding:4px 8px; border-radius:10px; font-size:13px;">
+                                        <i class="fas fa-wheelchair" style="margin-right:8px;font-size:12px;"></i>
+                                        <strong style="font-weight:600;">Akses Cepat</strong>
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mb-1 mt-3 align-items-center">
+    <div class="col-12 text-start">
+        @php
+            $lv = null; $lv_raw = $lastVisitDate ?? null;
+            $ll = null; $ll_raw = $lastLabVisitDate ?? null;
+            try {
+                if(isset($lastVisitDate) && $lastVisitDate) {
+                    if($lastVisitDate instanceof \Carbon\Carbon || $lastVisitDate instanceof \DateTime) {
+                        $lv = $lastVisitDate instanceof \Carbon\Carbon ? $lastVisitDate : \Carbon\Carbon::instance($lastVisitDate);
+                    } else {
+                        $lv = \Carbon\Carbon::parse($lastVisitDate);
+                    }
+                }
+            } catch (\Exception $e) {
+                $lv = null;
+            }
+            try {
+                if(isset($lastLabVisitDate) && $lastLabVisitDate) {
+                    if($lastLabVisitDate instanceof \Carbon\Carbon || $lastLabVisitDate instanceof \DateTime) {
+                        $ll = $lastLabVisitDate instanceof \Carbon\Carbon ? $lastLabVisitDate : \Carbon\Carbon::instance($lastLabVisitDate);
+                    } else {
+                        $ll = \Carbon\Carbon::parse($lastLabVisitDate);
+                    }
+                }
+            } catch (\Exception $e) {
+                $ll = null;
+            }
+        @endphp
+        <div class="d-inline-flex flex-column align-items-start" style="gap:6px;">
+            <span class="badge d-inline-flex align-items-center" style="background:#fff;border:1px solid #0d6efd;color:#0d6efd;padding:3px 6px;border-radius:14px;font-weight:600;font-size:11px;min-width:100px;justify-content:flex-start;">
+                <i class="fas fa-history" aria-hidden="true" style="font-size:11px;margin-right:6px;color:#0d6efd;opacity:0.85;"></i>
+                <i class="fas fa-calendar-check" aria-hidden="true" style="font-size:12px;margin-right:6px;"></i>
+                <span title="{{ $lv ? $lv->translatedFormat('d F Y') : ($lv_raw ?? '-') }}">{{ $lv ? $lv->diffForHumans() : ($lv_raw ?? '-') }}</span>
+            </span>
+
+            <span id="lastLabSpan" class="badge d-inline-flex align-items-center" style="background:#fff;border:1px solid #198754;color:#198754;padding:3px 6px;border-radius:14px;font-weight:600;font-size:11px;cursor:pointer;min-width:100px;justify-content:flex-start;" data-toggle="modal" data-target="#modalLastLabPermintaan" title="{{ $ll ? $ll->translatedFormat('d F Y') : ($ll_raw ?? '-') }}">
+                <i class="fas fa-history" aria-hidden="true" style="font-size:11px;margin-right:6px;color:#198754;opacity:0.85;"></i>
+                <i class="fas fa-vials" aria-hidden="true" style="font-size:12px;margin-right:6px;"></i>
+                <span>{{ $ll ? $ll->diffForHumans() : ($ll_raw ?? '-') }}</span>
+            </span>
+        </div>
     </div>
 </div>
                 </div>
                 <!-- Kolom Kiri -->
                 <div class="col-md-3 mt-2">
-                    <div class="row mb-1 align-items-center">
-                        <div class="col-12 text-end">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                                style="background-color:grey; width: 25px; height: 25px;">
-                                <i style="color:white" class="fas fa-id-card" title="NIK"></i>
+                    <div class="mb-2">
+                        <div class="d-flex align-items-center">
+                            <span class="d-inline-flex align-items-center justify-content-center mr-2" 
+                                style="background-color:grey; width:24px; height:24px; border-radius:6px; flex:0 0 24px;">
+                                <i style="color:white;font-size:12px;line-height:1;" class="fas fa-id-card" title="NIK"></i>
                             </span>
-                            <strong>{{ $visitation->pasien->nik ?? '-' }}</strong>
+                            <div class="flex-grow-1">
+                                <strong>{{ $visitation->pasien->nik ?? '-' }}</strong>
+                            </div>
                         </div>
                     </div>
 
                     @php
-                        $tanggalLahir = \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir);
-                        $isBirthday = $tanggalLahir->isBirthday();
+                        $tanggalLahir = null;
+                        $isBirthday = false;
+                        try {
+                            if(!empty($visitation->pasien->tanggal_lahir)) {
+                                $tanggalLahir = \Carbon\Carbon::parse($visitation->pasien->tanggal_lahir);
+                                $isBirthday = $tanggalLahir->isBirthday();
+                            }
+                        } catch (\Exception $e) {
+                            $tanggalLahir = null;
+                        }
                     @endphp
-                    <div class="row mb-1 align-items-center">
-                        <div class="col-12 text-end">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                                style="background-color:grey; width: 25px; height: 25px;">
-                                <i style="color:white" class="fas fa-birthday-cake" title="tanggal_lahir"></i>
+                    <div class="mb-2">
+                        <div class="d-flex align-items-center">
+                            <span class="d-inline-flex align-items-center justify-content-center mr-2" 
+                                style="background-color:grey; width:24px; height:24px; border-radius:6px; flex:0 0 24px;">
+                                <i style="color:white;font-size:12px;line-height:1;" class="fas fa-birthday-cake" title="tanggal_lahir"></i>
                             </span>
-                            <strong style="{{ $isBirthday ? 'color: red;' : '' }}">
-                                {{ $visitation->pasien->tanggal_lahir 
-                                    ? $tanggalLahir->translatedFormat('d F Y') 
-                                    : '-' }}
-                                @if ($isBirthday)
-                                    🎉
-                                @endif
-                            </strong>
+                            <div class="flex-grow-1">
+                                <strong style="{{ $isBirthday ? 'color: red;' : '' }}">
+                                    {{ $tanggalLahir ? $tanggalLahir->translatedFormat('d F Y') : ($visitation->pasien->tanggal_lahir ?? '-') }}
+                                    @if ($isBirthday)
+                                        🎉
+                                    @endif
+                                </strong>
+                            </div>
                         </div>
                     </div>
-                    <div class="row mb-1 align-items-center">
-                        <div class="col-12 text-end">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                                style="background-color:grey; width: 25px; height: 25px;">
-                                <i style="color:white" class="fas fa-calendar-alt" title="NIK"></i>
+
+                    <div class="mb-2">
+                        <div class="d-flex align-items-center">
+                            <span class="d-inline-flex align-items-center justify-content-center mr-2" 
+                                style="background-color:grey; width:24px; height:24px; border-radius:6px; flex:0 0 24px;">
+                                <i style="color:white;font-size:12px;line-height:1;" class="fas fa-calendar-alt" title="usia"></i>
                             </span>
-                            <strong>{{ $usia }}</strong>
+                            <div class="flex-grow-1">
+                                <strong>{{ $usia }}</strong>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <!-- Kolom Kanan -->
                 <div class="col-md-3 mt-2">
-                    <div class="row mb-1 align-items-center">
-                        <div class="col-12 text-end">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                                style="background-color:grey; width: 25px; height: 25px;">
-                                <i style="color:white" class="fas fa-phone" title="no_hp"></i>
+                    <div class="mb-2">
+                        <div class="d-flex align-items-center">
+                            <span class="d-inline-flex align-items-center justify-content-center mr-2" 
+                                style="background-color:grey; width:28px; height:28px; border-radius:6px; flex:0 0 28px;">
+                                <i style="color:white;font-size:14px;" class="fas fa-phone" title="no_hp"></i>
                             </span>
-                            <strong>{{ ucfirst($visitation->pasien->no_hp ?? '-') }}</strong>
+                            <div class="flex-grow-1">
+                                <strong>{{ ucfirst($visitation->pasien->no_hp ?? '-') }}</strong>
+                            </div>
                         </div>
                     </div>
-                    <div class="row mb-1 align-items-center">
-                        <div class="col-12 text-end">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                                style="background-color:grey; width: 25px; height: 25px;">
-                                <i style="color:white" class="fab fa-instagram" title="Instagram"></i>
+
+                    <div class="mb-2">
+                        <div class="d-flex align-items-center">
+                            <span class="d-inline-flex align-items-center justify-content-center mr-2" 
+                                style="background-color:grey; width:24px; height:24px; border-radius:6px; flex:0 0 24px;">
+                                <i style="color:white;font-size:12px;line-height:1;" class="fab fa-instagram" title="Instagram"></i>
                             </span>
-                            @if($visitation->pasien->instagram)
-                                <a href="https://instagram.com/{{ ltrim($visitation->pasien->instagram, '@') }}" target="_blank" class="text-decoration-none">
-                                    <strong>{{ ucfirst($visitation->pasien->instagram) }}</strong>
-                                </a>
-                            @else
-                                <strong>-</strong>
-                            @endif
+                            <div class="flex-grow-1">
+                                @if($visitation->pasien->instagram)
+                                    <a href="https://instagram.com/{{ ltrim($visitation->pasien->instagram, '@') }}" target="_blank" class="text-decoration-none">
+                                        <strong>{{ ucfirst($visitation->pasien->instagram) }}</strong>
+                                    </a>
+                                @else
+                                    <strong>-</strong>
+                                @endif
+                            </div>
                         </div>
                     </div>
-                    <div class="row mb-1 align-items-center">
-                        <div class="col-12 text-end">
-                            <span class="d-inline-flex align-items-center justify-content-center rounded mr-2" 
-                                style="background-color:grey; width: 25px; height: 25px;">
-                                <i style="color:white" class="fas fa-home" title="alamat"></i>
+
+                    <div class="mb-2">
+                        <div class="d-flex align-items-start">
+                            <span class="d-inline-flex align-items-center justify-content-center mr-2 mt-1" 
+                                style="background-color:grey; width:24px; height:24px; border-radius:6px; flex:0 0 24px;">
+                                <i style="color:white;font-size:12px;line-height:1;" class="fas fa-home" title="alamat"></i>
                             </span>
                             @php
                                 // Build combined address parts safely (alamat, desa, kecamatan, kabupaten, provinsi)
@@ -196,7 +222,9 @@
                                 }
                                 $fullAddress = count($addressParts) ? ucfirst(implode(', ', $addressParts)) : '-';
                             @endphp
-                            <strong>{{ $fullAddress }}</strong>
+                            <div class="flex-grow-1" style="white-space:normal; word-break:break-word; overflow-wrap:anywhere;">
+                                <strong>{{ $fullAddress }}</strong>
+                            </div>
                         </div>
                     </div>
                     
