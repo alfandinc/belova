@@ -29,10 +29,16 @@
                     <i data-feather="rotate-ccw" class="icon-xs mr-1"></i>
                     Kembali ke Minggu Ini
                 </button>
-                <button id="copy-to-this-week-btn" type="button" class="btn btn-outline-primary btn-sm">
-                    <i data-feather="copy" class="icon-xs mr-1"></i>
-                    Copy ke Minggu Ini
-                </button>
+                <div class="btn-group">
+                    <button id="copy-week-toggle" type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i data-feather="copy" class="icon-xs mr-1"></i>
+                        Copy Jadwal
+                    </button>
+                    <div id="copy-week-dropdown" class="dropdown-menu dropdown-menu-right">
+                        <a href="#" class="dropdown-item copy-week-option" data-target="this">Copy ke Minggu Ini</a>
+                        <a href="#" class="dropdown-item copy-week-option" data-target="next">Copy ke Minggu Depan</a>
+                    </div>
+                </div>
             </div>
         </div>
         <form id="next-week-form" method="GET" action="{{ route('hrd.schedule.index') }}" class="d-inline">
@@ -279,6 +285,66 @@ function updateWeekNav() {
     document.getElementById('next-week-date').value = nextWeekDate.toISOString().slice(0,10);
 }
 
+// Perform copy of schedules from sourceStart to targetStart with confirmation
+function performCopyWeek(sourceStart, targetStart, label) {
+    if (sourceStart === targetStart) {
+        showAlert('info', 'Anda sedang membuka ' + label);
+        return;
+    }
+    swal.fire({
+        title: 'Copy jadwal ke ' + label + '?',
+        text: 'Jadwal yang sudah ada di ' + label + ' tidak akan ditimpa.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Copy',
+        cancelButtonText: 'Batal',
+        reverseButtons: true
+    }).then(function(result){
+        if (!result.value) return;
+        showLoading(true);
+        fetch("{{ route('hrd.schedule.copy_week') }}", {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+                target_start_date: targetStart,
+                source_start_date: sourceStart,
+                overwrite: false
+            })
+        })
+        .then(function(res){ return res.json(); })
+        .then(function(data){
+            if (data && data.success) {
+                showAlert('success', (data.message || 'Berhasil') + (data.inserted ? (' (+' + data.inserted + ' shift)') : ''));
+                // Navigate/reload to target week so the user can see the result
+                fetch("{{ route('hrd.schedule.index') }}?start_date=" + targetStart, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(function(res){ return res.text(); })
+                .then(function(html){
+                    document.getElementById('jadwal-wrapper').innerHTML = html;
+                    reapplyShiftColors();
+                    updateWeekNav();
+                    attachNavEvents();
+                    initShiftDataTable();
+                    showLoading(false);
+                });
+            } else {
+                showAlert('danger', (data && data.message) ? data.message : 'Gagal copy jadwal');
+                showLoading(false);
+            }
+        })
+        .catch(function(){
+            showAlert('danger', 'Gagal copy jadwal');
+            showLoading(false);
+        });
+    });
+}
+
 // Inisialisasi DataTable untuk manajemen shift
 function initShiftDataTable() {
     if (typeof $ === 'undefined' || !$.fn || !$.fn.DataTable) {
@@ -328,18 +394,16 @@ function attachNavEvents() {
     var prevForm = document.getElementById('prev-week-form');
     var nextForm = document.getElementById('next-week-form');
     var thisWeekBtn = document.getElementById('this-week-btn');
-    var copyToThisWeekBtn = document.getElementById('copy-to-this-week-btn');
-    if (!prevForm || !nextForm || !thisWeekBtn || !copyToThisWeekBtn) {
+    var copyWeekEl = document.getElementById('copy-week-dropdown') || document.getElementById('copy-week-toggle') || document.getElementById('copy-to-this-week-btn');
+    if (!prevForm || !nextForm || !thisWeekBtn || !copyWeekEl) {
         return;
     }
     var prevFormClone = prevForm.cloneNode(true);
     var nextFormClone = nextForm.cloneNode(true);
     var thisWeekBtnClone = thisWeekBtn.cloneNode(true);
-    var copyToThisWeekBtnClone = copyToThisWeekBtn.cloneNode(true);
     prevForm.parentNode.replaceChild(prevFormClone, prevForm);
     nextForm.parentNode.replaceChild(nextFormClone, nextForm);
     thisWeekBtn.parentNode.replaceChild(thisWeekBtnClone, thisWeekBtn);
-    copyToThisWeekBtn.parentNode.replaceChild(copyToThisWeekBtnClone, copyToThisWeekBtn);
 
     prevFormClone.addEventListener('submit', function(e){
         e.preventDefault();
@@ -403,89 +467,72 @@ function attachNavEvents() {
             showLoading(false);
         });
     });
+    // Copy schedules FROM currently opened week TO a target week (this/next)
+    var copyWeekMenu = document.getElementById('copy-week-dropdown');
+    if (copyWeekMenu) {
+        // Attach listeners to options
+        var opts = copyWeekMenu.querySelectorAll('.copy-week-option');
+        opts.forEach(function(opt){
+            opt.addEventListener('click', function(e){
+                e.preventDefault();
+                var weekStartEl = document.getElementById('week-start');
+                if (!weekStartEl) { showAlert('danger', 'Tidak dapat menemukan minggu saat ini'); return; }
+                var sourceStart = weekStartEl.value;
 
-    // Copy schedules FROM currently opened week TO today's week
-    copyToThisWeekBtnClone.addEventListener('click', function(){
-        var weekStartEl = document.getElementById('week-start');
-        if (!weekStartEl) {
-            showAlert('danger', 'Tidak dapat menemukan minggu saat ini');
-            return;
-        }
-        var sourceStart = weekStartEl.value;
+                // calculate monday of today's week (local)
+                var now = new Date();
+                var day = now.getDay();
+                var diffToMonday = (day === 0 ? -6 : 1) - day;
+                var monday = new Date(now);
+                monday.setDate(now.getDate() + diffToMonday);
+                var mondayStr = monday.toISOString().slice(0,10);
 
-        // Calculate monday of today's week (local)
-        var now = new Date();
-        var day = now.getDay(); // 0..6 (Sun..Sat)
-        var diffToMonday = (day === 0 ? -6 : 1) - day;
-        var monday = new Date(now);
-        monday.setDate(now.getDate() + diffToMonday);
-        var targetStart = monday.toISOString().slice(0,10);
-
-        if (sourceStart === targetStart) {
-            showAlert('info', 'Anda sedang membuka Minggu Ini');
-            return;
-        }
-
-        swal.fire({
-            title: 'Copy jadwal ke Minggu Ini?',
-            text: 'Jadwal yang sudah ada di Minggu Ini tidak akan ditimpa.',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, Copy',
-            cancelButtonText: 'Batal',
-            reverseButtons: true
-        }).then(function(result){
-            if (!result.value) return;
-
-            showLoading(true);
-            fetch("{{ route('hrd.schedule.copy_week') }}", {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify({
-                    target_start_date: targetStart,
-                    source_start_date: sourceStart,
-                    overwrite: false
-                })
-            })
-            .then(function(res){ return res.json(); })
-            .then(function(data){
-                if (data && data.success) {
-                    showAlert('success', (data.message || 'Berhasil') + (data.inserted ? (' (+' + data.inserted + ' shift)') : ''));
-                    // Navigate/reload to today's week so the user can see the result
-                    fetch("{{ route('hrd.schedule.index') }}?start_date=" + targetStart, {
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                    })
-                    .then(function(res){ return res.text(); })
-                    .then(function(html){
-                        document.getElementById('jadwal-wrapper').innerHTML = html;
-                        reapplyShiftColors();
-                        updateWeekNav();
-                        attachNavEvents();
-                        initShiftDataTable();
-                        showLoading(false);
-                    });
-                } else {
-                    showAlert('danger', (data && data.message) ? data.message : 'Gagal copy jadwal');
-                    showLoading(false);
+                var target = opt.getAttribute('data-target');
+                var targetStart = mondayStr;
+                var label = 'Minggu Ini';
+                if (target === 'next') {
+                    var next = new Date(monday);
+                    next.setDate(next.getDate() + 7);
+                    targetStart = next.toISOString().slice(0,10);
+                    label = 'Minggu Depan';
                 }
-            })
-            .catch(function(){
-                showAlert('danger', 'Gagal copy jadwal');
-                showLoading(false);
+                performCopyWeek(sourceStart, targetStart, label);
             });
         });
-    });
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
     reapplyShiftColors();
     // Handle delete schedule button click
     document.addEventListener('click', function(e) {
+        // Delegated handler for copy-week dropdown options (works after DOM updates)
+        if (e.target.classList.contains('copy-week-option') || (e.target.closest && e.target.closest('.copy-week-option'))) {
+            e.preventDefault();
+            var opt = e.target.classList.contains('copy-week-option') ? e.target : e.target.closest('.copy-week-option');
+            var weekStartEl = document.getElementById('week-start');
+            if (!weekStartEl) { showAlert('danger', 'Tidak dapat menemukan minggu saat ini'); return; }
+            var sourceStart = weekStartEl.value;
+
+            var now = new Date();
+            var day = now.getDay();
+            var diffToMonday = (day === 0 ? -6 : 1) - day;
+            var monday = new Date(now);
+            monday.setDate(now.getDate() + diffToMonday);
+            var mondayStr = monday.toISOString().slice(0,10);
+
+            var target = opt.getAttribute('data-target');
+            var targetStart = mondayStr;
+            var label = 'Minggu Ini';
+            if (target === 'next') {
+                var next = new Date(monday);
+                next.setDate(next.getDate() + 7);
+                targetStart = next.toISOString().slice(0,10);
+                label = 'Minggu Depan';
+            }
+            performCopyWeek(sourceStart, targetStart, label);
+            return;
+        }
         if (e.target.classList.contains('delete-schedule-btn') || (e.target.closest && e.target.closest('.delete-schedule-btn'))) {
             var btn = e.target.classList.contains('delete-schedule-btn') ? e.target : e.target.closest('.delete-schedule-btn');
             var employeeId = btn.getAttribute('data-employee-id');
