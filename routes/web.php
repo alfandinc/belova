@@ -990,6 +990,8 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::get('/{id}/export-results', [\App\Http\Controllers\ERM\StokOpnameController::class, 'exportResultsExcel'])->name('erm.stokopname.exportResults');
     // Export temuan (record-only temuan entries) to Excel
     Route::get('/{id}/export-temuan', [\App\Http\Controllers\ERM\StokOpnameController::class, 'exportTemuanExcel'])->name('erm.stokopname.exportTemuan');
+    // AJAX: temuan list JSON for DataTable modal
+    Route::get('/{id}/temuan-data', [\App\Http\Controllers\ERM\StokOpnameController::class, 'temuanData'])->name('erm.stokopname.temuanData');
     Route::post('/{id}/upload-excel', [\App\Http\Controllers\ERM\StokOpnameController::class, 'uploadExcel'])->name('erm.stokopname.uploadExcel');
     // Stok Opname Items DataTable AJAX
     Route::get('/{id}/items-data', [\App\Http\Controllers\ERM\StokOpnameController::class, 'itemsData'])->name('erm.stokopname.itemsData');
@@ -1968,6 +1970,8 @@ Route::prefix('satusehat')->middleware(['auth','role:Satusehat|Admin'])->group(f
 
 // Process temuan record (apply to stok gudang)
 Route::post('/erm/stokopname-temuan/{id}/process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanRecord'])->middleware('auth');
+// Bulk process temuan records
+Route::post('/erm/stokopname-temuan/bulk-process', [\App\Http\Controllers\ERM\StokOpnameController::class, 'processTemuanBulk'])->middleware('auth');
 // Delete temuan record
 Route::post('/erm/stokopname-temuan/{id}/delete', [\App\Http\Controllers\ERM\StokOpnameController::class, 'deleteTemuanRecord'])->middleware('auth');
 

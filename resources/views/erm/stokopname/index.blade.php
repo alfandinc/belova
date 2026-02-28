@@ -103,6 +103,41 @@
     </div>
   </div>
 </div>
+
+<!-- Modal Lihat Temuan (for stok opname) -->
+<div class="modal fade" id="temuanModal" tabindex="-1" role="dialog" aria-labelledby="temuanModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="temuanModalLabel">Temuan Stok Opname</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-bordered temuan-datatable" style="width:100%">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="temuan-select-all"></th>
+              <th>No</th>
+              <th>Obat</th>
+              <th>Qty</th>
+              <th>Jenis</th>
+              <th>Status Proses</th>
+              <th>Keterangan</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="process-selected">Proses Terpilih</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -267,6 +302,108 @@ $(function () {
       $filterBulan.val('');
       $filterTahun.val(currentYear);
       table.ajax.reload();
+    });
+
+    // Temuan modal & DataTable
+    var temuanTable = null;
+    var temuanUrlTemplate = "{{ url('erm/stokopname') }}/__ID__/temuan-data";
+
+    $(document).on('click', '.btn-show-temuan', function(e){
+      e.preventDefault();
+      var opnameId = $(this).data('id');
+      var url = temuanUrlTemplate.replace('__ID__', opnameId);
+      $('#temuanModalLabel').text('Temuan Stok Opname #' + opnameId);
+      if (temuanTable) {
+        temuanTable.ajax.url(url).load();
+      } else {
+        temuanTable = $('.temuan-datatable').DataTable({
+          processing: true,
+          serverSide: true,
+          ajax: url,
+          columns: [
+            { data: null, orderable: false, searchable: false, render: function(data, type, row){ return '<input type="checkbox" class="temuan-select" data-id="'+row.id+'">'; } },
+            { data: null, orderable: false, searchable: false, render: function(data, type, row, meta){ return meta.row + meta.settings._iDisplayStart + 1; } },
+            { data: 'obat', name: 'obat' },
+            { data: 'qty', name: 'qty' },
+            { data: 'jenis', name: 'jenis' },
+            { data: 'process_status', name: 'process_status' },
+            { data: 'keterangan', name: 'keterangan' },
+            { data: 'aksi', name: 'aksi', orderable: false, searchable: false }
+          ],
+          order: [[1,'asc']]
+        });
+      }
+      $('#temuanModal').modal('show');
+    });
+
+    // handle select-all checkbox
+    $(document).on('change', '#temuan-select-all', function(){
+      var checked = $(this).is(':checked');
+      $('.temuan-select').prop('checked', checked);
+    });
+
+    // when table draws, uncheck select-all
+    $(document).on('draw.dt', '.temuan-datatable', function(){
+      $('#temuan-select-all').prop('checked', false);
+    });
+
+    // Process selected bulk
+    $('#process-selected').on('click', function(){
+      var ids = [];
+      $('.temuan-select:checked').each(function(){ ids.push($(this).data('id')); });
+      if (ids.length === 0) { alert('Pilih minimal 1 temuan untuk diproses'); return; }
+      if (!confirm('Proses ' + ids.length + ' temuan ke stok?')) return;
+      $.ajax({
+        url: '/erm/stokopname-temuan/bulk-process',
+        method: 'POST',
+        data: { ids: ids },
+        headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+        success: function(res){
+          if (res.success) {
+            var ok = res.results.processed.length;
+            var fail = Object.keys(res.results.failed).length;
+            alert('Selesai: diproses=' + ok + ', gagal=' + fail);
+            temuanTable.ajax.reload();
+            table.ajax.reload(null, false);
+          } else {
+            alert('Bulk proses gagal');
+          }
+        },
+        error: function(xhr){ alert('Gagal melakukan bulk proses'); }
+      });
+    });
+
+    // process temuan
+    $(document).on('click', '.process-temuan', function(){
+      var id = $(this).data('id');
+      if (!confirm('Proses temuan ini ke stok?')) return;
+      $.ajax({
+        url: '/erm/stokopname-temuan/' + id + '/process',
+        method: 'POST',
+        headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+        success: function(res){
+          temuanTable.ajax.reload();
+          // reload main table to update selisih counts
+          table.ajax.reload(null, false);
+        },
+        error: function(xhr){ alert('Gagal memproses temuan'); }
+      });
+    });
+
+    // delete temuan
+    $(document).on('click', '.delete-temuan', function(){
+      var id = $(this).data('id');
+      if (!confirm('Hapus temuan ini?')) return;
+      $.ajax({
+        url: '/erm/stokopname-temuan/' + id + '/delete',
+        method: 'POST',
+        headers: {'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')},
+        success: function(res){
+          temuanTable.ajax.reload();
+          table.ajax.reload(null, false);
+        },
+        error: function(xhr){ alert('Gagal menghapus temuan'); }
+      });
     });
 });
 </script>

@@ -514,6 +514,142 @@ class StokOpnameController extends Controller
             return response()->json(['success' => false, 'message' => 'Gagal menghapus temuan: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Helper: apply a single temuan to stock (used by single and bulk processing)
+     * Returns array with 'success' boolean and optional 'message' and 'selisih'.
+     */
+    protected function applyTemuanToStok(\App\Models\ERM\StokOpnameTemuan $r)
+    {
+        try {
+            $item = StokOpnameItem::with('stokOpname')->findOrFail($r->stok_opname_item_id);
+            $stokOpname = $item->stokOpname;
+
+            $qty = (float) $r->qty;
+            $jenis = $r->jenis ?? 'kurang';
+            $keterangan = 'temuan stok opname';
+            if ($r->keterangan) $keterangan .= ' - ' . $r->keterangan;
+
+            $stokService = app(\App\Services\ERM\StokService::class);
+
+            if ($jenis === 'lebih') {
+                $targetBatch = $item->batch_name;
+                $targetExp = $item->expiration_date;
+                if (empty($targetBatch)) {
+                    $nearest = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                        ->where('gudang_id', $stokOpname->gudang_id)
+                        ->orderByRaw("CASE WHEN expiration_date IS NULL THEN 1 ELSE 0 END, expiration_date ASC")
+                        ->first();
+                    if ($nearest) {
+                        $targetBatch = $nearest->batch;
+                        $targetExp = $nearest->expiration_date;
+                    }
+                }
+                $stokService->tambahStok(
+                    $item->obat_id,
+                    $stokOpname->gudang_id,
+                    $qty,
+                    $targetBatch,
+                    $targetExp,
+                    null,
+                    null,
+                    null,
+                    null,
+                    'temuan_stok_opname',
+                    $stokOpname->id,
+                    $keterangan
+                );
+            } else {
+                if ($item->batch_id) {
+                    $stokService->kurangiStok(
+                        $item->obat_id,
+                        $stokOpname->gudang_id,
+                        $qty,
+                        $item->batch_name,
+                        'temuan_stok_opname',
+                        $stokOpname->id,
+                        $keterangan
+                    );
+                } else {
+                    $toRemove = $qty;
+                    $batches = \App\Models\ERM\ObatStokGudang::where('obat_id', $item->obat_id)
+                        ->where('gudang_id', $stokOpname->gudang_id)
+                        ->orderByRaw("CASE WHEN expiration_date IS NULL THEN 1 ELSE 0 END, expiration_date ASC")
+                        ->get();
+                    foreach ($batches as $b) {
+                        if ($toRemove <= 0) break;
+                        $available = (float) $b->stok;
+                        if ($available <= 0) continue;
+                        $remQty = min($available, $toRemove);
+                        $stokService->kurangiStok(
+                            $item->obat_id,
+                            $stokOpname->gudang_id,
+                            $remQty,
+                            $b->batch,
+                            'temuan_stok_opname',
+                            $stokOpname->id,
+                            $keterangan
+                        );
+                        $toRemove -= $remQty;
+                    }
+                }
+            }
+
+            // mark temuan as processed
+            $r->process_status = 1;
+            try { $r->save(); } catch (\Exception $e) { Log::warning('Failed to mark temuan processed: ' . $e->getMessage()); }
+
+            // recalc selisih
+            $newSelisih = null;
+            try {
+                $itemForSelisih = StokOpnameItem::find($r->stok_opname_item_id);
+                if ($itemForSelisih) {
+                    $recordNet = DB::table('erm_stok_opname_temuan')
+                        ->where('stok_opname_item_id', $itemForSelisih->id)
+                        ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                        ->first();
+                    $netTemuan = $recordNet ? (float) $recordNet->net : 0;
+                    $itemForSelisih->selisih = ($itemForSelisih->stok_fisik - $itemForSelisih->stok_sistem) + $netTemuan;
+                    $itemForSelisih->save();
+                    $newSelisih = $itemForSelisih->selisih;
+                }
+            } catch (\Exception $e) { Log::warning('Failed to recalc selisih after processing temuan: ' . $e->getMessage()); }
+
+            return ['success' => true, 'selisih' => $newSelisih];
+
+        } catch (\Exception $e) {
+            Log::warning('applyTemuanToStok failed: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Bulk process temuan records (AJAX)
+     */
+    public function processTemuanBulk(Request $request)
+    {
+        $request->validate([ 'ids' => 'required|array' ]);
+        $ids = $request->ids;
+        $results = ['processed' => [], 'failed' => []];
+        foreach ($ids as $id) {
+            try {
+                $r = \App\Models\ERM\StokOpnameTemuan::findOrFail($id);
+                if (!empty($r->process_status) && $r->process_status == 1) {
+                    $results['failed'][$id] = 'Already processed';
+                    continue;
+                }
+                $res = $this->applyTemuanToStok($r);
+                if (!empty($res['success'])) {
+                    $results['processed'][] = $id;
+                } else {
+                    $results['failed'][$id] = $res['message'] ?? 'Unknown error';
+                }
+            } catch (\Exception $e) {
+                $results['failed'][$id] = $e->getMessage();
+            }
+        }
+        return response()->json(['success' => true, 'results' => $results]);
+    }
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -532,11 +668,12 @@ class StokOpnameController extends Controller
                 ->addColumn('aksi', function($row) {
                     $lihatBtn = '<a href="'.route('erm.stokopname.create', $row->id).'" class="btn btn-primary btn-sm">Lihat Stok Opname</a>';
                     $exportTemuan = ' <a href="'.route('erm.stokopname.exportTemuan', $row->id).'" class="btn btn-info btn-sm">Export Temuan Excel</a>';
+                    $showTemuanBtn = ' <button type="button" class="btn btn-secondary btn-sm btn-show-temuan" data-id="'.$row->id.'">Lihat Temuan</button>';
                     if ($row->status === 'selesai') {
                         $exportBtn = ' <a href="'.route('erm.stokopname.exportResults', $row->id).'" class="btn btn-success btn-sm">Export Hasil Excel</a>';
-                        return $lihatBtn . $exportTemuan . $exportBtn;
+                        return $lihatBtn . $showTemuanBtn . $exportTemuan . $exportBtn;
                     }
-                    return $lihatBtn . $exportTemuan;
+                    return $lihatBtn . $showTemuanBtn . $exportTemuan;
                 })
                 ->rawColumns(['aksi'])
                 ->make(true);
@@ -751,6 +888,44 @@ class StokOpnameController extends Controller
     {
         $stokOpname = StokOpname::findOrFail($id);
         return Excel::download(new StokOpnameTemuanExport($id), 'stok_opname_temuan_' . $id . '.xlsx');
+    }
+
+    /**
+     * Return temuan records for a stok opname (AJAX DataTable)
+     */
+    public function temuanData(Request $request, $id)
+    {
+        $data = \App\Models\ERM\StokOpnameTemuan::with(['item.obat'])
+            ->where('stok_opname_id', $id)
+            ->orderBy('created_at', 'desc');
+
+        return datatables()->of($data)
+            ->addColumn('obat', function($r) {
+                return ($r->item && $r->item->obat) ? $r->item->obat->nama : '-';
+            })
+            // allow searching by obat name
+            ->filterColumn('obat', function($query, $keyword) {
+                $query->whereHas('item.obat', function($q) use ($keyword) {
+                    $q->where('nama', 'like', "%{$keyword}%");
+                });
+            })
+            ->addColumn('process_status', function($r) {
+                if (!empty($r->process_status) && $r->process_status == 1) {
+                    return '<span class="badge badge-success">Diproses</span>';
+                }
+                return '<span class="badge badge-warning">Belum Diproses</span>';
+            })
+            ->addColumn('aksi', function($r) {
+                $btn = '';
+                // show "Proses" button only when not yet processed (process_status falsy/0)
+                if (empty($r->process_status) || $r->process_status == 0) {
+                    $btn .= '<button class="btn btn-success btn-sm process-temuan" data-id="'.$r->id.'">Proses</button> ';
+                }
+                $btn .= '<button class="btn btn-danger btn-sm delete-temuan" data-id="'.$r->id.'">Hapus</button>';
+                return $btn;
+            })
+            ->rawColumns(['aksi','process_status'])
+            ->make(true);
     }
 
     public function uploadExcel(Request $request, $id)
