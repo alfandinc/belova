@@ -17,9 +17,77 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\PasienMerchandise;
+use Carbon\Carbon;
 
 class RawatJalanController extends Controller
 {
+    /**
+     * Lazy-loaded modal HTML for common Rawat Jalan modals.
+     * Kept server-rendered so the UI markup stays identical to the original Blade.
+     */
+    public function commonModals()
+    {
+        if (!Auth::check()) {
+            return response('Unauthenticated', 401);
+        }
+
+        $metodeBayar = Cache::remember('erm_metode_bayar', 300, function () {
+            return MetodeBayar::select('id', 'nama')->orderBy('nama')->get();
+        });
+
+        return response()->view('erm.rawatjalans.partials.common_modals', compact('metodeBayar'));
+    }
+
+    /**
+     * Lazy-loaded modal HTML for Screening Batuk.
+     * Kept server-rendered so the UI markup stays identical to the original Blade.
+     */
+    public function screeningBatukModals()
+    {
+        if (!Auth::check()) {
+            return response('Unauthenticated', 401);
+        }
+
+        return response()->view('erm.rawatjalans.partials.screening_batuk_modals');
+    }
+
+    /**
+     * Serve Rawat Jalan page JavaScript as a Blade-rendered .js resource.
+     * This keeps initial HTML small while preserving existing Blade-driven URLs/tokens.
+     */
+    public function assetsJs()
+    {
+        if (!Auth::check()) {
+            return response('Unauthenticated', 401);
+        }
+
+        $dokters = Cache::remember('erm_dokters_list', 300, function() {
+            return Dokter::select('id', 'user_id', 'spesialisasi_id')
+                ->with(['user:id,name', 'spesialisasi:id,nama'])
+                ->get();
+        });
+
+        $metodeBayar = Cache::remember('erm_metode_bayar', 300, function() {
+            return MetodeBayar::select('id', 'nama')->get();
+        });
+
+        $role = Auth::user()->getRoleNames()->first();
+
+        $defaultDokterId = null;
+        $currentUser = Auth::user();
+        if ($currentUser && $currentUser->hasRole('Dokter')) {
+            $myDokter = Dokter::where('user_id', $currentUser->id)->first();
+            if ($myDokter) {
+                $defaultDokterId = $myDokter->id;
+            }
+        }
+
+        return response()
+            ->view('erm.rawatjalans.assets.index_js', compact('dokters', 'metodeBayar', 'role', 'defaultDokterId'))
+            ->header('Content-Type', 'application/javascript; charset=UTF-8')
+            ->header('Cache-Control', 'private, max-age=600');
+    }
+
     /**
      * Send notification from Dokter to all Perawat users
      */
@@ -83,32 +151,55 @@ class RawatJalanController extends Controller
 
             try {
                 $visitations = Visitation::query()
-                ->select([
-                    'erm_visitations.id',
-                    'erm_visitations.pasien_id',
-                    'erm_visitations.metode_bayar_id',
-                    'erm_visitations.dokter_id',
-                    'erm_visitations.klinik_id',
-                    'erm_visitations.status_kunjungan',
-                    'erm_visitations.status_dokumen',
-                    'erm_visitations.jenis_kunjungan',
-                    'erm_visitations.tanggal_visitation',
-                    'erm_visitations.waktu_kunjungan',
-                    'erm_visitations.no_antrian',
-                    'erm_pasiens.nama as nama_pasien',
-                    'erm_pasiens.id as no_rm',
-                    'erm_pasiens.no_hp as telepon_pasien',
-                    'erm_pasiens.gender as gender',
-                    'erm_pasiens.tanggal_lahir as tanggal_lahir',
-                    'erm_pasiens.status_pasien as status_pasien',
-                    'erm_pasiens.status_akses as status_akses',
-                    'erm_pasiens.status_review as status_review'
-                ])
-                // include merchandise count per pasien using subquery
-                ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id) as merchandise_count')
-                ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
-                ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
-                ->where('erm_visitations.status_kunjungan', '!=', 7);
+                    ->select([
+                        'erm_visitations.id',
+                        'erm_visitations.pasien_id',
+                        'erm_visitations.metode_bayar_id',
+                        'erm_visitations.status_kunjungan',
+                        'erm_visitations.status_dokumen',
+                        'erm_visitations.jenis_kunjungan',
+                        'erm_visitations.tanggal_visitation',
+                        'erm_visitations.waktu_kunjungan',
+                        'erm_visitations.no_antrian',
+
+                        'erm_pasiens.nama as nama_pasien',
+                        'erm_pasiens.id as no_rm',
+                        'erm_pasiens.no_hp as telepon_pasien',
+                        'erm_pasiens.gender as gender',
+                        'erm_pasiens.tanggal_lahir as tanggal_lahir',
+                        'erm_pasiens.status_pasien as status_pasien',
+                        'erm_pasiens.status_akses as status_akses',
+                        'erm_pasiens.status_review as status_review',
+
+                        'mb.nama as metode_bayar_nama',
+                        'u.name as dokter_user_name',
+                        's.nama as spesialisasi_nama',
+                    ])
+                    // include merchandise count per pasien using subquery
+                    ->selectRaw('(SELECT COUNT(1) FROM erm_pasien_merchandises WHERE erm_pasien_merchandises.pasien_id = erm_pasiens.id) as merchandise_count')
+                    // avoid eager-load queries by using cheap correlated subqueries
+                    ->selectRaw('EXISTS(SELECT 1 FROM erm_screening_batuk sb WHERE sb.visitation_id = erm_visitations.id) as has_screening_batuk')
+                    ->selectSub(
+                        DB::table('erm_asesmen_penunjang as ap')
+                            ->select('ap.created_at')
+                            ->whereColumn('ap.visitation_id', 'erm_visitations.id')
+                            ->limit(1),
+                        'asesmen_penunjang_created_at'
+                    )
+                    ->selectSub(
+                        DB::table('erm_cppt as c')
+                            ->select('c.created_at')
+                            ->whereColumn('c.visitation_id', 'erm_visitations.id')
+                            ->limit(1),
+                        'cppt_created_at'
+                    )
+                    ->leftJoin('erm_pasiens', 'erm_visitations.pasien_id', '=', 'erm_pasiens.id')
+                    ->leftJoin('erm_metode_bayar as mb', 'erm_visitations.metode_bayar_id', '=', 'mb.id')
+                    ->leftJoin('erm_dokters as d', 'erm_visitations.dokter_id', '=', 'd.id')
+                    ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
+                    ->leftJoin('erm_spesialisasis as s', 'd.spesialisasi_id', '=', 's.id')
+                    ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
+                    ->where('erm_visitations.status_kunjungan', '!=', 7);
 
             if ($request->filled('klinik_id')) {
                 $visitations->where('erm_visitations.klinik_id', $request->klinik_id);
@@ -130,15 +221,8 @@ class RawatJalanController extends Controller
             if ($request->filled('dokter_id')) {
                 $visitations->where('erm_visitations.dokter_id', $request->dokter_id);
             }
-            // Eager load lightweight relations and use withCount for collection counts to reduce memory
-            $visitations->with([
-                'metodeBayar:id,nama',
-                'dokter.user:id,name',
-                'dokter.spesialisasi:id,nama',
-                'screeningBatuk:id,visitation_id',
-                'asesmenPenunjang:id,visitation_id,created_at',
-                'cppt:id,visitation_id,created_at'
-            ])->withCount([
+            // Use withCount (subqueries) for row-level indicators without extra eager-load queries
+            $visitations->withCount([
                 'labPermintaan as lab_permintaan_count',
                 // Count only completed lab requests
                 'labPermintaan as lab_permintaan_completed_count' => function($q){
@@ -203,19 +287,19 @@ class RawatJalanController extends Controller
                 ->addColumn('tanggal', function ($v) {
                     return \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
                 })
-                ->addColumn('metode_bayar', function($v) { return $v->metodeBayar->nama ?? '-'; })
+                ->addColumn('metode_bayar', function($v) { return $v->metode_bayar_nama ?? '-'; })
                 ->addColumn('spesialisasi', function ($v) {
-                    return ($v->dokter && $v->dokter->spesialisasi) ? $v->dokter->spesialisasi->nama : '-';
+                    return $v->spesialisasi_nama ?? '-';
                 })
                 ->addColumn('dokter_nama', function ($v) {
-                    return ($v->dokter && $v->dokter->user) ? $v->dokter->user->name : '-';
+                    return $v->dokter_user_name ?? '-';
                 })
                 ->addColumn('dokumen', function ($v) {
                     $user = Auth::user();
                     $dokumenBtn = '';
                     if ($user->hasRole('Perawat')) {
                         $visitationId = (string) $v->id;
-                        if ($v->screeningBatuk) {
+                        if (!empty($v->has_screening_batuk)) {
                             $dokumenBtn = '<a href="' . route('erm.asesmenperawat.create', $v->id) . '" class="btn btn-sm btn-primary ml-1" style="font-weight:bold;" title="Lihat"><i class="fas fa-eye mr-1"></i>Lihat</a>';
                             $dokumenBtn .= '<button class="btn btn-sm btn-info ml-1 view-screening-btn" style="font-weight:bold;" title="Screening Batuk" data-visitation-id="' . $visitationId . '"><i class="fas fa-lungs"></i></button>';
                         } else {
@@ -232,7 +316,7 @@ class RawatJalanController extends Controller
                     }
                     $additionalBtns = '';
                     if ($user->hasRole('Pendaftaran') || $user->hasRole('Perawat')) {
-                        $dokterNama = $v->dokter->user->name ?? 'Dokter';
+                        $dokterNama = $v->dokter_user_name ?? 'Dokter';
                         $tanggalKunjungan = \Carbon\Carbon::parse($v->tanggal_visitation)->translatedFormat('j F Y');
                         $additionalBtns .= '<button class="btn btn-sm btn-success ml-1" style="font-weight:bold;" onclick="openKonfirmasiModal(`' .
                             $v->nama_pasien . '`, `' .
@@ -251,12 +335,14 @@ class RawatJalanController extends Controller
 
                         // Compute selesai_asesmen time (if any) and append as small text under buttons
                         $selesaiText = '-';
-                        $asesmenPenunjang = $v->asesmenPenunjang;
-                        $cppt = $v->cppt;
-                        if ($asesmenPenunjang && $asesmenPenunjang->created_at) {
-                            $selesaiText = $asesmenPenunjang->created_at->format('H:i');
-                        } elseif ($cppt && $cppt->created_at) {
-                            $selesaiText = $cppt->created_at->format('H:i');
+                        try {
+                            if (!empty($v->asesmen_penunjang_created_at)) {
+                                $selesaiText = Carbon::parse($v->asesmen_penunjang_created_at)->format('H:i');
+                            } elseif (!empty($v->cppt_created_at)) {
+                                $selesaiText = Carbon::parse($v->cppt_created_at)->format('H:i');
+                            }
+                        } catch (\Exception $e) {
+                            $selesaiText = '-';
                         }
 
                         return $dokumenBtn . ' ' . $additionalBtns . '<div class="mt-1"><small class="text-muted">Selesai: ' . $selesaiText . '</small></div>';
@@ -264,6 +350,17 @@ class RawatJalanController extends Controller
                 ->addColumn('waktu_kunjungan', function ($v) {
                     return $v->waktu_kunjungan ? substr($v->waktu_kunjungan, 0, 5) : '-';
                 })
+                // Reduce JSON payload: keep only fields actually used by DataTables JS.
+                // Values still used inside the generated HTML (e.g. WA button) are embedded in `dokumen`.
+                ->removeColumn('telepon_pasien')
+                ->removeColumn('gender')
+                ->removeColumn('status_dokumen')
+                ->removeColumn('metode_bayar_nama')
+                ->removeColumn('dokter_user_name')
+                ->removeColumn('spesialisasi_nama')
+                ->removeColumn('has_screening_batuk')
+                ->removeColumn('asesmen_penunjang_created_at')
+                ->removeColumn('cppt_created_at')
                 ->rawColumns(['antrian', 'nama_pasien', 'dokumen'])
                 ->make(true);
             } catch (\Exception $e) {
@@ -272,12 +369,32 @@ class RawatJalanController extends Controller
             }
         }
 
-        // Calculate statistics
-        $stats = $this->getVisitationStats();
-        
-        $dokters = Dokter::with('user', 'spesialisasi')->get();
-        $metodeBayar = MetodeBayar::all();
-        $kliniks = Klinik::all();
+        // Defer statistics: keep initial page render light.
+        // The stats cards will be populated via AJAX (updateStats() -> erm.rawatjalans.stats) after first paint.
+        $stats = [
+            'total' => '...',
+            'tidak_datang' => '...',
+            'belum_diperiksa' => '...',
+            'sudah_diperiksa' => '...',
+            'dibatalkan' => '...',
+            'rujuk' => '...',
+            'lab_permintaan' => '...',
+        ];
+
+        // Cache dropdown lists to make page renders lighter
+        $dokters = Cache::remember('erm_dokters_list', 300, function() {
+            return Dokter::select('id', 'user_id', 'spesialisasi_id')
+                ->with(['user:id,name', 'spesialisasi:id,nama'])
+                ->get();
+        });
+
+        $metodeBayar = Cache::remember('erm_metode_bayar', 300, function() {
+            return MetodeBayar::select('id', 'nama')->get();
+        });
+
+        $kliniks = Cache::remember('erm_kliniks', 300, function() {
+            return Klinik::select('id', 'nama')->get();
+        });
         $role = Auth::user()->getRoleNames()->first();
         // Determine default dokter selection: if the logged-in user has Dokter role,
         // default the filter to their Dokter record so the page shows their visits by default.
@@ -307,7 +424,7 @@ class RawatJalanController extends Controller
         $today = now()->format('Y-m-d');
         $cacheKey = 'visitation_stats_' . $today . '_dok_' . ($dokter ? $dokter->id : 'all');
 
-        return Cache::remember($cacheKey, 5, function() use ($today, $dokter) {
+        return Cache::remember($cacheKey, 10, function() use ($today, $dokter) {
             // Use a single aggregated query to compute counts
             $query = DB::table('erm_visitations')
                 ->selectRaw(
@@ -483,7 +600,7 @@ class RawatJalanController extends Controller
         // Create cache key based on filters
         $cacheKey = 'getstats_' . $start . '_' . $end . '_dok_' . ($dokterFilter ?? 'all') . '_klinik_' . ($klinikFilter ?? 'all');
 
-    $stats = Cache::remember($cacheKey, 5, function() use ($start, $end, $dokterFilter, $klinikFilter) {
+    $stats = Cache::remember($cacheKey, 10, function() use ($start, $end, $dokterFilter, $klinikFilter) {
             $query = DB::table('erm_visitations')
                 ->selectRaw(
                     "COUNT(*) as total,
