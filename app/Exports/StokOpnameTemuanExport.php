@@ -34,12 +34,37 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
                 $u = User::find($r->created_by);
                 $userName = $u ? $u->name : null;
             }
+
+            // HPP used in stok opname create page totals: obat.hpp_jual
+            $hppJual = 0.0;
+            if ($r->item && $r->item->obat) {
+                $hppJual = (float) ($r->item->obat->hpp_jual ?? 0);
+            }
+
+            $qty = (float) ($r->qty ?? 0);
+            // Export convention requested: 'kurang' is +, 'lebih' is -
+            $sign = ($r->jenis === 'lebih') ? -1 : 1;
+            $nilaiNominal = $hppJual * $qty * $sign;
+
+            $jenisSelisih = $r->jenis;
+            if ($r->jenis === 'kurang') {
+                $jenisSelisih = 'plus';
+            } elseif ($r->jenis === 'lebih') {
+                $jenisSelisih = 'minus';
+            }
+
+            $processStatusLabel = (!empty($r->process_status) && (int) $r->process_status === 1)
+                ? 'Diproses'
+                : 'Belum diproses';
+
             return [
                 'Tanggal' => $r->created_at ? $r->created_at->format('Y-m-d H:i:s') : '',
                 'Obat' => $r->item && $r->item->obat ? $r->item->obat->nama : null,
-                'Jenis' => $r->jenis,
+                'Jenis Selisih' => $jenisSelisih,
                 'Qty' => $r->qty,
-                'Process Status' => $r->process_status,
+                'HPP' => $hppJual,
+                'Nilai Nominal' => $nilaiNominal,
+                'Process Status' => $processStatusLabel,
                 'Keterangan' => $r->keterangan,
                 'Created By' => $userName,
             ];
@@ -53,8 +78,10 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
         return [
             'Tanggal',
             'Obat',
-            'Jenis',
+            'Jenis Selisih',
             'Qty',
+            'HPP',
+            'Nilai Nominal',
             'Process Status',
             'Keterangan',
             'Created By',
