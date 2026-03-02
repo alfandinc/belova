@@ -24,16 +24,16 @@
             font-family: Arial, sans-serif;
             overflow: hidden;
             background-color: #ffffff !important; /* base page color; wrapper will provide blue */
-            /* Align the label to the top-right corner when printing in browser */
-            position: relative;
         }
         /* Full-page blue wrapper to eliminate any white gaps */
         .etiket-wrapper {
-            position: absolute;
-            top: 0.5cm; /* top margin */
-            left: 1.5cm; /* left margin: 1.5 centimeters */
-            width: 10cm;
-            height: 1.5cm; /* label size */
+            /* mPDF page size is set to 100mm x 15mm in controller.
+               Keep wrapper flush to (0,0) to avoid cropping/shift. */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background-color: #26ccff; /* blue background across the label */
         }
         /* Force all text inside the blue label to black */
@@ -226,7 +226,7 @@
     <table class="main-table" style="width:100%;height:100%;border-collapse:collapse;">
         <tr>
             <td class="left-column">
-                <div class="no-tanggal">No RM {{ $pasien->id ?? '___' }} Tanggal {{ now()->format('d/m/Y') }}</div>
+                <div class="no-tanggal">No RM {{ $pasien->id ?? '___' }} Tanggal {{ $print_date ?? now()->format('d/m/Y') }}</div>
                 <hr style="margin: 0.05cm 0 0.2cm 0; border: none; border-top: 1px solid #000;">
                 <div class="patient-box">
                     {{ strtoupper($pasien->nama ?? 'PATIENT') }}
