@@ -104,6 +104,7 @@
         });
     };
 var userRole = "{{ $role }}";
+var isDokter = {!! json_encode(!empty($isDokter)) !!};
     // Map metode bayar ids to badge classes (consistent palette)
     @php
         $palette = ['badge-primary','badge-light text-dark','badge-success','badge-danger','badge-warning','badge-info','badge-dark'];
@@ -147,7 +148,7 @@ var userRole = "{{ $role }}";
                 d.klinik_id = $('#filter_klinik').val();
             }
         },
-        order: [[2, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC (adjusted after removing No RM column)
+        order: [[3, 'asc'], [0, 'asc']], // Tanggal ASC, Antrian ASC
         columns: [
             { 
                 data: 'antrian', 
@@ -155,11 +156,21 @@ var userRole = "{{ $role }}";
                 searchable: true, 
                 orderable: true,
                 render: function(data, type, row, meta) {
-                    if (userRole === 'Dokter') {
+                    if (isDokter) {
                         return meta.row + 1;
                     } else {
                         return data;
                     }
+                }
+            },
+            {
+                data: 'no_rm',
+                name: 'no_rm',
+                searchable: true,
+                orderable: false,
+                render: function(data, type, row, meta) {
+                    if (!data) return '-';
+                    return $('<div>').text(data).html();
                 }
             },
                 {
@@ -231,12 +242,9 @@ var userRole = "{{ $role }}";
 
                             var badgesInner = badgesArr.join('');
 
-                            // Render name with RM/id beside the name and any badges below
-                            let rm = row.no_rm ? row.no_rm : '';
-
                             var pasienId = row.pasien_id || '';
                             let nameHtml = '<div class="d-flex flex-column">'
-                                           + '<div class="align-self-start"><strong><a href="#" class="open-manage-modal" data-id="' + pasienId + '" style="color:inherit;text-decoration:none;">' + $('<div>').text(data||'').html() + (rm ? ' (' + $('<div>').text(rm).text() + ')' : '') + '</a></strong></div>'
+                                           + '<div class="align-self-start"><strong><a href="#" class="open-manage-modal" data-id="' + pasienId + '" style="color:inherit;text-decoration:none;">' + $('<div>').text(data||'').html() + '</a></strong></div>'
                                            + '<div class="mt-2 badge-group">'
                                                + (badgesInner ? badgesInner : '')
                                            + '</div>'
@@ -326,54 +334,51 @@ var userRole = "{{ $role }}";
                     if (formattedDate) formattedDate = '<strong>' + formattedDate + '</strong>';
 
                     var waktu = row.waktu_kunjungan || '';
-                    var waktuHtml = '';
+                    var waktuText = '';
                     if (waktu && waktu !== '-') {
-                        waktuHtml = '<small class="badge badge-light text-dark">' + waktu + '</small>';
-                    }
-
-                    // Metode bayar moved here
-                    var metode = row.metode_bayar || '';
-                    var metodeId = row.metode_bayar_id || '';
-                    var visitationId = row.id || '';
-                    var metodeHtml = '';
-                    if (metode) {
-                        var metodeEsc = ('' + metode).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                        var badgeClass = 'badge-info';
+                        // Normalize to HH:mm then display HH.mm
                         try {
-                            // Name-based overrides for specific payment methods
-                            var mLower = (metodeEsc || '').toLowerCase();
-                            if (mLower.indexOf('umum') !== -1) {
-                                badgeClass = 'badge-success'; // green for ID Umum / Umum
-                            } else if (mLower.indexOf('inhealth') !== -1) {
-                                badgeClass = 'badge-info'; // light blue
-                            } else if (mLower.indexOf('bri life') !== -1 || mLower.indexOf('brilife') !== -1) {
-                                badgeClass = 'badge-primary'; // blue
-                            } else if (mLower.indexOf('bni life') !== -1 || mLower.indexOf('bnilife') !== -1) {
-                                badgeClass = 'badge-warning'; // yellow
-                            } else if (mLower.indexOf('admedika') !== -1) {
-                                badgeClass = 'badge-danger'; // red
-                            } else if (metodeId && window.metodeColorMap && window.metodeColorMap[metodeId]) {
-                                badgeClass = window.metodeColorMap[metodeId];
+                            // If server sends HH:mm:ss, trim seconds
+                            if (/^\d{1,2}:\d{2}:\d{2}$/.test(waktu)) {
+                                waktu = waktu.substring(0, 5);
+                            }
+                            // Pad hour if needed
+                            if (/^\d{1}:\d{2}$/.test(waktu)) {
+                                waktu = '0' + waktu;
                             }
                         } catch(e) {}
-                        metodeHtml = ' <a href="#" class="metode-bayar-btn" data-metode="' + metodeEsc + '" data-metode-id="' + metodeId + '" data-visitation-id="' + visitationId + '"><small class="badge ' + badgeClass + ' ml-1">' + metode + '</small></a>';
+
+                        // Convert first ':' to '.'
+                        waktuText = String(waktu).replace(':', '.');
                     }
 
-                    // Jenis kunjungan badge (1: Konsultasi, 2: Produk/Obat, 3: Lab)
-                    var jenis = row.jenis_kunjungan || '';
-                    var jenisHtml = '';
-                    if (jenis !== '' && jenis !== null && typeof jenis !== 'undefined') {
-                        var jenisText = '';
-                        var jenisClass = 'badge-light text-dark';
-                        if (jenis == 1 || jenis === '1') { jenisText = 'Konsultasi'; jenisClass = 'badge-success'; }
-                        else if (jenis == 2 || jenis === '2') { jenisText = 'Produk/Obat'; jenisClass = 'badge-primary'; }
-                        else if (jenis == 3 || jenis === '3') { jenisText = 'Lab'; jenisClass = 'badge-warning'; }
-                        if (jenisText) jenisHtml = ' <small class="badge ' + jenisClass + ' ml-1">' + jenisText + '</small>';
-                    }
-
-                    return '<div>' + formattedDate + '<div class="mt-1">' + metodeHtml + jenisHtml + (waktuHtml ? ' ' + waktuHtml : '') + '</div></div>';
+                    // Example: Senin, 17 Januari 2016 - 09.00
+                    return '<div>' + formattedDate + (waktuText ? ' - ' + $('<div>').text(waktuText).html() : '') + '</div>';
                 }
             },
+            {
+                data: 'metode_bayar',
+                name: 'metode_bayar',
+                searchable: false,
+                orderable: false,
+                render: function(data, type, row, meta) {
+                    var metode = data || '';
+                    var metodeId = row.metode_bayar_id || '';
+                    var visitationId = row.id || '';
+
+                    if (!metode || metode === '-') {
+                        return '-';
+                    }
+
+                    // Plain text (still clickable to edit)
+                    var metodeText = $('<div>').text(metode).html();
+                    var metodeAttr = ('' + metode).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    return '<a href="#" class="metode-bayar-btn" data-metode="' + metodeAttr + '" data-metode-id="' + metodeId + '" data-visitation-id="' + visitationId + '" style="text-decoration:none;">'
+                        + metodeText +
+                    '</a>';
+                }
+            },
+            @if (empty($isDokter))
             { 
                 data: 'dokter_nama', 
                 name: 'dokter_nama', 
@@ -394,14 +399,21 @@ var userRole = "{{ $role }}";
                     return '<div><strong>' + nama + '</strong>' + spesHtml + '</div>';
                 }
             },
+            @endif
             { data: 'dokumen', name: 'dokumen', searchable: false, orderable: false },
         ],
         columnDefs: [
             { targets: 0, width: "8%" },  // Antrian
-            { targets: 1, width: "30%" }, // Nama Pasien
-            { targets: 2, width: "20%" }, // Tanggal
-            { targets: 3, width: "30%" }, // Dokter
-            { targets: 4, width: "12%" }, // Dokumen
+            { targets: 1, width: "10%" }, // No RM
+            { targets: 2, width: "25%" }, // Nama Pasien
+            { targets: 3, width: "20%" }, // Tanggal
+            { targets: 4, width: "12%" }, // Metode Bayar
+            @if (empty($isDokter))
+            { targets: 5, width: "15%" }, // Dokter
+            { targets: 6, width: "10%" }, // Dokumen
+            @else
+            { targets: 5, width: "25%" }, // Dokumen
+            @endif
         ],
         createdRow: function(row, data, dataIndex) {
     if (data.status_kunjungan == 2) {

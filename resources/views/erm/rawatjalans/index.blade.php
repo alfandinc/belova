@@ -229,15 +229,19 @@
                 <thead>
                     <tr>
                         <th>
-                            @if ($role === 'Dokter')
+                            @if (!empty($isDokter))
                                 No
                             @else
                                 Antrian
                             @endif
                         </th>
+                        <th>No RM</th>
                         <th>Nama Pasien</th>
                         <th>Tanggal Kunjungan</th>
-                        <th>Dokter</th>
+                        <th>Metode Bayar</th>
+                        @if (empty($isDokter))
+                            <th>Dokter</th>
+                        @endif
                         <!-- Selesai Asesmen column removed; will show under Dokumen -->
                         <th>Dokumen</th>
                     </tr>

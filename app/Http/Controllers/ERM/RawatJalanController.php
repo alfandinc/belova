@@ -72,6 +72,7 @@ class RawatJalanController extends Controller
         });
 
         $role = Auth::user()->getRoleNames()->first();
+        $isDokter = Auth::user()->hasRole('Dokter');
 
         $defaultDokterId = null;
         $currentUser = Auth::user();
@@ -83,7 +84,7 @@ class RawatJalanController extends Controller
         }
 
         return response()
-            ->view('erm.rawatjalans.assets.index_js', compact('dokters', 'metodeBayar', 'role', 'defaultDokterId'))
+            ->view('erm.rawatjalans.assets.index_js', compact('dokters', 'metodeBayar', 'role', 'defaultDokterId', 'isDokter'))
             ->header('Content-Type', 'application/javascript; charset=UTF-8')
             ->header('Cache-Control', 'private, max-age=600');
     }
@@ -150,6 +151,7 @@ class RawatJalanController extends Controller
             }
 
             try {
+                $user = Auth::user();
                 $visitations = Visitation::query()
                     ->select([
                         'erm_visitations.id',
@@ -198,13 +200,18 @@ class RawatJalanController extends Controller
                     ->leftJoin('erm_dokters as d', 'erm_visitations.dokter_id', '=', 'd.id')
                     ->leftJoin('users as u', 'd.user_id', '=', 'u.id')
                     ->leftJoin('erm_spesialisasis as s', 'd.spesialisasi_id', '=', 's.id')
-                    ->whereIn('erm_visitations.jenis_kunjungan', [1, 2])
+                    ->when($user && $user->hasRole('Dokter'), function($q) {
+                        // Dokter view: only show Konsultasi (jenis_kunjungan = 1)
+                        $q->where('erm_visitations.jenis_kunjungan', 1);
+                    }, function($q) {
+                        // Non-dokter view: show Konsultasi + Produk/Obat
+                        $q->whereIn('erm_visitations.jenis_kunjungan', [1, 2]);
+                    })
                     ->where('erm_visitations.status_kunjungan', '!=', 7);
 
             if ($request->filled('klinik_id')) {
                 $visitations->where('erm_visitations.klinik_id', $request->klinik_id);
             }
-            $user = Auth::user();
             // Default behavior: if the logged-in user has role Dokter and no explicit dokter filter
             // is provided, show visitations for that logged-in dokter. This applies even if the user
             // also has the Admin role. If a dokter is selected via the filter (dokter_id), that selection wins.
@@ -396,6 +403,7 @@ class RawatJalanController extends Controller
             return Klinik::select('id', 'nama')->get();
         });
         $role = Auth::user()->getRoleNames()->first();
+        $isDokter = Auth::user()->hasRole('Dokter');
         // Determine default dokter selection: if the logged-in user has Dokter role,
         // default the filter to their Dokter record so the page shows their visits by default.
         $defaultDokterId = null;
@@ -406,7 +414,7 @@ class RawatJalanController extends Controller
                 $defaultDokterId = $myDokter->id;
             }
         }
-        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks', 'stats', 'defaultDokterId'));
+        return view('erm.rawatjalans.index', compact('dokters', 'metodeBayar', 'role', 'kliniks', 'stats', 'defaultDokterId', 'isDokter'));
     }
 
     /**
