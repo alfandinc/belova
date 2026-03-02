@@ -106,7 +106,7 @@
 
 <!-- Modal Lihat Temuan (for stok opname) -->
 <div class="modal fade" id="temuanModal" tabindex="-1" role="dialog" aria-labelledby="temuanModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
+  <div class="modal-dialog modal-xl" role="document">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="temuanModalLabel">Temuan Stok Opname</h5>
@@ -122,7 +122,7 @@
               <th>No</th>
               <th>Obat</th>
               <th>Qty</th>
-              <th>Jenis</th>
+              <th>Jenis Selisih</th>
               <th>Status Proses</th>
               <th>Keterangan</th>
               <th>Aksi</th>
@@ -132,6 +132,7 @@
         </table>
       </div>
       <div class="modal-footer">
+        <a href="#" class="btn btn-info" id="export-temuan-btn" target="_blank"><i class="fa fa-file-excel-o"></i> Export Temuan Excel</a>
         <button type="button" class="btn btn-primary" id="process-selected">Proses Terpilih</button>
         <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
       </div>
@@ -153,8 +154,8 @@
 .yajra-datatable td.aksi-col { white-space: normal; }
 .yajra-datatable td.col-no { white-space: nowrap; }
 .yajra-datatable td.aksi-col .btn { display: inline-block; margin-bottom: 4px; }
-.yajra-datatable th.aksi-col { width: 220px; }
-.yajra-datatable th.col-no { width: 40px; }
+.yajra-datatable th.aksi-col { width: 20%; }
+.yajra-datatable th.col-no { width: 6%; }
 </style>
 <script>
 $(function () {
@@ -180,10 +181,14 @@ $(function () {
   var table = $('.yajra-datatable').DataTable({
     processing: true,
     serverSide: true,
-    // column sizing: No (0) small, Aksi (5) wider
+    // column sizing using percentages to make action buttons fit responsively
     columnDefs: [
-      { targets: 0, width: '40px', className: 'col-no text-center' },
-      { targets: 5, width: '220px', className: 'aksi-col' }
+      { targets: 0, width: '6%', className: 'col-no text-center' },
+      { targets: 1, width: '30%' },
+      { targets: 2, width: '16%' },
+      { targets: 3, width: '12%' },
+      { targets: 4, width: '16%' },
+      { targets: 5, width: '20%', className: 'aksi-col' }
     ],
     ajax: {
       url: "{{ route('erm.stokopname.index') }}",
@@ -313,6 +318,9 @@ $(function () {
       var opnameId = $(this).data('id');
       var url = temuanUrlTemplate.replace('__ID__', opnameId);
       $('#temuanModalLabel').text('Temuan Stok Opname #' + opnameId);
+      // set export temuan link for this opname
+      var exportUrl = "{{ url('erm/stokopname') }}" + '/' + opnameId + '/export-temuan';
+      $('#export-temuan-btn').attr('href', exportUrl);
       if (temuanTable) {
         temuanTable.ajax.url(url).load();
       } else {
@@ -324,7 +332,13 @@ $(function () {
             { data: null, orderable: false, searchable: false, render: function(data, type, row){ return '<input type="checkbox" class="temuan-select" data-id="'+row.id+'">'; } },
             { data: null, orderable: false, searchable: false, render: function(data, type, row, meta){ return meta.row + meta.settings._iDisplayStart + 1; } },
             { data: 'obat', name: 'obat' },
-            { data: 'qty', name: 'qty' },
+            { data: 'qty', name: 'qty', render: function(data, type, row){
+              var n = parseFloat(data);
+              if (isNaN(n)) return data;
+              // show integer without decimals, otherwise up to 4 decimals trimmed
+              if (Math.abs(n - Math.round(n)) < 0.0000001) return String(Math.round(n));
+              return n.toFixed(4).replace(/\.?0+$/,'');
+            } },
             { data: 'jenis', name: 'jenis' },
             { data: 'process_status', name: 'process_status' },
             { data: 'keterangan', name: 'keterangan' },

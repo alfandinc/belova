@@ -39,7 +39,7 @@
 
 <!-- Modal History Temuan -->
 <div class="modal fade" id="temuanHistoryModal" tabindex="-1" role="dialog" aria-labelledby="temuanHistoryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="temuanHistoryModalLabel">History Temuan</h5>
@@ -66,8 +66,8 @@
                                         <div class="form-group mr-2">
                                             <label class="sr-only" for="temuan_jenis">Jenis</label>
                                             <select id="temuan_jenis" class="form-control form-control-sm" style="width:120px;">
-                                                <option value="kurang">Kurang</option>
-                                                <option value="lebih">Lebih</option>
+                                                <option value="plus">Plus</option>
+                                                <option value="minus">Minus</option>
                                             </select>
                                         </div>
                                         <div class="form-group mr-2" style="flex:1;">
@@ -86,7 +86,7 @@
                                         <tr>
                                             <th>Tanggal</th>
                                             <th>Qty</th>
-                                            <th>Jenis</th>
+                                            <th>Jenis Selisih</th>
                                             <th>Catatan</th>
                                             <th>Oleh</th>
                                             <th>Action</th>
@@ -712,7 +712,9 @@ $(function () {
                     // Populate simple temuan records into the temuanRecordsTable
                     if (res.temuan_records && res.temuan_records.length > 0) {
                         res.temuan_records.forEach(function(r) {
-                            var jenisLabel = r.jenis === 'lebih' ? 'Lebih' : (r.jenis === 'kurang' ? 'Kurang' : '-');
+                            var jenisLabel = (r.jenis === 'minus' || r.jenis === 'lebih')
+                                ? 'Minus'
+                                : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Plus' : '-');
                             var actionBtn = '';
                             if (r.process_status && parseInt(r.process_status) === 1) {
                                 // Already processed: show disabled 'Diproses' and do not allow deletion
@@ -978,7 +980,9 @@ $(function () {
                 if (res.success) {
                     // append new record to table
                     var r = res.record;
-                    var jenisLabel = r.jenis === 'lebih' ? 'Lebih' : (r.jenis === 'kurang' ? 'Kurang' : '-');
+                    var jenisLabel = (r.jenis === 'minus' || r.jenis === 'lebih')
+                        ? 'Minus'
+                        : ((r.jenis === 'plus' || r.jenis === 'kurang') ? 'Plus' : '-');
                     var actionBtn = '';
                     if (r.process_status && parseInt(r.process_status) === 1) {
                         actionBtn = `<button class="btn btn-sm btn-secondary" disabled>Diproses</button>`;

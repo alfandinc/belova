@@ -42,16 +42,13 @@ class StokOpnameTemuanExport implements FromCollection, WithHeadings, ShouldAuto
             }
 
             $qty = (float) ($r->qty ?? 0);
-            // Export convention requested: 'kurang' is +, 'lebih' is -
-            $sign = ($r->jenis === 'lebih') ? -1 : 1;
+            // Export convention: minus/lebih is negative, plus/kurang is positive
+            $sign = (in_array($r->jenis, ['lebih', 'minus'], true)) ? -1 : 1;
             $nilaiNominal = $hppJual * $qty * $sign;
 
             $jenisSelisih = $r->jenis;
-            if ($r->jenis === 'kurang') {
-                $jenisSelisih = 'plus';
-            } elseif ($r->jenis === 'lebih') {
-                $jenisSelisih = 'minus';
-            }
+            if ($r->jenis === 'kurang') $jenisSelisih = 'plus';
+            if ($r->jenis === 'lebih') $jenisSelisih = 'minus';
 
             $processStatusLabel = (!empty($r->process_status) && (int) $r->process_status === 1)
                 ? 'Diproses'

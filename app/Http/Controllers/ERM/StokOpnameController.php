@@ -30,10 +30,10 @@ class StokOpnameController extends Controller
         $totalStokFisik = 0;
         foreach ($items as $item) {
             $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
-            // include record-only temuan (net of jenis: 'lebih' as +, 'kurang' as -)
+            // include record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
             $recordNet = DB::table('erm_stok_opname_temuan')
                 ->where('stok_opname_item_id', $item->id)
-                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
                 ->first();
             $netTemuan = $recordNet ? (float) $recordNet->net : 0;
 
@@ -99,10 +99,10 @@ class StokOpnameController extends Controller
             } else {
                 $item->stok_fisik = $item->stok_fisik + $temuan;
             }
-            // Include net record-only temuan (lebih as +, kurang as -) when calculating selisih
+            // Include net record-only temuan (minus/lebih as +, plus/kurang as -) when calculating selisih
             $recordNet = DB::table('erm_stok_opname_temuan')
                 ->where('stok_opname_item_id', $item->id)
-                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
                 ->first();
             $netTemuan = $recordNet ? (float) $recordNet->net : 0;
             $item->selisih = ($item->stok_fisik - $item->stok_sistem) + $netTemuan;
@@ -319,7 +319,8 @@ class StokOpnameController extends Controller
     {
         $request->validate([
             'qty' => 'required|numeric|min:0.0001',
-            'jenis' => 'required|in:kurang,lebih',
+            // Backward compatible: old values (kurang/lebih) and new values (plus/minus)
+            'jenis' => 'required|in:kurang,lebih,plus,minus',
             'keterangan' => 'nullable|string|max:255',
         ]);
 
@@ -340,7 +341,7 @@ class StokOpnameController extends Controller
             // Recalculate and persist selisih on the opname item
             $recordNet = DB::table('erm_stok_opname_temuan')
                 ->where('stok_opname_item_id', $item->id)
-                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
                 ->first();
             $netTemuan = $recordNet ? (float) $recordNet->net : 0;
             $item->selisih = ($item->stok_fisik - $item->stok_sistem) + $netTemuan;
@@ -379,13 +380,14 @@ class StokOpnameController extends Controller
             $stokOpname = $item->stokOpname;
 
             $qty = (float) $r->qty;
-            $jenis = $r->jenis ?? 'kurang';
+            $jenis = $r->jenis ?? 'plus';
             $keterangan = 'temuan stok opname';
             if ($r->keterangan) $keterangan .= ' - ' . $r->keterangan;
 
             $stokService = app(\App\Services\ERM\StokService::class);
 
-            if ($jenis === 'lebih') {
+            // New stored values: plus/minus (legacy: kurang/lebih)
+            if (in_array($jenis, ['lebih', 'minus'], true)) {
                 // add stock
                 $targetBatch = $item->batch_name;
                 $targetExp = $item->expiration_date;
@@ -416,7 +418,7 @@ class StokOpnameController extends Controller
                     $keterangan
                 );
             } else {
-                // kurang -> reduce stock
+                // plus/kurang -> reduce stock
                 // if batch available, remove from that batch, otherwise remove across batches
                 if ($item->batch_id) {
                     $stokService->kurangiStok(
@@ -470,7 +472,7 @@ class StokOpnameController extends Controller
                 if ($itemForSelisih) {
                     $recordNet = DB::table('erm_stok_opname_temuan')
                         ->where('stok_opname_item_id', $itemForSelisih->id)
-                        ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                        ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
                         ->first();
                     $netTemuan = $recordNet ? (float) $recordNet->net : 0;
                     $itemForSelisih->selisih = ($itemForSelisih->stok_fisik - $itemForSelisih->stok_sistem) + $netTemuan;
@@ -502,7 +504,7 @@ class StokOpnameController extends Controller
             if ($item) {
                 $recordNet = DB::table('erm_stok_opname_temuan')
                     ->where('stok_opname_item_id', $item->id)
-                    ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                    ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
                     ->first();
                 $netTemuan = $recordNet ? (float) $recordNet->net : 0;
                 $item->selisih = ($item->stok_fisik - $item->stok_sistem) + $netTemuan;
@@ -526,13 +528,13 @@ class StokOpnameController extends Controller
             $stokOpname = $item->stokOpname;
 
             $qty = (float) $r->qty;
-            $jenis = $r->jenis ?? 'kurang';
+            $jenis = $r->jenis ?? 'plus';
             $keterangan = 'temuan stok opname';
             if ($r->keterangan) $keterangan .= ' - ' . $r->keterangan;
 
             $stokService = app(\App\Services\ERM\StokService::class);
 
-            if ($jenis === 'lebih') {
+            if (in_array($jenis, ['lebih', 'minus'], true)) {
                 $targetBatch = $item->batch_name;
                 $targetExp = $item->expiration_date;
                 if (empty($targetBatch)) {
@@ -606,7 +608,7 @@ class StokOpnameController extends Controller
                 if ($itemForSelisih) {
                     $recordNet = DB::table('erm_stok_opname_temuan')
                         ->where('stok_opname_item_id', $itemForSelisih->id)
-                        ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                        ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
                         ->first();
                     $netTemuan = $recordNet ? (float) $recordNet->net : 0;
                     $itemForSelisih->selisih = ($itemForSelisih->stok_fisik - $itemForSelisih->stok_sistem) + $netTemuan;
@@ -666,14 +668,14 @@ class StokOpnameController extends Controller
                     return $row->items()->whereRaw('ABS(selisih) > 0')->count();
                 })
                 ->addColumn('aksi', function($row) {
-                    $lihatBtn = '<a href="'.route('erm.stokopname.create', $row->id).'" class="btn btn-primary btn-sm">Lihat Stok Opname</a>';
-                    $exportTemuan = ' <a href="'.route('erm.stokopname.exportTemuan', $row->id).'" class="btn btn-info btn-sm">Export Temuan Excel</a>';
-                    $showTemuanBtn = ' <button type="button" class="btn btn-secondary btn-sm btn-show-temuan" data-id="'.$row->id.'">Lihat Temuan</button>';
+                    $lihatBtn = '<a href="'.route('erm.stokopname.create', $row->id).'" class="btn btn-primary btn-sm">Stok Opname</a>';
+                    $showTemuanBtn = '<button type="button" class="btn btn-secondary btn-sm btn-show-temuan" data-id="'.$row->id.'">Temuan</button>';
                     if ($row->status === 'selesai') {
-                        $exportBtn = ' <a href="'.route('erm.stokopname.exportResults', $row->id).'" class="btn btn-success btn-sm">Export Hasil Excel</a>';
-                        return $lihatBtn . $showTemuanBtn . $exportTemuan . $exportBtn;
+                        $exportBtn = '<a href="'.route('erm.stokopname.exportResults', $row->id).'" class="btn btn-success btn-sm">Export Hasil</a>';
+                        $group = '<div class="btn-group" role="group" aria-label="Aksi Stok Opname">' . $lihatBtn . $showTemuanBtn . $exportBtn . '</div>';
+                        return $group;
                     }
-                    return $lihatBtn . $showTemuanBtn . $exportTemuan;
+                    return '<div class="btn-group" role="group" aria-label="Aksi Stok Opname">' . $lihatBtn . $showTemuanBtn . '</div>';
                 })
                 ->rawColumns(['aksi'])
                 ->make(true);
@@ -714,10 +716,10 @@ class StokOpnameController extends Controller
         $totalStokFisik = 0;
         foreach ($items as $item) {
             $hppJual = $item->obat ? ($item->obat->hpp_jual ?? 0) : 0;
-            // include record-only temuan (net of jenis: 'lebih' as +, 'kurang' as -)
+            // include record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
             $recordNet = DB::table('erm_stok_opname_temuan')
                 ->where('stok_opname_item_id', $item->id)
-                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis = 'lebih' THEN qty WHEN jenis = 'kurang' THEN -qty ELSE 0 END),0) as net"))
+                ->select(DB::raw("COALESCE(SUM(CASE WHEN jenis IN ('lebih','minus') THEN qty WHEN jenis IN ('kurang','plus') THEN -qty ELSE 0 END),0) as net"))
                 ->first();
             $netTemuan = $recordNet ? (float) $recordNet->net : 0;
 
@@ -967,10 +969,10 @@ class StokOpnameController extends Controller
                 // Sum temuan quantities from the new record-only temuan table per item (absolute sum)
                 $recordQueryNoAlias = "(SELECT COALESCE(SUM(t.qty),0) FROM erm_stok_opname_temuan t WHERE t.stok_opname_item_id = erm_stok_opname_items.id)";
 
-                // Net record-only temuan: treat 'lebih' as +qty and 'kurang' as -qty
-                $recordNetQuery = "(SELECT COALESCE(SUM(CASE WHEN t.jenis = 'lebih' THEN t.qty WHEN t.jenis = 'kurang' THEN -t.qty ELSE 0 END),0) FROM erm_stok_opname_temuan t WHERE t.stok_opname_item_id = erm_stok_opname_items.id)";
+                // Net record-only temuan: treat 'minus/lebih' as +qty and 'plus/kurang' as -qty
+                $recordNetQuery = "(SELECT COALESCE(SUM(CASE WHEN t.jenis IN ('lebih','minus') THEN t.qty WHEN t.jenis IN ('kurang','plus') THEN -t.qty ELSE 0 END),0) FROM erm_stok_opname_temuan t WHERE t.stok_opname_item_id = erm_stok_opname_items.id)";
 
-                // Total temuan: use only record-only temuan (net of jenis: 'lebih' as +, 'kurang' as -)
+                // Total temuan: use only record-only temuan (net of jenis: 'minus/lebih' as +, 'plus/kurang' as -)
                 $totalTemuanSub = "COALESCE((" . $recordNetQuery . "),0) as total_temuan";
 
                 // Adjusted selisih = (stok_fisik - stok_sistem) + net_record_temuan
