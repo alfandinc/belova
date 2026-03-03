@@ -1812,6 +1812,8 @@ Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
     Route::post('/lab-tests', [\App\Http\Controllers\ERM\LabTestController::class, 'store'])->name('erm.labtests.store');
     Route::put('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'update'])->name('erm.labtests.update');
     Route::delete('/lab-tests/{id}', [\App\Http\Controllers\ERM\LabTestController::class, 'destroy'])->name('erm.labtests.destroy');
+    // Toggle availability
+    Route::post('/lab-tests/{id}/toggle-availability', [\App\Http\Controllers\ERM\LabTestController::class, 'toggleAvailability'])->name('erm.labtests.toggle_availability');
 });
 // ================================================================================
 
@@ -2010,5 +2012,13 @@ Route::post('/admin/whatsapp-test/send', [\App\Http\Controllers\Admin\WhatsappTe
 // AJAX pasien search for WhatsApp Test Select2
 Route::get('/admin/whatsapp-test/pasien-search', [\App\Http\Controllers\Admin\WhatsappTestController::class, 'pasienSearch'])
     ->middleware(['auth','role:Admin'])->name('admin.whatsapp_test.pasien_search');
+
+
+// Lab config: select active Dokter for Lembar Monitoring (only dokters with Spesialisasi 'Laboratorium')
+Route::prefix('erm')->middleware('role:Lab|Admin')->group(function () {
+    Route::get('/lab-config', [\App\Http\Controllers\ERM\LabConfigController::class, 'getConfig'])->name('erm.labconfig.get');
+    Route::get('/lab-config/dokters', [\App\Http\Controllers\ERM\LabConfigController::class, 'listDokters'])->name('erm.labconfig.dokters');
+    Route::post('/lab-config/save', [\App\Http\Controllers\ERM\LabConfigController::class, 'save'])->name('erm.labconfig.save');
+});
 
 

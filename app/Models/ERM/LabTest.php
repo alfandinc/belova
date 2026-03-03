@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class LabTest extends Model
 {
     protected $table = 'erm_lab_test';
-    protected $fillable = ['nama', 'lab_kategori_id', 'harga', 'deskripsi'];
+    protected $fillable = ['nama', 'lab_kategori_id', 'harga', 'deskripsi', 'available'];
 
     public function labKategori()
     {

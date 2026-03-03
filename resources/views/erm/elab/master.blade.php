@@ -22,6 +22,21 @@
         </div>
     </div>
 
+    <!-- Dokter Lab Aktif: moved to top of the master section -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body py-2">
+                    <div class="d-flex align-items-center" style="gap:8px;">
+                        <label class="mb-0 font-weight-bold" style="min-width:150px;">DOKTER LAB AKTIF</label>
+                        <select id="lab_dokter_select" class="form-control form-control-sm" style="flex:1; max-width:720px;"></select>
+                        <button class="btn btn-sm btn-primary" id="btn-save-lab-dokter" type="button">Simpan</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-md-7">
             <div class="card">
@@ -334,6 +349,18 @@ $(function(){
             error: xhr=>{ alert(xhr.responseJSON?.message || 'Error'); }
         });
     });
+    // Toggle availability
+    $(document).on('click', '.btn-toggle-availability', function(){
+        if(!confirm('Ubah status ketersediaan test?')) return;
+        let id = $(this).data('id');
+        $.ajax({
+            url: `/erm/lab-tests/${id}/toggle-availability`,
+            type: 'POST',
+            headers: {'X-CSRF-TOKEN': csrf},
+            success: function(){ testTable.ajax.reload(null,false); },
+            error: function(xhr){ alert(xhr.responseJSON?.message || 'Error'); }
+        });
+    });
     $(document).on('click','.delete-kategori', function(){
         if(!confirm('Hapus kategori ini?')) return;
         let id = $(this).data('id');
@@ -406,6 +433,32 @@ $(function(){
             }
         });
     });
+
+        // --- Lab dokter config (select dokter with spesialisasi Laboratorium) ---
+        function loadLabDokters(){
+            $.getJSON('/erm/lab-config/dokters', function(resp){
+                let sel = $('#lab_dokter_select'); sel.empty();
+                sel.append('<option value="">- Tidak ada -</option>');
+                (resp.data || []).forEach(function(d){ sel.append(`<option value="${d.id}">${d.name}</option>`); });
+                // load current config
+                $.getJSON('/erm/lab-config', function(r2){
+                    if(r2.data && r2.data.dokter_id){ sel.val(r2.data.dokter_id); }
+                });
+            });
+        }
+
+        $('#btn-save-lab-dokter').on('click', function(){
+            let dokterId = $('#lab_dokter_select').val() || null;
+            $.ajax({
+                url: '/erm/lab-config/save', type: 'POST', headers: {'X-CSRF-TOKEN': csrf},
+                data: { dokter_id: dokterId },
+                success: function(){ alert('Disimpan'); },
+                error: function(xhr){ alert(xhr.responseJSON?.message || 'Gagal menyimpan'); }
+            });
+        });
+
+        // initialize lab dokter select
+        loadLabDokters();
 
 });
 </script>

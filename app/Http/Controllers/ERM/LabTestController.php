@@ -26,8 +26,14 @@ class LabTestController extends Controller
             ->addIndexColumn()
             ->addColumn('kategori', function($row){ return $row->labKategori?->nama; })
             ->addColumn('actions', function($row){
-                return '<button class="btn btn-sm btn-warning edit-test" data-id="'.$row->id.'" data-nama="'.e($row->nama).'" data-harga="'.$row->harga.'" data-lab_kategori_id="'.$row->lab_kategori_id.'">Edit</button> '
-                    .'<button class="btn btn-sm btn-danger delete-test" data-id="'.$row->id.'">Delete</button>';
+                $btn = '<button class="btn btn-sm btn-warning edit-test" data-id="'.$row->id.'" data-nama="'.e($row->nama).'" data-harga="'.$row->harga.'" data-lab_kategori_id="'.$row->lab_kategori_id.'">Edit</button> ';
+                $btn .= '<button class="btn btn-sm btn-danger delete-test" data-id="'.$row->id.'">Delete</button> ';
+                if ($row->available === 'yes') {
+                    $btn .= '<button class="btn btn-sm btn-success btn-toggle-availability" data-id="'.$row->id.'">Available</button>';
+                } else {
+                    $btn .= '<button class="btn btn-sm btn-dark btn-toggle-availability" data-id="'.$row->id.'">Unavailable</button>';
+                }
+                return $btn;
             })
             ->editColumn('harga', function($row){ return $row->harga; })
             ->rawColumns(['actions'])
@@ -113,6 +119,19 @@ class LabTestController extends Controller
         $test = LabTest::findOrFail($id);
         $test->delete();
         return response()->json(['message' => 'Lab test deleted']);
+    }
+
+    /**
+     * Toggle availability status for a lab test (yes/no)
+     */
+    public function toggleAvailability(Request $request, $id)
+    {
+        $test = LabTest::findOrFail($id);
+        $current = $test->available ?? 'yes';
+        $new = $current === 'yes' ? 'no' : 'yes';
+        $test->available = $new;
+        $test->save();
+        return response()->json(['message' => 'Updated', 'available' => $new]);
     }
 
     public function search(Request $request)

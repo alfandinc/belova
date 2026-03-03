@@ -991,10 +991,25 @@ class ElabController extends Controller
                 }
             }
             
-            // Get lab doctor with specialization ID 7 (pre-fetch this data)
-            $dokterLab = \App\Models\ERM\Dokter::with('user', 'spesialisasi')
-                ->where('spesialisasi_id', 7)
-                ->first();
+            // Dokter lab: prefer configured dokter (saved in erm_lab_configs),
+            // otherwise fallback to first dokter with spesialisasi 'Laboratorium'
+            $dokterLab = null;
+            try {
+                $labConfig = \App\Models\ERM\LabConfig::first();
+                if ($labConfig && $labConfig->dokter_id) {
+                    $dokterLab = \App\Models\ERM\Dokter::with('user','spesialisasi')->find($labConfig->dokter_id);
+                    if ($dokterLab && ! $dokterLab->spesialisasi) {
+                        $dokterLab = null;
+                    }
+                }
+            } catch (\Exception $e) {
+                $dokterLab = null;
+            }
+            if (! $dokterLab) {
+                $dokterLab = \App\Models\ERM\Dokter::with('user', 'spesialisasi')
+                    ->whereHas('spesialisasi', function($q){ $q->whereRaw("lower(nama) = 'laboratorium'"); })
+                    ->first();
+            }
                 
             // Pre-process QR code image to improve performance
             $qrCodeData = null;
@@ -1157,10 +1172,26 @@ class ElabController extends Controller
                     if ($val) $diagnosaKerja[] = $val;
                 }
             }
-            // Dokter lab (spesialisasi_id 7)
-            $dokterLab = \App\Models\ERM\Dokter::with('user', 'spesialisasi')
-                ->where('spesialisasi_id', 7)
-                ->first();
+            // Dokter lab: prefer configured dokter (saved in erm_lab_configs),
+            // otherwise fallback to first dokter with spesialisasi 'Laboratorium'
+            $dokterLab = null;
+            try {
+                $labConfig = \App\Models\ERM\LabConfig::first();
+                if ($labConfig && $labConfig->dokter_id) {
+                    $dokterLab = \App\Models\ERM\Dokter::with('user','spesialisasi')->find($labConfig->dokter_id);
+                    if ($dokterLab && ! $dokterLab->spesialisasi) {
+                        // invalid config, ignore
+                        $dokterLab = null;
+                    }
+                }
+            } catch (\Exception $e) {
+                $dokterLab = null;
+            }
+            if (! $dokterLab) {
+                $dokterLab = \App\Models\ERM\Dokter::with('user', 'spesialisasi')
+                    ->whereHas('spesialisasi', function($q){ $q->whereRaw("lower(nama) = 'laboratorium'"); })
+                    ->first();
+            }
             $qrCodeData = null;
             if ($dokterLab && $dokterLab->ttd) {
                 $qrPath = public_path('img/qr/' . $dokterLab->ttd);
