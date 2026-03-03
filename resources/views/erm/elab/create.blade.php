@@ -19,7 +19,10 @@
         height: 100%;
         padding: 12px;
         box-sizing: border-box;
-        
+        border: 1px solid #e6eef8;
+        border-radius: 7px;
+        overflow: hidden;
+
         box-shadow: 0 2px 8px rgba(0,51,102,0.04);
         transition: box-shadow 0.2s;
     }
@@ -34,10 +37,16 @@
         border-bottom: 2px solid #00509e;
         letter-spacing: 1px;
         font-size: 1.05em;
-        padding-left: 8px;
-        padding-right: 8px;
-        padding-top: 6px;
-        padding-bottom: 6px;
+        /* make header span full width of the box including its padding */
+        display: block;
+        box-sizing: border-box;
+        width: calc(100% + 24px); /* negate .lab-category-box horizontal padding (12px each side) */
+        margin-left: -12px;
+        margin-right: -12px;
+        /* pull header to the very top of the box (negate top padding) */
+        margin-top: -12px;
+        padding: 6px 12px;
+        text-align: center;
     }
     
     .lab-category-content {
@@ -53,6 +62,20 @@
         margin-bottom: 8px;
         padding: 6px 0 6px 8px;
         /* border-bottom: 1px dashed #cce0f6; */ /* Removed dashed line */
+    }
+    .lab-test-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+    .lab-test-row .left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .lab-test-row .form-check-label {
+        margin-bottom: 0;
     }
     .form-check:last-child {
         border-bottom: none;
@@ -440,16 +463,23 @@
                                     </div>
                                     <div class="lab-category-content p-2">
                                         @foreach($category->labTests as $test)
-                                        <div class="form-check">
-                                            <input class="form-check-input lab-test-checkbox" type="checkbox" 
-                                                id="test-{{ $test->id }}" 
-                                                data-id="{{ $test->id }}" 
-                                                data-name="{{ $test->nama }}"
-                                                data-price="{{ $test->harga }}"
-                                                {{ in_array($test->id, $existingLabTestIds) ? 'checked' : '' }}>
-                                            <label class="form-check-label" for="test-{{ $test->id }}">
-                                                {{ $test->nama }}
-                                            </label>
+                                        <div class="form-check lab-test-row">
+                                            <div class="left">
+                                                <input class="form-check-input lab-test-checkbox" type="checkbox" 
+                                                    id="test-{{ $test->id }}" 
+                                                    data-id="{{ $test->id }}" 
+                                                    data-name="{{ $test->nama }}"
+                                                    data-price="{{ $test->harga }}"
+                                                    {{ in_array($test->id, $existingLabTestIds) ? 'checked' : '' }}>
+                                                <label class="form-check-label" for="test-{{ $test->id }}">
+                                                    {{ $test->nama }}
+                                                </label>
+                                            </div>
+                                            @if(isset($test->available) && $test->available === 'yes')
+                                                <span class="badge badge-success">Available</span>
+                                            @else
+                                                <span class="badge badge-dark">Unavailable</span>
+                                            @endif
                                         </div>
                                         @endforeach
                                     </div>
