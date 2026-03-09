@@ -2321,6 +2321,15 @@ $('#saveAllChangesBtn').on('click', function() {
                          item.id.toString().startsWith('obat-') ||
                          item.id.toString().startsWith('racikan-'))
                     );
+                    const items = billingData.filter(item => !item.deleted);
+                    if (items.length === 0) {
+                        Swal.fire({
+                            title: 'Peringatan!',
+                            text: 'Tidak ada item billing yang valid!',
+                            icon: 'warning'
+                        });
+                        return;
+                    }
                     const requestData = {
                         _token: "{{ csrf_token() }}",
                         visitation_id: correctVisitationId,
@@ -2342,216 +2351,205 @@ $('#saveAllChangesBtn').on('click', function() {
                         didOpen: () => { Swal.showLoading(); }
                     });
 
+                    function proceedToInvoiceRequest() {
+                        // Update the same modal to indicate invoice creation / payment processing
+                        try {
+                            Swal.update({
+                                title: isCreatingInvoice ? 'Membuat Invoice...' : 'Memproses Pembayaran...',
+                                text: isCreatingInvoice ? 'Harap tunggu, sedang memproses invoice.' : 'Harap tunggu, sedang memproses pembayaran.'
+                            });
+                        } catch (e) {
+                            // ignore
+                        }
+
+                        // Debug: log payload being sent for invoice creation
+                        console.debug('Creating invoice payload', {
+                            visitation_id: correctVisitationId,
+                            items: items,
+                            totals: isCreatingInvoice ? unpaidTotals : window.billingTotals,
+                            gudang_selections: collectGudangSelections()
+                        });
+
+                        const invoiceEndpointUrl = isCreatingInvoice
+                            ? "{{ route('finance.billing.createInvoice') }}"
+                            : "{{ route('finance.billing.receivePayment') }}";
+
+                        $.ajax({
+                            url: invoiceEndpointUrl,
+                            type: "POST",
+                            data: JSON.stringify({
+                                _token: "{{ csrf_token() }}",
+                                visitation_id: correctVisitationId,
+                                invoice_id: currentInvoiceId,
+                                items: items,
+                                totals: JSON.stringify(isCreatingInvoice ? unpaidTotals : window.billingTotals),
+                                gudang_selections: collectGudangSelections()
+                            }),
+                            contentType: 'application/json; charset=utf-8',
+                            dataType: 'json',
+                            success: function(invoiceResponse) {
+                                // The backend returns stock_reduced and stock_message
+                                var stockReduced = invoiceResponse.stock_reduced === true || invoiceResponse.stock_reduced === 1;
+                                var stockMessage = invoiceResponse.stock_message || '';
+
+                                var invoiceId = invoiceResponse.invoice_id || invoiceResponse.id || (invoiceResponse.invoice && invoiceResponse.invoice.id) || null;
+                                if (invoiceId) {
+                                    currentInvoiceId = invoiceId;
+                                    // prefer backend truth; fallback to local compare
+                                    if (typeof invoiceResponse.is_paid !== 'undefined') {
+                                        currentInvoiceIsPaid = (invoiceResponse.is_paid === true || invoiceResponse.is_paid === 1 || invoiceResponse.is_paid === '1');
+                                    } else {
+                                        try {
+                                            const paidRaw = parseFloat(invoiceResponse.amount_paid || 0);
+                                            const totalRaw = parseFloat(invoiceResponse.total_amount || 0);
+                                            currentInvoiceIsPaid = (Number(totalRaw) > 0) && (Math.ceil(paidRaw) >= Math.ceil(totalRaw));
+                                        } catch (e) {
+                                            currentInvoiceIsPaid = false;
+                                        }
+                                    }
+
+                                    // For Piutang invoices, payment_status=paid means invoice is effectively paid.
+                                    try {
+                                        const pm = String((invoiceResponse && invoiceResponse.payment_method) ? invoiceResponse.payment_method : (window.oldInvoice && window.oldInvoice.payment_method) ? window.oldInvoice.payment_method : '').toLowerCase();
+                                        const ps = String(
+                                            (invoiceResponse && invoiceResponse.piutang_payment_status) ? invoiceResponse.piutang_payment_status :
+                                            (invoiceResponse && invoiceResponse.piutang && invoiceResponse.piutang.payment_status) ? invoiceResponse.piutang.payment_status :
+                                            (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? window.oldInvoice.piutang_payment_status :
+                                            ''
+                                        ).toLowerCase();
+                                        if (pm === 'piutang' && ps === 'paid') {
+                                            currentInvoiceIsPaid = true;
+                                        }
+                                    } catch (e) {
+                                        // ignore
+                                    }
+                                    setInvoiceFlowUi();
+
+                                    // Keep window.oldInvoice in sync so UI updates immediately without requiring a page reload.
+                                    try {
+                                        window.oldInvoice = window.oldInvoice || {};
+                                        window.oldInvoice.id = currentInvoiceId;
+                                        window.oldInvoice.invoice_number = invoiceResponse.invoice_number || (invoiceResponse.invoice && invoiceResponse.invoice.invoice_number) || window.oldInvoice.invoice_number || null;
+                                        if (typeof invoiceResponse.total_amount !== 'undefined') window.oldInvoice.total_amount = invoiceResponse.total_amount;
+                                        if (typeof invoiceResponse.amount_paid !== 'undefined') window.oldInvoice.amount_paid = invoiceResponse.amount_paid;
+                                        if (typeof invoiceResponse.payment_method !== 'undefined') window.oldInvoice.payment_method = invoiceResponse.payment_method;
+
+                                        if (invoiceResponse.piutang) {
+                                            window.oldInvoice.piutang_id = invoiceResponse.piutang.id || null;
+                                            window.oldInvoice.piutang_amount = (typeof invoiceResponse.piutang.amount !== 'undefined') ? invoiceResponse.piutang.amount : null;
+                                            window.oldInvoice.piutang_paid_amount = (typeof invoiceResponse.piutang.paid_amount !== 'undefined') ? invoiceResponse.piutang.paid_amount : null;
+                                            window.oldInvoice.piutang_payment_status = invoiceResponse.piutang.payment_status || invoiceResponse.piutang_payment_status || null;
+                                        } else if (typeof invoiceResponse.piutang_payment_status !== 'undefined') {
+                                            window.oldInvoice.piutang_payment_status = invoiceResponse.piutang_payment_status;
+                                        }
+                                    } catch (e) {
+                                        // ignore
+                                    }
+
+                                    try {
+                                        setInvoiceHeaderUi(
+                                            invoiceResponse.invoice_number || (invoiceResponse.invoice && invoiceResponse.invoice.invoice_number) || null,
+                                            currentInvoiceId,
+                                            (typeof invoiceResponse.amount_paid !== 'undefined') ? invoiceResponse.amount_paid : ((invoiceResponse.invoice && invoiceResponse.invoice.amount_paid) || 0),
+                                            (typeof invoiceResponse.total_amount !== 'undefined') ? invoiceResponse.total_amount : ((invoiceResponse.invoice && invoiceResponse.invoice.total_amount) || 0),
+                                            invoiceResponse.payment_method || (invoiceResponse.invoice && invoiceResponse.invoice.payment_method) || ($('#payment_method').val() || null),
+                                            invoiceResponse.piutang_payment_status || (invoiceResponse.piutang && invoiceResponse.piutang.payment_status) || (window.oldInvoice && window.oldInvoice.piutang_payment_status) || null
+                                        );
+                                    } catch (e) {
+                                        // ignore
+                                    }
+
+                                    try {
+                                        updatePaymentActionButtons((invoiceResponse && invoiceResponse.payment_method) ? invoiceResponse.payment_method : ($('#payment_method').val() || 'piutang'));
+                                    } catch (e) {
+                                        // ignore
+                                    }
+                                }
+
+                                if (isCreatingInvoice) {
+                                    if (!invoiceIdBefore) {
+                                        openPrintNota(currentInvoiceId);
+                                        return;
+                                    }
+
+                                    invoiceNeedsUpdateServer = false;
+                                    try {
+                                        billingData = [];
+                                        deletedItems = [];
+                                        window.__billingLightRefresh = false;
+                                        table.ajax.reload(null, false);
+                                    } catch (e) {
+                                        // ignore
+                                    }
+                                    updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+
+                                    Swal.fire({
+                                        title: 'Berhasil!',
+                                        text: 'Invoice berhasil diupdate sesuai billing terbaru.',
+                                        icon: 'success',
+                                        confirmButtonText: 'OK',
+                                        allowOutsideClick: false
+                                    });
+                                    return;
+                                }
+
+                                // After payment is processed (including piutang), lock billing edits.
+                                billingLocked = true;
+                                applyBillingLockUi();
+                                try { table.ajax.reload(null, false); } catch (e) { /* ignore */ }
+
+                                invoiceNeedsUpdateServer = false;
+
+                                var icon = stockReduced ? 'success' : 'warning';
+                                var html = 'Pembayaran berhasil diproses untuk invoice: <strong>' + (invoiceResponse.invoice_number || '') + '</strong>';
+                                if (stockMessage) {
+                                    try {
+                                        var emphasized = (stockMessage || '').toString().toUpperCase();
+                                        emphasized = emphasized.replace(/(STOK TIDAK DIKURANGI)/g, '<strong>$1</strong>');
+                                    } catch (e) {
+                                        var emphasized = (stockMessage || '').toString().toUpperCase();
+                                    }
+                                    html += '<br><small style="display:block;margin-top:8px;color:#555;">' + emphasized + '</small>';
+                                }
+
+                                Swal.fire({
+                                    title: 'Berhasil!',
+                                    html: html,
+                                    icon: icon,
+                                    confirmButtonText: 'OK',
+                                    allowOutsideClick: false
+                                });
+                            },
+                            error: function(xhr) {
+                                const title = isCreatingInvoice ? 'Gagal Membuat Invoice' : 'Gagal Memproses Pembayaran';
+                                const prefix = isCreatingInvoice ? 'Terjadi kesalahan dalam pembuatan invoice:' : 'Terjadi kesalahan saat memproses pembayaran:';
+                                showReadableAjaxError(title, xhr, prefix);
+                            }
+                        });
+                    }
+
+                    // If we're processing payment and billing is already locked (e.g., piutang exists),
+                    // don't try to save billing again; proceed directly to payment.
+                    if (!isCreatingInvoice && billingLocked) {
+                        proceedToInvoiceRequest();
+                        return;
+                    }
+
                     // First: save billing
                     $.ajax({
                         url: "{{ route('finance.billing.save') }}",
                         type: "POST",
                         data: requestData,
                         success: function(saveResponse) {
-                            // After save, create invoice
-                            const items = billingData.filter(item => !item.deleted);
-                            if (items.length === 0) {
-                                Swal.fire({
-                                    title: 'Peringatan!',
-                                    text: 'Tidak ada item billing yang valid!',
-                                    icon: 'warning'
-                                });
-                                return;
-                            }
-
-                            // Update the same modal to indicate invoice creation
-                            try {
-                                Swal.update({
-                                    title: isCreatingInvoice ? 'Membuat Invoice...' : 'Memproses Pembayaran...',
-                                    text: isCreatingInvoice ? 'Harap tunggu, sedang memproses invoice.' : 'Harap tunggu, sedang memproses pembayaran.'
-                                });
-                            } catch(e) {
-                                // Fallback: if Swal.update isn't available, close and open a new loading modal
-                                Swal.close();
-                                Swal.fire({
-                                    title: isCreatingInvoice ? 'Membuat Invoice...' : 'Memproses Pembayaran...',
-                                    text: isCreatingInvoice ? 'Harap tunggu, sedang memproses invoice.' : 'Harap tunggu, sedang memproses pembayaran.',
-                                    icon: 'info',
-                                    allowOutsideClick: false,
-                                    showConfirmButton: false,
-                                    didOpen: () => { Swal.showLoading(); }
-                                });
-                            }
-
-                                // Debug: log payload being sent for invoice creation
-                                console.debug('Creating invoice payload', {
-                                    visitation_id: correctVisitationId,
-                                    items: items,
-                                    totals: isCreatingInvoice ? unpaidTotals : window.billingTotals,
-                                    gudang_selections: collectGudangSelections()
-                                });
-
-                                const invoiceEndpointUrl = isCreatingInvoice
-                                    ? "{{ route('finance.billing.createInvoice') }}"
-                                    : "{{ route('finance.billing.receivePayment') }}";
-
-                                $.ajax({
-                                url: invoiceEndpointUrl,
-                                type: "POST",
-                                data: JSON.stringify({
-                                    _token: "{{ csrf_token() }}",
-                                    visitation_id: correctVisitationId,
-                                    invoice_id: currentInvoiceId,
-                                    items: items,
-                                    totals: JSON.stringify(isCreatingInvoice ? unpaidTotals : window.billingTotals),
-                                    gudang_selections: collectGudangSelections()
-                                }),
-                                contentType: 'application/json; charset=utf-8',
-                                dataType: 'json',
-                                success: function(invoiceResponse) {
-                                    // The backend returns stock_reduced and stock_message
-                                    var stockReduced = invoiceResponse.stock_reduced === true || invoiceResponse.stock_reduced === 1;
-                                    var stockMessage = invoiceResponse.stock_message || '';
-
-                                    var invoiceId = invoiceResponse.invoice_id || invoiceResponse.id || (invoiceResponse.invoice && invoiceResponse.invoice.id) || null;
-                                    if (invoiceId) {
-                                        currentInvoiceId = invoiceId;
-                                        // prefer backend truth; fallback to local compare
-                                        if (typeof invoiceResponse.is_paid !== 'undefined') {
-                                            currentInvoiceIsPaid = (invoiceResponse.is_paid === true || invoiceResponse.is_paid === 1 || invoiceResponse.is_paid === '1');
-                                        } else {
-                                            try {
-                                                const paidRaw = parseFloat(invoiceResponse.amount_paid || 0);
-                                                const totalRaw = parseFloat(invoiceResponse.total_amount || 0);
-                                                currentInvoiceIsPaid = (Number(totalRaw) > 0) && (Math.ceil(paidRaw) >= Math.ceil(totalRaw));
-                                            } catch (e) {
-                                                currentInvoiceIsPaid = false;
-                                            }
-                                        }
-
-                                        // For Piutang invoices, payment_status=paid means invoice is effectively paid.
-                                        try {
-                                            const pm = String((invoiceResponse && invoiceResponse.payment_method) ? invoiceResponse.payment_method : (window.oldInvoice && window.oldInvoice.payment_method) ? window.oldInvoice.payment_method : '').toLowerCase();
-                                            const ps = String(
-                                                (invoiceResponse && invoiceResponse.piutang_payment_status) ? invoiceResponse.piutang_payment_status :
-                                                (invoiceResponse && invoiceResponse.piutang && invoiceResponse.piutang.payment_status) ? invoiceResponse.piutang.payment_status :
-                                                (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? window.oldInvoice.piutang_payment_status :
-                                                ''
-                                            ).toLowerCase();
-                                            if (pm === 'piutang' && ps === 'paid') {
-                                                currentInvoiceIsPaid = true;
-                                            }
-                                        } catch (e) {
-                                            // ignore
-                                        }
-                                        setInvoiceFlowUi();
-
-                                        // Keep window.oldInvoice in sync so UI (including Lunasi Pembayaran button)
-                                        // updates immediately without requiring a page reload.
-                                        try {
-                                            window.oldInvoice = window.oldInvoice || {};
-                                            window.oldInvoice.id = currentInvoiceId;
-                                            window.oldInvoice.invoice_number = invoiceResponse.invoice_number || (invoiceResponse.invoice && invoiceResponse.invoice.invoice_number) || window.oldInvoice.invoice_number || null;
-                                            if (typeof invoiceResponse.total_amount !== 'undefined') window.oldInvoice.total_amount = invoiceResponse.total_amount;
-                                            if (typeof invoiceResponse.amount_paid !== 'undefined') window.oldInvoice.amount_paid = invoiceResponse.amount_paid;
-                                            if (typeof invoiceResponse.payment_method !== 'undefined') window.oldInvoice.payment_method = invoiceResponse.payment_method;
-
-                                            // Update piutang snapshot (returned by backend whenever exists)
-                                            if (invoiceResponse.piutang) {
-                                                window.oldInvoice.piutang_id = invoiceResponse.piutang.id || null;
-                                                window.oldInvoice.piutang_amount = (typeof invoiceResponse.piutang.amount !== 'undefined') ? invoiceResponse.piutang.amount : null;
-                                                window.oldInvoice.piutang_paid_amount = (typeof invoiceResponse.piutang.paid_amount !== 'undefined') ? invoiceResponse.piutang.paid_amount : null;
-                                                window.oldInvoice.piutang_payment_status = invoiceResponse.piutang.payment_status || invoiceResponse.piutang_payment_status || null;
-                                            } else if (typeof invoiceResponse.piutang_payment_status !== 'undefined') {
-                                                window.oldInvoice.piutang_payment_status = invoiceResponse.piutang_payment_status;
-                                            }
-                                        } catch (e) {
-                                            // ignore
-                                        }
-
-                                        // Update header (invoice number + badge) immediately
-                                        try {
-                                            setInvoiceHeaderUi(
-                                                invoiceResponse.invoice_number || (invoiceResponse.invoice && invoiceResponse.invoice.invoice_number) || null,
-                                                currentInvoiceId,
-                                                (typeof invoiceResponse.amount_paid !== 'undefined') ? invoiceResponse.amount_paid : ((invoiceResponse.invoice && invoiceResponse.invoice.amount_paid) || 0),
-                                                (typeof invoiceResponse.total_amount !== 'undefined') ? invoiceResponse.total_amount : ((invoiceResponse.invoice && invoiceResponse.invoice.total_amount) || 0),
-                                                invoiceResponse.payment_method || (invoiceResponse.invoice && invoiceResponse.invoice.payment_method) || ($('#payment_method').val() || null),
-                                                invoiceResponse.piutang_payment_status || (invoiceResponse.piutang && invoiceResponse.piutang.payment_status) || (window.oldInvoice && window.oldInvoice.piutang_payment_status) || null
-                                            );
-                                        } catch (e) {
-                                            // ignore
-                                        }
-
-                                        // Update primary action label immediately
-                                        try {
-                                            updatePaymentActionButtons((invoiceResponse && invoiceResponse.payment_method) ? invoiceResponse.payment_method : ($('#payment_method').val() || 'piutang'));
-                                        } catch (e) {
-                                            // ignore
-                                        }
-                                    }
-
-                                    if (isCreatingInvoice) {
-                                        // Only auto-preview nota when invoice is created for the first time.
-                                        if (!invoiceIdBefore) {
-                                            openPrintNota(currentInvoiceId);
-                                            return;
-                                        }
-
-                                        // Invoice updated (unpaid): clear update flag and refresh primary action label.
-                                        invoiceNeedsUpdateServer = false;
-                                        try {
-                                            // Clear local dirty state (temp IDs / edited flags) by reloading from server
-                                            billingData = [];
-                                            deletedItems = [];
-                                            window.__billingLightRefresh = false;
-                                            table.ajax.reload(null, false);
-                                        } catch (e) {
-                                            // ignore
-                                        }
-                                        updatePaymentActionButtons($('#payment_method').val() || 'piutang');
-
-                                        Swal.fire({
-                                            title: 'Berhasil!',
-                                            text: 'Invoice berhasil diupdate sesuai billing terbaru.',
-                                            icon: 'success',
-                                            confirmButtonText: 'OK',
-                                            allowOutsideClick: false
-                                        });
-                                        return;
-                                    }
-
-                                    // After payment is processed (including piutang), lock billing edits.
-                                    billingLocked = true;
-                                    applyBillingLockUi();
-                                    try { table.ajax.reload(null, false); } catch (e) { /* ignore */ }
-
-                                    // After payment, invoice is now in sync by definition.
-                                    invoiceNeedsUpdateServer = false;
-
-                                    var icon = stockReduced ? 'success' : 'warning';
-                                    var html = 'Pembayaran berhasil diproses untuk invoice: <strong>' + (invoiceResponse.invoice_number || '') + '</strong>';
-                                    if (stockMessage) {
-                                        try {
-                                            var emphasized = (stockMessage || '').toString().toUpperCase();
-                                            emphasized = emphasized.replace(/(STOK TIDAK DIKURANGI)/g, '<strong>$1</strong>');
-                                        } catch (e) {
-                                            var emphasized = (stockMessage || '').toString().toUpperCase();
-                                        }
-                                        html += '<br><small style="display:block;margin-top:8px;color:#555;">' + emphasized + '</small>';
-                                    }
-
-                                    Swal.fire({
-                                        title: 'Berhasil!',
-                                        html: html,
-                                        icon: icon,
-                                        confirmButtonText: 'OK',
-                                        allowOutsideClick: false
-                                    });
-                                },
-                                error: function(xhr) {
-                                    const title = isCreatingInvoice ? 'Gagal Membuat Invoice' : 'Gagal Memproses Pembayaran';
-                                    const prefix = isCreatingInvoice ? 'Terjadi kesalahan dalam pembuatan invoice:' : 'Terjadi kesalahan saat memproses pembayaran:';
-                                    showReadableAjaxError(title, xhr, prefix);
-                                }
-                            });
+                            proceedToInvoiceRequest();
                         },
                         error: function(xhr) {
+                            // If billing is already locked, saving will be rejected, but payment can still proceed.
+                            // This happens e.g. when invoice already processed and user just wants to "Lunasi Pembayaran".
+                            if (!isCreatingInvoice && xhr && Number(xhr.status) === 423) {
+                                proceedToInvoiceRequest();
+                                return;
+                            }
                             showReadableAjaxError('Gagal Menyimpan Billing', xhr, 'Terjadi kesalahan saat menyimpan billing:');
                         }
                     });
