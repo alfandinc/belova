@@ -1636,18 +1636,30 @@
                 return;
             }
             
+            const paketId = (formData.get('id') || '').toString().trim();
+            const wadahIdRaw = formData.get('wadah_id');
+            const wadahId = (wadahIdRaw === null || wadahIdRaw === undefined || wadahIdRaw === '') ? null : wadahIdRaw;
+
             let data = {
                 _token: "{{ csrf_token() }}",
                 nama_paket: formData.get('nama_paket'),
                 deskripsi: formData.get('deskripsi'),
-                wadah_id: formData.get('wadah_id'),
+                wadah_id: wadahId,
                 bungkus_default: formData.get('bungkus_default'),
                 aturan_pakai_default: formData.get('aturan_pakai_default'),
                 obats: obatsData
             };
+
+            // If paketId exists, update instead of create
+            let url = "{{ route('erm.paket-racikan.store') }}";
+            if (paketId) {
+                const updateUrlTemplate = "{{ route('erm.paket-racikan.update', ['id' => '__ID__']) }}";
+                url = updateUrlTemplate.replace('__ID__', encodeURIComponent(paketId));
+                data._method = 'PUT';
+            }
             
             $.ajax({
-                url: "{{ route('erm.paket-racikan.store') }}",
+                url: url,
                 method: 'POST',
                 data: data,
                 success: function(response) {
@@ -2310,6 +2322,7 @@
             
             // Reset form
             $('#formPaketRacikan')[0].reset();
+            $('#paketId').val('');
             
             // Reset obat container
             $('#obatPaketContainer').html(`
