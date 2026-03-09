@@ -7,84 +7,44 @@
 
 @include('finance.partials.modal-billing-edititem')
 
-<style>
-    /* Highlight billing row when selected gudang stock is lower than required qty */
-    tr.low-stock {
-        background-color: #f8d7da !important; /* light red */
-    }
-    tr.low-stock .stock-cell {
-        color: #721c24; /* dark red text for stock value */
-        font-weight: 600;
-    }
-    /* Gender badge: rounded rectangle around the icon */
-    .gender-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 22px;
-        height: 22px;
-        padding: 0;
-        border-radius: 5px;
-        border: 1px solid rgba(0,0,0,0.06);
-        background: #f8f9fa;
-        line-height: 1;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-    }
-    .gender-badge .fa-mars, .gender-badge .fa-venus { color: #fff; font-size: 0.95rem; }
-    .gender-badge.gender-male {
-        background: #0d6efd; /* bootstrap primary */
-        border-color: rgba(13,110,253,0.3);
-    }
-    .gender-badge.gender-female {
-        background: #ff6fb3; /* soft pink */
-        border-color: rgba(255,111,179,0.28);
-    }
-    /* Patient name + id styles */
-    .patient-label { display:inline-flex; align-items:center; }
-    .patient-name { font-weight:600; margin-left:8px; color:#0b1220; text-transform:uppercase; }
-    .patient-id { font-weight:600; color:#2b6cb0; margin-left:8px; }
-    .patient-meta { color:#6c757d; }
-    .patient-age { color:#6c757d; font-weight:600; margin-left:8px; }
-    /* Data Pasien card improvements */
-    .data-pasien {
-        border-radius: 6px;
-    }
-    .data-pasien .card-body {
-        padding: 0.8rem 1rem;
-    }
-    .data-pasien .table {
-        margin-bottom: 0;
-    }
-    .data-pasien .table td {
-        padding: 0.32rem 0.5rem;
-        vertical-align: middle;
-    }
-    .data-pasien .table td.label {
-        width: 140px;
-        font-weight: 600;
-        color: #343a40;
-        white-space: nowrap;
-    }
-    .data-pasien .invoice-number {
-        font-weight: 700;
-        color: #0d6efd;
-    }
-    .data-pasien .small-note { margin-top: .25rem; color: #6c757d; }
-</style>
+@include('finance.billing.partials.create-styles')
 
 <div class="container-fluid">
+    <div id="pageLoadingOverlay" class="page-loading-overlay" aria-live="polite" aria-busy="true">
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status" aria-label="Memuat">
+                <span class="sr-only">Memuat...</span>
+            </div>
+            <div class="mt-2 text-muted">Memuat data...</div>
+        </div>
+    </div>
     <!-- Prefill billing fields with old invoice data if available -->
+    @php
+        $latestPiutang = $invoice?->piutangs?->sortByDesc('id')->first();
+    @endphp
     <script>
         window.oldInvoice = {
-            global_discount: @json($invoice->discount_value ?? ''),
-            global_discount_type: @json($invoice->discount_type ?? ''),
-            tax_percentage: @json($invoice->tax_percentage ?? ''),
+            id: @json($invoice?->id ?? null),
+            invoice_number: @json($invoice?->invoice_number ?? null),
+            total_amount: @json($invoice?->total_amount ?? null),
+            global_discount: @json($invoice?->discount_value ?? ''),
+            global_discount_type: @json($invoice?->discount_type ?? ''),
+            tax_percentage: @json($invoice?->tax_percentage ?? ''),
             admin_fee: @json($invoice?->items?->first(function($item) { return stripos($item->name ?? '', 'Biaya Administrasi') !== false; })?->unit_price ?? ''),
             shipping_fee: @json($invoice?->items?->where('name', 'Biaya Ongkir')->first()?->unit_price ?? ''),
-            amount_paid: @json($invoice->amount_paid ?? ''),
-            payment_method: @json($invoice->payment_method ?? ''),
-            change_amount: @json($invoice->change_amount ?? '')
+            amount_paid: @json($invoice?->amount_paid ?? ''),
+            payment_method: @json($invoice?->payment_method ?? ''),
+            piutang_payment_status: @json($latestPiutang?->payment_status ?? null),
+            piutang_id: @json($latestPiutang?->id ?? null),
+            piutang_amount: @json($latestPiutang?->amount ?? null),
+            piutang_paid_amount: @json($latestPiutang?->paid_amount ?? null),
+            change_amount: @json($invoice?->change_amount ?? '')
         };
+
+        window.visitationMetodeBayarName = @json(optional($visitation->metodeBayar)->nama ?? null);
+
+        // True when there is an existing invoice but billing was changed afterwards (server-side detection).
+        window.invoiceNeedsUpdate = @json($invoiceNeedsUpdate ?? false);
         
         // Global variables for gudang data
         window.gudangData = {
@@ -108,6 +68,97 @@
                 }
             });
         }
+
+            function setInvoiceHeaderUi(invoiceNumber, invoiceId, amountPaid, totalAmount, paymentMethod, piutangPaymentStatus) {
+                try {
+                    if (invoiceNumber) {
+                        $('.invoice-number').text(String(invoiceNumber));
+                    }
+
+                    const $badge = $('#invoiceStatusBadge');
+                    if (!$badge.length) return;
+
+                    // If all billings are trashed, status should stay "Terhapus".
+                    if (window.allBillingsTrashed) {
+                        $badge
+                            .show()
+                            .text('Terhapus')
+                            .css({
+                                color: '#fff',
+                                background: '#6c757d',
+                                padding: '2px 8px',
+                                borderRadius: '8px',
+                                fontSize: '13px'
+                            });
+                        return;
+                    }
+
+                    let text = 'Belum Transaksi';
+                    let bg = '#dc3545';
+
+                    const pm = (paymentMethod || '').toString().trim().toLowerCase();
+                    const paid = Math.ceil(Number(amountPaid || 0)) >= Math.ceil(Number(totalAmount || 0)) && Number(totalAmount || 0) > 0;
+                    const partial = Number(amountPaid || 0) > 0 && Number(totalAmount || 0) > 0 && Number(amountPaid || 0) < Number(totalAmount || 0);
+
+                    if (pm === 'piutang') {
+                        const ps = (piutangPaymentStatus || '').toString().trim().toLowerCase();
+                        if (ps === 'paid') {
+                            text = 'Lunas';
+                            bg = '#28a745';
+                        } else if (ps === 'partial') {
+                            text = 'Belum Lunas';
+                            bg = '#ffc107';
+                        } else {
+                            text = 'Piutang';
+                            bg = '#17a2b8';
+                        }
+                    } else {
+                        if (paid) {
+                            text = 'Lunas';
+                            bg = '#28a745';
+                        } else if (partial) {
+                            text = 'Belum Lunas';
+                            bg = '#ffc107';
+                        } else {
+                            // invoice not paid yet (or no invoice): keep Belum Transaksi
+                            text = 'Belum Transaksi';
+                            bg = '#dc3545';
+                        }
+                    }
+
+                    $badge
+                        .show()
+                        .text(text)
+                        .css({
+                            color: '#fff',
+                            background: bg,
+                            padding: '2px 8px',
+                            borderRadius: '8px',
+                            fontSize: '13px'
+                        });
+                } catch (e) {
+                    // ignore
+                }
+            }
+
+        // Simple page-ready gate to avoid UI flashing before data is ready
+        window.__pageReadyGate = {
+            gudangDone: false,
+            tableDone: false,
+            hideOverlayIfReady: function() {
+                try {
+                    if (!this.gudangDone || !this.tableDone) return;
+                    var $ov = $('#pageLoadingOverlay');
+                    if (!$ov.length) return;
+                    $ov.addClass('is-hidden');
+                    setTimeout(function() {
+                        try { $ov.remove(); } catch (e) {}
+                    }, 220);
+                } catch (e) {
+                    // ignore
+                }
+            }
+        };
     </script>
     
 
@@ -293,32 +344,65 @@
                     </h5>
                     <div>
                         <strong class="invoice-number">{{ $invoice?->invoice_number ?? '-' }}</strong>
-                        @if($invoice)
-                            @php
-                                $amountPaid = floatval($invoice->amount_paid ?? 0);
-                                $totalAmount = floatval($invoice->total_amount ?? 0);
-                                $statusHtml = '';
-                                if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
-                                    $statusHtml = '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
-                                } elseif ($amountPaid > 0 && $amountPaid < $totalAmount) {
-                                    $statusHtml = '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
-                                } else {
-                                    $statusHtml = '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                        @php
+                            $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
+                            $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+                            $allBillingsTrashed = ($totalBillings > 0 && $trashedBillings === $totalBillings);
+
+                            $hasInvoice = !empty($invoice);
+                            $amountPaid = $hasInvoice ? floatval($invoice->amount_paid ?? 0) : 0;
+                            $totalAmount = $hasInvoice ? floatval($invoice->total_amount ?? 0) : 0;
+                            $paymentMethod = $hasInvoice ? strtolower((string)($invoice->payment_method ?? '')) : '';
+                            $piutangStatus = null;
+                            if ($hasInvoice && $paymentMethod === 'piutang') {
+                                try {
+                                    $piutang = $invoice->piutangs ? $invoice->piutangs->first() : null;
+                                    $piutangStatus = $piutang && isset($piutang->payment_status) ? strtolower((string)$piutang->payment_status) : null;
+                                } catch (\Exception $e) {
+                                    $piutangStatus = null;
                                 }
-                            @endphp
-                            {!! $statusHtml !!}
-                        @else
-                            @php
-                                // If no invoice, check if there are any billings; if all trashed show Terhapus else Belum Dibayar
-                                $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id ?? null)->count();
-                                $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id ?? null)->count();
-                                if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
-                                    echo '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
+                            }
+
+                            // Match index page statuses: Terhapus / Belum Transaksi / Belum Lunas / Piutang / Lunas
+                            $badgeText = 'Belum Transaksi';
+                            $badgeBg = '#dc3545';
+
+                            if ($allBillingsTrashed) {
+                                $badgeText = 'Terhapus';
+                                $badgeBg = '#6c757d';
+                            } elseif (!$hasInvoice) {
+                                $badgeText = 'Belum Transaksi';
+                                $badgeBg = '#dc3545';
+                            } elseif ($paymentMethod === 'piutang') {
+                                if ($piutangStatus === 'paid') {
+                                    $badgeText = 'Lunas';
+                                    $badgeBg = '#28a745';
+                                } elseif ($piutangStatus === 'partial') {
+                                    $badgeText = 'Belum Lunas';
+                                    $badgeBg = '#ffc107';
                                 } else {
-                                    echo '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                                    $badgeText = 'Piutang';
+                                    $badgeBg = '#17a2b8';
                                 }
-                            @endphp
-                        @endif
+                            } else {
+                                $isPaid = ($totalAmount > 0 && $amountPaid >= $totalAmount);
+                                $isPartial = ($amountPaid > 0 && $amountPaid < $totalAmount);
+                                if ($isPaid) {
+                                    $badgeText = 'Lunas';
+                                    $badgeBg = '#28a745';
+                                } elseif ($isPartial) {
+                                    $badgeText = 'Belum Lunas';
+                                    $badgeBg = '#ffc107';
+                                } else {
+                                    $badgeText = 'Belum Transaksi';
+                                    $badgeBg = '#dc3545';
+                                }
+                            }
+                        @endphp
+                        <script>
+                            window.allBillingsTrashed = @json($allBillingsTrashed ?? false);
+                        </script>
+                        <span id="invoiceStatusBadge" style="color:#fff;background:{{ $badgeBg }};padding:2px 8px;border-radius:8px;font-size:13px;">{{ $badgeText }}</span>
                     </div>
                 </div>
                 <div class="card-body px-4 py-3">
@@ -330,7 +414,6 @@
                                     <th style="width: 30%">Nama Item</th>
                                     <th style="width: 8%">Harga</th>
                                     <th style="width: 5%">Qty</th>
-                                    <th style="width: 12%">Stok Tersedia</th>
                                     <th style="width: 8%">Diskon</th>
                                     <th style="width: 8%">Total</th>
                                     <th style="width: 10%">Aksi</th>
@@ -406,48 +489,49 @@
                     </div>
                     
                     <!-- Payment Section -->
-                    <div class="border-top pt-3 mt-3">
-                        <h6 class="mb-3">Pembayaran</h6>
-                        <div class="form-group row mb-2">
-                            <div class="col-6">
-                                <label for="amount_paid">Dibayar</label>
-                                <input type="text" class="form-control" id="amount_paid" value="0" placeholder="Jumlah uang yang diberikan pasien">
-                                <small class="text-muted">Masukkan jumlah uang yang diberikan oleh pasien</small>
-                            </div>
-                            <div class="col-6">
-                                <label for="payment_method">Metode Pembayaran</label>
-                                <select class="form-control" id="payment_method">
-                                    <option value="cash">Tunai</option>
-                                    {{-- <option value="non_cash">Non Tunai</option> --}}
-                                        <option value="piutang">Piutang</option>
-                                    <option value="edc_bca">EDC BCA</option>
-                                    <option value="edc_bni">EDC BNI</option>
-                                    <option value="edc_bri">EDC BRI</option>
-                                    <option value="edc_mandiri">EDC Mandiri</option>
-                                    <option value="qris">QRIS</option>
-                                    <option value="transfer">Transfer</option>
-                                    <option value="shopee">Shopee</option>
-                                    <option value="tiktokshop">Tiktokshop</option>
-                                    <option value="tokopedia">Tokopedia</option>
-                                    <option value="asuransi_inhealth">Asuransi InHealth</option>
-                                    <option value="asuransi_brilife">Asuransi Brilife</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>Kembali:</span>
-                            <span id="change_amount" class="font-weight-bold text-success">Rp 0</span>
-                        </div>
-                        <div class="d-flex justify-content-between" style="display:none;" id="shortage_label">
-                            <span>Kekurangan:</span>
-                            <span id="shortage_amount" class="font-weight-bold text-danger">Rp 0</span>
-                        </div>
+                    <div id="paymentSection" style="display:none;">
+                        <input type="hidden" id="amount_paid" value="0">
+                        <select id="payment_method" style="display:none;">
+                            <option value="cash">Tunai</option>
+                            <option value="piutang">Piutang</option>
+                            <option value="edc_bca">EDC BCA</option>
+                            <option value="edc_bni">EDC BNI</option>
+                            <option value="edc_bri">EDC BRI</option>
+                            <option value="edc_mandiri">EDC Mandiri</option>
+                            <option value="qris">QRIS</option>
+                            <option value="transfer">Transfer</option>
+                            <option value="shopee">Shopee</option>
+                            <option value="tiktokshop">Tiktokshop</option>
+                            <option value="tokopedia">Tokopedia</option>
+                            <option value="asuransi_inhealth">Asuransi InHealth</option>
+                            <option value="asuransi_brilife">Asuransi Brilife</option>
+                            <option value="asuransi_admedika">Asuransi Admedika</option>
+                            <option value="asuransi_bcalife">Asuransi BCA Life</option>
+                        </select>
+
+                        <span id="change_amount" style="display:none;"></span>
+                        <span id="shortage_amount" style="display:none;"></span>
+                        <div id="shortage_label" style="display:none;"></div>
                     </div>
                     
                     <div class="mt-4">
-                        <button id="createInvoiceBtn" class="btn btn-primary btn-block">
-                            <i class="fas fa-file-invoice mr-1"></i> Buat Invoice
-                        </button>
+                        <div class="row" id="invoiceActionRow">
+                            <div class="col-12" id="createInvoiceCol" @if($invoice) style="display:none;" @endif>
+                                <button id="createInvoiceBtn" class="btn btn-primary btn-block">
+                                    <i class="fas fa-file-invoice mr-1"></i> Buat Invoice
+                                </button>
+                            </div>
+                            <div class="col-6 pr-1" id="terimaPembayaranCol" @if(!$invoice) style="display:none;" @endif>
+                                <button id="terimaPembayaranBtn" class="btn btn-success btn-block">
+                                    <i class="fas fa-file-invoice mr-1"></i> Pembayaran
+                                </button>
+                            </div>
+                            <div class="col-6 pl-1" id="cetakNotaCol" @if(!$invoice) style="display:none;" @endif>
+                                <button id="printNotaBtn" class="btn btn-outline-primary btn-block">
+                                    Cetak Nota
+                                </button>
+                            </div>
+                        </div>
                         {{--<button id="saveAllChangesBtn" class="btn btn-outline-secondary btn-block mt-2">
                             <i class="fas fa-save mr-1"></i> Simpan Billing
                         </button>--}}
@@ -457,9 +541,13 @@
         </div>
     </div>
 </div>
+
+@include('finance.billing.partials.payment-modal')
+@include('finance.billing.partials.modal-terima-pembayaran')
 @endsection
 
 @section('scripts')
+    @include('finance.billing.partials.stock-info-modal-loader')
     <script>
         $(document).ready(function() {
         // Close button: try to close the browser tab; fallback to billing index
@@ -490,41 +578,421 @@
             if (window.oldInvoice.payment_method !== '') $('#payment_method').val(window.oldInvoice.payment_method);
             if (window.oldInvoice.change_amount !== '') $('#change_amount').text('Rp ' + formatCurrency(window.oldInvoice.change_amount));
         }
+
+        // --- 2-step invoice/payment flow UI state ---
+        let currentInvoiceId = (window.oldInvoice && window.oldInvoice.id) ? window.oldInvoice.id : null;
+        let currentInvoiceIsPaid = false;
+        const canDeleteBilling = @json(auth()->check() && method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Admin'));
+        // Billing becomes locked (non-editable) after payment is processed (including piutang).
+        // Backend marks unpaid invoice creation with payment_method = null.
+        let billingLocked = false;
+        try {
+            billingLocked = !!(window.oldInvoice && window.oldInvoice.payment_method);
+        } catch (e) {
+            billingLocked = false;
+        }
+        try {
+            const paidRaw = parseFloat((window.oldInvoice && window.oldInvoice.amount_paid) ? window.oldInvoice.amount_paid : 0);
+            const totalRaw = parseFloat((window.oldInvoice && window.oldInvoice.total_amount) ? window.oldInvoice.total_amount : 0);
+            currentInvoiceIsPaid = (Number(totalRaw) > 0) && (Math.ceil(paidRaw) >= Math.ceil(totalRaw));
+        } catch (e) {
+            currentInvoiceIsPaid = false;
+        }
+
+        // For Piutang invoices, payment_status=paid means invoice is effectively paid.
+        try {
+            const pm = (window.oldInvoice && window.oldInvoice.payment_method) ? String(window.oldInvoice.payment_method).toLowerCase() : '';
+            const ps = (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? String(window.oldInvoice.piutang_payment_status).toLowerCase() : '';
+            if (currentInvoiceId && pm === 'piutang' && ps === 'paid') {
+                currentInvoiceIsPaid = true;
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        function setInvoiceFlowUi() {
+            if (currentInvoiceId) {
+                // When invoice exists, show actions based on paid status
+                $('#createInvoiceCol').hide();
+                $('#cetakNotaCol').show();
+
+                if (currentInvoiceIsPaid) {
+                    // Lunas: show only Cetak Nota
+                    $('#terimaPembayaranCol').hide();
+                    $('#cetakNotaCol').removeClass('col-6 pl-1').addClass('col-12');
+                } else {
+                    // Not lunas: show both buttons side-by-side
+                    $('#terimaPembayaranCol').show();
+                    $('#cetakNotaCol').removeClass('col-12').addClass('col-6 pl-1');
+                }
+            } else {
+                $('#createInvoiceCol').show();
+                $('#terimaPembayaranCol').hide();
+                $('#cetakNotaCol').hide();
+                // reset layout class in case it was expanded previously
+                try {
+                    $('#cetakNotaCol').removeClass('col-12').addClass('col-6 pl-1');
+                } catch (e) {
+                    // ignore
+                }
+                // ensure unpaid on first creation
+                $('#amount_paid').val('0');
+            }
+        }
+
+        function applyBillingLockUi() {
+            // Disable add/select inputs
+            try {
+                ['#select-konsultasi', '#select-tindakan', '#select-lab', '#select-obat'].forEach(function(sel) {
+                    const $el = $(sel);
+                    if ($el && $el.length) {
+                        $el.prop('disabled', !!billingLocked);
+                        // select2 needs a change to reflect disabled state
+                        try { $el.trigger('change.select2'); } catch (e) { /* ignore */ }
+                    }
+                });
+            } catch (e) {
+                // ignore
+            }
+
+            // When invoice is paid (Lunas), prevent changing totals inputs
+            try {
+                const lockTotalsInputs = !!currentInvoiceId && !!currentInvoiceIsPaid;
+                ['#tax_percentage', '#admin_fee', '#shipping_fee'].forEach(function(sel) {
+                    const $el = $(sel);
+                    if ($el && $el.length) {
+                        $el.prop('disabled', lockTotalsInputs);
+                        try { $el.trigger('change'); } catch (e) { /* ignore */ }
+                    }
+                });
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        function calculatePaymentSummaryForModal() {
+            // Ensure we have the latest grand total
+            calculateTotals();
+            const grandTotalInt = (window.billingTotals && window.billingTotals.grandTotalInt) ? window.billingTotals.grandTotalInt : 0;
+            const modalPaid = parseHarga($('#modal_amount_paid').val() || 0);
+            const modalPaidInt = Math.ceil(modalPaid);
+            const changeAmount = Math.max(0, modalPaidInt - grandTotalInt);
+            const shortageAmount = Math.max(0, grandTotalInt - modalPaidInt);
+
+            $('#modal_change_amount').text('Rp ' + formatCurrency(changeAmount));
+            if (shortageAmount > 0) {
+                $('#modal_shortage_amount').text('Rp ' + formatCurrency(shortageAmount));
+                $('#modal_shortage_label').removeClass('d-none');
+                $('#modal_piutang_info').removeClass('d-none');
+            } else {
+                $('#modal_shortage_amount').text('Rp 0');
+                $('#modal_shortage_label').addClass('d-none');
+                $('#modal_piutang_info').addClass('d-none');
+            }
+        }
+
+        function getPaymentActionLabel(methodRaw) {
+            const method = (methodRaw || 'cash').toString();
+            return method === 'piutang' ? 'Buat Piutang' : 'Pembayaran';
+        }
+
+        function updatePaymentActionButtons(methodRaw) {
+            // If invoice has an active piutang, primary action should be "Lunasi Pembayaran"
+            // (handled via Terima Pembayaran modal like billing index page).
+            try {
+                const piutangId = window.oldInvoice && window.oldInvoice.piutang_id ? window.oldInvoice.piutang_id : null;
+                const piutangStatus = (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? String(window.oldInvoice.piutang_payment_status).toLowerCase() : '';
+                const piutangAmount = Number(window.oldInvoice && window.oldInvoice.piutang_amount ? window.oldInvoice.piutang_amount : 0);
+                const piutangPaid = Number(window.oldInvoice && window.oldInvoice.piutang_paid_amount ? window.oldInvoice.piutang_paid_amount : 0);
+                const remaining = piutangAmount - piutangPaid;
+                const hasActivePiutang = !!piutangId && (!piutangStatus || piutangStatus === 'unpaid' || piutangStatus === 'partial') && isFinite(remaining) && remaining > 0;
+
+                if (hasActivePiutang && $('#terimaPembayaranBtn').length) {
+                    $('#terimaPembayaranBtn').html('<i class="fas fa-file-invoice mr-1"></i> Lunasi Pembayaran');
+                    $('#terimaPembayaranBtn').removeClass('btn-success').addClass('btn-warning');
+                    // Keep the modal confirm button label consistent when user opens paymentModal manually.
+                    $('#confirmPaymentBtn').text('Lunasi Pembayaran');
+                    try {
+                        $('#confirmPaymentBtn').removeClass('btn-success').addClass('btn-warning');
+                    } catch (e) {
+                        // ignore
+                    }
+                    return;
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            // If invoice exists but billing changed, force the primary action to "Update Invoice".
+            try {
+                if (currentInvoiceId && !currentInvoiceIsPaid && !billingLocked && invoiceNeedsUpdateNow()) {
+                    $('#terimaPembayaranBtn').html('<i class="fas fa-file-invoice mr-1"></i> Update Invoice');
+                    $('#terimaPembayaranBtn').removeClass('btn-success').addClass('btn-warning');
+                    return;
+                }
+            } catch (e) {
+                // ignore
+            }
+
+            const label = getPaymentActionLabel(methodRaw);
+            const method = (methodRaw || 'cash').toString();
+            const isPiutang = method === 'piutang';
+
+            function applyBtnColor($btn) {
+                if (!$btn || !$btn.length) return;
+                $btn.removeClass('btn-success btn-warning');
+                $btn.addClass(isPiutang ? 'btn-warning' : 'btn-success');
+            }
+
+            $('#confirmPaymentBtn').text(label);
+            applyBtnColor($('#confirmPaymentBtn'));
+            if ($('#terimaPembayaranBtn').length) {
+                $('#terimaPembayaranBtn').html('<i class="fas fa-file-invoice mr-1"></i> ' + label);
+                applyBtnColor($('#terimaPembayaranBtn'));
+            }
+        }
+
+        let invoiceNeedsUpdateServer = false;
+        try {
+            invoiceNeedsUpdateServer = (window.invoiceNeedsUpdate === true || window.invoiceNeedsUpdate === 1 || window.invoiceNeedsUpdate === '1');
+        } catch (e) {
+            invoiceNeedsUpdateServer = false;
+        }
+
+        function isTempBillingId(id) {
+            try {
+                const s = (id || '').toString();
+                return s.startsWith('tindakan-') || s.startsWith('lab-') || s.startsWith('konsultasi-') || s.startsWith('obat-') || s.startsWith('racikan-');
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function hasLocalBillingChanges() {
+            try {
+                if (!Array.isArray(billingData)) return false;
+                return billingData.some(function(item) {
+                    if (!item) return false;
+                    return !!item.edited || !!item.deleted || isTempBillingId(item.id);
+                }) || (Array.isArray(deletedItems) && deletedItems.length > 0);
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function invoiceNeedsUpdateNow() {
+            return !!invoiceNeedsUpdateServer || hasLocalBillingChanges();
+        }
+
+        let lastManualCashPaidModal = null;
+
+        function getCurrentGrandTotalInt() {
+            calculateTotals();
+            return (window.billingTotals && window.billingTotals.grandTotalInt) ? window.billingTotals.grandTotalInt : 0;
+        }
+
+        function isNonCashNonPiutang(methodRaw) {
+            const method = (methodRaw || '').toString();
+            return method !== '' && method !== 'cash' && method !== 'piutang';
+        }
+
+        function syncModalPaidFromMethod() {
+            const method = ($('#modal_payment_method').val() || '').toString();
+
+            // If user picks any non-tunai method (transfer/debit/qris/asuransi/etc),
+            // auto-fill Dibayar to the grand total.
+            if (isNonCashNonPiutang(method)) {
+                const grandTotalInt = getCurrentGrandTotalInt();
+                $('#modal_amount_paid').val(formatCurrency(grandTotalInt));
+                return;
+            }
+
+            // If user picks piutang, keep Dibayar empty (treated as 0).
+            if (method === 'piutang') {
+                $('#modal_amount_paid').val('');
+            }
+        }
+
+        function syncModalMethodFromPaid() {
+            const paid = parseHarga($('#modal_amount_paid').val() || 0);
+            const currentMethod = ($('#modal_payment_method').val() || '').toString();
+
+            // If payment method is locked (insurance), never override the method.
+            if (lockedPaymentMethod) {
+                return;
+            }
+
+            // If user already selected a non-cash method, keep it.
+            if (isNonCashNonPiutang(currentMethod)) {
+                return;
+            }
+
+            // Old rule (still applies for cash/piutang flow):
+            // - paid == 0 => piutang
+            // - paid > 0 => cash (only if method is empty/piutang)
+            if (paid > 0) {
+                if (!currentMethod || currentMethod === 'piutang') {
+                    $('#modal_payment_method').val('cash');
+                }
+            } else {
+                $('#modal_payment_method').val('piutang');
+            }
+        }
+
+        function openPrintNota(invoiceId) {
+            if (!invoiceId) {
+                Swal.fire({
+                    title: 'Info',
+                    text: 'Invoice belum tersedia untuk dicetak.',
+                    icon: 'info'
+                });
+                return;
+            }
+
+            var printUrl = ('{{ url('/finance/invoice') }}/' + invoiceId + '/print-nota');
+            Swal.fire({
+                title: 'Preview Cetak Nota',
+                html: '<div style="min-height:70vh"><iframe id="print-frame" src="' + printUrl + '" frameborder="0" style="width:100%;height:68vh"></iframe></div>',
+                width: '90%',
+                showCloseButton: true,
+                showCancelButton: false,
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            });
+        }
+
+        setInvoiceFlowUi();
+        applyBillingLockUi();
+        // Default: dibayar starts 0 => method piutang (unless locked by insurer)
+        try {
+            const paidInit = parseHarga($('#amount_paid').val() || 0);
+            if (!lockedPaymentMethod && paidInit <= 0) {
+                $('#payment_method').val('piutang');
+            }
+        } catch (e) {
+            // ignore
+        }
+
+        updatePaymentActionButtons($('#payment_method').val() || 'piutang');
         $('.select2').select2({ width: '100%' });
+        applyBillingLockUi();
+
+            // Initialize header badge state from server-provided invoice (if any)
+            try {
+                const invId = (window.oldInvoice && window.oldInvoice.id) ? window.oldInvoice.id : null;
+                setInvoiceHeaderUi(
+                    (window.oldInvoice && window.oldInvoice.invoice_number) ? window.oldInvoice.invoice_number : null,
+                    invId,
+                    (window.oldInvoice && typeof window.oldInvoice.amount_paid !== 'undefined') ? window.oldInvoice.amount_paid : 0,
+                        (window.oldInvoice && typeof window.oldInvoice.total_amount !== 'undefined') ? window.oldInvoice.total_amount : 0,
+                        (window.oldInvoice && typeof window.oldInvoice.payment_method !== 'undefined') ? window.oldInvoice.payment_method : null,
+                        (window.oldInvoice && typeof window.oldInvoice.piutang_payment_status !== 'undefined') ? window.oldInvoice.piutang_payment_status : null
+                );
+            } catch (e) {
+                // ignore
+            }
+
+        function resolveLockedPaymentMethod(visitationNameRaw) {
+            if (!visitationNameRaw) return null;
+            const v = visitationNameRaw.toString().trim().toLowerCase();
+            if (!v) return null;
+
+            // Match by contains to handle variations like "Asuransi InHealth"
+            if (v.includes('inhealth')) return 'asuransi_inhealth';
+            if (v.includes('bri') && v.includes('life')) return 'asuransi_brilife';
+            if (v.includes('brilife')) return 'asuransi_brilife';
+            if (v.includes('admedika')) return 'asuransi_admedika';
+            if (v.includes('bca') && v.includes('life')) return 'asuransi_bcalife';
+            if (v.includes('bcalife')) return 'asuransi_bcalife';
+            return null;
+        }
+
+        function applyLockedPaymentMethodToSelect($select, lockedValue) {
+            if (!$select || !$select.length) return;
+            if (lockedValue) {
+                $select.val(lockedValue);
+                $select.prop('disabled', true);
+            } else {
+                $select.prop('disabled', false);
+            }
+        }
+
+        function isUmumMetodeBayar(visitationNameRaw) {
+            if (!visitationNameRaw) return false;
+            try {
+                const v = visitationNameRaw.toString().trim().toLowerCase();
+                return v === 'umum' || v.includes('umum');
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function setInsuranceOptionsVisible($select, visible) {
+            if (!$select || !$select.length) return;
+            const $insuranceOptions = $select.find('option').filter(function() {
+                const val = ($(this).attr('value') || '').toString();
+                return val.startsWith('asuransi_');
+            });
+
+            $insuranceOptions.each(function() {
+                // hide + disable so it can't be selected
+                $(this).prop('hidden', !visible);
+                $(this).prop('disabled', !visible);
+            });
+
+            // If current value is now hidden, reset to cash
+            const currentVal = $select.val();
+            if (!visible && currentVal && currentVal.toString().startsWith('asuransi_')) {
+                $select.val('cash');
+            }
+        }
+
+        const lockedPaymentMethod = resolveLockedPaymentMethod(window.visitationMetodeBayarName);
+        const isUmumVisit = isUmumMetodeBayar(window.visitationMetodeBayarName);
+
+        // If visit is Umum, hide all insurance options
+        setInsuranceOptionsVisible($('#payment_method'), !isUmumVisit);
+
+        // Keep hidden field aligned too
+        applyLockedPaymentMethodToSelect($('#payment_method'), lockedPaymentMethod);
         
-        // Load gudang data first
-        loadGudangData();
+        // Load gudang data first (used by stock modal + mappings)
+        const gudangLoadXhr = loadGudangData();
+        if (gudangLoadXhr && typeof gudangLoadXhr.always === 'function') {
+            gudangLoadXhr.always(function() {
+                try {
+                    if (window.__pageReadyGate) {
+                        window.__pageReadyGate.gudangDone = true;
+                        window.__pageReadyGate.hideOverlayIfReady();
+                    }
+                } catch (e) {}
+            });
+        } else {
+            try {
+                if (window.__pageReadyGate) {
+                    window.__pageReadyGate.gudangDone = true;
+                }
+            } catch (e) {}
+        }
         
         // Store all billing data (with changes) here
         let billingData = [];
         let deletedItems = [];
-        
-        // Helper function to get default gudang for an item
-        function getDefaultGudangForItem(item) {
-            // Determine transaction type based on item
-            let transactionType = 'tindakan'; // default
-            
-            // Check if this is an obat/resep item
-            if (item.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || 
-                item.billable_type === 'App\\Models\\ERM\\Racikan' ||
-                (item.deskripsi && item.deskripsi.toLowerCase().includes('obat')) ||
-                (item.nama_item && item.nama_item.toLowerCase().includes('obat'))) {
-                transactionType = 'resep';
-            }
-            // Check if this is a RiwayatTindakan with kode tindakan obat
-            else if (item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
-                // For riwayat tindakan, use kode_tindakan transaction type for obat stock
-                transactionType = 'kode_tindakan';
-            }
-            // Check if this is a bundled obat from tindakan
-            else if (item.billable_type === 'App\\Models\\ERM\\Obat' && 
-                     item.keterangan && item.keterangan.includes('Obat Bundled:')) {
-                transactionType = 'tindakan';
-            }
-            
-            return window.gudangData.mappings[transactionType] || 
-                   (window.gudangData.gudangs.length ? window.gudangData.gudangs[0].id : null);
-        }
+        let billingTableAutoRefreshIntervalId = null;
+        let isManualTableUpdateInProgress = false;
+        let isAutoRefreshInFlight = false;
+        let lastAutoRefreshAt = 0;
+
+        // When true, the next DataTable AJAX request asks backend for a lighter response.
+        // Used only for periodic polling refresh.
+        window.__billingLightRefresh = false;
+
+        // Simple in-memory cache for stok per (obat_id + gudang_id)
+        const stockCache = new Map();
+        const STOCK_CACHE_TTL_MS = 8000; // keep slightly > refresh interval to avoid flicker
+
+        @include('finance.billing.partials.create-script-stockinfo')
         
         // Function to collect gudang selections for invoice creation
         function collectGudangSelections() {
@@ -537,6 +1005,21 @@
                     selections[itemId] = gudangId;
                 }
             });
+
+            // Also include selections stored in billingData (e.g. set by stock modal for tindakan)
+            try {
+                if (Array.isArray(billingData)) {
+                    billingData.forEach(function(item) {
+                        if (!item || !item.id) return;
+                        if (selections[item.id]) return;
+                        if (item.selected_gudang_id) {
+                            selections[item.id] = item.selected_gudang_id;
+                        }
+                    });
+                }
+            } catch (e) {
+                // ignore
+            }
             
             return selections;
         }
@@ -556,7 +1039,55 @@
             ajax: {
                 url: "{{ route('finance.billing.create', $visitation->id) }}",
                 type: "GET",
+                data: function(d) {
+                    try {
+                        if (window.__billingLightRefresh) {
+                            d.light = 1;
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                },
                 dataSrc: function(json) {
+                    // When invoice is locked (payment processed), backend serves snapshot rows from invoice items.
+                    // Refresh billingData from response so totals and UI reflect frozen invoice data.
+                    try {
+                        if (json && (json.locked_invoice_items === 1 || json.locked_invoice_items === '1' || json.locked_invoice_items === true)) {
+                            json.data = (json.data || []).map(function(item) {
+                                if (!item) return item;
+                                // Ensure raw numeric values exist
+                                if (typeof item.harga_akhir_raw === 'undefined' && item.harga_akhir) {
+                                    const hargaString = String(item.harga_akhir).replace(/Rp\s?/g, '').replace(/\./g, '');
+                                    item.harga_akhir_raw = parseInt(hargaString) || 0;
+                                }
+                                if (typeof item.jumlah_raw === 'undefined' && item.jumlah) {
+                                    const jumlahString = String(item.jumlah).replace(/Rp\s?/g, '').replace(/\./g, '');
+                                    item.jumlah_raw = parseInt(jumlahString) || 0;
+                                }
+                                if (typeof item.diskon_raw === 'undefined') {
+                                    item.diskon_raw = 0;
+                                }
+                                if (typeof item.qty === 'undefined') {
+                                    item.qty = 1;
+                                }
+                                return item;
+                            });
+
+                            billingData = json.data;
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    // Update invoice-needs-update flag from backend so button can change without page refresh.
+                    try {
+                        if (typeof json.invoice_needs_update !== 'undefined') {
+                            invoiceNeedsUpdateServer = (json.invoice_needs_update === true || json.invoice_needs_update === 1 || json.invoice_needs_update === '1');
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
                     // Store the initial data
                     if (!billingData.length) {
                         // Process each item to ensure it has proper raw values
@@ -608,6 +1139,16 @@
                                     item.jumlah_raw = parseInt(jumlahString) || 0;
                                 }
                             }
+
+                            // Preserve last-known stock hint and selected gudang when backend responds in light mode.
+                            if (existingItem) {
+                                if (typeof item.is_out_of_stock === 'undefined' && typeof existingItem.is_out_of_stock !== 'undefined') {
+                                    item.is_out_of_stock = existingItem.is_out_of_stock;
+                                }
+                                if (typeof item.selected_gudang_id === 'undefined' && existingItem.selected_gudang_id) {
+                                    item.selected_gudang_id = existingItem.selected_gudang_id;
+                                }
+                            }
                             
                             return item;
                         });
@@ -621,11 +1162,18 @@
                     
                     // Calculate totals after data is loaded
                     calculateTotals();
+
+                    // Ensure primary action button reflects latest state
+                    try {
+                        updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+                    } catch (e) {
+                        // ignore
+                    }
                     
                     return visibleData;
                 }
             },
-                columns: [
+            columns: [
                 { 
                     data: null, 
                     orderable: false,
@@ -635,78 +1183,36 @@
                         return meta.row + meta.settings._iDisplayStart + 1;
                     }
                 },
-                { data: 'nama_item', name: 'nama_item', width: "18%" },
-                { data: 'jumlah', name: 'jumlah', width: "8%" },
-                { data: 'qty', name: 'qty', width: "5%" },
-                
                 {
-                    // New column: show stock available in the selected gudang for this item
-                    data: null,
-                    orderable: false,
-                    searchable: false,
-                    width: "12%",
-                    render: function(data, type, row, meta) {
-                        const isObatItem = row.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || 
-                                         row.billable_type === 'App\\Models\\ERM\\Racikan' ||
-                                         (row.deskripsi && row.deskripsi.toLowerCase().includes('obat')) ||
-                                         (row.nama_item && row.nama_item.toLowerCase().includes('obat'));
+                    data: 'nama_item',
+                    name: 'nama_item',
+                    width: "18%",
+                    render: function(data, type, row) {
+                        if (type !== 'display') return data;
+                        const label = escapeHtml(data || '-');
 
-                        if (!isObatItem) {
-                            return '<span class="text-muted">-</span>';
+                        // Locked invoices use snapshot rows (invoice items). Do not offer stock link.
+                        if (billingLocked) {
+                            return '<span>' + label + '</span>';
                         }
 
-
-                        // Determine obat id if available (ResepFarmasi -> billable.obat.id) or direct Obat
-                        let obatId = null;
-                        try {
-                            if (row.billable_type === 'App\\Models\\ERM\\ResepFarmasi' && row.billable && row.billable.obat) {
-                                obatId = row.billable.obat.id;
-                            } else if (row.billable_type === 'App\\Models\\ERM\\Obat' && row.billable_id) {
-                                obatId = row.billable_id;
-                            } else if (row.obat_id) {
-                                // sometimes payload uses obat_id directly
-                                obatId = row.obat_id;
-                            } else if (row.billable && row.billable.obat) {
-                                obatId = row.billable.obat.id;
-                            } else {
-                                // Fallback: some client-side-added rows use an id like 'obat-123'
-                                const m = (row.id || '').toString().match(/^obat-(\d+)$/);
-                                if (m) obatId = m[1];
-                            }
-                        } catch (e) {
-                            console.debug('Error detecting obatId for row', row, e);
-                            obatId = null;
-                        }
-
-                        // Placeholder - will be filled by AJAX after draw
-                        const itemId = row.id;
-                        // If this is a racikan and backend exposed component IDs, render a stock-cell per component
-                        if (row.is_racikan && Array.isArray(row.racikan_obat_ids) && row.racikan_obat_ids.length) {
-                            const names = Array.isArray(row.racikan_obat_list) ? row.racikan_obat_list : [];
-                            const comps = Array.isArray(row.racikan_components) ? row.racikan_components : [];
-                            let html = '<div class="racikan-stock-list">';
-                            row.racikan_obat_ids.forEach(function(compId, idx) {
-                                const label = names[idx] ? '<small>' + names[idx] + '</small> ' : '';
-                                const stokD = (comps[idx] && typeof comps[idx].stok_dikurangi !== 'undefined') ? parseInt(comps[idx].stok_dikurangi) : null;
-                                const stokDHtml = (stokD !== null && !isNaN(stokD)) ? '<small class="text-muted stok-dikurangi" title="Stok Dikurangi"> (-' + stokD + ')</small>' : '';
-                                html += '<div class="racikan-stock-line">' + label + '<span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + compId + '" data-child-index="' + idx + '">-</span>' + stokDHtml + '</div>';
-                            });
-                            html += '<div class="gudang-name small text-muted mt-1"></div>';
-                            html += '</div>';
-                            return html;
-                        }
-
-                        // Single-component fallback - include stok_dikurangi if available
-                        let stokDsingle = null;
-                        try {
-                            if (row.billable && typeof row.billable.jumlah !== 'undefined') stokDsingle = parseInt(row.billable.jumlah) || null;
-                        } catch (e) { stokDsingle = null; }
-                        const stokDsingleHtml = (stokDsingle !== null && !isNaN(stokDsingle)) ? ' <small class="text-muted stok-dikurangi" title="Stok Dikurangi">(-' + stokDsingle + ')</small>' : '';
-                        return '<div class="stock-wrap"><span class="stock-cell" data-item-id="' + itemId + '" data-obat-id="' + (obatId || '') + '">-</span>' + stokDsingleHtml + '<div class="gudang-name small text-muted mt-1"></div></div>';
+                        const isOut = !!(row && (row.is_out_of_stock === true || row.is_out_of_stock === 1 || row.is_out_of_stock === '1'));
+                        const linkClass = 'stock-info-link text-decoration-none' + (isOut ? ' text-danger' : '');
+                        const iconClass = 'stock-warning-icon' + (isOut ? '' : ' d-none');
+                        return (
+                            '<a href="#" class="' + linkClass + '" data-id="' + row.id + '">' +
+                                label +
+                                ' <span class="' + iconClass + '" data-id="' + row.id + '" title="Stok tidak cukup">' +
+                                    '<i class="fas fa-exclamation-triangle text-danger stock-warning-blink"></i>' +
+                                '</span>' +
+                            '</a>'
+                        );
                     }
                 },
-                                { data: 'diskon', name: 'diskon', width: "8%" },
-                                { data: 'harga_akhir', name: 'harga_akhir', width: "8%",
+                { data: 'jumlah', name: 'jumlah', width: "8%" },
+                { data: 'qty', name: 'qty', width: "5%" },
+                { data: 'diskon', name: 'diskon', width: "8%" },
+                { data: 'harga_akhir', name: 'harga_akhir', width: "8%",
                                   render: function(data, type, row) {
                                       const qty = row.qty ? Number(row.qty) : 1;
 
@@ -747,6 +1253,16 @@
                     orderable: false,
                     searchable: false,
                     render: function(data, type, row, meta) {
+                        if (billingLocked) {
+                            return '<span class="text-muted">-</span>';
+                        }
+                        const deleteBtnHtml = canDeleteBilling ? `
+                                <button class="btn btn-sm btn-outline-danger delete-btn"
+                                    data-id="${row.id}"
+                                    data-row-index="${meta.row}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                        ` : '';
                         return `
                             <div class="d-flex justify-content-center">
                                 <button class="btn btn-sm btn-outline-primary mr-1 edit-btn" 
@@ -758,11 +1274,7 @@
                                     data-qty="${row.qty || 1}">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger delete-btn"
-                                    data-id="${row.id}"
-                                    data-row-index="${meta.row}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                ${deleteBtnHtml}
                             </div>
                         `;
                     }
@@ -773,10 +1285,9 @@
                 { width: "22%", targets: 1 },
                 { width: "8%", targets: 2, className: 'text-right' }, // Right-align price column
                 { width: "5%", targets: 3 },
-                { width: "12%", targets: 4, className: 'text-right' }, // Stock column (right-align)
-                { width: "8%", targets: 5, className: 'text-right' }, // Right-align discount column
-                { width: "8%", targets: 6, className: 'text-right' }, // Right-align total column
-                { width: "10%", targets: 7 }
+                { width: "8%", targets: 4, className: 'text-right' }, // Right-align discount column
+                { width: "8%", targets: 5, className: 'text-right' }, // Right-align total column
+                { width: "10%", targets: 6 }
             ],
             language: {
                 emptyTable: "Tidak ada item billing untuk kunjungan ini",
@@ -794,12 +1305,243 @@
                 // Force table width to match parent container
                 $(this).css('width', '100%');
                 calculateTotals();
-                // Update stock cells for visible rows
+
+                // Background-check stock for visible rows and toggle warning icon
                 try {
-                    updateAllStockCells();
+                    updateStockWarningsForVisibleRows();
                 } catch (e) {
-                    console.error('Failed to update stock cells:', e);
+                    // ignore
                 }
+            }
+        });
+
+        // Mark table as ready after first AJAX response (or error) so overlay can be hidden
+        try {
+            table.one('xhr.dt', function() {
+                if (window.__pageReadyGate) {
+                    window.__pageReadyGate.tableDone = true;
+                    window.__pageReadyGate.hideOverlayIfReady();
+                }
+            });
+            table.one('error.dt', function() {
+                if (window.__pageReadyGate) {
+                    window.__pageReadyGate.tableDone = true;
+                    window.__pageReadyGate.hideOverlayIfReady();
+                }
+            });
+        } catch (e) {
+            if (window.__pageReadyGate) {
+                window.__pageReadyGate.tableDone = true;
+                window.__pageReadyGate.hideOverlayIfReady();
+            }
+        }
+
+        // --- Stock warning icon logic (out-of-stock) ---
+    let stockWarningServerHintsValid = true;
+        const itemStockWarningCache = new Map(); // itemId -> { outOfStock, at }
+        const ITEM_STOCK_WARN_TTL_MS = 8000;
+        const stockWarningInFlight = new Set();
+
+        const tindakanObatRowsCache = new Map(); // riwayatId -> { rows, suggestedGudangId, at }
+        const TINDAKAN_ROWS_TTL_MS = 60000;
+
+        function setStockWarningIcon(itemId, shouldShow) {
+            const $el = $('#billingTable').find('.stock-warning-icon[data-id="' + itemId + '"]');
+            if (!$el.length) return;
+            const $link = $('#billingTable').find('.stock-info-link[data-id="' + itemId + '"]');
+            if (shouldShow) $el.removeClass('d-none');
+            else $el.addClass('d-none');
+
+            if ($link.length) {
+                if (shouldShow) $link.addClass('text-danger');
+                else $link.removeClass('text-danger');
+            }
+        }
+
+        function getRiwayatTindakanObatRowsCached(riwayatTindakanId) {
+            const key = String(riwayatTindakanId);
+            const cached = tindakanObatRowsCache.get(key);
+            const now = Date.now();
+            if (cached && cached.at && (now - cached.at) <= TINDAKAN_ROWS_TTL_MS) {
+                return $.Deferred().resolve({ rows: cached.rows || [], suggestedGudangId: cached.suggestedGudangId || null }).promise();
+            }
+
+            return loadRiwayatTindakanObatRows(riwayatTindakanId)
+                .then(function(resp) {
+                    const rows = resp && resp.rows ? resp.rows : [];
+                    const suggestedGudangId = resp && resp.suggestedGudangId ? resp.suggestedGudangId : null;
+                    tindakanObatRowsCache.set(key, { rows: rows, suggestedGudangId: suggestedGudangId, at: Date.now() });
+                    return { rows: rows, suggestedGudangId: suggestedGudangId };
+                });
+        }
+
+        function isItemOutOfStock(itemId, item) {
+            if (!itemId || !item) {
+                return $.Deferred().resolve(false).promise();
+            }
+
+            // Only check tracked stock types (obat/racikan/tindakan)
+            const isTindakan = item.billable_type === 'App\\Models\\ERM\\RiwayatTindakan';
+            const isObat = item.billable_type === 'App\\Models\\ERM\\ResepFarmasi' || item.billable_type === 'App\\Models\\ERM\\Obat' || !!item.obat_id;
+            const isRacikan = !!item.is_racikan;
+            if (!isTindakan && !isObat && !isRacikan) {
+                return $.Deferred().resolve(false).promise();
+            }
+
+            let gudangId = getSelectedGudangIdForItem(itemId, item);
+            if (!gudangId) {
+                return $.Deferred().resolve(false).promise();
+            }
+
+            const baseRows = buildObatRowsForStockModal(item);
+
+            // Special-case tindakan: pull obat needs from pivot table
+            if ((!baseRows || !baseRows.length) && isTindakan && item.billable_id) {
+                return getRiwayatTindakanObatRowsCached(item.billable_id)
+                    .then(function(resp) {
+                        const pivotRows = resp && resp.rows ? resp.rows : [];
+                        const suggestedGudangId = resp && resp.suggestedGudangId ? resp.suggestedGudangId : null;
+
+                        const explicitGudangFromItem = (item && item.selected_gudang_id) ? item.selected_gudang_id : null;
+                        if (!explicitGudangFromItem && suggestedGudangId) {
+                            gudangId = suggestedGudangId;
+                            try { item.selected_gudang_id = gudangId; } catch (e) { }
+                        }
+
+                        if (!pivotRows || !pivotRows.length) return false;
+
+                        const requests = pivotRows.map(function(r) {
+                            return loadStockTotal(r.obatId, gudangId);
+                        });
+
+                        return $.when.apply($, requests)
+                            .then(function() {
+                                const args = Array.prototype.slice.call(arguments);
+                                const normalized = (requests.length === 1) ? [arguments[0]] : args;
+                                let out = false;
+                                pivotRows.forEach(function(r, idx) {
+                                    const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
+                                    const needed = Number(r.needed) || 0;
+                                    if (needed > 0 && stok < needed) out = true;
+                                });
+                                return out;
+                            }, function() {
+                                return false;
+                            });
+                    });
+            }
+
+            if (!baseRows || !baseRows.length) {
+                return $.Deferred().resolve(false).promise();
+            }
+
+            const requests = baseRows.map(function(r) {
+                return loadStockTotal(r.obatId, gudangId);
+            });
+
+            return $.when.apply($, requests)
+                .then(function() {
+                    const args = Array.prototype.slice.call(arguments);
+                    const normalized = (requests.length === 1) ? [arguments[0]] : args;
+                    let out = false;
+                    baseRows.forEach(function(r, idx) {
+                        const stok = (normalized[idx] && typeof normalized[idx].total !== 'undefined') ? Number(normalized[idx].total) : 0;
+                        const needed = Number(r.needed) || 0;
+                        if (needed > 0 && stok < needed) out = true;
+                    });
+                    return out;
+                }, function() {
+                    return false;
+                });
+        }
+
+        function updateStockWarningsForVisibleRows() {
+            if (!table) return;
+            if (billingLocked) return;
+            if (!Array.isArray(billingData) || !billingData.length) return;
+
+            const visibleRows = table.rows({ page: 'current' }).data().toArray();
+            const now = Date.now();
+
+            visibleRows.forEach(function(row) {
+                if (!row || !row.id) return;
+                const itemId = row.id;
+                const item = billingData.find(function(i) { return i && i.id == itemId; });
+                if (!item) return;
+
+                // Use server hint on initial render to avoid delayed icon appearance
+                const hintVal = row.is_out_of_stock;
+                const hasHint = (
+                    hintVal === 0 || hintVal === 1 ||
+                    hintVal === '0' || hintVal === '1' ||
+                    hintVal === true || hintVal === false
+                );
+                if (stockWarningServerHintsValid && hasHint) {
+                    const hinted = !!(hintVal === true || hintVal === 1 || hintVal === '1');
+                    itemStockWarningCache.set(String(itemId), { outOfStock: hinted, at: Date.now() });
+                    setStockWarningIcon(itemId, hinted);
+                    return;
+                }
+
+                const cached = itemStockWarningCache.get(String(itemId));
+                if (cached && cached.at && (now - cached.at) <= ITEM_STOCK_WARN_TTL_MS) {
+                    setStockWarningIcon(itemId, !!cached.outOfStock);
+                    return;
+                }
+
+                if (stockWarningInFlight.has(String(itemId))) return;
+                stockWarningInFlight.add(String(itemId));
+
+                isItemOutOfStock(itemId, item)
+                    .then(function(out) {
+                        itemStockWarningCache.set(String(itemId), { outOfStock: !!out, at: Date.now() });
+                        setStockWarningIcon(itemId, !!out);
+                    })
+                    .always(function() {
+                        stockWarningInFlight.delete(String(itemId));
+                    });
+            });
+        }
+
+        // Auto-refresh rincian billing every 5 seconds
+        // - Pause while edit modal is open (avoid disrupting user edits)
+        // - Skip during manual client-side redraws (updateTable) to prevent race conditions
+        billingTableAutoRefreshIntervalId = setInterval(function() {
+            try {
+                if (document.hidden) return;
+                if (isManualTableUpdateInProgress) return;
+                if ($('#editModal').hasClass('show')) return;
+                if ($('#stockInfoModal').hasClass('show')) return;
+                if (isAutoRefreshInFlight) return;
+                // Avoid accidental bursts
+                const now = Date.now();
+                if (now - lastAutoRefreshAt < 4500) return;
+
+                if (table && table.ajax && typeof table.ajax.reload === 'function') {
+                    isAutoRefreshInFlight = true;
+                    lastAutoRefreshAt = now;
+
+                    // Light refresh to reduce backend work during polling.
+                    window.__billingLightRefresh = true;
+                    // Safety: reset the flag in case the request errors and callback doesn't run.
+                    setTimeout(function() { window.__billingLightRefresh = false; }, 8000);
+
+                    table.ajax.reload(function() {
+                        window.__billingLightRefresh = false;
+                        isAutoRefreshInFlight = false;
+                    }, false); // keep paging
+                }
+            } catch (e) {
+                console.debug('Auto-refresh skipped:', e);
+                window.__billingLightRefresh = false;
+                isAutoRefreshInFlight = false;
+            }
+        }, 5000);
+
+        $(window).on('beforeunload', function() {
+            if (billingTableAutoRefreshIntervalId) {
+                clearInterval(billingTableAutoRefreshIntervalId);
+                billingTableAutoRefreshIntervalId = null;
             }
         });
         
@@ -818,169 +1560,32 @@
             if (billingData[rowIndex]) {
                 billingData[rowIndex].selected_gudang_id = selectedGudangId;
             }
+
+            // After changing gudang, server hints may be stale; force recalculation
+            stockWarningServerHintsValid = false;
+            try { itemStockWarningCache.delete(String(itemId)); } catch (e) {}
             
             console.log('Gudang selection updated for item', itemId, 'to gudang', selectedGudangId);
-            // Refresh stock cell for this row
-            const $cell = $('.stock-cell[data-item-id="' + itemId + '"]');
-            if ($cell.length) {
-                loadStockForCell($cell);
-            }
         });
 
-        // Load stock info for a given stock-cell element
-        function loadStockForCell($cell) {
-            const itemId = $cell.data('item-id');
-            const obatId = $cell.data('obat-id');
-            if (!obatId) {
-                $cell.text('-');
-                return;
-            }
+        // Click item name -> open modal and load stok tersedia
+        $(document).on('click', '.stock-info-link', function(e) {
+            e.preventDefault();
+            const itemId = $(this).data('id');
+            const item = billingData.find(i => i.id == itemId);
 
-            // Try to get selected gudang from select element first
-            let gudangId = $('select.gudang-selector[data-item-id="' + itemId + '"]').val();
-
-            // If not available, try from billingData
-            if (!gudangId) {
-                const item = billingData.find(i => i.id == itemId);
-                if (item && item.selected_gudang_id) gudangId = item.selected_gudang_id;
-            }
-
-            // If still not available, determine default gudang for this item via server-loaded mapping
-            if (!gudangId) {
-                const item = billingData.find(i => i.id == itemId);
-                if (item) gudangId = getDefaultGudangForItem(item);
-            }
-
-            if (!gudangId) {
-                $cell.text('-');
-                return;
-            }
-
-                        // Call batch-details endpoint and sum stok
-                        // Show loading indicator
-                        $cell.text('...');
-            $.getJSON("{{ route('erm.stok-gudang.batch-details') }}", { obat_id: obatId, gudang_id: gudangId })
-                .done(function(resp) {
-                    try {
-                        const data = resp.data || [];
-                        let total = 0;
-                        data.forEach(function(d) {
-                            // prefer numeric stok if present, fallback to stok_display parsing
-                            if (typeof d.stok !== 'undefined') {
-                                total += parseFloat(d.stok) || 0;
-                            } else if (d.stok_display) {
-                                // remove formatting
-                                const num = d.stok_display.toString().replace(/[^0-9\-]/g, '');
-                                total += parseFloat(num) || 0;
-                            }
-                        });
-
-                        // If no batch rows found, show 0 instead of '-'
-                        if (data.length === 0) {
-                            $cell.text('0');
-                        } else {
-                            $cell.text(total);
-                        }
-
-                        // Also show the selected gudang name (if available) under the stock value
-                        try {
-                            let gudangName = '';
-                            if (window.gudangData && Array.isArray(window.gudangData.gudangs)) {
-                                const found = window.gudangData.gudangs.find(function(g) { return String(g.id) === String(gudangId) || g.id == gudangId; });
-                                if (found) gudangName = found.nama || found.name || '';
-                            }
-                            if (gudangName) {
-                                // For racikan rows, find the outer container; otherwise, find stock-wrap
-                                const $racikanList = $cell.closest('.racikan-stock-list');
-                                if ($racikanList.length) {
-                                    $racikanList.find('.gudang-name').text(gudangName);
-                                } else {
-                                    $cell.closest('.stock-wrap').find('.gudang-name').text(gudangName);
-                                }
-                            }
-                        } catch (e) {
-                            console.debug('Failed to set gudang name', e);
-                        }
-
-
-                        // Determine required qty for this billing row or component.
-                        // For racikan components prefer the stored `stok_dikurangi` per component.
-                        let requiredQty = 1;
-                        try {
-                            const item = billingData.find(i => i.id == itemId);
-                            if (item) {
-                                if (item.is_racikan) {
-                                    // If this cell represents a component (has data-child-index), prefer its stok_dikurangi
-                                    const childIndex = $cell.data('child-index');
-                                    if (typeof childIndex !== 'undefined' && Array.isArray(item.racikan_components) && item.racikan_components[childIndex]) {
-                                        const comp = item.racikan_components[childIndex];
-                                        if (comp && typeof comp.stok_dikurangi !== 'undefined' && comp.stok_dikurangi !== null) {
-                                            requiredQty = Math.abs(parseInt(comp.stok_dikurangi)) || 0;
-                                        } else {
-                                            requiredQty = parseInt(item.racikan_bungkus) || 1;
-                                        }
-                                    } else {
-                                        requiredQty = parseInt(item.racikan_bungkus) || 1;
-                                    }
-                                } else {
-                                    // Non-racikan: prefer billable.jumlah if present (we persist stok_dikurangi there), else qty
-                                    if (item.billable && typeof item.billable.jumlah !== 'undefined' && item.billable.jumlah !== null) {
-                                        requiredQty = Math.abs(parseInt(item.billable.jumlah)) || parseInt(item.qty) || 1;
-                                    } else {
-                                        requiredQty = parseInt(item.qty) || 1;
-                                    }
-                                }
-                            } else {
-                                const qText = $cell.closest('tr').find('td').eq(4).text().trim();
-                                const qNum = qText.replace(/[^0-9]/g, '');
-                                requiredQty = qNum ? parseInt(qNum) : 1;
-                            }
-                        } catch (err) {
-                            console.debug('Failed to determine requiredQty for item', itemId, err);
-                            requiredQty = 1;
-                        }
-
-                        // Recalculate low-stock state for the whole row based on all component stock-cells
-                        const $tr = $cell.closest('tr');
-                        let anyLow = false;
-                        $tr.find('.stock-cell').each(function() {
-                            const txt = $(this).text().toString().replace(/[^0-9\-\.]/g, '');
-                            const val = txt === '' ? NaN : parseFloat(txt);
-                            if (!isNaN(val)) {
-                                if (Number(val) < Number(requiredQty)) {
-                                    anyLow = true;
-                                }
-                            }
-                            // If value is non-numeric (unknown), don't treat as low-stock
-                        });
-
-                        if (anyLow) {
-                            $tr.addClass('low-stock');
-                        } else {
-                            $tr.removeClass('low-stock');
-                        }
-
-                        console.debug('Batch details loaded', { obatId: obatId, gudangId: gudangId, total: total, requiredQty: requiredQty, raw: resp });
-                    } catch (e) {
-                        console.error('Error parsing batch-details response', e, resp);
-                            $cell.text('-');
-                            $cell.closest('tr').removeClass('low-stock');
-                    }
+            window.ensureStockInfoModalLoaded()
+                .done(function() {
+                    openStockInfoModalForItem(itemId, item);
                 })
-                .fail(function(xhr) {
-                    console.error('Failed to load batch details for obat', obatId, 'gudang', gudangId, xhr);
-                    // If server returned 404/500 or network failed, keep '-' to indicate unknown
-                        $cell.text('-');
-                        $cell.closest('tr').removeClass('low-stock');
+                .fail(function() {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Gagal memuat tampilan modal stok. Silakan coba lagi.',
+                        icon: 'error'
+                    });
                 });
-        }
-
-        // Update all visible stock cells
-        function updateAllStockCells() {
-            $('.stock-cell').each(function() {
-                loadStockForCell($(this));
-            });
-        }
+        });
         
         // Refresh table when gudang data is loaded
         function refreshTableAfterGudangLoad() {
@@ -1004,6 +1609,14 @@
         
         // Fix: Directly attach event handlers using document delegation
         $(document).on('click', '.edit-btn', function() {
+            if (billingLocked) {
+                Swal.fire({
+                    title: 'Tidak Bisa Diedit',
+                    text: 'Billing sudah diproses pembayaran. Setelah pembayaran, stok dikurangi dan billing tidak dapat diedit.',
+                    icon: 'info'
+                });
+                return;
+            }
             const id = $(this).data('id');
             const rowIndex = $(this).data('row-index');
             const jumlah = $(this).data('jumlah');
@@ -1011,20 +1624,76 @@
             const diskon_type = $(this).data('diskon_type');
             const qty = $(this).data('qty');
 
+            // Use billingData as source-of-truth (data-* attributes can be formatted/localized)
+            const currentItem = (Array.isArray(billingData) ? billingData.find(i => i && i.id == id) : null);
+            const diskonRaw = (currentItem && typeof currentItem.diskon_raw !== 'undefined') ? currentItem.diskon_raw : diskon;
+            const diskonTypeRaw = (currentItem && typeof currentItem.diskon_type !== 'undefined') ? currentItem.diskon_type : diskon_type;
+
+            // Parse localized numeric strings like "10.000" or "10000,00"
+            function parseNumericValue(value) {
+                if (value === null || typeof value === 'undefined' || value === '') return 0;
+                if (typeof value === 'number') return isNaN(value) ? 0 : value;
+                let s = String(value).trim();
+                s = s.replace(/[^0-9,.-]/g, '');
+                if (s.includes(',') && s.includes('.')) {
+                    // Assume '.' thousands and ',' decimals
+                    s = s.replace(/\./g, '').replace(',', '.');
+                } else if (s.includes(',')) {
+                    s = s.replace(',', '.');
+                }
+                const n = parseFloat(s);
+                return isNaN(n) ? 0 : n;
+            }
+
+            // If diskon_type is empty but discount exists, default to nominal
+            const diskonValue = parseNumericValue(diskonRaw);
+            const normalizedDiskonType = (!diskonTypeRaw && diskonValue > 0) ? 'nominal' : (diskonTypeRaw || '');
+
             $('#edit_id').val(id);
             $('#edit_row_index').val(rowIndex);
             $('#jumlah').val(jumlah);
-            $('#diskon').val(diskon);
-            $('#diskon_type').val(diskon_type);
+            $('#diskon').val(diskonRaw);
+            $('#diskon_type').val(normalizedDiskonType).trigger('change');
             $('#edit_qty').val(qty);
+
+            // Extra safety: if diskon already filled and type is empty, flip it to nominal
+            if (diskonValue > 0 && !$('#diskon_type').val()) {
+                $('#diskon_type').val('nominal').trigger('change');
+            }
 
             // Debug: Show harga before edit
             // console.log('[DEBUG] Harga before edit:', jumlah);
             $('#editModal').modal('show');
         });
+
+        // Edit modal UX safety: if user inputs diskon but type is still "Tidak Ada",
+        // assume nominal (Rp) to avoid silently ignoring the discount.
+        $(document).on('input change', '#diskon', function() {
+            const diskonValue = Number($(this).val() || 0);
+            const currentType = $('#diskon_type').val();
+            if (diskonValue > 0 && !currentType) {
+                $('#diskon_type').val('nominal').trigger('change');
+            }
+        });
         
         // Fix: Use document delegation for delete button
         $(document).on('click', '.delete-btn', function() {
+            if (!canDeleteBilling) {
+                Swal.fire({
+                    title: 'Tidak Bisa Dihapus',
+                    text: 'Anda tidak memiliki akses untuk menghapus item billing.',
+                    icon: 'info'
+                });
+                return;
+            }
+            if (billingLocked) {
+                Swal.fire({
+                    title: 'Tidak Bisa Dihapus',
+                    text: 'Billing sudah diproses pembayaran. Setelah pembayaran, stok dikurangi dan billing tidak dapat diedit.',
+                    icon: 'info'
+                });
+                return;
+            }
             const id = $(this).data('id');
             Swal.fire({
                 title: 'Konfirmasi Hapus',
@@ -1117,6 +1786,10 @@
                 }
             }
             $('#editModal').modal('hide');
+
+            // Item amounts changed; server hints are no longer authoritative
+            stockWarningServerHintsValid = false;
+            try { itemStockWarningCache.delete(String(id)); } catch (e) {}
             // Debug: Show harga after edit
             // console.log('[DEBUG] Harga after edit:', jumlah);
             updateTable();
@@ -1134,6 +1807,8 @@
         
         // Function to update the table with all billingData (for add/edit/delete)
         function updateTable() {
+    isManualTableUpdateInProgress = true;
+
     // Temporarily disable Ajax source & server-side processing
     const settings = table.settings()[0];
     const previousServerSide = settings.oFeatures.bServerSide;
@@ -1150,6 +1825,14 @@
         settings.oFeatures.bServerSide = previousServerSide;
         settings.ajax = previousAjax;
         table.columns.adjust();
+        isManualTableUpdateInProgress = false;
+
+        // Immediately reflect local billing changes in the primary action button
+        try {
+            updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+        } catch (e) {
+            // ignore
+        }
     }, 100);
 }
         
@@ -1182,6 +1865,9 @@
                 // "150000" -> 150000
                 
                 let cleaned = hargaStr.trim();
+                // Strip currency text and any non-numeric chars except separators.
+                // This allows inputs like: "Rp 1.350.000,00" or "1.350.000".
+                cleaned = cleaned.replace(/[^0-9.,\-]/g, '');
                 
                 // Check if it's in format like "150000.00" (decimal with dot, no thousand separators)
                 if (/^\d+\.\d{1,2}$/.test(cleaned)) {
@@ -1344,6 +2030,13 @@
                 shortageAmount: shortageAmount,
                 paymentMethod: $('#payment_method').val()
             };
+
+            // Keep primary action button in sync without requiring page refresh
+            try {
+                updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+            } catch (e) {
+                // ignore
+            }
         }
         
         // Event listeners for total calculation inputs
@@ -1446,11 +2139,7 @@ $('#saveAllChangesBtn').on('click', function() {
                 },
                 error: function(xhr) {
                     console.error('Save error:', xhr);
-                    Swal.fire({
-                        title: 'Error!',
-                        text: 'Terjadi kesalahan: ' + xhr.responseText,
-                        icon: 'error'
-                    });
+                    showReadableAjaxError('Gagal Menyimpan', xhr, 'Terjadi kesalahan:');
                     console.error('Error details:', xhr.responseText);
                 }
             });
@@ -1458,16 +2147,133 @@ $('#saveAllChangesBtn').on('click', function() {
     });
 });
         
-        // Create invoice button (single-Swal flow to avoid stacked alerts)
-        $('#createInvoiceBtn').on('click', function() {
+        function escapeHtml(text) {
+            try {
+                return $('<div>').text(text === null || typeof text === 'undefined' ? '' : String(text)).html();
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function parseXhrJson(xhr) {
+            if (!xhr) return null;
+            if (xhr.responseJSON) return xhr.responseJSON;
+            const raw = xhr.responseText;
+            if (!raw) return null;
+            try {
+                return JSON.parse(raw);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function showReadableAjaxError(title, xhr, fallbackPrefix) {
+            const resp = parseXhrJson(xhr);
+            const rawText = (xhr && xhr.responseText) ? xhr.responseText : '';
+
+            const message = resp && resp.message ? String(resp.message) : (rawText || 'Terjadi kesalahan.');
+            // Backend may send literal "\n" in JSON (PHP single-quoted strings), normalize those too.
+            const normalizedMessage = message
+                .replace(/\\r\\n/g, '\n')
+                .replace(/\\n/g, '\n')
+                .replace(/\r\n/g, '\n');
+
+            const lines = normalizedMessage
+                .split('\n')
+                .map(function(l) { return (l || '').trim(); })
+                .filter(Boolean);
+
+            const isStockError = (resp && typeof resp.success !== 'undefined' && resp.success === false && message.toLowerCase().includes('stok'))
+                || message.toLowerCase().includes('stok tidak mencukupi');
+
+            // Build nicer HTML for multi-line messages
+            let html = '<div style="text-align:left">';
+            if (fallbackPrefix) {
+                html += '<div class="mb-2">' + escapeHtml(fallbackPrefix) + '</div>';
+            }
+
+            if (lines.length > 1) {
+                const first = lines[0] || '';
+                const rest = lines.slice(1);
+                // If the first line looks like a generic header, show it separately
+                if (first.toLowerCase().includes('stok tidak mencukupi')) {
+                    html += '<div class="mb-2"><strong>' + escapeHtml(first) + '</strong></div>';
+                    html += '<ul class="mb-0" style="padding-left:18px">' +
+                        rest.map(function(l) { return '<li>' + escapeHtml(l) + '</li>'; }).join('') +
+                        '</ul>';
+                } else {
+                    html += '<ul class="mb-0" style="padding-left:18px">' +
+                        lines.map(function(l) { return '<li>' + escapeHtml(l) + '</li>'; }).join('') +
+                        '</ul>';
+                }
+            } else {
+                html += '<div>' + escapeHtml(lines[0] || normalizedMessage) + '</div>';
+            }
+            html += '</div>';
+
+            Swal.fire({
+                title: title || (isStockError ? 'Stok Tidak Mencukupi' : 'Error!'),
+                html: html,
+                icon: isStockError ? 'warning' : 'error',
+                confirmButtonText: 'OK'
+            });
+        }
+
+        function runInvoiceFlow(isCreatingInvoice) {
+            // Ensure totals calculated before sending
+            calculateTotals();
+
+            const invoiceIdBefore = currentInvoiceId;
+            const isUpdatingInvoice = !!invoiceIdBefore && isCreatingInvoice;
+
+            const selectedMethod = ($('#payment_method').val() || 'cash').toString();
+            const isPiutangAction = !isCreatingInvoice && selectedMethod === 'piutang';
+
+            const unpaidTotals = Object.assign({}, window.billingTotals || {}, {
+                amountPaid: 0,
+                amountPaidInt: 0,
+                changeAmount: 0,
+                shortageAmount: (window.billingTotals && window.billingTotals.grandTotalInt) ? window.billingTotals.grandTotalInt : 0,
+                paymentMethod: null
+            });
+
+            function buildPaymentConfirmHtml() {
+                // Recalculate in case user just changed modal fields
+                calculateTotals();
+                const grandTotalInt = (window.billingTotals && window.billingTotals.grandTotalInt) ? Number(window.billingTotals.grandTotalInt) : 0;
+                const amountPaidInt = (window.billingTotals && window.billingTotals.amountPaidInt) ? Number(window.billingTotals.amountPaidInt) : 0;
+                const shortageInt = Math.max(0, grandTotalInt - amountPaidInt);
+                const isLunas = grandTotalInt > 0 && amountPaidInt >= grandTotalInt;
+
+                let html = '<div style="text-align:left">';
+                html += '<div class="mb-2">Setelah proses ini:</div>';
+                html += '<ul style="padding-left:18px;margin:0">';
+                html += '<li><strong>Stok akan dikurangi</strong>.</li>';
+                html += '<li><strong>Billing tidak dapat diedit</strong> (item/qty/harga/diskon tidak bisa diubah).</li>';
+                if (shortageInt > 0) {
+                    html += '<li>Kekurangan <strong>Rp ' + formatCurrency(shortageInt) + '</strong> akan <strong>dimasukkan ke piutang</strong>.</li>';
+                } else if (isLunas) {
+                    html += '<li>Pembayaran <strong>lunas</strong> (status invoice menjadi <strong>PAID</strong>).</li>';
+                }
+                html += '</ul>';
+                html += '</div>';
+                return html;
+            }
+
             Swal.fire({
                 title: 'Konfirmasi',
-                text: 'Simpan semua perubahan billing dan buat invoice sekarang?',
+                html: isCreatingInvoice
+                    ? (isUpdatingInvoice
+                        ? '<div>Update invoice sesuai billing terbaru <strong>(belum dibayar)</strong>?</div>'
+                        : '<div>Simpan semua perubahan billing dan buat invoice <strong>(belum dibayar)</strong>?</div>')
+                    : buildPaymentConfirmHtml(),
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#28a745',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Ya, Simpan & Buat Invoice!',
+                confirmButtonText: isCreatingInvoice
+                    ? (isUpdatingInvoice ? 'Ya, Update Invoice!' : 'Ya, Buat Invoice!')
+                    : (isPiutangAction ? 'Ya, Buat Piutang!' : 'Ya, Pembayaran!'),
                 cancelButtonText: 'Batal'
             }).then((result) => {
                 if (result.value) {
@@ -1489,13 +2295,15 @@ $('#saveAllChangesBtn').on('click', function() {
                         edited_items: editedItems,
                         new_items: newItems,
                         deleted_items: deletedItems,
-                        totals: JSON.stringify(window.billingTotals)
+                        totals: JSON.stringify(isCreatingInvoice ? unpaidTotals : window.billingTotals)
                     };
 
                     // Open a single loading modal and update it through the process
                     Swal.fire({
                         title: 'Memproses...',
-                        text: 'Harap tunggu, sedang menyimpan dan membuat invoice.',
+                        text: isCreatingInvoice
+                            ? (isUpdatingInvoice ? 'Harap tunggu, sedang menyimpan dan mengupdate invoice.' : 'Harap tunggu, sedang menyimpan dan membuat invoice.')
+                            : 'Harap tunggu, sedang menyimpan dan memproses pembayaran.',
                         icon: 'info',
                         allowOutsideClick: false,
                         showConfirmButton: false,
@@ -1521,13 +2329,16 @@ $('#saveAllChangesBtn').on('click', function() {
 
                             // Update the same modal to indicate invoice creation
                             try {
-                                Swal.update({ title: 'Membuat Invoice...', text: 'Harap tunggu, sedang memproses invoice.' });
+                                Swal.update({
+                                    title: isCreatingInvoice ? 'Membuat Invoice...' : 'Memproses Pembayaran...',
+                                    text: isCreatingInvoice ? 'Harap tunggu, sedang memproses invoice.' : 'Harap tunggu, sedang memproses pembayaran.'
+                                });
                             } catch(e) {
                                 // Fallback: if Swal.update isn't available, close and open a new loading modal
                                 Swal.close();
                                 Swal.fire({
-                                    title: 'Membuat Invoice...',
-                                    text: 'Harap tunggu, sedang memproses invoice.',
+                                    title: isCreatingInvoice ? 'Membuat Invoice...' : 'Memproses Pembayaran...',
+                                    text: isCreatingInvoice ? 'Harap tunggu, sedang memproses invoice.' : 'Harap tunggu, sedang memproses pembayaran.',
                                     icon: 'info',
                                     allowOutsideClick: false,
                                     showConfirmButton: false,
@@ -1539,18 +2350,23 @@ $('#saveAllChangesBtn').on('click', function() {
                                 console.debug('Creating invoice payload', {
                                     visitation_id: correctVisitationId,
                                     items: items,
-                                    totals: window.billingTotals,
+                                    totals: isCreatingInvoice ? unpaidTotals : window.billingTotals,
                                     gudang_selections: collectGudangSelections()
                                 });
 
+                                const invoiceEndpointUrl = isCreatingInvoice
+                                    ? "{{ route('finance.billing.createInvoice') }}"
+                                    : "{{ route('finance.billing.receivePayment') }}";
+
                                 $.ajax({
-                                url: "{{ route('finance.billing.createInvoice') }}",
+                                url: invoiceEndpointUrl,
                                 type: "POST",
                                 data: JSON.stringify({
                                     _token: "{{ csrf_token() }}",
                                     visitation_id: correctVisitationId,
+                                    invoice_id: currentInvoiceId,
                                     items: items,
-                                    totals: JSON.stringify(window.billingTotals),
+                                    totals: JSON.stringify(isCreatingInvoice ? unpaidTotals : window.billingTotals),
                                     gudang_selections: collectGudangSelections()
                                 }),
                                 contentType: 'application/json; charset=utf-8',
@@ -1559,10 +2375,126 @@ $('#saveAllChangesBtn').on('click', function() {
                                     // The backend returns stock_reduced and stock_message
                                     var stockReduced = invoiceResponse.stock_reduced === true || invoiceResponse.stock_reduced === 1;
                                     var stockMessage = invoiceResponse.stock_message || '';
+
+                                    var invoiceId = invoiceResponse.invoice_id || invoiceResponse.id || (invoiceResponse.invoice && invoiceResponse.invoice.id) || null;
+                                    if (invoiceId) {
+                                        currentInvoiceId = invoiceId;
+                                        // prefer backend truth; fallback to local compare
+                                        if (typeof invoiceResponse.is_paid !== 'undefined') {
+                                            currentInvoiceIsPaid = (invoiceResponse.is_paid === true || invoiceResponse.is_paid === 1 || invoiceResponse.is_paid === '1');
+                                        } else {
+                                            try {
+                                                const paidRaw = parseFloat(invoiceResponse.amount_paid || 0);
+                                                const totalRaw = parseFloat(invoiceResponse.total_amount || 0);
+                                                currentInvoiceIsPaid = (Number(totalRaw) > 0) && (Math.ceil(paidRaw) >= Math.ceil(totalRaw));
+                                            } catch (e) {
+                                                currentInvoiceIsPaid = false;
+                                            }
+                                        }
+
+                                        // For Piutang invoices, payment_status=paid means invoice is effectively paid.
+                                        try {
+                                            const pm = String((invoiceResponse && invoiceResponse.payment_method) ? invoiceResponse.payment_method : (window.oldInvoice && window.oldInvoice.payment_method) ? window.oldInvoice.payment_method : '').toLowerCase();
+                                            const ps = String(
+                                                (invoiceResponse && invoiceResponse.piutang_payment_status) ? invoiceResponse.piutang_payment_status :
+                                                (invoiceResponse && invoiceResponse.piutang && invoiceResponse.piutang.payment_status) ? invoiceResponse.piutang.payment_status :
+                                                (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? window.oldInvoice.piutang_payment_status :
+                                                ''
+                                            ).toLowerCase();
+                                            if (pm === 'piutang' && ps === 'paid') {
+                                                currentInvoiceIsPaid = true;
+                                            }
+                                        } catch (e) {
+                                            // ignore
+                                        }
+                                        setInvoiceFlowUi();
+
+                                        // Keep window.oldInvoice in sync so UI (including Lunasi Pembayaran button)
+                                        // updates immediately without requiring a page reload.
+                                        try {
+                                            window.oldInvoice = window.oldInvoice || {};
+                                            window.oldInvoice.id = currentInvoiceId;
+                                            window.oldInvoice.invoice_number = invoiceResponse.invoice_number || (invoiceResponse.invoice && invoiceResponse.invoice.invoice_number) || window.oldInvoice.invoice_number || null;
+                                            if (typeof invoiceResponse.total_amount !== 'undefined') window.oldInvoice.total_amount = invoiceResponse.total_amount;
+                                            if (typeof invoiceResponse.amount_paid !== 'undefined') window.oldInvoice.amount_paid = invoiceResponse.amount_paid;
+                                            if (typeof invoiceResponse.payment_method !== 'undefined') window.oldInvoice.payment_method = invoiceResponse.payment_method;
+
+                                            // Update piutang snapshot (returned by backend whenever exists)
+                                            if (invoiceResponse.piutang) {
+                                                window.oldInvoice.piutang_id = invoiceResponse.piutang.id || null;
+                                                window.oldInvoice.piutang_amount = (typeof invoiceResponse.piutang.amount !== 'undefined') ? invoiceResponse.piutang.amount : null;
+                                                window.oldInvoice.piutang_paid_amount = (typeof invoiceResponse.piutang.paid_amount !== 'undefined') ? invoiceResponse.piutang.paid_amount : null;
+                                                window.oldInvoice.piutang_payment_status = invoiceResponse.piutang.payment_status || invoiceResponse.piutang_payment_status || null;
+                                            } else if (typeof invoiceResponse.piutang_payment_status !== 'undefined') {
+                                                window.oldInvoice.piutang_payment_status = invoiceResponse.piutang_payment_status;
+                                            }
+                                        } catch (e) {
+                                            // ignore
+                                        }
+
+                                        // Update header (invoice number + badge) immediately
+                                        try {
+                                            setInvoiceHeaderUi(
+                                                invoiceResponse.invoice_number || (invoiceResponse.invoice && invoiceResponse.invoice.invoice_number) || null,
+                                                currentInvoiceId,
+                                                (typeof invoiceResponse.amount_paid !== 'undefined') ? invoiceResponse.amount_paid : ((invoiceResponse.invoice && invoiceResponse.invoice.amount_paid) || 0),
+                                                (typeof invoiceResponse.total_amount !== 'undefined') ? invoiceResponse.total_amount : ((invoiceResponse.invoice && invoiceResponse.invoice.total_amount) || 0),
+                                                invoiceResponse.payment_method || (invoiceResponse.invoice && invoiceResponse.invoice.payment_method) || ($('#payment_method').val() || null),
+                                                invoiceResponse.piutang_payment_status || (invoiceResponse.piutang && invoiceResponse.piutang.payment_status) || (window.oldInvoice && window.oldInvoice.piutang_payment_status) || null
+                                            );
+                                        } catch (e) {
+                                            // ignore
+                                        }
+
+                                        // Update primary action label immediately
+                                        try {
+                                            updatePaymentActionButtons((invoiceResponse && invoiceResponse.payment_method) ? invoiceResponse.payment_method : ($('#payment_method').val() || 'piutang'));
+                                        } catch (e) {
+                                            // ignore
+                                        }
+                                    }
+
+                                    if (isCreatingInvoice) {
+                                        // Only auto-preview nota when invoice is created for the first time.
+                                        if (!invoiceIdBefore) {
+                                            openPrintNota(currentInvoiceId);
+                                            return;
+                                        }
+
+                                        // Invoice updated (unpaid): clear update flag and refresh primary action label.
+                                        invoiceNeedsUpdateServer = false;
+                                        try {
+                                            // Clear local dirty state (temp IDs / edited flags) by reloading from server
+                                            billingData = [];
+                                            deletedItems = [];
+                                            window.__billingLightRefresh = false;
+                                            table.ajax.reload(null, false);
+                                        } catch (e) {
+                                            // ignore
+                                        }
+                                        updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+
+                                        Swal.fire({
+                                            title: 'Berhasil!',
+                                            text: 'Invoice berhasil diupdate sesuai billing terbaru.',
+                                            icon: 'success',
+                                            confirmButtonText: 'OK',
+                                            allowOutsideClick: false
+                                        });
+                                        return;
+                                    }
+
+                                    // After payment is processed (including piutang), lock billing edits.
+                                    billingLocked = true;
+                                    applyBillingLockUi();
+                                    try { table.ajax.reload(null, false); } catch (e) { /* ignore */ }
+
+                                    // After payment, invoice is now in sync by definition.
+                                    invoiceNeedsUpdateServer = false;
+
                                     var icon = stockReduced ? 'success' : 'warning';
-                                    var html = 'Invoice berhasil dibuat dengan nomor: <strong>' + (invoiceResponse.invoice_number || invoiceResponse.invoice_number) + '</strong>';
+                                    var html = 'Pembayaran berhasil diproses untuk invoice: <strong>' + (invoiceResponse.invoice_number || '') + '</strong>';
                                     if (stockMessage) {
-                                        // Convert the message to UPPERCASE and emphasize the 'STOK TIDAK DIKURANGI' part
                                         try {
                                             var emphasized = (stockMessage || '').toString().toUpperCase();
                                             emphasized = emphasized.replace(/(STOK TIDAK DIKURANGI)/g, '<strong>$1</strong>');
@@ -1572,66 +2504,259 @@ $('#saveAllChangesBtn').on('click', function() {
                                         html += '<br><small style="display:block;margin-top:8px;color:#555;">' + emphasized + '</small>';
                                     }
 
-                                    // Build print URL using the returned invoice id
-                                    var invoiceId = invoiceResponse.invoice_id || invoiceResponse.id || (invoiceResponse.invoice && invoiceResponse.invoice.id) || null;
-                                    var printUrl = invoiceId ? ('{{ url('/finance/invoice') }}/' + invoiceId + '/print-nota') : null;
-
-                                    // Show the Swal with a side-by-side 'Cetak Nota' (confirm) and 'Tutup' (cancel) buttons
                                     Swal.fire({
                                         title: 'Berhasil!',
                                         html: html,
                                         icon: icon,
-                                        showCancelButton: true,
-                                        confirmButtonText: 'Cetak Nota',
-                                        cancelButtonText: 'Tutup',
+                                        confirmButtonText: 'OK',
                                         allowOutsideClick: false
-                                    }).then(function(result) {
-                                        if (result.value) {
-                                            if (printUrl) {
-                                                // Show the print page inside a modal (iframe) and let user print from there
-                                                // Render preview with an iframe and a custom Print button inside the HTML.
-                                                // We hide the built-in confirm button and use the Cancel button as the "Tutup" close control.
-                                                Swal.fire({
-                                                    title: 'Preview Cetak Nota',
-                                                    html: '<div style="min-height:70vh"><iframe id="print-frame" src="' + printUrl + '" frameborder="0" style="width:100%;height:68vh"></iframe></div>',
-                                                    width: '90%',
-                                                    showCloseButton: true,
-                                                    showCancelButton: false,
-                                                    showConfirmButton: false,
-                                                    allowOutsideClick: false,
-                                                    allowEscapeKey: false
-                                                });
-                                            } else {
-                                                // If print URL isn't available, show an informative alert
-                                                Swal.fire({
-                                                    title: 'Info',
-                                                    text: 'URL cetak nota tidak tersedia.',
-                                                    icon: 'info'
-                                                });
-                                            }
-                                        }
-                                        // If cancelled (Tutup) do nothing — keep user on billing page
                                     });
                                 },
                                 error: function(xhr) {
-                                    Swal.fire({
-                                        title: 'Error!',
-                                        text: 'Terjadi kesalahan dalam pembuatan invoice: ' + xhr.responseText,
-                                        icon: 'error'
-                                    });
+                                    const title = isCreatingInvoice ? 'Gagal Membuat Invoice' : 'Gagal Memproses Pembayaran';
+                                    const prefix = isCreatingInvoice ? 'Terjadi kesalahan dalam pembuatan invoice:' : 'Terjadi kesalahan saat memproses pembayaran:';
+                                    showReadableAjaxError(title, xhr, prefix);
                                 }
                             });
                         },
                         error: function(xhr) {
-                            Swal.fire({
-                                title: 'Error!',
-                                text: 'Terjadi kesalahan saat menyimpan billing: ' + xhr.responseText,
-                                icon: 'error'
-                            });
+                            showReadableAjaxError('Gagal Menyimpan Billing', xhr, 'Terjadi kesalahan saat menyimpan billing:');
                         }
                     });
                 }
             });
+        }
+
+        // Buat Invoice (only creates unpaid invoice)
+        $('#createInvoiceBtn').on('click', function() {
+            runInvoiceFlow(true);
+        });
+
+        // Terima Pembayaran (process payment)
+        $('#terimaPembayaranBtn').on('click', function() {
+            // If invoice has active piutang, open the same Terima Pembayaran modal used on billing index.
+            try {
+                const piutangId = window.oldInvoice && window.oldInvoice.piutang_id ? window.oldInvoice.piutang_id : null;
+                const invoiceNo = window.oldInvoice && window.oldInvoice.invoice_number ? window.oldInvoice.invoice_number : '';
+                const piutangStatus = (window.oldInvoice && window.oldInvoice.piutang_payment_status) ? String(window.oldInvoice.piutang_payment_status).toLowerCase() : '';
+                const piutangAmount = Number(window.oldInvoice && window.oldInvoice.piutang_amount ? window.oldInvoice.piutang_amount : 0);
+                const piutangPaid = Number(window.oldInvoice && window.oldInvoice.piutang_paid_amount ? window.oldInvoice.piutang_paid_amount : 0);
+                let remaining = piutangAmount - piutangPaid;
+                if (!isFinite(remaining) || remaining < 0) remaining = 0;
+
+                const hasActivePiutang = !!piutangId && (!piutangStatus || piutangStatus === 'unpaid' || piutangStatus === 'partial') && remaining > 0;
+                if (hasActivePiutang) {
+                    // Fill modal fields
+                    $('#piutang_id').val(piutangId);
+                    $('#piutang_invoice').val(invoiceNo);
+
+                    // Prefill amount = 0 (user inputs payment to add)
+                    $('#piutang_amount').val('0');
+
+                    // Update inline "kekurangan" label
+                    var $label = $('#piutang_kekurangan_label');
+                    try {
+                        var remFmt = 'kurang : RP ' + Number(remaining).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                        $label.removeClass('text-success').addClass('text-danger').text(remFmt);
+                    } catch (e) {
+                        $label.removeClass('text-success').addClass('text-danger').text('kurang : RP ' + remaining);
+                    }
+
+                    // Default payment date to now
+                    var now = new Date();
+                    var pad = function(n){return n<10?'0'+n:n};
+                    var local = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+                    $('#piutang_payment_date').val(local);
+
+                    // Recalculate label when user types amount
+                    function parseMoney(val) {
+                        if (val === null || val === undefined) return 0;
+                        if (typeof val === 'number') return val;
+                        var s = String(val).trim();
+                        if (!s) return 0;
+                        s = s.replace(/[^0-9.,-]/g, '');
+                        if (s.indexOf('.') !== -1 && s.indexOf(',') !== -1) {
+                            s = s.replace(/\./g, '');
+                            s = s.replace(/,/g, '.');
+                        } else if (s.indexOf(',') !== -1 && s.indexOf('.') === -1) {
+                            s = s.replace(/,/g, '.');
+                        }
+                        var f = parseFloat(s);
+                        return isNaN(f) ? 0 : f;
+                    }
+
+                    $('#piutang_amount').off('input.piutangCreate').on('input.piutangCreate', function() {
+                        var entered = parseMoney($(this).val());
+                        var newRem = remaining - (isNaN(entered) ? 0 : entered);
+                        if (!isFinite(newRem) || newRem < 0) newRem = 0;
+                        if (newRem <= 0) {
+                            $label.removeClass('text-danger').addClass('text-success').text('LUNAS');
+                        } else {
+                            try {
+                                $label.removeClass('text-success').addClass('text-danger').text('kurang : RP ' + Number(newRem).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
+                            } catch (e) {
+                                $label.removeClass('text-success').addClass('text-danger').text('kurang : RP ' + newRem);
+                            }
+                        }
+                    });
+
+                    // Submit handler (post to piutang receive endpoint) then reload the page for updated status
+                    $('#btn-submit-terima').off('click.piutangCreate').on('click.piutangCreate', function() {
+                        var submitId = $('#piutang_id').val();
+                        if (!submitId) return;
+                        var payload = {
+                            amount: $('#piutang_amount').val(),
+                            payment_date: $('#piutang_payment_date').val(),
+                            payment_method: $('#piutang_payment_method').val(),
+                            _token: '{{ csrf_token() }}'
+                        };
+
+                        $.post('{{ url('/finance/piutang') }}' + '/' + submitId + '/receive', payload)
+                            .done(function(res) {
+                                if (res && res.success) {
+                                    $('#modalTerimaPembayaran').modal('hide');
+                                    Swal.fire('Sukses', res.message || 'Pembayaran tercatat', 'success').then(function() {
+                                        window.location.reload();
+                                    });
+                                } else {
+                                    Swal.fire('Gagal', (res && res.message) ? res.message : 'Gagal menyimpan pembayaran', 'error');
+                                }
+                            }).fail(function(xhr) {
+                                var msg = 'Terjadi kesalahan';
+                                try { msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : msg; } catch(e){}
+                                Swal.fire('Gagal', msg, 'error');
+                            });
+                    });
+
+                    $('#modalTerimaPembayaran').modal('show');
+                    return;
+                }
+            } catch (e) {
+                // ignore and fallback to regular flow
+            }
+
+            if (!currentInvoiceId) {
+                Swal.fire({
+                    title: 'Info',
+                    text: 'Invoice belum dibuat. Silakan klik Buat Invoice terlebih dahulu.',
+                    icon: 'info'
+                });
+                return;
+            }
+
+            // If invoice exists but billing differs from invoice (unpaid), update invoice first.
+            if (!currentInvoiceIsPaid && !billingLocked && invoiceNeedsUpdateNow()) {
+                runInvoiceFlow(true);
+                return;
+            }
+
+            // Open modal for payment input
+            calculateTotals();
+            const currentPaid = $('#amount_paid').val() || '0';
+            const currentMethod = $('#payment_method').val() || 'cash';
+            // If paid is 0, keep the input empty so user can type immediately.
+            try {
+                const paidNum = parseHarga(currentPaid || 0);
+                $('#modal_amount_paid').val(paidNum > 0 ? currentPaid : '');
+            } catch (e) {
+                $('#modal_amount_paid').val('');
+            }
+            // Default method based on paid amount (rule)
+            const methodInitRaw = (currentMethod || '').toString();
+            const methodInit = methodInitRaw ? methodInitRaw : (parseHarga(currentPaid) > 0 ? 'cash' : 'piutang');
+            $('#modal_payment_method').val(methodInit);
+            // Apply Umum filtering + insurance lock (if any)
+            setInsuranceOptionsVisible($('#modal_payment_method'), !isUmumVisit);
+            applyLockedPaymentMethodToSelect($('#modal_payment_method'), lockedPaymentMethod);
+
+            // Apply new rule: non-tunai auto-fill dibayar = total
+            syncModalPaidFromMethod();
+            // Keep piutang/cash rule consistent with current paid
+            syncModalMethodFromPaid();
+            updatePaymentActionButtons($('#modal_payment_method').val() || 'piutang');
+
+            // Reset memory each open, then enforce rule
+            lastManualCashPaidModal = null;
+            syncModalPaidFromMethod();
+            syncModalMethodFromPaid();
+            calculatePaymentSummaryForModal();
+            $('#paymentModal').modal('show');
+        });
+
+        // Auto-focus Dibayar field when modal is visible
+        $('#paymentModal').on('shown.bs.modal', function() {
+            try {
+                const $input = $('#modal_amount_paid');
+                $input.trigger('focus');
+                // Select existing text (if any) for quick overwrite
+                const el = $input.get(0);
+                if (el && typeof el.select === 'function') {
+                    el.select();
+                }
+            } catch (e) {
+                // ignore
+            }
+        });
+
+        // Auto-focus Jumlah field when Lunasi/Terima Pembayaran (Piutang) modal is visible
+        $('#modalTerimaPembayaran').on('shown.bs.modal', function() {
+            try {
+                const $input = $('#piutang_amount');
+                $input.trigger('focus');
+                const el = $input.get(0);
+                if (el && typeof el.select === 'function') {
+                    el.select();
+                }
+            } catch (e) {
+                // ignore
+            }
+        });
+
+        // If user cancels/closes the modal, revert labels to the last confirmed method
+        $('#paymentModal').on('hidden.bs.modal', function() {
+            updatePaymentActionButtons($('#payment_method').val() || 'cash');
+        });
+
+        // When method changes: auto-fill paid for non-tunai, keep rules consistent
+        $('#modal_payment_method').on('change', function() {
+            syncModalPaidFromMethod();
+            syncModalMethodFromPaid();
+            updatePaymentActionButtons($('#modal_payment_method').val() || 'piutang');
+            calculatePaymentSummaryForModal();
+        });
+
+        // When typing paid amount: only derive method for cash/piutang flow
+        $('#modal_amount_paid').on('change input', function() {
+            syncModalMethodFromPaid();
+            updatePaymentActionButtons($('#modal_payment_method').val() || 'piutang');
+            calculatePaymentSummaryForModal();
+        });
+
+        // Confirm payment from modal
+        $('#confirmPaymentBtn').on('click', function() {
+            const method = ($('#modal_payment_method').val() || 'cash').toString();
+            const paid = parseHarga($('#modal_amount_paid').val() || 0);
+
+            if (method !== 'piutang' && paid <= 0) {
+                Swal.fire({
+                    title: 'Info',
+                    text: 'Masukkan jumlah dibayar terlebih dahulu.',
+                    icon: 'info'
+                });
+                return;
+            }
+
+            // Sync modal values into hidden fields used by calculateTotals() + backend payload
+            $('#amount_paid').val(method === 'piutang' ? '0' : ($('#modal_amount_paid').val() || '0'));
+            $('#payment_method').val(method || 'cash');
+            $('#paymentModal').modal('hide');
+            updatePaymentActionButtons($('#payment_method').val() || 'cash');
+            runInvoiceFlow(false);
+        });
+
+        // Print nota button
+        $('#printNotaBtn').on('click', function() {
+            openPrintNota(currentInvoiceId);
         });
         
         // --- Select2 AJAX for Tindakan ---

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Yajra\DataTables\DataTables;
 use Illuminate\Support\Facades\Schema;
 use App\Models\Finance\Piutang;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class PiutangController extends Controller
 {
@@ -155,35 +157,18 @@ class PiutangController extends Controller
         $piutang = Piutang::findOrFail($id);
         $invoice = $piutang->invoice;
 
-        \DB::beginTransaction();
+        DB::beginTransaction();
         try {
             $amount = floatval($request->input('amount'));
             $paymentDate = $request->input('payment_date');
             $paymentMethod = $request->input('payment_method');
-
-            // Update invoice amount_paid if invoice exists
-            if ($invoice) {
-                $currentPaid = floatval($invoice->amount_paid ?? 0);
-                $newPaid = $currentPaid + $amount;
-                $invoice->amount_paid = $newPaid;
-                // recompute change/shortage
-                $total = floatval($invoice->total_amount ?? 0);
-                if ($newPaid >= $total) {
-                    $invoice->change_amount = $newPaid - $total;
-                    $invoice->shortage_amount = 0;
-                } else {
-                    $invoice->change_amount = 0;
-                    $invoice->shortage_amount = $total - $newPaid;
-                }
-                $invoice->save();
-            }
 
             // Update piutang record: increment paid_amount and set metadata
             $currentPaid = floatval($piutang->paid_amount ?? 0);
             $piutang->paid_amount = $currentPaid + $amount;
             $piutang->payment_date = $paymentDate;
             $piutang->payment_method = $paymentMethod;
-            $piutang->user_id = auth()->id();
+            $piutang->user_id = Auth::id();
 
             // Determine payment_status based on piutang amounts (prefer piutang amounts)
             $paidPiutang = floatval($piutang->paid_amount ?? 0);
@@ -198,11 +183,53 @@ class PiutangController extends Controller
 
             $piutang->save();
 
-            \DB::commit();
+            // Update invoice amount_paid/status/method if invoice exists
+            if ($invoice) {
+                $currentInvPaid = floatval($invoice->amount_paid ?? 0);
+                $newInvPaid = $currentInvPaid + $amount;
+                $total = floatval($invoice->total_amount ?? 0);
+
+                $invoice->amount_paid = $newInvPaid;
+
+                if ($newInvPaid >= $total) {
+                    $invoice->change_amount = max(0, $newInvPaid - $total);
+                    $invoice->shortage_amount = 0;
+                } else {
+                    $invoice->change_amount = 0;
+                    $invoice->shortage_amount = max(0, $total - $newInvPaid);
+                }
+
+                // Keep invoice status accurate; when fully covered, mark paid.
+                $paidInt = intval(ceil($newInvPaid));
+                $totalInt = intval(ceil($total));
+                $isPaid = $totalInt > 0 && $paidInt >= $totalInt;
+                if ($isPaid) {
+                    $invoice->status = 'paid';
+                    // When piutang is paid off, invoice payment_method should reflect the actual settlement method.
+                    $invoice->payment_method = $paymentMethod;
+                    // Prefer the payment date supplied by piutang settlement.
+                    $invoice->payment_date = $paymentDate;
+                } else {
+                    // For partial settlement, keep invoice as partial (if there's any payment), otherwise issued.
+                    $totalInt = intval(ceil($total));
+                    $paidInt = intval(ceil($newInvPaid));
+                    if ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
+                        $invoice->status = 'partial';
+                    } else {
+                        if (empty($invoice->status) || strtolower((string)$invoice->status) === 'paid') {
+                            $invoice->status = 'issued';
+                        }
+                    }
+                }
+
+                $invoice->save();
+            }
+
+            DB::commit();
 
             return response()->json(['success' => true, 'message' => 'Pembayaran tercatat']);
         } catch (\Exception $e) {
-            \DB::rollBack();
+            DB::rollBack();
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }

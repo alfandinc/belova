@@ -16,8 +16,11 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\GudangMapping;
+use App\Models\ERM\ObatStokGudang;
 use App\Services\ERM\StokService;
 use App\Models\ERM\PaketRacikan;
+use App\Models\ERM\ResepFarmasi;
+use App\Models\ERM\KartuStok;
 
 
 class BillingController extends Controller
@@ -443,10 +446,171 @@ class BillingController extends Controller
         return response()->json(['new' => false]);
     }
 
+    /**
+     * Return the stock info modal HTML (used for lazy-loading on billing create page).
+     */
+    public function stockInfoModal()
+    {
+        return view('finance.billing.partials.stock-info-modal');
+    }
+
+    public function riwayatTindakanObats(Request $request)
+    {
+        $riwayatTindakanId = $request->query('riwayat_tindakan_id');
+        if (!$riwayatTindakanId) {
+            return response()->json([
+                'message' => 'riwayat_tindakan_id is required',
+                'data' => []
+            ], 422);
+        }
+
+        $suggestedGudangId = null;
+        try {
+            $rt = \App\Models\ERM\RiwayatTindakan::with('tindakan')->find($riwayatTindakanId);
+            if ($rt && $rt->tindakan && !empty($rt->tindakan->spesialis_id)) {
+                $mapping = GudangMapping::resolveGudangForTransaction('kode_tindakan', 'spesialisasi', $rt->tindakan->spesialis_id);
+                if ($mapping && !empty($mapping->gudang_id)) {
+                    $suggestedGudangId = $mapping->gudang_id;
+                }
+            }
+        } catch (\Exception $e) {
+            $suggestedGudangId = null;
+        }
+
+        $rows = DB::table('erm_riwayat_tindakan_obat as rto')
+            ->leftJoin('erm_obat as o', 'o.id', '=', 'rto.obat_id')
+            ->select([
+                'rto.obat_id',
+                DB::raw('COALESCE(o.nama, "Unknown") as obat_nama'),
+                DB::raw('SUM(COALESCE(rto.qty, 0)) as qty')
+            ])
+            ->where('rto.riwayat_tindakan_id', $riwayatTindakanId)
+            ->groupBy('rto.obat_id', 'o.nama')
+            ->get();
+
+        return response()->json([
+            'suggested_gudang_id' => $suggestedGudangId,
+            'data' => $rows
+        ]);
+    }
+
     public function create(Request $request, $visitation_id)
 {
     if ($request->ajax()) {
-        $billings = Billing::where('visitation_id', $visitation_id)->get();
+        $isLight = $request->boolean('light');
+
+        // If payment was processed for this visitation's latest invoice, the billing view must be immutable.
+        // Serve invoice item snapshots so changes in master data (obat/tindakan/promo) do not affect the paid invoice.
+        try {
+            $lockedInvoice = Invoice::with(['items', 'piutangs'])
+                ->where('visitation_id', $visitation_id)
+                ->orderByDesc('id')
+                ->first();
+
+            $hasPaymentProcessed = $lockedInvoice && !empty($lockedInvoice->payment_method);
+            $hasStockLedger = $lockedInvoice && KartuStok::where('ref_type', 'invoice_penjualan')
+                ->where('ref_id', $lockedInvoice->id)
+                ->exists();
+
+            if ($hasPaymentProcessed || $hasStockLedger) {
+                $invoiceItems = $lockedInvoice ? $lockedInvoice->items()->get() : collect();
+
+                $dt = DataTables::of($invoiceItems)->addIndexColumn();
+
+                // Used by the frontend to refresh billingData from snapshot
+                $dt->with('locked_invoice_items', 1);
+                // Paid/locked invoice should never be considered "needs update" from billing
+                $dt->with('invoice_needs_update', 0);
+
+                if (!$isLight) {
+                    $dt->addColumn('is_out_of_stock', function () {
+                        return 0;
+                    });
+                }
+
+                return $dt
+                    ->addColumn('is_racikan', function () {
+                        return 0;
+                    })
+                    ->addColumn('racikan_components', function () {
+                        return [];
+                    })
+                    ->addColumn('racikan_obat_ids', function () {
+                        return [];
+                    })
+                    ->addColumn('racikan_obat_list', function () {
+                        return [];
+                    })
+                    ->addColumn('racikan_bungkus', function () {
+                        return null;
+                    })
+                    ->addColumn('obat_id', function () {
+                        return null;
+                    })
+                    ->addColumn('nama_item', function ($row) {
+                        try {
+                            return $row->name ?? '-';
+                        } catch (\Exception $e) {
+                            return '-';
+                        }
+                    })
+                    ->addColumn('jumlah_raw', function ($row) {
+                        return floatval($row->unit_price ?? 0);
+                    })
+                    ->addColumn('diskon_raw', function ($row) {
+                        return floatval($row->discount ?? 0);
+                    })
+                    ->addColumn('diskon_type', function ($row) {
+                        return $row->discount_type ?? null;
+                    })
+                    ->addColumn('jumlah', function ($row) {
+                        $val = floatval($row->unit_price ?? 0);
+                        return 'Rp ' . number_format($val, 0, ',', '.');
+                    })
+                    ->addColumn('qty', function ($row) {
+                        return intval($row->quantity ?? 1);
+                    })
+                    ->addColumn('harga_akhir_raw', function ($row) {
+                        return floatval($row->final_amount ?? 0);
+                    })
+                    ->addColumn('harga_akhir', function ($row) {
+                        $val = floatval($row->final_amount ?? 0);
+                        return 'Rp ' . number_format($val, 0, ',', '.');
+                    })
+                    ->addColumn('diskon', function ($row) {
+                        $disc = floatval($row->discount ?? 0);
+                        if ($disc <= 0) return '-';
+                        $type = $row->discount_type ?? null;
+                        if ($type === '%') {
+                            return number_format($disc, 2) . '%';
+                        }
+                        return 'Rp ' . number_format($disc, 0, ',', '.');
+                    })
+                    ->addColumn('deskripsi', function ($row) {
+                        try {
+                            return $row->description ?? '-';
+                        } catch (\Exception $e) {
+                            return '-';
+                        }
+                    })
+                    ->make(true);
+            }
+        } catch (\Exception $e) {
+            // Non-fatal: fallback to dynamic billing list
+        }
+
+        // Eager-load billable (morphTo) to avoid N+1 queries on every refresh.
+        $billings = Billing::with('billable')->where('visitation_id', $visitation_id)->get();
+        try {
+            $billings->loadMorph('billable', [
+                \App\Models\ERM\ResepFarmasi::class => ['obat:id,nama,harga_net,harga_diskon'],
+                \App\Models\ERM\LabPermintaan::class => ['labTest:id,nama'],
+                \App\Models\ERM\RadiologiPermintaan::class => ['radiologiTest:id,nama'],
+                \App\Models\ERM\RiwayatTindakan::class => ['tindakan:id,spesialis_id'],
+            ]);
+        } catch (\Exception $e) {
+            // Non-fatal: fallback to lazy-loading if morph eager-loading fails.
+        }
 
         // Extract racikan items, pharmacy fees, and regular items
         $racikanGroups = [];
@@ -465,10 +629,10 @@ class BillingController extends Controller
             // Case 2: Racikan medication items
             else if (
                 $billing->billable_type == 'App\Models\ERM\ResepFarmasi' &&
-                $billing->billable->racikan_ke != null &&
-                $billing->billable->racikan_ke > 0
+                optional($billing->billable)->racikan_ke != null &&
+                optional($billing->billable)->racikan_ke > 0
             ) {
-                $racikanKey = $billing->billable->racikan_ke;
+                $racikanKey = optional($billing->billable)->racikan_ke;
                 if (!isset($racikanGroups[$racikanKey])) {
                     $racikanGroups[$racikanKey] = [];
                 }
@@ -500,6 +664,11 @@ class BillingController extends Controller
         // Apply active promos to processed billing items: set diskon (%) when promo matches
         try {
             $today = \Carbon\Carbon::today()->format('Y-m-d');
+
+            // Collect all candidate IDs first, then query promo items once.
+            $rowCandidatesByIndex = []; // pbIndex => [candidateId...]
+            $allCandidateIds = [];
+
             foreach ($processedBillings as $pbIndex => $pb) {
                 // skip racikan and pharmacy fee rows
                 if (isset($pb->is_racikan) || isset($pb->is_pharmacy_fee)) continue;
@@ -509,17 +678,28 @@ class BillingController extends Controller
                     continue;
                 }
 
-                // collect candidate IDs to match PromoItem.item_id
+                // Collect candidate IDs to match PromoItem.item_id.
+                // Keep behavior compatible with previous implementation.
                 $candidates = [];
-                if (isset($pb->billable_id)) $candidates[] = $pb->billable_id;
-                if (isset($pb->billable) && isset($pb->billable->obat) && isset($pb->billable->obat->id)) $candidates[] = $pb->billable->obat->id;
-                if (isset($pb->billable) && isset($pb->billable->tindakan_id)) $candidates[] = $pb->billable->tindakan_id;
-                if (isset($pb->billable) && isset($pb->billable->id)) $candidates[] = $pb->billable->id;
+                if (isset($pb->billable_id)) $candidates[] = intval($pb->billable_id);
+                try {
+                    if (isset($pb->billable) && isset($pb->billable->obat) && isset($pb->billable->obat->id)) $candidates[] = intval($pb->billable->obat->id);
+                    if (isset($pb->billable) && isset($pb->billable->tindakan_id)) $candidates[] = intval($pb->billable->tindakan_id);
+                    if (isset($pb->billable) && isset($pb->billable->id)) $candidates[] = intval($pb->billable->id);
+                } catch (\Exception $e) {
+                    // ignore
+                }
                 $candidates = array_values(array_filter(array_unique($candidates)));
                 if (empty($candidates)) continue;
 
-                $promoItems = \App\Models\Marketing\PromoItem::whereIn('item_id', $candidates)
-                    ->whereIn('item_type', ['tindakan','obat'])
+                $rowCandidatesByIndex[$pbIndex] = $candidates;
+                $allCandidateIds = array_merge($allCandidateIds, $candidates);
+            }
+
+            $allCandidateIds = array_values(array_unique(array_filter($allCandidateIds)));
+            if (!empty($allCandidateIds)) {
+                $promoItems = \App\Models\Marketing\PromoItem::whereIn('item_id', $allCandidateIds)
+                    ->whereIn('item_type', ['tindakan', 'obat'])
                     ->whereHas('promo', function($q) use ($today){
                         $q->where(function($q2) use ($today){
                             $q2->whereNotNull('start_date')->whereNotNull('end_date')
@@ -532,45 +712,105 @@ class BillingController extends Controller
                             $q2->whereNull('start_date')->whereNotNull('end_date')
                                 ->where('end_date','>=',$today);
                         });
-                    })->get();
+                    })
+                    ->get(['id', 'item_id', 'item_type', 'discount_percent']);
 
-                if ($promoItems->isEmpty()) continue;
+                if (!$promoItems->isEmpty()) {
+                    // Group promo items by (type|id) for fast lookup
+                    $promoByKey = []; // 'obat|123' => [PromoItem...]
+                    $promoObatIds = [];
+                    $promoTindakanIds = [];
 
-                // choose highest discount_percent among matching promo items
-                $max = $promoItems->max('discount_percent');
-                if ($max > 0) {
-                    // Choose the winning promo item and pick its discounted price if available
-                    $winning = $promoItems->firstWhere('discount_percent', $max);
-                    $basePrice = null;
+                    foreach ($promoItems as $pi) {
+                        $type = (string)($pi->item_type ?? '');
+                        $id = intval($pi->item_id ?? 0);
+                        if (!$type || !$id) continue;
+                        $k = $type . '|' . $id;
+                        if (!isset($promoByKey[$k])) $promoByKey[$k] = [];
+                        $promoByKey[$k][] = $pi;
+                        if ($type === 'obat') $promoObatIds[] = $id;
+                        if ($type === 'tindakan') $promoTindakanIds[] = $id;
+                    }
 
-                    if ($winning) {
-                        if ($winning->item_type === 'tindakan') {
-                            $t = \App\Models\ERM\Tindakan::find($winning->item_id);
-                            $basePrice = $t->harga_diskon ?? $t->harga ?? null;
-                        } elseif ($winning->item_type === 'obat') {
-                            $o = \App\Models\ERM\Obat::withInactive()->find($winning->item_id);
-                            $basePrice = $o->harga_diskon ?? $o->harga_net ?? null;
+                    // Prefetch base prices in bulk
+                    $promoObatIds = array_values(array_unique(array_filter($promoObatIds)));
+                    $promoTindakanIds = array_values(array_unique(array_filter($promoTindakanIds)));
+
+                    $obatPriceById = [];
+                    if (!empty($promoObatIds)) {
+                        $obats = \App\Models\ERM\Obat::withInactive()
+                            ->whereIn('id', $promoObatIds)
+                            ->get(['id', 'harga_net', 'harga_diskon']);
+                        foreach ($obats as $o) {
+                            $obatPriceById[intval($o->id)] = $o->harga_diskon ?? $o->harga_net ?? null;
                         }
                     }
 
-                    // Common fallbacks
-                    if (!$basePrice && isset($pb->billable)) {
-                        $basePrice = $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
-                    }
-                    if (!$basePrice) {
-                        $basePrice = $pb->jumlah ?? 0;
+                    $tindakanPriceById = [];
+                    if (!empty($promoTindakanIds)) {
+                        $tindakans = \App\Models\ERM\Tindakan::whereIn('id', $promoTindakanIds)
+                            ->get(['id', 'harga', 'harga_diskon']);
+                        foreach ($tindakans as $t) {
+                            $tindakanPriceById[intval($t->id)] = $t->harga_diskon ?? $t->harga ?? null;
+                        }
                     }
 
-                    // Only apply promo discount when we have a valid base price (> 0)
-                    if ($basePrice && $basePrice > 0) {
-                        $pb->diskon = $max;
-                        $pb->diskon_type = '%';
-                        $pb->promo_price_base = $basePrice;
+                    // Apply promos per row by choosing the highest discount_percent among matching candidates
+                    foreach ($rowCandidatesByIndex as $pbIndex => $candidates) {
+                        $pb = $processedBillings[$pbIndex] ?? null;
+                        if (!$pb) continue;
+
+                        $bestPromo = null;
+                        $bestPercent = 0;
+
+                        foreach ($candidates as $candidateIdRaw) {
+                            $candidateId = intval($candidateIdRaw);
+                            if (!$candidateId) continue;
+
+                            foreach (['obat', 'tindakan'] as $type) {
+                                $k = $type . '|' . $candidateId;
+                                if (empty($promoByKey[$k])) continue;
+                                foreach ($promoByKey[$k] as $pi) {
+                                    $p = floatval($pi->discount_percent ?? 0);
+                                    if ($p > $bestPercent) {
+                                        $bestPercent = $p;
+                                        $bestPromo = $pi;
+                                    }
+                                }
+                            }
+                        }
+
+                        if ($bestPromo && $bestPercent > 0) {
+                            $basePrice = null;
+                            $promoItemId = intval($bestPromo->item_id ?? 0);
+                            $promoType = (string)($bestPromo->item_type ?? '');
+
+                            if ($promoType === 'tindakan') {
+                                $basePrice = $tindakanPriceById[$promoItemId] ?? null;
+                            } elseif ($promoType === 'obat') {
+                                $basePrice = $obatPriceById[$promoItemId] ?? null;
+                            }
+
+                            // Common fallbacks
+                            if (!$basePrice && isset($pb->billable)) {
+                                $basePrice = $pb->billable->harga_diskon ?? $pb->billable->unit_price ?? null;
+                            }
+                            if (!$basePrice) {
+                                $basePrice = $pb->jumlah ?? 0;
+                            }
+
+                            // Only apply promo discount when we have a valid base price (> 0)
+                            if ($basePrice && $basePrice > 0) {
+                                $pb->diskon = $bestPercent;
+                                $pb->diskon_type = '%';
+                                $pb->promo_price_base = $basePrice;
+                            }
+                        }
+
+                        // write back
+                        $processedBillings[$pbIndex] = $pb;
                     }
                 }
-
-                // write back
-                $processedBillings[$pbIndex] = $pb;
             }
         } catch (\Exception $e) {
             // if promo application fails, continue without promo discounts
@@ -588,16 +828,64 @@ class BillingController extends Controller
             $obatIds = [];
             $bungkus = 0;
 
+            // Build component list using ResepFarmasi table as the source of truth.
+            // Rule: all ResepFarmasi rows sharing (visitation_id + racikan_ke) belong to the same racikan.
+            $visitationIdForRacikan = $firstItem->visitation_id ?? $visitation_id;
+            $racikanReseps = collect();
+            try {
+                $racikanReseps = ResepFarmasi::with(['obat:id,nama'])
+                    ->where('visitation_id', $visitationIdForRacikan)
+                    ->where('racikan_ke', $racikanKey)
+                    ->orderBy('id')
+                    ->get();
+            } catch (\Exception $e) {
+                $racikanReseps = collect();
+            }
+
+            $components = [];
+            if (!$racikanReseps->isEmpty()) {
+                foreach ($racikanReseps as $rf) {
+                    $obatId = $rf->obat_id ?? null;
+                    if (!empty($obatId)) {
+                        $obatIds[] = $obatId;
+                    }
+
+                    $nama = null;
+                    try {
+                        $nama = optional($rf->obat)->nama;
+                    } catch (\Exception $e) {
+                        $nama = null;
+                    }
+                    $nama = ($nama ?: (!empty($obatId) ? ('Obat #' . $obatId) : 'Obat Tidak Diketahui'));
+                    $obatList[] = $nama;
+
+                    if (empty($bungkus) && !empty($rf->bungkus)) {
+                        $bungkus = $rf->bungkus;
+                    }
+
+                    $components[] = [
+                        'obat_id' => $obatId,
+                        'nama' => $nama,
+                        // stok_dikurangi persisted into ResepFarmasi.jumlah for racikan components (allow decimals)
+                        'stok_dikurangi' => floatval($rf->jumlah ?? 0),
+                        'bungkus' => isset($rf->bungkus) ? floatval($rf->bungkus) : null,
+                        'dosis' => isset($rf->dosis) ? trim((string)$rf->dosis) : null,
+                    ];
+                }
+
+                $obatIds = array_values(array_unique(array_filter($obatIds)));
+            }
+
             foreach ($racikanItems as $item) {
                 $totalPrice += $item->jumlah;
-                $obatList[] = $item->billable->obat->nama ?? 'Obat Tidak Diketahui';
-                // collect obat ids for frontend stock checks
-                if (isset($item->billable) && isset($item->billable->obat) && isset($item->billable->obat->id)) {
-                    $obatIds[] = $item->billable->obat->id;
-                }
-                // Get bungkus from the first item only (should be same for all items in racikan)
-                if ($bungkus == 0) {
-                    $bungkus = $item->billable->bungkus ?? 0;
+
+                // Keep a fallback for bungkus when ResepFarmasi query failed
+                if (empty($bungkus)) {
+                    try {
+                        $bungkus = optional($item->billable)->bungkus ?? 0;
+                    } catch (\Exception $e) {
+                        // ignore
+                    }
                 }
             }
 
@@ -611,28 +899,59 @@ class BillingController extends Controller
             $racikanItem->racikan_bungkus = $bungkus;
             $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
 
-            // Build per-component metadata including stored stok_dikurangi (ResepFarmasi.jumlah)
-            $components = [];
-            foreach ($racikanItems as $it) {
-                try {
-                    $billable = $it->billable ?? null;
-                    $obatModel = $billable && isset($billable->obat) ? $billable->obat : null;
-                    $components[] = [
-                        'obat_id' => $obatModel ? ($obatModel->id ?? null) : null,
-                        'nama' => $obatModel ? ($obatModel->nama ?? '') : ($it->billable_name ?? ''),
-                        // stok_dikurangi persisted into ResepFarmasi.jumlah for racikan components (allow decimals)
-                        'stok_dikurangi' => $billable ? floatval($billable->jumlah ?? 0) : 0,
-                        // include dosis to support PaketRacikan matching (string compare)
-                        'dosis' => isset($billable->dosis) ? trim((string)$billable->dosis) : null,
-                    ];
-                } catch (\Exception $e) {
-                    $components[] = ['obat_id' => null, 'nama' => '', 'stok_dikurangi' => 0, 'dosis' => null];
+            // Prefer using the ResepFarmasi model's built-in paket resolution.
+            // If all components point to the same paket name, use it for the grouped racikan row.
+            try {
+                $paketNames = [];
+                foreach ($racikanItems as $it) {
+                    $resep = $it->billable ?? null;
+                    if (!$resep) continue;
+                    $pn = null;
+                    try {
+                        $pn = $resep->paket_racikan_name ?? null;
+                    } catch (\Exception $e) {
+                        $pn = null;
+                    }
+                    if ($pn) {
+                        $paketNames[] = trim((string)$pn);
+                    }
+                }
+                $paketNames = array_values(array_unique(array_filter($paketNames)));
+                if (count($paketNames) === 1) {
+                    $racikanItem->paket_racikan_name = $paketNames[0];
+                }
+            } catch (\Exception $e) {
+                // ignore
+            }
+
+            // If the ResepFarmasi query failed (should be rare), fall back to building components from billing rows
+            if (empty($components)) {
+                foreach ($racikanItems as $it) {
+                    try {
+                        $billable = $it->billable ?? null;
+                        $obatModel = $billable ? $billable->obat : null;
+                        $obatId = $billable ? ($billable->obat_id ?? null) : null;
+                        $nama = $obatModel ? ($obatModel->nama ?? '') : (!empty($obatId) ? ('Obat #' . $obatId) : 'Obat Tidak Diketahui');
+                        $components[] = [
+                            'obat_id' => $obatId,
+                            'nama' => $nama,
+                            'stok_dikurangi' => $billable ? floatval($billable->jumlah ?? 0) : 0,
+                            'bungkus' => $billable ? (isset($billable->bungkus) ? floatval($billable->bungkus) : null) : null,
+                            'dosis' => isset($billable->dosis) ? trim((string)$billable->dosis) : null,
+                        ];
+                    } catch (\Exception $e) {
+                        $components[] = ['obat_id' => null, 'nama' => '', 'stok_dikurangi' => 0, 'bungkus' => null, 'dosis' => null];
+                    }
                 }
             }
             $racikanItem->racikan_components = $components;
 
             // Try to match components with an active PaketRacikan (obat_id + dosis match, order-insensitive)
+            // Only do this when we couldn't resolve paket name from ResepFarmasi model.
             try {
+                if (isset($racikanItem->paket_racikan_name) && $racikanItem->paket_racikan_name) {
+                    // already resolved
+                } else {
                 // Helper to normalize dosis: extract numeric part if present, else trimmed lower-case string
                 $normalizeDose = function($val) {
                     if ($val === null) return '';
@@ -672,6 +991,7 @@ class BillingController extends Controller
                         $racikanItem->paket_racikan_name = $paket->nama_paket;
                         break;
                     }
+                }
                 }
             } catch (\Exception $e) {
                 // non-fatal: leave paket name unset
@@ -717,15 +1037,342 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $processedBillings[] = $pharmacyServiceItem;
         }
 
+        // Pre-compute out-of-stock flags for fast initial UI rendering (obat/racikan/tindakan)
+        // This mirrors the frontend stock modal logic: sum ObatStokGudang across batches.
+        // NOTE: This is expensive; skip it in `light=1` (polling refresh), and cache briefly otherwise.
+        $outOfStockByBillingId = [];
+        if (!$isLight) {
+            try {
+                $maxUpdatedAt = 0;
+                try {
+                    $maxUpdatedAt = intval($billings->max(function($b) {
+                        try {
+                            return optional($b->updated_at)->timestamp ?? 0;
+                        } catch (\Exception $e) {
+                            return 0;
+                        }
+                    }) ?? 0);
+                } catch (\Exception $e) {
+                    $maxUpdatedAt = 0;
+                }
+
+                $billingsCount = method_exists($billings, 'count') ? intval($billings->count()) : 0;
+                $cacheKey = 'billing:create:oos:' . intval($visitation_id) . ':' . $billingsCount . ':' . $maxUpdatedAt;
+
+                $outOfStockByBillingId = Cache::remember($cacheKey, now()->addSeconds(10), function() use ($processedBillings) {
+                    $out = [];
+                    try {
+                        $requirementsByBillingId = []; // billing_id => [ ['obat_id'=>..,'gudang_id'=>..,'needed'=>..], ... ]
+                        $allObatIds = [];
+                        $allGudangIds = [];
+
+                        $resolveGudangId = function($mapping) {
+                            if (is_object($mapping)) return $mapping->gudang_id ?? null;
+                            return $mapping;
+                        };
+
+                        $fallbackGudang = Gudang::query()->select('id')->first();
+
+                        $defaultResepGudangId = $resolveGudangId(GudangMapping::resolveGudangForTransaction('resep'));
+                        if (!$defaultResepGudangId) {
+                            $defaultResepGudangId = $fallbackGudang ? $fallbackGudang->id : null;
+                        }
+
+                        $defaultKodeTindakanGudangId = $resolveGudangId(GudangMapping::resolveGudangForTransaction('kode_tindakan'));
+                        if (!$defaultKodeTindakanGudangId) {
+                            $defaultKodeTindakanGudangId = $fallbackGudang ? $fallbackGudang->id : null;
+                        }
+
+                        $tindakanBillingToRiwayat = []; // billing_id => riwayat_tindakan_id
+                        $riwayatIds = [];
+
+                        foreach ($processedBillings as $row) {
+                            if (!$row || !isset($row->id)) continue;
+                            $billingId = $row->id;
+
+                            // Skip non-stock rows
+                            if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) continue;
+
+                            // Racikan: check each component
+                            if (isset($row->is_racikan) && $row->is_racikan) {
+                                $components = $row->racikan_components ?? [];
+                                if (is_array($components) && $defaultResepGudangId) {
+                                    foreach ($components as $c) {
+                                        $obatId = $c['obat_id'] ?? null;
+                                        if (!$obatId) continue;
+                                        $needed = abs(floatval($c['stok_dikurangi'] ?? 0));
+                                        if ($needed <= 0) {
+                                            $bungkus = abs(floatval($row->racikan_bungkus ?? 0));
+                                            $needed = $bungkus > 0 ? $bungkus : 1;
+                                        }
+                                        $requirementsByBillingId[$billingId][] = [
+                                            'obat_id' => intval($obatId),
+                                            'gudang_id' => intval($defaultResepGudangId),
+                                            'needed' => floatval($needed),
+                                        ];
+                                        $allObatIds[] = intval($obatId);
+                                        $allGudangIds[] = intval($defaultResepGudangId);
+                                    }
+                                }
+                                continue;
+                            }
+
+                            // Tindakan: resolve from pivot table later
+                            if (isset($row->billable_type) && $row->billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
+                                $riwayatId = $row->billable_id ?? null;
+                                if ($riwayatId) {
+                                    $tindakanBillingToRiwayat[$billingId] = intval($riwayatId);
+                                    $riwayatIds[] = intval($riwayatId);
+                                }
+                                continue;
+                            }
+
+                            // Obat (single)
+                            $obatId = null;
+                            $needed = null;
+                            try {
+                                if (isset($row->billable_type) && $row->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
+                                    $obatId = optional(optional($row->billable)->obat)->id;
+                                    $needed = abs(floatval(optional($row->billable)->jumlah ?? ($row->qty ?? 1)));
+                                } elseif (isset($row->billable_type) && $row->billable_type === 'App\\Models\\ERM\\Obat') {
+                                    $obatId = $row->billable_id ?? null;
+                                    $needed = abs(floatval($row->qty ?? 1));
+                                } elseif (isset($row->obat_id) && $row->obat_id) {
+                                    $obatId = $row->obat_id;
+                                    $needed = abs(floatval($row->qty ?? 1));
+                                }
+                            } catch (\Exception $e) {
+                                $obatId = null;
+                                $needed = null;
+                            }
+
+                            if ($obatId && $defaultResepGudangId) {
+                                $needed = ($needed !== null && $needed > 0) ? $needed : 1;
+                                $requirementsByBillingId[$billingId][] = [
+                                    'obat_id' => intval($obatId),
+                                    'gudang_id' => intval($defaultResepGudangId),
+                                    'needed' => floatval($needed),
+                                ];
+                                $allObatIds[] = intval($obatId);
+                                $allGudangIds[] = intval($defaultResepGudangId);
+                            }
+                        }
+
+                        // Tindakan pivot requirements
+                        $riwayatIds = array_values(array_unique(array_filter($riwayatIds)));
+                        if (!empty($riwayatIds)) {
+                            // Prefetch spesialis_id per riwayat tindakan
+                            $spesialisByRiwayat = [];
+                            try {
+                                $riwayats = \App\Models\ERM\RiwayatTindakan::with(['tindakan:id,spesialis_id'])
+                                    ->whereIn('id', $riwayatIds)
+                                    ->get(['id', 'tindakan_id']);
+                                foreach ($riwayats as $rt) {
+                                    $spesialisByRiwayat[$rt->id] = optional($rt->tindakan)->spesialis_id;
+                                }
+                            } catch (\Exception $e) {
+                                // ignore
+                            }
+
+                            $gudangBySpesialis = [];
+                            $resolveKodeTindakanGudangForRiwayat = function($riwayatId) use (&$spesialisByRiwayat, &$gudangBySpesialis, $defaultKodeTindakanGudangId, $resolveGudangId) {
+                                $spesialisId = $spesialisByRiwayat[$riwayatId] ?? null;
+                                if (!$spesialisId) return $defaultKodeTindakanGudangId;
+                                if (isset($gudangBySpesialis[$spesialisId])) return $gudangBySpesialis[$spesialisId];
+                                $mapping = GudangMapping::resolveGudangForTransaction('kode_tindakan', 'spesialisasi', $spesialisId);
+                                $gid = $resolveGudangId($mapping) ?: $defaultKodeTindakanGudangId;
+                                $gudangBySpesialis[$spesialisId] = $gid;
+                                return $gid;
+                            };
+
+                            $pivotRows = DB::table('erm_riwayat_tindakan_obat')
+                                ->select([
+                                    'riwayat_tindakan_id',
+                                    'obat_id',
+                                    DB::raw('SUM(COALESCE(qty, 0)) as qty')
+                                ])
+                                ->whereIn('riwayat_tindakan_id', $riwayatIds)
+                                ->groupBy('riwayat_tindakan_id', 'obat_id')
+                                ->get();
+
+                            // Invert mapping: riwayat_id -> billing_id
+                            $billingByRiwayat = [];
+                            foreach ($tindakanBillingToRiwayat as $billingId => $riwayatId) {
+                                $billingByRiwayat[intval($riwayatId)] = intval($billingId);
+                            }
+
+                            foreach ($pivotRows as $p) {
+                                $riwayatId = intval($p->riwayat_tindakan_id ?? 0);
+                                $billingId = $billingByRiwayat[$riwayatId] ?? null;
+                                if (!$billingId) continue;
+                                $obatId = intval($p->obat_id ?? 0);
+                                if (!$obatId) continue;
+                                $needed = abs(floatval($p->qty ?? 0));
+                                if ($needed <= 0) continue;
+
+                                $gudangId = $resolveKodeTindakanGudangForRiwayat($riwayatId);
+                                if (!$gudangId) continue;
+
+                                $requirementsByBillingId[$billingId][] = [
+                                    'obat_id' => $obatId,
+                                    'gudang_id' => intval($gudangId),
+                                    'needed' => floatval($needed),
+                                ];
+                                $allObatIds[] = $obatId;
+                                $allGudangIds[] = intval($gudangId);
+                            }
+                        }
+
+                        $allObatIds = array_values(array_unique(array_filter($allObatIds)));
+                        $allGudangIds = array_values(array_unique(array_filter($allGudangIds)));
+
+                        $stockTotals = [];
+                        if (!empty($allObatIds) && !empty($allGudangIds)) {
+                            $rows = ObatStokGudang::query()
+                                ->select(['obat_id', 'gudang_id', DB::raw('SUM(stok) as total')])
+                                ->whereIn('obat_id', $allObatIds)
+                                ->whereIn('gudang_id', $allGudangIds)
+                                ->groupBy('obat_id', 'gudang_id')
+                                ->get();
+                            foreach ($rows as $r) {
+                                $key = intval($r->obat_id) . '|' . intval($r->gudang_id);
+                                $stockTotals[$key] = floatval($r->total ?? 0);
+                            }
+                        }
+
+                        foreach ($requirementsByBillingId as $billingId => $reqs) {
+                            $isLow = false;
+                            foreach ($reqs as $req) {
+                                $needed = floatval($req['needed'] ?? 0);
+                                if ($needed <= 0) continue;
+                                $key = intval($req['obat_id']) . '|' . intval($req['gudang_id']);
+                                $avail = floatval($stockTotals[$key] ?? 0);
+                                if ($avail < $needed) {
+                                    $isLow = true;
+                                    break;
+                                }
+                            }
+                            if ($isLow) {
+                                $out[intval($billingId)] = true;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to precompute out-of-stock flags (cached): ' . $e->getMessage());
+                        $out = [];
+                    }
+                    return $out;
+                });
+            } catch (\Exception $e) {
+                Log::warning('Failed to precompute out-of-stock flags: ' . $e->getMessage());
+                $outOfStockByBillingId = [];
+            }
+        }
+
+        // Reduce payload size: keep relations available for server-side calculations,
+        // but don't serialize them into the DataTables JSON.
         try {
-            return DataTables::of($processedBillings)
-                ->addIndexColumn()
+            foreach ($processedBillings as $row) {
+                if ($row instanceof \Illuminate\Database\Eloquent\Model) {
+                    $row->makeHidden(['billable']);
+                }
+            }
+        } catch (\Exception $e) {
+            // ignore
+        }
+
+        try {
+            $dt = DataTables::of($processedBillings)->addIndexColumn();
+            if (!$isLight) {
+                $dt->addColumn('is_out_of_stock', function ($row) use ($outOfStockByBillingId) {
+                    try {
+                        $id = isset($row->id) ? intval($row->id) : null;
+                        return ($id && !empty($outOfStockByBillingId[$id])) ? 1 : 0;
+                    } catch (\Exception $e) {
+                        return 0;
+                    }
+                });
+            }
+
+            // Expose a lightweight "invoice out-of-date" flag so the UI can switch to "Update Invoice"
+            // without requiring a full page refresh.
+            $invoiceNeedsUpdate = false;
+            try {
+                $latestInvoice = Invoice::where('visitation_id', $visitation_id)->latest()->first();
+                if ($latestInvoice) {
+                    $maxBillingUpdatedAt = null;
+                    try {
+                        $maxBillingUpdatedAt = $billings->max('updated_at');
+                    } catch (\Exception $e) {
+                        $maxBillingUpdatedAt = null;
+                    }
+                    if ($maxBillingUpdatedAt && $latestInvoice->updated_at) {
+                        $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingUpdatedAt)->gt($latestInvoice->updated_at);
+                    }
+                }
+            } catch (\Exception $e) {
+                $invoiceNeedsUpdate = false;
+            }
+            $dt->with('invoice_needs_update', $invoiceNeedsUpdate ? 1 : 0);
+
+            return $dt
+            ->addColumn('is_racikan', function ($row) {
+                try {
+                    return (!empty($row->is_racikan)) ? 1 : 0;
+                } catch (\Exception $e) {
+                    return 0;
+                }
+            })
+            ->addColumn('racikan_components', function ($row) {
+                try {
+                    if (!empty($row->is_racikan) && isset($row->racikan_components) && is_array($row->racikan_components)) {
+                        return $row->racikan_components;
+                    }
+                } catch (\Exception $e) {
+                    // ignore
+                }
+                return [];
+            })
+            ->addColumn('racikan_obat_ids', function ($row) {
+                try {
+                    if (!empty($row->is_racikan) && isset($row->racikan_obat_ids) && is_array($row->racikan_obat_ids)) {
+                        return $row->racikan_obat_ids;
+                    }
+                } catch (\Exception $e) {
+                    // ignore
+                }
+                return [];
+            })
+            ->addColumn('racikan_obat_list', function ($row) {
+                try {
+                    if (!empty($row->is_racikan) && isset($row->racikan_obat_list) && is_array($row->racikan_obat_list)) {
+                        return $row->racikan_obat_list;
+                    }
+                } catch (\Exception $e) {
+                    // ignore
+                }
+                return [];
+            })
+            ->addColumn('racikan_bungkus', function ($row) {
+                try {
+                    if (!empty($row->is_racikan) && isset($row->racikan_bungkus)) {
+                        return $row->racikan_bungkus;
+                    }
+                } catch (\Exception $e) {
+                    // ignore
+                }
+                return null;
+            })
             ->addColumn('obat_id', function ($row) {
                 try {
                     // If this billing row is a ResepFarmasi, expose obat id for frontend
                     if ($row->billable_type == 'App\\Models\\ERM\\ResepFarmasi') {
                         $resep = $row->billable;
-                        if ($resep && isset($resep->obat)) return $resep->obat->id;
+                        if ($resep) {
+                            // Prefer the FK field (works even if relation is missing)
+                            if (!empty($resep->obat_id)) return $resep->obat_id;
+                            // Fallback to relation when available
+                            if (isset($resep->obat) && !empty($resep->obat->id)) return $resep->obat->id;
+                        }
                     }
 
                     // If billing row itself references an Obat directly
@@ -748,7 +1395,24 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     } else if (isset($row->is_pharmacy_fee) && $row->is_pharmacy_fee) {
                         return 'Jasa Farmasi';
                     } else if ($row->billable_type == 'App\Models\ERM\ResepFarmasi') {
-                        return optional(optional($row->billable)->obat)->nama ?? 'N/A';
+                        $namaObat = null;
+                        try {
+                            $namaObat = optional(optional($row->billable)->obat)->nama;
+                        } catch (\Exception $e) {
+                            $namaObat = null;
+                        }
+
+                        if (!empty($namaObat)) {
+                            return $namaObat;
+                        }
+
+                        // Fallbacks when relation is missing (e.g. resep deleted):
+                        if (!empty($row->nama_item)) return $row->nama_item;
+                        if (!empty($row->keterangan)) {
+                            // strip common prefix
+                            return preg_replace('/^Obat:\s*/i', '', (string)$row->keterangan);
+                        }
+                        return '-';
                     } else if ($row->billable_type == 'App\Models\ERM\LabPermintaan') {
                         $labName = optional(optional($row->billable)->labTest)->nama;
                         return 'Lab: ' . ($labName ?? preg_replace('/^Lab: /', '', $row->keterangan ?? 'Test'));
@@ -966,9 +1630,22 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         }
     }
 
-    $visitation = Visitation::with('pasien')->findOrFail($visitation_id);
+    $visitation = Visitation::with(['pasien', 'metodeBayar'])->findOrFail($visitation_id);
     // Fetch latest invoice for this visitation (if exists)
-    $invoice = \App\Models\Finance\Invoice::where('visitation_id', $visitation_id)->latest()->first();
+    $invoice = \App\Models\Finance\Invoice::with('piutangs')->where('visitation_id', $visitation_id)->latest()->first();
+
+    // Detect if invoice is out-of-date versus billing (used by UI to prompt "Update Invoice" before payment).
+    $invoiceNeedsUpdate = false;
+    try {
+        if ($invoice) {
+            $maxBillingUpdatedAt = Billing::where('visitation_id', $visitation_id)->max('updated_at');
+            if ($maxBillingUpdatedAt && $invoice->updated_at) {
+                $invoiceNeedsUpdate = \Carbon\Carbon::parse($maxBillingUpdatedAt)->gt($invoice->updated_at);
+            }
+        }
+    } catch (\Exception $e) {
+        $invoiceNeedsUpdate = false;
+    }
     
     // Get all available gudangs for dropdown
     $gudangs = Gudang::orderBy('nama')->get();
@@ -980,15 +1657,28 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         'kode_tindakan' => GudangMapping::getDefaultGudangId('kode_tindakan'),
     ];
     
-    return view('finance.billing.create', compact('visitation', 'invoice', 'gudangs', 'gudangMappings'));
+    return view('finance.billing.create', compact('visitation', 'invoice', 'gudangs', 'gudangMappings', 'invoiceNeedsUpdate'));
 }
 
     public function createInvoice(Request $request)
     {
+        // Buat Invoice: strictly creates/updates an UNPAID invoice.
+        return $this->upsertInvoiceInternal($request, 'unpaid');
+    }
+
+    public function receivePayment(Request $request)
+    {
+        // Terima Pembayaran: updates an existing invoice's payment and triggers stock reduction (when fully paid).
+        return $this->upsertInvoiceInternal($request, 'payment');
+    }
+
+    private function upsertInvoiceInternal(Request $request, string $mode)
+    {
         $request->validate([
             'visitation_id' => 'required|exists:erm_visitations,id',
             'totals' => 'required',
-            'gudang_selections' => 'nullable|array', // Array of item_key => gudang_id
+            'gudang_selections' => 'nullable|array',
+            'invoice_id' => 'nullable|integer',
         ]);
 
         // Accept totals as either an array (normal) or a JSON string (sent from frontend).
@@ -1005,7 +1695,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         DB::beginTransaction();
 
         try {
-            // Check if visitation exists
             $visitation = Visitation::find($request->visitation_id);
             if (!$visitation) {
                 return response()->json([
@@ -1014,52 +1703,79 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ], 404);
             }
 
-            // Get existing invoice if it exists
-            $existingInvoice = Invoice::where('visitation_id', $request->visitation_id)->first();
+            // Find existing invoice (prefer explicit invoice_id, then latest-by-visitation).
+            $existingInvoice = null;
+            if ($request->filled('invoice_id')) {
+                $existingInvoice = Invoice::where('id', $request->input('invoice_id'))
+                    ->where('visitation_id', $request->visitation_id)
+                    ->first();
+            }
+            if (!$existingInvoice) {
+                $existingInvoice = Invoice::where('visitation_id', $request->visitation_id)->latest()->first();
+            }
 
-            // Fetch all billing items for this visitation
+            // Strict separation:
+            // - unpaid mode is allowed when there is no invoice yet OR when updating an existing invoice
+            //   that has not been processed for payment (payment_method still null/empty and no stock ledger).
+            // - payment mode requires an existing invoice
+            if ($mode === 'unpaid' && $existingInvoice) {
+                $hasPaymentProcessed = !empty($existingInvoice->payment_method) || floatval($existingInvoice->amount_paid ?? 0) > 0;
+                $hasStockLedger = false;
+                try {
+                    $hasStockLedger = (bool) KartuStok::where('ref_type', 'invoice_penjualan')
+                        ->where('ref_id', $existingInvoice->id)
+                        ->exists();
+                } catch (\Exception $e) {
+                    $hasStockLedger = false;
+                }
+
+                if ($hasPaymentProcessed || $hasStockLedger) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invoice sudah diproses pembayaran. Gunakan Terima Pembayaran untuk melanjutkan.'
+                    ], 400);
+                }
+                // else: allow updating the existing unpaid invoice to match current billing
+            }
+
+            if ($mode === 'payment' && !$existingInvoice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invoice belum dibuat. Silakan klik Buat Invoice terlebih dahulu.'
+                ], 400);
+            }
+
             $billingItems = Billing::where('visitation_id', $request->visitation_id)->get();
 
-            // Quick debug log to help determine why stock reduction may be skipped
             try {
-                Log::info('createInvoice debug payload', [
+                Log::info('upsertInvoiceInternal debug payload', [
+                    'mode' => $mode,
                     'visitation_id' => $request->visitation_id,
                     'existing_invoice_id' => $existingInvoice ? $existingInvoice->id : null,
                     'existing_invoice_amount_paid' => $existingInvoice ? floatval($existingInvoice->amount_paid ?? 0) : null,
                     'billing_item_count' => $billingItems->count(),
                     'totals_present' => $request->has('totals'),
                     'gudang_selections_present' => $request->has('gudang_selections'),
-                    'gudang_selections_sample' => is_array($request->input('gudang_selections', [])) ? array_slice($request->input('gudang_selections', []), 0, 5) : $request->input('gudang_selections', []),
                     'totals_payload' => $request->input('totals') ?? null,
                 ]);
             } catch (\Exception $e) {
-                // do not fail flow if logging fails
-                Log::warning('Failed to write createInvoice debug log: ' . $e->getMessage());
+                Log::warning('Failed to write upsertInvoiceInternal debug log: ' . $e->getMessage());
             }
 
-            // Check stock availability for medication items BEFORE creating invoice
-            // If frontend provided per-item gudang selections, prefer validating against
-            // that specific gudang; otherwise fallback to total stock across all gudangs.
+            // --- Stock validation (shared) ---
             $stockErrors = [];
             $kodeTindakanObats = [];
             $labRequiredObats = [];
             $gudangSelections = $request->input('gudang_selections', []);
-            
+
             foreach ($billingItems as $item) {
-                // Check ResepFarmasi items
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                     $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                     if ($resep && $resep->obat) {
                         $qty = floatval($item->qty ?? 1);
-                        
-                        // Skip racikan items for individual stock validation (will be handled in bulk)
                         if ($resep->racikan_ke > 0) {
                             continue;
                         }
-                        
-                        // If a specific gudang was selected for this billing row, validate against that gudang only.
-                        // Frontend sends keys keyed by billing row id (the DataTable row id). As a secondary
-                        // option we also support the legacy key format "resep_{obatId}".
                         $billingKey = $item->id;
                         $selectedGudangId = null;
                         if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
@@ -1073,28 +1789,23 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 ->where('gudang_id', $selectedGudangId)
                                 ->sum('stok');
                         } else {
-                            // Fallback to total stock across all gudangs (existing behavior)
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $resep->obat->id)
                                 ->sum('stok');
                         }
-                        
+
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$resep->obat->nama} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
                         }
                     }
-                }
-                // Check bundled Obat items
-                else if (
-                    isset($item->billable_type) && 
+                } else if (
+                    isset($item->billable_type) &&
                     $item->billable_type === 'App\\Models\\ERM\\Obat' &&
-                    isset($item->keterangan) && 
+                    isset($item->keterangan) &&
                     str_contains($item->keterangan, 'Obat Bundled:')
                 ) {
                     $obat = \App\Models\ERM\Obat::find($item->billable_id);
                     if ($obat) {
                         $qty = floatval($item->qty ?? 1);
-                        
-                        // Respect selected gudang for bundled Obat if provided (key: tindakan_{obatId})
                         $billingKey = $item->id;
                         $selectedGudangId = null;
                         if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
@@ -1111,91 +1822,75 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                 ->sum('stok');
                         }
-                            
+
                         if ($qty > $currentStock) {
                             $stockErrors[] = "Stok {$obat->nama} (bundled) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
                         }
                     }
                 }
             }
-            
-            // Check stock for kode tindakan medications
+
             foreach ($billingItems as $item) {
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\RiwayatTindakan') {
                     $riwayatTindakan = \App\Models\ERM\RiwayatTindakan::find($item->billable_id);
                     if ($riwayatTindakan) {
-                        // Get medications from kode tindakan for this riwayat tindakan
                         $kodeTindakanMeds = DB::table('erm_riwayat_tindakan_obat')
                             ->where('riwayat_tindakan_id', $riwayatTindakan->id)
                             ->get();
-                            
-                        Log::info('Processing kode tindakan medications', [
-                            'riwayat_tindakan_id' => $riwayatTindakan->id,
-                            'medication_count' => $kodeTindakanMeds->count(),
-                            'visitation_id' => $request->visitation_id
-                        ]);
-                            
+
                         foreach ($kodeTindakanMeds as $kodeTindakanMed) {
                             $obat = \App\Models\ERM\Obat::find($kodeTindakanMed->obat_id);
-                                if ($obat) {
+                            if ($obat) {
                                 $qty = floatval($kodeTindakanMed->qty ?? 1);
-                                // For kode tindakan medications, prefer selected gudang key: kode_tindakan_{obatId}
-                                $billingKey = $item->id;
-                                $selectedGudangId = null;
-                                if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
-                                    $selectedGudangId = $gudangSelections[$billingKey];
-                                } elseif (isset($gudangSelections['kode_tindakan_' . $obat->id]) && $gudangSelections['kode_tindakan_' . $obat->id]) {
-                                    $selectedGudangId = $gudangSelections['kode_tindakan_' . $obat->id];
-                                }
-
-                                if ($selectedGudangId) {
+                                $resolvedGudangId = $this->getGudangForItem($request, $obat->id, 'kode_tindakan', $item->id);
+                                if ($resolvedGudangId) {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
-                                        ->where('gudang_id', $selectedGudangId)
+                                        ->where('gudang_id', $resolvedGudangId)
                                         ->sum('stok');
                                 } else {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                         ->sum('stok');
                                 }
-                                    
+
                                 if ($qty > $currentStock) {
-                                    $stockErrors[] = "Stok {$obat->nama} (kode tindakan) tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
+                                    $gudangName = null;
+                                    if (!empty($resolvedGudangId)) {
+                                        $gudangName = optional(\App\Models\ERM\Gudang::find($resolvedGudangId))->nama;
+                                    }
+                                    $suffix = $gudangName ? " di gudang {$gudangName}" : "";
+                                    $stockErrors[] = "Stok {$obat->nama} (kode tindakan){$suffix} tidak mencukupi. Dibutuhkan: {$qty}, Tersedia: {$currentStock}";
                                 }
-                                
-                                // Store for later stock reduction
+
                                 $kodeTindakanObats[] = [
                                     'obat_id' => $obat->id,
                                     'qty' => $qty,
                                     'riwayat_tindakan_id' => $riwayatTindakan->id,
                                     'kode_tindakan_id' => $kodeTindakanMed->kode_tindakan_id,
-                                    'billing_id' => $item->id // preserve billing id so we can map gudang selection later
+                                    'billing_id' => $item->id
                                 ];
                             }
                         }
                     }
                 }
             }
-            // Check stock for Lab Test medications (from LabPermintaan -> LabTest -> obats with dosis)
+
             foreach ($billingItems as $item) {
                 if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\LabPermintaan') {
                     $labPermintaan = \App\Models\ERM\LabPermintaan::with('labTest.obats')->find($item->billable_id);
                     if ($labPermintaan && $labPermintaan->labTest) {
-                        // Normalize qty for lab test: guard against values like "1,00" being saved as 100
                         $qtyTestRaw = $item->qty ?? 1;
                         if (is_string($qtyTestRaw)) {
-                            // Convert Indonesian/legacy formats: "1,00" -> 1.00, "1.000,25" -> 1000.25
                             $normalized = str_replace('.', '', $qtyTestRaw);
                             $normalized = str_replace(',', '.', $normalized);
                             $qtyTest = floatval($normalized);
                         } else {
                             $qtyTest = floatval($qtyTestRaw);
                         }
-                        // If qty looks accidentally scaled by 100 (e.g., 100 from "1,00"), normalize back
                         if ($qtyTest >= 100 && $qtyTest <= 1000) {
                             $qtyTest = $qtyTest / 100.0;
                         }
 
                         foreach ($labPermintaan->labTest->obats as $obat) {
-                            // Robust parse for pivot dosis which may be stored with comma decimals
                             $dosisRaw = $obat->pivot->dosis ?? 0;
                             if (is_string($dosisRaw)) {
                                 $dosis = floatval(str_replace(',', '.', $dosisRaw));
@@ -1205,7 +1900,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             $required = $dosis * $qtyTest;
                             if ($required <= 0) { continue; }
 
-                            // Prefer selected gudang for this billing row or typed key lab_{obatId}
                             $billingKey = $item->id;
                             $selectedGudangId = null;
                             if ($billingKey && isset($gudangSelections[$billingKey]) && $gudangSelections[$billingKey]) {
@@ -1219,14 +1913,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     ->where('gudang_id', $selectedGudangId)
                                     ->sum('stok');
                             } else {
-                                // Align validation with reduction: resolve gudang via mapping (same as getGudangForItem)
                                 $mappedGudangId = $this->getGudangForItem($request, $obat->id, 'lab', $item->id);
                                 if ($mappedGudangId) {
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                         ->where('gudang_id', $mappedGudangId)
                                         ->sum('stok');
                                 } else {
-                                    // Fallback: total across all gudangs if no mapping found
                                     $currentStock = \App\Models\ERM\ObatStokGudang::where('obat_id', $obat->id)
                                         ->sum('stok');
                                 }
@@ -1237,7 +1929,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 $stockErrors[] = "Stok {$obat->nama} untuk lab ({$testName}) tidak mencukupi. Dibutuhkan: {$required}, Tersedia: {$currentStock}";
                             }
 
-                            // record for later reduction
                             $labRequiredObats[] = [
                                 'billing_id' => $item->id,
                                 'obat_id' => $obat->id,
@@ -1248,6 +1939,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     }
                 }
             }
+
             if (!empty($stockErrors)) {
                 return response()->json([
                     'success' => false,
@@ -1255,24 +1947,67 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ], 400);
             }
 
-            // No invoice-level current_hpp: HPP is stored per invoice item (hpp/hpp_jual)
-
-            // Get totals from request
+            // --- Totals + invoice upsert ---
             $totals = $request->totals ?? [];
             $subtotal = floatval($totals['subtotal'] ?? 0);
             $discountAmount = floatval($totals['discountAmount'] ?? 0);
             $taxAmount = floatval($totals['taxAmount'] ?? 0);
-            // Prefer integer-rounded totals if provided by frontend to avoid rounding mismatch
             $grandTotal = isset($totals['grandTotalInt']) ? intval($totals['grandTotalInt']) : floatval($totals['grandTotal'] ?? $subtotal);
             $amountPaid = isset($totals['amountPaidInt']) ? intval($totals['amountPaidInt']) : floatval($totals['amountPaid'] ?? 0);
-            // Calculate change and shortage from provided amounts (server-side authoritative)
-            $paymentMethod = $totals['paymentMethod'] ?? 'cash';
+            $paymentMethod = $totals['paymentMethod'] ?? null;
 
-            // Ensure numeric
             $amountPaidNumeric = floatval($amountPaid ?? 0);
             $grandTotalNumeric = floatval($grandTotal ?? 0);
 
-            // If paid more than total => change (kembalian), else if paid less => shortage (kekurangan)
+            // Force unpaid for the Buat Invoice endpoint.
+            if ($mode === 'unpaid') {
+                $amountPaidNumeric = 0.0;
+                $amountPaid = 0;
+                $paymentMethod = null;
+            }
+
+            // Determine invoice status based on integer-ceil comparison (aligns with UI totals)
+            // - issued: unpaid (amount_paid == 0)
+            // - partial: amount_paid > 0 but not fully paid (shortage -> piutang)
+            // - paid: fully covered
+            $amountPaidIntForStatus = intval(ceil($amountPaidNumeric));
+            $grandTotalIntForStatus = intval(ceil($grandTotalNumeric));
+            $invoiceStatus = 'issued';
+            if ($mode === 'payment') {
+                if ($grandTotalIntForStatus > 0 && $amountPaidIntForStatus >= $grandTotalIntForStatus) {
+                    $invoiceStatus = 'paid';
+                } elseif ($amountPaidIntForStatus > 0 && $amountPaidIntForStatus < $grandTotalIntForStatus) {
+                    $invoiceStatus = 'partial';
+                } else {
+                    $invoiceStatus = 'issued';
+                }
+            }
+
+            // Unpaid invoice creation always stays issued.
+            if ($mode === 'unpaid') {
+                $invoiceStatus = 'issued';
+            }
+
+            // Payment rule:
+            // - if payment_method is not provided, default based on amount_paid
+            //   (paid==0 => piutang, paid>0 => cash)
+            // - if payment_method is provided (transfer/debit/qris/asuransi/etc), respect it
+            //   and do NOT overwrite to cash just because paid>0
+            if ($mode === 'payment') {
+                if (is_string($paymentMethod)) {
+                    $paymentMethod = trim($paymentMethod);
+                }
+
+                if (empty($paymentMethod)) {
+                    $paymentMethod = ($amountPaidNumeric > 0) ? 'cash' : 'piutang';
+                } else {
+                    // If client says cash but paid==0, treat it as piutang.
+                    if ($amountPaidNumeric <= 0 && $paymentMethod === 'cash') {
+                        $paymentMethod = 'piutang';
+                    }
+                }
+            }
+
             $changeAmount = 0.0;
             $shortageAmount = 0.0;
             if ($amountPaidNumeric >= $grandTotalNumeric) {
@@ -1281,26 +2016,54 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 $shortageAmount = max(0, $grandTotalNumeric - $amountPaidNumeric);
             }
 
-            // Use updateOrCreate untuk invoice
-            $invoice = Invoice::updateOrCreate(
-                ['visitation_id' => $request->visitation_id],
-                [
-                    'invoice_number' => $existingInvoice ? $existingInvoice->invoice_number : Invoice::generateInvoiceNumber(),
-                    'subtotal' => $subtotal,
-                    'discount' => $discountAmount,
-                    'tax' => $taxAmount,
-                    'discount_type' => $totals['discountType'] ?? null,
-                    'discount_value' => $totals['discountValue'] ?? 0,
-                    'tax_percentage' => $totals['taxPercentage'] ?? 0,
-                    'total_amount' => $grandTotal,
-                    'amount_paid' => $amountPaid,
-                    'change_amount' => $changeAmount,
-                    'shortage_amount' => $shortageAmount,
-                    'payment_method' => $paymentMethod,
-                    'status' => 'issued',
-                    'user_id' => Auth::id(),
-                    'notes' => $request->notes ?? null,
-                ]);
+            // Unpaid invoice creation keeps payment_method NULL.
+            if ($mode === 'unpaid') {
+                $paymentMethod = null;
+            }
+
+            // payment_date is only meaningful on payment flow.
+            $paymentDate = $existingInvoice ? $existingInvoice->payment_date : null;
+            if ($mode === 'payment') {
+                $amountPaidIntForDate = intval(ceil($amountPaidNumeric));
+                $totalAmountIntForDate = intval(ceil($grandTotalNumeric));
+                if ($amountPaidIntForDate > 0 && $amountPaidIntForDate >= $totalAmountIntForDate) {
+                    if (!$paymentDate) {
+                        $paymentDate = now();
+                    }
+                }
+            } else {
+                $paymentDate = null;
+            }
+
+            $invoiceData = [
+                'invoice_number' => $existingInvoice ? $existingInvoice->invoice_number : Invoice::generateInvoiceNumber(),
+                'subtotal' => $subtotal,
+                'discount' => $discountAmount,
+                'tax' => $taxAmount,
+                'discount_type' => $totals['discountType'] ?? null,
+                'discount_value' => $totals['discountValue'] ?? 0,
+                'tax_percentage' => $totals['taxPercentage'] ?? 0,
+                'total_amount' => $grandTotal,
+                'amount_paid' => $amountPaid,
+                'change_amount' => $changeAmount,
+                'shortage_amount' => $shortageAmount,
+                'payment_method' => $paymentMethod,
+                'payment_date' => $paymentDate,
+                'status' => $invoiceStatus,
+                'user_id' => Auth::id(),
+                'notes' => $request->notes ?? null,
+            ];
+
+            if ($existingInvoice) {
+                $invoice = $existingInvoice;
+                $invoice->fill($invoiceData);
+                $invoice->save();
+            } else {
+                $invoice = new Invoice();
+                $invoice->visitation_id = $request->visitation_id;
+                $invoice->fill($invoiceData);
+                $invoice->save();
+            }
 
             // Get old items for comparison if invoice exists
             $oldInvoiceItems = [];
@@ -1319,9 +2082,12 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $racikanGroups = [];
             $regularItems = [];
             $pharmacyFeeItems = [];
-            $processedRacikanObats = [];
             // Track whether any stock reductions actually happened (useful for response)
             $stockReduced = false;
+            // For reliability: track attempted vs successful stock operations.
+            $stockOpsAttempted = 0;
+            $stockOpsSucceeded = 0;
+            $stockOpsErrors = [];
 
             foreach ($billingItems as $item) {
                 // Identify pharmacy fee items
@@ -1336,74 +2102,45 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 // Identify racikan items
                 if (
                     $item->billable_type == 'App\Models\ERM\ResepFarmasi' && 
-                    isset($item->billable->racikan_ke) && 
-                    $item->billable->racikan_ke > 0
+                    optional($item->billable)->racikan_ke !== null &&
+                    optional($item->billable)->racikan_ke > 0
                 ) {
-                    $racikanKey = $item->billable->racikan_ke;
+                    $racikanKey = optional($item->billable)->racikan_ke;
                     if (!isset($racikanGroups[$racikanKey])) {
                         $racikanGroups[$racikanKey] = [];
                     }
                     
                     // Add to group and mark as processed
                     $racikanGroups[$racikanKey][] = $item;
-                    if ($item->billable && $item->billable->obat) {
-                        $processedRacikanObats[] = $item->billable->obat->id;
-                    }
                 } else {
                     $regularItems[] = $item;
                 }
             }
 
-            // Process stock changes only when invoice becomes fully paid (amount_paid >= total_amount)
-            // To avoid issues where frontend strips decimals (e.g. 256491.25 displayed/rounded),
-            // compare amounts in integer rupiah (round to nearest 1) so small fractional differences
-            // don't prevent stock reduction. Store raw floats too for logging.
+            // Stock cutting rule (robust):
+            // Reduce stock whenever "Terima Pembayaran" is processed, but ONLY ONCE per invoice.
+            // We detect prior reductions via KartuStok entries created with ref_type=invoice_penjualan.
             $amountPaidRaw = floatval($amountPaid ?? 0);
-            $totalAmountRaw = floatval($grandTotal ?? 0);
-
-            // Round up to whole rupiah (int) for comparison so we never undercount
-            $previousAmountPaidInt = intval(ceil($previousAmountPaid));
-            $amountPaidInt = intval(ceil($amountPaidRaw));
-            $totalAmountInt = intval(ceil($totalAmountRaw));
-
-            // Determine if payment increased compared to previous using integer rupiah
-            $paymentIncreased = $existingInvoice ? ($amountPaidInt > $previousAmountPaidInt) : ($amountPaidInt > 0);
-
-            // Only trigger reduction when the invoice was not fully paid before, payment increased,
-            // and now amount_paid (rounded) is >= total_amount (rounded)
-            $shouldReduceStock = ($previousAmountPaidInt < $totalAmountInt) && $paymentIncreased && ($amountPaidInt >= $totalAmountInt);
-
-            // Add detailed logging with both raw and rounded values for debugging
-            Log::info('Payment comparison (raw vs int)', [
-                'previous_raw' => $previousAmountPaid,
-                'amount_paid_raw' => $amountPaidRaw,
-                'total_amount_raw' => $totalAmountRaw,
-                'previous_int' => $previousAmountPaidInt,
-                'amount_paid_int' => $amountPaidInt,
-                'total_amount_int' => $totalAmountInt,
-                'payment_increased' => $paymentIncreased,
-                'should_reduce_stock' => $shouldReduceStock
-            ]);
-
-            if ($shouldReduceStock) {
-                Log::info('Processing stock reduction - invoice reached full payment', [
-                    'invoice_id' => $invoice->id,
-                    'amount_paid_raw' => $amountPaidRaw,
-                    'previous_amount_paid' => $previousAmountPaid,
-                    'total_amount_raw' => $totalAmountRaw,
-                    'is_new_invoice' => !$existingInvoice,
-                    'visitation_id' => $request->visitation_id
-                ]);
-            } else {
-                Log::info('Skipping stock reduction - invoice not fully paid or no new payment', [
-                    'invoice_id' => $invoice->id,
-                    'amount_paid_raw' => $amountPaidRaw,
-                    'previous_amount_paid' => $previousAmountPaid,
-                    'total_amount_raw' => $totalAmountRaw,
-                    'is_new_invoice' => !$existingInvoice,
-                    'visitation_id' => $request->visitation_id
-                ]);
+            $alreadyReduced = false;
+            try {
+                $alreadyReduced = (bool)($existingInvoice && KartuStok::where('ref_type', 'invoice_penjualan')
+                    ->where('ref_id', $existingInvoice->id)
+                    ->exists());
+            } catch (\Exception $e) {
+                $alreadyReduced = false;
             }
+            $shouldReduceStock = ($mode === 'payment') && !$alreadyReduced;
+            // For compatibility with existing qty-diff logic (racikan + oldQty handling)
+            $paymentIncreased = ($mode === 'payment') && !$alreadyReduced;
+
+            Log::info('Stock reduction decision', [
+                'mode' => $mode,
+                'invoice_id' => $invoice->id,
+                'already_reduced' => $alreadyReduced,
+                'should_reduce_stock' => $shouldReduceStock,
+                'amount_paid_raw' => $amountPaidRaw,
+                'payment_method' => $paymentMethod,
+            ]);
             
             foreach ($billingItems as $item) {
                 $itemKey = $item->billable_type . '-' . $item->billable_id;
@@ -1414,9 +2151,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $oldItem = $oldInvoiceItems[$itemKey] ?? null;
                     $oldQty = $oldItem ? floatval($oldItem->quantity) : 0;
 
-                    // If this invoice was previously unpaid (no stock reductions performed)
-                    // and payment has just increased, treat old quantity as 0 so we reduce full qty
-                    if ($previousAmountPaid == 0 && $paymentIncreased) {
+                    // If we are finalizing for the first time, treat old quantity as 0 so we reduce full qty
+                    if (!empty($shouldReduceStock)) {
                         $oldQty = 0;
                     }
 
@@ -1437,16 +2173,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     if (isset($item->billable_type) && $item->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
                         $resep = \App\Models\ERM\ResepFarmasi::find($item->billable_id);
                         if ($resep && $resep->obat) {
-                            // Skip if this obat was already processed as part of a racikan
-                            if (in_array($resep->obat->id, $processedRacikanObats)) {
-                                Log::info('Skipping already processed racikan item', [
-                                    'obat_id' => $resep->obat->id,
-                                    'racikan_ke' => $resep->racikan_ke,
-                                    'invoice_id' => $invoice->id
-                                ]);
-                                continue;
-                            }
-                            
                             // Skip stock reduction for individual racikan items
                             if ($resep->racikan_ke > 0) {
                                 continue;
@@ -1469,15 +2195,27 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $item->id);
                                     
                                     // Reduce stock from selected gudang
+                                    $stockOpsAttempted++;
                                     $reduced = $this->reduceGudangStock($obat->id, $qtyDiff, $gudangId, $invoice->id, $invoice->invoice_number);
-                                    if ($reduced) $stockReduced = true;
+                                    if ($reduced) {
+                                        $stockOpsSucceeded++;
+                                        $stockReduced = true;
+                                    } else {
+                                        $stockOpsErrors[] = "Gagal mengurangi stok {$obat->nama} (qty: {$qtyDiff})";
+                                    }
                                 } else if ($qtyDiff < 0) {
                                     // Get gudang selection for stock return
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $item->id);
                                     
                                     // Return stock to selected gudang
+                                    $stockOpsAttempted++;
                                     $returned = $this->returnToGudangStock($obat->id, abs($qtyDiff), $gudangId, $invoice->id, $invoice->invoice_number);
-                                    if ($returned) $stockReduced = true; // treat returned as stock-adjusted
+                                    if ($returned) {
+                                        $stockOpsSucceeded++;
+                                        $stockReduced = true; // treat returned as stock-adjusted
+                                    } else {
+                                        $stockOpsErrors[] = "Gagal mengembalikan stok {$obat->nama} (qty: " . abs($qtyDiff) . ")";
+                                    }
                                 }
                             Log::info('Stock processed via invoice (ResepFarmasi)', [
                                 'obat_id' => $obat->id,
@@ -1502,9 +2240,15 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             
                             // Get gudang selection for bundled obat
                             $gudangId = $this->getGudangForItem($request, $obat->id, 'tindakan', $item->id);
-                            
+
+                            $stockOpsAttempted++;
                             $reduced = $this->reduceGudangStock($obat->id, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
-                            if ($reduced) $stockReduced = true;
+                            if ($reduced) {
+                                $stockOpsSucceeded++;
+                                $stockReduced = true;
+                            } else {
+                                $stockOpsErrors[] = "Gagal mengurangi stok {$obat->nama} (bundled) (qty: {$qty})";
+                            }
                             Log::info('Stock processed via invoice (Bundled Obat)', [
                                 'obat_id' => $obat->id,
                                 'obat_nama' => $obat->nama,
@@ -1529,8 +2273,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     // Get gudang selection for kode tindakan obat
                     $gudangId = $this->getGudangForItem($request, $obatId, 'kode_tindakan', $kodeTindakanObat['billing_id'] ?? null);
                     
+                    $stockOpsAttempted++;
                     $reduced = $this->reduceGudangStock($obatId, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
-                    if ($reduced) $stockReduced = true;
+                    if ($reduced) {
+                        $stockOpsSucceeded++;
+                        $stockReduced = true;
+                    } else {
+                        $obatName = optional(\App\Models\ERM\Obat::find($obatId))->nama;
+                        $obatName = $obatName ?: 'Unknown';
+                        $stockOpsErrors[] = "Gagal mengurangi stok {$obatName} (kode tindakan) (qty: {$qty})";
+                    }
                     
                     $obat = \App\Models\ERM\Obat::find($obatId);
                     Log::info('Stock processed via invoice (Kode Tindakan Obat)', [
@@ -1550,8 +2302,16 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $obatId = $labMed['obat_id'];
                     $qty = $labMed['qty'];
                     $gudangId = $this->getGudangForItem($request, $obatId, 'lab', $labMed['billing_id'] ?? null);
+                    $stockOpsAttempted++;
                     $reduced = $this->reduceGudangStock($obatId, $qty, $gudangId, $invoice->id, $invoice->invoice_number);
-                    if ($reduced) { $stockReduced = true; }
+                    if ($reduced) {
+                        $stockOpsSucceeded++;
+                        $stockReduced = true;
+                    } else {
+                        $obatName = optional(\App\Models\ERM\Obat::find($obatId))->nama;
+                        $obatName = $obatName ?: 'Unknown';
+                        $stockOpsErrors[] = "Gagal mengurangi stok {$obatName} (lab) (qty: {$qty})";
+                    }
                     $obat = \App\Models\ERM\Obat::find($obatId);
                     \Illuminate\Support\Facades\Log::info('Stock processed via invoice (Lab Test Obat)', [
                         'obat_id' => $obatId,
@@ -1576,6 +2336,13 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     'lab_med_count' => count($labRequiredObats),
                     'amount_paid' => $amountPaid
                 ]);
+            }
+
+            // If we were supposed to reduce stock, make sure all stock operations succeeded.
+            if (!empty($shouldReduceStock) && $stockOpsAttempted > 0 && $stockOpsSucceeded < $stockOpsAttempted) {
+                throw new \Exception(
+                    "Stok gagal diproses untuk beberapa item:\n" . implode("\n", $stockOpsErrors)
+                );
             }
 
             // Process regular items
@@ -1901,23 +2668,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         \Illuminate\Support\Facades\Log::warning('Racikan paket matching (invoice) failed: ' . $e->getMessage());
                     }
                     
-                    // Handle stock adjustments for racikan items only when invoice payment triggers reduction
-                    // Compute $qtyDiff for this racikan group. For new invoices or when previous payment was 0,
-                    // treat the full qty as the diff. For updates where invoice was already paid, we avoid
-                    // changing stock here (existing invoice adjustments are handled elsewhere).
+                    // Handle stock adjustments for racikan items only when payment triggers stock reduction.
+                    // Stock reduction is idempotent per invoice (based on KartuStok existence), so when
+                    // $shouldReduceStock is true we reduce the FULL racikan qty; otherwise we do nothing.
                     $newRacikanQty = floatval($qty ?? 0);
-                    $racikanQtyDiff = 0;
-                    if (!$existingInvoice) {
-                        $racikanQtyDiff = $newRacikanQty;
-                    } else {
-                        // If previous invoice had no payment (previousAmountPaid == 0) and now payment increased,
-                        // we should reduce full qty. Otherwise, conservatively set diff to 0 to avoid double-processing.
-                        if (floatval($previousAmountPaid) == 0 && $paymentIncreased) {
-                            $racikanQtyDiff = $newRacikanQty;
-                        } else {
-                            $racikanQtyDiff = 0;
-                        }
-                    }
+                    $racikanQtyDiff = !empty($shouldReduceStock) ? $newRacikanQty : 0;
 
                     // Only perform stock operations if the invoice reached full payment (shouldReduceStock)
                     // and there is a non-zero qty difference to apply.
@@ -1945,10 +2700,24 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
                                 if ($componentQty > 0) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
-                                    $this->reduceGudangStock($obat->id, $componentQty, $gudangId, $invoice->id, $invoice->invoice_number);
+                                    $stockOpsAttempted++;
+                                    $ok = $this->reduceGudangStock($obat->id, $componentQty, $gudangId, $invoice->id, $invoice->invoice_number);
+                                    if ($ok) {
+                                        $stockOpsSucceeded++;
+                                        $stockReduced = true;
+                                    } else {
+                                        $stockOpsErrors[] = "Gagal mengurangi stok {$obat->nama} (racikan) (qty: {$componentQty})";
+                                    }
                                 } else if ($componentQty < 0) {
                                     $gudangId = $this->getGudangForItem($request, $obat->id, 'resep', $racikanItem->id);
-                                    $this->returnToGudangStock($obat->id, abs($componentQty), $gudangId, $invoice->id, $invoice->invoice_number);
+                                    $stockOpsAttempted++;
+                                    $ok = $this->returnToGudangStock($obat->id, abs($componentQty), $gudangId, $invoice->id, $invoice->invoice_number);
+                                    if ($ok) {
+                                        $stockOpsSucceeded++;
+                                        $stockReduced = true;
+                                    } else {
+                                        $stockOpsErrors[] = "Gagal mengembalikan stok {$obat->nama} (racikan) (qty: " . abs($componentQty) . ")";
+                                    }
                                 }
 
                                 Log::info('Racikan stock processed', [
@@ -2046,52 +2815,143 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ]);
             }
 
-            // If payment method is 'piutang', create a piutang record for the outstanding amount
-            try {
-                if (isset($paymentMethod) && $paymentMethod === 'piutang') {
-                    // Option B: always record full invoice amount as piutang (receivable)
-                    $piutangAmount = floatval($grandTotalNumeric);
-                    // (status calculation removed — handled elsewhere if needed)
+            // Rule guarantee: when there is kekurangan (shortage) after payment,
+            // it must be recorded as Piutang for exactly the shortage amount.
+            // Also: do NOT wipe existing piutang paid_amount if it was already paid/partial.
+            if ($mode === 'payment') {
+                $existingPiutang = Piutang::where('invoice_id', $invoice->id)->orderByDesc('id')->first();
 
-                    Piutang::create([
-                        'visitation_id' => $request->visitation_id,
-                        'invoice_id' => $invoice->id,
-                        // store full invoice total as requested
-                        'amount' => $piutangAmount,
-                        // always start as unpaid per request
-                        'payment_status' => 'unpaid',
-                        // do not set payment_date when creating initial receivable
-                        'payment_date' => null,
-                        // leave payment_method empty and user_id null as requested
-                        'payment_method' => null,
-                        'notes' => $request->notes ?? null,
-                        'user_id' => null
-                    ]);
+                if ($shortageAmount > 0) {
+                    $piutang = $existingPiutang ?: new Piutang();
+                    $piutang->visitation_id = $request->visitation_id;
+                    $piutang->invoice_id = $invoice->id;
+                    $piutang->amount = floatval($shortageAmount);
+
+                    if ($piutang->paid_amount === null) {
+                        $piutang->paid_amount = 0;
+                    }
+
+                    $paidPiutang = floatval($piutang->paid_amount ?? 0);
+                    $totalPiutang = floatval($piutang->amount ?? 0);
+
+                    if ($paidPiutang <= 0) {
+                        $piutang->payment_status = 'unpaid';
+                        $piutang->payment_date = null;
+                    } elseif ($paidPiutang < $totalPiutang) {
+                        $piutang->payment_status = 'partial';
+                        // keep payment_date as-is; will be managed by PiutangController
+                    } else {
+                        $piutang->payment_status = 'paid';
+                        if (empty($piutang->payment_date)) {
+                            $piutang->payment_date = now();
+                        }
+                    }
+
+                    // notes/user_id are optional; keep existing user_id if already set
+                    if (!empty($request->notes)) {
+                        $piutang->notes = $request->notes;
+                    }
+                    if (empty($piutang->user_id) && Auth::check()) {
+                        $piutang->user_id = Auth::id();
+                    }
+
+                    $piutang->save();
+                } else {
+                    // No shortage: if there was an outstanding piutang linked to this invoice,
+                    // settle it to avoid stale outstanding amounts.
+                    if ($existingPiutang && floatval($existingPiutang->amount ?? 0) > 0) {
+                        $existingPiutang->amount = 0;
+                        $existingPiutang->payment_status = 'paid';
+                        if (empty($existingPiutang->payment_date)) {
+                            $existingPiutang->payment_date = now();
+                        }
+                        if (empty($existingPiutang->user_id) && Auth::check()) {
+                            $existingPiutang->user_id = Auth::id();
+                        }
+                        $existingPiutang->save();
+                    }
                 }
-            } catch (\Exception $e) {
-                Log::warning('Failed to create piutang record: ' . $e->getMessage());
             }
 
             DB::commit();
 
+            // Determine paid status using the same integer-ceil comparison used for stock reduction
+            $invoiceAmountPaidRaw = floatval($invoice->amount_paid ?? 0);
+            $invoiceTotalAmountRaw = floatval($invoice->total_amount ?? 0);
+            $invoiceAmountPaidInt = intval(ceil($invoiceAmountPaidRaw));
+            $invoiceTotalAmountInt = intval(ceil($invoiceTotalAmountRaw));
+            $isPaid = $invoiceAmountPaidInt >= $invoiceTotalAmountInt;
+
+            $responseMessage = $mode === 'payment' ? 'Pembayaran berhasil diproses' : 'Invoice berhasil dibuat';
+
+            $computedStockMessage = null;
+            if (!empty($shouldReduceStock)) {
+                if ($stockOpsAttempted <= 0) {
+                    $computedStockMessage = 'Stok tidak dikurangi (tidak ada item stok).';
+                } else {
+                    $computedStockMessage = 'Stok berhasil dikurangi sesuai pembayaran.';
+                }
+            } else {
+                if ($mode === 'payment' && !empty($alreadyReduced)) {
+                    $computedStockMessage = 'Stok tidak dikurangi (stok sudah dikurangi sebelumnya untuk invoice ini).';
+                } else {
+                    $computedStockMessage = 'Stok tidak dikurangi (invoice belum diproses untuk pengurangan stok).';
+                }
+            }
+
+            $paymentMethod = $invoice->payment_method ?? null;
+            $latestPiutang = null;
+            $piutangPaymentStatus = null;
+            $piutangPayload = null;
+            try {
+                // Always include piutang info if it exists (even when payment_method is cash),
+                // because shortage after payment is recorded as Piutang.
+                $latestPiutang = Piutang::where('invoice_id', $invoice->id)
+                    ->orderByDesc('id')
+                    ->first();
+                if ($latestPiutang) {
+                    $piutangPaymentStatus = $latestPiutang->payment_status ?? null;
+                    $piutangPayload = [
+                        'id' => $latestPiutang->id,
+                        'amount' => floatval($latestPiutang->amount ?? 0),
+                        'paid_amount' => floatval($latestPiutang->paid_amount ?? 0),
+                        'payment_status' => $latestPiutang->payment_status ?? null,
+                    ];
+                }
+            } catch (\Exception $e) {
+                $latestPiutang = null;
+                $piutangPaymentStatus = null;
+                $piutangPayload = null;
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Invoice berhasil dibuat',
+                'message' => $responseMessage,
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
+                'total_amount' => $invoiceTotalAmountRaw,
+                'amount_paid' => $invoiceAmountPaidRaw,
+                'payment_method' => $paymentMethod,
+                'piutang_payment_status' => $piutangPaymentStatus,
+                'piutang' => $piutangPayload,
+                'is_paid' => $isPaid,
                 'stock_reduced' => $stockReduced,
-                'stock_message' => $stockReduced ? 'Stok berhasil dikurangi sesuai pembayaran.' : 'Stok tidak dikurangi (invoice belum lunas atau tidak ada item stok).'
+                'stock_message' => $stockReduced ? 'Stok berhasil dikurangi sesuai pembayaran.' : $computedStockMessage,
+                'stock_ops_attempted' => $stockOpsAttempted,
+                'stock_ops_succeeded' => $stockOpsSucceeded,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error creating invoice', [
+            $logLabel = $mode === 'payment' ? 'Error processing payment' : 'Error creating invoice';
+            Log::error($logLabel, [
                 'error' => $e->getMessage(),
                 'visitation_id' => $request->visitation_id ?? null
             ]);
             
+            $respPrefix = $mode === 'payment' ? 'Failed to process payment: ' : 'Failed to create invoice: ';
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create invoice: ' . $e->getMessage()
+                'message' => $respPrefix . $e->getMessage()
             ], 500);
         }
     }
@@ -2120,6 +2980,39 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             } else {
                 $request->merge(['totals' => null]);
             }
+        }
+
+        // Lock rule: once payment is processed, stock is reduced and billing becomes non-editable.
+        // We detect the lock by checking whether stock ledger entries exist for this visitation's invoice.
+        try {
+            $invoice = Invoice::where('visitation_id', $request->visitation_id)
+                ->orderByDesc('id')
+                ->first();
+
+            $hasPaymentProcessed = $invoice && !empty($invoice->payment_method);
+            $hasStockLedger = $invoice && KartuStok::where('ref_type', 'invoice_penjualan')
+                ->where('ref_id', $invoice->id)
+                ->exists();
+
+            if ($hasPaymentProcessed || $hasStockLedger) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Billing tidak dapat diedit karena pembayaran sudah diproses (stok sudah dikurangi).'
+                ], 423);
+            }
+        } catch (\Exception $e) {
+            // If the lock check fails unexpectedly, do not block normal billing save.
+        }
+
+        $user = Auth::user();
+        $isAdmin = $user && method_exists($user, 'hasRole') && $user->hasRole('Admin');
+
+        // Authorization: only Admin may delete billing items.
+        if (!empty($request->deleted_items) && !$isAdmin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda tidak memiliki akses untuk menghapus item billing.'
+            ], 403);
         }
 
         DB::beginTransaction();
@@ -2208,10 +3101,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $billing->jumlah = $item['jumlah_raw'] ?? $billing->jumlah;
                         $billing->diskon = $item['diskon_raw'] ?? null;
                         $billing->diskon_type = $item['diskon_type'] ?? null;
-                        if (isset($item['qty'])) {
-        $billing->qty = $item['qty'];
-    }
-    $billing->save();
+                        if (isset($item['qty']) && $isAdmin) {
+                            $billing->qty = $item['qty'];
+                        }
+                        $billing->save();
                     }
                 }
             }
@@ -2260,6 +3153,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
 
     public function destroy($id)
     {
+        $user = Auth::user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'))) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $item = Billing::findOrFail($id);
         $item->delete();
 
@@ -2284,6 +3182,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     public function forceDelete($id)
     {
+        $user = Auth::user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'))) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $item = Billing::withTrashed()->findOrFail($id);
         $item->forceDelete();
         return response()->json(['message' => 'Item billing dihapus permanen']);
@@ -2294,6 +3197,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     public function trashByVisitation($visitation_id)
     {
+        $user = Auth::user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'))) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
         $count = Billing::where('visitation_id', $visitation_id)->delete();
         return response()->json(['message' => 'Billing untuk kunjungan dipindahkan ke trash', 'count' => $count]);
@@ -2304,6 +3212,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     public function restoreByVisitation($visitation_id)
     {
+        $user = Auth::user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'))) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
         $count = Billing::withTrashed()->where('visitation_id', $visitation_id)->restore();
         return response()->json(['message' => 'Billing untuk kunjungan dikembalikan', 'count' => $count]);
@@ -2314,6 +3227,11 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
      */
     public function forceDeleteByVisitation($visitation_id)
     {
+        $user = Auth::user();
+        if (!($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'))) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $visitation = \App\Models\ERM\Visitation::findOrFail($visitation_id);
         $count = Billing::withTrashed()->where('visitation_id', $visitation_id)->forceDelete();
         return response()->json(['message' => 'Billing untuk kunjungan dihapus permanen', 'count' => $count]);
@@ -2325,7 +3243,10 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
         $endDate = $request->input('end_date', now()->format('Y-m-d'));
         $dokterId = $request->input('dokter_id');
         $klinikId = $request->input('klinik_id');
-        $includeDeleted = filter_var($request->input('include_deleted', false), FILTER_VALIDATE_BOOLEAN);
+        $metodeGroup = $request->input('metode_group');
+
+        $user = Auth::user();
+        $isAdmin = ($user && method_exists($user, 'hasRole') && $user->hasRole('Admin'));
         
         $visitations = \App\Models\ERM\Visitation::with(['pasien', 'klinik', 'dokter.user', 'dokter.spesialisasi', 'invoice.piutangs', 'metodeBayar'])
             ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
@@ -2338,16 +3259,53 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
             $visitations->where('klinik_id', $klinikId);
         }
 
+        // Tab filter: Umum vs Asuransi (everything except Umum)
+        if ($metodeGroup === 'umum') {
+            $visitations->whereHas('metodeBayar', function ($q) {
+                $q->whereRaw('LOWER(nama) = ?', ['umum']);
+            });
+        } elseif ($metodeGroup === 'asuransi') {
+            $visitations->where(function ($q) {
+                $q->whereDoesntHave('metodeBayar')
+                  ->orWhereHas('metodeBayar', function ($mq) {
+                      $mq->whereRaw('LOWER(nama) != ?', ['umum']);
+                  });
+            });
+        }
+
         // Status filter: 'belum' (default), 'sudah', or '' (all)
         $statusFilter = $request->input('status_filter', 'belum');
-        if ($statusFilter === 'belum') {
-            // Show visitations that either have no invoice OR have an unpaid invoice,
+
+        // Checkbox removed from UI; include deleted rows only when explicitly filtering Terhapus
+        $includeDeleted = ($statusFilter === 'terhapus');
+
+        if ($statusFilter === 'terhapus') {
+            // Only visitations where there is at least one billing row AND all billing rows are trashed
+            $visitations
+                ->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('finance_billing')
+                        ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
+                })
+                ->whereNotExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('finance_billing')
+                        ->whereNull('finance_billing.deleted_at')
+                        ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
+                });
+        } elseif ($statusFilter === 'belum') {
+            // "Belum Transaksi": no invoice OR invoice exists but no payment yet (amount_paid == 0)
+            // Exclude pure piutang invoices (payment_method == 'piutang') because those belong to Piutang bucket.
             // AND ensure they have at least one billing item (respect includeDeleted)
             $visitations->where(function($query) use ($includeDeleted) {
                 $query->where(function($q) {
                           $q->whereDoesntHave('invoice')
                             ->orWhereHas('invoice', function($iq) {
-                                  $iq->where('amount_paid', 0);
+                                  $iq->where('amount_paid', 0)
+                                     ->where(function($pm) {
+                                         $pm->whereNull('payment_method')
+                                            ->orWhere('payment_method', '!=', 'piutang');
+                                     });
                             });
                       })
                       ->whereExists(function($sub) use ($includeDeleted) {
@@ -2360,14 +3318,24 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                       });
             });
         } elseif ($statusFilter === 'belum_lunas') {
-            // Partially paid invoices
+            // "Belum Lunas": partially paid (cash/transfer/etc) OR piutang with partial payment
             $visitations->whereHas('invoice', function($q) {
-                $q->where('amount_paid', '>', 0)->whereColumn('amount_paid', '<', 'total_amount');
+                $q->where(function($qq) {
+                    $qq->where(function($n) {
+                        $n->where('amount_paid', '>', 0)
+                          ->whereColumn('amount_paid', '<', 'total_amount');
+                    })->orWhere(function($p) {
+                        $p->where('payment_method', 'piutang')
+                          ->whereHas('piutangs', function($pq) {
+                              $pq->where('payment_status', 'partial');
+                          });
+                    });
+                });
             });
         } elseif ($statusFilter === 'sudah') {
-            // Only visitations with a paid invoice
+            // "Lunas": fully paid invoice (including those originally piutang but later settled)
             $visitations->whereHas('invoice', function($q) {
-                $q->where('amount_paid', '>', 0);
+                $q->whereColumn('amount_paid', '>=', 'total_amount');
             });
         } elseif ($statusFilter === 'piutang') {
             // Visitations where invoice.payment_method is piutang
@@ -2466,45 +3434,6 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 ->addColumn('status', function ($visitation) {
                         $invoice = $visitation->invoice;
 
-                        // Special handling for piutang invoices: use Piutang.payment_status when available
-                        if ($invoice && isset($invoice->payment_method) && $invoice->payment_method === 'piutang') {
-                            $piutang = $invoice->relationLoaded('piutangs') ? $invoice->piutangs->first() : null;
-
-                            if ($piutang && isset($piutang->payment_status)) {
-                                $status = strtolower($piutang->payment_status);
-
-                                if ($status === 'paid') {
-                                    return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
-                                }
-
-                                if ($status === 'partial') {
-                                    return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
-                                }
-
-                                // Default for piutang when explicitly unpaid or unknown -> unpaid
-                                return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
-                            }
-                            // If no Piutang record found, fall through to generic invoice-based status below
-                        }
-
-                        // Generic invoice-based status (non-piutang or fallback)
-                        if ($invoice) {
-                            $amountPaid = floatval($invoice->amount_paid ?? 0);
-                            $totalAmount = floatval($invoice->total_amount ?? 0);
-
-                            // Fully paid
-                            if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
-                                return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Sudah Bayar</span>';
-                            }
-
-                            // Partially paid
-                            if ($amountPaid > 0 && $amountPaid < $totalAmount) {
-                                return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
-                            }
-
-                            // amount_paid == 0 falls through to check billings below
-                        }
-
                         // Check if all billings for this visitation are trashed (if there are any)
                         $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
                         $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
@@ -2512,10 +3441,44 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                             return '<span style="color: #fff; background: #6c757d; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Terhapus</span>';
                         }
 
-                        // No invoice or unpaid invoice
-                        return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Dibayar</span>';
+                        // No invoice created -> Belum Transaksi
+                        if (!$invoice) {
+                            return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Transaksi</span>';
+                        }
+
+                        $amountPaid = floatval($invoice->amount_paid ?? 0);
+                        $totalAmount = floatval($invoice->total_amount ?? 0);
+
+                        // Fully paid (normal or after piutang settlement)
+                        if ($totalAmount > 0 && $amountPaid >= $totalAmount) {
+                            return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
+                        }
+
+                        // Piutang flow: show Piutang / Belum Lunas depending on Piutang.payment_status
+                        if (isset($invoice->payment_method) && $invoice->payment_method === 'piutang') {
+                            $piutang = $invoice->relationLoaded('piutangs') ? $invoice->piutangs->first() : null;
+                            $status = $piutang && isset($piutang->payment_status) ? strtolower((string)$piutang->payment_status) : null;
+
+                            if ($status === 'paid') {
+                                return '<span style="color: #fff; background: #28a745; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Lunas</span>';
+                            }
+                            if ($status === 'partial') {
+                                return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
+                            }
+
+                            // unpaid/unknown piutang -> Piutang
+                            return '<span style="color: #fff; background: #17a2b8; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Piutang</span>';
+                        }
+
+                        // Partially paid (non-piutang)
+                        if ($amountPaid > 0 && $amountPaid < $totalAmount) {
+                            return '<span style="color: #fff; background: #ffc107; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Lunas</span>';
+                        }
+
+                        // Invoice exists but no payment yet
+                        return '<span style="color: #fff; background: #dc3545; padding: 2px 8px; border-radius: 8px; font-size: 13px;">Belum Transaksi</span>';
                 })
-            ->addColumn('action', function ($visitation) {
+            ->addColumn('action', function ($visitation) use ($isAdmin) {
                 $action = '<a href="'.route('finance.billing.create', $visitation->id).'" class="btn btn-sm btn-primary">Lihat Billing</a>';
 
                 // Add "Cetak Nota" buttons if invoice exists
@@ -2524,24 +3487,125 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     $action .= ' <a href="'.route('finance.invoice.print-nota-v2', $visitation->invoice->id).'" class="btn btn-sm btn-warning ml-1" target="_blank">Cetak Nota v2</a>';
                 }
 
-                // Actions for soft-delete/restore/force per visitation
-                $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
-                $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
+                // Admin-only visitation actions: trash/restore/force delete
+                if ($isAdmin) {
+                    $totalBillings = \App\Models\Finance\Billing::withTrashed()->where('visitation_id', $visitation->id)->count();
+                    $trashedBillings = \App\Models\Finance\Billing::onlyTrashed()->where('visitation_id', $visitation->id)->count();
 
-                if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
-                    // all billings trashed -> show restore and force-delete (force as text 'Permanent Delete')
-                    $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-info btn-restore-visitation ml-1">Restore</button>';
-                    // add data-no-icon to prevent client-side icon mapping
-                    $action .= ' <button data-id="'.$visitation->id.'" data-no-icon="1" class="btn btn-sm btn-danger btn-force-visitation ml-1">Permanent Delete</button>';
-                } elseif ($totalBillings > 0) {
-                    // has non-deleted billing -> show trash as icon-only button
-                    $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-danger btn-trash-visitation ml-1" title="Hapus"><i class="ti-trash" aria-hidden="true"></i></button>';
+                    if ($totalBillings > 0 && $trashedBillings === $totalBillings) {
+                        // all billings trashed -> show restore and force-delete (force as text 'Permanent Delete')
+                        $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-info btn-restore-visitation ml-1">Restore</button>';
+                        // add data-no-icon to prevent client-side icon mapping
+                        $action .= ' <button data-id="'.$visitation->id.'" data-no-icon="1" class="btn btn-sm btn-danger btn-force-visitation ml-1">Permanent Delete</button>';
+                    } elseif ($totalBillings > 0) {
+                        // has non-deleted billing -> show trash as icon-only button
+                        $action .= ' <button data-id="'.$visitation->id.'" class="btn btn-sm btn-danger btn-trash-visitation ml-1" title="Hapus"><i class="ti-trash" aria-hidden="true"></i></button>';
+                    }
                 }
 
                 return $action;
             })
             ->rawColumns(['action', 'status'])
             ->make(true);
+    }
+
+    /**
+     * Get badge counts for billing index tabs (Umum vs Asuransi).
+     * Counts visitations that are NOT "Lunas" (Belum Transaksi + Belum Lunas + Piutang),
+     * while respecting date/dokter/klinik filters.
+     */
+    public function getBillingTabCounts(Request $request)
+    {
+        $startDate = $request->input('start_date', now()->format('Y-m-d'));
+        $endDate = $request->input('end_date', now()->format('Y-m-d'));
+        $dokterId = $request->input('dokter_id');
+        $klinikId = $request->input('klinik_id');
+
+        $buildQuery = function (string $metodeGroup) use ($startDate, $endDate, $dokterId, $klinikId) {
+            $q = \App\Models\ERM\Visitation::query()
+                ->whereBetween('tanggal_visitation', [$startDate, $endDate . ' 23:59:59'])
+                ->where('status_kunjungan', 2);
+
+            if ($dokterId) {
+                $q->where('dokter_id', $dokterId);
+            }
+            if ($klinikId) {
+                $q->where('klinik_id', $klinikId);
+            }
+
+            // Exclude fully-trashed visitations from the badge counts
+            // by requiring at least one non-deleted billing row.
+            $q->whereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('finance_billing')
+                    ->whereNull('finance_billing.deleted_at')
+                    ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
+            });
+
+            // Tab filter: Umum vs Asuransi (everything except Umum)
+            if ($metodeGroup === 'umum') {
+                $q->whereHas('metodeBayar', function ($mq) {
+                    $mq->whereRaw('LOWER(nama) = ?', ['umum']);
+                });
+            } elseif ($metodeGroup === 'asuransi') {
+                $q->where(function ($w) {
+                    $w->whereDoesntHave('metodeBayar')
+                      ->orWhereHas('metodeBayar', function ($mq) {
+                          $mq->whereRaw('LOWER(nama) != ?', ['umum']);
+                      });
+                });
+            }
+
+            // Count items that are NOT "Lunas".
+            $q->where(function ($w) {
+                // 1) No invoice yet (Belum Transaksi) but has at least one billing row
+                $w->where(function ($n) {
+                    $n->whereDoesntHave('invoice')
+                      ->whereExists(function ($sub) {
+                          $sub->select(DB::raw(1))
+                              ->from('finance_billing')
+                              ->whereColumn('finance_billing.visitation_id', 'erm_visitations.id');
+                          $sub->whereNull('finance_billing.deleted_at');
+                      });
+                })
+                // 2) Has invoice but not fully paid (Belum Transaksi / Belum Lunas / Piutang not paid)
+                ->orWhereHas('invoice', function ($inv) {
+                    $inv->where(function ($x) {
+                        // Non-piutang: not fully paid
+                        $x->where(function ($pm) {
+                            $pm->whereNull('payment_method')
+                               ->orWhere('payment_method', '!=', 'piutang');
+                        })->where(function ($paid) {
+                            $paid->whereNull('total_amount')
+                                 ->orWhere('total_amount', '<=', 0)
+                                 ->orWhereColumn('amount_paid', '<', 'total_amount');
+                        });
+                    })->orWhere(function ($piu) {
+                        // Piutang: include unless status is paid
+                        $piu->where('payment_method', 'piutang')
+                            ->where(function ($ps) {
+                                $ps->whereDoesntHave('piutangs')
+                                   ->orWhereHas('piutangs', function ($pq) {
+                                       $pq->where(function ($s) {
+                                           $s->whereNull('payment_status')
+                                             ->orWhereRaw('LOWER(payment_status) != ?', ['paid']);
+                                       });
+                                   });
+                            });
+                    });
+                });
+            });
+
+            return $q;
+        };
+
+        $umumCount = (clone $buildQuery('umum'))->count();
+        $asuransiCount = (clone $buildQuery('asuransi'))->count();
+
+        return response()->json([
+            'umum' => $umumCount,
+            'asuransi' => $asuransiCount,
+        ]);
     }
 
     /**

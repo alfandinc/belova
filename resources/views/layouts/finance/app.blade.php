@@ -20,16 +20,6 @@
     @endphp
     <link rel="shortcut icon" href="{{ $favicon }}">
 
-    <!-- ======= Early theme logic ======= -->
-    <script>
-        // Prevent flicker before theme loads
-        const savedTheme = localStorage.getItem('theme') || 'dark';
-        document.documentElement.classList.add(savedTheme === 'light' ? 'theme-light' : 'theme-dark');
-        document.documentElement.classList.add('no-transition');
-    </script>
-
-    
-
     <!-- Other CSS -->
     <link href="{{ asset('dastone/plugins/datatables/dataTables.bootstrap4.min.css') }}" rel="stylesheet" />
     <link href="{{ asset('dastone/plugins/select2/select2.min.css') }}" rel="stylesheet" />
@@ -48,12 +38,39 @@
     <link id="bootstrap-light" href="{{ asset('dastone/default/assets/css/bootstrap.min.css') }}" rel="stylesheet" disabled />
     <link id="app-light" href="{{ asset('dastone/default/assets/css/app.min.css') }}" rel="stylesheet" disabled />
 
+    <!-- ======= Early theme bootstrap (critical for LCP) =======
+         Apply saved theme immediately to avoid body hide + JS-delayed paint.
+    -->
+    <script>
+        (function () {
+            try {
+                const saved = localStorage.getItem('theme') || 'dark';
+                const isDark = saved !== 'light';
+                const html = document.documentElement;
+
+                html.classList.add(isDark ? 'theme-dark' : 'theme-light');
+                html.classList.add('no-transition');
+
+                const bootstrapDark = document.getElementById('bootstrap-dark');
+                const appDark = document.getElementById('app-dark');
+                const bootstrapLight = document.getElementById('bootstrap-light');
+                const appLight = document.getElementById('app-light');
+
+                if (bootstrapDark) bootstrapDark.disabled = !isDark;
+                if (appDark) appDark.disabled = !isDark;
+                if (bootstrapLight) bootstrapLight.disabled = isDark;
+                if (appLight) appLight.disabled = isDark;
+            } catch (e) {
+                // fail open: default CSS stays as authored (dark)
+            }
+        })();
+    </script>
+
     <link rel="stylesheet" href="{{ asset('css/custom.css') }}">
 
     
 
     <style>
-        body { visibility: hidden; }
         .no-transition *, .no-transition *::before, .no-transition *::after {
             transition: none !important;
         }
@@ -139,9 +156,6 @@
                     applyTheme(this.checked);
                 });
             }
-
-            // Show content after theme is applied
-            document.body.style.visibility = 'visible';
         });
     </script>
 

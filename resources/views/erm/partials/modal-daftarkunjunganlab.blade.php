@@ -96,7 +96,10 @@
                         text: res.message,
                         confirmButtonText: 'OK'
                     }).then(() => {
-                        window.location.href = "{{ route('erm.elab.index') }}";
+                        // On pasien index page we want to stay here (no redirect)
+                        if (!window.ERM_STAY_ON_PASIEN_INDEX) {
+                            window.location.href = "{{ route('erm.elab.index') }}";
+                        }
                     });
                 },
                 error: function(xhr) {

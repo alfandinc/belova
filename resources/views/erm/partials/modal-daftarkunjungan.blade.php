@@ -122,6 +122,17 @@ $(document).ready(function () {
                     text: res.message,
                     confirmButtonText: 'OK'
                 }).then(() => {
+                    // On pasien index page: stay here (no full reload). Just refresh the DataTable if present.
+                    if (window.ERM_STAY_ON_PASIEN_INDEX) {
+                        try {
+                            if (window.pasiensTable && typeof window.pasiensTable.ajax === 'object') {
+                                window.pasiensTable.ajax.reload(null, false);
+                            }
+                        } catch (e) {}
+                        return;
+                    }
+
+                    // Default behavior elsewhere
                     location.reload();
                 });
             },

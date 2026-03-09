@@ -11,6 +11,7 @@
 @section('content')
 
 @include('erm.partials.modal-reschedule')
+@include('erm.rawatjalans.partials.modal-daftar-kunjungan')
 
 
 {{-- Screening Batuk modals are lazy-loaded on-demand to keep initial page HTML light --}}
@@ -33,19 +34,32 @@
     </div><!--end row-->
     <!-- end page title end breadcrumb -->
 
-    <!-- Dokter-to-Perawat Notification Button -->
-    @if (auth()->user() && auth()->user()->hasRole('Dokter'))
     <div class="row mb-3">
-        <div class="col-md-12 d-flex gap-2">
-            <button id="btn-buka-pintu" class="btn btn-danger mr-2">
-                <i class="fas fa-door-open"></i> Perawat Buka Pintu
-            </button>
-            <button id="btn-panggil-perawat" class="btn btn-warning">
-                <i class="fas fa-bell"></i> Panggil Perawat ke Ruang Dokter
-            </button>
+        <div class="col-md-12 d-flex justify-content-between align-items-center">
+            <div class="d-flex gap-2">
+                @if (auth()->user() && auth()->user()->hasRole('Dokter'))
+                    <button id="btn-buka-pintu" class="btn btn-danger mr-2">
+                        <i class="fas fa-door-open"></i> Perawat Buka Pintu
+                    </button>
+                    <button id="btn-panggil-perawat" class="btn btn-warning">
+                        <i class="fas fa-bell"></i> Panggil Perawat ke Ruang Dokter
+                    </button>
+                @endif
+            </div>
+            <div>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-success dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fas fa-calendar-plus"></i> Daftarkan Pasien
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-right">
+                        <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="konsultasi">Konsultasi</a>
+                        <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="produk">Produk</a>
+                        <a class="dropdown-item btn-daftarkan-pasien-rawatjalan" href="#" data-jenis="lab">Lab</a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    @endif
     <!-- Statistics Cards -->
     <div class="row mb-4 stats-row">
         <div class="stat-col">

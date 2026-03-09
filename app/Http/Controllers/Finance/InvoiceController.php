@@ -60,6 +60,7 @@ class InvoiceController extends Controller
                     $badges = [
                         'draft' => 'badge-secondary',
                         'issued' => 'badge-primary',
+                        'partial' => 'badge-warning',
                         'paid' => 'badge-success',
                         'canceled' => 'badge-danger'
                     ];
@@ -100,16 +101,30 @@ class InvoiceController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:draft,issued,paid,canceled'
+            'status' => 'required|in:draft,issued,partial,paid,canceled'
         ]);
 
         $invoice = Invoice::findOrFail($id);
 
-        // Ignore requested status, only set to 'paid' if amount_paid > 0
-        if ($invoice->amount_paid > 0) {
-            $invoice->status = 'paid';
-            if (!$invoice->payment_date) {
-                $invoice->payment_date = now();
+        // Allow explicit draft/canceled. Otherwise keep status consistent with payment amounts.
+        $requested = $request->input('status');
+        if (in_array($requested, ['draft', 'canceled'], true)) {
+            $invoice->status = $requested;
+        } else {
+            $paid = floatval($invoice->amount_paid ?? 0);
+            $total = floatval($invoice->total_amount ?? 0);
+            $paidInt = intval(ceil($paid));
+            $totalInt = intval(ceil($total));
+
+            if ($totalInt > 0 && $paidInt >= $totalInt) {
+                $invoice->status = 'paid';
+                if (!$invoice->payment_date) {
+                    $invoice->payment_date = now();
+                }
+            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
+                $invoice->status = 'partial';
+            } else {
+                $invoice->status = 'issued';
             }
         }
 
@@ -128,11 +143,21 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
-        // Set status to 'paid' if amount_paid > 0
-        if ($invoice->amount_paid > 0 && $invoice->status !== 'paid') {
-            $invoice->status = 'paid';
-            if (!$invoice->payment_date) {
-                $invoice->payment_date = now();
+        // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
+        if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
+            $paid = floatval($invoice->amount_paid ?? 0);
+            $total = floatval($invoice->total_amount ?? 0);
+            $paidInt = intval(ceil($paid));
+            $totalInt = intval(ceil($total));
+            if ($totalInt > 0 && $paidInt >= $totalInt) {
+                $invoice->status = 'paid';
+                if (!$invoice->payment_date) {
+                    $invoice->payment_date = now();
+                }
+            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
+                $invoice->status = 'partial';
+            } else {
+                $invoice->status = 'issued';
             }
             $invoice->save();
         }
@@ -166,11 +191,21 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
-        // Set status to 'paid' if amount_paid > 0
-        if ($invoice->amount_paid > 0 && $invoice->status !== 'paid') {
-            $invoice->status = 'paid';
-            if (!$invoice->payment_date) {
-                $invoice->payment_date = now();
+        // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
+        if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
+            $paid = floatval($invoice->amount_paid ?? 0);
+            $total = floatval($invoice->total_amount ?? 0);
+            $paidInt = intval(ceil($paid));
+            $totalInt = intval(ceil($total));
+            if ($totalInt > 0 && $paidInt >= $totalInt) {
+                $invoice->status = 'paid';
+                if (!$invoice->payment_date) {
+                    $invoice->payment_date = now();
+                }
+            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
+                $invoice->status = 'partial';
+            } else {
+                $invoice->status = 'issued';
             }
             $invoice->save();
         }
@@ -213,11 +248,21 @@ class InvoiceController extends Controller
             'visitation.klinik',
             'items'
         ])->findOrFail($id);
-        // Set status to 'paid' if amount_paid > 0
-        if ($invoice->amount_paid > 0 && $invoice->status !== 'paid') {
-            $invoice->status = 'paid';
-            if (!$invoice->payment_date) {
-                $invoice->payment_date = now();
+        // Keep status consistent with payment amounts (do not mark paid just because amount_paid > 0)
+        if (!in_array($invoice->status, ['draft', 'canceled'], true)) {
+            $paid = floatval($invoice->amount_paid ?? 0);
+            $total = floatval($invoice->total_amount ?? 0);
+            $paidInt = intval(ceil($paid));
+            $totalInt = intval(ceil($total));
+            if ($totalInt > 0 && $paidInt >= $totalInt) {
+                $invoice->status = 'paid';
+                if (!$invoice->payment_date) {
+                    $invoice->payment_date = now();
+                }
+            } elseif ($totalInt > 0 && $paidInt > 0 && $paidInt < $totalInt) {
+                $invoice->status = 'partial';
+            } else {
+                $invoice->status = 'issued';
             }
             $invoice->save();
         }

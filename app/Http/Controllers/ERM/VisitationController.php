@@ -37,21 +37,27 @@ class VisitationController extends Controller
             'jenis_kunjungan' => 'nullable|integer', // allow caller to specify visit type
         ]);
 
-        // Cek apakah pasien sudah didaftarkan di hari yang sama dan dokter yang sama
-        // Only treat as duplicate if the existing visitation has the same "jenis_kunjungan".
-        $jenis = $request->jenis_kunjungan ?? 1; // default to jenis 1 for regular store()
+        // Duplicate rule:
+        // - jenis_kunjungan = 1 (Konsultasi) => only ONE visitation per pasien per tanggal
+        // - jenis_kunjungan = 2/3 (Produk/Lab) => allow multiple
+        $jenis = $request->jenis_kunjungan ?? 1;
+        if ((int)$jenis === 1) {
+            $exists = Visitation::where('pasien_id', $request->pasien_id)
+                ->whereDate('tanggal_visitation', $request->tanggal_visitation)
+                ->where('dokter_id', $request->dokter_id)
+                ->where('status_kunjungan', '!=', 7)
+                ->where(function ($q) {
+                    $q->where('jenis_kunjungan', 1)
+                      ->orWhereNull('jenis_kunjungan');
+                })
+                ->exists();
 
-        $exists = Visitation::where('pasien_id', $request->pasien_id)
-            ->whereDate('tanggal_visitation', $request->tanggal_visitation)
-            ->where('dokter_id', $request->dokter_id)
-            ->where('jenis_kunjungan', $jenis)
-            ->exists();
-
-        if ($exists) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Pasien sudah didaftarkan dikunjungan hari ini pada dokter yang sama.'
-            ], 422);
+            if ($exists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pasien sudah didaftarkan untuk kunjungan hari ini dengan dokter yang sama.'
+                ], 422);
+            }
         }
 
         // Buat ID custom
@@ -225,6 +231,23 @@ class VisitationController extends Controller
             'jenis_permintaan' => 'nullable',
             'no_antrian' => 'nullable|integer',
         ]);
+
+        // Duplicate rule for Konsultasi (jenis 1): only ONE visitation per pasien per tanggal
+        $exists = Visitation::where('pasien_id', $request->pasien_id)
+            ->whereDate('tanggal_visitation', $request->tanggal_visitation)
+            ->where('dokter_id', $request->dokter_id)
+            ->where('status_kunjungan', '!=', 7)
+            ->where(function ($q) {
+                $q->where('jenis_kunjungan', 1)
+                  ->orWhereNull('jenis_kunjungan');
+            })
+            ->exists();
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pasien sudah didaftarkan untuk kunjungan hari ini dengan dokter yang sama.'
+            ], 422);
+        }
 
         // Create visitation similar to store()
         $customId = now()->format('YmdHis') . str_pad(mt_rand(1, 9999999), 7, '0', STR_PAD_LEFT);

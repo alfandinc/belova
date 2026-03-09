@@ -31,7 +31,7 @@
     font-weight: 500;
 }
 </style>
-
+r
 @include('erm.partials.modal-daftarkunjungan')
 @include('erm.partials.modal-daftarkunjunganproduk')
 @include('erm.partials.modal-daftarkunjunganlab')
@@ -252,6 +252,7 @@
 
 @section('scripts')
 <script>
+window.ERM_STAY_ON_PASIEN_INDEX = true;
 $(document).ready(function () {
     $('.select2').select2({ width: '100%' });
 
@@ -364,6 +365,9 @@ $(document).ready(function () {
             }
         ]
     });
+
+    // Expose for modal scripts so they can refresh without full page reload
+    window.pasiensTable = table;
 
     $('#btn-filter').click(function () {
         table.ajax.reload();

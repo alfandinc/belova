@@ -114,7 +114,7 @@ class NotificationController extends Controller
             $perPage = 50;
 
             // Use DB query to avoid depending on Notifiable trait presence
-            $rows = \DB::table('notifications')
+            $rows = DB::table('notifications')
                 ->where('notifiable_id', $user->id)
                 ->where('notifiable_type', get_class($user))
                 ->orderBy('created_at', 'desc')
@@ -147,6 +147,31 @@ class NotificationController extends Controller
     }
 
     /**
+     * Return count of unread notifications for the authenticated user.
+     * Used for Farmasi "Old Notifications" button badge.
+     */
+    public function oldNotificationsUnreadCount(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['count' => 0], 200);
+            }
+
+            $count = DB::table('notifications')
+                ->where('notifiable_id', $user->id)
+                ->where('notifiable_type', get_class($user))
+                ->whereNull('read_at')
+                ->count();
+
+            return response()->json(['count' => (int) $count], 200);
+        } catch (\Exception $e) {
+            Log::error('Error fetching old notifications unread count: ' . $e->getMessage());
+            return response()->json(['count' => 0], 200);
+        }
+    }
+
+    /**
      * Mark a notification as read for the authenticated user.
      */
     public function markAsRead(Request $request, $id)
@@ -157,7 +182,7 @@ class NotificationController extends Controller
                 return response()->json(['success' => false], 401);
             }
 
-            $affected = \DB::table('notifications')
+            $affected = DB::table('notifications')
                 ->where('id', $id)
                 ->where('notifiable_id', $user->id)
                 ->where('notifiable_type', get_class($user))
@@ -171,6 +196,30 @@ class NotificationController extends Controller
         } catch (\Exception $e) {
             Log::error('Error marking notification read: ' . $e->getMessage());
             return response()->json(['success' => false], 500);
+        }
+    }
+
+    /**
+     * Mark all notifications as read for the authenticated user.
+     */
+    public function markAllAsRead(Request $request)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['success' => false], 401);
+            }
+
+            $affected = DB::table('notifications')
+                ->where('notifiable_id', $user->id)
+                ->where('notifiable_type', get_class($user))
+                ->whereNull('read_at')
+                ->update(['read_at' => now()]);
+
+            return response()->json(['success' => true, 'affected' => (int) $affected]);
+        } catch (\Exception $e) {
+            Log::error('Error marking all notifications read: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan.'], 500);
         }
     }
 }

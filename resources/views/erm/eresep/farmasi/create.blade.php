@@ -2652,7 +2652,8 @@ $(document).on('click', '.edit-racikan', function () {
 // Notification polling for farmasi create page
 @if(auth()->user()->hasRole('Farmasi'))
 $(document).ready(function() {
-    let lastCheck = 0;
+    // Use small buffer to avoid missing notifications created in the same second.
+    let lastCheck = {{ time() - 3 }};
     let isPolling = false;
     
     function checkForNewNotifications() {
@@ -2675,7 +2676,7 @@ $(document).ready(function() {
                         confirmButtonText: 'OK'
                     });
                 }
-                lastCheck = response.timestamp;
+                if (response && response.timestamp) lastCheck = response.timestamp;
             },
             error: function(xhr, status, error) {
                 console.error('Error checking for notifications:', error);

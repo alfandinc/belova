@@ -897,6 +897,24 @@ class RawatJalanController extends Controller
             'waktu_kunjungan' => 'nullable|date_format:H:i', // validate waktu_kunjungan
         ]);
 
+        // Duplicate rule: for konsultasi (jenis 1), only ONE active visit per pasien per tanggal PER DOKTER.
+        // (If dokternya berbeda, boleh didaftarkan lagi.)
+        $exists = Visitation::where('pasien_id', $request->pasien_id)
+            ->whereDate('tanggal_visitation', $request->tanggal_visitation)
+            ->where('dokter_id', $request->dokter_id)
+            ->where('status_kunjungan', '!=', 7)
+            ->where(function ($q) {
+                $q->where('jenis_kunjungan', 1)
+                  ->orWhereNull('jenis_kunjungan');
+            })
+            ->exists();
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pasien sudah didaftarkan untuk kunjungan hari ini dengan dokter yang sama.'
+            ], 422);
+        }
+
         // update kunjungan lama jadi progress 7
         if ($request->has('visitation_id')) {
             Visitation::where('id', $request->visitation_id)->update([
@@ -913,6 +931,7 @@ class RawatJalanController extends Controller
             'no_antrian' => $request->no_antrian,
             'metode_bayar_id' => $request->metode_bayar_id ?? 1,
             'status_kunjungan' => 0,
+            'jenis_kunjungan' => 1,
         ]);
 
         return response()->json(['message' => 'Berhasil menjadwalkan ulang pasien.']);

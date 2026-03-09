@@ -46,6 +46,7 @@
                                     $badgeClass = [
                                         'draft' => 'badge-secondary',
                                         'issued' => 'badge-primary',
+                                        'partial' => 'badge-warning',
                                         'paid' => 'badge-success',
                                         'canceled' => 'badge-danger'
                                     ][$invoice->status] ?? 'badge-secondary';
@@ -147,6 +148,7 @@
                         <select name="status" class="form-control">
                             <option value="draft" {{ $invoice->status == 'draft' ? 'selected' : '' }}>Draft</option>
                             <option value="issued" {{ $invoice->status == 'issued' ? 'selected' : '' }}>Issued</option>
+                            <option value="partial" {{ $invoice->status == 'partial' ? 'selected' : '' }}>Partial</option>
                             <option value="paid" {{ $invoice->status == 'paid' ? 'selected' : '' }}>Paid</option>
                             <option value="canceled" {{ $invoice->status == 'canceled' ? 'selected' : '' }}>Canceled</option>
                         </select>

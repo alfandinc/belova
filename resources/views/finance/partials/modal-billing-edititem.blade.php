@@ -13,8 +13,11 @@
                     <input type="hidden" id="edit_id">
                     <input type="hidden" id="edit_row_index">
                     <div class="form-group">
-                        <label for="edit_qty">Qty</label>
-                        <input type="number" class="form-control" id="edit_qty" name="edit_qty" min="1" required>
+                        @php
+                            $canEditQty = auth()->check() && method_exists(auth()->user(), 'hasRole') && auth()->user()->hasRole('Admin');
+                        @endphp
+                        <label for="edit_qty">Qty @if(!$canEditQty) (tidak bisa diubah) @endif</label>
+                        <input type="number" class="form-control" id="edit_qty" name="edit_qty" min="1" required @if(!$canEditQty) readonly disabled @endif>
                     </div>
                     <div class="form-group">
                         <label for="jumlah">Harga (Rp)</label>

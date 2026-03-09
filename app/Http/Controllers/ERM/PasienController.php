@@ -18,6 +18,43 @@ use App\Models\ERM\Klinik;
 
 class PasienController extends Controller
 {
+    /**
+     * Lightweight pasien search endpoint for Select2.
+     * Returns: { results: [{ id, text }] }
+     */
+    public function select2(Request $request)
+    {
+        $term = trim((string) $request->get('q', ''));
+
+        $query = Pasien::query()->select(['id', 'nama', 'nik']);
+
+        if ($term !== '') {
+            $query->where(function ($q) use ($term) {
+                $q->where('nama', 'like', '%' . $term . '%')
+                    ->orWhere('id', 'like', '%' . $term . '%')
+                    ->orWhere('nik', 'like', '%' . $term . '%');
+            });
+        }
+
+        $items = $query
+            ->orderBy('nama')
+            ->limit(20)
+            ->get()
+            ->map(function ($p) {
+                $label = trim(($p->nama ?? '-') . ' (RM: ' . $p->id . ')');
+                if (!empty($p->nik)) {
+                    $label .= ' - NIK: ' . $p->nik;
+                }
+                return [
+                    'id' => (string) $p->id,
+                    'text' => $label,
+                ];
+            })
+            ->values();
+
+        return response()->json(['results' => $items]);
+    }
+
     public function index(Request $request)
     {
         if ($request->ajax()) {

@@ -704,6 +704,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     //Visitation
     Route::get('/pasiens', [PasienController::class, 'index'])->name('erm.pasiens.index');
+    Route::get('/pasiens/select2', [PasienController::class, 'select2'])->name('erm.pasiens.select2');
     Route::post('/visitations', [VisitationController::class, 'store'])->name('erm.visitations.store');
     Route::post('/visitations/produk', [VisitationController::class, 'storeProduk'])->name('erm.visitations.produk.store');
     Route::post('/visitations/lab', [VisitationController::class, 'storeLab'])->name('erm.visitations.lab.store');
@@ -784,8 +785,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::post('/notify-pasien-keluar', [NotificationController::class, 'notifyPasienKeluar'])->name('erm.notify.pasien.keluar');
     // Return old notifications (used by Farmasi "Old Notifications" modal)
     Route::get('/farmasi/notifications/old', [NotificationController::class, 'oldNotifications'])->name('erm.farmasi.notifications.old');
+    // Return unread count (used by Farmasi "Old Notifications" button badge)
+    Route::get('/farmasi/notifications/old-count', [NotificationController::class, 'oldNotificationsUnreadCount'])->name('erm.farmasi.notifications.old.count');
     // Mark single notification as read
     Route::post('/farmasi/notifications/{id}/mark-read', [NotificationController::class, 'markAsRead'])->name('erm.farmasi.notifications.markread');
+    // Mark all notifications as read
+    Route::post('/farmasi/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('erm.farmasi.notifications.markallread');
     
     // Paket Racikan Routes
     Route::get('/paket-racikan', [EresepController::class, 'paketRacikanIndex'])->name('erm.paket-racikan.index');
@@ -1124,6 +1129,7 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
         Route::get('/billing/create/{visitation_id}', [BillingController::class, 'create'])->name('finance.billing.create');
         Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
         Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
+    Route::post('/billing/receive-payment', [BillingController::class, 'receivePayment'])->name('finance.billing.receivePayment');
 
 
         Route::post('/billing', [BillingController::class, 'store'])->name('finance.billing.store');
@@ -1140,13 +1146,23 @@ Route::prefix('finance')->middleware('role:Kasir|Admin|Farmasi|Finance|Employee|
     Route::post('/billing/visitation/{visitation_id}/restore', [BillingController::class, 'restoreByVisitation'])->name('finance.billing.restoreByVisitation');
     Route::delete('/billing/visitation/{visitation_id}/force', [BillingController::class, 'forceDeleteByVisitation'])->name('finance.billing.forceDeleteByVisitation');
         Route::get('/billing/data', [BillingController::class, 'getVisitationsData'])->name('finance.billing.data');
+        Route::get('/billing/tab-counts', [BillingController::class, 'getBillingTabCounts'])->name('finance.billing.tab-counts');
     // Billing -> Send notification to Farmasi
     Route::post('/send-notif-farmasi', [BillingController::class, 'sendNotifToFarmasi'])->middleware('auth');
     Route::get('/get-notif', [BillingController::class, 'getNotif'])->middleware('auth');
-        Route::post('/billing/save', [BillingController::class, 'saveBilling'])->name('finance.billing.save');
-        Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('finance.billing.createInvoice');
+        // (routes duplicated above; keep single source of truth)
         Route::get('/billing/filters', [BillingController::class, 'filters'])->name('finance.billing.filters');
+        // Lazy-loaded modal markup for billing index page
+        Route::get('/billing/index-modals', function () {
+            $kliniks = \App\Models\ERM\Klinik::select('id', 'nama')->orderBy('nama')->get();
+            $metodeBayar = \App\Models\ERM\MetodeBayar::select('id', 'nama')->orderBy('nama')->get();
+            return view('finance.billing.partials.index-modals', compact('kliniks', 'metodeBayar'));
+        })->name('finance.billing.index-modals');
         Route::get('/billing/gudang-data', [BillingController::class, 'getGudangData'])->name('finance.billing.gudang-data');
+        // Lazy-loaded modal markup (loaded on-demand by billing create page)
+        Route::get('/billing/stock-info-modal', [BillingController::class, 'stockInfoModal'])->name('finance.billing.stock-info-modal');
+        // Stock modal (tindakan): load obat rows from riwayat tindakan pivot
+        Route::get('/billing/riwayat-tindakan-obats', [BillingController::class, 'riwayatTindakanObats'])->name('finance.billing.riwayat-tindakan-obats');
 
         // Invoice routes
         // Route::post('/billing/create-invoice', [BillingController::class, 'createInvoice'])->name('billing.createInvoice');
@@ -1488,6 +1504,19 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
     Route::get('/dashboard', [MarketingController::class, 'dashboard'])->name('marketing.dashboard');
 
+    // Penawaran
+    Route::get('/penawaran', [\App\Http\Controllers\Marketing\PenawaranController::class, 'index'])->name('marketing.penawaran.index');
+    Route::get('/penawaran/data', [\App\Http\Controllers\Marketing\PenawaranController::class, 'index'])->name('marketing.penawaran.data');
+    Route::post('/penawaran', [\App\Http\Controllers\Marketing\PenawaranController::class, 'store'])->name('marketing.penawaran.store');
+    Route::get('/penawaran/{id}/items', [\App\Http\Controllers\Marketing\PenawaranController::class, 'items'])->name('marketing.penawaran.items');
+    Route::post('/penawaran/{id}/status', [\App\Http\Controllers\Marketing\PenawaranController::class, 'updateStatus'])->name('marketing.penawaran.status');
+    Route::post('/penawaran/{id}/submit', [\App\Http\Controllers\Marketing\PenawaranController::class, 'submit'])->name('marketing.penawaran.submit');
+    Route::get('/penawaran/pasien/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'pasienSelect2'])->name('marketing.penawaran.pasien.search');
+    Route::get('/penawaran/obat/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'obatSelect2'])->name('marketing.penawaran.obat.search');
+    Route::get('/penawaran/klinik/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'klinikSelect2'])->name('marketing.penawaran.klinik.search');
+    Route::get('/penawaran/dokter/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'dokterSelect2'])->name('marketing.penawaran.dokter.search');
+    Route::get('/penawaran/metode-bayar/search', [\App\Http\Controllers\Marketing\PenawaranController::class, 'metodeBayarSelect2'])->name('marketing.penawaran.metode_bayar.search');
+
     // Content Plan: status list modal data endpoint
     Route::get('/content-plan/status-list', [\App\Http\Controllers\Marketing\ContentPlanController::class, 'statusList'])
         ->name('marketing.content-plan.status_list');
@@ -1646,6 +1675,13 @@ Route::prefix('marketing')->middleware('role:Marketing|Admin|Beautician|Finance|
     Route::get('/promo/{promo}', [PromoController::class, 'show']);
     Route::put('/promo/{promo}', [PromoController::class, 'update'])->name('marketing.promo.update');
     Route::delete('/promo/{promo}', [PromoController::class, 'destroy'])->name('marketing.promo.destroy');
+});
+
+// Farmasi: Penawaran processing endpoints inside ERM
+Route::prefix('erm')->middleware('role:Farmasi|Admin')->group(function () {
+    Route::get('/penawaran/farmasi-data', [\App\Http\Controllers\Marketing\PenawaranController::class, 'farmasiData'])->name('erm.penawaran.farmasi.data');
+    Route::get('/penawaran/farmasi-count', [\App\Http\Controllers\Marketing\PenawaranController::class, 'farmasiReadyCount'])->name('erm.penawaran.farmasi.count');
+    Route::post('/penawaran/{id}/process', [\App\Http\Controllers\Marketing\PenawaranController::class, 'process'])->name('erm.penawaran.process');
 });
 
 

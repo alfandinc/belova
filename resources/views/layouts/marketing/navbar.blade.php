@@ -90,6 +90,9 @@
                 <a href="/marketing/promo"> <i data-feather="tag" class="align-self-center menu-icon"></i><span>Promo</span></a>
             </li>
             <li>
+                <a href="{{ route('marketing.penawaran.index') }}"> <i data-feather="tag" class="align-self-center menu-icon"></i><span>Penawaran</span></a>
+            </li>
+            <li>
                 <a href="{{ route('marketing.kunjungan.index') }}"> <i data-feather="map-pin" class="align-self-center menu-icon"></i><span>Kunjungan</span></a>
             </li>
             <li>

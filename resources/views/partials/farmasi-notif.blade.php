@@ -3,7 +3,8 @@
 window.soundEnabled = false;
 // Initialize last check to server time so existing unread notifications
 // prior to this page load are not shown as 'new' immediately after login.
-window.lastFarmasiNotifCheck = window.lastFarmasiNotifCheck || {{ time() }};
+// Use a small buffer to avoid missing notifications created in the same second.
+window.lastFarmasiNotifCheck = window.lastFarmasiNotifCheck || {{ time() - 3 }};
 // Optional: allow overriding page context from a global variable
 window.farmasiNotifPage = window.farmasiNotifPage || 'index';
 $(function() {
