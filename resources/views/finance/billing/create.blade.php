@@ -771,10 +771,42 @@
         function hasLocalBillingChanges() {
             try {
                 if (!Array.isArray(billingData)) return false;
-                return billingData.some(function(item) {
+                const itemsChanged = billingData.some(function(item) {
                     if (!item) return false;
                     return !!item.edited || !!item.deleted || isTempBillingId(item.id);
                 }) || (Array.isArray(deletedItems) && deletedItems.length > 0);
+
+                // Also treat header totals inputs as invoice changes (tax/admin/shipping/etc)
+                // so user can update invoice without changing table items.
+                let totalsChanged = false;
+                try {
+                    if (currentInvoiceId && window.oldInvoice && !currentInvoiceIsPaid && !billingLocked) {
+                        const oldTax = parseFloat((window.oldInvoice.tax_percentage !== null && typeof window.oldInvoice.tax_percentage !== 'undefined' && window.oldInvoice.tax_percentage !== '') ? window.oldInvoice.tax_percentage : 0) || 0;
+                        const nowTax = parseFloat($('#tax_percentage').val() || 0) || 0;
+
+                        const oldAdmin = parseHarga((window.oldInvoice.admin_fee !== null && typeof window.oldInvoice.admin_fee !== 'undefined' && window.oldInvoice.admin_fee !== '') ? window.oldInvoice.admin_fee : 0) || 0;
+                        const nowAdmin = parseHarga($('#admin_fee').val() || 0) || 0;
+
+                        const oldShip = parseHarga((window.oldInvoice.shipping_fee !== null && typeof window.oldInvoice.shipping_fee !== 'undefined' && window.oldInvoice.shipping_fee !== '') ? window.oldInvoice.shipping_fee : 0) || 0;
+                        const nowShip = parseHarga($('#shipping_fee').val() || 0) || 0;
+
+                        const oldDisc = parseHarga((window.oldInvoice.global_discount !== null && typeof window.oldInvoice.global_discount !== 'undefined' && window.oldInvoice.global_discount !== '') ? window.oldInvoice.global_discount : 0) || 0;
+                        const nowDisc = parseHarga($('#global_discount').val() || 0) || 0;
+
+                        const oldDiscType = (window.oldInvoice.global_discount_type !== null && typeof window.oldInvoice.global_discount_type !== 'undefined') ? String(window.oldInvoice.global_discount_type) : '';
+                        const nowDiscType = String($('#global_discount_type').val() || '');
+
+                        totalsChanged = (Math.abs(oldTax - nowTax) > 0.0001)
+                            || (Math.ceil(oldAdmin) !== Math.ceil(nowAdmin))
+                            || (Math.ceil(oldShip) !== Math.ceil(nowShip))
+                            || (Math.ceil(oldDisc) !== Math.ceil(nowDisc))
+                            || (oldDiscType !== nowDiscType);
+                    }
+                } catch (e) {
+                    totalsChanged = false;
+                }
+
+                return !!itemsChanged || !!totalsChanged;
             } catch (e) {
                 return false;
             }
