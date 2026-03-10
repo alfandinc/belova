@@ -762,6 +762,12 @@
         function isTempBillingId(id) {
             try {
                 const s = (id || '').toString();
+                // Any non-numeric ID can't be a real DB primary key.
+                // Treat it as a temp row so it gets sent as `new_items`.
+                if (!/^[0-9]+$/.test(s)) {
+                    return true;
+                }
+                // Known temp prefixes (kept for clarity; numeric-only check above is the main guard)
                 return s.startsWith('tindakan-') || s.startsWith('lab-') || s.startsWith('konsultasi-') || s.startsWith('obat-') || s.startsWith('racikan-');
             } catch (e) {
                 return false;
@@ -1760,6 +1766,13 @@
                             }
                             updateTable();
                             calculateTotals();
+
+                            // Persist deletion immediately
+                            try {
+                                persistBillingSilently();
+                            } catch (e) {
+                                // ignore
+                            }
                             // console.log('Item deleted successfully');
                             Swal.fire({
                                 title: 'Berhasil!',
@@ -1785,54 +1798,12 @@
         $('#saveChangesBtn').on('click', function(e) {
             e.preventDefault();
             const id = $('#edit_id').val();
-            const jumlah = parseFloat($('#jumlah').val());
-            const diskon = $('#diskon').val() ? parseFloat($('#diskon').val()) : 0;
+            const jumlah = $('#jumlah').val();
+            const diskon = $('#diskon').val();
             const diskon_type = $('#diskon_type').val();
-            const qty = parseInt($('#edit_qty').val()) || 1;
-            // Update local data using id
-            const idx = billingData.findIndex(item => item.id == id);
-            if (idx !== -1) {
-                billingData[idx].jumlah_raw = jumlah;
-                billingData[idx].diskon_raw = diskon;
-                billingData[idx].diskon_type = diskon_type;
-                billingData[idx].qty = qty;
-                billingData[idx].jumlah = 'Rp ' + formatCurrency(jumlah);
-                if (diskon && diskon > 0) {
-                    if (diskon_type === '%') {
-                        billingData[idx].diskon = diskon + '%';
-                    } else {
-                        billingData[idx].diskon = 'Rp ' + formatCurrency(diskon);
-                    }
-                } else {
-                    billingData[idx].diskon = '-';
-                }
-                const lineNoDisc = jumlah * qty;
-                let lineAfter = lineNoDisc;
-                if (diskon && diskon > 0) {
-                    if (diskon_type === '%') {
-                        lineAfter = lineNoDisc - (lineNoDisc * (diskon / 100));
-                    } else {
-                        // Nominal discount is treated as line discount: (unit * qty) - diskon_rp
-                        lineAfter = lineNoDisc - diskon;
-                    }
-                }
-                lineAfter = Math.max(0, lineAfter);
-                // Store the final line total (already multiplied by qty)
-                billingData[idx].harga_akhir_raw = lineAfter;
-                billingData[idx].harga_akhir = 'Rp ' + formatCurrency(lineAfter);
-                billingData[idx].edited = true;
-                // Racikan group edits must carry racikan_ke + updated racikan_total_price
-                // so backend doesn't accidentally update the wrong group.
-                if (billingData[idx].is_racikan) {
-                    // Normalize flag for consistent backend checks
-                    billingData[idx].is_racikan = 1;
-                    billingData[idx].racikan_total_price = jumlah;
-                    // racikan_ke is provided by backend for grouped rows; keep it if present.
-                    if (typeof billingData[idx].racikan_ke !== 'undefined' && billingData[idx].racikan_ke !== null) {
-                        billingData[idx].racikan_ke = billingData[idx].racikan_ke;
-                    }
-                }
-            }
+            const qty = $('#edit_qty').val();
+
+            applyEditModalChangesToBillingData(id, jumlah, diskon, diskon_type, qty);
             $('#editModal').modal('hide');
 
             // Item amounts changed; server hints are no longer authoritative
@@ -1842,6 +1813,9 @@
             // console.log('[DEBUG] Harga after edit:', jumlah);
             updateTable();
             calculateTotals();
+
+            // Persist billing change immediately so diskon/harga won't revert on refresh.
+            persistBillingSilently();
 
             // Debug: Show total for this item in DataTable
             setTimeout(function() {
@@ -1883,6 +1857,98 @@
         }
     }, 100);
 }
+
+        function parseNumberFlexible(value) {
+            if (value === null || typeof value === 'undefined' || value === '') return 0;
+            if (typeof value === 'number') return isNaN(value) ? 0 : value;
+            let s = String(value).trim();
+            if (!s) return 0;
+            s = s.replace(/[^0-9,.-]/g, '');
+            if (s.includes(',') && s.includes('.')) {
+                // Assume '.' thousands and ',' decimals
+                s = s.replace(/\./g, '').replace(',', '.');
+            } else if (s.includes(',')) {
+                // Assume ',' decimals
+                s = s.replace(',', '.');
+            }
+            const n = parseFloat(s);
+            return isNaN(n) ? 0 : n;
+        }
+
+        function normalizeDiskonType(diskonValue, diskonType) {
+            const disc = parseNumberFlexible(diskonValue);
+            const t = (diskonType || '').toString().trim();
+            if (disc > 0 && !t) return 'nominal';
+            return t;
+        }
+
+        function computeLineTotalAfterDiscount(jumlah, qty, diskonValue, diskonType) {
+            const unit = parseNumberFlexible(jumlah);
+            const q = Math.max(1, parseInt(qty, 10) || 1);
+            const disc = Math.max(0, parseNumberFlexible(diskonValue));
+            const t = (diskonType || '').toString().trim();
+
+            const lineNoDisc = unit * q;
+            let lineAfter = lineNoDisc;
+            if (disc > 0) {
+                if (t === '%') {
+                    lineAfter = lineNoDisc - (lineNoDisc * (disc / 100));
+                } else {
+                    lineAfter = lineNoDisc - disc;
+                }
+            }
+            return Math.max(0, lineAfter);
+        }
+
+        function formatDiskonDisplay(diskonValue, diskonType) {
+            const disc = parseNumberFlexible(diskonValue);
+            const t = (diskonType || '').toString().trim();
+            if (!disc || disc <= 0) return '-';
+            if (t === '%') return disc + '%';
+            return 'Rp ' + formatCurrency(disc);
+        }
+
+        function applyEditModalChangesToBillingData(id, jumlah, diskonValue, diskonType, qty) {
+            const idx = (Array.isArray(billingData) ? billingData : []).findIndex(function(item){ return item && item.id == id; });
+            if (idx === -1) return false;
+
+            const jumlahNum = parseNumberFlexible(jumlah);
+            const qtyNum = Math.max(1, parseInt(qty, 10) || 1);
+            const diskonNum = Math.max(0, parseNumberFlexible(diskonValue));
+            const typeNorm = normalizeDiskonType(diskonNum, diskonType);
+            const lineAfter = computeLineTotalAfterDiscount(jumlahNum, qtyNum, diskonNum, typeNorm);
+
+            billingData[idx].jumlah_raw = jumlahNum;
+            billingData[idx].diskon_raw = diskonNum;
+            billingData[idx].diskon_type = typeNorm;
+            billingData[idx].qty = qtyNum;
+
+            billingData[idx].jumlah = 'Rp ' + formatCurrency(jumlahNum);
+            billingData[idx].diskon = formatDiskonDisplay(diskonNum, typeNorm);
+            billingData[idx].harga_akhir_raw = lineAfter;
+            billingData[idx].harga_akhir = 'Rp ' + formatCurrency(lineAfter);
+            billingData[idx].edited = true;
+
+            if (billingData[idx].is_racikan) {
+                billingData[idx].is_racikan = 1;
+                // UI uses harga field as racikan_total_price
+                billingData[idx].racikan_total_price = jumlahNum;
+                // keep racikan_ke if present
+                if (typeof billingData[idx].racikan_ke !== 'undefined' && billingData[idx].racikan_ke !== null) {
+                    billingData[idx].racikan_ke = billingData[idx].racikan_ke;
+                }
+            }
+
+            return true;
+        }
+
+        function persistBillingSilently() {
+            try {
+                saveBillingNowAndRefresh({ silent: true });
+            } catch (e) {
+                // ignore
+            }
+        }
         
         // Helper function for formatting currency (removes unnecessary 0s)
         function formatCurrency(value) {
@@ -2270,6 +2336,101 @@ $('#saveAllChangesBtn').on('click', function() {
             });
         }
 
+        function buildSaveBillingRequestData(correctVisitationId, totalsOverrideJsonString) {
+            // Temp rows must always be sent as new_items (even if edited).
+            // Only real DB rows (non-temp IDs) may be sent as edited_items.
+            const editedItems = (Array.isArray(billingData) ? billingData : []).filter(function(item) {
+                if (!item || item.deleted) return false;
+                if (!item.edited) return false;
+                return !isTempBillingId(item.id);
+            });
+            const newItems = (Array.isArray(billingData) ? billingData : []).filter(function(item) {
+                if (!item || item.deleted) return false;
+                return isTempBillingId(item.id);
+            });
+
+            const editedItemsPayload = editedItems.map(function(it) {
+                if (!it) return it;
+                return {
+                    id: it.id,
+                    jumlah_raw: (typeof it.jumlah_raw !== 'undefined') ? it.jumlah_raw : null,
+                    diskon_raw: (typeof it.diskon_raw !== 'undefined') ? it.diskon_raw : null,
+                    // Avoid sending empty-string to enum column
+                    diskon_type: (typeof it.diskon_type !== 'undefined' && it.diskon_type !== '') ? it.diskon_type : null,
+                    qty: (typeof it.qty !== 'undefined') ? it.qty : null,
+                    is_racikan: (typeof it.is_racikan !== 'undefined') ? it.is_racikan : null,
+                    racikan_ke: (typeof it.racikan_ke !== 'undefined') ? it.racikan_ke : null,
+                    racikan_total_price: (typeof it.racikan_total_price !== 'undefined') ? it.racikan_total_price : null,
+                };
+            });
+
+            return {
+                _token: "{{ csrf_token() }}",
+                visitation_id: correctVisitationId,
+                edited_items: editedItemsPayload,
+                new_items: newItems,
+                deleted_items: deletedItems,
+                totals: (typeof totalsOverrideJsonString === 'string') ? totalsOverrideJsonString : null
+            };
+        }
+
+        function saveBillingNowAndRefresh(options) {
+            options = options || {};
+            const silent = options.silent === true;
+            if (billingLocked) return;
+
+            const correctVisitationId = "{{ $visitation->id }}";
+            const requestData = buildSaveBillingRequestData(correctVisitationId, null);
+
+            const hasSomethingToSave = (
+                (requestData.edited_items && requestData.edited_items.length > 0)
+                || (requestData.new_items && requestData.new_items.length > 0)
+                || (requestData.deleted_items && requestData.deleted_items.length > 0)
+            );
+            if (!hasSomethingToSave) return;
+
+            if (!silent) {
+                Swal.fire({
+                    title: 'Menyimpan Billing...',
+                    text: 'Harap tunggu sebentar.',
+                    icon: 'info',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+            }
+
+            $.ajax({
+                url: "{{ route('finance.billing.save') }}",
+                type: 'POST',
+                data: requestData,
+                success: function() {
+                    // Clear local dirty state and refresh from DB
+                    try {
+                        billingData = [];
+                        deletedItems = [];
+                        window.__billingLightRefresh = false;
+                        table.ajax.reload(null, false);
+                    } catch (e) {
+                        // ignore
+                    }
+                    try {
+                        if (!silent) Swal.close();
+                    } catch (e) {
+                        // ignore
+                    }
+                },
+                error: function(xhr) {
+                    try {
+                        if (!silent) Swal.close();
+                    } catch (e) {
+                        // ignore
+                    }
+                    showReadableAjaxError('Gagal Menyimpan Billing', xhr, 'Terjadi kesalahan saat menyimpan billing:');
+                }
+            });
+        }
+
         function runInvoiceFlow(isCreatingInvoice) {
             // Ensure totals calculated before sending
             calculateTotals();
@@ -2330,31 +2491,6 @@ $('#saveAllChangesBtn').on('click', function() {
                 if (result.value) {
                     // Prepare request data
                     const correctVisitationId = "{{ $visitation->id }}";
-                    const editedItems = billingData.filter(item => item.edited && !item.deleted);
-                    // Normalize payload for backend: send only fields we support, and always include racikan keys.
-                    const editedItemsPayload = editedItems.map(function(it) {
-                        if (!it) return it;
-                        const payload = {
-                            id: it.id,
-                            jumlah_raw: (typeof it.jumlah_raw !== 'undefined') ? it.jumlah_raw : null,
-                            diskon_raw: (typeof it.diskon_raw !== 'undefined') ? it.diskon_raw : null,
-                            diskon_type: (typeof it.diskon_type !== 'undefined') ? it.diskon_type : null,
-                            qty: (typeof it.qty !== 'undefined') ? it.qty : null,
-                            is_racikan: (typeof it.is_racikan !== 'undefined') ? it.is_racikan : null,
-                            racikan_ke: (typeof it.racikan_ke !== 'undefined') ? it.racikan_ke : null,
-                            racikan_total_price: (typeof it.racikan_total_price !== 'undefined') ? it.racikan_total_price : null,
-                        };
-                        return payload;
-                    });
-                    const newItems = billingData.filter(item =>
-                        !item.edited &&
-                        !item.deleted &&
-                        (item.id.toString().startsWith('tindakan-') ||
-                         item.id.toString().startsWith('lab-') ||
-                         item.id.toString().startsWith('konsultasi-') ||
-                         item.id.toString().startsWith('obat-') ||
-                         item.id.toString().startsWith('racikan-'))
-                    );
                     const items = billingData.filter(item => !item.deleted);
                     if (items.length === 0) {
                         Swal.fire({
@@ -2364,14 +2500,10 @@ $('#saveAllChangesBtn').on('click', function() {
                         });
                         return;
                     }
-                    const requestData = {
-                        _token: "{{ csrf_token() }}",
-                        visitation_id: correctVisitationId,
-                        edited_items: editedItemsPayload,
-                        new_items: newItems,
-                        deleted_items: deletedItems,
-                        totals: JSON.stringify(isCreatingInvoice ? unpaidTotals : window.billingTotals)
-                    };
+                    const requestData = buildSaveBillingRequestData(
+                        correctVisitationId,
+                        JSON.stringify(isCreatingInvoice ? unpaidTotals : window.billingTotals)
+                    );
 
                     // Open a single loading modal and update it through the process
                     Swal.fire({
@@ -2613,6 +2745,16 @@ $('#saveAllChangesBtn').on('click', function() {
                     if (!isCreatingInvoice && billingLocked) {
                         proceedToInvoiceRequest();
                         return;
+                    }
+
+                    // If there are no local billing changes, skip saving billing.
+                    try {
+                        if (!hasLocalBillingChanges()) {
+                            proceedToInvoiceRequest();
+                            return;
+                        }
+                    } catch (e) {
+                        // ignore
                     }
 
                     // First: save billing
@@ -3047,6 +3189,13 @@ $('#saveAllChangesBtn').on('click', function() {
             updateTable();
             calculateTotals();
             $(this).val(null).trigger('change');
+
+            // Persist immediately so refresh won't revert and the DB gets a real ID.
+            try {
+                persistBillingSilently();
+            } catch (e) {
+                // ignore
+            }
         });
 
         // Add selected Obat/Produk to billingData

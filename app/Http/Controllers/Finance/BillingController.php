@@ -677,6 +677,12 @@ class BillingController extends Controller
                 // skip racikan and pharmacy fee rows
                 if (isset($pb->is_racikan) || isset($pb->is_pharmacy_fee)) continue;
 
+                // If user already set a manual discount on this billing row, never override it with promo.
+                // This prevents the UI from "reverting" discount values after refresh/update.
+                if (floatval($pb->diskon ?? 0) > 0) {
+                    continue;
+                }
+
                 // Skip promo application for zero-priced billing rows (e.g., gratis items)
                 if (floatval($pb->jumlah ?? 0) <= 0) {
                     continue;
@@ -763,6 +769,11 @@ class BillingController extends Controller
                     foreach ($rowCandidatesByIndex as $pbIndex => $candidates) {
                         $pb = $processedBillings[$pbIndex] ?? null;
                         if (!$pb) continue;
+
+                        // Respect manual discount (do not apply promo)
+                        if (floatval($pb->diskon ?? 0) > 0) {
+                            continue;
+                        }
 
                         $bestPromo = null;
                         $bestPercent = 0;
@@ -893,6 +904,28 @@ class BillingController extends Controller
                 }
             }
 
+            // Aggregate discount for grouped racikan row so UI doesn't "revert" after refresh.
+            // Rule:
+            // - If any nominal discounts exist in the group, show total nominal discount.
+            // - Else if percent discounts exist and all percent values match, show that percent.
+            $groupNominalDiscount = 0.0;
+            $groupPercentDiscounts = [];
+            try {
+                foreach ($racikanItems as $it) {
+                    $dv = floatval($it->diskon ?? 0);
+                    if ($dv <= 0) continue;
+                    $dt = trim((string)($it->diskon_type ?? ''));
+                    if ($dt === '%') {
+                        $groupPercentDiscounts[] = $dv;
+                    } else {
+                        $groupNominalDiscount += $dv;
+                    }
+                }
+            } catch (\Exception $e) {
+                $groupNominalDiscount = 0.0;
+                $groupPercentDiscounts = [];
+            }
+
             // Clone the first item and modify its properties for display
             $racikanItem = clone $firstItem;
             $racikanItem->is_racikan = true;
@@ -903,6 +936,25 @@ class BillingController extends Controller
             $racikanItem->racikan_bungkus = $bungkus;
             $racikanItem->racikan_ke = $racikanKey;
             $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
+
+            // Attach aggregated discount to grouped racikan row
+            if ($groupNominalDiscount > 0) {
+                $racikanItem->diskon = $groupNominalDiscount;
+                $racikanItem->diskon_type = 'nominal';
+            } elseif (!empty($groupPercentDiscounts)) {
+                $unique = array_values(array_unique(array_map(function($v){ return (string)$v; }, $groupPercentDiscounts)));
+                if (count($unique) === 1) {
+                    $racikanItem->diskon = floatval($groupPercentDiscounts[0]);
+                    $racikanItem->diskon_type = '%';
+                } else {
+                    // Mixed percent values; fall back to no grouped discount display
+                    $racikanItem->diskon = 0;
+                    $racikanItem->diskon_type = null;
+                }
+            } else {
+                $racikanItem->diskon = 0;
+                $racikanItem->diskon_type = null;
+            }
 
             // Prefer using the ResepFarmasi model's built-in paket resolution.
             // If all components point to the same paket name, use it for the grouped racikan row.
@@ -1455,8 +1507,18 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 
                 // For racikan items
                 if (isset($row->is_racikan) && $row->is_racikan) {
-                    $qty = $row->racikan_bungkus ?? 0;
-                    return floatval($row->racikan_total_price) * floatval($qty);
+                    $qty = floatval($row->racikan_bungkus ?? 0);
+                    $lineNoDisc = floatval($row->racikan_total_price) * $qty;
+                    $discountVal = floatval($row->diskon ?? 0);
+                    $lineAfter = $lineNoDisc;
+                    if ($discountVal > 0) {
+                        if (($row->diskon_type ?? null) === '%') {
+                            $lineAfter = $lineNoDisc - ($lineNoDisc * ($discountVal / 100));
+                        } else {
+                            $lineAfter = $lineNoDisc - $discountVal;
+                        }
+                    }
+                    return max(0, $lineAfter);
                 }
 
                 // Get quantity
@@ -1497,7 +1559,19 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                 
                 // For racikan items
                 if (isset($row->is_racikan) && $row->is_racikan) {
-                    return 'Rp ' . number_format($row->racikan_total_price * $row->racikan_bungkus, 0, ',', '.');
+                    $qty = floatval($row->racikan_bungkus ?? 0);
+                    $lineNoDisc = floatval($row->racikan_total_price) * $qty;
+                    $discountVal = floatval($row->diskon ?? 0);
+                    $lineAfter = $lineNoDisc;
+                    if ($discountVal > 0) {
+                        if (($row->diskon_type ?? null) === '%') {
+                            $lineAfter = $lineNoDisc - ($lineNoDisc * ($discountVal / 100));
+                        } else {
+                            $lineAfter = $lineNoDisc - $discountVal;
+                        }
+                    }
+                    $lineAfter = max(0, $lineAfter);
+                    return 'Rp ' . number_format($lineAfter, 0, ',', '.');
                 }
 
                 // Quantity
@@ -2524,20 +2598,28 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         $storedDiscountType = null;
                     }
 
+                    // Always store invoice-item discount as NOMINAL (line discount), never as '%'.
+                    $qtyForDiscount = floatval($item->qty ?? 1);
+                    $qtyForDiscount = $qtyForDiscount > 0 ? $qtyForDiscount : 1;
+
                     if ($appliedPromo && $promoBase !== null && $promoPercent !== null) {
-                        // Nominal gap between original unit price and promo base
-                        $gap = max(0, $unitPrice - $promoBase);
-                        $percentNominal = ($promoBase * ($promoPercent / 100));
-                        $storedDiscount = round($gap + $percentNominal, 2);
-                        $storedDiscountType = 'nominal';
+                        // Convert promo % into nominal line discount.
+                        // Gap between original unit price and promo base + percent discount on promo base.
+                        $gapUnit = max(0, $unitPrice - $promoBase);
+                        $percentUnit = ($promoBase * ($promoPercent / 100));
+                        $unitDiscount = max(0, $gapUnit + $percentUnit);
+                        $storedDiscount = round($unitDiscount * $qtyForDiscount, 2);
+                        $storedDiscountType = $storedDiscount > 0 ? 'nominal' : null;
                     } else {
-                        // Legacy behavior: convert percent to nominal for storage
-                        if ($discountType === '%') {
-                            $storedDiscount = round($unitPrice * ($discountVal / 100), 2);
-                            $storedDiscountType = 'nominal';
+                        if ($discountVal > 0 && $discountType === '%') {
+                            // Percent discount: convert to nominal LINE discount (qty-aware).
+                            $lineNoDiscTmp = $unitPrice * $qtyForDiscount;
+                            $storedDiscount = round($lineNoDiscTmp * ($discountVal / 100), 2);
+                            $storedDiscountType = $storedDiscount > 0 ? 'nominal' : null;
                         } else {
+                            // Nominal discount from billing is already treated as LINE discount.
                             $storedDiscount = round(floatval($discountVal ?? 0), 2);
-                            $storedDiscountType = 'nominal';
+                            $storedDiscountType = $storedDiscount > 0 ? 'nominal' : null;
                         }
                     }
 
@@ -2738,9 +2820,51 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                     
                     // For racikan, the unit price is the total price of all components per unit (bungkus)
                     $unitPrice = (float) $totalPrice;  // Total price of all components is treated as unit price
-                    // Use the computed $qty (bungkus) for final amount. Previously code used $newQty which
-                    // could be from an earlier loop iteration and lead to final_amount equaling unit_price.
-                    $finalAmount = $unitPrice * (int) $qty; // Final amount = unit price × qty (bungkus)
+                    // Aggregate discount for racikan group (mirror billing grouped-row behavior)
+                    $racikanNominalDiscount = 0.0;
+                    $racikanPercentDiscounts = [];
+                    try {
+                        foreach ($racikanItems as $ri) {
+                            $dv = floatval($ri->diskon ?? 0);
+                            if ($dv <= 0) continue;
+                            $dt = trim((string)($ri->diskon_type ?? ''));
+                            if ($dt === '%') {
+                                $racikanPercentDiscounts[] = $dv;
+                            } else {
+                                $racikanNominalDiscount += $dv;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        $racikanNominalDiscount = 0.0;
+                        $racikanPercentDiscounts = [];
+                    }
+
+                    // Always store invoice-item discount as NOMINAL (line discount).
+                    $racikanDiscountValue = 0.0;
+                    $racikanDiscountType = null;
+                    if ($racikanNominalDiscount > 0) {
+                        $racikanDiscountValue = $racikanNominalDiscount;
+                        $racikanDiscountType = 'nominal';
+                    } elseif (!empty($racikanPercentDiscounts)) {
+                        $unique = array_values(array_unique(array_map(function($v){ return (string)$v; }, $racikanPercentDiscounts)));
+                        if (count($unique) === 1) {
+                            $percent = floatval($racikanPercentDiscounts[0]);
+                            $lineNoDiscTmp = $unitPrice * ((int)$qty);
+                            $racikanDiscountValue = round($lineNoDiscTmp * ($percent / 100), 2);
+                            $racikanDiscountType = $racikanDiscountValue > 0 ? 'nominal' : null;
+                        }
+                    }
+
+                    // Use the computed $qty (bungkus) for final amount and apply discount.
+                    $qtyInt = (int) $qty;
+                    $lineNoDisc = $unitPrice * $qtyInt;
+                    $finalAmount = $lineNoDisc;
+                    if ($racikanDiscountValue > 0) {
+                        // nominal discount is treated as LINE discount
+                        $finalAmount = $lineNoDisc - $racikanDiscountValue;
+                    }
+                    $finalAmount = max(0, $finalAmount);
+
                     // Create single invoice item for the racikan group
                 InvoiceItem::create([
                     'invoice_id' => $invoice->id,
@@ -2778,8 +2902,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         }
                         return null;
                     })(),
-                    'discount' => 0,
-                    'discount_type' => null,
+                    'discount' => $racikanDiscountValue,
+                    'discount_type' => $racikanDiscountType,
                     'final_amount' => $finalAmount,
                     'billable_type' => 'App\\Models\\ERM\\ResepFarmasi',
                     'billable_id' => null, // No specific billable_id since it's a group
@@ -3079,6 +3203,7 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                 $racikanBillings = Billing::where('visitation_id', $visitationId)
                                     ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi')
                                     ->whereIn('billable_id', $resepfarmasiIds)
+                                    ->orderBy('id')
                                     ->get();
 
                                 $count = $racikanBillings->count();
@@ -3109,6 +3234,45 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                                             } else {
                                                 $racikanBilling->jumlah = $newTotal;
                                                 $racikanBilling->save();
+                                            }
+                                        }
+                                    }
+
+                                    // Persist discount for grouped racikan edit.
+                                    // UI edits diskon on the grouped row (line discount on total racikan line).
+                                    $diskonVal = null;
+                                    if (isset($item['diskon_raw'])) {
+                                        $diskonVal = floatval($item['diskon_raw']);
+                                    }
+                                    $diskonType = isset($item['diskon_type']) ? trim((string)$item['diskon_type']) : '';
+                                    if ($diskonVal !== null && $diskonVal > 0 && $diskonType === '') {
+                                        $diskonType = 'nominal';
+                                    }
+
+                                    if ($diskonVal !== null) {
+                                        if ($diskonVal <= 0) {
+                                            foreach ($racikanBillings as $rb) {
+                                                $rb->diskon = 0;
+                                                $rb->diskon_type = null;
+                                                $rb->save();
+                                            }
+                                        } elseif ($diskonType === '%') {
+                                            foreach ($racikanBillings as $rb) {
+                                                $rb->diskon = $diskonVal;
+                                                $rb->diskon_type = '%';
+                                                $rb->save();
+                                            }
+                                        } else {
+                                            // Nominal: store as a group-level line discount on the first row only.
+                                            foreach ($racikanBillings as $idx2 => $rb) {
+                                                if ($idx2 === 0) {
+                                                    $rb->diskon = $diskonVal;
+                                                    $rb->diskon_type = 'nominal';
+                                                } else {
+                                                    $rb->diskon = 0;
+                                                    $rb->diskon_type = null;
+                                                }
+                                                $rb->save();
                                             }
                                         }
                                     }
@@ -3146,6 +3310,18 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         continue;
                     }
 
+                    $newDiskon = 0;
+                    if (isset($item['diskon_raw'])) {
+                        $newDiskon = $item['diskon_raw'];
+                    } elseif (isset($item['diskon'])) {
+                        $newDiskon = $item['diskon'];
+                    }
+
+                    $newDiskonType = $item['diskon_type'] ?? 'nominal';
+                    if ($newDiskonType === '' || $newDiskonType === null) {
+                        $newDiskonType = 'nominal';
+                    }
+
                     // Create new billing record
                     $newBilling = Billing::create([
                         'visitation_id' => $request->visitation_id,
@@ -3154,8 +3330,8 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         'nama_item' => $item['nama_item'],
                         'jumlah' => $item['harga_akhir_raw'] ?? 0,
                         'qty' => $item['qty'] ?? 1,
-                        'diskon' => $item['diskon'] ?? 0,
-                        'diskon_type' => $item['diskon_type'] ?? 'nominal',
+                        'diskon' => $newDiskon ?? 0,
+                        'diskon_type' => $newDiskonType,
                         'keterangan' => $item['deskripsi'] ?? null,
                     ]);
                     
