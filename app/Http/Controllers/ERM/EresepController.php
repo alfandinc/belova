@@ -950,10 +950,15 @@ class EresepController extends Controller
         }
         
         DB::commit();
+
+        // Resolve patient name for better UX in notifications/popups
+        $visitation = Visitation::with('pasien')->find($visitationId);
+        $pasienNama = ($visitation && $visitation->pasien) ? $visitation->pasien->nama : null;
+        $pasienSuffix = $pasienNama ? " (" . $pasienNama . ")" : "";
         
         // Notify Kasir users that resep has been submitted
         try {
-            $message = "Resep untuk kunjungan ID: {$visitationId} telah disubmit ke billing.";
+            $message = "Resep{$pasienSuffix} untuk kunjungan ID: {$visitationId} telah disubmit ke billing.";
             $kasirs = \App\Models\User::role('Kasir')->get();
             foreach ($kasirs as $kasir) {
                 // avoid duplicate DB notifications check is omitted for brevity
@@ -966,7 +971,11 @@ class EresepController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Resep berhasil disubmit ke billing!'
+            'message' => $pasienNama
+                ? "Resep pasien: {$pasienNama} (Kunjungan ID: {$visitationId}) berhasil disubmit ke billing!"
+                : 'Resep berhasil disubmit ke billing!',
+            'patient_name' => $pasienNama,
+            'visitation_id' => $visitationId,
         ]);
         
     } catch (\Exception $e) {
