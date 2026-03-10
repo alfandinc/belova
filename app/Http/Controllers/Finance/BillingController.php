@@ -600,7 +600,11 @@ class BillingController extends Controller
         }
 
         // Eager-load billable (morphTo) to avoid N+1 queries on every refresh.
-        $billings = Billing::with('billable')->where('visitation_id', $visitation_id)->get();
+        // Always order deterministically to keep grouped rows stable across refreshes.
+        $billings = Billing::with('billable')
+            ->where('visitation_id', $visitation_id)
+            ->orderBy('id')
+            ->get();
         try {
             $billings->loadMorph('billable', [
                 \App\Models\ERM\ResepFarmasi::class => ['obat:id,nama,harga_net,harga_diskon'],
@@ -897,6 +901,7 @@ class BillingController extends Controller
             $racikanItem->racikan_obat_ids = $obatIds;
             $racikanItem->racikan_total_price = $totalPrice;
             $racikanItem->racikan_bungkus = $bungkus;
+            $racikanItem->racikan_ke = $racikanKey;
             $racikanItem->nama_item = 'Racikan ' . $racikanKey; // Explicitly set the name with racikan number
 
             // Prefer using the ResepFarmasi model's built-in paket resolution.
@@ -3032,66 +3037,86 @@ if (!empty($desc) && !in_array($desc, $feeDescriptions)) {
                         continue;
                     }
 
-                    // Racikan group edit: update all racikan items proportionally
-                    if (isset($item['is_racikan']) && $item['is_racikan'] && isset($item['racikan_total_price'])) {
+                    // Racikan group edit: update items within the SAME racikan_ke proportionally.
+                    // Never fall back to updating all racikan rows for the visitation (can look like random changes).
+                    if (isset($item['is_racikan']) && $item['is_racikan']) {
                         $visitationId = $request->visitation_id;
-                        // Use racikan_ke from the edited item (frontend should send this)
+
+                        // Determine new group total from request (prefer racikan_total_price, fallback to jumlah_raw).
+                        $newTotal = null;
+                        if (isset($item['racikan_total_price'])) {
+                            $newTotal = (float) $item['racikan_total_price'];
+                        } elseif (isset($item['jumlah_raw'])) {
+                            $newTotal = (float) $item['jumlah_raw'];
+                        }
+
+                        // Resolve racikan_ke: prefer payload, fallback to DB lookup from the edited billing row.
                         $racikanKe = $item['racikan_ke'] ?? null;
-                        if ($racikanKe !== null) {
-                            // Get all resep IDs for this racikan_ke
+                        if ($racikanKe === null && isset($item['id'])) {
+                            try {
+                                $editedBilling = Billing::with('billable')->find($item['id']);
+                                if ($editedBilling && $editedBilling->billable_type === 'App\\Models\\ERM\\ResepFarmasi') {
+                                    $rk = optional($editedBilling->billable)->racikan_ke;
+                                    if ($rk !== null) {
+                                        $racikanKe = $rk;
+                                    }
+                                }
+                            } catch (\Exception $e) {
+                                // ignore
+                            }
+                        }
+
+                        // If we can't resolve group identity or new total, do not mass-update.
+                        // Let it fall through to normal single-row edit below.
+                        if ($racikanKe !== null && $newTotal !== null) {
                             $resepfarmasiIds = DB::table('erm_resepfarmasi')
                                 ->where('visitation_id', $visitationId)
                                 ->where('racikan_ke', $racikanKe)
-                                ->pluck('id')->toArray();
-                            // Log::info('Racikan update: racikan_ke='.$racikanKe.' visitation_id='.$visitationId.' resepfarmasiIds='.json_encode($resepfarmasiIds));
-                            $racikanBillings = Billing::where('visitation_id', $visitationId)
-                                ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi')
-                                ->whereIn('billable_id', $resepfarmasiIds)
-                                ->get();
-                            // Log::info('Racikan update: Billing IDs='.json_encode($racikanBillings->pluck('id')));
-                        } else {
-                            // fallback: get all racikan for visitation
-                            $racikanBillings = Billing::where('visitation_id', $visitationId)
-                                ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi')
-                                ->get();
-                            // Log::info('Racikan update: fallback Billing IDs='.json_encode($racikanBillings->pluck('id')));
-                        }
-                        $originalTotal = $racikanBillings->sum(function($b){ return (float)$b->jumlah; });
-                        $newTotal = (float)$item['racikan_total_price'];
-                        $count = $racikanBillings->count();
-                        if ($originalTotal > 0 && $count > 0) {
-                            $ratio = $newTotal / $originalTotal;
-                            $sumSoFar = 0;
-                            foreach ($racikanBillings as $i => $racikanBilling) {
-                                $oldHarga = (float)$racikanBilling->jumlah;
-                                if ($i < $count - 1) {
-                                    $newHarga = round($oldHarga * $ratio, 2);
-                                    $racikanBilling->jumlah = $newHarga > 0 ? $newHarga : 0;
-                                    $racikanBilling->save();
-                                    $sumSoFar += $racikanBilling->jumlah;
-                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' newHarga='.$racikanBilling->jumlah);
-                                } else {
-                                    $lastHarga = round($newTotal - $sumSoFar, 2);
-                                    $racikanBilling->jumlah = $lastHarga > 0 ? $lastHarga : 0;
-                                    $racikanBilling->save();
-                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' lastHarga='.$racikanBilling->jumlah);
-                                }
-                            }
-                        } else if ($count > 0) {
-                            // If original total is zero, set all to zero except last gets total
-                            foreach ($racikanBillings as $i => $racikanBilling) {
-                                if ($i < $count - 1) {
-                                    $racikanBilling->jumlah = 0;
-                                    $racikanBilling->save();
-                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' set to 0');
-                                } else {
-                                    $racikanBilling->jumlah = $newTotal;
-                                    $racikanBilling->save();
-                                    // Log::info('Racikan update: Billing ID='.$racikanBilling->id.' set to newTotal='.$racikanBilling->jumlah);
+                                ->pluck('id')
+                                ->toArray();
+
+                            if (!empty($resepfarmasiIds)) {
+                                $racikanBillings = Billing::where('visitation_id', $visitationId)
+                                    ->where('billable_type', 'App\\Models\\ERM\\ResepFarmasi')
+                                    ->whereIn('billable_id', $resepfarmasiIds)
+                                    ->get();
+
+                                $count = $racikanBillings->count();
+                                if ($count > 0) {
+                                    $originalTotal = $racikanBillings->sum(function($b){ return (float)$b->jumlah; });
+                                    if ($originalTotal > 0) {
+                                        $ratio = $newTotal / $originalTotal;
+                                        $sumSoFar = 0;
+                                        foreach ($racikanBillings as $i => $racikanBilling) {
+                                            $oldHarga = (float)$racikanBilling->jumlah;
+                                            if ($i < $count - 1) {
+                                                $newHarga = round($oldHarga * $ratio, 2);
+                                                $racikanBilling->jumlah = $newHarga > 0 ? $newHarga : 0;
+                                                $racikanBilling->save();
+                                                $sumSoFar += $racikanBilling->jumlah;
+                                            } else {
+                                                $lastHarga = round($newTotal - $sumSoFar, 2);
+                                                $racikanBilling->jumlah = $lastHarga > 0 ? $lastHarga : 0;
+                                                $racikanBilling->save();
+                                            }
+                                        }
+                                    } else {
+                                        // If original total is zero, set all to zero except last gets total
+                                        foreach ($racikanBillings as $i => $racikanBilling) {
+                                            if ($i < $count - 1) {
+                                                $racikanBilling->jumlah = 0;
+                                                $racikanBilling->save();
+                                            } else {
+                                                $racikanBilling->jumlah = $newTotal;
+                                                $racikanBilling->save();
+                                            }
+                                        }
+                                    }
+
+                                    continue;
                                 }
                             }
                         }
-                        continue;
                     }
 
                     // Normal edit for non-racikan items

@@ -1085,6 +1085,8 @@
                     // Refresh billingData from response so totals and UI reflect frozen invoice data.
                     try {
                         if (json && (json.locked_invoice_items === 1 || json.locked_invoice_items === '1' || json.locked_invoice_items === true)) {
+                            // Used by calculateTotals(): locked snapshot rows already include admin/ongkir as items.
+                            window.__usingLockedInvoiceItems = true;
                             json.data = (json.data || []).map(function(item) {
                                 if (!item) return item;
                                 // Ensure raw numeric values exist
@@ -1106,6 +1108,15 @@
                             });
 
                             billingData = json.data;
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+
+                    // Reset flag when not using locked invoice snapshot
+                    try {
+                        if (!(json && (json.locked_invoice_items === 1 || json.locked_invoice_items === '1' || json.locked_invoice_items === true))) {
+                            window.__usingLockedInvoiceItems = false;
                         }
                     } catch (e) {
                         // ignore
@@ -1810,11 +1821,16 @@
                 billingData[idx].harga_akhir_raw = lineAfter;
                 billingData[idx].harga_akhir = 'Rp ' + formatCurrency(lineAfter);
                 billingData[idx].edited = true;
-                // Ensure racikan_ke is included for racikan items
-                if (billingData[idx].is_racikan && billingData[idx].billable && billingData[idx].billable.racikan_ke) {
-                    billingData[idx].racikan_ke = billingData[idx].billable.racikan_ke;
-                    // Set racikan_total_price to the edited value
+                // Racikan group edits must carry racikan_ke + updated racikan_total_price
+                // so backend doesn't accidentally update the wrong group.
+                if (billingData[idx].is_racikan) {
+                    // Normalize flag for consistent backend checks
+                    billingData[idx].is_racikan = 1;
                     billingData[idx].racikan_total_price = jumlah;
+                    // racikan_ke is provided by backend for grouped rows; keep it if present.
+                    if (typeof billingData[idx].racikan_ke !== 'undefined' && billingData[idx].racikan_ke !== null) {
+                        billingData[idx].racikan_ke = billingData[idx].racikan_ke;
+                    }
                 }
             }
             $('#editModal').modal('hide');
@@ -2019,8 +2035,11 @@
             // Display tax amount
             $('#tax_amount').text('+ Rp ' + formatCurrency(taxAmount));
             // Get admin fee and shipping fee
-            const adminFee = parseFloat($('#admin_fee').val() || 0);
-            const shippingFee = parseFloat($('#shipping_fee').val() || 0);
+            // IMPORTANT: After pembayaran lunas, DataTable uses locked invoice snapshot rows which already
+            // contain admin/ongkir as line items. Do not add them again from the header inputs.
+            const usingLockedItems = !!(window.__usingLockedInvoiceItems || billingLocked);
+            const adminFee = usingLockedItems ? 0 : parseFloat($('#admin_fee').val() || 0);
+            const shippingFee = usingLockedItems ? 0 : parseFloat($('#shipping_fee').val() || 0);
             // Calculate and display grand total
             const grandTotal = afterDiscount + taxAmount + adminFee + shippingFee;
             // integer ceil versions to align with backend (always round up)
@@ -2312,6 +2331,21 @@ $('#saveAllChangesBtn').on('click', function() {
                     // Prepare request data
                     const correctVisitationId = "{{ $visitation->id }}";
                     const editedItems = billingData.filter(item => item.edited && !item.deleted);
+                    // Normalize payload for backend: send only fields we support, and always include racikan keys.
+                    const editedItemsPayload = editedItems.map(function(it) {
+                        if (!it) return it;
+                        const payload = {
+                            id: it.id,
+                            jumlah_raw: (typeof it.jumlah_raw !== 'undefined') ? it.jumlah_raw : null,
+                            diskon_raw: (typeof it.diskon_raw !== 'undefined') ? it.diskon_raw : null,
+                            diskon_type: (typeof it.diskon_type !== 'undefined') ? it.diskon_type : null,
+                            qty: (typeof it.qty !== 'undefined') ? it.qty : null,
+                            is_racikan: (typeof it.is_racikan !== 'undefined') ? it.is_racikan : null,
+                            racikan_ke: (typeof it.racikan_ke !== 'undefined') ? it.racikan_ke : null,
+                            racikan_total_price: (typeof it.racikan_total_price !== 'undefined') ? it.racikan_total_price : null,
+                        };
+                        return payload;
+                    });
                     const newItems = billingData.filter(item =>
                         !item.edited &&
                         !item.deleted &&
@@ -2333,7 +2367,7 @@ $('#saveAllChangesBtn').on('click', function() {
                     const requestData = {
                         _token: "{{ csrf_token() }}",
                         visitation_id: correctVisitationId,
-                        edited_items: editedItems,
+                        edited_items: editedItemsPayload,
                         new_items: newItems,
                         deleted_items: deletedItems,
                         totals: JSON.stringify(isCreatingInvoice ? unpaidTotals : window.billingTotals)
@@ -2434,6 +2468,35 @@ $('#saveAllChangesBtn').on('click', function() {
                                         if (typeof invoiceResponse.amount_paid !== 'undefined') window.oldInvoice.amount_paid = invoiceResponse.amount_paid;
                                         if (typeof invoiceResponse.payment_method !== 'undefined') window.oldInvoice.payment_method = invoiceResponse.payment_method;
 
+                                        // IMPORTANT: Also sync header totals inputs (pajak/admin/ongkir/diskon)
+                                        // so `hasLocalBillingChanges()` doesn't keep forcing "Update Invoice".
+                                        try {
+                                            // Prefer backend values if present; otherwise use current input values.
+                                            const nowTax = (typeof invoiceResponse.tax_percentage !== 'undefined')
+                                                ? invoiceResponse.tax_percentage
+                                                : ($('#tax_percentage').val() || 0);
+                                            const nowAdmin = (typeof invoiceResponse.admin_fee !== 'undefined')
+                                                ? invoiceResponse.admin_fee
+                                                : ($('#admin_fee').val() || 0);
+                                            const nowShip = (typeof invoiceResponse.shipping_fee !== 'undefined')
+                                                ? invoiceResponse.shipping_fee
+                                                : ($('#shipping_fee').val() || 0);
+                                            const nowDisc = (typeof invoiceResponse.global_discount !== 'undefined')
+                                                ? invoiceResponse.global_discount
+                                                : ($('#global_discount').val() || 0);
+                                            const nowDiscType = (typeof invoiceResponse.global_discount_type !== 'undefined')
+                                                ? invoiceResponse.global_discount_type
+                                                : ($('#global_discount_type').val() || '');
+
+                                            window.oldInvoice.tax_percentage = nowTax;
+                                            window.oldInvoice.admin_fee = nowAdmin;
+                                            window.oldInvoice.shipping_fee = nowShip;
+                                            window.oldInvoice.global_discount = nowDisc;
+                                            window.oldInvoice.global_discount_type = nowDiscType;
+                                        } catch (e) {
+                                            // ignore
+                                        }
+
                                         if (invoiceResponse.piutang) {
                                             window.oldInvoice.piutang_id = invoiceResponse.piutang.id || null;
                                             window.oldInvoice.piutang_amount = (typeof invoiceResponse.piutang.amount !== 'undefined') ? invoiceResponse.piutang.amount : null;
@@ -2468,6 +2531,23 @@ $('#saveAllChangesBtn').on('click', function() {
 
                                 if (isCreatingInvoice) {
                                     if (!invoiceIdBefore) {
+                                        // First invoice created: reset local dirty state so the primary action becomes "Pembayaran"
+                                        // and refresh billingData to replace any temp IDs with real DB IDs.
+                                        invoiceNeedsUpdateServer = false;
+                                        try {
+                                            billingData = [];
+                                            deletedItems = [];
+                                            window.__billingLightRefresh = false;
+                                            table.ajax.reload(null, false);
+                                        } catch (e) {
+                                            // ignore
+                                        }
+                                        try {
+                                            updatePaymentActionButtons($('#payment_method').val() || 'piutang');
+                                        } catch (e) {
+                                            // ignore
+                                        }
+
                                         openPrintNota(currentInvoiceId);
                                         return;
                                     }
