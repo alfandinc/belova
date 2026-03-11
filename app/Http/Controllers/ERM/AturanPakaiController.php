@@ -70,16 +70,26 @@ class AturanPakaiController extends Controller
         $q = (string)$request->get('q', '');
         $q = trim($q);
 
-        // Require at least 2 characters for server-side search to avoid returning everything
-        if (strlen($q) < 2) {
+        // Allow 1-character searches (UI should not enforce 2-char minimum).
+        // Still avoid returning everything when empty.
+        if ($q === '') {
             return response()->json([]);
         }
 
+        // Also support searches that ignore spaces, e.g. search `2x` should match DB value `2 x`.
+        $qNoSpace = preg_replace('/\s+/', '', $q);
+
         $items = AturanPakai::where('is_active', true)
-            ->where('template', 'like', "%{$q}%")
-            ->orderBy('id','desc')
+            ->where(function ($w) use ($q, $qNoSpace) {
+                $w->where('template', 'like', "%{$q}%");
+
+                if ($qNoSpace !== '') {
+                    $w->orWhereRaw("REPLACE(template, ' ', '') LIKE ?", ["%{$qNoSpace}%"]);
+                }
+            })
+            ->orderBy('id', 'desc')
             ->limit(50)
-            ->get(['id','template']);
+            ->get(['id', 'template']);
 
         return response()->json($items);
     }

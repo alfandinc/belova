@@ -10,7 +10,7 @@
             </div>
             <div class="modal-body">
                 <div class="row">
-                    <div class="col-md-7">
+                    <div class="col-md-8">
                         <h6><strong>Daftar Paket Racikan</strong></h6>
                         <div class="mb-2">
                             <input type="text" class="form-control form-control-sm" id="searchPaketRacikanFarmasi" placeholder="Cari paket racikan...">
@@ -20,19 +20,20 @@
                                 <thead class="thead-light">
                                     <tr>
                                         <th width="8%">No</th>
-                                        <th width="60%">Nama Paket</th>
-                                        <th width="32%">Aksi</th>
+                                        <th width="30%">Nama Paket</th>
+                                        <th width="40%">Obat (Dosis)</th>
+                                        <th width="22%">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody id="paketRacikanTableBodyFarmasi">
                                     <tr>
-                                        <td colspan="3" class="text-center">Loading...</td>
+                                        <td colspan="4" class="text-center">Loading...</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    <div class="col-md-5">
+                    <div class="col-md-4">
                         <h6><strong>Buat Paket Racikan Baru</strong></h6>
                         <form id="formPaketRacikanFarmasi">
                             <input type="hidden" name="id" id="paketIdFarmasi" value="">

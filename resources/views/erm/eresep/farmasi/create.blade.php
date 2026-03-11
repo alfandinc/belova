@@ -429,7 +429,7 @@
             width: '100%',
             placeholder: '-- Pilih Template Aturan Pakai --',
             allowClear: true,
-            minimumInputLength: 2,
+            minimumInputLength: 0,
             ajax: {
                 url: '{{ route('erm.aturan-pakai.list.active') }}',
                 dataType: 'json',
@@ -464,7 +464,7 @@
             width: '100%',
             placeholder: '-- Pilih Template Aturan Pakai --',
             allowClear: true,
-            minimumInputLength: 2,
+            minimumInputLength: 0,
             ajax: {
                 url: '{{ route('erm.aturan-pakai.list.active') }}',
                 dataType: 'json',
@@ -1004,7 +1004,7 @@
                 width: '100%',
                 placeholder: '-- Pilih Template Aturan Pakai --',
                 allowClear: true,
-                minimumInputLength: 2,
+                minimumInputLength: 0,
                 ajax: {
                     url: '{{ route('erm.aturan-pakai.list.active') }}',
                     dataType: 'json',
@@ -1898,6 +1898,104 @@
         // PAKET RACIKAN FUNCTIONALITY (copied from dokter page)
         let obatPaketCount = 0;
 
+        // DataTable instance for Paket Racikan list (Farmasi modal)
+        let paketRacikanDt = null;
+
+        function ensurePaketRacikanDataTable() {
+            if (!$.fn || !$.fn.DataTable) return null;
+
+            if ($.fn.DataTable.isDataTable('#paketRacikanTableFarmasi')) {
+                paketRacikanDt = $('#paketRacikanTableFarmasi').DataTable();
+                return paketRacikanDt;
+            }
+
+            paketRacikanDt = $('#paketRacikanTableFarmasi').DataTable({
+                paging: true,
+                pagingType: 'simple',
+                pageLength: 15,
+                lengthChange: false,
+                searching: false,
+                ordering: false,
+                info: false,
+                autoWidth: false,
+                drawCallback: function () {
+                    if (window.feather) {
+                        window.feather.replace();
+                    }
+                },
+                language: {
+                    emptyTable: 'Belum ada paket racikan',
+                    zeroRecords: 'Belum ada paket racikan',
+                    paginate: { previous: 'Prev', next: 'Next' }
+                },
+                data: [],
+                columns: [
+                    {
+                        data: null,
+                        width: '8%',
+                        render: function (_data, _type, _row, meta) {
+                            return meta.row + meta.settings._iDisplayStart + 1;
+                        }
+                    },
+                    {
+                        data: null,
+                        render: function (row) {
+                            const nama = row && row.nama_paket ? row.nama_paket : '';
+                            const wadahNama = row && row.wadah && row.wadah.nama ? row.wadah.nama : '';
+                            const wadahHtml = wadahNama ? `<div style="font-size:12px; opacity:.75;">${$('<div>').text(wadahNama).html()}</div>` : '';
+                            const paketJson = JSON.stringify(row).replace(/'/g, "\\'");
+                            return `<div class="edit-paket" data-paket='${paketJson}' role="button" style="cursor:pointer;"><strong>${$('<div>').text(nama).html()}</strong>${wadahHtml}</div>`;
+                        }
+                    },
+                    {
+                        data: null,
+                        render: function (row) {
+                            const details = (row && Array.isArray(row.details)) ? row.details : [];
+                            if (!details.length) return '<span style="opacity:.6;">-</span>';
+
+                            const lines = details.map(function (d) {
+                                const obatNama = d && d.obat && d.obat.nama ? d.obat.nama : '';
+                                const dosis = d && d.dosis ? d.dosis : '';
+                                const satuan = d && d.obat && d.obat.satuan ? d.obat.satuan : '';
+                                let dosisText = dosis;
+                                if (satuan) {
+                                    const doseLower = (dosisText || '').toString().toLowerCase();
+                                    const unitLower = satuan.toString().toLowerCase();
+                                    if (dosisText && !doseLower.includes(unitLower)) {
+                                        dosisText = `${dosisText} ${satuan}`;
+                                    } else if (!dosisText) {
+                                        dosisText = satuan;
+                                    }
+                                }
+                                const left = $('<div>').text(obatNama).html();
+                                const right = $('<div>').text(dosisText).html();
+                                if (left && right) return `${left} — ${right}`;
+                                return left || right || '';
+                            }).filter(Boolean);
+
+                            return `<div style="font-size:12px; line-height:1.2;">${lines.join('<br>')}</div>`;
+                        }
+                    },
+                    {
+                        data: null,
+                        render: function (row) {
+                            const paketJson = JSON.stringify(row).replace(/'/g, "\\'");
+                            return `
+                                <button class="btn btn-sm btn-primary copy-paket" data-id="${row.id}" data-paket='${paketJson}'>Gunakan</button>
+                                <button class="btn btn-sm btn-danger delete-paket" data-id="${row.id}" title="Hapus" aria-label="Hapus"><i data-feather="trash-2" class="icon-xs"></i></button>
+                            `;
+                        }
+                    }
+                ]
+            });
+
+            if (window.feather) {
+                window.feather.replace();
+            }
+
+            return paketRacikanDt;
+        }
+
         // Open Paket Racikan Modal
         $(document).on('click', '#paket-racikan', function() {
             // Reset form first
@@ -1912,6 +2010,13 @@
         // Initialize selects when modal is fully shown
         $('#paketRacikanModalFarmasi').on('shown.bs.modal', function() {
             initializePaketRacikanSelects();
+
+            // Ensure DataTables layout is correct when the table becomes visible
+            const dt = ensurePaketRacikanDataTable();
+            if (dt) {
+                setTimeout(function(){ dt.columns.adjust(); }, 0);
+            }
+
             // init aturan pakai select2 for farmasi modal and ensure prefilled value shows
             initAturanPakaiSelect2('.select2-aturan-pakai-farmasi', $('#paketRacikanModalFarmasi'));
             $('.select2-aturan-pakai-farmasi').each(function(){
@@ -1947,32 +2052,69 @@
                         paketList = response.pakets;
                     }
 
-                    let tbody = $('#paketRacikanTableBodyFarmasi');
-                    tbody.empty();
-                    if (paketList.length === 0) {
-                        tbody.append('<tr><td colspan="3" class="text-center">Belum ada paket racikan</td></tr>');
+                    const dt = ensurePaketRacikanDataTable();
+                    if (dt) {
+                        dt.clear();
+                        dt.rows.add(paketList || []);
+                        dt.draw();
                     } else {
-                        paketList.forEach(function(paket, index) {
-                            // ensure paket object is available as data on buttons (stringify may be needed)
-                            const paketJson = JSON.stringify(paket).replace(/'/g, "\\'");
+                        // Fallback: plain table rendering
+                        let tbody = $('#paketRacikanTableBodyFarmasi');
+                        tbody.empty();
+                        if (!paketList || paketList.length === 0) {
+                            tbody.append('<tr><td colspan="4" class="text-center">Belum ada paket racikan</td></tr>');
+                        } else {
+                            paketList.forEach(function(paket, index) {
+                                const paketJson = JSON.stringify(paket).replace(/'/g, "\\'");
+                                let wadahNama = paket.wadah ? paket.wadah.nama : '';
+                                let wadahHtml = wadahNama ? `<div style="font-size:12px; opacity:.75;">${$('<div>').text(wadahNama).html()}</div>` : '';
+
+                                const details = Array.isArray(paket.details) ? paket.details : [];
+                                const obatLines = details.map(function(d){
+                                    const obatNama = d && d.obat && d.obat.nama ? d.obat.nama : '';
+                                    const dosis = d && d.dosis ? d.dosis : '';
+                                    const satuan = d && d.obat && d.obat.satuan ? d.obat.satuan : '';
+                                    let dosisText = dosis;
+                                    if (satuan) {
+                                        const doseLower = (dosisText || '').toString().toLowerCase();
+                                        const unitLower = satuan.toString().toLowerCase();
+                                        if (dosisText && !doseLower.includes(unitLower)) {
+                                            dosisText = `${dosisText} ${satuan}`;
+                                        } else if (!dosisText) {
+                                            dosisText = satuan;
+                                        }
+                                    }
+                                    const left = $('<div>').text(obatNama).html();
+                                    const right = $('<div>').text(dosisText).html();
+                                    if (left && right) return `${left} — ${right}`;
+                                    return left || right || '';
+                                }).filter(Boolean);
+                                const obatHtml = obatLines.length ? `<div style="font-size:12px; line-height:1.2;">${obatLines.join('<br>')}</div>` : '<span style="opacity:.6;">-</span>';
+
                                 tbody.append(`
-                                <tr>
-                                    <td>${index + 1}</td>
-                                    <td>${paket.nama_paket}</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}" data-paket='${paketJson}'>Gunakan</button>
-                                        <button class="btn btn-sm btn-info edit-paket" data-paket='${paketJson}'>Edit</button>
-                                        <button class="btn btn-sm btn-danger delete-paket" data-id="${paket.id}">Hapus</button>
-                                    </td>
-                                </tr>
-                            `);
-                        });
+                                    <tr>
+                                        <td>${index + 1}</td>
+                                        <td><div class="edit-paket" data-paket='${paketJson}' role="button" style="cursor:pointer;"><strong>${$('<div>').text(paket.nama_paket || '').html()}</strong>${wadahHtml}</div></td>
+                                        <td>${obatHtml}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary copy-paket" data-id="${paket.id}" data-paket='${paketJson}'>Gunakan</button>
+                                            <button class="btn btn-sm btn-danger delete-paket" data-id="${paket.id}" title="Hapus" aria-label="Hapus"><i data-feather="trash-2" class="icon-xs"></i></button>
+                                        </td>
+                                    </tr>
+                                `);
+                            });
+                        }
                     }
                 },
                 error: function() {
-                    const tbody = $('#paketRacikanTableBodyFarmasi');
-                    tbody.empty();
-                    tbody.append('<tr><td colspan="4" class="text-center text-danger">Gagal memuat paket racikan</td></tr>');
+                    const dt = ensurePaketRacikanDataTable();
+                    if (dt) {
+                        dt.clear().draw();
+                    } else {
+                        const tbody = $('#paketRacikanTableBodyFarmasi');
+                        tbody.empty();
+                        tbody.append('<tr><td colspan="4" class="text-center text-danger">Gagal memuat paket racikan</td></tr>');
+                    }
                 }
             });
         }
@@ -2613,7 +2755,7 @@ $(document).on('click', '.edit-racikan', function () {
                 width: '100%',
                 placeholder: '-- Pilih Template Aturan Pakai --',
                 allowClear: true,
-                minimumInputLength: 2,
+                minimumInputLength: 0,
                 ajax: {
                     url: '{{ route('erm.aturan-pakai.list.active') }}',
                     dataType: 'json',
