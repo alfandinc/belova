@@ -99,6 +99,12 @@
                     </div>
                 </div>
 
+                @if(!empty($isInvoiceLocked) && $isInvoiceLocked)
+                    <div class="alert alert-warning" role="alert">
+                        Resep dikunci karena Invoice sudah ditransaksikan. Tidak bisa tambah/edit/hapus/submit.
+                    </div>
+                @endif
+
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h5 class="mb-0">Dokter Input : {{ auth()->user()->name }}</h5>
@@ -326,6 +332,98 @@
 
 @section('scripts')
 <script>
+    let IS_INVOICE_LOCKED = @json($isInvoiceLocked ?? false);
+    const INVOICE_PAYMENT_METHOD = @json($invoicePaymentMethod ?? null);
+
+    function showInvoiceLockedMessage() {
+        const msg = 'Resep dikunci karena Invoice sudah ditransaksikan.';
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            window.Swal.fire({
+                icon: 'warning',
+                title: 'Terkunci',
+                text: msg,
+                confirmButtonColor: '#3085d6'
+            });
+        } else {
+            alert(msg);
+        }
+    }
+
+    function applyInvoiceLock() {
+        if (!IS_INVOICE_LOCKED) return;
+
+        const root = $('.container-fluid').first();
+        const lockScope = root.find('.card-body').first().length ? root.find('.card-body').first() : root;
+
+        // Disable editable form controls inside the resep area
+        lockScope.find('input, select, textarea').prop('disabled', true);
+
+        // If select2 already initialized, keep it visually consistent
+        lockScope.find('select.select2-hidden-accessible').each(function(){
+            $(this).prop('disabled', true).trigger('change.select2');
+        });
+
+        // Disable only mutation buttons/controls (keep navigation/history buttons usable)
+        const mutationSelectors = [
+            '#tambah-resep',
+            '#tambah-racikan',
+            '#simpan-catatan',
+            '#paket-racikan',
+            '#saveEditObatBtn',
+            '.hapus',
+            '.hapus-racikan',
+            '.hapus-obat',
+            '.tambah-obat',
+            '.tambah-resepracikan',
+            '.btn-add-medication',
+            '.edit-obat',
+            '.copy-paket',
+            '.delete-paket',
+            '.edit-paket'
+        ].join(',');
+
+        root.find(mutationSelectors).prop('disabled', true).addClass('disabled');
+
+        // Block mutation form submits only
+        $(document).on('submit.invoiceLock', '#editObatForm, #formPaketRacikan', function(e){
+            e.preventDefault();
+            showInvoiceLockedMessage();
+        });
+
+        // Block mutation clicks (in case some elements are not buttons)
+        $(document).on('click.invoiceLock', mutationSelectors, function(e){
+            e.preventDefault();
+            showInvoiceLockedMessage();
+        });
+    }
+
+    function startInvoiceLockPolling() {
+        if (IS_INVOICE_LOCKED) return;
+
+        const url = "{{ route('erm.eresep.invoice-lock-status', $visitation->id) }}";
+        let isChecking = false;
+
+        function checkOnce() {
+            if (IS_INVOICE_LOCKED || isChecking) return;
+            isChecking = true;
+
+            $.get(url)
+                .done(function (res) {
+                    if (res && res.is_locked) {
+                        IS_INVOICE_LOCKED = true;
+                        showInvoiceLockedMessage();
+                        applyInvoiceLock();
+                    }
+                })
+                .always(function () {
+                    isChecking = false;
+                });
+        }
+
+        checkOnce();
+        setInterval(checkOnce, 5000);
+    }
+
         // MODAL HTML for editing dosis
         const editObatModalHtml = `
         <div class="modal fade" id="editObatModal" tabindex="-1" role="dialog" aria-labelledby="editObatModalLabel" aria-hidden="true">
@@ -435,6 +533,9 @@
     }
 
     $(document).ready(function () {
+    applyInvoiceLock();
+    startInvoiceLockPolling();
+
     // Get gudangId for resep transaction type from Blade
     const gudangId = {{ \App\Models\ERM\GudangMapping::getDefaultGudangId('resep') ?? 'null' }};
         // Always disable hapus-obat buttons in racikan on page load

@@ -177,6 +177,12 @@
                     </div>
                 </div>
 
+                @if(!empty($isInvoiceLocked) && $isInvoiceLocked)
+                    <div class="alert alert-warning" role="alert">
+                        Resep dikunci karena Invoice sudah ditransaksikan. Tidak bisa tambah/edit/hapus/submit.
+                    </div>
+                @endif
+
                 <div class="mb-3">
                     <h5>Catatan Dokter :</h5>
                     <textarea readonly class="form-control" rows="3" style="font-size: 1.5rem; font-weight: bold; color: red;">{{ $catatan_resep ?? '' }}</textarea>
@@ -356,6 +362,105 @@
 
 <script>
     let racikanCount = {{ $lastRacikanKe ?? 0 }};
+
+    let IS_INVOICE_LOCKED = @json($isInvoiceLocked ?? false);
+    const INVOICE_PAYMENT_METHOD = @json($invoicePaymentMethod ?? null);
+
+    function showInvoiceLockedMessage() {
+        const msg = 'Resep dikunci karena Invoice sudah ditransaksikan.';
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Tidak bisa mengubah resep',
+                text: msg
+            });
+        } else {
+            alert(msg);
+        }
+    }
+
+    function applyInvoiceLock() {
+        if (!IS_INVOICE_LOCKED) return;
+
+        const root = $('.container-fluid').first();
+        const lockScope = $('#resep-wrapper').length ? $('#resep-wrapper') : (root.find('.card-body').first().length ? root.find('.card-body').first() : root);
+
+        // Disable editable form controls inside resep area
+        lockScope.find('input, select, textarea').prop('disabled', true);
+        lockScope.find('select.select2-hidden-accessible').each(function(){
+            $(this).prop('disabled', true).trigger('change.select2');
+        });
+
+        // Disable only mutation actions (keep print/history usable)
+        const mutationSelectors = [
+            '#tambah-resep',
+            '#tambah-racikan',
+            '#submit-all',
+            '#paket-racikan',
+            '#save-dosis-btn',
+            '.hapus',
+            '.hapus-racikan',
+            '.hapus-obat',
+            '.tambah-obat',
+            '.tambah-resepracikan',
+            '.update-resepracikan',
+            '.edit-obat',
+            '.edit-racikan',
+            '.edit',
+            '.btn-copy-resep',
+            '.copy-paket',
+            '.edit-paket',
+            '.delete-paket'
+        ].join(',');
+
+        root.find(mutationSelectors).each(function(){
+            const $el = $(this);
+            if ($el.is('a')) {
+                $el.addClass('disabled').attr('aria-disabled', 'true');
+            } else {
+                $el.prop('disabled', true).addClass('disabled');
+            }
+        });
+
+        // Block mutation form submits only
+        $(document).on('submit.invoiceLock', '#edit-dosis-form, #formPaketRacikanFarmasi', function(e){
+            e.preventDefault();
+            showInvoiceLockedMessage();
+        });
+
+        // Block mutation clicks (in case some elements are links)
+        $(document).on('click.invoiceLock', mutationSelectors, function(e){
+            e.preventDefault();
+            showInvoiceLockedMessage();
+        });
+    }
+
+    function startInvoiceLockPolling() {
+        if (IS_INVOICE_LOCKED) return;
+
+        const url = "{{ route('erm.eresep.invoice-lock-status', $visitation->id) }}";
+        let isChecking = false;
+
+        function checkOnce() {
+            if (IS_INVOICE_LOCKED || isChecking) return;
+            isChecking = true;
+
+            $.get(url)
+                .done(function (res) {
+                    if (res && res.is_locked) {
+                        IS_INVOICE_LOCKED = true;
+                        showInvoiceLockedMessage();
+                        applyInvoiceLock();
+                    }
+                })
+                .always(function () {
+                    isChecking = false;
+                });
+        }
+
+        checkOnce();
+        setInterval(checkOnce, 5000);
+    }
 
     $(document).ready(function () {
         $('.select2').select2({ width: '100%' });
@@ -2805,6 +2910,12 @@ $(document).on('click', '.edit-racikan', function () {
             $sel.on('select2:clear', function(){ $(this).closest('.racikan-card').find('.aturan_pakai').val(''); });
         }
     })();
+});
+
+// Apply invoice lock after all handlers are registered
+$(document).ready(function () {
+    applyInvoiceLock();
+    startInvoiceLockPolling();
 });
 
 

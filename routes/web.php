@@ -755,6 +755,7 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
 
     // E Resep Dokter
     Route::get('eresep/{visitation_id}/create', [EresepController::class, 'create'])->name('erm.eresep.create');
+    Route::get('eresep/{visitation_id}/invoice-lock-status', [EresepController::class, 'invoiceLockStatus'])->name('erm.eresep.invoice-lock-status');
     Route::post('/resep/non-racikan', [EresepController::class, 'storeNonRacikan'])->name('resep.nonracikan.store');
     Route::post('/resep/racikan', [EresepController::class, 'storeRacikan'])->name('resep.racikan.store');
     Route::delete('/resep/nonracikan/{id}', [EresepController::class, 'destroyNonRacikan'])->name('resep.nonracikan.destroy');

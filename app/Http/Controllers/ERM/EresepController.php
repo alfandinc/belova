@@ -32,6 +32,56 @@ use App\Models\ERM\PaketRacikanDetail;
 
 class EresepController extends Controller
 {
+    private function getInvoicePaymentMethodForVisitation(string $visitationId): ?string
+    {
+        $visitation = Visitation::with(['invoice:id,visitation_id,payment_method'])
+            ->select('id')
+            ->find($visitationId);
+
+        $paymentMethod = optional($visitation?->invoice)->payment_method;
+        $paymentMethod = is_null($paymentMethod) ? null : trim((string) $paymentMethod);
+        if ($paymentMethod === '') $paymentMethod = null;
+
+        return $paymentMethod;
+    }
+
+    private function isInvoiceLockedForVisitation(string $visitationId): bool
+    {
+        $paymentMethod = $this->getInvoicePaymentMethodForVisitation($visitationId);
+        return !is_null($paymentMethod);
+    }
+
+    private function guardInvoiceNotLocked(?string $visitationId)
+    {
+        if (!$visitationId) return null;
+
+        if (!$this->isInvoiceLockedForVisitation($visitationId)) return null;
+
+        $message = 'Resep dikunci karena Invoice sudah ditransaksikan.';
+
+        if (request()->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], 423);
+        }
+
+        abort(423, $message);
+    }
+
+    public function invoiceLockStatus(string $visitationId)
+    {
+        $isLocked = $this->isInvoiceLockedForVisitation($visitationId);
+        $paymentMethod = $this->getInvoicePaymentMethodForVisitation($visitationId);
+
+        return response()->json([
+            'success' => true,
+            'visitation_id' => $visitationId,
+            'is_locked' => $isLocked,
+            'payment_method' => $paymentMethod,
+        ]);
+    }
+
     public function index(Request $request)
     {
         if ($request->ajax()) {
@@ -151,7 +201,13 @@ class EresepController extends Controller
 
     public function create($visitationId)
     {
-        $visitation = Visitation::findOrFail($visitationId);
+        $visitation = Visitation::with('invoice')->findOrFail($visitationId);
+        $invoicePaymentMethod = is_null(optional($visitation->invoice)->payment_method)
+            ? null
+            : trim((string) $visitation->invoice->payment_method);
+        if ($invoicePaymentMethod === '') $invoicePaymentMethod = null;
+
+        $isInvoiceLocked = !is_null($invoicePaymentMethod);
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
@@ -234,6 +290,8 @@ class EresepController extends Controller
 
         return view('erm.eresep.create', array_merge([
             'visitation' => $visitation,
+            'invoicePaymentMethod' => $invoicePaymentMethod,
+            'isInvoiceLocked' => $isInvoiceLocked,
             'obats' => $obats,
             'wadah' => $wadah,
             'nonRacikans' => $nonRacikans,
@@ -246,6 +304,7 @@ class EresepController extends Controller
     }
     public function storeNonRacikan(Request $request)
     {
+        if ($resp = $this->guardInvoiceNotLocked($request->input('visitation_id'))) return $resp;
 
         $validated = $request->validate([
             'visitation_id' => 'required',
@@ -286,6 +345,7 @@ class EresepController extends Controller
 
     public function storeRacikan(Request $request)
     {
+        if ($resp = $this->guardInvoiceNotLocked($request->input('visitation_id'))) return $resp;
         $validated = $request->validate([
             'visitation_id' => 'required',
             'racikan_ke' => 'required|integer',
@@ -332,6 +392,7 @@ class EresepController extends Controller
     public function destroyNonRacikan($id)
     {
         $resep = ResepDokter::findOrFail($id);
+        if ($resp = $this->guardInvoiceNotLocked($resep->visitation_id)) return $resp;
         $resep->delete();
 
         return response()->json(['message' => 'Resep berhasil dihapus']);
@@ -340,6 +401,7 @@ class EresepController extends Controller
     public function destroyRacikan($racikanKe, Request $request)
     {
         $visitationId = $request->visitation_id;
+        if ($resp = $this->guardInvoiceNotLocked($visitationId)) return $resp;
 
         // Delete ALL records with matching racikan_ke and visitation_id
         $deleted = ResepDokter::where('racikan_ke', $racikanKe)
@@ -355,12 +417,13 @@ class EresepController extends Controller
 
     public function updateNonRacikan(Request $request, $id)
     {
+        $resep = ResepDokter::findOrFail($id);
+        if ($resp = $this->guardInvoiceNotLocked($resep->visitation_id)) return $resp;
+
         $data = $request->validate([
             'jumlah'       => 'required|integer|min:1',
             'aturan_pakai' => 'required|string|max:255',
         ]);
-
-        $resep = ResepDokter::findOrFail($id);
         $resep->update($data);
 
         return response()->json([
@@ -373,6 +436,7 @@ class EresepController extends Controller
     public function updateRacikan(Request $request, $racikanKe)
     {
         try {
+            if ($resp = $this->guardInvoiceNotLocked($request->input('visitation_id'))) return $resp;
             $validated = $request->validate([
                 'visitation_id' => 'required',
                 'wadah' => 'required',
@@ -478,7 +542,13 @@ class EresepController extends Controller
 
     public function farmasicreate($visitationId)
     {
-        $visitation = Visitation::findOrFail($visitationId);
+        $visitation = Visitation::with('invoice')->findOrFail($visitationId);
+        $invoicePaymentMethod = is_null(optional($visitation->invoice)->payment_method)
+            ? null
+            : trim((string) $visitation->invoice->payment_method);
+        if ($invoicePaymentMethod === '') $invoicePaymentMethod = null;
+
+        $isInvoiceLocked = !is_null($invoicePaymentMethod);
         $pasienData = PasienHelperController::getDataPasien($visitationId);
         $createKunjunganData = KunjunganHelperController::getCreateKunjungan($visitationId);
 
@@ -518,6 +588,8 @@ class EresepController extends Controller
 
         return view('erm.eresep.farmasi.create', array_merge([
             'visitation' => $visitation,
+            'invoicePaymentMethod' => $invoicePaymentMethod,
+            'isInvoiceLocked' => $isInvoiceLocked,
             'obats' => $obats,
             'wadah' => $wadah,
             'nonRacikans' => $nonRacikans,
@@ -528,6 +600,7 @@ class EresepController extends Controller
     }
     public function copyFromDokter($visitationId)
     {
+        if ($resp = $this->guardInvoiceNotLocked($visitationId)) return $resp;
         if (ResepFarmasi::where('visitation_id', $visitationId)->exists()) {
             return response()->json(['status' => 'info', 'message' => 'Resep sudah pernah disalin ke Farmasi.']);
         }
@@ -578,6 +651,7 @@ class EresepController extends Controller
 
     public function farmasistoreNonRacikan(Request $request)
     {
+        if ($resp = $this->guardInvoiceNotLocked($request->input('visitation_id'))) return $resp;
 
         $validated = $request->validate([
             'visitation_id' => 'required',
@@ -624,6 +698,7 @@ class EresepController extends Controller
 
    public function farmasistoreRacikan(Request $request)
 {
+    if ($resp = $this->guardInvoiceNotLocked($request->input('visitation_id'))) return $resp;
     $validated = $request->validate([
         'visitation_id' => 'required',
         'racikan_ke' => 'required|integer',
@@ -687,6 +762,7 @@ class EresepController extends Controller
     public function farmasidestroyNonRacikan($id)
     {
         $resep = ResepFarmasi::findOrFail($id);
+        if ($resp = $this->guardInvoiceNotLocked($resep->visitation_id)) return $resp;
 
         Billing::where('visitation_id', $resep->visitation_id)
             ->where('billable_type', ResepFarmasi::class)
@@ -701,6 +777,7 @@ class EresepController extends Controller
     public function farmasidestroyRacikan($racikanKe, Request $request)
     {
         $visitationId = $request->visitation_id;
+        if ($resp = $this->guardInvoiceNotLocked($visitationId)) return $resp;
 
         // Delete ALL records with matching racikan_ke and visitation_id
         $reseps = ResepFarmasi::where('racikan_ke', $racikanKe)
@@ -730,13 +807,14 @@ class EresepController extends Controller
 
     public function farmasiupdateNonRacikan(Request $request, $id)
     {
+        $resep = ResepFarmasi::findOrFail($id);
+        if ($resp = $this->guardInvoiceNotLocked($resep->visitation_id)) return $resp;
+
         $data = $request->validate([
             'jumlah'       => 'required|integer|min:1',
             'diskon'       => 'integer|max:100',
             'aturan_pakai' => 'required|string|max:255',
         ]);
-
-        $resep = ResepFarmasi::findOrFail($id);
 
         // Retrieve the existing total value
         $existingTotal = $resep->harga;
@@ -758,6 +836,7 @@ class EresepController extends Controller
     public function farmasiupdateRacikan(Request $request, $racikanKe)
     {
         try {
+            if ($resp = $this->guardInvoiceNotLocked($request->input('visitation_id'))) return $resp;
             // Log incoming request for debugging
             \Illuminate\Support\Facades\Log::info('farmasiupdateRacikan called', ['racikanKe' => $racikanKe, 'payload' => $request->all()]);
 
@@ -855,6 +934,8 @@ class EresepController extends Controller
 {
     $visitationId = $request->input('visitation_id');
     $force = $request->input('force', false);
+
+        $this->guardInvoiceNotLocked($visitationId);
 
     // Check if resep already submitted
     $resepDetail = \App\Models\ERM\ResepDetail::where('visitation_id', $visitationId)->first();
@@ -1524,6 +1605,8 @@ class EresepController extends Controller
             'aturan_pakai' => 'required|string|max:255',
         ]);
 
+        $this->guardInvoiceNotLocked($validated['visitation_id'] ?? null);
+
         $paketRacikan = PaketRacikan::with(['details.obat', 'wadah'])
             ->findOrFail($validated['paket_racikan_id']);
 
@@ -1593,6 +1676,8 @@ class EresepController extends Controller
             'bungkus' => 'required|integer|min:1',
             'aturan_pakai' => 'required|string|max:255',
         ]);
+
+        $this->guardInvoiceNotLocked($validated['visitation_id'] ?? null);
 
         $paketRacikan = PaketRacikan::with(['details.obat', 'wadah'])
             ->findOrFail($validated['paket_racikan_id']);
