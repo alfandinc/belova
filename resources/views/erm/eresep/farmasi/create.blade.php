@@ -809,8 +809,11 @@
                                     const stokCellText = row.find('td').eq(2).text().trim();
                                     const stokAvailable = parseFloat(stokCellText.replace(/[^0-9.,-]/g, '').replace(',', '.')) || 0;
                                     rowStokCell.text(stokDikurangiDisplay);
-                                    if (stokDikurangi > stokAvailable) rowStokCell.css('color', 'red');
-                                    else rowStokCell.css('color', 'inherit');
+                                    if (stokDikurangi > stokAvailable) {
+                                        rowStokCell.css('color', 'red');
+                                    } else {
+                                        rowStokCell.css('color', 'inherit');
+                                    }
                                 }
                             } catch (e) {
                                 // ignore DOM update errors
@@ -1912,7 +1915,7 @@
             paketRacikanDt = $('#paketRacikanTableFarmasi').DataTable({
                 paging: true,
                 pagingType: 'simple',
-                pageLength: 15,
+                pageLength: 10,
                 lengthChange: false,
                 searching: false,
                 ordering: false,
@@ -1969,11 +1972,18 @@
                                 }
                                 const left = $('<div>').text(obatNama).html();
                                 const right = $('<div>').text(dosisText).html();
-                                if (left && right) return `${left} — ${right}`;
-                                return left || right || '';
+                                if (left && right) {
+                                    return `<div class="d-flex justify-content-between" style="gap:8px;">
+                                                <div style="flex:1; min-width:0;">${left}</div>
+                                                <div class="text-right text-nowrap" style="min-width:70px;">${right}</div>
+                                            </div>`;
+                                }
+                                if (left) return `<div>${left}</div>`;
+                                if (right) return `<div class="text-right">${right}</div>`;
+                                return '';
                             }).filter(Boolean);
 
-                            return `<div style="font-size:12px; line-height:1.2;">${lines.join('<br>')}</div>`;
+                            return `<div style="font-size:12px; line-height:1.2;">${lines.join('')}</div>`;
                         }
                     },
                     {
@@ -2086,10 +2096,17 @@
                                     }
                                     const left = $('<div>').text(obatNama).html();
                                     const right = $('<div>').text(dosisText).html();
-                                    if (left && right) return `${left} — ${right}`;
-                                    return left || right || '';
+                                    if (left && right) {
+                                        return `<div class="d-flex justify-content-between" style="gap:8px;">
+                                                    <div style="flex:1; min-width:0;">${left}</div>
+                                                    <div class="text-right text-nowrap" style="min-width:70px;">${right}</div>
+                                                </div>`;
+                                    }
+                                    if (left) return `<div>${left}</div>`;
+                                    if (right) return `<div class="text-right">${right}</div>`;
+                                    return '';
                                 }).filter(Boolean);
-                                const obatHtml = obatLines.length ? `<div style="font-size:12px; line-height:1.2;">${obatLines.join('<br>')}</div>` : '<span style="opacity:.6;">-</span>';
+                                const obatHtml = obatLines.length ? `<div style="font-size:12px; line-height:1.2;">${obatLines.join('')}</div>` : '<span style="opacity:.6;">-</span>';
 
                                 tbody.append(`
                                     <tr>
