@@ -98,6 +98,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\BelovaMengajiController;
 use App\Http\Controllers\SatusehatDashboardController;
 use App\Http\Controllers\Satusehat\PasienController as SatusehatPasienController;
+use App\Http\Controllers\BukuMenuController;
 Route::get('/', function () {
     if (!Auth::check()) {
         return view('auth.main_login');
@@ -157,6 +158,12 @@ Route::fallback(function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+    // Buku Menu (accessible for all authenticated users)
+    Route::get('/buku-menu', [BukuMenuController::class, 'index'])->name('buku-menu.index');
+    Route::get('/buku-menu/data', [BukuMenuController::class, 'data'])->name('buku-menu.data');
+    Route::get('/buku-menu/tindakan-data', [BukuMenuController::class, 'tindakanData'])->name('buku-menu.tindakan-data');
+    Route::get('/buku-menu/labtest-data', [BukuMenuController::class, 'labtestData'])->name('buku-menu.labtest-data');
+
     // Hanya user dengan role ERM yang bisa akses modul ERM
     Route::get('/erm', [ERMDashboardController::class, 'index'])
         ->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|Beautician|Lab|Finance')

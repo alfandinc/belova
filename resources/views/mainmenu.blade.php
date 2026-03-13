@@ -624,6 +624,7 @@
                     <div class="menu-sub">Hasil & Sample</div>
                 </a>
 
+                {{--
                 <a href="/erm/spktindakan" class="menu-tile tile-beautician animate-item delay-4" data-filter="beauty esthetic treatment"
                    @if(!array_intersect($userRoles, ['Beautician','Admin']))
                        onclick="showRoleWarning(event, 'Beautician')"
@@ -634,6 +635,17 @@
                     </div>
                     <div class="menu-title">Beautician</div>
                     <div class="menu-sub">Tindakan & Booking</div>
+                </a>
+                --}}
+
+                <!-- New: Buku Menu (accessible to all users) -->
+                <a href="/buku-menu" class="menu-tile tile-dokumen animate-item delay-4" data-filter="buku menu harga daftar menu items">
+                    <div class="menu-top">
+                        <div class="menu-icon"><i class="fas fa-book"></i></div>
+                        <div class="menu-badge">Menu</div>
+                    </div>
+                    <div class="menu-title">Buku Menu</div>
+                    <div class="menu-sub">Harga & Daftar Item</div>
                 </a>
 
                 <a href="/customersurvey" class="menu-tile tile-lab animate-item delay-5" data-filter="survey feedback rating">
