@@ -392,6 +392,9 @@
         });
 
         // Disable only mutation actions (keep print/history usable)
+        // Exception: when locked, allow editing ONLY aturan pakai via:
+        // - non racikan: .edit modal (aturan only)
+        // - racikan: .edit-racikan then .update-resepracikan (aturan only)
         const mutationSelectors = [
             '#tambah-resep',
             '#tambah-racikan',
@@ -403,10 +406,7 @@
             '.hapus-obat',
             '.tambah-obat',
             '.tambah-resepracikan',
-            '.update-resepracikan',
             '.edit-obat',
-            '.edit-racikan',
-            '.edit',
             '.btn-copy-resep',
             '.copy-paket',
             '.edit-paket',
@@ -1161,9 +1161,16 @@
             console.log('Debug - aturanPakai:', aturanPakai);
             
             // Validate required fields
-            if (!bungkus || !aturanPakai) {
-                Swal.fire('Peringatan', 'Jumlah bungkus dan aturan pakai harus diisi!', 'warning');
-                return;
+            if (typeof IS_INVOICE_LOCKED !== 'undefined' && IS_INVOICE_LOCKED) {
+                if (!aturanPakai) {
+                    Swal.fire('Peringatan', 'Aturan pakai harus diisi!', 'warning');
+                    return;
+                }
+            } else {
+                if (!bungkus || !aturanPakai) {
+                    Swal.fire('Peringatan', 'Jumlah bungkus dan aturan pakai harus diisi!', 'warning');
+                    return;
+                }
             }
             
             // Store the original racikanKe before any updates
@@ -1176,59 +1183,62 @@
                 return;
             }
             
-            // Collect all obat rows in this racikan
+            // Collect all obat rows in this racikan (skip when locked; only aturan pakai update is allowed)
             const obats = [];
-            card.find('.resep-table-body tr').each(function () {
-                const row = $(this);
-                if (!row.hasClass('no-data')) {
-                    // Prefer explicit attributes; use attr to detect empty strings
-                    let id = row.attr('data-id');
-                    if (!id) {
-                        // maybe server id stored on first td
-                        id = row.find('td').eq(0).attr('data-id') || null;
+            if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
+                card.find('.resep-table-body tr').each(function () {
+                    const row = $(this);
+                    if (!row.hasClass('no-data')) {
+                        // Prefer explicit attributes; use attr to detect empty strings
+                        let id = row.attr('data-id');
+                        if (!id) {
+                            // maybe server id stored on first td
+                            id = row.find('td').eq(0).attr('data-id') || null;
+                        }
+                        const obatId = row.attr('data-obat-id') || row.find('td').eq(0).attr('data-id') || null;
+                        const dosis = row.attr('data-dosis') || row.find('td').eq(1).text();
+                        const jumlah = row.attr('data-jumlah') || 1;
+
+                        const entry = {
+                            obat_id: obatId,
+                            dosis: dosis,
+                            jumlah: jumlah
+                        };
+
+                        // Only include id if it's truthy (existing DB row)
+                        if (id) entry.id = id;
+
+                        obats.push(entry);
                     }
-                    const obatId = row.attr('data-obat-id') || row.find('td').eq(0).attr('data-id') || null;
-                    const dosis = row.attr('data-dosis') || row.find('td').eq(1).text();
-                    const jumlah = row.attr('data-jumlah') || 1;
+                });
+            }
 
-                    const entry = {
-                        obat_id: obatId,
-                        dosis: dosis,
-                        jumlah: jumlah
-                    };
+            // Build payload
+            let payload = {
+                _method: 'PUT',
+                visitation_id: visitationId,
+                aturan_pakai: aturanPakai,
+                _token: '{{ csrf_token() }}'
+            };
 
-                    // Only include id if it's truthy (existing DB row)
-                    if (id) entry.id = id;
-
-                    obats.push(entry);
-                }
-            });
+            if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
+                payload.wadah = wadah;
+                payload.bungkus = bungkus;
+                payload.obats = obats;
+            }
 
             // Debug payload before sending
-            console.log('Updating racikan payload:', {
-                visitation_id: visitationId,
-                wadah: wadah,
-                bungkus: bungkus,
-                aturan_pakai: aturanPakai,
-                obats: obats
-            });
+            console.log('Updating racikan payload:', payload);
 
             // Send AJAX request to update the racikan
             $.ajax({
                 url: `/erm/resepfarmasi/racikan/${originalRacikanKe}`,
                 type: 'POST',
-                data: {
-                    _method: 'PUT',
-                    visitation_id: visitationId,
-                    wadah: wadah,
-                    bungkus: bungkus,
-                    aturan_pakai: aturanPakai,
-                    obats: obats,
-                    _token: '{{ csrf_token() }}'
-                },
+                data: payload,
                 success: function(response) {
                     if (response.success) {
                         Swal.fire('Sukses', response.message, 'success');
+                        // Always lock fields again after save
                         card.find('.wadah, .bungkus, .jumlah_bungkus, .aturan_pakai').prop('disabled', true);
                         // also disable Select2 control if present
                         try {
@@ -1242,13 +1252,15 @@
                         card.find('.update-resepracikan').addClass('d-none');
                         card.find('.tambah-resepracikan').removeClass('d-none');
                         card.find('.hapus-obat, .edit-obat').prop('disabled', true);
-                        card.find('.jumlah_bungkus, .bungkus').val(bungkus);
+                        if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
+                            card.find('.jumlah_bungkus, .bungkus').val(bungkus);
+                        }
                         card.find('.aturan_pakai').val(aturanPakai);
                         card.attr('data-racikan-ke', originalRacikanKe);
                         // Refresh the resaep list for this visitation to reflect DB state
                         fetchFarmasiResep();
                         // If controller returned obats, patch newly created rows with returned ids
-                        if (response.obats && Array.isArray(response.obats)) {
+                        if ((typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) && response.obats && Array.isArray(response.obats)) {
                             // Replace rows inside this card with server data to ensure ids are present
                             const tbody = card.find('.resep-table-body');
                             tbody.empty();
@@ -1563,6 +1575,18 @@
                 // ensure hidden input synced (select2:select handler will also set it)
                 $('#edit-aturan').val(aturan);
             }
+
+            // When invoice is locked, only allow editing aturan pakai
+            if (IS_INVOICE_LOCKED) {
+                $('#edit-jumlah').prop('disabled', true);
+                $('#edit-diskon').prop('disabled', true);
+                $('#edit-aturan-select').prop('disabled', false).trigger('change.select2');
+            } else {
+                $('#edit-jumlah').prop('disabled', false);
+                $('#edit-diskon').prop('disabled', false);
+                $('#edit-aturan-select').prop('disabled', false).trigger('change.select2');
+            }
+
             $('#editResepModal').modal('show');
         });
 
@@ -1572,20 +1596,31 @@
 
             const id = $('#edit-resep-id').val();
             const url = "{{ route('resepfarmasi.nonracikan.update', '') }}/" + id;
-            const data = {
+            let data = {
                 _token: "{{ csrf_token() }}",
                 _method: 'PUT',
-                jumlah: $('#edit-jumlah').val(),
-                diskon: $('#edit-diskon').val(),
                 aturan_pakai: $('#edit-aturan').val()
             };
+
+            // Only send jumlah/diskon when invoice is not locked
+            if (!IS_INVOICE_LOCKED) {
+                data.jumlah = $('#edit-jumlah').val();
+                data.diskon = $('#edit-diskon').val();
+            }
 
             $.post(url, data)
             .done(function(res) {
                 // Update the table row
                 const row = $('#resep-table-body').find('tr[data-id="'+ id +'"]');
-                row.find('td').eq(1).text(res.data.jumlah);
-                row.find('td').eq(3).text(res.data.diskon + ' %');
+                if (res && res.data) {
+                    // Keep existing values when locked; backend won't change them
+                    if (typeof res.data.jumlah !== 'undefined' && res.data.jumlah !== null) {
+                        row.find('td').eq(1).text(res.data.jumlah);
+                    }
+                    if (typeof res.data.diskon !== 'undefined' && res.data.diskon !== null) {
+                        row.find('td').eq(3).text(res.data.diskon + ' %');
+                    }
+                }
                 row.find('td').eq(5).text(res.data.aturan_pakai);
 
                 $('#editResepModal').modal('hide');
@@ -2771,18 +2806,35 @@
 // DEBUG: Global handler for edit-racikan to ensure it always works
 $(document).on('click', '.edit-racikan', function () {
     const card = $(this).closest('.racikan-card');
-    // Enable all possible field classes to handle different naming conventions in the HTML
-    card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
-    card.find('.tambah-resepracikan').addClass('d-none');
-    // Always show and enable Update button
-    card.find('.update-resepracikan').removeClass('d-none').prop('disabled', false);
-    // Enable all Hapus and Edit buttons in this racikan card
-    card.find('.hapus-obat, .edit-obat').prop('disabled', false);
-    console.log('Edit racikan clicked - fields enabled, hapus-obat and edit-obat enabled');
+    // In locked mode, ONLY enable aturan pakai edit.
+    if (typeof IS_INVOICE_LOCKED !== 'undefined' && IS_INVOICE_LOCKED) {
+        // Keep wadah/bungkus locked
+        card.find('.wadah, .jumlah_bungkus, .bungkus').prop('disabled', true);
+        // Allow editing aturan pakai
+        card.find('.aturan_pakai').prop('disabled', false);
+
+        // Hide create button, show update button
+        card.find('.tambah-resepracikan').addClass('d-none');
+        card.find('.update-resepracikan').removeClass('d-none').prop('disabled', false);
+
+        // Do not allow adding/removing/editing obat rows
+        card.find('.hapus-obat, .edit-obat').prop('disabled', true);
+        card.find('.tambah-obat').prop('disabled', true);
+        console.log('Edit racikan (locked) - only aturan pakai enabled');
+    } else {
+        // Enable all possible field classes to handle different naming conventions in the HTML
+        card.find('.wadah, .jumlah_bungkus, .bungkus, .aturan_pakai').prop('disabled', false);
+        card.find('.tambah-resepracikan').addClass('d-none');
+        // Always show and enable Update button
+        card.find('.update-resepracikan').removeClass('d-none').prop('disabled', false);
+        // Enable all Hapus and Edit buttons in this racikan card
+        card.find('.hapus-obat, .edit-obat').prop('disabled', false);
+        console.log('Edit racikan clicked - fields enabled, hapus-obat and edit-obat enabled');
+    }
 
     // If the add-obat form doesn't exist in this card, insert it so user can add obat while editing
     // Prevent duplicate add-rows: if a select2 for obat already exists, don't insert another
-    if (card.find('.select2-obat-racikan').length === 0) {
+    if ((typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) && card.find('.select2-obat-racikan').length === 0) {
         // remove any stray add-obat-row remnants to avoid duplicates
         card.find('.add-obat-row').not(':first').remove();
         const addRow = `
@@ -2849,7 +2901,11 @@ $(document).on('click', '.edit-racikan', function () {
         card.find('.tambah-obat').prop('disabled', false);
     } else {
         // If the form exists, just ensure the add button is enabled
-        card.find('.tambah-obat').prop('disabled', false);
+        if (typeof IS_INVOICE_LOCKED === 'undefined' || !IS_INVOICE_LOCKED) {
+            card.find('.tambah-obat').prop('disabled', false);
+        } else {
+            card.find('.tambah-obat').prop('disabled', true);
+        }
     }
 
     // Ensure aturan_pakai is editable: convert existing disabled text input into a select2 + hidden input

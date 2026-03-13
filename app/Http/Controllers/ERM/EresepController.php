@@ -85,7 +85,19 @@ class EresepController extends Controller
     public function index(Request $request)
     {
         if ($request->ajax()) {
-            $visitations = Visitation::with(['pasien', 'metodeBayar', 'dokter.user', 'dokter.spesialisasi'])->select('erm_visitations.*');
+            $visitations = Visitation::with([
+                'pasien',
+                'metodeBayar',
+                'dokter.user',
+                'dokter.spesialisasi',
+                'invoice:id,visitation_id,payment_method',
+            ])
+                ->select('erm_visitations.*')
+                ->addSelect([
+                    'resep_status' => ResepDetail::select('status')
+                        ->whereColumn('erm_resepdetail.visitation_id', 'erm_visitations.id')
+                        ->limit(1),
+                ]);
 
             if ($request->tanggal_mulai && $request->tanggal_selesai) {
                 $visitations->whereDate('tanggal_visitation', '>=', $request->tanggal_mulai)
@@ -140,7 +152,22 @@ class EresepController extends Controller
                     $user = Auth::user();
                     $asesmenUrl = $user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id)
                         : ($user->hasRole('Farmasi') ? route('erm.eresepfarmasi.create', $v->id) : '#');
-                    return '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary" target="_blank">Lihat</a> ';
+
+                    $btnLihat = '<a href="' . $asesmenUrl . '" class="btn btn-sm btn-primary" target="_blank">Lihat</a>';
+
+                    $paymentMethod = optional($v->invoice)->payment_method;
+                    $paymentMethod = is_null($paymentMethod) ? null : trim((string) $paymentMethod);
+                    if ($paymentMethod === '') $paymentMethod = null;
+
+                    $resepStatus = isset($v->resep_status) ? (int) $v->resep_status : 0;
+
+                    $btnSelesai = '';
+                    if (!is_null($paymentMethod) && $resepStatus === 0) {
+                        $selesaiUrl = route('erm.eresepfarmasi.selesai', ['visitation_id' => $v->id]);
+                        $btnSelesai = '<button type="button" class="btn btn-sm btn-success ml-1 btn-selesai-resep" data-url="' . $selesaiUrl . '">Selesai</button>';
+                    }
+
+                    return $btnLihat . $btnSelesai;
                 })
                 ->addColumn('nama_dokter', function($v) {
                     return $v->dokter && $v->dokter->user ? $v->dokter->user->name : '-';
@@ -195,6 +222,33 @@ class EresepController extends Controller
         $dokters = Dokter::with('user', 'spesialisasi')->get();
         $metodeBayar = MetodeBayar::all();
         return view('erm.eresep.index', compact('dokters', 'metodeBayar', 'kliniks'));
+    }
+
+    public function markResepFarmasiSelesai(Request $request, string $visitationId)
+    {
+        $visitation = Visitation::with(['invoice:id,visitation_id,payment_method'])->findOrFail($visitationId);
+
+        $paymentMethod = optional($visitation->invoice)->payment_method;
+        $paymentMethod = is_null($paymentMethod) ? null : trim((string) $paymentMethod);
+        if ($paymentMethod === '') $paymentMethod = null;
+
+        if (is_null($paymentMethod)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak bisa diselesaikan: Invoice belum ditransaksikan.',
+            ], 422);
+        }
+
+        ResepDetail::updateOrCreate(
+            ['visitation_id' => $visitationId],
+            ['status' => 1, 'submitted_at' => now()]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Resep ditandai selesai.',
+            'visitation_id' => $visitationId,
+        ]);
     }
 
     // ERESEP DOKTER
@@ -808,6 +862,24 @@ class EresepController extends Controller
     public function farmasiupdateNonRacikan(Request $request, $id)
     {
         $resep = ResepFarmasi::findOrFail($id);
+
+        // In invoice-locked state, allow editing ONLY aturan_pakai
+        if ($this->isInvoiceLockedForVisitation((string) $resep->visitation_id)) {
+            $data = $request->validate([
+                'aturan_pakai' => 'required|string|max:255',
+            ]);
+
+            $resep->update([
+                'aturan_pakai' => $data['aturan_pakai'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Aturan pakai berhasil diubah',
+                'data'    => $resep,
+            ]);
+        }
+
         if ($resp = $this->guardInvoiceNotLocked($resep->visitation_id)) return $resp;
 
         $data = $request->validate([
@@ -836,6 +908,27 @@ class EresepController extends Controller
     public function farmasiupdateRacikan(Request $request, $racikanKe)
     {
         try {
+            $visitationIdInput = (string) $request->input('visitation_id');
+
+            // In invoice-locked state, allow editing ONLY aturan_pakai (no item changes)
+            if ($visitationIdInput !== '' && $this->isInvoiceLockedForVisitation($visitationIdInput)) {
+                $validatedLocked = $request->validate([
+                    'visitation_id' => 'required',
+                    'aturan_pakai' => 'required|string|max:255',
+                ]);
+
+                ResepFarmasi::where('visitation_id', $validatedLocked['visitation_id'])
+                    ->where('racikan_ke', $racikanKe)
+                    ->update([
+                        'aturan_pakai' => $validatedLocked['aturan_pakai'],
+                    ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Aturan pakai racikan berhasil diupdate',
+                ]);
+            }
+
             if ($resp = $this->guardInvoiceNotLocked($request->input('visitation_id'))) return $resp;
             // Log incoming request for debugging
             \Illuminate\Support\Facades\Log::info('farmasiupdateRacikan called', ['racikanKe' => $racikanKe, 'payload' => $request->all()]);

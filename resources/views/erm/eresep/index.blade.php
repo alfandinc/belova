@@ -684,6 +684,52 @@ $(document).on('click', '#btn-mark-all-old-notifs', function (e) {
     });
 });
 
+// Mark resep as selesai (only appears when invoice is locked but resep status is 0)
+$(document).on('click', '.btn-selesai-resep', function (e) {
+    e.preventDefault();
+
+    var $btn = $(this);
+    var url = $btn.data('url');
+    if (!url) return;
+
+    Swal.fire({
+        title: 'Tandai resep selesai?'
+        , text: 'Resep akan dianggap sudah dilayani.'
+        , icon: 'question'
+        , showCancelButton: true
+        , confirmButtonText: 'Ya'
+        , cancelButtonText: 'Batal'
+    }).then(function (result) {
+        if (!result.value) return;
+
+        $btn.prop('disabled', true).text('Memproses...');
+
+        $.ajax({
+            url: url,
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+            success: function (res) {
+                if (res && res.success) {
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message || 'Selesai', timer: 1200, showConfirmButton: false });
+                    try {
+                        $('#rawatjalan-table').DataTable().ajax.reload(null, false);
+                    } catch (e) {}
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Gagal', text: (res && res.message) ? res.message : 'Gagal menandai selesai.' });
+                }
+            },
+            error: function (xhr) {
+                var msg = 'Gagal menandai selesai.';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                Swal.fire({ icon: 'error', title: 'Gagal', text: msg });
+            },
+            complete: function () {
+                $btn.prop('disabled', false).text('Selesai');
+            }
+        });
+    });
+});
+
 function escapeHtml(unsafe) {
     return String(unsafe)
         .replace(/&/g, '&amp;')
