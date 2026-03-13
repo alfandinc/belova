@@ -194,9 +194,27 @@
             overflow: hidden;
             display: inline-block;
             border: 2px solid rgba(255,255,255,0.06);
+            transition: transform 180ms ease, box-shadow 180ms ease;
+            transform-origin: center center;
+            position: relative;
         }
 
-        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; transition: transform 180ms ease; display:block; }
+
+        /* Enlarge avatar on hover without shifting layout */
+        .avatar:hover {
+            transform: scale(1.25);
+            z-index: 50;
+            box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+        }
+
+        /* Slight image inner scale for crispness */
+        .avatar:hover img { transform: scale(1.05); }
+
+        /* Reduce hover effect on small screens */
+        @media (max-width: 480px) {
+            .avatar:hover { transform: scale(1.08); }
+        }
 
         .avatar-initials {
             width: 40px;
@@ -562,13 +580,32 @@
                             <div style="font-size:13px; font-weight:700;">{{ Auth::user()->name ?? '' }}</div>
                             <div style="font-size:12px; opacity:0.8;">{{ Auth::user()->email ?? '' }}</div>
                         </div>
-                        <div class="avatar-initials" title="{{ Auth::user()->name ?? '' }}">
-                            @php
-                                $name = trim(Auth::user()->name ?? '');
-                                $initials = collect(explode(' ', $name))->filter()->map(function($p){ return strtoupper(substr($p,0,1)); })->take(2)->join('');
-                            @endphp
-                            {{ $initials ?: 'U' }}
-                        </div>
+                        @php
+                            $name = trim(Auth::user()->name ?? '');
+                            $initials = collect(explode(' ', $name))->filter()->map(function($p){ return strtoupper(substr($p,0,1)); })->take(2)->join('');
+                            $emp = Auth::user()->employee ?? null;
+                            $dok = Auth::user()->dokter ?? null;
+                            $photoUrl = null;
+                            try {
+                                if ($emp && !empty($emp->photo)) {
+                                    $photoUrl = \Illuminate\Support\Facades\Storage::url($emp->photo);
+                                } elseif ($dok && !empty($dok->photo)) {
+                                    $photoUrl = \Illuminate\Support\Facades\Storage::url($dok->photo);
+                                }
+                            } catch (\Throwable $e) {
+                                $photoUrl = null;
+                            }
+                        @endphp
+
+                        @if(!empty($photoUrl))
+                            <div class="avatar" title="{{ Auth::user()->name ?? '' }}">
+                                <img src="{{ $photoUrl }}" alt="{{ Auth::user()->name ?? '' }}" />
+                            </div>
+                        @else
+                            <div class="avatar-initials" title="{{ Auth::user()->name ?? '' }}">
+                                {{ $initials ?: 'U' }}
+                            </div>
+                        @endif
                     </div>
                 </div>
                 <div class="tiles">
