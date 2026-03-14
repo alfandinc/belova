@@ -2068,6 +2068,38 @@
             updateTable();
             calculateTotals();
         }
+
+        function billingItemHasKonsultasiName(item) {
+            if (!item) return false;
+
+            const billableType = (item.billable_type || '').toString();
+            if (billableType !== 'App\\Models\\ERM\\Konsultasi') return false;
+
+            const itemName = (item.nama_item || item.name || '').toString().trim().toLowerCase();
+            return itemName.includes('konsultasi');
+        }
+
+        function pushDeletedBillingIdIfNeeded(itemId) {
+            const numericId = Number(itemId);
+            if (isNaN(numericId)) return;
+            if (deletedItems.includes(numericId)) return;
+            deletedItems.push(numericId);
+        }
+
+        function replaceExistingKonsultasiNamedItems() {
+            let replacedCount = 0;
+
+            (Array.isArray(billingData) ? billingData : []).forEach(function(item) {
+                if (!item || item.deleted) return;
+                if (!billingItemHasKonsultasiName(item)) return;
+
+                item.deleted = true;
+                pushDeletedBillingIdIfNeeded(item.id);
+                replacedCount += 1;
+            });
+
+            return replacedCount;
+        }
         
         // Calculate totals for the bottom section
         function calculateTotals() {
@@ -3171,6 +3203,11 @@ $('#saveAllChangesBtn').on('click', function() {
             const harga = parseHarga(data.harga);
             const qty = parseInt(data.qty) || 1;
             const total = harga * qty;
+
+            const selectedName = (data.text || '').toString().trim().toLowerCase();
+            const shouldReplaceExistingKonsultasi = selectedName.includes('konsultasi');
+            const replacedCount = shouldReplaceExistingKonsultasi ? replaceExistingKonsultasiNamedItems() : 0;
+
             billingData.push({
                 id: 'konsultasi-' + data.id,
                 billable_id: data.id,
@@ -3189,6 +3226,16 @@ $('#saveAllChangesBtn').on('click', function() {
             updateTable();
             calculateTotals();
             $(this).val(null).trigger('change');
+
+            if (replacedCount > 0) {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Konsultasi Diganti',
+                    text: 'Billing hanya dapat memiliki satu item konsultasi. Item konsultasi sebelumnya telah diganti.',
+                    timer: 2200,
+                    showConfirmButton: false
+                });
+            }
 
             // Persist immediately so refresh won't revert and the DB gets a real ID.
             try {
