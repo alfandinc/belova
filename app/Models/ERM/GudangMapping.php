@@ -144,6 +144,7 @@ class GudangMapping extends Model
             'lab' => 'Laboratorium',
             'kode_tindakan' => 'Kode Tindakan Obat',
             'retur_pembelian' => 'Retur Pembelian',
+            'expired' => 'Gudang Expired',
         ];
     }
 }

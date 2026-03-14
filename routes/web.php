@@ -567,6 +567,12 @@ Route::prefix('erm')->middleware('role:Dokter|Perawat|Pendaftaran|Admin|Farmasi|
     Route::prefix('stok-gudang')->group(function () {
         Route::get('/', [StokGudangController::class, 'index'])->name('erm.stok-gudang.index');
         Route::get('/data', [StokGudangController::class, 'getData'])->name('erm.stok-gudang.data');
+        Route::get('/low-stock', [StokGudangController::class, 'getLowStockData'])->name('erm.stok-gudang.low-stock');
+        Route::get('/low-stock/count', [StokGudangController::class, 'getLowStockCount'])->name('erm.stok-gudang.low-stock.count');
+        Route::get('/expiring', [StokGudangController::class, 'getExpiringData'])->name('erm.stok-gudang.expiring');
+        Route::get('/expiring/count', [StokGudangController::class, 'getExpiringCount'])->name('erm.stok-gudang.expiring.count');
+        Route::post('/expiring/move-to-expired', [StokGudangController::class, 'moveBatchToExpiredGudang'])->name('erm.stok-gudang.expiring.move');
+        Route::get('/expiring/batches', [StokGudangController::class, 'getExpiringBatches'])->name('erm.stok-gudang.expiring.batches');
         Route::get('/batch-details', [StokGudangController::class, 'getBatchDetails'])->name('erm.stok-gudang.batch-details');
         Route::post('/update-batch-stok', [StokGudangController::class, 'updateBatchStok'])->name('erm.stok-gudang.update-batch-stok');
         Route::post('/update-batch-exp', [StokGudangController::class, 'updateBatchExpiration'])->name('erm.stok-gudang.update-batch-exp');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\ERM\ObatStokGudang;
 use App\Models\ERM\Obat;
+use App\Models\ERM\GudangMapping;
 use App\Models\ERM\Gudang;
 use App\Models\ERM\StokOpname;
 use App\Models\ERM\KartuStok;
@@ -105,6 +106,22 @@ class StokGudangController extends Controller {
         }
 
         return DataTables::of($query)
+            ->filter(function ($q) use ($request, $table) {
+                $searchValue = null;
+                if ($request->has('search')) {
+                    $s = $request->input('search');
+                    if (is_array($s) && isset($s['value'])) $searchValue = trim($s['value']);
+                    elseif (is_string($s)) $searchValue = trim($s);
+                }
+
+                if ($searchValue) {
+                    $q->where(function ($sub) use ($searchValue, $table) {
+                        $sub->where('o.nama', 'like', "%{$searchValue}%")
+                            ->orWhere('o.kode_obat', 'like', "%{$searchValue}%")
+                            ->orWhere($table . '.batch', 'like', "%{$searchValue}%");
+                    });
+                }
+            })
             ->addColumn('nama_obat', function ($row) use ($request) {
                 $nama = $row->obat_nama ?? null;
                 if (!$nama) {
@@ -695,5 +712,515 @@ class StokGudangController extends Controller {
         $fileName = sprintf('stok_%s_%s_%s.xlsx', $gudangSlug ?: 'gudang', $typeLabel, $dateLabel);
 
         return \Maatwebsite\Excel\Facades\Excel::download($export, $fileName);
+    }
+
+    /**
+     * AJAX: Return list of obat where total stok per gudang is below min_stok
+     */
+    public function getLowStockData(Request $request)
+    {
+        // Aggregate across all gudang: group by obat only
+        $table = (new ObatStokGudang())->getTable();
+
+        $query = ObatStokGudang::leftJoin('erm_obat as o', 'o.id', $table . '.obat_id')
+            ->select(
+                $table . '.obat_id',
+                DB::raw('SUM(' . $table . '.stok) as total_stok'),
+                DB::raw('MIN(' . $table . '.min_stok) as min_stok'),
+                'o.nama as obat_nama',
+                'o.kode_obat as obat_kode',
+                'o.satuan as obat_satuan'
+            )
+            ->groupBy($table . '.obat_id', 'o.nama', 'o.kode_obat', 'o.satuan')
+            ->havingRaw('SUM(' . $table . '.stok) < COALESCE(MIN(' . $table . '.min_stok), 0)');
+
+        // Optional: still allow filtering by gudang_id but stock aggregation remains across all gudang
+        if ($request->gudang_id) {
+            // if gudang_id is passed, include only rows from that gudang when computing totals
+            $query->where($table . '.gudang_id', $request->gudang_id);
+        }
+
+        if ($request->hide_inactive == 1) {
+            $query->where('o.status_aktif', 1);
+        }
+
+        return DataTables::of($query)
+            ->filter(function ($q) use ($request, $table) {
+                $searchValue = null;
+                if ($request->has('search')) {
+                    $s = $request->input('search');
+                    if (is_array($s) && isset($s['value'])) $searchValue = trim($s['value']);
+                    elseif (is_string($s)) $searchValue = trim($s);
+                }
+
+                if ($searchValue) {
+                    $q->where(function ($sub) use ($searchValue, $table) {
+                        $sub->where('o.nama', 'like', "%{$searchValue}%")
+                            ->orWhere('o.kode_obat', 'like', "%{$searchValue}%")
+                            ->orWhere($table . '.batch', 'like', "%{$searchValue}%");
+                    });
+                }
+            })
+            ->addColumn('nama_obat', function ($row) {
+                $link = '<a href="#" class="show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="">' . e($row->obat_nama) . '</a>';
+                $link .= '<div class="text-muted small">' . ($row->obat_kode ?: '-') . '</div>';
+                return $link;
+            })
+            ->addColumn('total_stok', function ($row) {
+                $unit = isset($row->obat_satuan) && $row->obat_satuan ? (function_exists('mb_strtolower') ? mb_strtolower($row->obat_satuan) : strtolower($row->obat_satuan)) : '';
+                $formatted = number_format((float)$row->total_stok, 2, ',', '.');
+                return $formatted . ($unit ? ' ' . e($unit) : '');
+            })
+            ->addColumn('min_stok', function ($row) {
+                return number_format((float)$row->min_stok, 2, ',', '.');
+            })
+            ->addColumn('gudang', function ($row) {
+                return 'Semua Gudang';
+            })
+            ->rawColumns(['nama_obat'])
+            ->make(true);
+    }
+
+    /**
+     * AJAX: Return count of obat where total stok per gudang is below min_stok
+     */
+    public function getLowStockCount(Request $request)
+    {
+        $table = (new ObatStokGudang())->getTable();
+
+        // Aggregate across all gudang (group by obat)
+        $query = ObatStokGudang::leftJoin('erm_obat as o', 'o.id', $table . '.obat_id')
+            ->select(
+                $table . '.obat_id',
+                DB::raw('SUM(' . $table . '.stok) as total_stok'),
+                DB::raw('MIN(' . $table . '.min_stok) as min_stok')
+            )
+            ->groupBy($table . '.obat_id')
+            ->havingRaw('SUM(' . $table . '.stok) < COALESCE(MIN(' . $table . '.min_stok), 0)');
+
+        if ($request->gudang_id) {
+            $query->where($table . '.gudang_id', $request->gudang_id);
+        }
+
+        if ($request->hide_inactive == 1) {
+            $query->where('o.status_aktif', 1);
+        }
+
+        // Apply global search (DataTables sends search[value]) to common fields
+        $searchValue = null;
+        if ($request->has('search')) {
+            $s = $request->input('search');
+            if (is_array($s) && isset($s['value'])) $searchValue = trim($s['value']);
+            elseif (is_string($s)) $searchValue = trim($s);
+        }
+
+        if ($searchValue) {
+            $query->where(function($q) use ($searchValue, $table) {
+                $q->where('o.nama', 'like', "%{$searchValue}%")
+                  ->orWhere('o.kode_obat', 'like', "%{$searchValue}%")
+                  ->orWhere($table . '.batch', 'like', "%{$searchValue}%");
+            });
+        }
+
+        try {
+            $count = $query->get()->count();
+        } catch (\Exception $e) {
+            $count = 0;
+        }
+
+        return response()->json(['count' => $count]);
+    }
+
+    /**
+     * AJAX: Return list of obat where nearest expiration date is within next X months (default 6)
+     */
+    public function getExpiringData(Request $request)
+    {
+        $months = intval($request->input('months', 6));
+        $threshold = Carbon::now()->addMonths($months)->endOfDay();
+        $expiredGudangMapping = GudangMapping::getActiveMapping('expired');
+        $expiredGudangId = $expiredGudangMapping ? $expiredGudangMapping->gudang_id : null;
+        $expiredGudangName = $expiredGudangMapping && $expiredGudangMapping->gudang ? $expiredGudangMapping->gudang->nama : null;
+
+        $table = (new ObatStokGudang())->getTable();
+        $expThreshold = $threshold->format('Y-m-d H:i:s');
+
+        $query = ObatStokGudang::leftJoin('erm_obat as o', 'o.id', $table . '.obat_id')
+            ->leftJoin('erm_gudang as g', 'g.id', $table . '.gudang_id')
+            ->whereNotNull($table . '.expiration_date')
+            ->where($table . '.stok', '>', 0)
+            ->select(
+                $table . '.obat_id',
+                DB::raw('SUM(' . $table . '.stok) as total_stok'),
+                DB::raw('MIN(' . $table . '.expiration_date) as nearest_exp'),
+                'o.nama as obat_nama',
+                'o.kode_obat as obat_kode',
+                'o.satuan as obat_satuan',
+                DB::raw("GROUP_CONCAT(DISTINCT CASE WHEN {$table}.expiration_date IS NOT NULL AND {$table}.expiration_date <= '{$expThreshold}' THEN CONCAT({$table}.id, '||', {$table}.batch, '||', REPLACE(CAST({$table}.stok AS CHAR), '.', ','), '||', DATE_FORMAT({$table}.expiration_date, '%Y-%m-%d'), '||', COALESCE(g.nama, '-'), '||', {$table}.gudang_id) END SEPARATOR ';;') as exp_batches")
+            )
+            ->groupBy($table . '.obat_id', 'o.nama', 'o.kode_obat', 'o.satuan')
+            ->havingRaw('MIN(' . $table . '.expiration_date) <= ?', [$expThreshold]);
+
+        if ($expiredGudangId) {
+            $query->where($table . '.gudang_id', '!=', $expiredGudangId);
+        }
+
+        if ($request->hide_inactive == 1) {
+            $query->where('o.status_aktif', 1);
+        }
+
+        return DataTables::of($query)
+            ->filter(function ($q) use ($request, $table) {
+                $searchValue = null;
+                if ($request->has('search')) {
+                    $search = $request->input('search');
+                    if (is_array($search) && isset($search['value'])) {
+                        $searchValue = trim($search['value']);
+                    } elseif (is_string($search)) {
+                        $searchValue = trim($search);
+                    }
+                }
+
+                if ($searchValue !== null && $searchValue !== '') {
+                    $q->where(function ($sub) use ($searchValue, $table) {
+                        $sub->where('o.nama', 'like', "%{$searchValue}%")
+                            ->orWhere('o.kode_obat', 'like', "%{$searchValue}%")
+                            ->orWhere($table . '.batch', 'like', "%{$searchValue}%")
+                            ->orWhere('g.nama', 'like', "%{$searchValue}%");
+                    });
+                }
+            }, true)
+            ->addColumn('nama_obat', function ($row) {
+                $link = '<a href="#" class="show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="">' . e($row->obat_nama) . '</a>';
+                $link .= '<div class="text-muted small">' . ($row->obat_kode ?: '-') . '</div>';
+                return $link;
+            })
+            ->addColumn('exp_batches', function ($row) {
+                if (empty($row->exp_batches)) return '-';
+                $parts = explode(';;', $row->exp_batches);
+                $items = array_filter(array_map('trim', $parts));
+                if (empty($items)) return '-';
+
+                $html = '<table class="table table-sm mb-0" style="margin-bottom:0;border-collapse:collapse;width:100%;">';
+                $html .= '<tbody>';
+                foreach ($items as $it) {
+                    $cols = explode('||', $it);
+                    $batch = isset($cols[1]) ? $cols[1] : '-';
+                    $html .= '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px; vertical-align:middle;">' . e($batch) . '</td></tr>';
+                }
+                $html .= '</tbody></table>';
+                return $html;
+            })
+            ->addColumn('exp_stoks', function ($row) {
+                if (empty($row->exp_batches)) return '-';
+                $parts = explode(';;', $row->exp_batches);
+                $items = array_filter(array_map('trim', $parts));
+                if (empty($items)) return '-';
+
+                $unit = isset($row->obat_satuan) && $row->obat_satuan ? ' ' . e($row->obat_satuan) : '';
+                $html = '<table class="table table-sm mb-0" style="margin-bottom:0;border-collapse:collapse;width:100%;">';
+                $html .= '<tbody>';
+                foreach ($items as $it) {
+                    $cols = explode('||', $it);
+                    $stok = isset($cols[2]) ? $cols[2] : '0';
+                    $html .= '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px; vertical-align:middle;">' . e($stok) . $unit . '</td></tr>';
+                }
+                $html .= '</tbody></table>';
+                return $html;
+            })
+            ->addColumn('exp_gudangs', function ($row) {
+                if (empty($row->exp_batches)) return '-';
+                $parts = explode(';;', $row->exp_batches);
+                $items = array_filter(array_map('trim', $parts));
+                if (empty($items)) return '-';
+
+                $html = '<table class="table table-sm mb-0" style="margin-bottom:0;border-collapse:collapse;width:100%;">';
+                $html .= '<tbody>';
+                foreach ($items as $it) {
+                    $cols = explode('||', $it);
+                    $gudang = isset($cols[4]) ? $cols[4] : '-';
+                    $html .= '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px; vertical-align:middle;">' . e($gudang) . '</td></tr>';
+                }
+                $html .= '</tbody></table>';
+                return $html;
+            })
+            ->addColumn('exp_dates', function ($row) {
+                if (empty($row->exp_batches)) return '-';
+                $parts = explode(';;', $row->exp_batches);
+                $items = array_filter(array_map('trim', $parts));
+                if (empty($items)) return '-';
+
+                $html = '<table class="table table-sm mb-0" style="margin-bottom:0;border-collapse:collapse;width:100%;">';
+                $html .= '<tbody>';
+                foreach ($items as $it) {
+                    $cols = explode('||', $it);
+                    $exp = isset($cols[3]) ? $cols[3] : '';
+                    $expFormatted = '-';
+                    try {
+                        if ($exp) $expFormatted = Carbon::parse($exp)->format('d-m-Y');
+                    } catch (\Exception $e) {
+                        $expFormatted = $exp ?: '-';
+                    }
+                    $html .= '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px; vertical-align:middle;">' . e($expFormatted) . '</td></tr>';
+                }
+                $html .= '</tbody></table>';
+                return $html;
+            })
+            ->addColumn('exp_actions', function ($row) use ($expiredGudangId, $expiredGudangName) {
+                if (empty($row->exp_batches)) return '-';
+                $parts = explode(';;', $row->exp_batches);
+                $items = array_filter(array_map('trim', $parts));
+                if (empty($items)) return '-';
+
+                $html = '<table class="table table-sm mb-0" style="margin-bottom:0;border-collapse:collapse;width:100%;">';
+                $html .= '<tbody>';
+                foreach ($items as $it) {
+                    $cols = explode('||', $it);
+                    $stokId = isset($cols[0]) ? $cols[0] : null;
+                    $html .= '<tr style="border-bottom:1px solid #eee;"><td style="padding:6px 8px; vertical-align:middle;">';
+                    if (!$expiredGudangId) {
+                        $html .= '<button type="button" class="btn btn-sm btn-secondary" disabled title="Mapping gudang expired belum diset">Belum di-map</button>';
+                    } else {
+                        $title = $expiredGudangName ? 'Pindah ke ' . e($expiredGudangName) : 'Pindah ke gudang expired';
+                        $html .= '<button type="button" class="btn btn-sm btn-danger btn-move-expired" data-stok-id="' . e($stokId) . '" data-target-gudang-name="' . e($expiredGudangName ?: 'Gudang Expired') . '" title="' . $title . '"><i class="fas fa-exchange-alt"></i> Pindah</button>';
+                    }
+                    $html .= '</td></tr>';
+                }
+                $html .= '</tbody></table>';
+                return $html;
+            })
+            ->rawColumns(['nama_obat', 'exp_batches', 'exp_stoks', 'exp_gudangs', 'exp_dates', 'exp_actions'])
+            ->make(true);
+    }
+
+    /**
+     * AJAX: Return count of obat that have expiration within next X months
+     */
+    public function getExpiringCount(Request $request)
+    {
+        $months = intval($request->input('months', 6));
+        $threshold = Carbon::now()->addMonths($months)->endOfDay();
+        $expiredGudangId = GudangMapping::getDefaultGudangId('expired');
+
+        $table = (new ObatStokGudang())->getTable();
+
+        $query = ObatStokGudang::leftJoin('erm_obat as o', 'o.id', $table . '.obat_id')
+            ->whereNotNull($table . '.expiration_date')
+            ->where($table . '.stok', '>', 0)
+            ->select($table . '.obat_id', DB::raw('MIN(' . $table . '.expiration_date) as nearest_exp'))
+            ->groupBy($table . '.obat_id')
+            ->havingRaw('MIN(' . $table . '.expiration_date) <= ?', [$threshold->format('Y-m-d H:i:s')]);
+
+        if ($expiredGudangId) {
+            $query->where($table . '.gudang_id', '!=', $expiredGudangId);
+        }
+
+        if ($request->hide_inactive == 1) {
+            $query->where('o.status_aktif', 1);
+        }
+
+        try {
+            $count = $query->get()->count();
+        } catch (\Exception $e) {
+            $count = 0;
+        }
+
+        return response()->json(['count' => $count]);
+    }
+
+    public function moveBatchToExpiredGudang(Request $request)
+    {
+        $request->validate([
+            'id' => 'required|exists:erm_obat_stok_gudang,id',
+        ]);
+
+        $expiredMapping = GudangMapping::getActiveMapping('expired');
+        if (!$expiredMapping || !$expiredMapping->gudang_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mapping gudang expired belum diset.'
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $source = ObatStokGudang::with(['gudang'])
+                ->lockForUpdate()
+                ->findOrFail($request->id);
+
+            $qty = (float) $source->stok;
+            if ($qty <= 0) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Batch ini tidak memiliki stok untuk dipindahkan.'
+                ], 422);
+            }
+
+            $targetGudangId = $expiredMapping->gudang_id;
+            $targetGudang = $expiredMapping->gudang ?: Gudang::find($targetGudangId);
+
+            if ((int) $source->gudang_id === (int) $targetGudangId) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Batch ini sudah berada di gudang expired.'
+                ], 422);
+            }
+
+            $targetQuery = ObatStokGudang::withTrashed()
+                ->where('obat_id', $source->obat_id)
+                ->where('gudang_id', $targetGudangId)
+                ->where('batch', $source->batch);
+
+            if ($source->expiration_date) {
+                $targetQuery->whereDate('expiration_date', $source->expiration_date->format('Y-m-d'));
+            } else {
+                $targetQuery->whereNull('expiration_date');
+            }
+
+            $target = $targetQuery->lockForUpdate()->first();
+
+            if ($target && method_exists($target, 'trashed') && $target->trashed()) {
+                $target->restore();
+            }
+
+            if (!$target) {
+                $target = ObatStokGudang::create([
+                    'obat_id' => $source->obat_id,
+                    'gudang_id' => $targetGudangId,
+                    'stok' => 0,
+                    'min_stok' => $source->min_stok,
+                    'max_stok' => $source->max_stok,
+                    'batch' => $source->batch,
+                    'expiration_date' => $source->expiration_date,
+                    'rak' => $source->rak,
+                    'lokasi' => $source->lokasi,
+                ]);
+            }
+
+            $target->stok = (float) $target->stok + $qty;
+            if (!$target->expiration_date && $source->expiration_date) {
+                $target->expiration_date = $source->expiration_date;
+            }
+            $target->save();
+
+            $sourceGudangName = $source->gudang ? $source->gudang->nama : ('Gudang #' . $source->gudang_id);
+            $targetGudangName = $targetGudang ? $targetGudang->nama : ('Gudang #' . $targetGudangId);
+
+            $source->stok = 0;
+            $source->save();
+
+            KartuStok::create([
+                'obat_id' => $source->obat_id,
+                'gudang_id' => $source->gudang_id,
+                'tanggal' => now(),
+                'tipe' => 'keluar',
+                'qty' => $qty,
+                'stok_setelah' => 0,
+                'batch' => $source->batch,
+                'keterangan' => 'Pindah ke gudang expired ' . $targetGudangName,
+                'ref_type' => 'mutasi_gudang_expired',
+                'ref_id' => $source->id,
+                'user_id' => Auth::id(),
+            ]);
+
+            KartuStok::create([
+                'obat_id' => $target->obat_id,
+                'gudang_id' => $targetGudangId,
+                'tanggal' => now(),
+                'tipe' => 'masuk',
+                'qty' => $qty,
+                'stok_setelah' => (float) $target->stok,
+                'batch' => $target->batch,
+                'keterangan' => 'Mutasi expired dari ' . $sourceGudangName,
+                'ref_type' => 'mutasi_gudang_expired',
+                'ref_id' => $source->id,
+                'user_id' => Auth::id(),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Batch berhasil dipindahkan ke ' . $targetGudangName,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memindahkan batch ke gudang expired: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * AJAX: Return per-batch list of obat batches that expire within next X months
+     */
+    public function getExpiringBatches(Request $request)
+    {
+        $months = intval($request->input('months', 6));
+        $threshold = Carbon::now()->addMonths($months)->endOfDay();
+
+        $table = (new ObatStokGudang())->getTable();
+
+        $query = ObatStokGudang::leftJoin('erm_obat as o', 'o.id', $table . '.obat_id')
+            ->whereNotNull($table . '.expiration_date')
+            ->whereDate($table . '.expiration_date', '<=', $threshold->format('Y-m-d'))
+            ->select(
+                $table . '.id',
+                $table . '.obat_id',
+                $table . '.batch',
+                $table . '.stok',
+                $table . '.expiration_date',
+                'o.nama as obat_nama',
+                'o.kode_obat as obat_kode',
+                'o.satuan as obat_satuan'
+            );
+
+        if ($request->gudang_id) {
+            $query->where($table . '.gudang_id', $request->gudang_id);
+        }
+
+        if ($request->hide_inactive == 1) {
+            $query->where('o.status_aktif', 1);
+        }
+
+        return DataTables::of($query)
+            ->filter(function ($q) use ($request, $table) {
+                $searchValue = null;
+                if ($request->has('search')) {
+                    $s = $request->input('search');
+                    if (is_array($s) && isset($s['value'])) $searchValue = trim($s['value']);
+                    elseif (is_string($s)) $searchValue = trim($s);
+                }
+
+                if ($searchValue) {
+                    $q->where(function ($sub) use ($searchValue, $table) {
+                        $sub->where('o.nama', 'like', "%{$searchValue}%")
+                            ->orWhere('o.kode_obat', 'like', "%{$searchValue}%")
+                            ->orWhere($table . '.batch', 'like', "%{$searchValue}%");
+                    });
+                }
+            })
+            ->addColumn('nama_obat', function ($row) {
+                $link = '<a href="#" class="show-batch-details" data-obat-id="'.$row->obat_id.'" data-gudang-id="">' . e($row->obat_nama) . '</a>';
+                $link .= '<div class="text-muted small">' . ($row->obat_kode ?: '-') . '</div>';
+                return $link;
+            })
+            ->addColumn('batch', function ($row) {
+                return e($row->batch ?: '-');
+            })
+            ->addColumn('stok', function ($row) {
+                $unit = isset($row->obat_satuan) && $row->obat_satuan ? (function_exists('mb_strtolower') ? mb_strtolower($row->obat_satuan) : strtolower($row->obat_satuan)) : '';
+                $formatted = number_format((float)$row->stok, 2, ',', '.');
+                return $formatted . ($unit ? ' ' . e($unit) : '');
+            })
+            ->addColumn('expiration_date', function ($row) {
+                try { return Carbon::parse($row->expiration_date)->format('d-m-Y'); } catch (\Exception $e) { return '-'; }
+            })
+            ->rawColumns(['nama_obat'])
+            ->make(true);
     }
 }

@@ -35,6 +35,30 @@
         .compact-filters .btn-sm { padding: .35rem .55rem; font-size: .85rem; }
         .compact-filters .form-check-label { font-size: 13px; font-weight:700; }
         .compact-filters .form-text { font-size: 11px; margin-top: 2px; }
+        /* Notification badge on top-right of button */
+        #btn-low-stock, #btn-expiring { position: relative; }
+        .notification-badge {
+            position: absolute;
+            top: -6px;
+            right: -8px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            border-radius: 10px;
+            background: #dc3545; /* red */
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            line-height: 1;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.2);
+        }
+        /* Make modal extra-large wider than bootstrap default */
+        .modal-dialog.modal-xl {
+            max-width: 1400px;
+            width: 95%;
+        }
     </style>
 
     <div class="row">
@@ -47,6 +71,16 @@
                             <li class="breadcrumb-item"><a href="javascript:void(0);">Farmasi</a></li>
                             <li class="breadcrumb-item active">Manajemen Stok</li>
                         </ol>
+                    </div>
+                    <div class="col-auto ml-auto d-flex align-items-center">
+                        <button type="button" class="btn btn-primary mr-2" id="btn-low-stock" title="Tampilkan obat dengan stok di bawah minimum">
+                            <i class="fas fa-exclamation-triangle"></i>&nbsp;Stok Habis
+                            <span id="low-stock-count" class="notification-badge" style="display:none;">0</span>
+                        </button>
+                        <button type="button" class="btn btn-warning" id="btn-expiring" title="Tampilkan obat yang kadaluarsa dalam 6 bulan">
+                            <i class="fas fa-hourglass-half"></i>&nbsp;Stok Expired
+                            <span id="expiring-count" class="notification-badge" style="display:none;">0</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -214,6 +248,69 @@
                     </div>
 </div>
 
+            <!-- Modal Low Stock (Stok Habis) -->
+            <div class="modal fade" id="lowStockModal" tabindex="-1" role="dialog" aria-labelledby="lowStockLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="lowStockLabel">Obat dengan Stok di Bawah Minimum</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped" id="lowstock-table" style="width:100%">
+                                    <thead>
+                                        <tr>
+                                            <th>Nama Obat</th>
+                                            <th>Stok</th>
+                                            <th>Min Stok</th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Expiring (Stok Expired / Kadaluarsa dalam 6 bulan) -->
+            <div class="modal fade" id="expiringModal" tabindex="-1" role="dialog" aria-labelledby="expiringLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="expiringLabel">Obat dengan Expiration kurang dari 6 bulan</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped" id="expiring-table" style="width:100%">
+                                    <thead>
+                                        <tr>
+                                            <th>Nama Obat</th>
+                                            <th>Batch</th>
+                                            <th>Stok Batch</th>
+                                            <th>Gudang</th>
+                                            <th>Tanggal Expired</th>
+                                            <th>Aksi</th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 <!-- Nilai Stok Gudang & Keseluruhan -->
 <div class="row mt-3">
     <div class="col-md-6">
@@ -346,10 +443,15 @@ $(document).ready(function() {
     $('#filter_gudang').change(function() {
         table.ajax.reload();
         updateNilaiStok();
+        updateLowStockCount();
     });
 
     // Initial load of nilai stok
     updateNilaiStok();
+    // Initial load of low-stock count
+    updateLowStockCount();
+    // Initial load of expiring count
+    updateExpiringCount();
 
     function updateNilaiStok() {
         var gudangId = $('#filter_gudang').val();
@@ -375,6 +477,53 @@ $(document).ready(function() {
         return n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
     }
 
+    // Update low-stock count badge
+    function updateLowStockCount() {
+        var gudangId = $('#filter_gudang').val();
+        var hideInactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.low-stock.count") }}',
+            type: 'GET',
+            data: { gudang_id: gudangId, hide_inactive: hideInactive },
+            success: function(res) {
+                var count = res && res.count ? parseInt(res.count) : 0;
+                if (count > 0) {
+                    var display = count > 99 ? '99+' : String(count);
+                    $('#low-stock-count').text(display).show();
+                    $('#btn-low-stock').addClass('btn-primary').removeClass('btn-secondary');
+                } else {
+                    $('#low-stock-count').hide();
+                    $('#btn-low-stock').removeClass('btn-primary').addClass('btn-outline-secondary');
+                }
+            },
+            error: function() {
+                $('#low-stock-count').hide();
+            }
+        });
+    }
+
+    // Update expiring count badge
+    function updateExpiringCount() {
+        var hideInactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.expiring.count") }}',
+            type: 'GET',
+            data: { hide_inactive: hideInactive, months: 6 },
+            success: function(res) {
+                var count = res && res.count ? parseInt(res.count) : 0;
+                if (count > 0) {
+                    var display = count > 99 ? '99+' : String(count);
+                    $('#expiring-count').text(display).show();
+                } else {
+                    $('#expiring-count').hide();
+                }
+            },
+            error: function() {
+                $('#expiring-count').hide();
+            }
+        });
+    }
+
     // Search obat with delay
     var searchTimeout;
     $('#search_obat').on('keyup', function() {
@@ -392,6 +541,7 @@ $(document).ready(function() {
     // Reload table when checkbox filter changes
     $('#hide_inactive_obat').change(function() {
         table.ajax.reload();
+        updateLowStockCount();
     });
 
     // Toggle hidden checkbox when icon button is clicked and update icon/tooltip
@@ -857,6 +1007,144 @@ $(document).ready(function() {
         // Trigger browser download
         window.location = url;
         $('#downloadStokModal').modal('hide');
+    });
+
+    // Low-stock modal & DataTable (Stok < Min Stok)
+    var lowTable = null;
+    $('#btn-low-stock').on('click', function() {
+        $('#lowStockModal').modal('show');
+
+        if ($.fn.DataTable.isDataTable('#lowstock-table')) {
+            $('#lowstock-table').DataTable().ajax.reload();
+            return;
+        }
+
+        lowTable = $('#lowstock-table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: '{{ route("erm.stok-gudang.low-stock") }}',
+                data: function(d) {
+                    d.gudang_id = $('#filter_gudang').val();
+                    d.hide_inactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
+                }
+            },
+            columns: [
+                { data: 'nama_obat', name: 'nama_obat', orderable: false },
+                { data: 'total_stok', name: 'total_stok', orderable: false },
+                { data: 'min_stok', name: 'min_stok', orderable: false }
+            ],
+            order: [[0, 'asc']],
+            pageLength: 25,
+            responsive: true,
+            drawCallback: function() {
+                $('[data-toggle="tooltip"]').tooltip();
+            }
+        });
+        // update count after low table draws
+        lowTable.on('draw', function() {
+            updateLowStockCount();
+        });
+    });
+
+    // Expiring modal & DataTable (expiration within 6 months)
+    var expTable = null;
+    $('#btn-expiring').on('click', function() {
+        $('#expiringModal').modal('show');
+
+        if ($.fn.DataTable.isDataTable('#expiring-table')) {
+            $('#expiring-table').DataTable().ajax.reload();
+            return;
+        }
+
+        expTable = $('#expiring-table').DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: {
+                url: '{{ route("erm.stok-gudang.expiring") }}',
+                data: function(d) {
+                    d.hide_inactive = $('#hide_inactive_obat').is(':checked') ? 1 : 0;
+                    d.months = 6;
+                }
+            },
+            columns: [
+                { data: 'nama_obat', name: 'nama_obat', orderable: false },
+                { data: 'exp_batches', name: 'exp_batches', orderable: false },
+                { data: 'exp_stoks', name: 'exp_stoks', orderable: false },
+                { data: 'exp_gudangs', name: 'exp_gudangs', orderable: false },
+                { data: 'exp_dates', name: 'exp_dates', orderable: false },
+                { data: 'exp_actions', name: 'exp_actions', orderable: false, searchable: false }
+            ],
+            order: [[0, 'asc']],
+            pageLength: 25,
+            responsive: true,
+            drawCallback: function() {
+                $('[data-toggle="tooltip"]').tooltip();
+            }
+        });
+        expTable.on('draw', function() {
+            updateExpiringCount();
+        });
+    });
+
+    // If filters change, refresh low-stock table if visible
+    $('#filter_gudang, #hide_inactive_obat').on('change', function() {
+        if ($.fn.DataTable.isDataTable('#lowstock-table')) {
+            $('#lowstock-table').DataTable().ajax.reload();
+        }
+        if ($.fn.DataTable.isDataTable('#expiring-table')) {
+            $('#expiring-table').DataTable().ajax.reload();
+        }
+    });
+
+    $(document).on('click', '.btn-move-expired', function() {
+        var button = $(this);
+        var stokId = button.data('stok-id');
+        var targetGudangName = button.data('target-gudang-name') || 'Gudang Expired';
+
+        if (!stokId) {
+            alert('ID stok batch tidak ditemukan.');
+            return;
+        }
+
+        if (!confirm('Pindahkan batch ini ke ' + targetGudangName + '?')) {
+            return;
+        }
+
+        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Pindah...');
+
+        $.ajax({
+            url: '{{ route("erm.stok-gudang.expiring.move") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                id: stokId
+            },
+            success: function(response) {
+                if (response.success) {
+                    alert(response.message || 'Batch berhasil dipindahkan ke gudang expired.');
+                    if ($.fn.DataTable.isDataTable('#expiring-table')) {
+                        $('#expiring-table').DataTable().ajax.reload(null, false);
+                    }
+                    table.ajax.reload(null, false);
+                    updateNilaiStok();
+                    updateLowStockCount();
+                    updateExpiringCount();
+                } else {
+                    alert(response.message || 'Gagal memindahkan batch.');
+                }
+            },
+            error: function(xhr) {
+                var message = 'Gagal memindahkan batch ke gudang expired.';
+                if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                }
+                alert(message);
+            },
+            complete: function() {
+                button.prop('disabled', false).html('<i class="fas fa-exchange-alt"></i> Pindah');
+            }
+        });
     });
 });
 </script>

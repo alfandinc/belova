@@ -199,6 +199,7 @@ class GudangMappingController extends Controller
             'resep' => $mappings['resep'] ?? null,
             'tindakan' => $mappings['tindakan'] ?? null,
             'retur_pembelian' => $mappings['retur_pembelian'] ?? null,
+            'expired' => $mappings['expired'] ?? null,
         ]);
     }
 
