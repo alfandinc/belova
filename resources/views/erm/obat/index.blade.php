@@ -178,8 +178,8 @@
         <div class="btn-toolbar">
             <div class="btn-group" role="group">
                 <button type="button" class="btn btn-primary btn-tambah-obat">+ Tambah Obat</button>
-                <button type="button" class="btn btn-info ml-2 btn-zat-aktif"><i class="fas fa-pills"></i> Zat Aktif</button>
-                <div class="btn-group ml-2" role="group">
+                <button type="button" class="btn btn-info btn-zat-aktif"><i class="fas fa-pills"></i> Zat Aktif</button>
+                <div class="btn-group" role="group">
                     <button type="button" class="btn btn-light btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <i class="fas fa-ellipsis-v"></i>
                     </button>
